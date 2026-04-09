@@ -1,0 +1,145 @@
+import json
+
+import db as _db
+import profile as _profile
+import usda as _usda
+from rich.rule import Rule
+from . import state
+from .config.prefs import _PREFS_FILE, _ask_animal_foods_pref, _load_prefs
+from .config.theme import _detect_terminal_theme, _load_theme, _save_theme, _theme_source
+from .ui.common import _safe_call
+from .ui.prompts import Cancelled, _prompt
+from .workflows.foods import _menu_foods
+from .workflows.meals import _menu_meals
+from .workflows.settings import _do_dietary_prefs, _menu_settings
+from .workflows.recipes import _menu_recipes
+from .workflows.summary import _menu_summary
+
+_load_theme()
+
+
+def _run_menu() -> None:
+    """Top-level menu loop."""
+    while True:
+        diet_label = "animal foods included" if state._include_animal_foods else "plant-based only"
+        state.console.print()
+        state.console.print(f"[{state.T['accent']}]Nutrimagnus Menu[/{state.T['accent']}]")
+        state.console.rule()
+        state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] Foods")
+        state.console.print("     [dim]search · analyze portion · convert portion <==> weight · view cache · pantry[/dim]")
+        state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] Recipes")
+        state.console.print("     [dim]create · list · view/analyze · edit · delete[/dim]")
+        state.console.print(f"  [{state.T['accent']}]3.[/{state.T['accent']}] Meals & Log")
+        state.console.print("     [dim]log meal · view/edit by date · analyze · delete[/dim]")
+        state.console.print(f"  [{state.T['accent']}]4.[/{state.T['accent']}] Daily Summary")
+        state.console.print("     [dim]today · by date · recent days[/dim]")
+        state.console.print(f"  [{state.T['accent']}]d.[/{state.T['accent']}] Dietary preferences  [dim](currently: {diet_label})[/dim]")
+        state.console.print(f"  [dim]s.[/dim] Settings  [dim](API key, theme, user profile, DB path)[/dim]")
+        state.console.print("  [dim]q.[/dim] Quit")
+        state.console.print()
+        state.console.print("  [dim]Ctrl+C at any prompt — cancel and go back[/dim]")
+        state.console.print()
+        try:
+            choice = _prompt("Choice").strip().lower()
+        except Cancelled:
+            break
+
+        if choice == "1":
+            if not _menu_foods():
+                break
+        elif choice == "2":
+            if not _menu_recipes():
+                break
+        elif choice == "3":
+            if not _menu_meals():
+                break
+        elif choice == "4":
+            if not _menu_summary():
+                break
+        elif choice == "d":
+            _safe_call(_do_dietary_prefs)
+        elif choice == "s":
+            if not _menu_settings():
+                break
+        elif choice == "q":
+            break
+        else:
+            state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+
+
+def initialize_app(*, theme: str | None = None, api_key: str | None = None) -> bool:
+    """Initialize config and handle optional startup actions.
+
+    Returns True when the interactive menu should run, False when the caller should exit.
+    """
+    if api_key is not None:
+        _usda.set_api_key(api_key)
+        state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] API key saved.")
+        return False
+
+    if theme is not None:
+        if theme not in (*state.THEMES, "auto"):
+            state.console.print(
+                f"[{state.T['error']}]Unknown theme '{theme}'. Choose: dark, light, neutral, auto[/{state.T['error']}]"
+            )
+            raise SystemExit(1)
+        _save_theme(theme)
+        actual = _detect_terminal_theme() if theme == "auto" else theme
+        state.set_theme(actual, state.THEMES[actual])
+
+    _db.init_db()
+    _load_prefs()
+    if not _PREFS_FILE.exists() or "include_animal_foods" not in _PREFS_FILE.read_text():
+        _ask_animal_foods_pref()
+    return True
+
+
+def _startup_editor_label() -> str:
+    editor_setting = str(getattr(state, "_editor_command", "") or "").strip()
+    if editor_setting:
+        return f"{editor_setting} -- change via Settings"
+    try:
+        if _PREFS_FILE.exists():
+            data = json.loads(_PREFS_FILE.read_text(encoding="utf-8"))
+            editor_setting = str(data.get("editor_command", "") or "").strip()
+            if editor_setting:
+                setattr(state, "_editor_command", editor_setting)
+                return f"{editor_setting} -- change via Settings"
+    except Exception:
+        pass
+    return "system default -- change via Settings"
+
+
+def print_startup_banner() -> None:
+    source = _theme_source()
+    diet_label = "animal foods included" if state._include_animal_foods else "plant-based only"
+    p = _profile.load_profile()
+
+    def _l(text: str) -> str:
+        return f" {text}"
+
+    state.console.print()
+
+    state.console.print(_l("[bold green]Nutrimagnus[/bold green] -- Nutritional Analysis for individuals and families"))
+
+    if p:
+        profile_label = (
+            f"age {p.age}, {p.sex},"
+            f" {_profile.format_weight(p.weight_kg, p.weight_unit)},"
+            f" {_profile.format_height(p.height_cm, p.height_unit)},"
+            f" {_profile.ACTIVITY_LABELS.get(p.activity_level, p.activity_level)}"
+        )
+    else:
+        profile_label = "not set -- configure under Settings -> User profile"
+
+    state.console.print(_l(f"[dim]User profile: {profile_label}[/dim]"), highlight=False)
+    state.console.print(_l(f"[dim]Color theme: {state._current_theme_name}  ({source}) -- change via Settings[/dim]"))
+    state.console.print(_l(f"[dim]Editor: {_startup_editor_label()}[/dim]"))
+    state.console.print(_l(f"[dim]Dietary preferences: {diet_label} -- change via d or Settings[/dim]"))
+
+
+def run_app(*, theme: str | None = None, api_key: str | None = None) -> None:
+    if not initialize_app(theme=theme, api_key=api_key):
+        return
+    print_startup_banner()
+    _run_menu()

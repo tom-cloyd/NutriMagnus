@@ -1,0 +1,361 @@
+"""
+db.py — SQLite database for numa nutritional analysis program.
+
+Database location: ~/.local/share/numa/numa.db
+"""
+
+import json
+import pathlib
+import sqlite3
+from contextlib import contextmanager
+from typing import Generator
+
+_DB_PATH = pathlib.Path.home() / ".local" / "share" / "numa" / "numa.db"
+
+
+def get_db_path() -> pathlib.Path:
+    return _DB_PATH
+
+
+@contextmanager
+def get_db() -> Generator[sqlite3.Connection, None, None]:
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def init_db() -> None:
+    """Create all tables if they don't already exist."""
+    with get_db() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS foods (
+                fdc_id      INTEGER PRIMARY KEY,
+                name        TEXT    NOT NULL,
+                data_type   TEXT,
+                brand       TEXT,
+                serving_size     REAL,
+                serving_unit     TEXT,
+                nutrients_json   TEXT    NOT NULL,
+                portions_json    TEXT    DEFAULT 'null',
+                cached_at        TEXT    DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS recipes (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT    NOT NULL,
+                description TEXT,
+                servings    INTEGER NOT NULL DEFAULT 1,
+                instructions TEXT,
+                dcp_g           REAL,
+                dcp_computed_at TEXT,
+                created_at      TEXT    DEFAULT (date('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS recipe_ingredients (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipe_id   INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                fdc_id      INTEGER NOT NULL,
+                food_name   TEXT    NOT NULL,
+                amount      REAL    NOT NULL,
+                unit        TEXT    NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS meals (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT    NOT NULL,
+                meal_date   TEXT    NOT NULL,
+                created_at  TEXT    DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS meal_items (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                meal_id     INTEGER NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
+                item_type   TEXT    NOT NULL CHECK(item_type IN ('food', 'recipe')),
+                fdc_id      INTEGER,
+                recipe_id   INTEGER,
+                food_name   TEXT    NOT NULL,
+                amount      REAL    NOT NULL,
+                unit        TEXT    NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS pantry (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                food_name   TEXT    NOT NULL,
+                fdc_id      INTEGER,
+                notes       TEXT,
+                added_at    TEXT    DEFAULT (date('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS diaas_overrides (
+                food_name       TEXT    PRIMARY KEY,
+                digestibility   REAL    NOT NULL CHECK(digestibility >= 0.0 AND digestibility <= 1.0),
+                notes           TEXT,
+                updated_at      TEXT    DEFAULT (datetime('now'))
+            );
+        """)
+        # Migrate: add portions_json column if absent (pre-portions-feature DB)
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN portions_json TEXT DEFAULT 'null'")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        # Migrate: add dcp_g / dcp_computed_at columns if absent
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN dcp_g REAL")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN dcp_computed_at TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        # Migrate: reset rows cached before portions were fetched so they re-fetch once.
+        # '[]' with the old NOT NULL DEFAULT meant "never fetched"; 'null' now means the same.
+        # Using JSON 'null' (not SQL NULL) so this works even on old NOT NULL columns.
+        conn.execute("UPDATE foods SET portions_json = 'null' WHERE portions_json = '[]'")
+
+
+# ---------------------------------------------------------------------------
+# Food cache
+# ---------------------------------------------------------------------------
+
+def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
+               brand: str | None, serving_size: float | None, serving_unit: str | None,
+               nutrients: dict, portions: list | None = None) -> None:
+    conn.execute("""
+        INSERT OR REPLACE INTO foods
+            (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (fdc_id, name, data_type, brand, serving_size, serving_unit,
+          json.dumps(nutrients), json.dumps(portions or [])))
+
+
+def get_cached_food(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM foods WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()
+
+
+def list_cached_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit "
+        "FROM foods ORDER BY name"
+    ).fetchall()
+
+
+def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
+    like = f"%{query}%"
+    return conn.execute(
+        "SELECT fdc_id, name, data_type, brand FROM foods WHERE name LIKE ? ORDER BY name",
+        (like,)
+    ).fetchall()
+
+
+# ---------------------------------------------------------------------------
+# Recipes
+# ---------------------------------------------------------------------------
+
+def recipe_create(conn: sqlite3.Connection, name: str, description: str,
+                  servings: int, instructions: str) -> int:
+    cur = conn.execute("""
+        INSERT INTO recipes (name, description, servings, instructions)
+        VALUES (?, ?, ?, ?)
+    """, (name, description or None, servings, instructions or None))
+    assert cur.lastrowid is not None
+    return cur.lastrowid
+
+
+def recipe_add_ingredient(conn: sqlite3.Connection, recipe_id: int, fdc_id: int,
+                          food_name: str, amount: float, unit: str) -> None:
+    conn.execute("""
+        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit)
+        VALUES (?, ?, ?, ?, ?)
+    """, (recipe_id, fdc_id, food_name, amount, unit))
+
+
+def recipe_set_dcp(
+    conn: sqlite3.Connection,
+    recipe_id: int,
+    dcp_g: float | None,
+    computed_at: str | None = None,
+) -> None:
+    conn.execute(
+        "UPDATE recipes SET dcp_g = ?, dcp_computed_at = ? WHERE id = ?",
+        (dcp_g, computed_at, recipe_id),
+    )
+
+
+def recipe_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at FROM recipes ORDER BY name"
+    ).fetchall()
+
+
+def recipe_get(conn: sqlite3.Connection, recipe_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM recipes WHERE id = ?", (recipe_id,)
+    ).fetchone()
+
+
+def recipe_get_ingredients(conn: sqlite3.Connection, recipe_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id",
+        (recipe_id,)
+    ).fetchall()
+
+
+def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
+                  description: str, servings: int, instructions: str) -> None:
+    conn.execute(
+        "UPDATE recipes SET name=?, description=?, servings=?, instructions=? WHERE id=?",
+        (name, description or None, servings, instructions or None, recipe_id)
+    )
+
+
+def recipe_update_ingredient(conn: sqlite3.Connection, ingredient_id: int,
+                             amount: float, unit: str, food_name: str) -> None:
+    conn.execute(
+        "UPDATE recipe_ingredients SET amount=?, unit=?, food_name=? WHERE id=?",
+        (amount, unit, food_name, ingredient_id)
+    )
+
+
+def recipe_remove_ingredient(conn: sqlite3.Connection, ingredient_id: int) -> bool:
+    cur = conn.execute("DELETE FROM recipe_ingredients WHERE id = ?", (ingredient_id,))
+    return cur.rowcount > 0
+
+
+def recipe_delete(conn: sqlite3.Connection, recipe_id: int) -> bool:
+    cur = conn.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+    return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Meals
+# ---------------------------------------------------------------------------
+
+def meal_create(conn: sqlite3.Connection, name: str, meal_date: str) -> int:
+    cur = conn.execute(
+        "INSERT INTO meals (name, meal_date) VALUES (?, ?)",
+        (name, meal_date)
+    )
+    assert cur.lastrowid is not None
+    return cur.lastrowid
+
+
+def meal_add_food(conn: sqlite3.Connection, meal_id: int, fdc_id: int,
+                  food_name: str, amount: float, unit: str) -> None:
+    conn.execute("""
+        INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit)
+        VALUES (?, 'food', ?, ?, ?, ?)
+    """, (meal_id, fdc_id, food_name, amount, unit))
+
+
+def meal_add_recipe(conn: sqlite3.Connection, meal_id: int, recipe_id: int,
+                    recipe_name: str, servings: float) -> None:
+    conn.execute("""
+        INSERT INTO meal_items
+            (meal_id, item_type, recipe_id, food_name, amount, unit)
+        VALUES (?, 'recipe', ?, ?, ?, 'servings')
+    """, (meal_id, recipe_id, recipe_name, servings))
+
+
+def meal_list_by_date(conn: sqlite3.Connection, meal_date: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM meals WHERE meal_date = ? ORDER BY created_at",
+        (meal_date,)
+    ).fetchall()
+
+
+def meal_list_dates(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.Row]:
+    """Return distinct dates that have meals, most recent first."""
+    return conn.execute(
+        "SELECT DISTINCT meal_date FROM meals ORDER BY meal_date DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+
+
+def meal_get(conn: sqlite3.Connection, meal_id: int) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
+
+
+def meal_get_items(conn: sqlite3.Connection, meal_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM meal_items WHERE meal_id = ? ORDER BY id",
+        (meal_id,)
+    ).fetchall()
+
+
+def meal_update_item(conn: sqlite3.Connection, item_id: int, meal_id: int,
+                     amount: float, unit: str) -> None:
+    conn.execute(
+        "UPDATE meal_items SET amount=?, unit=? WHERE id=? AND meal_id=?",
+        (amount, unit, item_id, meal_id)
+    )
+
+
+def meal_replace_food(conn: sqlite3.Connection, item_id: int, meal_id: int,
+                      fdc_id: int, food_name: str, amount: float, unit: str) -> None:
+    conn.execute(
+        "UPDATE meal_items SET fdc_id=?, food_name=?, amount=?, unit=? WHERE id=? AND meal_id=?",
+        (fdc_id, food_name, amount, unit, item_id, meal_id)
+    )
+
+
+def meal_remove_item(conn: sqlite3.Connection, item_id: int, meal_id: int) -> bool:
+    cur = conn.execute(
+        "DELETE FROM meal_items WHERE id = ? AND meal_id = ?", (item_id, meal_id)
+    )
+    return cur.rowcount > 0
+
+
+def meal_delete(conn: sqlite3.Connection, meal_id: int) -> bool:
+    cur = conn.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
+    return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Pantry
+# ---------------------------------------------------------------------------
+
+def pantry_add(conn: sqlite3.Connection, food_name: str,
+               fdc_id: int | None = None, notes: str | None = None) -> int:
+    cur = conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id, notes) VALUES (?, ?, ?)",
+        (food_name, fdc_id, notes or None)
+    )
+    assert cur.lastrowid is not None
+    return cur.lastrowid
+
+
+def pantry_update(conn: sqlite3.Connection, pantry_id: int,
+                  food_name: str, fdc_id: int | None, notes: str | None) -> bool:
+    cur = conn.execute(
+        "UPDATE pantry SET food_name = ?, fdc_id = ?, notes = ? WHERE id = ?",
+        (food_name, fdc_id, notes or None, pantry_id)
+    )
+    return cur.rowcount > 0
+
+
+def pantry_remove(conn: sqlite3.Connection, pantry_id: int) -> bool:
+    cur = conn.execute("DELETE FROM pantry WHERE id = ?", (pantry_id,))
+    return cur.rowcount > 0
+
+
+def pantry_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT id, food_name, fdc_id, notes, added_at FROM pantry ORDER BY food_name"
+    ).fetchall()
+
+
+def pantry_get(conn: sqlite3.Connection, pantry_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM pantry WHERE id = ?", (pantry_id,)
+    ).fetchone()

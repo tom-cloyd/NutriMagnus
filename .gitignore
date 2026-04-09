@@ -1,0 +1,26 @@
+# from Gemini 2026-04-09 - it insists on referencing my 2 fields!
+
+# --- Python Archeology (The "Internal" Records) ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- The "Field Office" (Environments) ---
+# Your virtual environments—always keep these local
+venv/
+.venv/
+env/
+bin/
+lib/
+
+# --- The "Clinical Records" (Sensitive Data) ---
+# Logs and local databases
+*.log
+*.sqlite3
+# Confidential credentials (API keys, etc.)
+.env
+
+# --- The "Large Artifacts" ---
+# Exclude large data or model weights for local LLMs
+data/
+models/
