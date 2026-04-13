@@ -11,10 +11,14 @@ class Cancelled(Exception):
     """Raised when the user presses Ctrl+C or Escape at any prompt."""
 
 
+class ReturnToMain(Exception):
+    """Raised when the user chooses 'm' to jump directly back to the main menu."""
+
+
 _NO_DEFAULT = object()
 
 
-def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=False) -> str:
+def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=False, free_text=False) -> str:
     if not sys.stdin.isatty():
         from rich.prompt import Prompt
         kw: dict = {} if default is _NO_DEFAULT else {"default": default}
@@ -26,6 +30,28 @@ def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=Fals
             sys.stdout.write("\n")
             sys.stdout.flush()
             raise Cancelled
+
+    # free_text=True: use readline-based input so arrow keys, cursor movement,
+    # and editing work properly.  Also used by the prefill path.
+    if free_text and not choices:
+        _default_str = str(default) if default is not _NO_DEFAULT and default not in (None,) else ""
+        hint = f" ({_default_str})" if _default_str else ""
+        state.console.print(f"{prompt_text}{hint}: ", end="", highlight=False)
+        sys.stdout.flush()
+        if _default_str:
+            def _hook():
+                readline.insert_text(_default_str)
+                readline.redisplay()
+            readline.set_pre_input_hook(_hook)
+        try:
+            result = input("")
+        except (KeyboardInterrupt, EOFError):
+            state.console.print()
+            raise Cancelled
+        finally:
+            readline.set_pre_input_hook(None)
+        result = result.strip()
+        return result if result else _default_str
 
     if prefill and default is not _NO_DEFAULT and default not in ("", None) and not choices:
         state.console.print(f"{prompt_text}: ", end="", highlight=False)
@@ -88,9 +114,10 @@ def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=Fals
                     sys.stdout.write("\b \b")
                     sys.stdout.flush()
                 continue
-            buf.append(ch)
-            sys.stdout.write(ch)
-            sys.stdout.flush()
+            if ch.isprintable():
+                buf.append(ch)
+                sys.stdout.write(ch)
+                sys.stdout.flush()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
@@ -102,9 +129,11 @@ def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=Fals
 
 def _ask_float(prompt_text: str, *, default: float | None = None) -> float | None:
     d = str(default) if default is not None else _NO_DEFAULT
-    raw = _prompt(f"{prompt_text}  (b=back, q=quit)", default=d).strip().lower()
+    raw = _prompt(f"{prompt_text}  (b=back, m=main, q=quit)", default=d).strip().lower()
     if not raw or raw == "b":
         return None
+    if raw == "m":
+        raise ReturnToMain()
     if raw == "q":
         raise SystemExit(0)
     try:
@@ -116,9 +145,11 @@ def _ask_float(prompt_text: str, *, default: float | None = None) -> float | Non
 
 def _ask_int(prompt_text: str, *, default: int | None = None) -> int | None:
     d = str(default) if default is not None else _NO_DEFAULT
-    raw = _prompt(f"{prompt_text}  (b=back, q=quit)", default=d).strip().lower()
+    raw = _prompt(f"{prompt_text}  (b=back, m=main, q=quit)", default=d).strip().lower()
     if not raw or raw == "b":
         return None
+    if raw == "m":
+        raise ReturnToMain()
     if raw == "q":
         raise SystemExit(0)
     try:

@@ -4,21 +4,41 @@ import pathlib
 from .. import state
 from ..ui.prompts import Cancelled, _prompt
 
-_PREFS_FILE = pathlib.Path.home() / ".config" / "numa" / "prefs.json"
+_PREFS_FILE = pathlib.Path.home() / ".local" / "share" / "numa" / "prefs.json"
 
 
 def _load_prefs() -> None:
     if _PREFS_FILE.exists():
         try:
             data = json.loads(_PREFS_FILE.read_text())
+            if not isinstance(data, dict):
+                return
             state.set_include_animal_foods(bool(data.get("include_animal_foods", True)))
+            setattr(state, "_editor_command", str(data.get("editor_command", "") or "").strip())
+            setattr(state, "_display_program_settings", bool(data.get("display_program_settings", False)))
         except (json.JSONDecodeError, OSError):
             pass
 
 
 def _save_prefs() -> None:
+    data: dict = {}
+    if _PREFS_FILE.exists():
+        try:
+            loaded = json.loads(_PREFS_FILE.read_text())
+            if isinstance(loaded, dict):
+                data = loaded
+        except (json.JSONDecodeError, OSError):
+            data = {}
+
+    data["include_animal_foods"] = state._include_animal_foods
+    data["editor_command"] = str(getattr(state, "_editor_command", "") or "").strip()
+    data["display_program_settings"] = bool(getattr(state, "_display_program_settings", False))
+
+    if not data["editor_command"]:
+        data.pop("editor_command", None)
+
     _PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _PREFS_FILE.write_text(json.dumps({"include_animal_foods": state._include_animal_foods}) + "\n")
+    _PREFS_FILE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
 def _ask_animal_foods_pref() -> None:

@@ -6,7 +6,9 @@ from rich.table import Table
 from .. import state
 from ..services.search import _search_and_pick_food
 from ..services.portions import _normalize_unit_display, _pick_portion
-from ..ui.prompts import Cancelled, _prompt
+from ..ui.prompts import Cancelled, ReturnToMain, _prompt
+from ..ui.common import _safe_call, _prompt_with_options
+from ..ui.render import _print_nutrient_table, _print_protein_completeness
 
 def _load_pantry_candidates() -> list[dict]:
     """
@@ -57,7 +59,8 @@ def _do_pantry_menu() -> None:
         state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Add a food")
         state.console.print(f"  [{state.T['accent']}]e.[/{state.T['accent']}] Edit an entry")
         state.console.print(f"  [{state.T['accent']}]r.[/{state.T['accent']}] Remove a food")
-        state.console.print(f"  [dim]b.[/dim] Back")
+        state.console.print(f"  [dim]b.[/dim] Back to Foods menu")
+        state.console.print(f"  [dim]m.[/dim] Return to main menu")
         state.console.print()
         try:
             choice = _prompt("Choice").strip().lower()
@@ -73,10 +76,12 @@ def _do_pantry_menu() -> None:
                 _safe_call(_do_pantry_remove)
         elif choice == "b":
             return
+        elif choice == "m":
+            raise ReturnToMain()
         elif choice == "q":
             raise SystemExit(0)
         elif choice != "":
-            state.console.print(f"[{state.T['warning']}]Please enter a valid option (a / e / r / b / q).[/{state.T['warning']}]")
+            state.console.print(f"[{state.T['warning']}]Please enter a valid option (a / e / r / b / m / q).[/{state.T['warning']}]")
 
 
 def _do_pantry_add() -> None:
@@ -84,12 +89,18 @@ def _do_pantry_add() -> None:
     state.console.print("\n  Add via USDA search for best results (gives full amino acid data),")
     state.console.print("  or add by name only for a quick entry.\n")
     try:
-        method = _prompt("Search USDA or enter name?  [dim](u=USDA / n=name)[/dim]",
-                         choices=["u", "n"], default="u").strip().lower()
+        method = _prompt_with_options(
+            "Pantry entry method",
+            [
+                ("1", "Search USDA"),
+                ("2", "Enter name only"),
+            ],
+            default="1",
+        )
     except Cancelled:
         return
 
-    if method == "u":
+    if method == "1":
         food = _search_and_pick_food()
         if food is None:
             return
@@ -223,11 +234,13 @@ def _do_list_cached_foods() -> None:
     state.console.print(tbl)
 
     try:
-        raw = _prompt("Pick number  (Enter/b=back, q=quit)").strip().lower()
+        raw = _prompt("Pick number  (Enter/b=back, m=main, q=quit)").strip().lower()
     except Cancelled:
         return
     if not raw or raw == "b":
         return
+    if raw == "m":
+        raise ReturnToMain()
     if raw == "q":
         raise SystemExit(0)
     try:
@@ -258,12 +271,18 @@ def _do_list_cached_foods() -> None:
     }
 
     try:
-        action = _prompt("View nutrients [dim](v)[/dim] or analyze portion [dim](a)[/dim]",
-                         choices=["v", "a"], default="v").strip().lower()
+        action = _prompt_with_options(
+            "Cached food action",
+            [
+                ("1", "View nutrients"),
+                ("2", "Analyze portion"),
+            ],
+            default="1",
+        )
     except Cancelled:
         return
 
-    if action == "a":
+    if action == "2":
         result = _pick_portion(food)
         if result is None:
             return

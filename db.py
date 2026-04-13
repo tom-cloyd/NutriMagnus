@@ -37,6 +37,7 @@ def init_db() -> None:
     """Create all tables if they don't already exist."""
     with get_db() as conn:
         conn.executescript("""
+            
             CREATE TABLE IF NOT EXISTS foods (
                 fdc_id      INTEGER PRIMARY KEY,
                 name        TEXT    NOT NULL,
@@ -46,9 +47,11 @@ def init_db() -> None:
                 serving_unit     TEXT,
                 nutrients_json   TEXT    NOT NULL,
                 portions_json    TEXT    DEFAULT 'null',
+                user_drafted     INTEGER DEFAULT 0,
+                notes            TEXT,
                 cached_at        TEXT    DEFAULT (datetime('now'))
             );
-
+            
             CREATE TABLE IF NOT EXISTS recipes (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 name        TEXT    NOT NULL,
@@ -66,7 +69,8 @@ def init_db() -> None:
                 fdc_id      INTEGER NOT NULL,
                 food_name   TEXT    NOT NULL,
                 amount      REAL    NOT NULL,
-                unit        TEXT    NOT NULL
+                unit        TEXT    NOT NULL,
+                notes       TEXT
             );
 
             CREATE TABLE IF NOT EXISTS meals (
@@ -84,7 +88,8 @@ def init_db() -> None:
                 recipe_id   INTEGER,
                 food_name   TEXT    NOT NULL,
                 amount      REAL    NOT NULL,
-                unit        TEXT    NOT NULL
+                unit        TEXT    NOT NULL,
+                notes       TEXT
             );
 
             CREATE TABLE IF NOT EXISTS pantry (
@@ -121,6 +126,25 @@ def init_db() -> None:
         # Using JSON 'null' (not SQL NULL) so this works even on old NOT NULL columns.
         conn.execute("UPDATE foods SET portions_json = 'null' WHERE portions_json = '[]'")
 
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN user_drafted INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN notes TEXT")
+        except sqlite3.OperationalError:
+            pass
+        
+        try:
+            conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN notes TEXT")
+        except sqlite3.OperationalError:
+            pass
+        
+        try:
+            conn.execute("ALTER TABLE meal_items ADD COLUMN notes TEXT")
+        except sqlite3.OperationalError:
+            pass
 
 # ---------------------------------------------------------------------------
 # Food cache
@@ -128,13 +152,18 @@ def init_db() -> None:
 
 def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
                brand: str | None, serving_size: float | None, serving_unit: str | None,
-               nutrients: dict, portions: list | None = None) -> None:
+               nutrients: dict, portions: list | None = None,
+               *, user_drafted: bool = False, notes: str | None = None) -> None:
     conn.execute("""
         INSERT OR REPLACE INTO foods
-            (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (fdc_id, name, data_type, brand, serving_size, serving_unit,
-          json.dumps(nutrients), json.dumps(portions or [])))
+            (fdc_id, name, data_type, brand, serving_size, serving_unit,
+             nutrients_json, portions_json, user_drafted, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        fdc_id, name, data_type, brand, serving_size, serving_unit,
+        json.dumps(nutrients), json.dumps(portions or []),
+        1 if user_drafted else 0, notes or None
+    ))
 
 
 def get_cached_food(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None:
@@ -173,11 +202,12 @@ def recipe_create(conn: sqlite3.Connection, name: str, description: str,
 
 
 def recipe_add_ingredient(conn: sqlite3.Connection, recipe_id: int, fdc_id: int,
-                          food_name: str, amount: float, unit: str) -> None:
+                          food_name: str, amount: float, unit: str,
+                          notes: str | None = None) -> None:
     conn.execute("""
-        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit)
-        VALUES (?, ?, ?, ?, ?)
-    """, (recipe_id, fdc_id, food_name, amount, unit))
+        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit, notes)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (recipe_id, fdc_id, food_name, amount, unit, notes or None))
 
 
 def recipe_set_dcp(
@@ -220,10 +250,11 @@ def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
 
 
 def recipe_update_ingredient(conn: sqlite3.Connection, ingredient_id: int,
-                             amount: float, unit: str, food_name: str) -> None:
+                             amount: float, unit: str, food_name: str,
+                             notes: str | None = None) -> None:
     conn.execute(
-        "UPDATE recipe_ingredients SET amount=?, unit=?, food_name=? WHERE id=?",
-        (amount, unit, food_name, ingredient_id)
+        "UPDATE recipe_ingredients SET amount=?, unit=?, food_name=?, notes=? WHERE id=?",
+        (amount, unit, food_name, notes or None, ingredient_id)
     )
 
 
@@ -251,11 +282,12 @@ def meal_create(conn: sqlite3.Connection, name: str, meal_date: str) -> int:
 
 
 def meal_add_food(conn: sqlite3.Connection, meal_id: int, fdc_id: int,
-                  food_name: str, amount: float, unit: str) -> None:
+                  food_name: str, amount: float, unit: str,
+                  notes: str | None = None) -> None:
     conn.execute("""
-        INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit)
-        VALUES (?, 'food', ?, ?, ?, ?)
-    """, (meal_id, fdc_id, food_name, amount, unit))
+        INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit, notes)
+        VALUES (?, 'food', ?, ?, ?, ?, ?)
+    """, (meal_id, fdc_id, food_name, amount, unit, notes or None))
 
 
 def meal_add_recipe(conn: sqlite3.Connection, meal_id: int, recipe_id: int,
@@ -282,6 +314,23 @@ def meal_list_dates(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.R
     ).fetchall()
 
 
+def meal_list_recent(
+    conn: sqlite3.Connection, limit: int = 9, offset: int = 0
+) -> list[sqlite3.Row]:
+    """Return meals ordered most-recent first, with item count, for the picker UI."""
+    return conn.execute(
+        """
+        SELECT m.*, COUNT(mi.id) AS item_count
+        FROM meals m
+        LEFT JOIN meal_items mi ON mi.meal_id = m.id
+        GROUP BY m.id
+        ORDER BY m.meal_date DESC, m.created_at DESC
+        LIMIT ? OFFSET ?
+        """,
+        (limit, offset),
+    ).fetchall()
+
+
 def meal_get(conn: sqlite3.Connection, meal_id: int) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
 
@@ -302,10 +351,11 @@ def meal_update_item(conn: sqlite3.Connection, item_id: int, meal_id: int,
 
 
 def meal_replace_food(conn: sqlite3.Connection, item_id: int, meal_id: int,
-                      fdc_id: int, food_name: str, amount: float, unit: str) -> None:
+                      fdc_id: int, food_name: str, amount: float, unit: str,
+                      notes: str | None = None) -> None:
     conn.execute(
-        "UPDATE meal_items SET fdc_id=?, food_name=?, amount=?, unit=? WHERE id=? AND meal_id=?",
-        (fdc_id, food_name, amount, unit, item_id, meal_id)
+        "UPDATE meal_items SET fdc_id=?, food_name=?, amount=?, unit=?, notes=? WHERE id=? AND meal_id=?",
+        (fdc_id, food_name, amount, unit, notes or None, item_id, meal_id)
     )
 
 
@@ -319,6 +369,16 @@ def meal_remove_item(conn: sqlite3.Connection, item_id: int, meal_id: int) -> bo
 def meal_delete(conn: sqlite3.Connection, meal_id: int) -> bool:
     cur = conn.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
     return cur.rowcount > 0
+
+
+def meal_copy_items(conn: sqlite3.Connection, from_meal_id: int, to_meal_id: int) -> int:
+    """Copy all items from one meal to another. Returns count of items copied."""
+    cur = conn.execute("""
+        INSERT INTO meal_items (meal_id, item_type, fdc_id, recipe_id, food_name, amount, unit, notes)
+        SELECT ?, item_type, fdc_id, recipe_id, food_name, amount, unit, notes
+        FROM meal_items WHERE meal_id = ?
+    """, (to_meal_id, from_meal_id))
+    return cur.rowcount
 
 
 # ---------------------------------------------------------------------------
@@ -359,3 +419,46 @@ def pantry_get(conn: sqlite3.Connection, pantry_id: int) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM pantry WHERE id = ?", (pantry_id,)
     ).fetchone()
+
+
+# ---------------------------------------------------------------------------
+# User-drafted foods
+# ---------------------------------------------------------------------------
+
+def next_user_drafted_fdc_id(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT MIN(fdc_id) AS min_id FROM foods WHERE fdc_id < 0").fetchone()
+    min_id = row["min_id"] if row and row["min_id"] is not None else 0
+    return int(min_id) - 1 if min_id <= 0 else -1
+
+
+def list_user_drafted_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, notes, cached_at "
+        "FROM foods WHERE user_drafted = 1 ORDER BY name"
+    ).fetchall()
+
+
+def update_cached_food_profile(
+    conn: sqlite3.Connection,
+    fdc_id: int,
+    name: str,
+    nutrients: dict,
+    *,
+    data_type: str | None = None,
+    brand: str | None = None,
+    serving_size: float | None = None,
+    serving_unit: str | None = None,
+    portions: list | None = None,
+    notes: str | None = None,
+    user_drafted: bool = True,
+) -> None:
+    conn.execute(
+        "UPDATE foods SET name=?, data_type=?, brand=?, serving_size=?, serving_unit=?, "
+        "nutrients_json=?, portions_json=?, user_drafted=?, notes=?, cached_at=(datetime('now')) "
+        "WHERE fdc_id=?",
+        (
+            name, data_type, brand, serving_size, serving_unit,
+            json.dumps(nutrients), json.dumps(portions or []),
+            1 if user_drafted else 0, notes or None, fdc_id,
+        ),
+    )    

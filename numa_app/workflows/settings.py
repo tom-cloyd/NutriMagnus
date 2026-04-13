@@ -1,4 +1,3 @@
-import json
 import pathlib
 
 from rich.table import Table
@@ -9,11 +8,12 @@ import profile as _profile
 import usda as _usda
 from .. import state
 from ..config import prefs as prefs_config
-from ..config.prefs import _PREFS_FILE, _save_prefs
+from ..config.prefs import _save_prefs
+from ..config.prefs import _save_prefs
 from ..config import theme as theme_config
 from ..config.theme import _change_theme
 from ..ui.common import _safe_call, _show_menu
-from ..ui.prompts import Cancelled, _prompt
+from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 def _do_diaas_overrides() -> None:
     """Manage per-food protein digestibility overrides for DIAAS calculation."""
@@ -48,9 +48,10 @@ def _do_diaas_overrides() -> None:
             f"\n  [{state.T['accent']}]a.[/{state.T['accent']}] Add / update override"
             f"  [{state.T['accent']}]d.[/{state.T['accent']}] Delete override"
             f"  [dim]b.[/dim] Back"
+            f"  [dim]m.[/dim] Return to main menu"
         )
         try:
-            act = _prompt("Choice").strip().lower()
+            act = _prompt("Action").strip().lower()
         except Cancelled:
             return
 
@@ -76,7 +77,7 @@ def _do_diaas_overrides() -> None:
                 state.console.print(f"[{state.T['warning']}]Enter a number between 0.00 and 1.00.[/{state.T['warning']}]")
                 continue
             try:
-                notes = _prompt("Notes / source  [Enter=skip]", default="").strip()
+                notes = _prompt("Notes / source  (Enter to skip)", default="").strip()
             except Cancelled:
                 notes = ""
             with _db.get_db() as conn:
@@ -99,8 +100,10 @@ def _do_diaas_overrides() -> None:
 
         elif act in ("b", ""):
             return
+        elif act == "m":
+            raise ReturnToMain()
         else:
-            state.console.print(f"[{state.T['warning']}]Enter a, d, or b.[/{state.T['warning']}]")
+            state.console.print(f"[{state.T['warning']}]Enter a, d, b, or m.[/{state.T['warning']}]")
 
 
 def _do_user_profile() -> None:
@@ -149,7 +152,7 @@ def _do_user_profile() -> None:
                     "male": "male", "female": "female", "other": "other"}
         while True:
             default_sex = current.sex[0] if current else ""
-            raw = _prompt("Sex  [m=male · f=female · o=other]", default=default_sex).strip().lower()
+            raw = _prompt("Sex  [dim](m / f / o)[/dim]", default=default_sex).strip().lower()
             if not raw and current:
                 sex = current.sex
                 break
@@ -325,72 +328,6 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
     )
 
 
-
-def _get_editor_command() -> str:
-    editor_value = str(getattr(state, "_editor_command", "") or "").strip()
-    if editor_value:
-        return editor_value
-    try:
-        if _PREFS_FILE.exists():
-            data = json.loads(_PREFS_FILE.read_text(encoding="utf-8"))
-            editor_value = str(data.get("editor_command", "") or "").strip()
-            if editor_value:
-                setattr(state, "_editor_command", editor_value)
-                return editor_value
-    except Exception:
-        pass
-    return ""
-
-
-def _save_editor_command(value: str) -> None:
-    value = str(value or "").strip()
-    setattr(state, "_editor_command", value)
-    data: dict = {}
-    try:
-        if _PREFS_FILE.exists():
-            data = json.loads(_PREFS_FILE.read_text(encoding="utf-8"))
-            if not isinstance(data, dict):
-                data = {}
-    except Exception:
-        data = {}
-    if value:
-        data["editor_command"] = value
-    else:
-        data.pop("editor_command", None)
-    _PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _PREFS_FILE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def _do_editor_command() -> None:
-    current = _get_editor_command()
-    current_label = current if current else "system default"
-    state.console.print(
-        f"\n  Current editor: [{state.T['hi']}]{current_label}[/{state.T['hi']}]"
-    )
-    state.console.print(
-        "  [dim]Examples: nano, vim, micro, code --wait[/dim]\n"
-        "  [dim]Press Enter on a blank value to use the system default editor.[/dim]"
-    )
-    try:
-        raw = _prompt("Editor command", default=current).strip()
-    except Cancelled:
-        return
-
-    if raw == current:
-        state.console.print("[dim]Unchanged.[/dim]")
-        return
-
-    _save_editor_command(raw)
-    if raw:
-        state.console.print(
-            f"[{state.T['success']}]✓[/{state.T['success']}] Editor saved: {raw}"
-        )
-    else:
-        state.console.print(
-            f"[{state.T['success']}]✓[/{state.T['success']}] Editor cleared. System default will be used."
-        )
-
-
 def _do_dietary_prefs() -> None:
     """Toggle the include_animal_foods preference."""
     current = "animal foods included" if state._include_animal_foods else "plant-based only"
@@ -401,7 +338,7 @@ def _do_dietary_prefs() -> None:
         f"[dim]Enter — keep current[/dim]"
     )
     try:
-        ans = _prompt("Choice  [y=include animal foods · n=plant-based only · Enter=keep]", default="").strip().lower()
+        ans = _prompt("Change to?  [dim](y / n / Enter)[/dim]", default="").strip().lower()
     except Cancelled:
         return
     if ans == "y":
@@ -415,10 +352,80 @@ def _do_dietary_prefs() -> None:
     state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved: {label}.")
 
 
+
+
+def _get_editor_command() -> str:
+    return str(getattr(state, "_editor_command", "") or "").strip() or "system default"
+
+
+def _do_editor_command() -> None:
+    current = str(getattr(state, "_editor_command", "") or "").strip()
+    state.console.print(
+        f"\n  [dim]The editor command is used when editing long text fields.\n"
+        f"  If unset, the system default ($VISUAL / $EDITOR) is used.\n"
+        f"  Use '-' to clear back to system default.[/dim]\n"
+    )
+    try:
+        new_val = _prompt(
+            "Editor command  [dim](e.g. nano, vim, code --wait — Enter to keep, '-' to clear)[/dim]",
+            default=current
+        ).strip()
+    except Cancelled:
+        return
+    if new_val == "-":
+        new_val = ""
+    setattr(state, "_editor_command", new_val)
+    _save_prefs()
+    label = new_val if new_val else "system default"
+    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Editor command saved: {label}.")
+
+
+def _do_launch_display_setting() -> None:
+    current = "y" if bool(getattr(state, "_display_program_settings", False)) else "n"
+    try:
+        raw = _prompt("Display program settings at program launch?  [dim](y|n)[/dim]", default=current).strip().lower()
+    except Cancelled:
+        return
+    if raw not in ("", "y", "n"):
+        state.console.print(f"[{state.T['warning']}]Please enter y or n.[/{state.T['warning']}]")
+        return
+    setattr(state, "_display_program_settings", raw == "y")
+    _save_prefs()
+    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Launch display setting saved.")
+
+def _menu_advanced_settings() -> None:
+    while True:
+        key_status = "set" if _usda.get_api_key() else "[bold yellow]not set[/bold yellow]"
+        _show_menu("Advanced settings", [
+            ("1", "Protein digestibility overrides  (for DIAAS calculation)"),
+            ("2", f"USDA API key  ({key_status})"),
+            ("3", f"Storage location: {_db.get_db_path()}"),
+            ("b", "Back to previous menu"),
+            ("m", "Return to main menu"),
+            ("q", "Quit"),
+        ])
+        try:
+            choice = _prompt("Choice").strip().lower()
+        except Cancelled:
+            return
+        if choice == "1":
+            _safe_call(_do_diaas_overrides)
+        elif choice == "2":
+            _safe_call(_do_set_api_key)
+        elif choice == "3":
+            state.console.print(f"  Storage location: {_db.get_db_path()}", highlight=False)
+        elif choice == "b":
+            return
+        elif choice == "m":
+            raise ReturnToMain()
+        elif choice == "q":
+            raise SystemExit(0)
+        else:
+            state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+
 def _menu_settings() -> bool:
     """Settings submenu. Returns True to go back, False to quit."""
     while True:
-        key_status = "set" if _usda.get_api_key() else "[bold yellow]not set[/bold yellow]"
         diet_status = "animal foods included" if state._include_animal_foods else "plant-based only"
         p = _profile.load_profile()
         if p:
@@ -429,16 +436,17 @@ def _menu_settings() -> bool:
             )
         else:
             profile_status = "[bold yellow]not set[/bold yellow]"
-        editor_status = _get_editor_command() or "system default"
+        editor_status = _get_editor_command()
+        launch_status = "yes" if bool(getattr(state, "_display_program_settings", False)) else "no"
+
         _show_menu("Settings", [
-            ("1", f"USDA API key  ({key_status})"),
-            ("2", f"Color theme  (current setting: {state._current_theme_name})"),
-            ("3", f"Database path: {_db.get_db_path()}"),
-            ("4", "Protein digestibility overrides  (for DIAAS calculation)"),
-            ("5", f"Dietary preferences  (current setting: {diet_status})"),
-            ("6", f"User profile  (current setting: {profile_status})"),
-            ("7", f"Editor command  (current setting: {editor_status})"),
-            ("b", "Back to main menu"),
+            ("1", f"Color theme  (current setting: {state._current_theme_name})"),
+            ("2", f"User profile  (current setting: {profile_status})"),
+            ("3", f"Dietary preferences  (current setting: {diet_status})"),
+            ("4", f"Editor command  (current setting: {editor_status})"),
+            ("5", f"Display program settings at launch  (current setting: {launch_status})"),
+            ("6", "Advanced settings  [dim](API key, storage, protein overrides)[/dim]"),
+            ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
         try:
@@ -448,33 +456,30 @@ def _menu_settings() -> bool:
             return True
 
         if choice == "1":
-            _safe_call(_do_set_api_key)
-        elif choice == "2":
             _safe_call(_change_theme)
-        elif choice == "3":
-            state.console.print(f"  Database: {_db.get_db_path()}", highlight=False)
-        elif choice == "4":
-            _safe_call(_do_diaas_overrides)
-        elif choice == "5":
-            _safe_call(_do_dietary_prefs)
-        elif choice == "6":
+        elif choice == "2":
             _safe_call(_do_user_profile)
-        elif choice == "7":
+        elif choice == "3":
+            _safe_call(_do_dietary_prefs)
+        elif choice == "4":
             _safe_call(_do_editor_command)
-        elif choice == "b":
+        elif choice == "5":
+            _safe_call(_do_launch_display_setting)
+        elif choice == "6":
+            _safe_call(_menu_advanced_settings)
+        elif choice == "m":
             return True
         elif choice == "q":
             return False
         else:
             state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
 
-
 def _do_set_api_key() -> None:
     current = _usda.get_api_key()
     if current:
         state.console.print(f"  Current key: [dim]{current[:8]}...{current[-4:]}[/dim]")
     try:
-        key = _prompt("New API key  [Enter=keep current]", default="").strip()
+        key = _prompt("New API key (Enter to keep current)", default="").strip()
     except Cancelled:
         return
     if key:

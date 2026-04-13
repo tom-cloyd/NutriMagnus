@@ -5,6 +5,7 @@ from rich.markdown import Markdown
 import export as _export
 from .. import state
 from ..ui.prompts import Cancelled, _prompt
+from ..ui.common import _prompt_with_options
 
 _AUTO_SAVE_DIR = pathlib.Path("~/.numa/reports").expanduser()
 _USER_EXPORT_DIR = pathlib.Path("~/.numa/user-requested-nutrition-reports").expanduser()
@@ -25,10 +26,15 @@ def _offer_export(report_title: str, sections: list[dict]) -> None:
         for i, p in enumerate(existing, 1):
             state.console.print(f"  [dim]  {i}. {p.name}[/dim]")
         try:
-            ans = _prompt(
-                "Choice  [dim](1-N=view selected report · new=save new · Enter=skip)[/dim]",
+            ans = _prompt_with_options(
+                "Report option",
+                [
+                    ("1-N", "View selected report"),
+                    ("new", "Save a new report"),
+                    ("Enter", "Skip and return"),
+                ],
                 default="",
-            ).strip().lower()
+            )
         except Cancelled:
             return
         if ans.isdigit():
@@ -47,10 +53,16 @@ def _offer_export(report_title: str, sections: list[dict]) -> None:
     state.console.print(f"  [dim]Report auto-saved → {auto_path.resolve()}[/dim]")
 
     try:
-        ans = _prompt(
-            "Choice  [dim](txt=export text · md=export markdown · html=export html · Enter=skip)[/dim]",
+        ans = _prompt_with_options(
+            "Export option",
+            [
+                ("txt", "Export as plain text"),
+                ("md", "Export as markdown"),
+                ("html", "Export as HTML"),
+                ("Enter", "Skip"),
+            ],
             default="",
-        ).strip().lower()
+        )
     except Cancelled:
         return
     if ans not in ("txt", "md", "html"):

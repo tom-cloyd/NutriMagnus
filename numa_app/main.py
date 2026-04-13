@@ -1,5 +1,3 @@
-import json
-
 import db as _db
 import profile as _profile
 import usda as _usda
@@ -8,7 +6,7 @@ from . import state
 from .config.prefs import _PREFS_FILE, _ask_animal_foods_pref, _load_prefs
 from .config.theme import _detect_terminal_theme, _load_theme, _save_theme, _theme_source
 from .ui.common import _safe_call
-from .ui.prompts import Cancelled, _prompt
+from .ui.prompts import Cancelled, ReturnToMain, _prompt
 from .workflows.foods import _menu_foods
 from .workflows.meals import _menu_meals
 from .workflows.settings import _do_dietary_prefs, _menu_settings
@@ -26,7 +24,7 @@ def _run_menu() -> None:
         state.console.print(f"[{state.T['accent']}]Nutrimagnus Menu[/{state.T['accent']}]")
         state.console.rule()
         state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] Foods")
-        state.console.print("     [dim]search · analyze portion · convert portion <==> weight · view cache · pantry[/dim]")
+        state.console.print("     [dim]search · analyze portion · convert portion <==> weight · view cache · pantry · drafted food profiles[/dim]")
         state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] Recipes")
         state.console.print("     [dim]create · list · view/analyze · edit · delete[/dim]")
         state.console.print(f"  [{state.T['accent']}]3.[/{state.T['accent']}] Meals & Log")
@@ -44,27 +42,30 @@ def _run_menu() -> None:
         except Cancelled:
             break
 
-        if choice == "1":
-            if not _menu_foods():
+        try:
+            if choice == "1":
+                if not _menu_foods():
+                    break
+            elif choice == "2":
+                if not _menu_recipes():
+                    break
+            elif choice == "3":
+                if not _menu_meals():
+                    break
+            elif choice == "4":
+                if not _menu_summary():
+                    break
+            elif choice == "d":
+                _safe_call(_do_dietary_prefs)
+            elif choice == "s":
+                if not _menu_settings():
+                    break
+            elif choice == "q":
                 break
-        elif choice == "2":
-            if not _menu_recipes():
-                break
-        elif choice == "3":
-            if not _menu_meals():
-                break
-        elif choice == "4":
-            if not _menu_summary():
-                break
-        elif choice == "d":
-            _safe_call(_do_dietary_prefs)
-        elif choice == "s":
-            if not _menu_settings():
-                break
-        elif choice == "q":
-            break
-        else:
-            state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+            else:
+                state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+        except ReturnToMain:
+            continue
 
 
 def initialize_app(*, theme: str | None = None, api_key: str | None = None) -> bool:
@@ -94,34 +95,15 @@ def initialize_app(*, theme: str | None = None, api_key: str | None = None) -> b
     return True
 
 
-def _startup_editor_label() -> str:
-    editor_setting = str(getattr(state, "_editor_command", "") or "").strip()
-    if editor_setting:
-        return f"{editor_setting} -- change via Settings"
-    try:
-        if _PREFS_FILE.exists():
-            data = json.loads(_PREFS_FILE.read_text(encoding="utf-8"))
-            editor_setting = str(data.get("editor_command", "") or "").strip()
-            if editor_setting:
-                setattr(state, "_editor_command", editor_setting)
-                return f"{editor_setting} -- change via Settings"
-    except Exception:
-        pass
-    return "system default -- change via Settings"
-
-
 def print_startup_banner() -> None:
     source = _theme_source()
     diet_label = "animal foods included" if state._include_animal_foods else "plant-based only"
     p = _profile.load_profile()
 
-    def _l(text: str) -> str:
-        return f" {text}"
-
     state.console.print()
-
-    state.console.print(_l("[bold green]Nutrimagnus[/bold green] -- Nutritional Analysis for individuals and families"))
-
+    state.console.print(Rule(style="green"))
+    state.console.print(Rule(style="green"))
+    state.console.print("[bold green]Nutrimagnus[/bold green] -- Nutritional Analysis for individuals and families")
     if p:
         profile_label = (
             f"age {p.age}, {p.sex},"
@@ -132,14 +114,15 @@ def print_startup_banner() -> None:
     else:
         profile_label = "not set -- configure under Settings -> User profile"
 
-    state.console.print(_l(f"[dim]User profile: {profile_label}[/dim]"), highlight=False)
-    state.console.print(_l(f"[dim]Color theme: {state._current_theme_name}  ({source}) -- change via Settings[/dim]"))
-    state.console.print(_l(f"[dim]Editor: {_startup_editor_label()}[/dim]"))
-    state.console.print(_l(f"[dim]Dietary preferences: {diet_label} -- change via d or Settings[/dim]"))
+    state.console.print()
+    state.console.print(f"[dim]Color theme: {state._current_theme_name}  ({source}) -- change via Settings[/dim]")
+    state.console.print(f"[dim]Dietary preferences: {diet_label} -- change via d or Settings[/dim]")
+    state.console.print(f"[dim]User profile: {profile_label}[/dim]", highlight=False)
 
 
 def run_app(*, theme: str | None = None, api_key: str | None = None) -> None:
     if not initialize_app(theme=theme, api_key=api_key):
         return
-    print_startup_banner()
+    if getattr(state, "_display_program_settings", False):
+        print_startup_banner()
     _run_menu()

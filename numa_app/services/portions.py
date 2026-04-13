@@ -3,7 +3,7 @@ import re
 
 import usda as _usda
 from .. import state
-from ..ui.prompts import Cancelled, _prompt
+from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 _UNIT_TO_GRAMS: dict[str, float] = {
     "g": 1.0, "gr": 1.0, "gram": 1.0, "grams": 1.0,
@@ -263,10 +263,11 @@ def _parse_portion_input(
     return None
 
 
-def _pick_portion(food: dict) -> tuple[float, str, dict[str, float]] | None:
+def _pick_portion(food: dict, *, current: str | None = None) -> tuple[float, str, dict[str, float]] | None:
     """
     Ask the user for a portion size and return (grams, display_label, scaled_nutrients).
     USDA data is per 100g; we scale accordingly.
+    current: optional display string for the existing portion (shown as a hint when editing).
     Returns None if cancelled.
     """
     portions = food.get("portions") or []
@@ -276,13 +277,19 @@ def _pick_portion(food: dict) -> tuple[float, str, dict[str, float]] | None:
     state.console.print(f"\n  Food: [{state.T['hi']}]{food['name']}{brand_str}[/{state.T['hi']}]")
 
     state.console.print("  [dim]Enter an amount: 150 (g/gr), 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp) — or skip[/dim]")
+    if current:
+        state.console.print(
+            f"  Current: [{state.T['default_hint']}]{current}[/{state.T['default_hint']}]"
+        )
 
     food_name = food.get("name", "")
     while True:
         try:
-            raw = _prompt("Portion amount  (Enter=skip, b=back, q=quit)").strip()
+            raw = _prompt("Portion amount  (Enter=skip, b=back, m=main, q=quit)", free_text=True).strip()
         except Cancelled:
             return None
+        if raw.lower() == "m":
+            raise ReturnToMain()
         if raw.lower() == "b":
             return None
         if raw.lower() == "q":
@@ -303,7 +310,7 @@ def _pick_portion(food: dict) -> tuple[float, str, dict[str, float]] | None:
             state.console.print(f"  [dim]Weight per volume is unknown for this food. "
                           f"Enter grams to calculate nutrition, or press Enter to skip.[/dim]")
             try:
-                w_raw = _prompt(f"Weight of {vol_display} in grams  (Enter=skip)").strip()
+                w_raw = _prompt(f"Weight of {vol_display} in grams  (Enter=skip)", free_text=True).strip()
             except Cancelled:
                 w_raw = ""
             if w_raw.lower() == "q":

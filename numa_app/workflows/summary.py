@@ -16,7 +16,7 @@ def _menu_summary() -> bool:
             ("1", "Today's summary"),
             ("2", "Summary for a specific date"),
             ("3", "Recent days  (list dates with meals)"),
-            ("b", "Back to main menu"),
+            ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
         try:
@@ -36,7 +36,7 @@ def _menu_summary() -> bool:
                 _safe_call(_do_daily_summary, d)
         elif choice == "3":
             _safe_call(_do_list_recent_days)
-        elif choice == "b":
+        elif choice == "m":
             return True
         elif choice == "q":
             return False

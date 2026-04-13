@@ -9,6 +9,37 @@ import profile as _profile
 from .. import state
 from ..ui.prompts import Cancelled, _prompt
 
+
+def _load_pantry_candidates() -> list[dict]:
+    """Return pantry foods usable for complement suggestions.
+
+    Always safe: returns [] if pantry data is unavailable.
+    """
+    try:
+        with _db.get_db() as conn:
+            rows = _db.pantry_list(conn)
+    except Exception:
+        return []
+
+    candidates: list[dict] = []
+    for row in rows:
+        nutrients = None
+        try:
+            if row.get("fdc_id") is not None:
+                with _db.get_db() as conn:
+                    cached = _db.get_cached_food(conn, row["fdc_id"])
+                if cached and cached.get("nutrients_json"):
+                    nutrients = json.loads(cached["nutrients_json"])
+        except Exception:
+            nutrients = None
+        candidates.append({
+            "name": row.get("food_name", ""),
+            "fdc_id": row.get("fdc_id"),
+            "nutrients": nutrients,
+            "diaas": _usda.get_diaas(row.get("food_name", "")),
+        })
+    return candidates
+
 def _print_nutrient_table(nutrients: dict[str, float], title: str = "Nutrients",
                            per_label: str = "") -> None:
     """Render a rich table of nutrients grouped by category."""
@@ -317,7 +348,7 @@ def _print_recipe_bioavailability(
     if total_protein <= 0:
         return
 
-    state.console.print(f"\n  [{state.T['hi']}]Bioavailability[/{state.T['hi']}]"
+    state.console.print(f"\n  [{state.T['hi']}]Bioavailability — per serving[/{state.T['hi']}]"
                   f"  [dim](DIAAS: [{state.T['success']}]≥0.90 good[/{state.T['success']}]"
                   f" · [{state.T['warning']}]≥0.70 moderate[/{state.T['warning']}]"
                   f" · [{state.T['error']}]<0.70 poor[/{state.T['error']}])[/dim]",
@@ -366,25 +397,6 @@ def _print_recipe_bioavailability(
             f"  [dim]  ({unknown_count} ingredient(s) had no DIAAS data — assumed fully digestible)[/dim]",
             highlight=False,
         )
-
-    # Digestible complete protein (applies AA limiting-score factor)
-    pc = _usda.protein_completeness(analysis_nutrients)
-    if pc.get("has_data") and pc.get("scores"):
-        limiting_score = min(pc["scores"].values())
-        dig_complete = total_digestible * min(1.0, limiting_score)
-        if pc.get("complete"):
-            state.console.print(
-                f"  Digestible complete protein: [{state.T['success']}]{dig_complete:.1f}g[/{state.T['success']}]"
-                f"  [dim](amino acid profile is complete)[/dim]",
-                highlight=False,
-            )
-        else:
-            limiting_label = _usda.nutrient_label(pc["limiting_aa"])[0] if pc.get("limiting_aa") else "?"
-            state.console.print(
-                f"  Digestible complete protein: [{state.T['warning']}]{dig_complete:.1f}g[/{state.T['warning']}]"
-                f"  [dim](limited by {limiting_label} — AA score {limiting_score:.2f})[/dim]",
-                highlight=False,
-            )
 
 
 def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
@@ -483,12 +495,14 @@ def _print_complement_suggestions(
     context: str = "meal",  # "recipe", "meal", "daily", "food"
     offer_if_covered: bool = False,  # kept for call-site compat, no longer used
     base_food_name: str | None = None,
+    basis_label: str | None = None,  # e.g. "per serving" or "whole recipe (7 servings)"
 ) -> None:
     """
     Display protein complement suggestions.
     context: controls framing text ("add to recipe" vs "add to meal" etc.)
     base_food_name: when provided, used to look up DIAAS for the base food so
                     the total digestible protein line is accurate.
+    basis_label: appended to the section header to clarify what the gram amounts refer to.
     """
     gaps = _usda.get_aa_gaps(base_nutrients)
     if not gaps:
@@ -515,7 +529,14 @@ def _print_complement_suggestions(
         pantry = []
 
     if not pantry:
-        state.console.print("[dim](No pantry items available for suggestions.)[/dim]")
+        state.console.print(
+            "[dim](No pantry items saved yet — add protein sources via Foods → My Pantry.)[/dim]"
+        )
+    elif not pantry_suggs:
+        state.console.print(
+            "[dim](Pantry items found but none qualify: their amino acid/protein ratio "
+            "for the limiting amino acid falls below the FAO reference.)[/dim]"
+        )
 
     def _ranking_key(s: dict) -> tuple[float, float, str]:
         grams = float(s.get("grams", 10**9) or 10**9)
@@ -529,7 +550,9 @@ def _print_complement_suggestions(
     # Determine whether pantry adequately covers all gaps
     pantry_covers = bool(pantry_suggs and pantry_suggs[0].get("new_complete", False))
 
-    state.console.print(f"\n  [{state.T['hi']}]Protein complement suggestions[/{state.T['hi']}]")
+    basis_tag = f"  [dim]— {basis_label}[/dim]" if basis_label else ""
+    state.console.print(f"\n  [{state.T['hi']}]Protein complement suggestions[/{state.T['hi']}]{basis_tag}",
+                        highlight=False)
     state.console.print("  [dim]Ranked by the smallest practical amount needed to close the main amino acid gap.[/dim]")
     gap_labels = ", ".join(
         _usda.nutrient_label(aa)[0] + f" ({score:.2f})"

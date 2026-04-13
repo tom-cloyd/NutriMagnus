@@ -165,7 +165,7 @@ def get_api_key() -> str | None:
 
 def set_api_key(key: str) -> None:
     cfg = _load_config()
-    cfg["api_key"] = key.strip()
+    cfg["api_key"] = "".join(c for c in key if c.isprintable()).strip()
     _save_config(cfg)
 
 

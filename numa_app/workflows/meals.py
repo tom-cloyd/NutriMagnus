@@ -11,7 +11,7 @@ from ..services.portions import _normalize_unit_display, _pick_portion
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
 from ..ui.common import _safe_call, _show_menu
-from ..ui.prompts import Cancelled, _ask_date, _ask_int, _prompt
+from ..ui.prompts import Cancelled, ReturnToMain, _ask_date, _ask_int, _prompt
 from ..ui.render import _print_complement_suggestions, _print_meal_diaas, _print_nutrient_table, _print_protein_adequacy
 from .recipes import _do_recipe_list, _format_recipe_portion_label, _parse_serving_amount
 
@@ -104,7 +104,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
 
         with _db.get_db() as conn:
             _db.meal_remove_item(conn, item["id"], meal_id)
-            _db.meal_add_food(conn, meal_id, food["fdcId"], food["name"], grams, label)
+            _db.meal_add_food(conn, meal_id, food["fdcId"], food["name"], grams, label, item["notes"] or None)
 
         aa_tag = (f"[{state.T['success']}]✓ has AA data[/{state.T['success']}]" if has_aa
                   else f"[{state.T['warning']}]⚠ no AA data[/{state.T['warning']}]")
@@ -122,11 +122,11 @@ def _menu_meals() -> bool:
     """Meals submenu. Returns True to go back, False to quit."""
     while True:
         _show_menu("Meals & Log", [
-            ("1", "Log a new meal"),
-            ("2", "View/edit meals for a date"),
-            ("3", "Analyze a logged meal"),
+            ("1", "Log a meal  (add to today's or create new)"),
+            ("2", "View / edit a meal"),
+            ("3", "Analyze a meal"),
             ("4", "Delete a meal"),
-            ("b", "Back to main menu"),
+            ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
         try:
@@ -143,7 +143,7 @@ def _menu_meals() -> bool:
             _safe_call(_do_meal_analyze)
         elif choice == "4":
             _safe_call(_do_meal_delete)
-        elif choice == "b":
+        elif choice == "m":
             return True
         elif choice == "q":
             return False
@@ -152,69 +152,116 @@ def _menu_meals() -> bool:
 
 
 def _meal_add_items(meal_id: int) -> None:
-    """Interactive loop to add food/recipe items to an existing meal."""
+    """Interactive loop to add food or recipe items to an existing meal.
+    A single search finds both saved recipes (shown first as R#) and USDA/OFF foods."""
+    state.console.print(f"\n  [dim]Search for a food or recipe name to add (Enter/b=back, m=main, q=quit)[/dim]")
     while True:
         state.console.print()
-        state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] Add a food item")
-        state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] Add a recipe (by serving)")
-        state.console.print(f"  [dim]b.[/dim] Done / back")
-        state.console.print(f"  [dim]q.[/dim] Quit")
-        state.console.print()
         try:
-            choice = _prompt("Choice").strip().lower()
+            query = _prompt("Search", free_text=True).strip()
         except Cancelled:
             break
+        ql = query.lower()
+        if not query or ql == "b":
+            break
+        if ql == "m":
+            raise ReturnToMain()
+        if ql == "q":
+            raise SystemExit(0)
 
-        if choice == "1":
-            food = _search_and_pick_food()
-            if food is None:
-                continue
-            result = _pick_portion(food)
-            if result is None:
-                continue
-            grams, label, _ = result
-            with _db.get_db() as conn:
-                _db.meal_add_food(conn, meal_id, food["fdcId"], food["name"], grams, label)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
+        # Find matching recipes instantly from local DB
+        with _db.get_db() as conn:
+            all_recipes = _db.recipe_list(conn)
+        matching_recipes = [r for r in all_recipes if ql in r["name"].lower()]
 
-        elif choice == "2":
-            _do_recipe_list()
-            rid = _ask_int("Recipe ID")
-            if rid is None:
-                continue
-            with _db.get_db() as conn:
-                recipe = _db.recipe_get(conn, rid)
-            if recipe is None:
-                state.console.print(f"[{state.T['warning']}]Recipe not found.[/{state.T['warning']}]")
-                continue
+        result = _search_and_pick_food(
+            initial_query=query,
+            prepend_recipes=matching_recipes or None,
+            allow_research=False,
+        )
+        if result is None:
+            continue
+
+        if result.get("_type") == "recipe":
+            rid      = result["id"]
+            rname    = result["name"]
             try:
-                raw_srv = _prompt("Recipe portion in servings  [dim](examples: 1, 1/2, 1.5 · b=back, q=quit)[/dim]",
-                                  default="1").strip()
+                raw_srv = _prompt(
+                    "Recipe portion in servings  [dim](examples: 1, 1/2, 1.5 · b=back, m=main, q=quit)[/dim]",
+                    default="1",
+                ).strip()
                 lowered = raw_srv.lower()
                 if not raw_srv or lowered in ("b", "back"):
                     continue
+                if lowered == "m":
+                    raise ReturnToMain()
                 if lowered == "q":
                     raise SystemExit(0)
                 servings = _parse_serving_amount(raw_srv)
                 if servings is None or servings <= 0:
-                    raise ValueError
+                    state.console.print(f"[{state.T['warning']}]Enter a positive number (e.g. 1, 1/2, 1.5).[/{state.T['warning']}]")
+                    continue
             except Cancelled:
                 continue
             with _db.get_db() as conn:
-                _db.meal_add_recipe(conn, meal_id, rid, recipe["name"], servings)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {recipe['name']}  {_format_recipe_portion_label(servings)}")
+                _db.meal_add_recipe(conn, meal_id, rid, rname, servings)
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {rname}  {_format_recipe_portion_label(servings)}")
 
-        elif choice in ("b", "d"):
-            break
-        elif choice == "q":
-            raise SystemExit(0)
         else:
-            state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+            food = result
+            portion = _pick_portion(food)
+            if portion is None:
+                continue
+            grams, label, _ = portion
+            try:
+                notes = _prompt("Note for this item  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
+            except Cancelled:
+                notes = None
+            with _db.get_db() as conn:
+                _db.meal_add_food(conn, meal_id, food["fdcId"], food["name"], grams, label, notes)
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
 
 
 def _do_meal_log() -> None:
+    today = date.today().isoformat()
+    with _db.get_db() as conn:
+        existing = _db.meal_list_by_date(conn, today)
+
+    if existing:
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("#",    justify="right", min_width=3)
+        tbl.add_column("ID",   justify="right", min_width=4)
+        tbl.add_column("Meal", min_width=28)
+        for i, m in enumerate(existing, 1):
+            tbl.add_row(str(i), str(m["id"]), m["name"])
+        state.console.print(f"\n  [dim]You already have {len(existing)} meal(s) logged today:[/dim]")
+        state.console.print(tbl)
+        try:
+            raw = _prompt(
+                "Add items to an existing meal (#), or log a new one  [dim](n=new, b=back, m=main)[/dim]"
+            ).strip().lower()
+        except Cancelled:
+            return
+        if raw in ("b", ""):
+            return
+        if raw == "m":
+            raise ReturnToMain()
+        if raw == "q":
+            raise SystemExit(0)
+        if raw != "n":
+            try:
+                idx = int(raw)
+                if 1 <= idx <= len(existing):
+                    _meal_add_items(existing[idx - 1]["id"])
+                    state.console.print(f"[{state.T['success']}]Items added.[/{state.T['success']}]")
+                    return
+            except ValueError:
+                pass
+            state.console.print(f"[{state.T['warning']}]Enter a row number or n.[/{state.T['warning']}]")
+            return
+
     try:
-        meal_date = _ask_date("Date", default=date.today().isoformat())
+        meal_date = _ask_date("Date", default=today)
     except Cancelled:
         return
     if meal_date is None:
@@ -256,71 +303,149 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
     return list(items)
 
 
-def _do_meal_view_by_date() -> None:
-    try:
-        meal_date = _ask_date("Date", default=date.today().isoformat())
-    except Cancelled:
-        return
-    if meal_date is None:
-        return
-    with _db.get_db() as conn:
-        meals = _db.meal_list_by_date(conn, meal_date)
-    if not meals:
-        state.console.print(f"[dim]No meals logged for {meal_date}.[/dim]")
-        return
+_MEAL_PAGE = 9
 
-    # Show all meals with their items
-    for m in meals:
-        _print_meal_items(m["id"], m["name"])
 
-    def _pick_meal_id(verb: str) -> int | None:
-        """Return a valid meal ID for the current day, or None on cancel/error.
-        Skips the prompt when only one meal is on the day."""
-        if len(meals) == 1:
-            return meals[0]["id"]
-        ids_hint = "/".join(str(m["id"]) for m in meals)
+def _pick_meal(verb: str = "work with") -> "sqlite3.Row | None":
+    """
+    Show the most-recent meals in pages of 9, let the user pick one by row #,
+    page forward with 'more', or jump to a date with 'd'.
+    Returns the selected meal Row, or None if cancelled.
+    """
+    import sqlite3
+    offset = 0
+    while True:
+        with _db.get_db() as conn:
+            meals = _db.meal_list_recent(conn, limit=_MEAL_PAGE + 1, offset=offset)
+        has_more = len(meals) > _MEAL_PAGE
+        page = meals[:_MEAL_PAGE]
+
+        if not page:
+            if offset == 0:
+                state.console.print("[dim]No meals logged yet.[/dim]")
+            else:
+                state.console.print("[dim]No more meals.[/dim]")
+            return None
+
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("ID",    justify="right", min_width=4)
+        tbl.add_column("Date",  min_width=12)
+        tbl.add_column("Meal",  min_width=28)
+        tbl.add_column("Items", justify="right", min_width=5)
+        for m in page:
+            tbl.add_row(str(m["id"]), m["meal_date"], m["name"], str(m["item_count"]))
+        state.console.print(tbl)
+
+        hints = ["id=pick"]
+        if has_more:
+            hints.append("more=older")
+        if offset > 0:
+            hints.append("prev=newer")
+        hints += ["d=by date", "b=back", "m=main"]
         try:
-            raw = _prompt(f"Meal ID to {verb}  [dim]({ids_hint})[/dim]").strip()
+            raw = _prompt(f"Select meal to {verb}  [dim]({', '.join(hints)})[/dim]").strip().lower()
         except Cancelled:
             return None
-        try:
-            mid = int(raw)
-        except ValueError:
-            mid = None
-        if mid is None or not any(m["id"] == mid for m in meals):
-            state.console.print(f"[{state.T['warning']}]Invalid meal ID.[/{state.T['warning']}]")
+
+        if raw in ("b", ""):
             return None
-        return mid
+        if raw == "m":
+            raise ReturnToMain()
+        if raw == "q":
+            raise SystemExit(0)
+        if raw == "more" and has_more:
+            offset += _MEAL_PAGE
+            continue
+        if raw == "prev" and offset > 0:
+            offset = max(0, offset - _MEAL_PAGE)
+            continue
+        if raw == "d":
+            try:
+                meal_date = _ask_date("Date", default=date.today().isoformat())
+            except Cancelled:
+                continue
+            if meal_date is None:
+                continue
+            with _db.get_db() as conn:
+                date_meals = _db.meal_list_by_date(conn, meal_date)
+            if not date_meals:
+                state.console.print(f"[{state.T['warning']}]No meals for {meal_date}.[/{state.T['warning']}]")
+                continue
+            if len(date_meals) == 1:
+                return date_meals[0]
+            tbl2 = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+            tbl2.add_column("ID",   justify="right", min_width=4)
+            tbl2.add_column("Meal", min_width=28)
+            for m in date_meals:
+                tbl2.add_row(str(m["id"]), m["name"])
+            state.console.print(tbl2)
+            try:
+                raw2 = _prompt("Meal ID").strip()
+            except Cancelled:
+                continue
+            try:
+                picked_id = int(raw2)
+                match = next((m for m in date_meals if m["id"] == picked_id), None)
+                if match is not None:
+                    return match
+            except ValueError:
+                pass
+            state.console.print(f"[{state.T['warning']}]Invalid ID.[/{state.T['warning']}]")
+            continue
+        try:
+            picked_id = int(raw)
+            match = next((m for m in page if m["id"] == picked_id), None)
+            if match is not None:
+                return match
+        except ValueError:
+            pass
+        state.console.print(f"[{state.T['warning']}]Enter a meal ID from the list{', more, prev,' if has_more else ','} d, or b.[/{state.T['warning']}]")
+
+
+def _do_meal_view_by_date() -> None:
+    meal = _pick_meal("view / edit")
+    if meal is None:
+        return
+    meal_id   = meal["id"]
+    meal_date = meal["meal_date"]
+    meal_name = meal["name"]
+
+    # Show only the selected meal's items
+    _print_meal_items(meal_id, meal_name)
+
+    def _sibling_meals() -> list:
+        """Other meals on the same date (for merge option)."""
+        with _db.get_db() as conn:
+            return [m for m in _db.meal_list_by_date(conn, meal_date) if m["id"] != meal_id]
 
     # Action loop
     while True:
-        state.console.print()
-        state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Add items to a meal")
-        state.console.print(f"  [{state.T['accent']}]e.[/{state.T['accent']}] Edit an item amount")
-        state.console.print(f"  [{state.T['accent']}]d.[/{state.T['accent']}] Delete an item from a meal")
-        state.console.print(f"  [dim]b.[/dim] Back")
-        state.console.print(f"  [dim]q.[/dim] Quit")
-        state.console.print()
+        siblings = _sibling_meals()
+        menu_items = [
+            ("1", "Add items"),
+            ("2", "Edit an item"),
+            ("3", "Delete an item"),
+            ("4", "Delete this meal"),
+        ]
+        if siblings:
+            menu_items.append(("5", "Merge with meal(s) on same date"))
+        menu_items += [
+            ("b", "Back to previous menu"),
+            ("m", "Return to main menu"),
+            ("q", "Quit"),
+        ]
+        _show_menu(f"Actions — {meal_name}", menu_items)
         try:
             choice = _prompt("Choice").strip().lower()
         except Cancelled:
             break
 
-        if choice == "a":
-            mid = _pick_meal_id("add items to")
-            if mid is None:
-                continue
-            _meal_add_items(mid)
-            # Refresh display for that meal
-            meal_name = next(m["name"] for m in meals if m["id"] == mid)
-            _print_meal_items(mid, meal_name)
+        if choice == "1":
+            _meal_add_items(meal_id)
+            _print_meal_items(meal_id, meal_name)
 
-        elif choice == "e":
-            mid = _pick_meal_id("edit item in")
-            if mid is None:
-                continue
-            meal_name = next(m["name"] for m in meals if m["id"] == mid)
-            items = _print_meal_items(mid, meal_name)
+        elif choice == "2":
+            items = _print_meal_items(meal_id, meal_name)
             if not items:
                 continue
             try:
@@ -350,32 +475,45 @@ def _do_meal_view_by_date() -> None:
                     state.console.print(f"[{state.T['warning']}]Enter a number.[/{state.T['warning']}]")
                     continue
                 with _db.get_db() as conn:
-                    _db.meal_update_item(conn, iid, mid, servings, item["unit"])
+                    _db.meal_update_item(conn, iid, meal_id, servings, item["unit"])
                 state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Updated to {_format_recipe_portion_label(servings)}.")
             else:
                 # Food items: loop until user is done editing
-                cur_fdc_id   = item["fdc_id"]
-                cur_name     = item["food_name"]
-                cur_amount   = item["amount"]
-                cur_unit     = item["unit"]
-                changed = False
+                cur_fdc_id = item["fdc_id"]
+                cur_name   = item["food_name"]
+                cur_amount = item["amount"]
+                cur_unit   = item["unit"]
+                cur_notes  = item["notes"] or ""
+                changed    = False
 
                 while True:
                     amt_display = (f"{_normalize_unit_display(cur_unit)}  ({cur_amount:.0f} g)"
                                    if cur_amount and cur_amount > 0 and cur_unit and cur_unit != "—"
                                    else "—")
-                    state.console.print(f"\n  [dim]Editing:[/dim] [bold]{cur_name}[/bold]  {amt_display}")
+                    notes_display = f"  [dim]Note: {cur_notes}[/dim]" if cur_notes else ""
+                    state.console.print(f"\n  [dim]Editing:[/dim] [bold]{cur_name}[/bold]  {amt_display}{notes_display}")
                     state.console.print(f"  [{state.T['accent']}]f.[/{state.T['accent']}] Change food (search by new name)")
                     state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Change amount")
+                    state.console.print(f"  [{state.T['accent']}]n.[/{state.T['accent']}] Edit note")
                     state.console.print(f"  [dim]d / done  — save and exit[/dim]")
                     try:
                         sub = _prompt("Choice").strip().lower()
                     except Cancelled:
                         break
-                    if sub in ("done", "d", "b", ""):
+                    if sub in ("b", "d", "done", ""):
                         break
+                    if sub == "q":
+                        raise SystemExit(0)
 
-                    if sub == "f":
+                    if sub == "n":
+                        try:
+                            new_notes = _prompt("Note  [dim](Enter to clear)[/dim]", default=cur_notes, free_text=True).strip()
+                        except Cancelled:
+                            continue
+                        cur_notes = new_notes
+                        changed = True
+
+                    elif sub == "f":
                         try:
                             query = _prompt("Search for food").strip()
                         except Cancelled:
@@ -393,7 +531,6 @@ def _do_meal_view_by_date() -> None:
                         state.console.print(f"  [dim]Food set to: {cur_name}[/dim]")
 
                     elif sub == "a":
-                        # Load food from cache (may be the newly chosen food)
                         with _db.get_db() as conn:
                             cached = _db.get_cached_food(conn, cur_fdc_id)
                         if cached is None:
@@ -417,18 +554,15 @@ def _do_meal_view_by_date() -> None:
 
                 if changed:
                     with _db.get_db() as conn:
-                        _db.meal_replace_food(conn, iid, mid, cur_fdc_id,
-                                              cur_name, cur_amount, cur_unit)
+                        _db.meal_replace_food(conn, iid, meal_id, cur_fdc_id,
+                                              cur_name, cur_amount, cur_unit,
+                                              cur_notes or None)
                     state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Saved: {cur_name}  "
                                   f"{_normalize_unit_display(cur_unit)}")
-            _print_meal_items(mid, meal_name)
+            _print_meal_items(meal_id, meal_name)
 
-        elif choice == "d":
-            mid = _pick_meal_id("delete item from")
-            if mid is None:
-                continue
-            meal_name = next(m["name"] for m in meals if m["id"] == mid)
-            items = _print_meal_items(mid, meal_name)
+        elif choice == "3":
+            items = _print_meal_items(meal_id, meal_name)
             if not items:
                 continue
             try:
@@ -444,15 +578,99 @@ def _do_meal_view_by_date() -> None:
                 state.console.print(f"[{state.T['warning']}]Invalid item ID.[/{state.T['warning']}]")
                 continue
             with _db.get_db() as conn:
-                removed = _db.meal_remove_item(conn, iid, mid)
+                removed = _db.meal_remove_item(conn, iid, meal_id)
             if removed:
                 state.console.print(f"[{state.T['success']}]Item removed.[/{state.T['success']}]")
-                _print_meal_items(mid, meal_name)
+                _print_meal_items(meal_id, meal_name)
             else:
                 state.console.print(f"[{state.T['warning']}]Could not remove item.[/{state.T['warning']}]")
 
+        elif choice == "4":
+            try:
+                confirm = _prompt(f"Delete '{meal_name}'?  [dim](y/n)[/dim]", default="n").strip().lower()
+            except Cancelled:
+                continue
+            if confirm != "y":
+                continue
+            with _db.get_db() as conn:
+                _db.meal_delete(conn, meal_id)
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Deleted: {meal_name}")
+            break
+
+        elif choice == "5" and siblings:
+            # siblings already loaded at top of loop; show all meals on date including current
+            with _db.get_db() as conn:
+                all_on_date = _db.meal_list_by_date(conn, meal_date)
+            ids_str = "  ".join(f"{m['id']}={m['name']}" for m in all_on_date)
+            state.console.print(f"  [dim]Meals on {meal_date}: {ids_str}[/dim]")
+            try:
+                raw_ids = _prompt(
+                    "Meal IDs to merge  [dim](space-separated, or 'all', b=back, m=main)[/dim]",
+                    default="all",
+                ).strip().lower()
+            except Cancelled:
+                continue
+            if raw_ids in ("b", ""):
+                continue
+            if raw_ids == "m":
+                raise ReturnToMain()
+            if raw_ids == "q":
+                raise SystemExit(0)
+
+            if raw_ids == "all":
+                selected = list(all_on_date)
+            else:
+                selected_ids = []
+                valid = True
+                for tok in raw_ids.split():
+                    try:
+                        selected_ids.append(int(tok))
+                    except ValueError:
+                        state.console.print(f"[{state.T['warning']}]Invalid ID: {tok}[/{state.T['warning']}]")
+                        valid = False
+                        break
+                if not valid:
+                    continue
+                selected = [m for m in all_on_date if m["id"] in selected_ids]
+                missing = set(selected_ids) - {m["id"] for m in selected}
+                if missing:
+                    state.console.print(f"[{state.T['warning']}]IDs not found: {' '.join(str(x) for x in missing)}[/{state.T['warning']}]")
+                    continue
+                if len(selected) < 2:
+                    state.console.print(f"[{state.T['warning']}]Select at least 2 meals to merge.[/{state.T['warning']}]")
+                    continue
+
+            default_name = selected[0]["name"]
+            try:
+                new_name = _prompt("Name for merged meal", default=default_name, prefill=True).strip() or default_name
+            except Cancelled:
+                continue
+
+            with _db.get_db() as conn:
+                new_mid = _db.meal_create(conn, new_name, meal_date)
+                total_items = sum(_db.meal_copy_items(conn, m["id"], new_mid) for m in selected)
+
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Created '{new_name}' "
+                          f"(ID {new_mid}) with {total_items} item(s).")
+            try:
+                del_orig = _prompt("Delete original meals?  [dim](y/n)[/dim]", default="y").strip().lower()
+            except Cancelled:
+                del_orig = "n"
+            if del_orig == "y":
+                with _db.get_db() as conn:
+                    for m in selected:
+                        _db.meal_delete(conn, m["id"])
+                state.console.print(f"  [dim]Deleted {len(selected)} original meal(s).[/dim]")
+            # If the current meal was deleted, exit the action loop
+            if del_orig == "y" and any(m["id"] == meal_id for m in selected):
+                break
+            # Otherwise show the current meal's items (may be unchanged or deleted)
+            _print_meal_items(new_mid, new_name)
+
         elif choice in ("b", ""):
             break
+        elif choice == "m":
+            raise ReturnToMain()
         elif choice == "q":
             raise SystemExit(0)
         else:
@@ -560,33 +778,26 @@ def _compute_meal_ingredient_list(meal_id: int) -> list[dict]:
 
 
 def _do_meal_analyze() -> None:
-    try:
-        meal_date = _ask_date("Date", default=date.today().isoformat())
-    except Cancelled:
+    meal = _pick_meal("analyze")
+    if meal is None:
         return
-    if meal_date is None:
-        return
+    meal_date = meal["meal_date"]
+
+    # Offer to analyze just this meal or all meals on the same date
     with _db.get_db() as conn:
         meals = _db.meal_list_by_date(conn, meal_date)
-    if not meals:
-        state.console.print(f"[dim]No meals for {meal_date}.[/dim]")
-        return
 
-    # If only one meal, analyze it directly; otherwise let user choose
-    if len(meals) == 1:
-        meal = meals[0]
-    else:
-        _do_meal_view_by_date.__wrapped__ = None   # already printed above if needed
-        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-        tbl.add_column("ID",   justify="right", min_width=4)
-        tbl.add_column("Name", min_width=24)
-        for m in meals:
-            tbl.add_row(str(m["id"]), m["name"])
-        state.console.print(tbl)
-        mid = _ask_int("Meal ID to analyze (0 = all meals for the day)")
-        if mid is None:
+    if len(meals) > 1:
+        try:
+            scope = _prompt(
+                f"Analyze just [{state.T['hi']}]{meal['name']}[/{state.T['hi']}]"
+                f" or all {len(meals)} meals on {meal_date}?",
+                choices=["1", "2"],
+                default="1",
+            )
+        except Cancelled:
             return
-        if mid == 0:
+        if scope == "2":
             # Combine all meals for the day
             combined: dict[str, float] = {}
             all_ings: list[dict] = []
@@ -600,11 +811,6 @@ def _do_meal_analyze() -> None:
                 title = f"All meals — {meal_date}"
                 _print_nutrient_table(combined, title=title)
                 missing_aa = _print_meal_diaas(all_ings)
-                aa_nutrients = _usda.sum_nutrients(*[
-                    _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
-                    for ing in all_ings
-                    if _usda.has_amino_acid_data(ing["nutrients_100g"])
-                ]) if all_ings else {}
                 profile = _profile.load_profile()
                 if profile:
                     _print_protein_adequacy(combined, profile, context_label=title)
@@ -615,13 +821,8 @@ def _do_meal_analyze() -> None:
                     {"type": "protein_completeness", "nutrients": combined},
                 ])
             else:
-                state.console.print(f"[dim]No nutrient data found.[/dim]")
+                state.console.print("[dim]No nutrient data found.[/dim]")
             return
-        matched = [m for m in meals if m["id"] == mid]
-        if not matched:
-            state.console.print(f"[{state.T['warning']}]Meal {mid} not found.[/{state.T['warning']}]")
-            return
-        meal = matched[0]
 
     nutrients = _compute_meal_nutrients(meal["id"])
     if nutrients is None:
@@ -653,39 +854,20 @@ def _do_meal_analyze() -> None:
 
 
 def _do_meal_delete() -> None:
+    meal = _pick_meal("delete")
+    if meal is None:
+        return
     try:
-        meal_date = _ask_date("Date", default=date.today().isoformat())
-    except Cancelled:
-        return
-    if meal_date is None:
-        return
-    with _db.get_db() as conn:
-        meals = _db.meal_list_by_date(conn, meal_date)
-    if not meals:
-        state.console.print(f"[dim]No meals for {meal_date}.[/dim]")
-        return
-    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("ID",   justify="right", min_width=4)
-    tbl.add_column("Name", min_width=24)
-    for m in meals:
-        tbl.add_row(str(m["id"]), m["name"])
-    state.console.print(tbl)
-    mid = _ask_int("Meal ID to delete")
-    if mid is None:
-        return
-    matched = [m for m in meals if m["id"] == mid]
-    if not matched:
-        state.console.print(f"[{state.T['warning']}]Meal {mid} not found.[/{state.T['warning']}]")
-        return
-    meal = matched[0]
-    try:
-        confirm = _prompt(f"Delete [{state.T['hi']}]{meal['name']}[/{state.T['hi']}]?",
-                          choices=["y", "n"], default="n")
+        confirm = _prompt(
+            f"Delete [{state.T['hi']}]{meal['name']}[/{state.T['hi']}]"
+            f" ({meal['meal_date']})?",
+            choices=["y", "n"], default="n",
+        )
     except Cancelled:
         return
     if confirm.lower() == "y":
         with _db.get_db() as conn:
-            _db.meal_delete(conn, mid)
+            _db.meal_delete(conn, meal["id"])
         state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Deleted.")
     else:
         state.console.print("[dim]Cancelled.[/dim]")

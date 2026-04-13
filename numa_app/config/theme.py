@@ -3,7 +3,7 @@ import pathlib
 from .. import state
 from ..ui.prompts import _prompt
 
-_THEME_FILE = pathlib.Path.home() / ".config" / "numa" / "theme"
+_THEME_FILE = pathlib.Path.home() / ".local" / "share" / "numa" / "theme"
 
 
 def _detect_terminal_theme() -> str:

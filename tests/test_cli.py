@@ -20,8 +20,8 @@ Input sequence notation used in comments:
     Foods submenu:     1=Search, 2=Analyze USDA portion, 3=Analyze recipe portion,
                        4=Convert, 5=View cached, 6=Pantry, b=Back, q=Quit
     Recipes submenu:   1=Create, 2=List, 3=View/analyze, 4=Edit, 5=Delete, b=Back
-    Settings submenu:  1=API key, 2=Theme, 3=DB path, 4=DIAAS overrides,
-                       5=Dietary prefs, 6=User profile, b=Back
+    Settings submenu:  1=Theme, 2=User profile, 3=Dietary prefs, 4=Editor,
+                       5=Display settings, 6=Advanced (API key/DB/DIAAS), b=Back
 """
 
 import json
@@ -437,21 +437,22 @@ class TestMealsMenu:
         assert items[0]["amount"] == 200.0
 
     def test_view_meals_empty_date(self, runner: NumaTestRunner):
-        result = runner.invoke(input="3\n2\n2025-01-01\nb\nq\n")
+        # _pick_meal shows "No meals logged yet" immediately when DB is empty
+        result = runner.invoke(input="3\n2\nq\n")
         assert result.exit_code == 0
         assert "No meals" in result.output
 
     def test_view_meals_shows_entry(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         runner.invoke(input="3\n1\n2025-03-15\nBreakfast\n1\nchicken\n1\n100\nd\nb\nq\n")
-        # Extra b: one for the view action loop, one for the meals submenu
-        result = runner.invoke(input="3\n2\n2025-03-15\nb\nb\nq\n")
+        # Pick row 1 from the recent-meal list, then b=back from action loop, q=quit
+        result = runner.invoke(input="3\n2\n1\nb\nq\n")
         assert "Breakfast" in result.output
 
     def test_view_meals_shows_food_items(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n150\nd\nb\nq\n")
-        result = runner.invoke(input="3\n2\n2025-03-15\nb\nb\nq\n")
+        result = runner.invoke(input="3\n2\n1\nb\nq\n")
         assert result.exit_code == 0
         assert "Chicken" in result.output
         assert "150" in result.output
@@ -464,8 +465,8 @@ class TestMealsMenu:
             mid = _db.meal_list_by_date(conn, "2025-03-15")[0]["id"]
             iid = _db.meal_get_items(conn, mid)[0]["id"]
 
-        # View → d → meal id → item id → b (action loop) → b (meals menu) → q
-        result = runner.invoke(input=f"3\n2\n2025-03-15\nd\n{mid}\n{iid}\nb\nb\nq\n")
+        # Pick row 1 → action 3 (delete item) → meal auto-selected (only 1) → item id → b → q
+        result = runner.invoke(input=f"3\n2\n1\n3\n{iid}\nb\nq\n")
         assert result.exit_code == 0
         assert "removed" in result.output.lower()
 
@@ -476,7 +477,8 @@ class TestMealsMenu:
         _mock_api(monkeypatch)
         runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
 
-        result = runner.invoke(input="3\n3\n2025-03-15\nb\nq\n")
+        # Pick row 1; only 1 meal on that date so no scope prompt; b declines any follow-up
+        result = runner.invoke(input="3\n3\n1\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
 
@@ -484,10 +486,8 @@ class TestMealsMenu:
         _mock_api(monkeypatch)
         runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
 
-        with _db.get_db() as conn:
-            mid = _db.meal_list_by_date(conn, "2025-03-15")[0]["id"]
-
-        result = runner.invoke(input=f"3\n4\n2025-03-15\n{mid}\ny\nb\nq\n")
+        # Pick row 1, confirm y, then q
+        result = runner.invoke(input="3\n4\n1\ny\nq\n")
         assert result.exit_code == 0
         assert "Deleted" in result.output
 
@@ -541,8 +541,8 @@ class TestSettingsMenu:
     def test_set_api_key(self, runner: NumaTestRunner, tmp_path, monkeypatch):
         config_file = tmp_path / "config.json"
         monkeypatch.setattr(_usda, "_CONFIG_FILE", config_file)
-        # Settings: 1 (API key) → enter key → b → q
-        result = runner.invoke(input="s\n1\nMYNEWKEY\nb\nq\n")
+        # Settings: 6 (Advanced) → 2 (API key) → enter key → b (back from advanced) → b → q
+        result = runner.invoke(input="s\n6\n2\nMYNEWKEY\nb\nb\nq\n")
         assert result.exit_code == 0
         assert "saved" in result.output.lower()
         assert config_file.exists()
@@ -551,8 +551,8 @@ class TestSettingsMenu:
         from numa_app.config import theme as _theme_mod
         theme_file = tmp_path / "theme"
         monkeypatch.setattr(_theme_mod, "_THEME_FILE", theme_file)
-        # Settings: 2 (Theme) → pick 3 (neutral) → b → q
-        result = runner.invoke(input="s\n2\n3\nb\nq\n")
+        # Settings: 1 (Theme) → pick 3 (neutral) → b → q
+        result = runner.invoke(input="s\n1\n3\nb\nq\n")
         assert result.exit_code == 0
         assert "neutral" in result.output.lower()
 
@@ -638,9 +638,9 @@ class TestUserProfileSettings:
         """Walking through the profile form saves a JSON file."""
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        # Settings: 6 (User profile) → age=35 → sex=m → weight=80 → height=178 →
+        # Settings: 2 (User profile) → age=35 → sex=m → weight=80 → height=178 →
         # activity=3 (moderate) → b → q
-        result = runner.invoke(input="s\n6\n35\nm\n80\n178\n3\nb\nq\n")
+        result = runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
         assert pf.exists()
         data = json.loads(pf.read_text())
@@ -651,7 +651,7 @@ class TestUserProfileSettings:
         """After saving, the response shows the estimated calorie target."""
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        result = runner.invoke(input="s\n6\n35\nm\n80\n178\n3\nb\nq\n")
+        result = runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
         assert "kcal" in result.output.lower() or "calorie" in result.output.lower()
 
@@ -660,7 +660,7 @@ class TestUserProfileSettings:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         # bad age → valid age → sex → weight → height → activity → back → quit
-        result = runner.invoke(input="s\n6\nnotanage\n35\nm\n80\n178\n3\nb\nq\n")
+        result = runner.invoke(input="s\n2\nnotanage\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
         assert pf.exists()
         assert json.loads(pf.read_text())["age"] == 35
@@ -680,7 +680,7 @@ class TestUserProfileSettings:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         # Set profile first
-        runner.invoke(input="s\n6\n40\nf\n62\n165\n2\nb\nq\n")
+        runner.invoke(input="s\n2\n40\nf\n62\n165\n2\nb\nq\n")
         # Now open settings again — status line should show details
         result = runner.invoke(input="s\nb\nq\n")
         assert result.exit_code == 0
@@ -711,7 +711,7 @@ class TestDailySummaryRDA:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         # Set profile
-        runner.invoke(input="s\n6\n35\nm\n80\n178\n3\nb\nq\n")
+        runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         # Log a meal
         runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
         # View summary: decline complement → accept RDA comparison
@@ -726,7 +726,7 @@ class TestDailySummaryRDA:
         _mock_api(monkeypatch)
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        runner.invoke(input="s\n6\n35\nm\n80\n178\n3\nb\nq\n")
+        runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
@@ -739,7 +739,7 @@ class TestDailySummaryRDA:
         _mock_api(monkeypatch)
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        runner.invoke(input="s\n6\n35\nm\n80\n178\n3\nb\nq\n")
+        runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\nn\nb\nq\n")
         assert result.exit_code == 0
