@@ -6,12 +6,13 @@ import db as _db
 import usda as _usda
 from ..services.portions import _pick_portion, _parse_portion_input
 from ..services.search import _search_and_pick_food, _suggest_foundation_search
-from ..ui.common import _safe_call, _show_menu
+from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_bioavailability, _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness
 from ..services.reports import _offer_export
-from .pantry import _do_pantry_menu, _do_list_cached_foods
+from .pantry import _do_pantry_menu
 from .recipes import _do_recipe_list, _get_recipe_total_nutrients, _pick_recipe_portion
+from .drafted_foods import _do_edit_cached_food, _do_drafted_foods_menu
 
 def _menu_foods() -> bool:
     """Foods submenu. Returns True to go back, False to quit."""
@@ -70,15 +71,9 @@ def _do_food_search() -> None:
             aa_food = alt
     _print_bioavailability(aa_food["name"], aa_food["nutrients"])
     if has_aa and _usda.get_aa_gaps(aa_food["nutrients"]):
-        try:
-            ans = _prompt("Show protein complement suggestions?  [dim](y/N)[/dim]",
-                          default="n").strip().lower()
-        except Cancelled:
-            ans = "n"
-        if ans == "y":
-            _print_complement_suggestions(aa_food["nutrients"], context="food",
-                                          offer_if_covered=False,
-                                          base_food_name=aa_food["name"])
+        _print_complement_suggestions(aa_food["nutrients"], context="food",
+                                      offer_if_covered=False,
+                                      base_food_name=aa_food["name"])
 
     try:
         ans = _prompt("Analyze a portion of this food?  [dim](y/N)[/dim]",
@@ -96,14 +91,8 @@ def _do_food_search() -> None:
     has_aa = _print_protein_completeness(scaled)
     _print_bioavailability(aa_food["name"], scaled)
     if has_aa and _usda.get_aa_gaps(scaled):
-        try:
-            ans = _prompt("Show protein complement suggestions?  [dim](y/N)[/dim]",
-                          default="n").strip().lower()
-        except Cancelled:
-            ans = "n"
-        if ans == "y":
-            _print_complement_suggestions(scaled, context="food", offer_if_covered=False,
-                                          base_food_name=aa_food["name"])
+        _print_complement_suggestions(scaled, context="food", offer_if_covered=False,
+                                      base_food_name=aa_food["name"])
 
 
 def _do_analyze_food_portion() -> None:
@@ -143,27 +132,14 @@ def _do_analyze_food_portion() -> None:
                      "nutrients": alt_scaled},
                 ]
                 if has_aa and _usda.get_aa_gaps(alt_scaled):
-                    try:
-                        ans = _prompt(
-                            "Show protein complement suggestions?  [dim](y/N)[/dim]",
-                            default="n").strip().lower()
-                    except Cancelled:
-                        ans = "n"
-                    if ans == "y":
-                        _print_complement_suggestions(alt_scaled, context="food",
-                                                      offer_if_covered=False,
-                                                      base_food_name=alt["name"])
+                    _print_complement_suggestions(alt_scaled, context="food",
+                                                  offer_if_covered=False,
+                                                  base_food_name=alt["name"])
     else:
         _print_bioavailability(food["name"], scaled)
         if _usda.get_aa_gaps(scaled):
-            try:
-                ans = _prompt("Show protein complement suggestions?  [dim](y/N)[/dim]",
-                              default="n").strip().lower()
-            except Cancelled:
-                ans = "n"
-            if ans == "y":
-                _print_complement_suggestions(scaled, context="food", offer_if_covered=False,
-                                              base_food_name=food["name"])
+            _print_complement_suggestions(scaled, context="food", offer_if_covered=False,
+                                          base_food_name=food["name"])
     _offer_export(export_name, export_sections)
 
 
@@ -245,13 +221,7 @@ def _do_analyze_recipe_portion() -> None:
     _print_nutrient_table(scaled, title=title, per_label=label)
     has_aa = _print_protein_completeness(scaled)
     if has_aa and _usda.get_aa_gaps(scaled):
-        try:
-            ans = _prompt("Show protein complement suggestions?  [dim](y/N)[/dim]",
-                          default="n").strip().lower()
-        except Cancelled:
-            ans = "n"
-        if ans == "y":
-            _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True)
+        _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True)
 
     _offer_export(f"{title} — {label}", [
         {"type": "ingredient_list", "title": "Ingredients",
@@ -262,535 +232,135 @@ def _do_analyze_recipe_portion() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Drafted food profiles
+# Cached food viewer / editor
 # ---------------------------------------------------------------------------
 
-# Ordered list of (nutrient_key, display_label, unit) for user prompting.
-# Split into two groups: basic macros (always prompted) and optional extras.
-_DRAFT_MACROS = [
-    ("calories",         "Calories",           "kcal"),
-    ("protein_g",        "Protein",            "g"),
-    ("fat_g",            "Total fat",          "g"),
-    ("carb_g",           "Carbohydrates",      "g"),
-    ("fiber_g",          "Fiber",              "g"),
-    ("sugar_g",          "Sugars",             "g"),
-    ("saturated_fat_g",  "Saturated fat",      "g"),
-    ("sodium_mg",        "Sodium",             "mg"),
-    ("calcium_mg",       "Calcium",            "mg"),
-    ("iron_mg",          "Iron",               "mg"),
-]
-
-_DRAFT_AMINO_ACIDS = [
-    ("aa_tryptophan_g",   "Tryptophan",    "g"),
-    ("aa_threonine_g",    "Threonine",     "g"),
-    ("aa_isoleucine_g",   "Isoleucine",    "g"),
-    ("aa_leucine_g",      "Leucine",       "g"),
-    ("aa_lysine_g",       "Lysine",        "g"),
-    ("aa_methionine_g",   "Methionine",    "g"),
-    ("aa_cystine_g",      "Cystine",       "g"),
-    ("aa_phenylalanine_g","Phenylalanine", "g"),
-    ("aa_tyrosine_g",     "Tyrosine",      "g"),
-    ("aa_valine_g",       "Valine",        "g"),
-    ("aa_histidine_g",    "Histidine",     "g"),
-]
-
-# Maps every name/abbreviation a literature source might use to the program's
-# internal nutrient key.  Keys are lowercase; matching is case-insensitive.
-_AA_NAME_LOOKUP: dict[str, str] = {
-    # Tryptophan
-    "tryptophan": "aa_tryptophan_g",  "trp": "aa_tryptophan_g",  "w": "aa_tryptophan_g",
-    # Threonine
-    "threonine":  "aa_threonine_g",   "thr": "aa_threonine_g",   "t": "aa_threonine_g",
-    # Isoleucine
-    "isoleucine": "aa_isoleucine_g",  "ile": "aa_isoleucine_g",  "i": "aa_isoleucine_g",
-    # Leucine
-    "leucine":    "aa_leucine_g",     "leu": "aa_leucine_g",     "l": "aa_leucine_g",
-    # Lysine
-    "lysine":     "aa_lysine_g",      "lys": "aa_lysine_g",      "k": "aa_lysine_g",
-    # Methionine
-    "methionine": "aa_methionine_g",  "met": "aa_methionine_g",  "m": "aa_methionine_g",
-    # Cystine — accept cysteine too (they differ by one hydrogen; literature uses both)
-    "cystine":    "aa_cystine_g",     "cysteine": "aa_cystine_g",
-    "cys":        "aa_cystine_g",     "c": "aa_cystine_g",
-    # Phenylalanine
-    "phenylalanine": "aa_phenylalanine_g", "phe": "aa_phenylalanine_g", "f": "aa_phenylalanine_g",
-    # Tyrosine
-    "tyrosine":   "aa_tyrosine_g",    "tyr": "aa_tyrosine_g",    "y": "aa_tyrosine_g",
-    # Valine
-    "valine":     "aa_valine_g",      "val": "aa_valine_g",      "v": "aa_valine_g",
-    # Histidine
-    "histidine":  "aa_histidine_g",   "his": "aa_histidine_g",   "h": "aa_histidine_g",
-}
-
-# Non-essential AAs we recognize by name but do not store.
-_AA_NON_ESSENTIAL: set[str] = {
-    "arginine", "arg", "r",
-    "alanine", "ala", "a",
-    "aspartate", "aspartic", "aspartic acid", "asparagine", "asp", "asn", "d", "n",
-    "glutamate", "glutamic", "glutamic acid", "glutamine", "glu", "gln", "e", "q",
-    "glycine", "gly", "g",
-    "proline", "pro", "p",
-    "serine", "ser", "s",
-    "hydroxyproline", "hyp",
-    "selenocysteine", "sec", "u",
-}
-
-
-def _bulk_import_aa(protein_g: float | None) -> dict:
-    """
-    Accept amino acid values entered as 'name: value' pairs, one per prompt.
-    If protein_g is provided, treats input as g per 100g protein and converts
-    to g per 100g food.  If protein_g is None or 0, treats input as g per 100g
-    food directly.  Returns a dict of {aa_key: value_per_100g_food}.
-    """
-    from_protein = (protein_g is not None and protein_g > 0)
-
-    state.console.print(
-        f"\n  [{state.T['accent']}]— Bulk amino acid import —[/{state.T['accent']}]"
-    )
-    if from_protein:
-        state.console.print(
-            f"  [dim]Input unit: [bold]g per 100g protein[/bold]  "
-            f"(protein content: {protein_g:.2g} g/100g food)\n"
-            f"  Values will be converted automatically: "
-            f"aa_food = aa_protein × {protein_g:.2g} / 100[/dim]\n"
-            f"  [dim]Accepted names: full name, 3-letter code, or 1-letter code "
-            f"(e.g. tryptophan, trp, W)[/dim]\n"
-            f"  [dim]Enter one amino acid per line as   name: value   "
-            f"— press Enter on a blank line when done.[/dim]"
-        )
-    else:
-        state.console.print(
-            f"  [dim]Input unit: [bold]g per 100g food[/bold]\n"
-            f"  Accepted names: full name, 3-letter code, or 1-letter code "
-            f"(e.g. tryptophan, trp, W)\n"
-            f"  Enter one amino acid per line as   name: value   "
-            f"— press Enter on a blank line when done.[/dim]"
-        )
-
-    raw_entries: list[tuple[str, float]] = []   # (raw_name, raw_value)
-
+def _do_list_cached_foods() -> None:
+    filter_text: str | None = None
     while True:
-        try:
-            line = _prompt("  AA").strip()
-        except Cancelled:
-            break
-        if not line or line.lower() == "b":
-            break
-        if line.lower() == "q":
-            raise SystemExit(0)
+        with _db.get_db() as conn:
+            all_foods = _db.list_cached_foods(conn)
+        if not all_foods:
+            state.console.print("[dim]No foods cached yet.[/dim]")
+            return
 
-        # Accept "name: value", "name = value", or "name value"
-        import re as _re
-        m = _re.match(r"^([a-zA-Z][\w\s-]*)[\s:=]+([0-9.]+)\s*$", line)
-        if not m:
-            state.console.print(
-                f"    [{state.T['warning']}]Format not recognised — "
-                f"enter as  name: value  (e.g. lysine: 4.8)[/{state.T['warning']}]"
-            )
-            continue
-        name_raw = m.group(1).strip()
-        try:
-            value = float(m.group(2))
-        except ValueError:
-            state.console.print(f"    [{state.T['warning']}]Value must be a number.[/{state.T['warning']}]")
-            continue
-        raw_entries.append((name_raw, value))
-
-    if not raw_entries:
-        return {}
-
-    # Classify each entry
-    stored:       list[tuple[str, str, float, float]] = []  # (raw_name, key, raw_val, stored_val)
-    non_essential: list[tuple[str, float]] = []             # (raw_name, raw_val)
-    unrecognized:  list[tuple[str, float]] = []             # (raw_name, raw_val)
-
-    for name_raw, value in raw_entries:
-        key_lookup = name_raw.lower().strip()
-        if key_lookup in _AA_NAME_LOOKUP:
-            aa_key = _AA_NAME_LOOKUP[key_lookup]
-            stored_val = value * protein_g / 100.0 if from_protein else value
-            stored.append((name_raw, aa_key, value, stored_val))
-        elif key_lookup in _AA_NON_ESSENTIAL:
-            non_essential.append((name_raw, value))
+        if filter_text:
+            fl = filter_text.lower()
+            foods = [f for f in all_foods if fl in f["name"].lower()
+                     or (f["brand"] and fl in f["brand"].lower())]
         else:
-            unrecognized.append((name_raw, value))
+            foods = list(all_foods)
 
-    # Summary display
-    state.console.print()
-    if stored:
-        state.console.print(f"  [{state.T['success']}]Recognized and stored:[/{state.T['success']}]")
-        label_map = {key: label for key, label, _ in _DRAFT_AMINO_ACIDS}
-        for name_raw, aa_key, raw_val, stored_val in stored:
-            label = label_map.get(aa_key, aa_key)
-            if from_protein:
-                state.console.print(
-                    f"    [{state.T['hi']}]{label:<16}[/{state.T['hi']}]"
-                    f"  {raw_val:.4g} g/100g protein  →  {stored_val:.5g} g/100g food  "
-                    f"[{state.T['success']}]✓[/{state.T['success']}]"
-                )
-            else:
-                state.console.print(
-                    f"    [{state.T['hi']}]{label:<16}[/{state.T['hi']}]"
-                    f"  {stored_val:.5g} g/100g food  [{state.T['success']}]✓[/{state.T['success']}]"
-                )
-    if non_essential:
-        state.console.print(f"  [dim]Not stored (non-essential, not tracked by this program):[/dim]")
-        for name_raw, val in non_essential:
-            state.console.print(f"    [dim]{name_raw}: {val:.4g}[/dim]")
-    if unrecognized:
-        state.console.print(f"  [{state.T['warning']}]Unrecognized names — not stored:[/{state.T['warning']}]")
-        for name_raw, val in unrecognized:
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("#",     justify="right", min_width=3)
+        tbl.add_column("Name",  min_width=40)
+        tbl.add_column("Type",  min_width=14)
+        tbl.add_column("Brand", min_width=20)
+        for i, f in enumerate(foods, 1):
+            tbl.add_row(str(i), f["name"], f["data_type"] or "", f["brand"] or "")
+
+        if filter_text:
             state.console.print(
-                f"    [{state.T['warning']}]{name_raw}: {val:.4g}[/{state.T['warning']}]  "
-                f"[dim](check spelling; accepted: full name, 3-letter, or 1-letter code)[/dim]"
+                f"\n  [dim]{len(foods)} match for '[bold]{filter_text}[/bold]' "
+                f"({len(all_foods)} foods total).  Enter [bold]/[/bold] to clear filter.[/dim]"
+            )
+        else:
+            state.console.print(
+                f"\n  [dim]{len(all_foods)} cached foods — enter [bold]/text[/bold] to filter by name.[/dim]"
             )
 
-    return {aa_key: stored_val for _, aa_key, _, stored_val in stored}
+        state.console.print(tbl)
+        state.console.print(
+            "  [dim]To refresh a corrupt or outdated entry: delete it here (option d), "
+            "then re-search the food — it will be re-cached automatically.[/dim]"
+        )
 
-
-def _list_drafted_foods() -> list:
-    """Print a table of all user-drafted foods and return the rows."""
-    with _db.get_db() as conn:
-        rows = _db.list_user_drafted_foods(conn)
-    if not rows:
-        state.console.print("[dim]No drafted food profiles yet.[/dim]")
-        return []
-    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("ID",   justify="right", min_width=5)
-    tbl.add_column("Name", min_width=36)
-    tbl.add_column("Note", min_width=24)
-    for r in rows:
-        tbl.add_row(str(r["fdc_id"]), r["name"], r["notes"] or "")
-    state.console.print(tbl)
-    return list(rows)
-
-
-def _prompt_nutrients(existing: dict | None = None) -> dict:
-    """
-    Interactively prompt for nutrient values (per 100 g).
-    existing: pre-fill from this dict if provided (e.g. loaded from USDA cache).
-    Returns a nutrients dict.
-    """
-    state.console.print(
-        f"\n  [dim]Enter nutrient values per [bold]100 g[/bold]. "
-        f"Press Enter to keep the current value, or enter a number to override.[/dim]"
-    )
-    nutrients: dict = {}
-
-    state.console.print(f"\n  [{state.T['accent']}]— Basic nutrients —[/{state.T['accent']}]")
-    for key, label, unit in _DRAFT_MACROS:
-        current = existing.get(key) if existing else None
-        default_str = f"{current:.4g}" if current is not None else None
-        while True:
-            try:
-                raw = _prompt(
-                    f"  {label} ({unit}/100g)",
-                    default=default_str if default_str else ""
-                ).strip()
-            except Cancelled:
-                raw = ""
-            if raw.lower() == "q":
-                raise SystemExit(0)
-            if not raw:
-                if current is not None:
-                    nutrients[key] = current
-                break
-            try:
-                nutrients[key] = float(raw)
-                break
-            except ValueError:
-                state.console.print(f"    [{state.T['warning']}]Enter a number (or press Enter to skip).[/{state.T['warning']}]")
-
-    # Amino acids are optional — offer three choices
-    state.console.print()
-    state.console.print(
-        f"  [{state.T['accent']}]Amino acid profile[/{state.T['accent']}]"
-        f"  [dim](enables protein completeness analysis)[/dim]"
-    )
-    state.console.print("  [dim]1[/dim]  Enter values one-by-one (g per 100g food)")
-    state.console.print("  [dim]2[/dim]  Bulk import from literature (g per 100g protein — auto-converted)")
-    state.console.print("  [dim]n[/dim]  Skip")
-
-    while True:
         try:
-            aa_choice = _prompt("  Choice", choices=["1", "2", "n"], default="n").strip().lower()
-        except Cancelled:
-            aa_choice = "n"
-        if aa_choice in ("1", "2", "n"):
-            break
-
-    if aa_choice == "1":
-        state.console.print(f"\n  [{state.T['accent']}]— Amino acids (g per 100g food) —[/{state.T['accent']}]")
-        state.console.print("  [dim]All are optional. Press Enter to skip any.[/dim]")
-        for key, label, unit in _DRAFT_AMINO_ACIDS:
-            current = existing.get(key) if existing else None
-            default_str = f"{current:.5g}" if current is not None else None
-            while True:
-                try:
-                    raw = _prompt(
-                        f"  {label}",
-                        default=default_str if default_str else ""
-                    ).strip()
-                except Cancelled:
-                    raw = ""
-                if raw.lower() == "q":
-                    raise SystemExit(0)
-                if not raw:
-                    if current is not None:
-                        nutrients[key] = current
-                    break
-                try:
-                    nutrients[key] = float(raw)
-                    break
-                except ValueError:
-                    state.console.print(f"    [{state.T['warning']}]Enter a number (or press Enter to skip).[/{state.T['warning']}]")
-
-    elif aa_choice == "2":
-        protein_g = nutrients.get("protein_g")
-        bulk_result = _bulk_import_aa(protein_g)
-        nutrients.update(bulk_result)
-
-    return nutrients
-
-
-def _do_drafted_foods_menu() -> None:
-    while True:
-        _show_menu("Drafted Food Profiles", [
-            ("1", "List drafted profiles"),
-            ("2", "Create new drafted profile"),
-            ("3", "Edit a drafted profile"),
-            ("4", "Delete a drafted profile"),
-            ("b", "Back to Foods menu"),
-            ("m", "Return to main menu"),
-            ("q", "Quit"),
-        ])
-        try:
-            choice = _prompt("Choice").strip().lower()
+            raw = _prompt("Pick number  (/filter, Enter/b=back, m=main, q=quit)").strip()
         except Cancelled:
             return
 
-        if choice == "1":
-            _list_drafted_foods()
+        raw_lower = raw.lower()
+        if not raw or raw_lower == "b":
+            return
+        if raw_lower == "m":
+            raise ReturnToMain()
+        if raw_lower == "q":
+            raise SystemExit(0)
+        if raw.startswith("/"):
+            filter_text = raw[1:].strip() or None
+            continue
 
-        elif choice == "2":
-            _do_create_drafted_food()
+        try:
+            idx = int(raw) - 1
+            if idx < 0 or idx >= len(foods):
+                raise ValueError
+        except ValueError:
+            state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
+            continue
 
-        elif choice == "3":
-            rows = _list_drafted_foods()
-            if not rows:
-                continue
-            fdc_id = _ask_int("Profile ID to edit")
-            if fdc_id is None:
-                continue
-            row = next((r for r in rows if r["fdc_id"] == fdc_id), None)
-            if row is None:
-                state.console.print(f"[{state.T['warning']}]ID {fdc_id} not found.[/{state.T['warning']}]")
-                continue
-            _do_edit_drafted_food(fdc_id, row)
+        row = foods[idx]
+        with _db.get_db() as conn:
+            cached = _db.get_cached_food(conn, row["fdc_id"])
+        if not cached:
+            state.console.print(f"[{state.T['error']}]Food not found in cache.[/{state.T['error']}]")
+            continue
 
-        elif choice == "4":
-            rows = _list_drafted_foods()
-            if not rows:
-                continue
-            fdc_id = _ask_int("Profile ID to delete")
-            if fdc_id is None:
-                continue
-            row = next((r for r in rows if r["fdc_id"] == fdc_id), None)
-            if row is None:
-                state.console.print(f"[{state.T['warning']}]ID {fdc_id} not found.[/{state.T['warning']}]")
-                continue
+        food = {
+            "fdcId":            cached["fdc_id"],
+            "name":             cached["name"],
+            "dataType":         cached["data_type"],
+            "brand":            cached["brand"],
+            "servingSize":      cached["serving_size"],
+            "servingUnit":      cached["serving_unit"],
+            "householdServing": None,
+            "nutrients":        json.loads(cached["nutrients_json"]),
+            "portions":         json.loads(cached["portions_json"]),
+        }
+
+        try:
+            action = _prompt_with_options(
+                "Cached food action",
+                [
+                    ("1", "View nutrients"),
+                    ("2", "Analyze portion"),
+                    ("3", "Edit nutrients"),
+                    ("d", "Delete from cache"),
+                ],
+                default="1",
+            )
+        except Cancelled:
+            continue
+
+        if action == "3":
+            _do_edit_cached_food(row["fdc_id"], cached)
+        elif action == "d":
             try:
                 confirm = _prompt(
-                    f"Delete [{state.T['hi']}]{row['name']}[/{state.T['hi']}]?",
-                    choices=["y", "n"], default="n"
-                )
+                    f"Delete [bold]{row['name']}[/bold] from cache?  "
+                    f"[dim]Recipes using it will need to re-fetch on next analysis.  (y/N)[/dim]",
+                    default="n",
+                ).strip().lower()
             except Cancelled:
                 continue
-            if confirm.lower() == "y":
+            if confirm == "y":
                 with _db.get_db() as conn:
-                    conn.execute("DELETE FROM foods WHERE fdc_id = ? AND user_drafted = 1", (fdc_id,))
-                state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Deleted.")
-
-        elif choice == "b":
-            return
-        elif choice == "m":
-            raise ReturnToMain()
-        elif choice == "q":
-            raise SystemExit(0)
+                    deleted = _db.delete_cached_food(conn, row["fdc_id"])
+                if deleted:
+                    state.console.print(
+                        f"  [{state.T['success']}]✓[/{state.T['success']}]  Deleted '{row['name']}' from cache."
+                    )
+                else:
+                    state.console.print(f"  [{state.T['warning']}]Not found — may have already been removed.[/{state.T['warning']}]")
+        elif action == "2":
+            result = _pick_portion(food)
+            if result is None:
+                continue
+            grams, label, scaled = result
+            _print_nutrient_table(scaled, title=food["name"], per_label=label)
+            _print_protein_completeness(scaled)
         else:
-            state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+            _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
+            _print_protein_completeness(food["nutrients"])
 
 
-def _do_create_drafted_food() -> None:
-    state.console.print(
-        f"\n  [{state.T['hi']}]Create a drafted food profile[/{state.T['hi']}]\n"
-        f"  [dim]Drafted profiles let you build a best-guess nutrient profile for foods\n"
-        f"  lacking complete official data. All values are per 100 g.[/dim]\n"
-    )
-    try:
-        start = _prompt(
-            "Start from a USDA food (pre-fill values) or from scratch?",
-            choices=["u", "s"], default="s"
-        ).strip().lower()
-    except Cancelled:
-        return
-
-    existing_nutrients: dict = {}
-    default_name = ""
-    default_serving_size: float | None = None
-    default_serving_unit: str | None = None
-
-    if start == "u":
-        food = _search_and_pick_food()
-        if food is None:
-            return
-        existing_nutrients = dict(food.get("nutrients") or {})
-        default_name = food.get("name", "")
-        default_serving_size = food.get("servingSize")
-        default_serving_unit = food.get("servingUnit")
-        state.console.print(
-            f"\n  [dim]Loaded: [bold]{default_name}[/bold] — "
-            f"you can override any value below.[/dim]"
-        )
-
-    # Name
-    try:
-        name = _prompt("Food name", default=default_name).strip()
-    except Cancelled:
-        return
-    if not name or name.lower() == "b":
-        return
-
-    # Serving size (optional metadata — not used in nutrient calculations)
-    try:
-        srv_raw = _prompt(
-            "Serving size  [dim](e.g. 30, or Enter to skip)[/dim]",
-            default=f"{default_serving_size:.0f}" if default_serving_size else ""
-        ).strip()
-    except Cancelled:
-        srv_raw = ""
-    serving_size: float | None = None
-    if srv_raw:
-        try:
-            serving_size = float(srv_raw)
-        except ValueError:
-            pass
-
-    try:
-        serving_unit = _prompt(
-            "Serving unit  [dim](e.g. g, oz, cup — or Enter to skip)[/dim]",
-            default=default_serving_unit or ""
-        ).strip() or None
-    except Cancelled:
-        serving_unit = None
-
-    # Nutrients
-    nutrients = _prompt_nutrients(existing_nutrients if existing_nutrients else None)
-
-    # Note
-    try:
-        notes = _prompt(
-            "Note  [dim](document your sources/assumptions — optional)[/dim]",
-            default=""
-        ).strip() or None
-    except Cancelled:
-        notes = None
-
-    # Assign a negative fdc_id and save
-    with _db.get_db() as conn:
-        fdc_id = _db.next_user_drafted_fdc_id(conn)
-        _db.cache_food(
-            conn, fdc_id, name, "User Drafted",
-            brand=None,
-            serving_size=serving_size,
-            serving_unit=serving_unit,
-            nutrients=nutrients,
-            portions=[],
-            user_drafted=True,
-            notes=notes,
-        )
-
-    state.console.print(
-        f"\n  [{state.T['success']}]✓[/{state.T['success']}]  Drafted profile saved: "
-        f"[bold]{name}[/bold]  (ID {fdc_id})"
-    )
-    if nutrients:
-        _print_nutrient_table(nutrients, title=name, per_label="per 100g")
-
-
-def _do_edit_drafted_food(fdc_id: int, row) -> None:
-    state.console.print(
-        f"\n  [{state.T['hi']}]Editing:[/{state.T['hi']}] [bold]{row['name']}[/bold]  (ID {fdc_id})\n"
-        f"  [dim]Press Enter to keep the current value for each field.[/dim]\n"
-    )
-
-    # Load existing nutrients
-    with _db.get_db() as conn:
-        cached = _db.get_cached_food(conn, fdc_id)
-    existing_nutrients: dict = {}
-    if cached and cached["nutrients_json"]:
-        existing_nutrients = json.loads(cached["nutrients_json"])
-
-    # Name
-    try:
-        name = _prompt("Food name", default=row["name"]).strip()
-    except Cancelled:
-        return
-    if not name:
-        name = row["name"]
-
-    # Serving size
-    current_srv = cached["serving_size"] if cached else None
-    current_unit = cached["serving_unit"] if cached else None
-    try:
-        srv_raw = _prompt(
-            "Serving size  [dim](Enter to keep)[/dim]",
-            default=f"{current_srv:.0f}" if current_srv else ""
-        ).strip()
-    except Cancelled:
-        srv_raw = ""
-    serving_size: float | None = current_srv
-    if srv_raw:
-        try:
-            serving_size = float(srv_raw)
-        except ValueError:
-            pass
-
-    try:
-        serving_unit = _prompt(
-            "Serving unit  [dim](Enter to keep)[/dim]",
-            default=current_unit or ""
-        ).strip() or current_unit
-    except Cancelled:
-        serving_unit = current_unit
-
-    # Nutrients
-    nutrients = _prompt_nutrients(existing_nutrients)
-
-    # Note
-    try:
-        notes = _prompt(
-            "Note  [dim](Enter to keep, '-' to clear)[/dim]",
-            default=row["notes"] or ""
-        ).strip()
-    except Cancelled:
-        notes = row["notes"] or ""
-    if notes == "-":
-        notes = ""
-
-    with _db.get_db() as conn:
-        _db.update_cached_food_profile(
-            conn, fdc_id, name, nutrients,
-            data_type="User Drafted",
-            serving_size=serving_size,
-            serving_unit=serving_unit,
-            notes=notes or None,
-            user_drafted=True,
-        )
-
-    state.console.print(
-        f"\n  [{state.T['success']}]✓[/{state.T['success']}]  Profile updated: [bold]{name}[/bold]"
-    )
-    if nutrients:
-        _print_nutrient_table(nutrients, title=name, per_label="per 100g")

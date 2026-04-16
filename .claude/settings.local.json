@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import export; print\\('export.py OK'\\)\")",
+      "Bash(python -c \"from numa_app.workflows import recipes; print\\('recipes.py OK'\\)\")",
+      "Bash(python -c \"import usda; from numa_app.services import search; print\\('OK'\\)\")",
+      "Bash(python -c \"from numa_app.services import search; print\\('OK'\\)\")",
+      "Bash(python -c \"from numa_app.services import search; from numa_app.workflows import pantry; print\\('OK'\\)\")",
+      "Bash(.venv/bin/pytest tests/ -q --tb=no)",
+      "Bash(.venv/bin/pytest tests/ -q --tb=short)",
+      "Bash(.venv/bin/pytest tests/ -q --tb=line)",
+      "Bash(.venv/bin/pytest tests/test_usda.py::TestHasAminoAcidData -q --tb=short)",
+      "Bash(.venv/bin/pytest \"tests/test_cli.py::TestMealsMenu::test_view_meals_shows_food_items\" -q --tb=short)",
+      "Bash(python -c \"from numa_app.services.portions import _parse_portion_input; print\\(_parse_portion_input\\('150', []\\)\\); print\\(_parse_portion_input\\('1/4', []\\)\\); print\\(_parse_portion_input\\('1 1/2', []\\)\\)\")",
+      "Bash(python -m pytest tests/ -q --tb=short)",
+      "Bash(python -c \"import openfoodfacts as _off; help\\(_off.search_foods\\)\")",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

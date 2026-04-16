@@ -7,6 +7,7 @@ import db as _db
 import usda as _usda
 import openfoodfacts as _off
 from .. import state
+from ..ui.common import _id_cell, ID_KEY
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 
@@ -99,12 +100,22 @@ def _refresh_cache_if_missing_aa(fdc_id: int) -> dict | None:
         cached = _db.get_cached_food(conn, fdc_id)
     if cached is None:
         return None
+    if cached["user_drafted"]:
+        return None  # never overwrite user-edited nutrient profiles
     nutrients = json.loads(cached["nutrients_json"])
-    if _usda.has_amino_acid_data(nutrients):
-        return None  # already has AA data, nothing to do
     data_type = cached["data_type"] or ""
     if data_type == "Branded":
         return None  # branded foods won't have AA data regardless
+    # Re-fetch if AA data is missing, OR if protein is 0 in an SR Legacy/Foundation food
+    # (protein=0 in a curated food almost always means a corrupted/incomplete cache entry,
+    # because has_amino_acid_data() short-circuits to True for protein=0 and would otherwise
+    # silently suppress the refresh).
+    protein_zero_suspect = (
+        nutrients.get("protein_g", 0) == 0
+        and data_type in ("SR Legacy", "Foundation")
+    )
+    if _usda.has_amino_acid_data(nutrients) and not protein_zero_suspect:
+        return None  # already has AA data, nothing to do
     # Re-fetch full detail from API
     try:
         detail = _usda.get_food_detail(fdc_id)
@@ -219,11 +230,12 @@ def _search_and_pick_food(
                 if r["description"].lower() not in existing_names:
                     api_results.append(r)
 
-        # Merge: cache items first, then remote items not already cached.
-        results = list(cache_results) + [
+        # Merge: tag cache hits, then append remote items not already cached.
+        tagged_cache = [{**r, "_from_cache": True} for r in cache_results]
+        results = tagged_cache + [
             r for r in api_results if r.get("fdcId") not in cache_fdcids
         ]
-        
+
         if not results:
             state.console.print(f"[{state.T['warning']}]No results found.[/{state.T['warning']}]")
             if allow_research:
@@ -244,19 +256,49 @@ def _search_and_pick_food(
                 seen.add(key)
                 deduped.append(food)
 
-        # Re-rank: more query-word matches in description → higher
+        # Sort: tier-first unless the query names a specific brand.
+        # Tier order: cache (0) → Foundation/SR Legacy (1) → Open Food Facts (2) → Branded (3)
+        # Within each tier, rank by number of query words matched in the description.
+        def _norm(s: str) -> str:  # re-define to keep local scope clean
+            return " ".join(re.sub(r'[^a-z0-9]', ' ', s.lower()).split())
+
         query_words = set(_norm(query).split())
-        def _score(food: dict) -> int:
+
+        def _word_score(food: dict) -> int:
             desc_words = set(_norm(food.get("description", "")).split())
             return len(query_words & desc_words)
-        results = sorted(deduped, key=_score, reverse=True)
+
+        def _source_tier(food: dict) -> int:
+            if food.get("_from_cache"):
+                return 0
+            dtype = food.get("dataType", "")
+            if dtype in ("Foundation", "SR Legacy"):
+                return 1
+            if food.get("_from_off") or dtype == "Open Food Facts":
+                return 2
+            return 3  # Branded or unknown
+
+        # Detect a brand-specific query: any brand word (≥4 chars) appears in the query.
+        query_lower = query.lower()
+        brand_in_query = any(
+            word in query_lower
+            for food in deduped
+            for word in _norm(food.get("brandOwner") or food.get("brandName") or "").split()
+            if len(word) >= 4
+        )
+
+        if brand_in_query:
+            results = sorted(deduped, key=_word_score, reverse=True)
+        else:
+            results = sorted(deduped, key=lambda f: (_source_tier(f), -_word_score(f)))
 
         recipe_rows = prepend_recipes or []
 
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         tbl.add_column("#",       justify="right", min_width=3)
         tbl.add_column("Type",    min_width=12)
-        tbl.add_column("Food / Recipe", min_width=40)
+        tbl.add_column("ID",      justify="right", min_width=7)
+        tbl.add_column("Food / Recipe", min_width=32)
         tbl.add_column("Brand",   min_width=20)
         if show_aa_status:
             tbl.add_column("AA data", min_width=8)
@@ -266,7 +308,7 @@ def _search_and_pick_food(
             aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
                        if r["dcp_g"] is not None
                        else "[dim]—[/dim]")
-            row = [f"R{i}", "Recipe", r["name"], ""]
+            row = [f"R{i}", "Recipe", "", r["name"], ""]
             if show_aa_status:
                 row.append(aa_cell)
             tbl.add_row(*row)
@@ -282,7 +324,14 @@ def _search_and_pick_food(
                     # OFF never has AA data
                     aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
                 elif food.get("_alias_has_aa"):
-                    aa_cell = f"[{state.T['success']}]✓[/{state.T['success']}]"
+                    # Alias: AA data verified in USDA — but check local cache to decide ✓ vs ~✓
+                    with _db.get_db() as _ac:
+                        _alias_cached = _db.get_cached_food(_ac, food["fdcId"])
+                    if (_alias_cached is not None
+                            and _usda.has_amino_acid_data(json.loads(_alias_cached["nutrients_json"]))):
+                        aa_cell = f"[{state.T['success']}]✓[/{state.T['success']}]"
+                    else:
+                        aa_cell = f"[{state.T['success']}]~✓[/{state.T['success']}]"
                 else:
                     with _db.get_db() as conn:
                         cached = _db.get_cached_food(conn, food["fdcId"])
@@ -297,14 +346,20 @@ def _search_and_pick_food(
                     else:
                         # Branded / unknown: virtually never have AA data in USDA
                         aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
-                tbl.add_row(str(i), dtype, food.get("description", ""), brand, aa_cell)
+                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), food.get('description', ''), brand, aa_cell)
             else:
-                tbl.add_row(str(i), dtype, food.get("description", ""), brand)
+                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), food.get('description', ''), brand)
         if show_aa_status:
             likely_count = 0
             for food in results:
                 if food.get('_alias_has_aa'):
-                    likely_count += 1
+                    with _db.get_db() as _lc:
+                        _lcached = _db.get_cached_food(_lc, food["fdcId"])
+                    if (_lcached is not None
+                            and _usda.has_amino_acid_data(json.loads(_lcached["nutrients_json"]))):
+                        likely_count += 1  # confirmed ✓
+                    else:
+                        likely_count += 1  # ~✓ — counts as a good candidate
                     continue
                 fdtype = food.get("dataType", "")
                 with _db.get_db() as conn:
@@ -314,15 +369,22 @@ def _search_and_pick_food(
                 elif cached is None and fdtype in ("Foundation", "SR Legacy"):
                     likely_count += 1
         state.console.print(tbl)
+        state.console.print(f"  {ID_KEY}")
         if show_aa_status:
             state.console.print()
             state.console.print(
                 f"  [dim]AA data column key:[/dim]\n"
-                f"    [{state.T['success']}]✓[/{state.T['success']}]  [dim]confirmed — amino acid data verified in local cache[/dim]\n"
-                f"    [{state.T['success']}]~✓[/{state.T['success']}] [dim]likely — Foundation or SR Legacy food not yet fetched; these datasets almost always include AA data[/dim]\n"
-                f"    [{state.T['error']}]✗[/{state.T['error']}]  [dim]none — branded or packaged food; USDA rarely includes AA data for these[/dim]",
+                f"    [{state.T['success']}]✓[/{state.T['success']}]  [dim]confirmed — amino acid data in local cache[/dim]\n"
+                f"    [{state.T['success']}]~✓[/{state.T['success']}] [dim]likely — not fetched yet; pick the number to fetch and confirm[/dim]\n"
+                f"    [{state.T['error']}]✗[/{state.T['error']}]  [dim]none — branded/packaged food; USDA rarely includes AA data for these[/dim]",
                 highlight=False,
             )
+            if likely_count > 0:
+                state.console.print(
+                    f"  [dim]  → [bold]~✓[/bold] items are not yet in your cache. "
+                    f"Enter the item number to fetch and cache it.[/dim]",
+                    highlight=False,
+                )
             if likely_count == 0:
                 state.console.print(
                     f"  [{state.T['warning']}]No options with amino acid data found.[/{state.T['warning']}] "

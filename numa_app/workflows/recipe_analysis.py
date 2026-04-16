@@ -1,0 +1,574 @@
+"""
+recipe_analysis.py — recipe nutrition analysis workflow for numa.
+
+Contains _resolve_recipe_dcp_data, helper converters, and _do_recipe_view
+(menu option 5 "Analyze recipe").  Called from recipes.py.
+"""
+import json
+from datetime import datetime, timezone
+
+from rich.table import Table
+
+import db as _db
+import usda as _usda
+from .. import state
+from ..services.portions import _normalize_unit_display, _parse_portion_input, _pick_portion
+from ..services.search import _refresh_cache_if_missing_aa
+from ..services.reports import _offer_export
+from ..ui.common import _id_cell, ID_KEY, _safe_call
+from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
+from ..ui.render import (
+    _print_complement_suggestions, _print_nutrient_table,
+    _print_protein_completeness, _print_recipe_bioavailability,
+)
+from .recipes import (
+    _do_recipe_list, _pick_recipe_portion, _compute_recipe_dcp,
+    _augment_aa_from_curated,
+)
+
+def _resolve_recipe_dcp_data(
+    recipe_id: int,
+    ingredients: list,
+    ingredient_stats: list[dict],
+    combined: dict[str, float],
+) -> tuple[list[dict], dict[str, float], bool, list[str]] | None:
+    """
+    Detect missing data that blocks or degrades DCP calculation.
+    Prompts the user to provide data, calculate with assumptions, or skip.
+
+    Returns (updated_stats, updated_combined, approximate, notes),
+    None if the user chooses to skip DCP entirely,
+    or the string "rerun" if ingredients were replaced and analysis should restart.
+    """
+    zero_weight = [ing for ing in ingredients if "(weight not known)" in (ing["unit"] or "")]
+    no_diaas    = [s for s in ingredient_stats if s["diaas"] is None]
+    no_aa_ings  = [s for s in ingredient_stats if not s.get("has_aa", True)]
+    pc          = _usda.protein_completeness(combined)
+    no_aa       = not pc.get("has_data")
+
+    if not zero_weight and not no_diaas and not no_aa:
+        return ingredient_stats, combined, False, []
+
+    state.console.print(f"\n  [{state.T['warning']}]⚠  Missing data for digestible complete protein (DCP):[/{state.T['warning']}]")
+    for ing in zero_weight:
+        state.console.print(f"    • {ing['food_name']} — weight unknown ({_normalize_unit_display(ing['unit'])})")
+    for s in no_diaas:
+        state.console.print(f"    • {s['name']} — no digestibility (DIAAS) score in database")
+    if no_aa:
+        if no_aa_ings:
+            for s in no_aa_ings:
+                state.console.print(f"    • {s['name']} — no amino acid profile in USDA data")
+        else:
+            state.console.print("    • No amino acid profile available in USDA data for these ingredients.")
+    state.console.print(
+        f"  [dim]If any flagged ingredient is not a significant protein source "
+        f"(e.g. spices, oil, salt), its missing data can safely be ignored.[/dim]"
+    )
+
+    # Build numbered options dynamically, preserving the action key internally
+    action_items: list[tuple[str, str]] = []  # (action_key, label)
+    if no_aa and no_aa_ings:
+        action_items.append(("f", "Fix: replace affected ingredients via Foundation Foods search"))
+    if zero_weight or no_diaas:
+        action_items.append(("p", "Provide missing data now"))
+    action_items.append(("c", "Calculate anyway  (result flagged as approximate)"))
+    action_items.append(("s", "Skip DCP calculation"))
+
+    numbered: list[tuple[str, str]] = [(str(i + 1), label) for i, (_, label) in enumerate(action_items)]
+    numbered.append(("b", "Back to previous menu"))
+    numbered.append(("m", "Return to main menu"))
+    numbered.append(("q", "Quit"))
+    valid_nums = {str(i + 1) for i in range(len(action_items))}
+
+    while True:
+        _show_menu("Options", numbered)
+        while True:
+            try:
+                choice = _prompt("Choice").strip().lower()
+            except Cancelled:
+                return "back"  # type: ignore[return-value]
+            if choice in valid_nums or choice in ("b", "m", "q"):
+                break
+            state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+
+        if choice == "b":
+            return "back"  # type: ignore[return-value]
+        if choice == "m":
+            raise ReturnToMain()
+        if choice == "q":
+            raise SystemExit(0)
+
+        # Map number back to action key
+        action = action_items[int(choice) - 1][0]
+
+        if action == "s":
+            return None
+
+        if action == "f":
+            # Replace each affected ingredient with a Foundation Foods version
+            affected_names = {s["name"].lower() for s in no_aa_ings}
+            with _db.get_db() as conn:
+                all_ings = _db.recipe_get_ingredients(conn, recipe_id)
+            replaced_any = False
+            for ing in all_ings:
+                if ing["food_name"].lower() not in affected_names:
+                    continue
+                state.console.print(
+                    f"\n  Replacing: [{state.T['accent']}]{ing['food_name']}[/{state.T['accent']}]\n"
+                    "  [dim]Search for a Foundation Foods replacement:[/dim]"
+                )
+                food = _search_and_pick_food(data_types=["Foundation", "SR Legacy"], show_aa_status=True, allow_research=True)
+                if food is None:
+                    state.console.print("  [dim]Skipped.[/dim]")
+                    continue
+                result = _pick_portion(food)
+                if result is None:
+                    state.console.print("  [dim]Skipped.[/dim]")
+                    continue
+                grams, label, _ = result
+                with _db.get_db() as conn:
+                    _db.recipe_remove_ingredient(conn, ing["id"])
+                    _db.recipe_add_ingredient(conn, recipe_id, food["fdcId"], food["name"], grams, label)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Replaced with: {food['name']}  {label}")
+                replaced_any = True
+            if replaced_any:
+                return "rerun"  # type: ignore[return-value]
+            return None
+
+        approximate = False
+        notes: list[str] = []
+
+        if action == "p":
+            new_combined  = dict(combined)
+            new_stats     = list(ingredient_stats)
+            _back = False
+
+            for ing in zero_weight:
+                vol_display = _normalize_unit_display(ing["unit"]).replace(" (weight not known)", "")
+                state.console.print(f"\n  [{state.T['accent']}]{ing['food_name']}[/{state.T['accent']}]"
+                              f"  [dim]({vol_display})[/dim]")
+                try:
+                    w_raw = _prompt("Weight in grams  (Enter=skip, b=back)", free_text=True).strip()
+                except Cancelled:
+                    w_raw = ""
+                if w_raw.lower() == "q":
+                    raise SystemExit(0)
+                if w_raw.lower() == "b":
+                    _back = True
+                    break
+                if w_raw and w_raw.lower() != "s":
+                    try:
+                        grams = float(w_raw)
+                        with _db.get_db() as conn:
+                            cached = _db.get_cached_food(conn, ing["fdc_id"])
+                        if cached:
+                            scaled = _usda.scale_nutrients(
+                                json.loads(cached["nutrients_json"]), grams, base_size=100.0
+                            )
+                            new_combined = _usda.sum_nutrients(new_combined, scaled)
+                            p = scaled.get("protein_g", 0.0)
+                            if p > 0:
+                                new_stats.append({
+                                    "name": ing["food_name"],
+                                    "fdc_id": ing["fdc_id"],
+                                    "protein_g": p,
+                                    "diaas": _usda.get_diaas(ing["food_name"]),
+                                })
+                        notes.append(f"{ing['food_name']}: {grams:.0f}g (user-provided, not saved)")
+                        approximate = True  # user-supplied value, not from DB
+                    except ValueError:
+                        approximate = True
+                        notes.append(f"{ing['food_name']}: skipped (invalid weight)")
+                else:
+                    approximate = True
+                    notes.append(f"{ing['food_name']}: excluded (weight not provided)")
+
+            if _back:
+                continue  # re-show the options menu
+
+            for s in no_diaas:
+                state.console.print(
+                    f"\n  [{state.T['accent']}]{s['name']}[/{state.T['accent']}]  [dim]— DIAAS unknown[/dim]\n"
+                    "  [dim]Reference: eggs 0.99 · whey 0.97 · meat/fish 0.90–0.95 · soy 0.91 "
+                    "· legumes 0.64–0.75 · wheat 0.46[/dim]"
+                )
+                try:
+                    d_raw = _prompt("DIAAS value (0.0–1.0)  (Enter=skip → assume 1.0, b=back)", free_text=True).strip()
+                except Cancelled:
+                    d_raw = ""
+                if d_raw.lower() == "q":
+                    raise SystemExit(0)
+                if d_raw.lower() == "b":
+                    _back = True
+                    break
+                if d_raw and d_raw.lower() != "s":
+                    try:
+                        diaas = max(0.0, min(1.0, float(d_raw)))
+                        s["diaas"] = diaas
+                        notes.append(f"{s['name']}: DIAAS {diaas:.2f} (user-provided)")
+                        approximate = True
+                    except ValueError:
+                        approximate = True
+                        notes.append(f"{s['name']}: DIAAS assumed 1.0 (invalid input)")
+                else:
+                    approximate = True
+                    notes.append(f"{s['name']}: DIAAS assumed 1.0")
+
+            if _back:
+                continue  # re-show the options menu
+
+            return new_stats, new_combined, approximate, notes
+
+        else:  # action == "c" — calculate anyway
+            approximate = True
+            for ing in zero_weight:
+                notes.append(f"{ing['food_name']}: excluded (weight not known)")
+            for s in no_diaas:
+                notes.append(f"{s['name']}: DIAAS assumed 1.0")
+            if no_aa:
+                notes.append("amino acid completeness: unknown — no AA data in USDA cache")
+            return ingredient_stats, combined, True, notes
+
+
+def _recipe_weight_to_g(amount: float | None, unit: str | None) -> float | None:
+    """Convert a recipe total_weight value to grams. Returns None if unknown."""
+    if amount is None or amount <= 0:
+        return None
+    if not unit:
+        return float(amount)          # assume grams
+    factor = _UNIT_TO_GRAMS.get(unit.strip().lower())
+    return amount * factor if factor is not None else None
+
+
+def _recipe_vol_to_ml(amount: float | None, unit: str | None) -> float | None:
+    """Convert a recipe total_volume value to ml. Returns None if unknown."""
+    if amount is None or amount <= 0:
+        return None
+    if not unit:
+        return float(amount)          # assume ml
+    u = unit.strip().lower()
+    # _VOLUME_TO_ML keys are case-sensitive (T vs t); check original case first
+    factor = _VOLUME_TO_ML.get(unit.strip()) or _VOLUME_TO_ML.get(u)
+    return amount * factor if factor is not None else None
+
+
+def _do_recipe_view() -> None:
+    _do_recipe_list()
+    rid = _ask_int("Recipe ID")
+    if rid is None:
+        return
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, rid)
+        if recipe is None:
+            state.console.print(f"[{state.T['warning']}]Recipe {rid} not found.[/{state.T['warning']}]")
+            return
+        ingredients = _db.recipe_get_ingredients(conn, rid)
+
+    if not ingredients:
+        state.console.print("[dim]This recipe has no ingredients.[/dim]")
+        return
+
+    while True:
+        # Reload recipe + ingredients on rerun (ingredients may have been replaced)
+        with _db.get_db() as conn:
+            recipe     = _db.recipe_get(conn, rid)
+            ingredients = _db.recipe_get_ingredients(conn, rid)
+
+        srv_tag = (
+            "[dim]whole recipe[/dim]"
+            if recipe["servings"] == 0
+            else f"[dim]{recipe['servings']} serving(s)[/dim]"
+        )
+        state.console.print(
+            f"\n[{state.T['accent']}]{recipe['name']}[/{state.T['accent']}]  {srv_tag}"
+        )
+        if recipe["description"]:
+            state.console.print(f"  {recipe['description']}")
+
+        # Ingredient list with amounts — shown before DCP prompts so user can see the recipe
+        state.console.print(f"\n[{state.T['accent']}]Ingredients:[/{state.T['accent']}]  {ID_KEY}")
+        for ing in ingredients:
+            note_tag = f"  [dim]({ing['notes']})[/dim]" if ing["notes"] else ""
+            state.console.print(f"  • {_normalize_unit_display(ing['unit'])}  {_id_cell(ing['fdc_id'])}  {ing['food_name']}{note_tag}")
+
+        state.console.print(f"\n[{state.T['accent']}]Procedure:[/{state.T['accent']}]")
+        if recipe["instructions"] and recipe["instructions"].strip():
+            state.console.print(f"  {recipe['instructions']}")
+        else:
+            state.console.print("  [dim](none given)[/dim]")
+        state.console.rule()
+
+        # Build combined nutrients and per-ingredient protein+DIAAS (silent — before display)
+        combined: dict[str, float] = {}
+        ingredient_stats: list[dict] = []
+        volume_only_warnings: list[str] = []   # ingredients where weight couldn't be derived
+        for ing in ingredients:
+            amount = ing["amount"]
+            # amount=0 means no explicit weight was entered — try to derive from the unit string
+            if amount == 0.0 and ing["unit"]:
+                _refresh_cache_if_missing_aa(ing["fdc_id"])
+                with _db.get_db() as conn:
+                    cached = _db.get_cached_food(conn, ing["fdc_id"])
+                portions = json.loads(cached["portions_json"]) if cached else []
+                result = _parse_portion_input(ing["unit"], portions, food_name=ing["food_name"])
+                if result is not None:
+                    derived_g, _ = result
+                    if derived_g and derived_g > 0:
+                        amount = derived_g
+                    else:
+                        volume_only_warnings.append(
+                            f"{ing['food_name']} ({ing['unit']}) — no density (weight) data to convert volume to grams"
+                        )
+                        continue
+                else:
+                    volume_only_warnings.append(
+                        f"{ing['food_name']} ({ing['unit']}) — could not parse unit"
+                    )
+                    continue
+            elif amount == 0.0:
+                continue   # no weight and no unit — silently skip
+            else:
+                _refresh_cache_if_missing_aa(ing["fdc_id"])
+                with _db.get_db() as conn:
+                    cached = _db.get_cached_food(conn, ing["fdc_id"])
+            if cached:
+                scaled = _usda.scale_nutrients(
+                    json.loads(cached["nutrients_json"]), amount, base_size=100.0
+                )
+                combined = _usda.sum_nutrients(combined, scaled)
+                ing_protein = scaled.get("protein_g", 0.0)
+                if ing_protein > 0:
+                    pc = _usda.protein_completeness(scaled)
+                    ingredient_stats.append({
+                        "name": ing["food_name"],
+                        "fdc_id": ing["fdc_id"],
+                        "amount_g": amount,
+                        "protein_g": ing_protein,
+                        "diaas": _usda.get_diaas(ing["food_name"]),
+                        "has_aa": pc.get("has_data", False),
+                        "limiting_aa": pc.get("limiting_aa"),
+                    })
+        if volume_only_warnings:
+            state.console.print(
+                f"\n  [{state.T['warning']}]⚠  Could not compute weight for the following ingredients "
+                f"— they are excluded from the analysis:[/{state.T['warning']}]"
+            )
+            for w in volume_only_warnings:
+                state.console.print(f"    [dim]• {w}[/dim]")
+
+        # Resolve missing DCP data before displaying tables so totals reflect any user input
+        dcp_skip = False
+        dcp_approximate = False
+        dcp_notes: list[str] = []
+        if combined:
+            resolved = _resolve_recipe_dcp_data(recipe["id"], ingredients, ingredient_stats, combined)
+            if resolved == "rerun":
+                continue
+            if resolved == "back":
+                return
+            if resolved is None:
+                dcp_skip = True
+            else:
+                ingredient_stats, combined, dcp_approximate, dcp_notes = resolved
+        break
+
+    if combined:
+        state.console.print()
+        no_servings = recipe["servings"] == 0
+
+        if no_servings:
+            # No serving count — show whole-recipe totals, then per-100g / per-volume
+            # if the user recorded a total weight or volume.
+            _print_nutrient_table(combined, title="Total recipe",
+                                  per_label="whole recipe (no serving count)")
+            analysis_nutrients = combined
+
+            wt_g = _recipe_weight_to_g(recipe["total_weight"], recipe["total_weight_unit"])
+            if wt_g:
+                per_100g = {k: v / wt_g * 100 for k, v in combined.items()}
+                _print_nutrient_table(per_100g, title="Per 100 g",
+                                      per_label="based on recorded recipe weight")
+                analysis_nutrients = per_100g
+
+            vol_ml = _recipe_vol_to_ml(recipe["total_volume"], recipe["total_volume_unit"])
+            if vol_ml:
+                per_100ml = {k: v / vol_ml * 100 for k, v in combined.items()}
+                _print_nutrient_table(per_100ml, title="Per 100 ml",
+                                      per_label="based on recorded recipe volume")
+                per_cup = {k: v / vol_ml * 236.6 for k, v in combined.items()}
+                _print_nutrient_table(per_cup, title="Per 1 cup (236 ml)",
+                                      per_label="based on recorded recipe volume")
+                if not wt_g:
+                    analysis_nutrients = per_100ml
+        else:
+            _print_nutrient_table(combined, title="Total recipe",
+                                  per_label=f"whole recipe ({recipe['servings']} servings)")
+            if recipe["servings"] > 1:
+                per_serving = {k: v / recipe["servings"] for k, v in combined.items()}
+                _print_nutrient_table(per_serving, title="Per serving")
+                analysis_nutrients = per_serving
+            else:
+                analysis_nutrients = combined
+
+        # Compute DCP, save to DB, and display it as a summary line
+        now_utc = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat()
+        # When servings=0 the "per serving" concept doesn't apply; treat as 1 for math.
+        effective_servings = recipe["servings"] if recipe["servings"] > 0 else 1
+        dcp_label = "per serving" if recipe["servings"] > 1 else "whole recipe"
+
+        eff_diaas: float | None = None
+        if dcp_skip:
+            with _db.get_db() as conn:
+                _db.recipe_set_dcp(conn, recipe["id"], None)
+            state.console.print("\n  [dim]Digestible complete protein: skipped.[/dim]")
+        else:
+            if ingredient_stats:
+                total_digestible = sum(
+                    s["protein_g"] * (s["diaas"] if s["diaas"] is not None else 1.0)
+                    for s in ingredient_stats
+                )
+                total_protein_whole = sum(s["protein_g"] for s in ingredient_stats)
+                dcp_amount = total_digestible / effective_servings
+                eff_diaas = total_digestible / total_protein_whole if total_protein_whole > 0 else 0.0
+                # When servings=0 dcp_g per-serving is meaningless — don't save it.
+                save_ts = now_utc if not dcp_approximate else None
+                was_missing = recipe["dcp_g"] is None
+                save_dcp = None if (dcp_approximate or no_servings) else dcp_amount
+                with _db.get_db() as conn:
+                    _db.recipe_set_dcp(conn, recipe["id"], save_dcp, save_ts if save_dcp is not None else None)
+                color = state.T["success"] if eff_diaas >= 0.90 else (state.T["warning"] if eff_diaas >= 0.70 else state.T["error"])
+                approx_tag = f"  [{state.T['warning']}]⚠ approximate[/{state.T['warning']}]" if dcp_approximate else ""
+                if was_missing and not dcp_approximate and not no_servings:
+                    state.console.print(
+                        f"\n  [{state.T['success']}]✓[/{state.T['success']}]  [dim]Recipe data now complete"
+                        f" — DCP can be calculated.[/dim]"
+                    )
+                state.console.print(
+                    f"\n  Digestible complete protein: [{color}]{dcp_amount:.1f}g[/{color}]"
+                    f"  [dim]{dcp_label}[/dim]{approx_tag}",
+                    highlight=False,
+                )
+                if dcp_approximate:
+                    if dcp_notes:
+                        for note in dcp_notes:
+                            state.console.print(f"    [dim]↳ {note}[/dim]")
+                elif not no_servings:
+                    state.console.print(
+                        f"  [dim]↳ Saved to recipe · computed {now_utc}[/dim]",
+                        highlight=False,
+                    )
+            else:
+                with _db.get_db() as conn:
+                    _db.recipe_set_dcp(conn, recipe["id"], None)
+                state.console.print(
+                    "\n  [dim]Digestible complete protein: not available "
+                    "(no amino acid data for these ingredients)[/dim]"
+                )
+                if dcp_notes:
+                    for note in dcp_notes:
+                        state.console.print(f"    [dim]↳ {note}[/dim]")
+
+        # Full protein analysis — always shown
+        if True:
+            servings = max(1, recipe["servings"])
+            if ingredient_stats:
+                per_serving_stats = [
+                    {**s, "protein_g": s["protein_g"] / servings,
+                     "amount_g": s.get("amount_g", 0.0) / servings}
+                    for s in ingredient_stats
+                ]
+                augmented_analysis, aa_augmented = _augment_aa_from_curated(
+                    analysis_nutrients, per_serving_stats
+                )
+            else:
+                per_serving_stats = []
+                augmented_analysis = analysis_nutrients
+                aa_augmented = False
+
+            has_aa = _print_protein_completeness(augmented_analysis)
+            if ingredient_stats:
+                _print_recipe_bioavailability(per_serving_stats, analysis_nutrients)
+            if aa_augmented:
+                state.console.print(
+                    "  [dim](⚑ Amino acid scores above estimated using curated literature data "
+                    "for ingredients without USDA amino acid records.)[/dim]",
+                    highlight=False,
+                )
+            if has_aa and _usda.get_aa_gaps(augmented_analysis):
+                if no_servings:
+                    # No serving count — skip the basis choice; use analysis_nutrients directly.
+                    # Pick a label that reflects what analysis_nutrients actually represents.
+                    wt_g = _recipe_weight_to_g(recipe["total_weight"], recipe["total_weight_unit"])
+                    vol_ml = _recipe_vol_to_ml(recipe["total_volume"], recipe["total_volume_unit"])
+                    if wt_g:
+                        basis_label = "per 100 g"
+                    elif vol_ml:
+                        basis_label = "per 100 ml"
+                    else:
+                        basis_label = "whole recipe"
+                    sugg_nutrients = augmented_analysis
+                    _print_complement_suggestions(sugg_nutrients, context="recipe",
+                                                  offer_if_covered=True,
+                                                  basis_label=basis_label,
+                                                  base_diaas=eff_diaas)
+                else:
+                    # Default to per-serving; only ask when recipe has multiple servings
+                    if servings > 1:
+                        state.console.print(
+                            f"\n  Complement suggestions basis:\n"
+                            f"  [dim]1[/dim]  Per serving  [dim](default)[/dim]\n"
+                            f"  [dim]2[/dim]  Whole recipe  ({servings} serving(s))"
+                        )
+                        try:
+                            basis_choice = _prompt("Choice  (Enter=per serving)", choices=["1", "2"], default="1").strip()
+                        except Cancelled:
+                            basis_choice = "1"
+                    else:
+                        basis_choice = "1"
+                    if basis_choice == "2":
+                        sugg_nutrients, _ = _augment_aa_from_curated(combined, ingredient_stats)
+                        basis_label = f"whole recipe — {servings} serving(s)"
+                    else:
+                        sugg_nutrients = augmented_analysis
+                        basis_label = "per serving"
+                    _print_complement_suggestions(sugg_nutrients, context="recipe",
+                                                  offer_if_covered=True,
+                                                  basis_label=basis_label,
+                                                  base_diaas=eff_diaas)
+
+        if no_servings:
+            export_per_label = "whole recipe (no serving count)"
+            export_analysis_title = "Per 100 g" if _recipe_weight_to_g(
+                recipe["total_weight"], recipe["total_weight_unit"]
+            ) else "Per 100 ml" if _recipe_vol_to_ml(
+                recipe["total_volume"], recipe["total_volume_unit"]
+            ) else "Whole recipe"
+        else:
+            export_per_label = f"whole recipe, {recipe['servings']} serving(s)"
+            export_analysis_title = "Per serving"
+
+        export_sections: list[dict] = [
+            {"type": "ingredient_list", "title": "Ingredients",
+             "items": [{"food_name": i["food_name"], "amount": i["amount"],
+                        "unit": i["unit"]} for i in ingredients]},
+            {"type": "nutrient_table", "title": "Total recipe", "nutrients": combined,
+             "per_label": export_per_label},
+            {"type": "nutrient_table", "title": export_analysis_title,
+             "nutrients": analysis_nutrients},
+            {"type": "protein_completeness", "nutrients": analysis_nutrients},
+        ]
+        if per_serving_stats:
+            export_sections.append({
+                "type": "recipe_bioavailability",
+                "ingredient_stats": per_serving_stats,
+                "total_protein": analysis_nutrients.get("protein_g", 0.0),
+            })
+        if per_serving_stats and _usda.get_aa_gaps(augmented_analysis):
+            export_sections.append({
+                "type": "complement_suggestions",
+                "nutrients": augmented_analysis,
+                "base_diaas": eff_diaas,
+            })
+        _offer_export(recipe["name"], export_sections)
+
+

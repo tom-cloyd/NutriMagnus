@@ -1,0 +1,889 @@
+"""
+usda_nutrients.py — nutrient math, protein analysis, complement suggestions,
+DIAAS scoring, anti-nutrient flags, and density lookup for numa.
+
+Called via usda.py which re-exports everything as usda.<name>.
+"""
+import re
+
+from usda_api import NUTRIENT_MAP, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_PROTEIN
+
+def scale_nutrients(nutrients: dict[str, float], amount: float,
+                    base_size: float = 100.0) -> dict[str, float]:
+    """
+    Scale a nutrient dict from base_size grams to amount grams.
+    USDA data is always per 100g unless a serving size is specified.
+    Pass base_size=serving_size if you want to scale from per-serving data.
+    """
+    ratio = amount / base_size
+    return {k: v * ratio for k, v in nutrients.items()}
+
+
+def sum_nutrients(*nutrient_dicts: dict[str, float]) -> dict[str, float]:
+    """Add together multiple nutrient dicts."""
+    total: dict[str, float] = {}
+    for nd in nutrient_dicts:
+        for key, val in nd.items():
+            total[key] = total.get(key, 0.0) + val
+    return total
+
+
+def has_amino_acid_data(nutrients: dict[str, float]) -> bool:
+    """Return True if the nutrients dict contains sufficient amino acid data."""
+    if nutrients.get("protein_g", 0) <= 0:
+        return True   # no protein — AA data irrelevant
+    aa_present = [k for k in ESSENTIAL_AMINO_ACIDS if nutrients.get(k, 0) > 0]
+    return len(aa_present) >= 5
+
+
+def protein_completeness(nutrients: dict[str, float]) -> dict:
+    """
+    Assess protein completeness based on essential amino acid profile.
+    Returns a dict with:
+        has_data     bool — True if amino acid data is present
+        complete     bool — True if all essential AAs meet reference levels
+        limiting_aa  str | None — name of the most limiting amino acid
+        scores       dict — AA key → score vs. reference (1.0 = meets reference)
+    """
+    protein_g = nutrients.get("protein_g", 0)
+    if protein_g <= 0:
+        return {"has_data": False, "complete": False, "limiting_aa": None, "scores": {}}
+
+    aa_present = [k for k in ESSENTIAL_AMINO_ACIDS if nutrients.get(k, 0) > 0]
+    if len(aa_present) < 5:   # not enough AA data with non-zero values
+        return {"has_data": False, "complete": False, "limiting_aa": None, "scores": {}}
+
+    scores = {}
+    for aa_key in ESSENTIAL_AMINO_ACIDS:
+        if aa_key not in nutrients:
+            continue
+        # Convert g of AA per (protein_g grams of protein) to mg/g protein
+        aa_mg_per_g_protein = (nutrients[aa_key] / protein_g) * 1000
+        ref = AA_REFERENCE_MG_PER_G_PROTEIN.get(aa_key, 1)
+        scores[aa_key] = aa_mg_per_g_protein / ref
+
+    if not scores:
+        return {"has_data": False, "complete": False, "limiting_aa": None, "scores": {}}
+
+    limiting = min(scores, key=lambda k: scores[k])
+    complete = all(v >= 1.0 for v in scores.values())
+
+    return {
+        "has_data":    True,
+        "complete":    complete,
+        "limiting_aa": limiting,
+        "scores":      scores,
+    }
+
+
+def nutrient_label(key: str) -> tuple[str, str]:
+    """Return (display_name, unit) for a nutrient key, or (key, '') if unknown."""
+    for nid, (k, label, unit) in NUTRIENT_MAP.items():
+        if k == key:
+            return label, unit
+    return key, ""
+
+
+def get_aa_gaps(nutrients: dict[str, float]) -> list[tuple[str, float, float]]:
+    """
+    Return (aa_key, score, deficit_g) for each essential AA below score 1.0,
+    sorted by score ascending (most limiting first).
+    deficit_g is the additional grams of that AA needed to reach score 1.0.
+    Returns [] if protein data is missing or insufficient.
+    """
+    protein_g = nutrients.get("protein_g", 0)
+    if protein_g <= 0:
+        return []
+    gaps = []
+    for aa_key in ESSENTIAL_AMINO_ACIDS:
+        if aa_key not in nutrients:
+            continue
+        ref = AA_REFERENCE_MG_PER_G_PROTEIN[aa_key]
+        aa_mg_per_g = (nutrients[aa_key] / protein_g) * 1000
+        score = aa_mg_per_g / ref
+        if score < 1.0 - 1e-9:  # small epsilon avoids floating-point false gaps at exactly 1.0
+            target_g = ref * protein_g / 1000
+            deficit_g = target_g - nutrients[aa_key]
+            gaps.append((aa_key, score, deficit_g))
+    return sorted(gaps, key=lambda x: x[1])
+
+
+# ---------------------------------------------------------------------------
+# Curated complement table — per-100g nutrient profiles for common plant
+# protein sources.  Used when a pantry food has no USDA cache entry, and as
+# the general-suggestion fallback when pantry coverage is insufficient.
+# Values from USDA FDC Foundation / SR Legacy datasets.
+# ---------------------------------------------------------------------------
+
+_COMPLEMENT_TABLE: list[dict] = [
+    # ---- Plant sources ----
+    {
+        "name": "Lentils, cooked",
+        "animal": False,
+        "diaas": 0.75,
+        "nutrients": {
+            "protein_g":        9.02,
+            "aa_tryptophan_g":  0.077, "aa_threonine_g":   0.355,
+            "aa_isoleucine_g":  0.374, "aa_leucine_g":     0.636,
+            "aa_lysine_g":      0.624, "aa_methionine_g":  0.077,
+            "aa_phenylalanine_g": 0.450, "aa_valine_g":    0.432,
+            "aa_histidine_g":   0.254,
+        },
+    },
+    {
+        "name": "Chickpeas, cooked",
+        "animal": False,
+        "diaas": 0.83,
+        "nutrients": {
+            "protein_g":        8.86,
+            "aa_tryptophan_g":  0.079, "aa_threonine_g":   0.337,
+            "aa_isoleucine_g":  0.383, "aa_leucine_g":     0.623,
+            "aa_lysine_g":      0.519, "aa_methionine_g":  0.086,
+            "aa_phenylalanine_g": 0.471, "aa_valine_g":    0.377,
+            "aa_histidine_g":   0.239,
+        },
+    },
+    {
+        "name": "Black beans, cooked",
+        "animal": False,
+        "diaas": 0.75,
+        "nutrients": {
+            "protein_g":        8.86,
+            "aa_tryptophan_g":  0.099, "aa_threonine_g":   0.355,
+            "aa_isoleucine_g":  0.376, "aa_leucine_g":     0.677,
+            "aa_lysine_g":      0.535, "aa_methionine_g":  0.117,
+            "aa_phenylalanine_g": 0.473, "aa_valine_g":    0.452,
+            "aa_histidine_g":   0.264,
+        },
+    },
+    {
+        "name": "Kidney beans, cooked",
+        "animal": False,
+        "diaas": 0.75,
+        "nutrients": {
+            "protein_g":        8.67,
+            "aa_tryptophan_g":  0.096, "aa_threonine_g":   0.366,
+            "aa_isoleucine_g":  0.406, "aa_leucine_g":     0.700,
+            "aa_lysine_g":      0.598, "aa_methionine_g":  0.111,
+            "aa_phenylalanine_g": 0.490, "aa_valine_g":    0.467,
+            "aa_histidine_g":   0.276,
+        },
+    },
+    {
+        "name": "Tofu, firm",
+        "animal": False,
+        "diaas": 0.84,
+        "nutrients": {
+            "protein_g":        8.08,
+            "aa_tryptophan_g":  0.121, "aa_threonine_g":   0.321,
+            "aa_isoleucine_g":  0.434, "aa_leucine_g":     0.652,
+            "aa_lysine_g":      0.550, "aa_methionine_g":  0.103,
+            "aa_phenylalanine_g": 0.393, "aa_valine_g":    0.407,
+            "aa_histidine_g":   0.231,
+        },
+    },
+    {
+        "name": "Tempeh",
+        "animal": False,
+        "diaas": 0.87,
+        "nutrients": {
+            "protein_g":        20.29,
+            "aa_tryptophan_g":  0.287, "aa_threonine_g":   0.861,
+            "aa_isoleucine_g":  1.013, "aa_leucine_g":     1.545,
+            "aa_lysine_g":      1.171, "aa_methionine_g":  0.274,
+            "aa_phenylalanine_g": 1.052, "aa_valine_g":    1.073,
+            "aa_histidine_g":   0.582,
+        },
+    },
+    {
+        "name": "Edamame, cooked",
+        "animal": False,
+        "diaas": 0.84,
+        "nutrients": {
+            "protein_g":        11.91,
+            "aa_tryptophan_g":  0.156, "aa_threonine_g":   0.477,
+            "aa_isoleucine_g":  0.534, "aa_leucine_g":     0.911,
+            "aa_lysine_g":      0.782, "aa_methionine_g":  0.135,
+            "aa_phenylalanine_g": 0.580, "aa_valine_g":    0.559,
+            "aa_histidine_g":   0.321,
+        },
+    },
+    {
+        "name": "Peas, green, cooked",
+        "animal": False,
+        "diaas": 0.79,
+        "nutrients": {
+            "protein_g":        5.36,
+            "aa_tryptophan_g":  0.050, "aa_threonine_g":   0.213,
+            "aa_isoleucine_g":  0.238, "aa_leucine_g":     0.370,
+            "aa_lysine_g":      0.305, "aa_methionine_g":  0.082,
+            "aa_phenylalanine_g": 0.253, "aa_valine_g":    0.264,
+            "aa_histidine_g":   0.117,
+        },
+    },
+    {
+        "name": "Quinoa, cooked",
+        "animal": False,
+        "diaas": 0.85,
+        "nutrients": {
+            "protein_g":        4.40,
+            "aa_tryptophan_g":  0.052, "aa_threonine_g":   0.121,
+            "aa_isoleucine_g":  0.152, "aa_leucine_g":     0.257,
+            "aa_lysine_g":      0.233, "aa_methionine_g":  0.086,
+            "aa_phenylalanine_g": 0.180, "aa_valine_g":    0.175,
+            "aa_histidine_g":   0.113,
+        },
+    },
+    {
+        "name": "Amaranth, cooked",
+        "animal": False,
+        "diaas": 0.76,
+        "nutrients": {
+            "protein_g":        3.80,
+            "aa_tryptophan_g":  0.056, "aa_threonine_g":   0.104,
+            "aa_isoleucine_g":  0.131, "aa_leucine_g":     0.237,
+            "aa_lysine_g":      0.213, "aa_methionine_g":  0.060,
+            "aa_phenylalanine_g": 0.148, "aa_valine_g":    0.163,
+            "aa_histidine_g":   0.097,
+        },
+    },
+    {
+        "name": "Hemp seeds",
+        "animal": False,
+        "diaas": 0.63,
+        "nutrients": {
+            "protein_g":        31.56,
+            "aa_tryptophan_g":  0.490, "aa_threonine_g":   1.190,
+            "aa_isoleucine_g":  1.430, "aa_leucine_g":     2.160,
+            "aa_lysine_g":      0.960, "aa_methionine_g":  0.960,
+            "aa_phenylalanine_g": 1.440, "aa_valine_g":    1.780,
+            "aa_histidine_g":   0.870,
+        },
+    },
+    {
+        "name": "Sesame seeds",
+        "animal": False,
+        # DIAAS ~0.44: lysine is limiting (34 mg/g vs 45 mg/g reference); digestibility ~0.91
+        # Source: USDA SR Legacy FDC 12023 — Seeds, sesame seeds, whole, dried
+        "diaas": 0.44,
+        "nutrients": {
+            "protein_g":        17.73,
+            "aa_tryptophan_g":  0.330, "aa_threonine_g":   0.736,
+            "aa_isoleucine_g":  0.762, "aa_leucine_g":     1.299,
+            "aa_lysine_g":      0.570, "aa_methionine_g":  0.586,
+            "aa_phenylalanine_g": 0.940, "aa_valine_g":    0.982,
+            "aa_histidine_g":   0.482,
+        },
+    },
+    {
+        "name": "Brazil nuts",
+        "animal": False,
+        # DIAAS ~0.54: lysine is limiting (34 mg/g vs 45 mg/g reference); digestibility ~0.87
+        # Met/protein ratio ~70 mg/g — among the highest of any plant food.
+        # Source: USDA SR Legacy FDC 12078 — Nuts, brazilnuts, dried, unblanched
+        "diaas": 0.54,
+        "nutrients": {
+            "protein_g":        14.32,
+            "aa_tryptophan_g":  0.141, "aa_threonine_g":   0.362,
+            "aa_isoleucine_g":  0.516, "aa_leucine_g":     1.155,
+            "aa_lysine_g":      0.492, "aa_methionine_g":  1.008,
+            "aa_phenylalanine_g": 0.630, "aa_valine_g":    0.756,
+            "aa_histidine_g":   0.386,
+        },
+    },
+    {
+        "name": "Pumpkin seeds",
+        "animal": False,
+        "diaas": 0.64,
+        "nutrients": {
+            "protein_g":        24.54,
+            "aa_tryptophan_g":  0.330, "aa_threonine_g":   0.801,
+            "aa_isoleucine_g":  1.239, "aa_leucine_g":     2.408,
+            "aa_lysine_g":      0.979, "aa_methionine_g":  0.528,
+            "aa_phenylalanine_g": 1.558, "aa_valine_g":    1.539,
+            "aa_histidine_g":   0.745,
+        },
+    },
+    {
+        "name": "Sunflower seeds",
+        "animal": False,
+        "diaas": 0.53,
+        "nutrients": {
+            "protein_g":        19.33,
+            "aa_tryptophan_g":  0.294, "aa_threonine_g":   0.892,
+            "aa_isoleucine_g":  0.883, "aa_leucine_g":     1.434,
+            "aa_lysine_g":      0.728, "aa_methionine_g":  0.430,
+            "aa_phenylalanine_g": 0.988, "aa_valine_g":    1.022,
+            "aa_histidine_g":   0.510,
+        },
+    },
+    {
+        "name": "Oats",
+        "animal": False,
+        "diaas": 0.57,
+        "nutrients": {
+            # Source: USDA SR Legacy FDC 173904 — Cereals, oats, regular and quick, not fortified, dry
+            "protein_g":        13.15,
+            "aa_tryptophan_g":  0.182, "aa_threonine_g":   0.382,
+            "aa_isoleucine_g":  0.503, "aa_leucine_g":     0.980,
+            "aa_lysine_g":      0.637, "aa_methionine_g":  0.207,
+            "aa_phenylalanine_g": 0.665, "aa_valine_g":    0.688,
+            "aa_histidine_g":   0.275,
+        },
+    },
+    {
+        "name": "Nutritional yeast",
+        "animal": False,
+        "diaas": 0.72,
+        "nutrients": {
+            "protein_g":        52.00,
+            "aa_tryptophan_g":  0.660, "aa_threonine_g":   2.460,
+            "aa_isoleucine_g":  2.520, "aa_leucine_g":     3.600,
+            "aa_lysine_g":      3.110, "aa_methionine_g":  0.860,
+            "aa_phenylalanine_g": 2.000, "aa_valine_g":    2.770,
+            "aa_histidine_g":   1.180,
+        },
+    },
+    {
+        "name": "Pea protein powder",
+        "animal": False,
+        "diaas": 0.82,
+        "nutrients": {
+            "protein_g":        80.00,
+            "aa_tryptophan_g":  0.730, "aa_threonine_g":   2.700,
+            "aa_isoleucine_g":  3.440, "aa_leucine_g":     5.950,
+            "aa_lysine_g":      5.360, "aa_methionine_g":  0.930,
+            "aa_phenylalanine_g": 3.760, "aa_valine_g":    3.630,
+            "aa_histidine_g":   1.550,
+        },
+    },
+    # ---- Animal / dairy sources (shown only when include_animal_foods=True) ----
+    # Methionine and sulfur-AA gaps are difficult to close with plant foods alone;
+    # most grains and legumes fall below the FAO reference ratio for methionine.
+    {
+        "name": "Egg, whole, cooked",
+        "animal": True,
+        "diaas": 1.13,
+        "nutrients": {
+            "protein_g":        12.56,
+            "aa_tryptophan_g":  0.153, "aa_threonine_g":   0.556,
+            "aa_isoleucine_g":  0.671, "aa_leucine_g":     1.086,
+            "aa_lysine_g":      0.904, "aa_methionine_g":  0.392,
+            "aa_phenylalanine_g": 0.668, "aa_valine_g":    0.858,
+            "aa_histidine_g":   0.298,
+        },
+    },
+    {
+        "name": "Cheese, cheddar",
+        "animal": True,
+        "diaas": 1.08,
+        "nutrients": {
+            "protein_g":        24.90,
+            "aa_tryptophan_g":  0.320, "aa_threonine_g":   0.880,
+            "aa_isoleucine_g":  1.220, "aa_leucine_g":     2.380,
+            "aa_lysine_g":      1.850, "aa_methionine_g":  0.650,
+            "aa_phenylalanine_g": 1.280, "aa_valine_g":    1.600,
+            "aa_histidine_g":   0.720,
+        },
+    },
+    {
+        "name": "Greek yogurt, plain",
+        "animal": True,
+        "diaas": 1.14,
+        "nutrients": {
+            "protein_g":        9.95,
+            "aa_tryptophan_g":  0.049, "aa_threonine_g":   0.338,
+            "aa_isoleucine_g":  0.456, "aa_leucine_g":     0.785,
+            "aa_lysine_g":      0.699, "aa_methionine_g":  0.253,
+            "aa_phenylalanine_g": 0.408, "aa_valine_g":    0.560,
+            "aa_histidine_g":   0.230,
+        },
+    },
+    {
+        "name": "Whey protein powder",
+        "animal": True,
+        "diaas": 1.09,
+        "nutrients": {
+            "protein_g":        78.00,
+            "aa_tryptophan_g":  1.680, "aa_threonine_g":   5.800,
+            "aa_isoleucine_g":  5.900, "aa_leucine_g":    10.100,
+            "aa_lysine_g":      8.900, "aa_methionine_g":  2.250,
+            "aa_phenylalanine_g": 3.100, "aa_valine_g":    5.300,
+            "aa_histidine_g":   1.700,
+        },
+    },
+    {
+        "name": "Chicken breast, cooked",
+        "animal": True,
+        "diaas": 1.08,
+        "nutrients": {
+            "protein_g":        31.02,
+            "aa_tryptophan_g":  0.365, "aa_threonine_g":   1.326,
+            "aa_isoleucine_g":  1.452, "aa_leucine_g":     2.476,
+            "aa_lysine_g":      2.778, "aa_methionine_g":  0.740,
+            "aa_phenylalanine_g": 1.277, "aa_valine_g":    1.566,
+            "aa_histidine_g":   0.942,
+        },
+    },
+    {
+        "name": "Salmon, cooked",
+        "animal": True,
+        "diaas": 1.00,
+        "nutrients": {
+            "protein_g":        25.44,
+            "aa_tryptophan_g":  0.285, "aa_threonine_g":   1.115,
+            "aa_isoleucine_g":  1.159, "aa_leucine_g":     2.054,
+            "aa_lysine_g":      2.338, "aa_methionine_g":  0.800,
+            "aa_phenylalanine_g": 0.990, "aa_valine_g":    1.312,
+            "aa_histidine_g":   0.757,
+        },
+    },
+]
+
+# Index for fast keyword lookup of complement table entries
+_COMPLEMENT_INDEX: dict[str, dict] = {c["name"].lower(): c for c in _COMPLEMENT_TABLE}
+
+
+def _find_complement_by_name(food_name: str) -> dict | None:
+    """Match a food name against the complement table by keyword, return entry or None."""
+    name_lower = food_name.lower()
+    # Exact match first
+    if name_lower in _COMPLEMENT_INDEX:
+        return _COMPLEMENT_INDEX[name_lower]
+    # Keyword substring match
+    for entry_name, entry in _COMPLEMENT_INDEX.items():
+        # Use first word of entry name as a keyword
+        primary_kw = entry_name.split(",")[0].strip()
+        if primary_kw in name_lower or name_lower in primary_kw:
+            return entry
+    return None
+
+
+def get_complement_nutrients(food_name: str) -> dict[str, float] | None:
+    """
+    Return the nutrient profile from the complement table for a food name,
+    or None if not found. Used as a fallback when USDA cache lacks AA data.
+    """
+    entry = _find_complement_by_name(food_name)
+    return entry["nutrients"] if entry else None
+
+
+def suggest_complements(
+    base_nutrients: dict[str, float],
+    pantry_candidates: list[dict],
+    exclude_animal: bool = False,
+) -> dict[str, list[dict]]:
+    """
+    Suggest complement foods to close essential amino acid gaps.
+
+    pantry_candidates: list of dicts, each with:
+        "name": str
+        "nutrients": dict | None   (per-100g; None if not in USDA cache)
+        "diaas": float | None
+    exclude_animal: if True, animal-sourced entries are omitted from general suggestions.
+
+    Returns {"pantry": [...], "general": [...]}
+    Each suggestion dict contains:
+        name, grams, new_scores, new_complete, gaps_closed,
+        remaining_gaps, protein_added, digestible_protein_added, diaas
+    """
+    gaps = get_aa_gaps(base_nutrients)
+    if not gaps:
+        return {"pantry": [], "general": []}
+
+    primary_aa, _primary_score, primary_deficit_g = gaps[0]
+
+    def _score_candidate(nutrients_100g: dict, diaas: float | None,
+                         target_aa: str) -> dict | None:
+        """
+        Compute suggestion metrics for one candidate targeting a specific AA gap.
+        Returns None if the candidate cannot improve that gap.
+
+        Solving for grams X that brings target AA score to exactly 1.0:
+            (base_aa + alpha*X) / (base_protein + beta*X) = R
+        where alpha = cand_aa/100, beta = cand_protein/100, R = reference ratio.
+        Rearranging: X = (R*base_protein - base_aa) / (alpha - R*beta)
+        This is valid only when alpha > R*beta (candidate AA/protein > reference).
+        """
+        alpha = nutrients_100g.get(target_aa, 0.0) / 100.0   # g AA per g food
+        beta = nutrients_100g.get("protein_g", 0.0) / 100.0  # g protein per g food
+        R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0
+        denom = alpha - R * beta
+        if denom <= 0:
+            # Candidate's AA/protein ratio is below the reference — adding it
+            # won't close the gap (may worsen it).
+            return None
+        base_aa = base_nutrients.get(target_aa, 0.0)
+        base_protein = base_nutrients.get("protein_g", 0.0)
+        grams = (R * base_protein - base_aa) / denom
+        # Cap at a reasonable serving (500g) to avoid impractical suggestions
+        if grams <= 0 or grams > 500:
+            return None
+        added = scale_nutrients(nutrients_100g, grams)
+        combined = sum_nutrients(base_nutrients, added)
+        new_pc = protein_completeness(combined)
+        new_gaps = get_aa_gaps(combined)
+        gaps_closed = len(gaps) - len(new_gaps)
+        # Require that the targeted AA gap is actually closed.
+        # We allow suggestions where a different gap opens (gaps_closed == 0),
+        # since the user can layer complements — but the targeted AA must improve.
+        target_still_gapped = any(aa == target_aa for aa, _, _ in new_gaps)
+        if target_still_gapped:
+            return None
+        opens_new_gap = gaps_closed < 0
+        protein_added = nutrients_100g.get("protein_g", 0) * grams / 100
+        dig_added = protein_added * (diaas if diaas is not None else 1.0)
+        return {
+            "grams":                    round(grams),
+            "new_scores":               new_pc.get("scores", {}),
+            "new_complete":             new_pc.get("complete", False),
+            "gaps_closed":              gaps_closed,
+            "opens_new_gap":            opens_new_gap,
+            "remaining_gaps":           len(new_gaps),
+            "protein_added":            protein_added,
+            "digestible_protein_added": dig_added,
+            "diaas":                    diaas,
+        }
+
+    def _build_suggestions(candidates: list[dict]) -> list[dict]:
+        results = []
+        seen_names: set[str] = set()
+        for cand in candidates:
+            name = cand["name"]
+            if name in seen_names:
+                continue
+            cand_nutrients = cand.get("nutrients")
+            cand_diaas = cand.get("diaas") or get_diaas(name)
+            # If no nutrients from cache, try the complement table
+            if cand_nutrients is None:
+                entry = _find_complement_by_name(name)
+                if entry:
+                    cand_nutrients = entry["nutrients"]
+                    cand_diaas = cand_diaas or entry["diaas"]
+            if cand_nutrients is None:
+                continue
+            # Try each gap in priority order; use the first target the candidate can address
+            metrics = None
+            for target_aa, _score, _deficit in gaps:
+                metrics = _score_candidate(cand_nutrients, cand_diaas, target_aa)
+                if metrics is not None:
+                    break
+            if metrics is None:
+                continue
+            seen_names.add(name)
+            results.append({"name": name, **metrics})
+        # Sort by gaps_closed (desc) then grams (asc)
+        results.sort(key=lambda r: (-r["gaps_closed"], r["grams"]))
+        return results
+
+    pantry_suggestions = _build_suggestions(pantry_candidates)
+
+    # General suggestions from the curated table, excluding pantry foods and,
+    # optionally, animal-sourced entries.
+    pantry_names_lower = {c["name"].lower() for c in pantry_candidates}
+    general_candidates = [
+        {"name": c["name"], "nutrients": c["nutrients"], "diaas": c["diaas"]}
+        for c in _COMPLEMENT_TABLE
+        if c["name"].lower() not in pantry_names_lower
+        and not (exclude_animal and c.get("animal", False))
+    ]
+    general_suggestions = _build_suggestions(general_candidates)
+
+    return {"pantry": pantry_suggestions, "general": general_suggestions}
+
+
+# ---------------------------------------------------------------------------
+# DIAAS (Digestible Indispensable Amino Acid Score) lookup
+# ---------------------------------------------------------------------------
+# Values from FAO 2013 and peer-reviewed digestion studies.
+# Each entry: (keywords_any_match, score).  First matching entry wins.
+# Keywords are matched against the lowercased food name.
+# More specific entries must come before more general ones.
+
+_DIAAS_TABLE: list[tuple[tuple[str, ...], float]] = [
+    # Animal proteins — high digestibility
+    (("whey",),                                     1.09),
+    (("egg",),                                      1.13),
+    (("milk", "dairy", "yogurt", "kefir"),          1.14),
+    (("cheese", "casein"),                          1.08),
+    (("beef", "bison", "venison"),                  1.00),
+    (("chicken", "turkey", "poultry"),              1.08),
+    (("pork", "ham", "bacon"),                      0.99),
+    (("salmon", "tuna", "cod", "tilapia", "shrimp",
+      "fish", "seafood", "clam", "oyster"),         1.00),
+    # Soy — best plant source
+    (("soy protein isolate",),                      0.97),
+    (("soy protein concentrate",),                  0.92),
+    (("tofu", "tempeh", "edamame", "miso",
+      "soybeans", "soya"),                          0.84),
+    # Other legumes
+    (("pea protein",),                              0.82),
+    (("quinoa",),                                   0.85),
+    (("chickpea", "garbanzo"),                      0.83),
+    (("lentil",),                                   0.75),
+    (("black bean",),                               0.75),
+    (("kidney bean",),                              0.75),
+    (("navy bean", "haricot"),                      0.75),
+    (("pinto bean",),                               0.73),
+    (("lima bean",),                                0.72),
+    (("mung bean",),                                0.73),
+    (("bean",),                                     0.75),   # generic legume fallback
+    (("peas", "split pea"),                         0.79),
+    # Yeast — direct DIAAS data is sparse; estimate from PDCAAS literature
+    (("nutritional yeast",),                        0.72),
+    # Nuts and seeds
+    (("hemp seed", "hemp protein"),                 0.63),
+    (("flax seed", "flaxseed", "linseed"),          0.52),
+    (("peanut",),                                   0.52),
+    (("almond",),                                   0.40),
+    (("sunflower seed",),                           0.53),
+    (("pumpkin seed", "pepita"),                    0.64),
+    (("chia seed",),                                0.56),
+    (("sesame", "tahini"),                          0.42),
+    (("walnut", "pecan", "cashew", "pistachio",
+      "hazelnut", "macadamia"),                     0.50),
+    # Grains
+    (("rice protein",),                             0.59),
+    (("okara",),                                    0.75),  # soy byproduct; must precede generic "flour" catch-all
+    (("wheat protein", "gluten"),                   0.46),
+    (("brown rice", "whole grain rice"),            0.59),
+    (("white rice",),                               0.62),
+    (("oat",),                                      0.57),
+    (("wheat", "bread", "pasta", "flour", "noodle",
+      "tortilla", "cracker", "cereal"),             0.46),
+    (("corn", "maize", "polenta", "grits"),         0.45),
+    (("barley",),                                   0.53),
+    (("rye",),                                      0.49),
+    (("buckwheat",),                                0.75),
+    (("amaranth",),                                 0.76),
+    (("millet",),                                   0.54),
+    # Vegetables with notable protein
+    (("potato",),                                   0.71),
+    (("broccoli",),                                 0.73),
+    (("spinach",),                                  0.52),
+    (("pea",),                                      0.79),
+]
+
+
+def get_diaas(food_name: str) -> float | None:
+    """
+    Return the DIAAS score for a food by keyword matching, or None if unknown.
+    Scores > 1.0 are capped at 1.0 (excess doesn't add benefit beyond completeness).
+    """
+    name = food_name.lower()
+    for keywords, score in _DIAAS_TABLE:
+        if any(kw in name for kw in keywords):
+            return min(score, 1.0)
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Anti-nutrient flags
+# ---------------------------------------------------------------------------
+# Each entry: (keywords_any_match, flag_text, suppressed_if_any_of).
+# suppressed_if contains keywords that, if present in the food name, cancel the flag
+# (e.g., "cooked" cancels trypsin inhibitor / lectin flags).
+
+# Each entry: keywords, suppress_if, problem, group, cause, solution_label, solution.
+# Entries sharing the same `group` are consolidated into one displayed note.
+# solution_label / solution may be None for issues with no actionable remedy.
+_ANTINUTRIENT_TABLE: list[dict] = [
+    {
+        "keywords":       ("bean", "lentil", "chickpea", "garbanzo", "pea", "peanut",
+                           "soybeans", "edamame", "tofu", "tempeh"),
+        "suppress_if":    (),
+        "problem":        "Mineral absorption problem",
+        "group":          "phytate",
+        "cause":          "phytates are present",
+        "solution_label": "Best reduction",
+        "solution":       "soak or sprout before cooking",
+    },
+    {
+        "keywords":       ("bean", "lentil", "chickpea", "garbanzo", "soybeans"),
+        "suppress_if":    ("cooked", "boiled", "baked", "roasted", "tofu", "tempeh", "canned"),
+        "problem":        "Digestibility problem",
+        "group":          "lectin",
+        "cause":          "lectins & trypsin inhibitors",
+        "solution_label": "Required",
+        "solution":       "fully cook (boil) to inactivate",
+    },
+    {
+        "keywords":       ("oat", "wheat", "bran", "whole grain", "rye", "barley"),
+        "suppress_if":    (),
+        "problem":        "Mineral absorption problem",
+        "group":          "phytate",
+        "cause":          "phytates are present",
+        "solution_label": "Best reduction",
+        "solution":       "fermentation (sourdough) or soaking",
+    },
+    {
+        "keywords":       ("spinach", "swiss chard", "beet green"),
+        "suppress_if":    (),
+        "problem":        "Mineral absorption problem",
+        "group":          "oxalate",
+        "cause":          "high oxalate reduces calcium uptake from this food specifically",
+        "solution_label": None,
+        "solution":       None,
+    },
+    {
+        "keywords":       ("almond",),
+        "suppress_if":    (),
+        "problem":        "Mineral absorption problem",
+        "group":          "oxalate_phytate",
+        "cause":          "oxalate & phytate present",
+        "solution_label": "Reduces both",
+        "solution":       "roasting or soaking",
+    },
+    {
+        "keywords":       ("nut", "seed", "sesame", "sunflower", "pumpkin"),
+        "suppress_if":    ("peanut",),
+        "problem":        "Mineral absorption problem",
+        "group":          "phytate",
+        "cause":          "phytates are present",
+        "solution_label": "Moderate reduction",
+        "solution":       "roasting",
+    },
+    {
+        "keywords":       ("corn", "maize"),
+        "suppress_if":    ("tortilla", "masa", "hominy"),
+        "problem":        "Vitamin bioavailability problem",
+        "group":          "niacin",
+        "cause":          "niacin is bound — not usable unless nixtamalized",
+        "solution_label": "Nixtamalized forms are fine",
+        "solution":       "tortilla, masa, hominy",
+    },
+]
+
+
+def get_antinutrient_flags(food_name: str) -> list[dict]:
+    """
+    Return consolidated anti-nutrient flags for a food.
+
+    Each flag dict: {"problem": str, "cause": str,
+                     "solutions": [(label, description), ...]}
+    Entries sharing the same group are merged into one flag.
+    """
+    name = food_name.lower()
+
+    _KW_PATTERNS: dict[str, str] = {
+        "pea": r"pea(?!nut)",
+    }
+
+    def _matches(keywords: tuple) -> bool:
+        return any(re.search(_KW_PATTERNS.get(kw, re.escape(kw)), name) for kw in keywords)
+
+    groups: dict[str, dict] = {}
+    for entry in _ANTINUTRIENT_TABLE:
+        if not _matches(entry["keywords"]):
+            continue
+        if entry["suppress_if"] and _matches(entry["suppress_if"]):
+            continue
+        g = entry["group"]
+        if g not in groups:
+            groups[g] = {
+                "problem":   entry["problem"],
+                "cause":     entry["cause"],
+                "solutions": [],
+            }
+        if entry["solution"]:
+            groups[g]["solutions"].append((entry["solution_label"], entry["solution"]))
+
+    return list(groups.values())
+
+
+# ---------------------------------------------------------------------------
+# Volume-to-mass density lookup
+# ---------------------------------------------------------------------------
+# Each entry: (keyword_tuple, grams_per_ml).  First match wins.
+# More specific entries must come before more general ones.
+
+_DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
+    # Specific products first
+    (("nutritional yeast",),                                    0.61),
+    (("peanut butter", "almond butter", "tahini"),              1.07),
+    (("maple syrup",),                                          1.32),
+    (("honey",),                                                1.42),
+    (("olive oil", "coconut oil", "vegetable oil", "canola oil",
+      "avocado oil", "sesame oil"),                             0.92),
+    # Powders / flours
+    (("cocoa powder",),                                         0.47),
+    (("protein powder", "whey powder"),                         0.50),
+    (("baking powder", "baking soda"),                          0.90),
+    (("powdered sugar", "confectioner",),                       0.56),
+    (("brown sugar",),                                          0.93),
+    (("sugar",),                                                0.85),
+    (("salt",),                                                 1.22),
+    (("all-purpose flour", "white flour"),                      0.53),
+    (("whole wheat flour",),                                    0.52),
+    (("flour",),                                                0.53),
+    (("cocoa",),                                                0.47),
+    # Grains / seeds
+    (("rolled oat", "old-fashioned oat", "quick oat"),          0.36),
+    (("oat",),                                                  0.36),
+    (("quinoa",),                                               0.71),
+    (("brown rice", "wild rice"),                               0.85),
+    (("white rice",),                                           0.88),
+    (("rice",),                                                 0.86),
+    (("chia seed",),                                            0.77),
+    (("flax seed", "flaxseed"),                                 0.67),
+    (("hemp seed",),                                            0.57),
+    (("sesame seed",),                                          0.60),
+    (("sunflower seed",),                                       0.56),
+    (("pumpkin seed", "pepita"),                                0.46),
+    (("poppy seed",),                                           0.56),
+    # Nuts (whole/chopped)
+    (("almond", "walnut", "pecan", "cashew",
+      "pistachio", "hazelnut", "macadamia"),                    0.60),
+    (("peanut",),                                               0.60),
+    # Legumes (dried)
+    (("lentil",),                                               0.77),
+    (("chickpea", "garbanzo"),                                  0.81),
+    (("black bean", "kidney bean", "navy bean",
+      "pinto bean", "bean"),                                    0.77),
+    # Liquids
+    (("oil",),                                                  0.92),
+    (("milk", "cream", "buttermilk", "kefir"),                  1.03),
+    (("juice",),                                                1.04),
+    (("broth", "stock"),                                        1.00),
+    (("vinegar",),                                              1.01),
+    (("water",),                                                1.00),
+]
+
+
+def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
+    """
+    Estimate g/ml density for a food.
+
+    1. Static keyword table first — curated values are more reliable than
+       branded USDA serving-size data.
+    2. Falls back to USDA portion data if a cup/tablespoon entry is present
+       and yields a plausible density (0.3–1.6 g/ml).
+    3. Returns None if density cannot be determined.
+    """
+    # Static table first
+    name = food_name.lower()
+    for keywords, density in _DENSITY_TABLE:
+        if any(kw in name for kw in keywords):
+            return density
+
+    # Fall back to USDA portions
+    _VOL_ANCHORS = [
+        ("cup",       236.6),
+        ("tablespoon", 14.8),
+        ("tbsp",       14.8),
+        ("teaspoon",    4.9),
+        ("tsp",         4.9),
+        ("fl oz",      29.6),
+    ]
+    for p in portions:
+        desc = p["description"].lower()
+        gw = p.get("gram_weight", 0)
+        if gw <= 0:
+            continue
+        for vol_word, ml_val in _VOL_ANCHORS:
+            if vol_word in desc:
+                density = gw / ml_val
+                if 0.3 <= density <= 1.6:
+                    return density
+
+    return None

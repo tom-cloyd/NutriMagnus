@@ -35,21 +35,20 @@ def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=Fals
     # and editing work properly.  Also used by the prefill path.
     if free_text and not choices:
         _default_str = str(default) if default is not _NO_DEFAULT and default not in (None,) else ""
-        hint = f" ({_default_str})" if _default_str else ""
+        if _default_str:
+            hint = (
+                f" (Press enter to keep"
+                f" [{state.T['default_hint']}]{_default_str}[/{state.T['default_hint']}])"
+            )
+        else:
+            hint = ""
         state.console.print(f"{prompt_text}{hint}: ", end="", highlight=False)
         sys.stdout.flush()
-        if _default_str:
-            def _hook():
-                readline.insert_text(_default_str)
-                readline.redisplay()
-            readline.set_pre_input_hook(_hook)
         try:
             result = input("")
         except (KeyboardInterrupt, EOFError):
             state.console.print()
             raise Cancelled
-        finally:
-            readline.set_pre_input_hook(None)
         result = result.strip()
         return result if result else _default_str
 
@@ -76,15 +75,58 @@ def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=Fals
     if choices:
         hint_parts.append(f"[{state.T['choice']}]({'|'.join(choices)})[/{state.T['choice']}]")
     if default is not _NO_DEFAULT and default not in ("", None):
-        hint_parts.append(f"[{state.T['default_hint']}]({default})[/{state.T['default_hint']}]")
+        hint_parts.append(
+            f"(Press enter to keep [{state.T['default_hint']}]{default}[/{state.T['default_hint']}])"
+        )
     hint = (" " + " ".join(hint_parts)) if hint_parts else ""
     state.console.print(f"{prompt_text}{hint}: ", end="", highlight=False)
     sys.stdout.flush()
 
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
-    buf: list[str] = []
 
+    # When choices are given, use single-keypress mode: only accept a valid
+    # choice character or Enter (to select the default).  All other input is
+    # silently ignored so the user cannot accidentally submit garbage text.
+    if choices:
+        choices_lower = [c.lower() for c in choices]
+        try:
+            tty.setcbreak(fd)
+            while True:
+                try:
+                    ch = sys.stdin.read(1)
+                except KeyboardInterrupt:
+                    state.console.print()
+                    raise Cancelled
+                if ch in ("\x03", "\x04"):
+                    state.console.print()
+                    raise Cancelled
+                if ch == "\x1b":
+                    import select as _sel
+                    r, _, _ = _sel.select([sys.stdin], [], [], 0.05)
+                    if r:
+                        sys.stdin.read(2)
+                    else:
+                        state.console.print()
+                        raise Cancelled
+                    continue
+                if ch in ("\r", "\n"):
+                    # Empty Enter → use default if available, else keep waiting.
+                    if default is not _NO_DEFAULT and default not in (None,):
+                        state.console.print()
+                        return str(default)
+                    continue
+                ch_low = ch.lower()
+                if ch_low in choices_lower:
+                    sys.stdout.write(ch_low)
+                    sys.stdout.flush()
+                    state.console.print()
+                    return ch_low
+                # Invalid character: ignore silently.
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+    buf: list[str] = []
     try:
         tty.setcbreak(fd)
         while True:

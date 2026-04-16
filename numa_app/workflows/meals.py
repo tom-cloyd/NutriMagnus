@@ -154,7 +154,7 @@ def _menu_meals() -> bool:
 def _meal_add_items(meal_id: int) -> None:
     """Interactive loop to add food or recipe items to an existing meal.
     A single search finds both saved recipes (shown first as R#) and USDA/OFF foods."""
-    state.console.print(f"\n  [dim]Search for a food or recipe name to add (Enter/b=back, m=main, q=quit)[/dim]")
+    state.console.print(f"\n  Search for a food or recipe name to add (Enter/b=back, m=main, q=quit)")
     while True:
         state.console.print()
         try:
@@ -172,7 +172,11 @@ def _meal_add_items(meal_id: int) -> None:
         # Find matching recipes instantly from local DB
         with _db.get_db() as conn:
             all_recipes = _db.recipe_list(conn)
-        matching_recipes = [r for r in all_recipes if ql in r["name"].lower()]
+        query_words = ql.split()
+        matching_recipes = [
+            r for r in all_recipes
+            if any(w in r["name"].lower() for w in query_words)
+        ]
 
         result = _search_and_pick_food(
             initial_query=query,
@@ -296,9 +300,11 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
         for it in items:
             if it["item_type"] == "recipe":
                 amount_label = _format_recipe_portion_label(float(it["amount"]))
+                name_cell = it["food_name"]
             else:
                 amount_label = _normalize_unit_display(it["unit"])
-            tbl.add_row(str(it["id"]), amount_label, it["food_name"])
+                name_cell = f"[dim]{it['fdc_id']}[/dim]  {it['food_name']}"
+            tbl.add_row(str(it["id"]), amount_label, name_cell)
         state.console.print(tbl)
     return list(items)
 
@@ -403,278 +409,285 @@ def _pick_meal(verb: str = "work with") -> "sqlite3.Row | None":
 
 
 def _do_meal_view_by_date() -> None:
-    meal = _pick_meal("view / edit")
-    if meal is None:
-        return
-    meal_id   = meal["id"]
-    meal_date = meal["meal_date"]
-    meal_name = meal["name"]
-
-    # Show only the selected meal's items
-    _print_meal_items(meal_id, meal_name)
-
-    def _sibling_meals() -> list:
-        """Other meals on the same date (for merge option)."""
-        with _db.get_db() as conn:
-            return [m for m in _db.meal_list_by_date(conn, meal_date) if m["id"] != meal_id]
-
-    # Action loop
     while True:
-        siblings = _sibling_meals()
-        menu_items = [
-            ("1", "Add items"),
-            ("2", "Edit an item"),
-            ("3", "Delete an item"),
-            ("4", "Delete this meal"),
-        ]
-        if siblings:
-            menu_items.append(("5", "Merge with meal(s) on same date"))
-        menu_items += [
-            ("b", "Back to previous menu"),
-            ("m", "Return to main menu"),
-            ("q", "Quit"),
-        ]
-        _show_menu(f"Actions — {meal_name}", menu_items)
-        try:
-            choice = _prompt("Choice").strip().lower()
-        except Cancelled:
-            break
+        meal = _pick_meal("view / edit")
+        if meal is None:
+            return
+        meal_id   = meal["id"]
+        meal_date = meal["meal_date"]
+        meal_name = meal["name"]
 
-        if choice == "1":
-            _meal_add_items(meal_id)
-            _print_meal_items(meal_id, meal_name)
+        # Show only the selected meal's items
+        _print_meal_items(meal_id, meal_name)
 
-        elif choice == "2":
-            items = _print_meal_items(meal_id, meal_name)
-            if not items:
-                continue
+        def _sibling_meals() -> list:
+            """Other meals on the same date (for merge option)."""
+            with _db.get_db() as conn:
+                return [m for m in _db.meal_list_by_date(conn, meal_date) if m["id"] != meal_id]
+
+        # Action loop; break with _back_to_list=True to re-show meal picker
+        _back_to_list = False
+        while True:
+            siblings = _sibling_meals()
+            menu_items = [
+                ("1", "Add items"),
+                ("2", "Edit an item"),
+                ("3", "Delete an item"),
+                ("4", "Delete this meal"),
+            ]
+            if siblings:
+                menu_items.append(("5", "Merge with meal(s) on same date"))
+            menu_items += [
+                ("b", "Back to previous menu"),
+                ("m", "Return to main menu"),
+                ("q", "Quit"),
+            ]
+            _show_menu(f"Actions — {meal_name}", menu_items)
             try:
-                raw_iid = _prompt("Item ID to edit").strip()
+                choice = _prompt("Choice").strip().lower()
             except Cancelled:
-                continue
-            iid = None
-            try:
-                iid = int(raw_iid)
-            except ValueError:
-                pass
-            item = next((it for it in items if it["id"] == iid), None)
-            if item is None:
-                state.console.print(f"[{state.T['warning']}]Invalid item ID.[/{state.T['warning']}]")
-                continue
-            if item["item_type"] == "recipe":
-                # Recipe items: edit number of servings
+                break
+
+            if choice == "1":
+                _meal_add_items(meal_id)
+                _print_meal_items(meal_id, meal_name)
+
+            elif choice == "2":
+                items = _print_meal_items(meal_id, meal_name)
+                if not items:
+                    continue
                 try:
-                    raw_sv = _prompt("Recipe portion in servings", default=str(item["amount"])).strip()
+                    raw_iid = _prompt("Item ID to edit").strip()
                 except Cancelled:
                     continue
+                iid = None
                 try:
-                    servings = _parse_serving_amount(raw_sv)
-                    if servings is None or servings <= 0:
-                        raise ValueError
+                    iid = int(raw_iid)
                 except ValueError:
-                    state.console.print(f"[{state.T['warning']}]Enter a number.[/{state.T['warning']}]")
+                    pass
+                item = next((it for it in items if it["id"] == iid), None)
+                if item is None:
+                    state.console.print(f"[{state.T['warning']}]Invalid item ID.[/{state.T['warning']}]")
                     continue
-                with _db.get_db() as conn:
-                    _db.meal_update_item(conn, iid, meal_id, servings, item["unit"])
-                state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Updated to {_format_recipe_portion_label(servings)}.")
-            else:
-                # Food items: loop until user is done editing
-                cur_fdc_id = item["fdc_id"]
-                cur_name   = item["food_name"]
-                cur_amount = item["amount"]
-                cur_unit   = item["unit"]
-                cur_notes  = item["notes"] or ""
-                changed    = False
-
-                while True:
-                    amt_display = (f"{_normalize_unit_display(cur_unit)}  ({cur_amount:.0f} g)"
-                                   if cur_amount and cur_amount > 0 and cur_unit and cur_unit != "—"
-                                   else "—")
-                    notes_display = f"  [dim]Note: {cur_notes}[/dim]" if cur_notes else ""
-                    state.console.print(f"\n  [dim]Editing:[/dim] [bold]{cur_name}[/bold]  {amt_display}{notes_display}")
-                    state.console.print(f"  [{state.T['accent']}]f.[/{state.T['accent']}] Change food (search by new name)")
-                    state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Change amount")
-                    state.console.print(f"  [{state.T['accent']}]n.[/{state.T['accent']}] Edit note")
-                    state.console.print(f"  [dim]d / done  — save and exit[/dim]")
+                if item["item_type"] == "recipe":
+                    # Recipe items: edit number of servings
                     try:
-                        sub = _prompt("Choice").strip().lower()
+                        raw_sv = _prompt("Recipe portion in servings", default=str(item["amount"])).strip()
                     except Cancelled:
-                        break
-                    if sub in ("b", "d", "done", ""):
-                        break
-                    if sub == "q":
-                        raise SystemExit(0)
-
-                    if sub == "n":
-                        try:
-                            new_notes = _prompt("Note  [dim](Enter to clear)[/dim]", default=cur_notes, free_text=True).strip()
-                        except Cancelled:
-                            continue
-                        cur_notes = new_notes
-                        changed = True
-
-                    elif sub == "f":
-                        try:
-                            query = _prompt("Search for food").strip()
-                        except Cancelled:
-                            continue
-                        if not query:
-                            continue
-                        new_food = _search_and_pick_food(initial_query=query)
-                        if new_food is None:
-                            state.console.print(f"  [{state.T['warning']}]Food not changed "
-                                          f"(selection cancelled or fetch failed).[/{state.T['warning']}]")
-                            continue
-                        cur_fdc_id = new_food["fdcId"]
-                        cur_name   = new_food["name"]
-                        changed = True
-                        state.console.print(f"  [dim]Food set to: {cur_name}[/dim]")
-
-                    elif sub == "a":
-                        with _db.get_db() as conn:
-                            cached = _db.get_cached_food(conn, cur_fdc_id)
-                        if cached is None:
-                            state.console.print(f"[{state.T['warning']}]Food not in cache yet; add it first.[/{state.T['warning']}]")
-                            continue
-                        food_dict = {
-                            "fdcId":       cached["fdc_id"],
-                            "name":        cached["name"],
-                            "dataType":    cached["data_type"],
-                            "brand":       cached["brand"],
-                            "servingSize": cached["serving_size"],
-                            "servingUnit": cached["serving_unit"],
-                            "nutrients":   json.loads(cached["nutrients_json"]),
-                            "portions":    json.loads(cached["portions_json"]) if cached["portions_json"] else [],
-                        }
-                        result = _pick_portion(food_dict)
-                        if result is None:
-                            continue
-                        cur_amount, cur_unit, _ = result
-                        changed = True
-
-                if changed:
-                    with _db.get_db() as conn:
-                        _db.meal_replace_food(conn, iid, meal_id, cur_fdc_id,
-                                              cur_name, cur_amount, cur_unit,
-                                              cur_notes or None)
-                    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Saved: {cur_name}  "
-                                  f"{_normalize_unit_display(cur_unit)}")
-            _print_meal_items(meal_id, meal_name)
-
-        elif choice == "3":
-            items = _print_meal_items(meal_id, meal_name)
-            if not items:
-                continue
-            try:
-                raw_iid = _prompt("Item ID to delete").strip()
-            except Cancelled:
-                continue
-            iid = None
-            try:
-                iid = int(raw_iid)
-            except ValueError:
-                pass
-            if iid is None or not any(it["id"] == iid for it in items):
-                state.console.print(f"[{state.T['warning']}]Invalid item ID.[/{state.T['warning']}]")
-                continue
-            with _db.get_db() as conn:
-                removed = _db.meal_remove_item(conn, iid, meal_id)
-            if removed:
-                state.console.print(f"[{state.T['success']}]Item removed.[/{state.T['success']}]")
-                _print_meal_items(meal_id, meal_name)
-            else:
-                state.console.print(f"[{state.T['warning']}]Could not remove item.[/{state.T['warning']}]")
-
-        elif choice == "4":
-            try:
-                confirm = _prompt(f"Delete '{meal_name}'?  [dim](y/n)[/dim]", default="n").strip().lower()
-            except Cancelled:
-                continue
-            if confirm != "y":
-                continue
-            with _db.get_db() as conn:
-                _db.meal_delete(conn, meal_id)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Deleted: {meal_name}")
-            break
-
-        elif choice == "5" and siblings:
-            # siblings already loaded at top of loop; show all meals on date including current
-            with _db.get_db() as conn:
-                all_on_date = _db.meal_list_by_date(conn, meal_date)
-            ids_str = "  ".join(f"{m['id']}={m['name']}" for m in all_on_date)
-            state.console.print(f"  [dim]Meals on {meal_date}: {ids_str}[/dim]")
-            try:
-                raw_ids = _prompt(
-                    "Meal IDs to merge  [dim](space-separated, or 'all', b=back, m=main)[/dim]",
-                    default="all",
-                ).strip().lower()
-            except Cancelled:
-                continue
-            if raw_ids in ("b", ""):
-                continue
-            if raw_ids == "m":
-                raise ReturnToMain()
-            if raw_ids == "q":
-                raise SystemExit(0)
-
-            if raw_ids == "all":
-                selected = list(all_on_date)
-            else:
-                selected_ids = []
-                valid = True
-                for tok in raw_ids.split():
+                        continue
                     try:
-                        selected_ids.append(int(tok))
+                        servings = _parse_serving_amount(raw_sv)
+                        if servings is None or servings <= 0:
+                            raise ValueError
                     except ValueError:
-                        state.console.print(f"[{state.T['warning']}]Invalid ID: {tok}[/{state.T['warning']}]")
-                        valid = False
-                        break
-                if not valid:
-                    continue
-                selected = [m for m in all_on_date if m["id"] in selected_ids]
-                missing = set(selected_ids) - {m["id"] for m in selected}
-                if missing:
-                    state.console.print(f"[{state.T['warning']}]IDs not found: {' '.join(str(x) for x in missing)}[/{state.T['warning']}]")
-                    continue
-                if len(selected) < 2:
-                    state.console.print(f"[{state.T['warning']}]Select at least 2 meals to merge.[/{state.T['warning']}]")
-                    continue
+                        state.console.print(f"[{state.T['warning']}]Enter a number.[/{state.T['warning']}]")
+                        continue
+                    with _db.get_db() as conn:
+                        _db.meal_update_item(conn, iid, meal_id, servings, item["unit"])
+                    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Updated to {_format_recipe_portion_label(servings)}.")
+                else:
+                    # Food items: loop until user is done editing
+                    cur_fdc_id = item["fdc_id"]
+                    cur_name   = item["food_name"]
+                    cur_amount = item["amount"]
+                    cur_unit   = item["unit"]
+                    cur_notes  = item["notes"] or ""
+                    changed    = False
 
-            default_name = selected[0]["name"]
-            try:
-                new_name = _prompt("Name for merged meal", default=default_name, prefill=True).strip() or default_name
-            except Cancelled:
-                continue
+                    while True:
+                        amt_display = (f"{_normalize_unit_display(cur_unit)}  ({cur_amount:.0f} g)"
+                                       if cur_amount and cur_amount > 0 and cur_unit and cur_unit != "—"
+                                       else "—")
+                        notes_display = f"  [dim]Note: {cur_notes}[/dim]" if cur_notes else ""
+                        state.console.print(f"\n  [dim]Editing:[/dim] [bold]{cur_name}[/bold]  {amt_display}{notes_display}")
+                        state.console.print(f"  [{state.T['accent']}]f.[/{state.T['accent']}] Change food (search by new name)")
+                        state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Change amount")
+                        state.console.print(f"  [{state.T['accent']}]n.[/{state.T['accent']}] Edit note")
+                        state.console.print(f"  [dim]d / done  — save and exit[/dim]")
+                        try:
+                            sub = _prompt("Choice").strip().lower()
+                        except Cancelled:
+                            break
+                        if sub in ("b", "d", "done", ""):
+                            break
+                        if sub == "q":
+                            raise SystemExit(0)
 
-            with _db.get_db() as conn:
-                new_mid = _db.meal_create(conn, new_name, meal_date)
-                total_items = sum(_db.meal_copy_items(conn, m["id"], new_mid) for m in selected)
+                        if sub == "n":
+                            try:
+                                new_notes = _prompt("Note  [dim](Enter to clear)[/dim]", default=cur_notes, free_text=True).strip()
+                            except Cancelled:
+                                continue
+                            cur_notes = new_notes
+                            changed = True
 
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Created '{new_name}' "
-                          f"(ID {new_mid}) with {total_items} item(s).")
-            try:
-                del_orig = _prompt("Delete original meals?  [dim](y/n)[/dim]", default="y").strip().lower()
-            except Cancelled:
-                del_orig = "n"
-            if del_orig == "y":
+                        elif sub == "f":
+                            try:
+                                query = _prompt("Search for food").strip()
+                            except Cancelled:
+                                continue
+                            if not query:
+                                continue
+                            new_food = _search_and_pick_food(initial_query=query)
+                            if new_food is None:
+                                state.console.print(f"  [{state.T['warning']}]Food not changed "
+                                              f"(selection cancelled or fetch failed).[/{state.T['warning']}]")
+                                continue
+                            cur_fdc_id = new_food["fdcId"]
+                            cur_name   = new_food["name"]
+                            changed = True
+                            state.console.print(f"  [dim]Food set to: {cur_name}[/dim]")
+
+                        elif sub == "a":
+                            with _db.get_db() as conn:
+                                cached = _db.get_cached_food(conn, cur_fdc_id)
+                            if cached is None:
+                                state.console.print(f"[{state.T['warning']}]Food not in cache yet; add it first.[/{state.T['warning']}]")
+                                continue
+                            food_dict = {
+                                "fdcId":       cached["fdc_id"],
+                                "name":        cached["name"],
+                                "dataType":    cached["data_type"],
+                                "brand":       cached["brand"],
+                                "servingSize": cached["serving_size"],
+                                "servingUnit": cached["serving_unit"],
+                                "nutrients":   json.loads(cached["nutrients_json"]),
+                                "portions":    json.loads(cached["portions_json"]) if cached["portions_json"] else [],
+                            }
+                            result = _pick_portion(food_dict)
+                            if result is None:
+                                continue
+                            cur_amount, cur_unit, _ = result
+                            changed = True
+
+                    if changed:
+                        with _db.get_db() as conn:
+                            _db.meal_replace_food(conn, iid, meal_id, cur_fdc_id,
+                                                  cur_name, cur_amount, cur_unit,
+                                                  cur_notes or None)
+                        state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Saved: {cur_name}  "
+                                      f"{_normalize_unit_display(cur_unit)}")
+                _print_meal_items(meal_id, meal_name)
+
+            elif choice == "3":
+                items = _print_meal_items(meal_id, meal_name)
+                if not items:
+                    continue
+                try:
+                    raw_iid = _prompt("Item ID to delete").strip()
+                except Cancelled:
+                    continue
+                iid = None
+                try:
+                    iid = int(raw_iid)
+                except ValueError:
+                    pass
+                if iid is None or not any(it["id"] == iid for it in items):
+                    state.console.print(f"[{state.T['warning']}]Invalid item ID.[/{state.T['warning']}]")
+                    continue
                 with _db.get_db() as conn:
-                    for m in selected:
-                        _db.meal_delete(conn, m["id"])
-                state.console.print(f"  [dim]Deleted {len(selected)} original meal(s).[/dim]")
-            # If the current meal was deleted, exit the action loop
-            if del_orig == "y" and any(m["id"] == meal_id for m in selected):
-                break
-            # Otherwise show the current meal's items (may be unchanged or deleted)
-            _print_meal_items(new_mid, new_name)
+                    removed = _db.meal_remove_item(conn, iid, meal_id)
+                if removed:
+                    state.console.print(f"[{state.T['success']}]Item removed.[/{state.T['success']}]")
+                    _print_meal_items(meal_id, meal_name)
+                else:
+                    state.console.print(f"[{state.T['warning']}]Could not remove item.[/{state.T['warning']}]")
 
-        elif choice in ("b", ""):
-            break
-        elif choice == "m":
-            raise ReturnToMain()
-        elif choice == "q":
-            raise SystemExit(0)
-        else:
-            state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+            elif choice == "4":
+                try:
+                    confirm = _prompt(f"Delete '{meal_name}'?  [dim](y/n)[/dim]", default="n").strip().lower()
+                except Cancelled:
+                    continue
+                if confirm != "y":
+                    continue
+                with _db.get_db() as conn:
+                    _db.meal_delete(conn, meal_id)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Deleted: {meal_name}")
+                break
+
+            elif choice == "5" and siblings:
+                # siblings already loaded at top of loop; show all meals on date including current
+                with _db.get_db() as conn:
+                    all_on_date = _db.meal_list_by_date(conn, meal_date)
+                ids_str = "  ".join(f"{m['id']}={m['name']}" for m in all_on_date)
+                state.console.print(f"  [dim]Meals on {meal_date}: {ids_str}[/dim]")
+                try:
+                    raw_ids = _prompt(
+                        "Meal IDs to merge  [dim](space-separated, or 'all', b=back, m=main)[/dim]",
+                        default="all",
+                    ).strip().lower()
+                except Cancelled:
+                    continue
+                if raw_ids in ("b", ""):
+                    continue
+                if raw_ids == "m":
+                    raise ReturnToMain()
+                if raw_ids == "q":
+                    raise SystemExit(0)
+
+                if raw_ids == "all":
+                    selected = list(all_on_date)
+                else:
+                    selected_ids = []
+                    valid = True
+                    for tok in raw_ids.split():
+                        try:
+                            selected_ids.append(int(tok))
+                        except ValueError:
+                            state.console.print(f"[{state.T['warning']}]Invalid ID: {tok}[/{state.T['warning']}]")
+                            valid = False
+                            break
+                    if not valid:
+                        continue
+                    selected = [m for m in all_on_date if m["id"] in selected_ids]
+                    missing = set(selected_ids) - {m["id"] for m in selected}
+                    if missing:
+                        state.console.print(f"[{state.T['warning']}]IDs not found: {' '.join(str(x) for x in missing)}[/{state.T['warning']}]")
+                        continue
+                    if len(selected) < 2:
+                        state.console.print(f"[{state.T['warning']}]Select at least 2 meals to merge.[/{state.T['warning']}]")
+                        continue
+
+                default_name = selected[0]["name"]
+                try:
+                    new_name = _prompt("Name for merged meal", default=default_name, prefill=True).strip() or default_name
+                except Cancelled:
+                    continue
+
+                with _db.get_db() as conn:
+                    new_mid = _db.meal_create(conn, new_name, meal_date)
+                    total_items = sum(_db.meal_copy_items(conn, m["id"], new_mid) for m in selected)
+
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Created '{new_name}' "
+                              f"(ID {new_mid}) with {total_items} item(s).")
+                try:
+                    del_orig = _prompt("Delete original meals?  [dim](y/n)[/dim]", default="y").strip().lower()
+                except Cancelled:
+                    del_orig = "n"
+                if del_orig == "y":
+                    with _db.get_db() as conn:
+                        for m in selected:
+                            _db.meal_delete(conn, m["id"])
+                    state.console.print(f"  [dim]Deleted {len(selected)} original meal(s).[/dim]")
+                # If the current meal was deleted, exit the action loop
+                if del_orig == "y" and any(m["id"] == meal_id for m in selected):
+                    break
+                # Otherwise show the current meal's items (may be unchanged or deleted)
+                _print_meal_items(new_mid, new_name)
+
+            elif choice in ("b", ""):
+                _back_to_list = True
+                break
+            elif choice == "m":
+                raise ReturnToMain()
+            elif choice == "q":
+                raise SystemExit(0)
+            else:
+                state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+
+        if not _back_to_list:
+            return
+        # _back_to_list=True: loop back to _pick_meal
 
 
 def _compute_meal_nutrients(meal_id: int) -> dict[str, float] | None:
@@ -757,6 +770,7 @@ def _compute_meal_ingredient_list(meal_id: int) -> list[dict]:
             if nutrients is not None:
                 result.append({
                     "food_name":      item["food_name"],
+                    "fdc_id":         item["fdc_id"],
                     "nutrients_100g": nutrients,
                     "grams":          item["amount"],
                 })
@@ -771,6 +785,7 @@ def _compute_meal_ingredient_list(meal_id: int) -> list[dict]:
                     if nutrients is not None:
                         result.append({
                             "food_name":      ing["food_name"],
+                            "fdc_id":         ing["fdc_id"],
                             "nutrients_100g": nutrients,
                             "grams":          ing["amount"] * portion,
                         })
@@ -810,12 +825,17 @@ def _do_meal_analyze() -> None:
             if combined:
                 title = f"All meals — {meal_date}"
                 _print_nutrient_table(combined, title=title)
-                missing_aa = _print_meal_diaas(all_ings)
+                missing_aa, _dcp_g = _print_meal_diaas(all_ings)
+                aa_nutrients = _usda.sum_nutrients(*[
+                    _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
+                    for ing in all_ings
+                    if _usda.has_amino_acid_data(ing["nutrients_100g"])
+                ]) if all_ings else {}
                 profile = _profile.load_profile()
                 if profile:
-                    _print_protein_adequacy(combined, profile, context_label=title)
-                if not missing_aa:
-                    _print_complement_suggestions(combined, context="meal", offer_if_covered=True)
+                    _print_protein_adequacy(combined, profile, context_label=title, dcp_g=_dcp_g)
+                if aa_nutrients:
+                    _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True)
                 _offer_export(title, [
                     {"type": "nutrient_table", "title": title, "nutrients": combined},
                     {"type": "protein_completeness", "nutrients": combined},
@@ -833,7 +853,7 @@ def _do_meal_analyze() -> None:
                           title=f"{meal['name']} — {meal['meal_date']}")
     with state.console.status("[dim]Fetching amino acid data…[/dim]", spinner="dots"):
         ing_list = _compute_meal_ingredient_list(meal["id"])
-    missing_aa = _print_meal_diaas(ing_list)
+    missing_aa, _dcp_g = _print_meal_diaas(ing_list)
     if missing_aa:
         _fix_meal_aa_profiles(meal["id"], missing_aa)
 
@@ -848,9 +868,9 @@ def _do_meal_analyze() -> None:
 
     profile = _profile.load_profile()
     if profile:
-        _print_protein_adequacy(nutrients, profile, context_label=f"{meal['name']} ({meal['meal_date']})")
-    if not missing_aa:
-        _print_complement_suggestions(nutrients, context="meal", offer_if_covered=True)
+        _print_protein_adequacy(nutrients, profile, context_label=f"{meal['name']} ({meal['meal_date']})", dcp_g=_dcp_g)
+    if aa_nutrients:
+        _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True)
 
 
 def _do_meal_delete() -> None:

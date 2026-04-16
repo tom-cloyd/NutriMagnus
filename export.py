@@ -2,11 +2,14 @@
 export.py — Render numa nutrient reports to plain text, markdown, or HTML fragment.
 
 Each report is a list of typed section dicts:
-  {"type": "nutrient_table",       "title": str, "nutrients": dict, "per_label": str}
-  {"type": "protein_completeness", "nutrients": dict}
-  {"type": "bioavailability",      "food_name": str, "nutrients": dict}
-  {"type": "ingredient_list",      "title": str, "items": list[dict]}
+  {"type": "nutrient_table",          "title": str, "nutrients": dict, "per_label": str}
+  {"type": "protein_completeness",    "nutrients": dict}
+  {"type": "bioavailability",         "food_name": str, "nutrients": dict}
+  {"type": "ingredient_list",         "title": str, "items": list[dict]}
     item keys: food_name, amount, unit
+  {"type": "recipe_bioavailability",  "ingredient_stats": list[dict], "total_protein": float}
+    stat keys: name, amount_g, protein_g, diaas, has_aa, limiting_aa
+  {"type": "complement_suggestions",  "nutrients": dict, "base_diaas": float|None}
 
 Formats: "txt", "md", "html"
 """
@@ -290,36 +293,288 @@ def _render_ingredient_list_html(title: str, items: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Section renderers — recipe per-ingredient bioavailability
+# ---------------------------------------------------------------------------
+
+def _bio_rows(ingredient_stats: list[dict]) -> tuple[list[tuple], float, float, int]:
+    """
+    Return (rows, total_protein, total_digestible, unknown_count).
+    Each row is (name, amount_str, protein_str, diaas_str, lim_label, dig_str).
+    """
+    rows = []
+    total_protein = 0.0
+    total_digestible = 0.0
+    unknown_count = 0
+    for s in ingredient_stats:
+        p = s.get("protein_g", 0.0)
+        total_protein += p
+        diaas = s.get("diaas")
+        amount_g = s.get("amount_g")
+        limiting_aa = s.get("limiting_aa")
+
+        if diaas is not None:
+            dig = p * diaas
+            diaas_str = f"{diaas:.2f}"
+        else:
+            dig = p
+            diaas_str = "?"
+            unknown_count += 1
+        total_digestible += dig
+
+        amount_str = f"{amount_g:.4g}g" if amount_g else "—"
+        if limiting_aa:
+            lim_label, _ = _usda.nutrient_label(limiting_aa)
+        else:
+            lim_label = "— (complete)" if s.get("has_aa") else "—"
+
+        rows.append((s["name"][:30], amount_str, f"{p:.1f}g", diaas_str, lim_label, f"{dig:.1f}g"))
+    return rows, total_protein, total_digestible, unknown_count
+
+
+def _render_recipe_bioavailability_txt(ingredient_stats: list[dict], total_protein: float) -> str:
+    if total_protein <= 0:
+        return ""
+    rows, tp, td, unk = _bio_rows(ingredient_stats)
+    lines = ["BIOAVAILABILITY — PER SERVING", "=" * 34]
+    lines.append(f"  {'Ingredient':<30}  {'Serving':>8}  {'Crude protein':>13}  {'DIAAS':>6}  {'Limiting IAA':<18}  {'Bioavailable':>12}")
+    lines.append(f"  {'-' * 90}")
+    for name, amt, prot, diaas, lim, dig in rows:
+        lines.append(f"  {name:<30}  {amt:>8}  {prot:>8}  {diaas:>6}  {lim:<18}  {dig:>9}")
+    eff = td / tp if tp > 0 else 0.0
+    lines.append(f"\n  Total bioavailable protein: {td:.1f}g  (from {tp:.1f}g, effective DIAAS {eff:.2f})")
+    if unk:
+        lines.append(f"  ({unk} ingredient(s) had no DIAAS data — assumed fully bioavailable)")
+    return "\n".join(lines)
+
+
+def _render_recipe_bioavailability_md(ingredient_stats: list[dict], total_protein: float) -> str:
+    if total_protein <= 0:
+        return ""
+    rows, tp, td, unk = _bio_rows(ingredient_stats)
+    lines = ["## Bioavailability — per serving", ""]
+    lines.append("| Ingredient | Amount | Protein | DIAAS | Limiting IAA | Bioavailable |")
+    lines.append("|:-----------|-------:|--------:|------:|:-------------|-------------:|")
+    for name, amt, prot, diaas, lim, dig in rows:
+        lines.append(f"| {name} | {amt} | {prot} | {diaas} | {lim} | {dig} |")
+    eff = td / tp if tp > 0 else 0.0
+    lines.append("")
+    lines.append(f"**Total bioavailable protein:** {td:.1f}g  *(from {tp:.1f}g, effective DIAAS {eff:.2f})*")
+    if unk:
+        lines.append(f"\n*({unk} ingredient(s) had no DIAAS data — assumed fully bioavailable)*")
+    return "\n".join(lines)
+
+
+def _render_recipe_bioavailability_html(ingredient_stats: list[dict], total_protein: float) -> str:
+    if total_protein <= 0:
+        return ""
+    rows, tp, td, unk = _bio_rows(ingredient_stats)
+    header = ("Ingredient", "Amount", "Protein", "DIAAS", "Limiting IAA", "Bioavailable")
+    th = "".join(f"<th>{h}</th>" for h in header)
+    body_rows = []
+    for name, amt, prot, diaas, lim, dig in rows:
+        body_rows.append(
+            f"    <tr><td>{name}</td><td>{amt}</td><td>{prot}</td>"
+            f"<td>{diaas}</td><td>{lim}</td><td>{dig}</td></tr>"
+        )
+    eff = td / tp if tp > 0 else 0.0
+    unk_note = (
+        f'<p class="diaas-note"><em>({unk} ingredient(s) had no DIAAS data — '
+        f'assumed fully bioavailable)</em></p>'
+    ) if unk else ""
+    return (
+        '<h2>Bioavailability — per serving</h2>\n'
+        f'<table class="numa-table bioavailability">\n'
+        f'  <thead><tr>{th}</tr></thead>\n'
+        f'  <tbody>\n'
+        + "\n".join(body_rows) +
+        '\n  </tbody>\n</table>\n'
+        f'<p><strong>Total bioavailable protein:</strong> {td:.1f}g '
+        f'<em>(from {tp:.1f}g, effective DIAAS {eff:.2f})</em></p>'
+        + unk_note
+    )
+
+
+# ---------------------------------------------------------------------------
+# Section renderers — complement suggestions
+# ---------------------------------------------------------------------------
+
+def _render_complement_suggestions_txt(nutrients: dict[str, float],
+                                       base_diaas: float | None) -> str:
+    gaps = _usda.get_aa_gaps(nutrients)
+    if not gaps:
+        return "PROTEIN COMPLEMENT SUGGESTIONS\n" + "=" * 30 + "\n  No complement suggestions needed."
+
+    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], exclude_animal=False)
+    general_suggs = sorted(suggestions.get("general", []),
+                           key=lambda s: (0.0 if s.get("new_complete") else 1.0,
+                                         float(s.get("grams", 10**9) or 10**9)))
+
+    base_protein = nutrients.get("protein_g", 0.0)
+    base_digestible = base_protein * base_diaas if base_diaas else base_protein
+
+    gap_labels = ", ".join(
+        _usda.nutrient_label(aa)[0] + f" ({score:.2f})"
+        for aa, score, _ in gaps
+    )
+    lines = ["PROTEIN COMPLEMENT SUGGESTIONS", "=" * 30,
+             f"  Gaps: {gap_labels}", ""]
+
+    for i, s in enumerate(general_suggs[:5], 1):
+        diaas_str = f"  (DIAAS {s['diaas']:.2f})" if s.get("diaas") else ""
+        lines.append(f"  Option {i}: {s['name']}{diaas_str}")
+        lines.append(f"    Add: {s['grams']}g")
+        score_parts = []
+        for aa, orig_score, _ in gaps[:3]:
+            new_score = s["new_scores"].get(aa, orig_score)
+            lbl, _ = _usda.nutrient_label(aa)
+            score_parts.append(f"{lbl}: {orig_score:.2f}→{new_score:.2f}")
+        lines.append(f"    Effect: {' · '.join(score_parts)}")
+        dig = s["digestible_protein_added"]
+        raw = s["protein_added"]
+        total_dig = base_digestible + dig
+        lines.append(f"    Adds: {dig:.1f}g digestible protein (from {raw:.1f}g raw)")
+        lines.append(f"    Total bioavailable complete protein = {total_dig:.1f}g")
+        lines.append("")
+
+    if not general_suggs:
+        lines.append("  No qualifying complement options found.")
+    return "\n".join(lines).rstrip()
+
+
+def _render_complement_suggestions_md(nutrients: dict[str, float],
+                                      base_diaas: float | None) -> str:
+    gaps = _usda.get_aa_gaps(nutrients)
+    if not gaps:
+        return "## Protein Complement Suggestions\n\nNo complement suggestions needed."
+
+    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], exclude_animal=False)
+    general_suggs = sorted(suggestions.get("general", []),
+                           key=lambda s: (0.0 if s.get("new_complete") else 1.0,
+                                         float(s.get("grams", 10**9) or 10**9)))
+
+    base_protein = nutrients.get("protein_g", 0.0)
+    base_digestible = base_protein * base_diaas if base_diaas else base_protein
+
+    gap_labels = ", ".join(
+        _usda.nutrient_label(aa)[0] + f" ({score:.2f})"
+        for aa, score, _ in gaps
+    )
+    lines = [f"## Protein Complement Suggestions\n", f"**Gaps:** {gap_labels}", ""]
+
+    for i, s in enumerate(general_suggs[:5], 1):
+        diaas_str = f"  *(DIAAS {s['diaas']:.2f})*" if s.get("diaas") else ""
+        lines.append(f"### Option {i}: {s['name']}{diaas_str}")
+        lines.append(f"- **Add:** {s['grams']}g")
+        score_parts = []
+        for aa, orig_score, _ in gaps[:3]:
+            new_score = s["new_scores"].get(aa, orig_score)
+            lbl, _ = _usda.nutrient_label(aa)
+            score_parts.append(f"{lbl}: {orig_score:.2f}→{new_score:.2f}")
+        lines.append(f"- **Effect:** {' · '.join(score_parts)}")
+        dig = s["digestible_protein_added"]
+        raw = s["protein_added"]
+        total_dig = base_digestible + dig
+        lines.append(f"- **Adds:** {dig:.1f}g digestible protein *(from {raw:.1f}g raw)*")
+        lines.append(f"- **Total bioavailable complete protein:** {total_dig:.1f}g")
+        lines.append("")
+
+    if not general_suggs:
+        lines.append("_No qualifying complement options found._")
+    return "\n".join(lines).rstrip()
+
+
+def _render_complement_suggestions_html(nutrients: dict[str, float],
+                                        base_diaas: float | None) -> str:
+    gaps = _usda.get_aa_gaps(nutrients)
+    if not gaps:
+        return "<h2>Protein Complement Suggestions</h2>\n<p>No complement suggestions needed.</p>"
+
+    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], exclude_animal=False)
+    general_suggs = sorted(suggestions.get("general", []),
+                           key=lambda s: (0.0 if s.get("new_complete") else 1.0,
+                                         float(s.get("grams", 10**9) or 10**9)))
+
+    base_protein = nutrients.get("protein_g", 0.0)
+    base_digestible = base_protein * base_diaas if base_diaas else base_protein
+
+    gap_labels = ", ".join(
+        _usda.nutrient_label(aa)[0] + f" ({score:.2f})"
+        for aa, score, _ in gaps
+    )
+    lines = [
+        "<h2>Protein Complement Suggestions</h2>",
+        f"<p><strong>Gaps:</strong> {gap_labels}</p>",
+    ]
+
+    for i, s in enumerate(general_suggs[:5], 1):
+        diaas_str = f" <em>(DIAAS {s['diaas']:.2f})</em>" if s.get("diaas") else ""
+        score_parts = []
+        for aa, orig_score, _ in gaps[:3]:
+            new_score = s["new_scores"].get(aa, orig_score)
+            lbl, _ = _usda.nutrient_label(aa)
+            score_parts.append(f"{lbl}: {orig_score:.2f}→{new_score:.2f}")
+        dig = s["digestible_protein_added"]
+        raw = s["protein_added"]
+        total_dig = base_digestible + dig
+        lines.append(
+            f'<div class="complement-option">'
+            f"<h3>Option {i}: {s['name']}{diaas_str}</h3>"
+            f"<ul>"
+            f"<li><strong>Add:</strong> {s['grams']}g</li>"
+            f"<li><strong>Effect:</strong> {' · '.join(score_parts)}</li>"
+            f"<li><strong>Adds:</strong> {dig:.1f}g digestible protein <em>(from {raw:.1f}g raw)</em></li>"
+            f"<li><strong>Total bioavailable complete protein:</strong> {total_dig:.1f}g</li>"
+            f"</ul></div>"
+        )
+
+    if not general_suggs:
+        lines.append("<p><em>No qualifying complement options found.</em></p>")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Top-level: build_report / write_report
 # ---------------------------------------------------------------------------
 
 _RENDERERS = {
     "txt": {
-        "nutrient_table":       lambda s: _render_nutrient_table_txt(
-                                    s["title"], s["nutrients"], s.get("per_label", "")),
-        "protein_completeness": lambda s: _render_protein_completeness_txt(s["nutrients"]),
-        "bioavailability":      lambda s: _render_bioavailability_txt(
-                                    s["food_name"], s["nutrients"]),
-        "ingredient_list":      lambda s: _render_ingredient_list_txt(
-                                    s["title"], s["items"]),
+        "nutrient_table":          lambda s: _render_nutrient_table_txt(
+                                       s["title"], s["nutrients"], s.get("per_label", "")),
+        "protein_completeness":    lambda s: _render_protein_completeness_txt(s["nutrients"]),
+        "bioavailability":         lambda s: _render_bioavailability_txt(
+                                       s["food_name"], s["nutrients"]),
+        "ingredient_list":         lambda s: _render_ingredient_list_txt(
+                                       s["title"], s["items"]),
+        "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_txt(
+                                       s["ingredient_stats"], s["total_protein"]),
+        "complement_suggestions":  lambda s: _render_complement_suggestions_txt(
+                                       s["nutrients"], s.get("base_diaas")),
     },
     "md": {
-        "nutrient_table":       lambda s: _render_nutrient_table_md(
-                                    s["title"], s["nutrients"], s.get("per_label", "")),
-        "protein_completeness": lambda s: _render_protein_completeness_md(s["nutrients"]),
-        "bioavailability":      lambda s: _render_bioavailability_md(
-                                    s["food_name"], s["nutrients"]),
-        "ingredient_list":      lambda s: _render_ingredient_list_md(
-                                    s["title"], s["items"]),
+        "nutrient_table":          lambda s: _render_nutrient_table_md(
+                                       s["title"], s["nutrients"], s.get("per_label", "")),
+        "protein_completeness":    lambda s: _render_protein_completeness_md(s["nutrients"]),
+        "bioavailability":         lambda s: _render_bioavailability_md(
+                                       s["food_name"], s["nutrients"]),
+        "ingredient_list":         lambda s: _render_ingredient_list_md(
+                                       s["title"], s["items"]),
+        "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_md(
+                                       s["ingredient_stats"], s["total_protein"]),
+        "complement_suggestions":  lambda s: _render_complement_suggestions_md(
+                                       s["nutrients"], s.get("base_diaas")),
     },
     "html": {
-        "nutrient_table":       lambda s: _render_nutrient_table_html(
-                                    s["title"], s["nutrients"], s.get("per_label", "")),
-        "protein_completeness": lambda s: _render_protein_completeness_html(s["nutrients"]),
-        "bioavailability":      lambda s: _render_bioavailability_html(
-                                    s["food_name"], s["nutrients"]),
-        "ingredient_list":      lambda s: _render_ingredient_list_html(
-                                    s["title"], s["items"]),
+        "nutrient_table":          lambda s: _render_nutrient_table_html(
+                                       s["title"], s["nutrients"], s.get("per_label", "")),
+        "protein_completeness":    lambda s: _render_protein_completeness_html(s["nutrients"]),
+        "bioavailability":         lambda s: _render_bioavailability_html(
+                                       s["food_name"], s["nutrients"]),
+        "ingredient_list":         lambda s: _render_ingredient_list_html(
+                                       s["title"], s["items"]),
+        "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_html(
+                                       s["ingredient_stats"], s["total_protein"]),
+        "complement_suggestions":  lambda s: _render_complement_suggestions_html(
+                                       s["nutrients"], s.get("base_diaas")),
     },
 }
 
@@ -341,6 +596,8 @@ def build_report(report_title: str, sections: list[dict], fmt: str) -> str:
     rendered_sections = []
     for section in sections:
         stype = section.get("type")
+        if not isinstance(stype, str):
+            continue
         renderer = renderers.get(stype)
         if renderer is None:
             continue

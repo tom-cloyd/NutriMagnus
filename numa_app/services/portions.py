@@ -12,6 +12,13 @@ _UNIT_TO_GRAMS: dict[str, float] = {
     "kg": 1000.0, "kilogram": 1000.0, "kilograms": 1000.0,
 }
 
+_PIECE_UNITS: frozenset[str] = frozenset({
+    "pc", "pcs", "piece", "pieces",
+    "each", "ea",
+    "count", "ct",
+    "item", "items",
+})
+
 _VOLUME_TO_ML: dict[str, float] = {
     "c": 236.6, "cup": 236.6, "cups": 236.6,
     "T": 14.8, "tbsp": 14.8, "tablespoon": 14.8, "tablespoons": 14.8,
@@ -204,14 +211,15 @@ def _parse_portion_input(
     remaining = parts[consumed:]
 
     if not remaining:
-        # plain number → grams; annotate with volume if density known
-        density = _usda.get_density_g_per_ml(food_name, portions)
-        vol = _volume_label(number / density) if density else None
-        label = f"{number:g} g ({vol})" if vol else f"{number:g} g"
-        return number, label
+        # bare number → pieces/count (no gram weight)
+        return 0.0, f"{_nice_fraction(number)} pc"
 
     unit_token = remaining[0]          # original case — needed to distinguish T vs t
     unit_lower = unit_token.lower()
+
+    # Piece/count unit (pc, pcs, piece, pieces, each, ea, count, …)
+    if unit_lower in _PIECE_UNITS:
+        return 0.0, f"{_nice_fraction(number)} pc"
 
     # NUMBER pN  (e.g. "1.5 p1")
     if unit_lower.startswith("p") and unit_lower[1:].isdigit():
@@ -258,16 +266,24 @@ def _parse_portion_input(
         if density is None:
             return None, vol_display
         grams = number * ml_per_unit * density
-        return grams, f"{vol_display} ({grams:.0f} gr)"
+        return grams, f"{vol_display} ({grams:.4g} gr)"
 
     return None
 
 
-def _pick_portion(food: dict, *, current: str | None = None) -> tuple[float, str, dict[str, float]] | None:
+def _pick_portion(
+    food: dict,
+    *,
+    current: str | None = None,
+    current_grams: float | None = None,
+    current_label: str | None = None,
+) -> tuple[float, str, dict[str, float]] | None:
     """
     Ask the user for a portion size and return (grams, display_label, scaled_nutrients).
     USDA data is per 100g; we scale accordingly.
-    current: optional display string for the existing portion (shown as a hint when editing).
+    current: display string shown as the existing portion hint.
+    current_grams / current_label: when both provided, pressing Enter keeps the existing
+        values rather than clearing them (edit mode vs add mode).
     Returns None if cancelled.
     """
     portions = food.get("portions") or []
@@ -276,16 +292,26 @@ def _pick_portion(food: dict, *, current: str | None = None) -> tuple[float, str
     brand_str = f" ({brand})" if brand else ""
     state.console.print(f"\n  Food: [{state.T['hi']}]{food['name']}{brand_str}[/{state.T['hi']}]")
 
-    state.console.print("  [dim]Enter an amount: 150 (g/gr), 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp) — or skip[/dim]")
+    state.console.print("  [dim]Enter an amount: 150 g, 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)[/dim]")
+    if portions:
+        state.console.print("  [dim]USDA portions (use pN or NUMBER pN):[/dim]")
+        for i, p in enumerate(portions, 1):
+            state.console.print(f"    [dim]p{i}[/dim]  {p['description']} [{p['gram_weight']:.4g}g]")
+        state.console.print("  [dim]  e.g. 'p1' for one portion, '2 p1' for two[/dim]")
+    else:
+        state.console.print("  [dim]A bare number means pieces/count (no gram weight). Add a unit for weight or volume.[/dim]")
+    state.console.print("  [dim]Enter or skip to omit.[/dim]")
     if current:
         state.console.print(
             f"  Current: [{state.T['default_hint']}]{current}[/{state.T['default_hint']}]"
         )
 
+    editing = current_grams is not None and current_label is not None
+    enter_hint = "Enter=keep current" if editing else "Enter=skip"
     food_name = food.get("name", "")
     while True:
         try:
-            raw = _prompt("Portion amount  (Enter=skip, b=back, m=main, q=quit)", free_text=True).strip()
+            raw = _prompt(f"Portion amount  ({enter_hint}, b=back, m=main, q=quit)", free_text=True).strip()
         except Cancelled:
             return None
         if raw.lower() == "m":
@@ -295,35 +321,75 @@ def _pick_portion(food: dict, *, current: str | None = None) -> tuple[float, str
         if raw.lower() == "q":
             raise SystemExit(0)
         if not raw:
+            if editing:
+                assert current_grams is not None and current_label is not None
+                scaled = _usda.scale_nutrients(food["nutrients"], current_grams, base_size=100.0)
+                return current_grams, current_label, scaled
             return 0.0, "—", {}
 
         result = _parse_portion_input(raw, portions, food_name=food_name)
         if result is None:
-            state.console.print(f"[{state.T['warning']}]Unrecognized input. "
-                          f"Try: 150, 65 gr, 3 oz, 1/4 cup, 2 T, or p1.[/{state.T['warning']}]")
+            hint = "Try: 150 g, 3 oz, 1/4 cup, 2 T, or p1." if portions else "Try: 2 (pieces), 150 g, 3 oz, 1/4 cup, 2 T, or p1."
+            state.console.print(f"[{state.T['warning']}]Unrecognized input. {hint}[/{state.T['warning']}]")
             continue
 
         grams, label = result
+        # Bare number with no unit → piece count (0 grams). When USDA portion data
+        # is available this almost always means the user wanted N × a known portion.
+        # Re-prompt rather than silently storing 0 grams.
+        if grams == 0.0 and label.endswith(" pc") and portions:
+            state.console.print(
+                f"  [{state.T['warning']}]'{raw}' was interpreted as {label} with no gram weight "
+                f"— nutrients would be zero.[/{state.T['warning']}]"
+            )
+            state.console.print(
+                f"  [dim]Use 'pN' to select a USDA portion above, e.g. '{raw} p1' for {raw} × {portions[0]['description']}.[/dim]"
+            )
+            continue
         if grams is None:
-            # Volume recognized but density unknown — ask for weight to enable nutrition calc
+            # Volume recognized but density (weight) unknown — ask for weight
             vol_display = label
             state.console.print(f"  [dim]Weight per volume is unknown for this food. "
                           f"Enter grams to calculate nutrition, or press Enter to skip.[/dim]")
-            try:
-                w_raw = _prompt(f"Weight of {vol_display} in grams  (Enter=skip)", free_text=True).strip()
-            except Cancelled:
-                w_raw = ""
-            if w_raw.lower() == "q":
-                raise SystemExit(0)
-            if w_raw and w_raw.lower() != "b":
+            while True:
                 try:
-                    grams = float(w_raw)
-                    label = f"{vol_display} ({grams:.0f} gr)"
+                    w_raw = _prompt(f"Weight of {vol_display} in grams  (Enter=skip)", free_text=True).strip()
+                except Cancelled:
+                    w_raw = ""
+                if not w_raw:
+                    grams = 0.0
+                    label = f"{vol_display} (weight not known)"
+                    break
+                if w_raw.lower() == "q":
+                    raise SystemExit(0)
+                if w_raw.lower() == "b":
+                    break
+                # Accept bare number or number-with-unit suffix (e.g. "14.7", "14.7 g", "14.7gr")
+                w_stripped = re.sub(r'\s*(gr?a?m?s?)\s*$', '', w_raw, flags=re.IGNORECASE).strip()
+                try:
+                    grams = float(w_stripped)
+                    label = f"{vol_display} ({grams:.4g} gr)"
+                    break
                 except ValueError:
-                    pass
-            if grams is None:
-                grams = 0.0
-                label = f"{vol_display} (weight not known)"
+                    state.console.print(f"  [{state.T['warning']}]Enter a number (e.g. 14.7 or 14.7 g).[/{state.T['warning']}]")
+
+        # grams=None means the user hit 'b' inside the weight sub-prompt — go back to
+        # the portion prompt rather than falling through with a None value.
+        if grams is None:
+            continue
+
+        # If the current entry was volume-only ("2 T (weight not known)") and the user
+        # entered a pure weight, merge them so the volume label is preserved.
+        if (current_label and "(weight not known)" in current_label
+                and grams > 0 and not _label_has_volume(label)):
+            vol_prefix = current_label.replace(" (weight not known)", "").strip()
+            label = f"{vol_prefix} ({grams:.4g} gr)"
 
         scaled = _usda.scale_nutrients(food["nutrients"], grams, base_size=100.0)
         return grams, label, scaled
+
+
+def _label_has_volume(label: str) -> bool:
+    """Return True if label contains a volume unit token (T, c, tsp, ml, etc.)."""
+    tokens = re.split(r'[\s()/]+', label)
+    return any(t in _VOLUME_TO_ML or t.lower() in _VOLUME_TO_ML for t in tokens)

@@ -297,7 +297,7 @@ class TestHasAminoAcidData:
     def test_new_entries_flaxseed_and_yeast_resolve(self):
         # Confirm get_diaas resolves the two recently added entries
         assert _usda.get_diaas("ORGANIC GROUND FLAX SEED") == pytest.approx(0.52)
-        assert _usda.get_diaas("NUTRITIONAL YEAST FLAKES") == pytest.approx(0.85)
+        assert _usda.get_diaas("NUTRITIONAL YEAST FLAKES") == pytest.approx(0.72)
 
 
 # ---------------------------------------------------------------------------

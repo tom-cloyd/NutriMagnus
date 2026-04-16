@@ -34,6 +34,7 @@ import pytest
 import db as _db
 import profile as _profile
 import usda as _usda
+import usda_api as _usda_api
 from numa_app.services.portions import _parse_portion_input
 from numa_app.ui.render import _volume_hint
 from tests.conftest import (
@@ -72,10 +73,10 @@ SAMPLE_PORTIONS = [
 
 
 class TestParsePortionInput:
-    def test_plain_number_is_grams(self):
+    def test_plain_number_is_piece_count(self):
         grams, label = _parse_portion_input("150", [])
-        assert grams == pytest.approx(150.0)
-        assert "150" in label
+        assert grams == pytest.approx(0.0)
+        assert "pc" in label
 
     def test_grams_unit(self):
         grams, label = _parse_portion_input("200 g", [])
@@ -131,13 +132,15 @@ class TestParsePortionInput:
 
     # --- fraction parsing ---
 
-    def test_plain_fraction_is_grams(self):
+    def test_plain_fraction_is_piece_count(self):
         grams, label = _parse_portion_input("1/4", [])
-        assert grams == pytest.approx(0.25)
+        assert grams == pytest.approx(0.0)
+        assert "pc" in label
 
-    def test_mixed_number_is_grams(self):
+    def test_mixed_number_is_piece_count(self):
         grams, label = _parse_portion_input("1 1/2", [])
-        assert grams == pytest.approx(1.5)
+        assert grams == pytest.approx(0.0)
+        assert "pc" in label
 
     # --- volume inputs ---
 
@@ -201,7 +204,7 @@ class TestStartup:
 
     def test_api_key_flag_saves_and_exits(self, runner: NumaTestRunner, tmp_path, monkeypatch):
         config_file = tmp_path / "config.json"
-        monkeypatch.setattr(_usda, "_CONFIG_FILE", config_file)
+        monkeypatch.setattr(_usda_api, "_CONFIG_FILE", config_file)
         result = runner.invoke(api_key="MYKEY123")
         assert result.exit_code == 0
         assert "saved" in result.output.lower()
@@ -246,7 +249,7 @@ class TestFoodsMenu:
     def test_analyze_portion_scales_nutrients(self, runner: NumaTestRunner, monkeypatch):
         _mock_api(monkeypatch)
         # pick food, enter 200g portion (double the 100g base)
-        result = runner.invoke(input="1\n2\nchicken\n1\n200\nb\nq\n")
+        result = runner.invoke(input="1\n2\nchicken\n1\n200 g\nb\nq\n")
         assert result.exit_code == 0
         # 31g protein * 2 = 62g
         assert "62" in result.output
@@ -272,7 +275,7 @@ class TestFoodsMenu:
         """After viewing per-100g nutrients, pressing y leads to scaled portion output."""
         _mock_api(monkeypatch)
         # Foods: 1 (Search) → chicken → pick 1 → y → 200g → back → quit
-        result = runner.invoke(input="1\n1\nchicken\n1\ny\n200\nb\nq\n")
+        result = runner.invoke(input="1\n1\nchicken\n1\ny\n200 g\nb\nq\n")
         assert result.exit_code == 0
         assert "62" in result.output   # 31g protein × 2
 
@@ -288,7 +291,7 @@ class TestFoodsMenu:
         """Bad portion input shows an error and re-prompts rather than dropping to the menu."""
         _mock_api(monkeypatch)
         # Foods: 2 (Analyze) → bad input → valid 200g → scaled nutrients shown
-        result = runner.invoke(input="1\n2\nchicken\n1\nbadstuff\n200\nb\nq\n")
+        result = runner.invoke(input="1\n2\nchicken\n1\nbadstuff\n200 g\nb\nq\n")
         assert result.exit_code == 0
         assert "Unrecognized" in result.output or "recognised" in result.output.lower()
         assert "62" in result.output   # recovered and computed 31g × 2
@@ -305,7 +308,9 @@ class TestFoodsRecipePortionAnalysis:
         """Foods → 3 analyzes a saved recipe by portion and prints a nutrient table."""
         _mock_api(monkeypatch)
         # Create a recipe with 2 servings of 200g chicken
-        runner.invoke(input="2\n1\nChicken Dish\n\n2\nd\nchicken\n1\n200\nn\nb\nq\n")
+        # Sequence: name → desc → servings → vol(skip) → weight(skip) → proc(b=skip) →
+        #           search → pick → amount g → note(skip) → no more → quit
+        runner.invoke(input="2\n1\nChicken Dish\n\n2\n\n\nb\nchicken\n1\n200 g\n\nn\nq\n")
 
         with _db.get_db() as conn:
             rid = _db.recipe_list(conn)[0]["id"]
@@ -355,7 +360,7 @@ class TestRecipesMenu:
 
     def test_create_recipe_saves_ingredients(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        inp = "2\n1\nMy Recipe\n\n1\nd\nchicken\n1\n100\nn\nb\nq\n"
+        inp = "2\n1\nMy Recipe\n\n1\n\n\nb\nchicken\n1\n100 g\n\nn\nq\n"
         runner.invoke(input=inp)
 
         with _db.get_db() as conn:
@@ -376,13 +381,13 @@ class TestRecipesMenu:
     def test_delete_recipe(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         # Create
-        runner.invoke(input="2\n1\nDeleteMe\n\n1\nd\nchicken\n1\n100\nn\nb\nq\n")
+        runner.invoke(input="2\n1\nDeleteMe\n\n1\n\n\nb\nchicken\n1\n100 g\n\nn\nq\n")
 
         with _db.get_db() as conn:
             rid = _db.recipe_list(conn)[0]["id"]
 
-        # Delete (Recipes: 5 → show list → enter id → confirm y)
-        result = runner.invoke(input=f"2\n5\n{rid}\ny\nb\nq\n")
+        # Delete (Recipes: 6 → show list → enter id → confirm y)
+        result = runner.invoke(input=f"2\n6\n{rid}\ny\nq\n")
         assert result.exit_code == 0
         assert "Deleted" in result.output
 
@@ -391,13 +396,13 @@ class TestRecipesMenu:
 
     def test_view_recipe_shows_nutrients(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="2\n1\nChicken Dish\n\n2\nd\nchicken\n1\n200\nn\nb\nq\n")
+        runner.invoke(input="2\n1\nChicken Dish\n\n2\n\n\nb\nchicken\n1\n200 g\n\nn\nq\n")
 
         with _db.get_db() as conn:
             rid = _db.recipe_list(conn)[0]["id"]
 
-        # n=skip protein analysis; export is mocked to no-op
-        result = runner.invoke(input=f"2\n3\n{rid}\nn\nb\nq\n")
+        # Recipes: 5 (Analyze) → recipe id → quit; export is mocked to no-op
+        result = runner.invoke(input=f"2\n5\n{rid}\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
 
@@ -427,7 +432,7 @@ class TestMealsMenu:
 
     def test_log_meal_saves_food_item(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        inp = "3\n1\n2025-03-15\nDinner\n1\nchicken\n1\n200\nd\nb\nq\n"
+        inp = "3\n1\n2025-03-15\nDinner\n1\nchicken\n1\n200 g\n\nd\nb\nq\n"
         runner.invoke(input=inp)
 
         with _db.get_db() as conn:
@@ -451,7 +456,7 @@ class TestMealsMenu:
 
     def test_view_meals_shows_food_items(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n150\nd\nb\nq\n")
+        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n150 g\n\nd\nb\nq\n")
         result = runner.invoke(input="3\n2\n1\nb\nq\n")
         assert result.exit_code == 0
         assert "Chicken" in result.output
@@ -459,7 +464,7 @@ class TestMealsMenu:
 
     def test_view_meals_delete_item(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n200\nd\nb\nq\n")
+        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n200 g\n\nd\nb\nq\n")
 
         with _db.get_db() as conn:
             mid = _db.meal_list_by_date(conn, "2025-03-15")[0]["id"]
@@ -475,7 +480,7 @@ class TestMealsMenu:
 
     def test_analyze_meal_shows_nutrients(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
 
         # Pick row 1; only 1 meal on that date so no scope prompt; b declines any follow-up
         result = runner.invoke(input="3\n3\n1\nb\nq\n")
@@ -513,7 +518,7 @@ class TestSummaryMenu:
     def test_summary_for_date_shows_totals(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         # Log a meal on a known date
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         # View summary for that date
         result = runner.invoke(input="4\n2\n2025-03-15\nb\nq\n")
         assert result.exit_code == 0
@@ -540,7 +545,7 @@ class TestSettingsMenu:
 
     def test_set_api_key(self, runner: NumaTestRunner, tmp_path, monkeypatch):
         config_file = tmp_path / "config.json"
-        monkeypatch.setattr(_usda, "_CONFIG_FILE", config_file)
+        monkeypatch.setattr(_usda_api, "_CONFIG_FILE", config_file)
         # Settings: 6 (Advanced) → 2 (API key) → enter key → b (back from advanced) → b → q
         result = runner.invoke(input="s\n6\n2\nMYNEWKEY\nb\nb\nq\n")
         assert result.exit_code == 0
@@ -713,7 +718,7 @@ class TestDailySummaryRDA:
         # Set profile
         runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         # Log a meal
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         # View summary: decline complement → accept RDA comparison
         result = runner.invoke(input="4\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
@@ -727,7 +732,7 @@ class TestDailySummaryRDA:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output

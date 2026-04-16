@@ -7,7 +7,7 @@ from .. import state
 from ..services.search import _search_and_pick_food
 from ..services.portions import _normalize_unit_display, _pick_portion
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
-from ..ui.common import _safe_call, _prompt_with_options
+from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY
 from ..ui.render import _print_nutrient_table, _print_protein_completeness
 
 def _load_pantry_candidates() -> list[dict]:
@@ -48,13 +48,13 @@ def _do_pantry_menu() -> None:
             tbl = Table(show_header=True, header_style=state.T["accent_plain"],
                         box=None, padding=(0, 1))
             tbl.add_column("#",    justify="right", min_width=3)
-            tbl.add_column("Food", min_width=36)
-            tbl.add_column("USDA linked", min_width=12)
+            tbl.add_column("ID",   justify="right", min_width=7)
+            tbl.add_column("Food", min_width=28)
             tbl.add_column("Notes", min_width=20)
             for row in rows:
-                linked = f"fdc:{row['fdc_id']}" if row["fdc_id"] else "[dim]name only[/dim]"
-                tbl.add_row(str(row["id"]), row["food_name"], linked, row["notes"] or "")
+                tbl.add_row(str(row["id"]), _id_cell(row["fdc_id"]), row["food_name"], row["notes"] or "")
             state.console.print(tbl)
+            state.console.print(f"  {ID_KEY}")
         state.console.print()
         state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Add a food")
         state.console.print(f"  [{state.T['accent']}]e.[/{state.T['accent']}] Edit an entry")
@@ -216,79 +216,3 @@ def _do_pantry_edit() -> None:
         _db.pantry_update(conn, pid, food_name, fdc_id, notes or None)
     state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Updated: {food_name}")
 
-
-def _do_list_cached_foods() -> None:
-    with _db.get_db() as conn:
-        foods = _db.list_cached_foods(conn)
-    if not foods:
-        state.console.print("[dim]No foods cached yet.[/dim]")
-        return
-
-    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("#",      justify="right", min_width=3)
-    tbl.add_column("Name",   min_width=40)
-    tbl.add_column("Type",   min_width=12)
-    tbl.add_column("Brand",  min_width=20)
-    for i, f in enumerate(foods, 1):
-        tbl.add_row(str(i), f["name"], f["data_type"] or "", f["brand"] or "")
-    state.console.print(tbl)
-
-    try:
-        raw = _prompt("Pick number  (Enter/b=back, m=main, q=quit)").strip().lower()
-    except Cancelled:
-        return
-    if not raw or raw == "b":
-        return
-    if raw == "m":
-        raise ReturnToMain()
-    if raw == "q":
-        raise SystemExit(0)
-    try:
-        idx = int(raw) - 1
-        if idx < 0 or idx >= len(foods):
-            raise ValueError
-    except ValueError:
-        state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
-        return
-
-    row = foods[idx]
-    with _db.get_db() as conn:
-        cached = _db.get_cached_food(conn, row["fdc_id"])
-    if not cached:
-        state.console.print(f"[{state.T['error']}]Food not found in cache.[/{state.T['error']}]")
-        return
-
-    food = {
-        "fdcId":           cached["fdc_id"],
-        "name":            cached["name"],
-        "dataType":        cached["data_type"],
-        "brand":           cached["brand"],
-        "servingSize":     cached["serving_size"],
-        "servingUnit":     cached["serving_unit"],
-        "householdServing": None,
-        "nutrients":       json.loads(cached["nutrients_json"]),
-        "portions":        json.loads(cached["portions_json"]),
-    }
-
-    try:
-        action = _prompt_with_options(
-            "Cached food action",
-            [
-                ("1", "View nutrients"),
-                ("2", "Analyze portion"),
-            ],
-            default="1",
-        )
-    except Cancelled:
-        return
-
-    if action == "2":
-        result = _pick_portion(food)
-        if result is None:
-            return
-        grams, label, scaled = result
-        _print_nutrient_table(scaled, title=food["name"], per_label=label)
-        _print_protein_completeness(scaled)
-    else:
-        _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
-        _print_protein_completeness(food["nutrients"])

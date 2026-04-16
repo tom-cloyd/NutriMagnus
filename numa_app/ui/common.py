@@ -5,6 +5,31 @@ import tempfile
 from .. import state
 from .prompts import Cancelled
 
+# Threshold separating Open Food Facts synthetic IDs from user-drafted negatives.
+# OFF IDs are derived from barcodes via _OFF_ID_BASE = -2_000_000_000.
+_OFF_ID_THRESHOLD = -1_000_000_000
+
+# One-line key shown near any table or list that displays food IDs.
+ID_KEY = "[dim](ID key: number = USDA FDC · OFF = Open Food Facts · usr = user-drafted)[/dim]"
+
+
+def _id_cell(fdc_id: int | None) -> str:
+    """Return a dimmed display string for a food's database ID column.
+
+    Positive integers are USDA FDC IDs shown as-is.
+    Values ≤ -1_000_000_000 are Open Food Facts synthetic IDs → 'OFF'.
+    Small negatives are user-drafted food IDs → 'usr'.
+    None → empty string.
+    """
+    if fdc_id is None:
+        return ""
+    if fdc_id > 0:
+        return f"[dim]{fdc_id}[/dim]"
+    if fdc_id <= _OFF_ID_THRESHOLD:
+        return "[dim]OFF[/dim]"
+    return "[dim]usr[/dim]"
+
+
 def _show_menu(title: str, items: list[tuple[str, str]]) -> None:
     """Render a numbered/lettered menu with a title."""
     state.console.print(f"\n[{state.T['accent']}]{title}[/{state.T['accent']}]")

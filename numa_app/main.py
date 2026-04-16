@@ -103,7 +103,8 @@ def print_startup_banner() -> None:
     state.console.print()
     state.console.print(Rule(style="green"))
     state.console.print(Rule(style="green"))
-    state.console.print("[bold green]Nutrimagnus[/bold green] -- Nutritional Analysis for individuals and families")
+    state.console.print('[bold green]NutriMagnus[/bold green] [dim]("nourishment wizard")[/dim]')
+    state.console.print("Nutritional Analysis for individuals and families")
     if p:
         profile_label = (
             f"age {p.age}, {p.sex},"

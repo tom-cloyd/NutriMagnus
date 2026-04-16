@@ -1,8 +1,10 @@
-# Nutrimagnus ("nutrition wizard") - a 21st century nutritional analysis program for individuals and families
+# NutriMagnus ("nourishment wizard") - a 21st century nutritional analysis program for individuals and families
 
 UPDATED: 2026-04-01 - 14:36
 
-## The problem that Nutrimagnus (NM) addresses
+## About the program name - NutriMagnus
+
+## The problem that NutriMagnus (NM) addresses
 
 Opensource (i.e., free software, with publicly available code) nutrition analysis programs are available, but I wanted one that I could tweak, addresses the problem of variable nutrition needs relative to age, sex, and other special considerations, and particularly addresses the special needs of those eating a mostly or entirely plant-based diet.
 

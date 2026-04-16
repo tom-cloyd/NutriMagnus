@@ -1,8 +1,8 @@
 # NutriMagnus — Nutritional Analysis Program
 
-A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **Nutrimagnus**.
+A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nourishment wizard")**.
 
-UPDATED: 2026-04-12 (2)
+UPDATED: 2026-04-15:1346
 ---
 
 ## Table of Contents
@@ -13,10 +13,14 @@ UPDATED: 2026-04-12 (2)
 - [Running the Program](#running-the-program)
 - [Menu Structure](#menu-structure)
 - [Usage Guide](#usage-guide)
+  - [The local food cache](#the-local-food-cache)
+  - [Drafted food profiles](#drafted-food-profiles-user-modified-nutrients)
+  - [Searching for a food](#searching-for-a-food)
 - [Architecture](#architecture)
 - [Data Storage](#data-storage)
 - [Test Suite](#test-suite)
 - [Implementation Phases](#implementation-phases)
+- [Appendix — Understanding Protein Quality: The FAO Reference Values and DIAAS](#appendix---understanding-protein-quality-the-fao-reference-values-and-diaas)
 
 ---
 
@@ -43,7 +47,9 @@ The CLI interface follows the same interaction pattern as `cmgr.py` (the contact
 numa/
   numa.py                          — thin CLI entry point (argparse); delegates to numa_app.main
   db.py                            — SQLite database: schema, queries, context manager
-  usda.py                          — USDA FoodData Central API client; nutrient math
+  usda.py                          — backwards-compatible re-export shim (29 lines); import this
+  usda_api.py                      — USDA FoodData Central HTTP client; API key; search; detail fetch
+  usda_nutrients.py                — nutrient math; AA analysis; DIAAS lookup; complement table; density
   openfoodfacts.py                 — Open Food Facts API client; merged into food search results
   diaas.py                         — Meal-level DIAAS calculation and digestibility data
   export.py                        — Report export (txt, md, html)
@@ -77,10 +83,13 @@ numa/
       search.py                    — _search_and_pick_food(), _suggest_foundation_search()
     workflows/
       __init__.py
-      foods.py                     — Foods menu and all food-analysis handlers
+      foods.py                     — Foods menu; search, portion analysis, convert, cached-food viewer
+      drafted_foods.py             — Edit any cached food; drafted-profile CRUD; bulk AA import
       pantry.py                    — My Pantry menu
       meals.py                     — Meals & Log menu
-      recipes.py                   — Recipes menu
+      recipes.py                   — Recipes menu dispatch; shared helpers; create/list/view/delete
+      recipe_analysis.py           — Analyze recipe workflow (_do_recipe_view, _resolve_recipe_dcp_data)
+      recipe_edit.py               — Edit recipe workflow (_do_recipe_edit)
       settings.py                  — Settings menu; user profile; DIAAS overrides; RDA comparison
       summary.py                   — Daily Summary menu
   .venv/                           — Python virtual environment (not committed)
@@ -223,24 +232,36 @@ Main Menu  ("Nutrimagnus Menu")
 │
 ├── 2. Recipes
 │   ├── 1. Create new recipe
-│   │       Name → description → servings → add ingredients (search + portion)
-│   │       → saved to local database
+│   │       Name → description → servings → total volume (optional) →
+│   │       total weight (optional) → procedure (editor, optional) →
+│   │       add ingredients (search + portion) → saved to local database
 │   ├── 2. List recipes
-│   ├── 3. View / analyze recipe
+│   ├── 3. View recipe
+│   │       Lists recipes → user picks by ID → displays name, description,
+│   │       servings, volume/weight (if set), ingredients with amounts and
+│   │       notes, and procedure text. Returns to the Recipes menu automatically
+│   │       (no keypress needed). No nutritional analysis.
+│   ├── 4. Edit recipe
+│   │       Edit name/description/servings/total volume/total weight/procedure,
+│   │       or add/edit/remove/reorder ingredients. Each ingredient has an
+│   │       optional Note field. The ingredient table shows a Note column when
+│   │       any notes are present. DCP is recomputed and saved on any ingredient
+│   │       change. Any changes made before pressing b/q/Ctrl+C are always saved.
+│   ├── 5. Analyze recipe
 │   │       Shows name, description, ingredient list with amounts (and notes if
 │   │       any are set), then procedure — all before any DCP prompts so the
 │   │       recipe is fully visible when making decisions about missing data.
-│   │       Then: total nutrients + per-serving nutrients + digestible complete
-│   │       protein (DCP, saved to DB) + optional bioavailability breakdown +
-│   │       protein completeness. If any ingredient lacks weight or DIAAS data,
-│   │       a numbered Options menu prompts to provide values, calculate anyway
-│   │       (approximate, not saved), or skip. b/q always available.
-│   ├── 4. Edit recipe
-│   │       Edit name/description/servings/procedure, or add/edit/remove/reorder
-│   │       ingredients. Each ingredient has an optional Note field. The
-│   │       ingredient table shows a Note column when any notes are present.
-│   │       DCP is recomputed and saved on any ingredient change.
-│   └── 5. Delete recipe
+│   │       Then: total nutrients + digestible complete protein (DCP, saved to
+│   │       DB) + optional bioavailability breakdown + protein completeness.
+│   │       If servings > 0: shows per-serving nutrients; DCP is per-serving.
+│   │       If servings = 0: shows whole-recipe totals + per-100g (if total
+│   │       weight recorded) + per-100ml and per-cup (if total volume recorded).
+│   │       If any ingredient lacks weight or DIAAS data, a numbered Options
+│   │       menu prompts to provide values, calculate anyway (approximate, not
+│   │       saved), or skip. Pressing b during "Provide missing data" re-shows
+│   │       the Options menu. A note reminds that non-protein ingredients
+│   │       (spices, oil, salt) can safely be ignored in the warning list.
+│   └── 6. Delete recipe
 │
 ├── 3. Meals & Log
 │   ├── 1. Log a meal  (add to today's or create new)
@@ -301,11 +322,65 @@ Main Menu  ("Nutrimagnus Menu")
 
 ## Usage Guide
 
+### The local food cache
+
+NutriMagnus does not store full nutrient profiles for every food in a built-in database. Instead it fetches them on demand from USDA FoodData Central (or Open Food Facts) and saves each result to a **local food cache** — a SQLite table on your machine. Once a food is cached, it is available instantly on every subsequent search and analysis, with no network access required.
+
+**When a food enters the cache:**
+A food is cached the moment you **pick it** from a search results table — not during the search itself. Browsing results does not cache anything; selecting a result triggers the fetch-and-cache step. If you pick a food that is already cached, the stored copy is returned immediately and no network call is made.
+
+**What is stored:**
+Name, data type, brand (if any), serving size and unit, the full nutrient profile (macros, minerals, vitamins, amino acids), and USDA portion data (e.g. "1 cup, chopped"). All nutrient values are per 100 g.
+
+**Viewing and managing the cache:**
+**Foods → View cached / saved foods** lists every cached food with filter-by-name support. From there you can view its full nutrient profile, analyze a portion, or delete the entry. Deleting forces a fresh fetch the next time you search for that food — useful if the cached data looks corrupt or outdated.
+
+**ID column in food tables:**
+Every table that shows food IDs uses a three-format convention:
+
+| Display | Meaning |
+|---------|---------|
+| `123456` (number) | USDA FoodData Central ID |
+| `OFF` | Open Food Facts product |
+| `usr` | User-drafted profile (see below) |
+
+A legend repeating this key appears below every such table.
+
+---
+
+### Drafted food profiles (user-modified nutrients)
+
+When a food lacks complete official data — or when you want to model a modified version (different cooking method, fortification, substitution) — you can build a **drafted food profile** with your own nutrient values.
+
+**Foods → Drafted food profiles → Create new drafted profile**
+
+The creation flow:
+1. Choose to **start from a USDA food** (searches the database and pre-fills all nutrient values, which you then override) or **start from scratch**
+2. Enter a name, optional serving size and unit
+3. Enter nutrient values per 100 g — basic macros (calories, protein, fat, carbs, fiber, sugars, saturated fat, sodium, calcium, iron) and optionally a full amino acid profile
+4. For amino acids, choose one-by-one entry (g per 100g food) or **bulk import** from a literature source: enter `name: value` pairs using full names, 3-letter codes, or 1-letter codes (e.g. `lysine: 4.8`, `lys: 4.8`, or `K: 4.8`). If your source gives values in g per 100g protein rather than g per 100g food, the program converts them automatically using the protein value you entered.
+5. Enter an optional note to document your sources and assumptions
+
+Drafted profiles are saved into the food cache with a small negative ID (−1, −2, −3…) displayed as `usr`. They appear at the top of search results (as cached foods always do), are labeled **User Drafted** in the Type column, and can be used anywhere a regular cached food can — portion analysis, recipes, meal logging, complement suggestions. They can be edited or deleted from the same **Drafted food profiles** menu.
+
+---
+
 ### Searching for a food
 
 Select **Foods → Search food databases**, enter a search term (e.g., "chicken breast"), and pick from the results table. The program fetches the full nutrient profile and caches it locally so subsequent lookups of the same food are instant.
 
-Every search queries the **local food cache first**, then USDA FoodData Central (and Open Food Facts for unrestricted searches). All results are merged into a single table — cached items appear at the top — so you always see every available option in one view. The results table always includes an **AA data** column (✓ confirmed / ✗ none / ? not yet fetched) so you can immediately see which options have the amino acid data needed for protein completeness and complement analysis.
+Every search queries the **local food cache first**, then USDA FoodData Central (and Open Food Facts for unrestricted searches). All results are merged into a single table so you always see every available option in one view.
+
+**Result ordering** — unless your search term contains a brand name, results are ranked in this order:
+
+1. **Local cache** — foods you have already fetched appear first
+2. **USDA Foundation Foods and SR Legacy** — whole-food entries with the most complete nutrient profiles
+3. **Open Food Facts** — community-sourced packaged foods
+4. **Branded (USDA)** — commercial products
+
+If the search string contains a brand name (any brand word of four or more characters that appears in a result's brand field), the ranking switches to relevance order (most query-word matches first) so the specific product you named surfaces at the top.
+
+The results table always includes an **AA data** column (✓ confirmed / ✗ none / ? not yet fetched) so you can immediately see which options have the amino acid data needed for protein completeness and complement analysis.
 
 After viewing the full nutrient breakdown, the program now offers to immediately proceed to portion analysis for the same food — saving you from navigating back to "Analyze a food portion".
 
@@ -338,13 +413,17 @@ Select **Foods → Analyze a USDA food portion**. After picking a food, enter yo
 
 | Input | Example | Notes |
 |---|---|---|
-| Plain number | `150` | Treated as grams |
-| Fraction | `1/4` | Treated as grams |
-| Mixed number | `1 1/2` | Treated as grams |
+| Plain number | `2` | Pieces / count (no gram weight) |
+| Piece unit | `2 pc`, `3 each` | Pieces / count — same as bare number |
+| Weight | `150 g`, `65 gr` | Grams |
+| Fraction weight | `1/4 g` | Treated as grams |
+| Mixed number weight | `1 1/2 oz` | Treated as weight with unit |
 | Weight with unit | `3 oz`, `0.5 lb` | Converted to grams |
 | Volume | `1/4 cup`, `2 tbsp` | Converted via food density |
 | USDA portion shortcut | `p1`, `p2` | Uses gram weight shown in the portions list |
 | Portion multiple | `1.5 p1` | 1.5 × the gram weight of portion 1 |
+
+> **Pieces vs. weight:** A bare number (e.g. `2`) means 2 pieces/count — no gram weight is recorded and the ingredient's nutritional contribution is zero in the totals. To record a gram weight, always include a unit: `150 g`, `3 oz`, `1/4 cup`. Accepted piece-unit words: `pc`, `pcs`, `piece`, `pieces`, `each`, `ea`, `count`, `ct`, `item`, `items`.
 
 Volume inputs (`cup`, `tbsp`, `tsp`, `ml`) are converted to grams using the food's density. Density is derived from the USDA portions data when available (e.g., if USDA lists "1 cup = 240 g", that is used directly). For foods without a cup/tablespoon portion entry, a built-in density table covers common whole foods. If density cannot be determined, the program will say so and ask for grams instead.
 
@@ -362,6 +441,8 @@ The output shows:
 - Complete / Incomplete designation
 - The most limiting amino acid (if incomplete)
 - A score bar for each essential amino acid vs. the reference level
+
+> For a deeper explanation of what the FAO reference values are, where they come from, and how to interpret ratios above 1.0, see the [Appendix — Understanding Protein Quality](#appendix---understanding-protein-quality-the-fao-reference-values-and-diaas).
 
 #### No amino acid data — building a user-drafted profile from literature
 
@@ -569,7 +650,20 @@ The `d` key at the main menu (or Settings → Dietary preferences) toggles wheth
 
 ### Building a recipe
 
-Select **Recipes → Create new recipe**. After entering the recipe name and serving count, you add ingredients one at a time via the food search flow. Each ingredient is stored with its weight. When you later view the recipe, numa calculates total nutrients and per-serving nutrients by summing all ingredients scaled to their specified amounts.
+Select **Recipes → Create new recipe**. The create flow prompts for:
+
+1. **Name** — required.
+2. **Description** — optional free text.
+3. **Number of servings** — defaults to 0. A value of 0 means the recipe has no fixed serving count; analysis will be presented as whole-recipe totals plus per-100g and/or per-100ml breakdowns (depending on whether total weight or volume was recorded). A positive integer enables per-serving analysis.
+4. **Total volume** — optional; enter as `NUMBER UNIT`, e.g. `4 cups` or `500 ml`. Press Enter to skip.
+5. **Total weight** — optional; enter as `NUMBER UNIT`, e.g. `800 g` or `1.5 lb`. Press Enter to skip.
+6. **Procedure** — opens the configured text editor; press Enter to open, `b` to skip.
+
+After the header fields, the ingredient-entry loop begins. Cancelling at any prompt during header entry (Ctrl+C, `b`, `q`) still saves the recipe with whatever was entered up to that point — no data is lost.
+
+Each ingredient is stored with its weight (or piece count). When you analyze the recipe, numa calculates total nutrients and per-serving nutrients by summing all ingredients scaled to their specified gram amounts; piece-count ingredients contribute zero to nutrient totals.
+
+Total volume and total weight can be edited at any time via **Recipes → Edit recipe** (they appear after name/description/servings in the metadata step, current values shown as blue defaults). Any field changes made before pressing `b`, `q`, or Ctrl+C during editing are always saved before exiting.
 
 ### Logging a meal
 
@@ -595,13 +689,26 @@ The original monolithic `numa.py` was split into a `numa_app/` package (see `REA
 - **`numa_app/services/`** — stateless helpers for food search, portion parsing, and report export.
 - **`numa_app/workflows/`** — one file per top-level menu area; each contains the menu loop and the handlers for every item in that section.
 
-The support modules (`db.py`, `usda.py`, `diaas.py`, `export.py`, `profile.py`) were copied intact and are imported by the workflow modules as needed.
+The support modules (`db.py`, `usda.py`, `diaas.py`, `export.py`, `profile.py`) live at the project root and are imported by the workflow modules as needed.
+
+`usda.py` is a thin re-export shim (29 lines). All code that does `import usda as _usda` continues to work unchanged. The actual implementation lives in two files that can each be read and edited independently:
+
+- **`usda_api.py`** (~290 lines) — HTTP client: API key management, `search_foods()`, `get_food_detail()`, `_parse_food()`, and the `NUTRIENT_MAP` / `ESSENTIAL_AMINO_ACIDS` / `AA_REFERENCE_MG_PER_G_PROTEIN` constants.
+- **`usda_nutrients.py`** (~890 lines) — all nutrient math: `scale_nutrients()`, `sum_nutrients()`, `has_amino_acid_data()`, `protein_completeness()`, `get_aa_gaps()`, `suggest_complements()`, `get_diaas()`, `get_antinutrient_flags()`, `get_density_g_per_ml()`, and the embedded DIAAS, anti-nutrient, and complement data tables.
+
+Similarly, the three largest workflow files were split to keep each under 600 lines:
+
+- **`recipes.py`** — menu dispatch + shared helpers + create/list/display/delete (~440 lines). Uses lazy imports of `recipe_edit` and `recipe_analysis` inside `_menu_recipes()` to avoid circular dependencies.
+- **`recipe_analysis.py`** — the "Analyze recipe" workflow: `_resolve_recipe_dcp_data()` and `_do_recipe_view()` (~575 lines).
+- **`recipe_edit.py`** — the "Edit recipe" workflow: `_do_recipe_edit()` (~355 lines).
+- **`foods.py`** — Foods menu + search/analyze/convert/cached-food viewer (~365 lines).
+- **`drafted_foods.py`** — `_do_edit_cached_food()`, `_prompt_nutrients()`, `_bulk_import_aa()`, and the full drafted-profile CRUD (`_do_drafted_foods_menu`, `_do_create_drafted_food`, `_do_edit_drafted_food`) (~570 lines).
 
 ### `numa_app/main.py` — startup and top-level menu
 
 `initialize_app()` handles `--api-key` and `--theme` command-line flags (both exit after acting), calls `db.init_db()`, loads dietary preferences, and on first run triggers the animal-foods preference prompt.
 
-`print_startup_banner()` renders the double green rule, program name ("Nutrimagnus"), profile summary, and theme/dietary status before the menu appears.
+`print_startup_banner()` renders the double green rule, then two lines: `NutriMagnus ("nourishment wizard")` in bold green, and `Nutritional Analysis for individuals and families`. Then profile summary and theme/dietary status.
 
 `_run_menu()` is the top-level loop. It renders the main menu inline (not via `_show_menu()`), dispatches to workflow submenus by return value — `True` means go back, `False` means quit — and handles the `d` shortcut for dietary preferences. It also catches `ReturnToMain` exceptions, which any nested prompt can raise when the user types `m` to jump directly back here from anywhere in the menu tree.
 
@@ -614,7 +721,11 @@ The support modules (`db.py`, `usda.py`, `diaas.py`, `export.py`, `profile.py`) 
 `_prompt(prompt_text, *, default, choices, prefill)` is the core input function. It has two paths:
 
 - **Non-tty** (e.g., piped input, test runner): delegates to `rich.prompt.Prompt.ask()`.
-- **Interactive tty**: reads raw characters via `termios`/`tty`. Ctrl+C and `\x04` (EOF) raise `Cancelled`. Escape is detected by checking for trailing bytes within 50 ms; a bare Escape with no following bytes raises `Cancelled`. Backspace/delete are handled by popping from the buffer and overwriting the terminal.
+- **Interactive tty, free_text**: uses `readline`-backed `input()`. Default values are displayed before the colon as `(Press enter to keep VALUE)` with the value in the theme's blue (`default_hint` style); nothing is pre-filled after the colon. Pressing Enter on a blank line returns the stored default.
+- **Interactive tty, choices**: single-keypress mode via `termios`/`tty`. Only a character in the `choices` list is accepted; all other keystrokes are silently ignored. Pressing Enter on no input returns the default. This prevents accidentally submitting multi-character garbage (e.g., typing a food name at a `y/n/q` prompt).
+- **Interactive tty, no choices, not free_text**: accumulation mode — characters are buffered and echoed until Enter; backspace/delete work. Used for bare prompts with no `default`.
+
+Ctrl+C and `\x04` (EOF) raise `Cancelled` in all tty paths. Escape is detected by checking for trailing bytes within 50 ms; a bare Escape raises `Cancelled`.
 
 `prefill=True` uses `readline.set_pre_input_hook` to pre-populate the input line with the default value, allowing the user to edit it in-place (e.g., for recipe name edits). This path requires an interactive tty and a non-empty default.
 
@@ -644,7 +755,14 @@ The support modules (`db.py`, `usda.py`, `diaas.py`, `export.py`, `profile.py`) 
 
 `_search_and_pick_food()` handles the full food lookup: prompt → search local cache and USDA (and Open Food Facts for unrestricted searches) → merge results cache-first → remove duplicates and rank → display results table → user picks → fetch detail if not cached → cache and return food dict. Reused by every workflow that needs food selected.
 
-The local cache is **always** searched first. The USDA (and OFF) search always runs alongside it — both sources are queried on every search regardless of cache hits. Results are merged so cached items appear first; remote-only items are appended without duplicates (matched by `fdc_id`). An **AA data** column is always shown in the results table using the following symbols:
+The local cache is **always** searched first. The USDA (and OFF) search always runs alongside it — both sources are queried on every search regardless of cache hits. Remote-only items (not already in the cache) are appended without duplicates (matched by `fdc_id`).
+
+**Result ranking** is performed after deduplication via two paths:
+
+- **Brand query detected** — if any brand word (≥ 4 chars) from any result's `brandOwner` / `brandName` field appears in the query string, results are sorted by `_word_score` (descending): the count of query words that appear in the food's description. This surfaces the specific branded product the user named.
+- **Generic query** — otherwise, results are sorted by `(_source_tier(f), -_word_score(f))`. `_source_tier` returns `0` for cached items, `1` for Foundation/SR Legacy, `2` for Open Food Facts, and `3` for Branded/unknown. Within each tier, higher word-score items rank first.
+
+An **AA data** column is always shown in the results table using the following symbols:
 
 | Symbol | Meaning |
 |--------|---------|
@@ -670,9 +788,65 @@ OFF nutrient keys (`energy-kcal_100g`, `proteins_100g`, etc.) are mapped to the 
 
 ### `numa_app/services/portions.py` — portion parsing
 
-`_parse_portion_input(raw, portions, food_name)` parses a portion string and returns `(grams, label)`. Accepted formats: plain number (grams), fractions (`1/4`), mixed numbers (`1 1/2`), weight with unit (`3 oz`, `0.5 lb`), volume (`1/4 cup`, `2 tbsp`, `1 tsp`, `ml`), USDA portion shortcuts (`p1`, `p2`), and portion multiples (`1.5 p1`). Returns `None` on unrecognised input, a string error message when the format is recognised but density is unavailable.
+`_parse_portion_input(raw, portions, food_name)` parses a portion string and returns `(grams, label)`. Accepted formats:
 
-`_pick_portion(food)` renders the USDA portions list for the food, then loops on `_parse_portion_input` until the user enters a valid amount or cancels.
+- **Bare number** (e.g. `2`) → pieces/count: returns `(0.0, "2 pc")`. No gram weight.
+- **Piece unit** (`pc`, `pcs`, `piece`, `pieces`, `each`, `ea`, `count`, `ct`, `item`, `items`) → same as bare number.
+- **Weight** (`150 g`, `3 oz`, `0.5 lb`, fractions, mixed numbers) → grams.
+- **Volume** (`1/4 cup`, `2 tbsp`, `1 tsp`, `ml`) → grams via food density.
+- **USDA portion shortcut** (`p1`, `p2`) → gram weight from USDA portions list.
+- **Portion multiple** (`1.5 p1`) → multiple of a USDA portion.
+
+Returns `None` on unrecognized input; `(None, vol_display)` when volume is recognized but density is unavailable (caller then prompts for grams). `_PIECE_UNITS` is a frozenset of the recognized piece-unit words.
+
+`_pick_portion(food)` renders the USDA portions list for the food, then loops on `_parse_portion_input` until the user enters a valid amount or cancels. The hint text explains that a bare number means pieces/count and a unit is required for weight or volume.
+
+### `numa_app/workflows/recipes.py` — recipe CRUD and shared helpers (~440 lines)
+
+Contains the menu dispatch (`_menu_recipes`), all shared helper functions used by the split-out modules, and the create/list/display/delete handlers.
+
+Key shared helpers imported by `recipe_analysis.py` and `recipe_edit.py`:
+
+| Function | Purpose |
+|---|---|
+| `_pick_recipe()` | Search/list recipes, return selected recipe dict |
+| `_compute_recipe_dcp(rid)` | Compute digestible complete protein (g) for a whole recipe from cached ingredient data |
+| `_augment_aa_from_curated(nutrients, stats)` | Add AA data from the curated complement table for ingredients that lack USDA AA profiles |
+| `_parse_serving_amount(raw)` | Parse a serving count string (int, fraction, decimal) |
+| `_format_recipe_portion_label(servings)` | Format a portion label ("1 serving", "2 servings", etc.) |
+| `_get_recipe_total_nutrients(recipe_id)` | Return `(recipe, ingredients, combined_nutrients)` — used by the Foods workflow to analyze a recipe portion |
+| `_pick_recipe_portion(recipe)` | Prompt for number of servings; return `(servings, label)` |
+| `_do_recipe_display()` | Menu option 3 "View recipe" — text-only display (name, ingredients, procedure) |
+
+`_menu_recipes()` uses lazy imports (`from .recipe_edit import _do_recipe_edit` and `from .recipe_analysis import _do_recipe_view` inside the function body) to avoid circular dependencies with the two split-out modules, which in turn import shared helpers from this file.
+
+### `numa_app/workflows/recipe_analysis.py` — analyze recipe workflow (~575 lines)
+
+Contains `_resolve_recipe_dcp_data()` and `_do_recipe_view()` (menu option 5 "Analyze recipe").
+
+`_resolve_recipe_dcp_data(recipe_id, ingredients, ingredient_stats, combined)` detects missing data that blocks or degrades DCP calculation (unknown ingredient weights, missing DIAAS scores, missing AA data). It prompts the user to provide data, calculate with assumptions, or skip. Returns `(updated_stats, updated_combined, approximate, notes)`, `None` to skip DCP entirely, or `"rerun"` if ingredients were replaced and analysis should restart.
+
+`_do_recipe_view()` is the full nutrition analysis workflow: builds combined nutrient totals, calls `_resolve_recipe_dcp_data`, applies DIAAS-weighted DCP calculation, displays per-serving and whole-recipe nutrient tables, recipe bioavailability table, protein completeness, and complement suggestions. Supports live replacement of ingredients with missing AA data during the session.
+
+Also contains `_recipe_weight_to_g()` and `_recipe_vol_to_ml()` — unit converters for recipe total volume/weight metadata.
+
+### `numa_app/workflows/recipe_edit.py` — edit recipe workflow (~355 lines)
+
+Contains `_do_recipe_edit()` (menu option 4 "Edit recipe"). Supports back-navigation through metadata fields (name → description → servings → total volume → total weight → procedure), ingredient-level editing (amount, unit, food name, notes), ingredient replacement via USDA search, reordering, and deletion. Recomputes DCP after any ingredient change.
+
+### `numa_app/workflows/foods.py` — Foods menu (~365 lines)
+
+Contains the Foods menu dispatch and the search/analyze/convert/cached-food-viewer handlers. Imports `_do_edit_cached_food` and `_do_drafted_foods_menu` from `drafted_foods.py`.
+
+### `numa_app/workflows/drafted_foods.py` — cache editing and drafted profiles (~570 lines)
+
+`_do_edit_cached_food(fdc_id, cached)` edits any cached food (USDA, OFF, or user-drafted): name, serving metadata, all nutrients (pre-filled from existing values), and a note. After saving, marks the entry `user_drafted=True` so automatic AA re-fetches will not overwrite the changes. Preserves original USDA portion data.
+
+`_prompt_nutrients(existing)` interactively prompts for all nutrient values per 100g, pre-filled from an existing dict. Offers three amino acid entry modes: one-by-one, bulk import (name: value pairs), or skip.
+
+`_bulk_import_aa(protein_g)` accepts amino acid values as `name: value` pairs (full name, 3-letter, or 1-letter codes). If `protein_g` is provided, converts from g/100g-protein to g/100g-food automatically. Classifies each entry as stored, non-essential (skipped with note), or unrecognized (warning).
+
+`_do_drafted_foods_menu()` / `_do_create_drafted_food()` / `_do_edit_drafted_food()` — full CRUD for user-drafted food profiles. Create supports starting from a USDA food (pre-fills all values) or from scratch. Drafted profiles are saved with small negative `fdc_id` values (−1, −2, …) and `user_drafted=True`.
 
 ### `numa_app/workflows/settings.py` — settings menu, profile, and RDA
 
@@ -699,48 +873,66 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 | Table                | Purpose                                              |
 |----------------------|------------------------------------------------------|
 | `foods`              | Local cache of USDA food entries (nutrients as JSON) |
-| `recipes`            | Recipe metadata (name, servings, description, `dcp_g`) |
+| `recipes`            | Recipe metadata (name, servings, description, total volume, total weight, `dcp_g`) |
 | `recipe_ingredients` | One row per ingredient; foreign key to `recipes`     |
 | `meals`              | Meal log entries with date                           |
 | `meal_items`         | Foods or recipes added to a meal; foreign key to `meals` |
 | `pantry`             | User's protein-source inventory (food name, optional fdc_id, notes) |
 | `diaas_overrides`    | User-set true ileal digestibility coefficients, keyed by food name |
 
+`recipes.total_volume` / `recipes.total_volume_unit` and `recipes.total_weight` / `recipes.total_weight_unit` store the user-entered batch size (e.g. 4.0 / "cups", 800.0 / "g"). Both pairs are nullable — either or both may be omitted. Added via `ALTER TABLE` migration so existing databases are upgraded automatically on first run.
+
 `recipes.dcp_g` stores the digestible complete protein (grams, whole recipe) computed at last view. It is `NULL` when the recipe has never been viewed, when the calculation was approximate (user-provided data), or when amino acid data was unavailable. The recipe list shows DCP per serving when this value is present.
 
 All nutrient data is stored as a JSON blob in `foods.nutrients_json`, keyed by the same field names used throughout (`calories`, `protein_g`, `carbs_g`, etc.). This avoids schema migrations when nutrient tracking is expanded.
 
-### `usda.py` — USDA API client and nutrient math
+### `usda_api.py` — USDA HTTP client (~290 lines)
 
 **API:** USDA FoodData Central REST API (`https://api.nal.usda.gov/fdc/v1`). Uses stdlib `urllib` — no `requests` dependency at runtime.
 
-`NUTRIENT_MAP` is a dict mapping USDA nutrient IDs (integers) to `(our_key, display_label, unit)` tuples. It covers 45 nutrients: macros, minerals, vitamins, 7 phytonutrients/bioactive compounds, and 11 amino acids (including tyrosine, added to support Phe+Tyr combined scoring in meal-level DIAAS).
+`NUTRIENT_MAP` is a dict mapping USDA nutrient IDs (integers) to `(our_key, display_label, unit)` tuples. It covers 45 nutrients: macros, minerals, vitamins, 7 phytonutrients/bioactive compounds, and 11 amino acids (including tyrosine, added to support Phe+Tyr combined scoring in meal-level DIAAS). Also defines `ESSENTIAL_AMINO_ACIDS` (list of 9 internal keys) and `AA_REFERENCE_MG_PER_G_PROTEIN` (FAO 2013 reference pattern).
 
 **Key functions:**
 
 | Function | Purpose |
 |---|---|
+| `get_api_key()` / `set_api_key(key)` | Read/write API key from `~/.config/numa/config.json` |
 | `search_foods(query)` | Search USDA; returns list of result dicts |
 | `get_food_detail(fdc_id)` | Fetch full nutrient profile for one food |
+
+`_parse_food()` normalizes USDA API responses — the API returns nutrients in three different formats depending on the endpoint (`nutrientId`, `nutrient.id`, or `number`), and `_parse_food` handles all three.
+
+`_SEARCH_ALIASES` is a small static list of foods that the USDA search index fails to surface reliably (e.g., flaxseed, chia, hemp seed, oats). These are injected into every search result that matches the alias keywords.
+
+### `usda_nutrients.py` — nutrient math and data tables (~890 lines)
+
+Imports `NUTRIENT_MAP`, `ESSENTIAL_AMINO_ACIDS`, and `AA_REFERENCE_MG_PER_G_PROTEIN` from `usda_api`. The bulk of this file is three large static data tables (DIAAS, anti-nutrient, complement) with the functions that query them.
+
+**Key functions:**
+
+| Function | Purpose |
+|---|---|
 | `scale_nutrients(nutrients, amount, base_size=100)` | Scale a nutrient dict from base_size to amount |
 | `sum_nutrients(*dicts)` | Add any number of nutrient dicts together |
 | `protein_completeness(nutrients)` | Assess essential amino acid completeness vs. FAO/WHO reference. Requires 5+ AAs with **non-zero** values; zero-keyed AA entries (common in branded USDA foods) are ignored. |
 | `get_aa_gaps(nutrients)` | Return `(aa_key, score, deficit_g)` for each essential AA below 1.0, sorted most-limiting first |
-| `suggest_complements(base_nutrients, pantry_candidates)` | Compute minimum-gram complement suggestions from pantry and curated table; returns `{"pantry": [...], "general": [...]}`. The curated table (`_COMPLEMENT_TABLE`) holds protein + nine essential AAs per 100g for ~30 common protein sources; it is used only for complement scoring and AA gap augmentation — not for general food search. |
+| `suggest_complements(base_nutrients, pantry_candidates)` | Compute minimum-gram complement suggestions from pantry and curated table; returns `{"pantry": [...], "general": [...]}`. The curated table (`_COMPLEMENT_TABLE`) holds protein + nine essential AAs per 100g for ~30 common protein sources; used only for complement scoring and AA gap augmentation — not for general food search. |
 | `nutrient_label(key)` | Reverse-lookup display name and unit for any nutrient key |
 | `get_diaas(food_name)` | Return DIAAS protein digestibility score for a food (keyword lookup) |
-| `get_antinutrient_flags(food_name)` | Return consolidated anti-nutrient flags as a list of `{"problem": str, "cause": str, "solutions": [(label, description), ...]}` dicts. Entries sharing the same group (e.g. legume phytate + seed phytate on the same food) are merged into one flag with multiple solutions. |
+| `get_antinutrient_flags(food_name)` | Return consolidated anti-nutrient flags as a list of `{"problem": str, "cause": str, "solutions": [(label, description), ...]}` dicts. Entries sharing the same group are merged into one flag with multiple solutions. |
 | `get_density_g_per_ml(food_name, portions)` | Estimate g/ml density for volume-to-weight conversion. Static table takes priority over USDA portion data. |
-
-`_parse_food()` normalizes USDA API responses — the API returns nutrients in three different formats depending on the endpoint (`nutrientId`, `nutrient.id`, or `number`), and `_parse_food` handles all three.
 
 **Protein completeness method:** The FAO 2013 dietary protein quality evaluation reference pattern (mg of each essential amino acid per gram of protein) is used. A food scores each essential amino acid by dividing its actual mg/g-protein content by the reference value. A score ≥ 1.0 on all nine essential amino acids means complete protein. The most limiting amino acid is the one with the lowest score.
 
-**DIAAS lookup (`get_diaas`):** A static ordered table of ~50 food categories maps keyword patterns to DIAAS scores from FAO 2013 and peer-reviewed digestion studies. Used for single-food bioavailability display (recipe ingredient table, food analysis). Scores above 1.0 are capped at 1.0. More specific entries (e.g., "soy protein isolate") are listed before general ones (e.g., any soy keyword) — first match wins. Note: this is distinct from the digestibility coefficients in `diaas.py`, which are used for meal-level pooled calculation.
+**DIAAS lookup (`get_diaas`):** A static ordered table of ~50 food categories maps keyword patterns to DIAAS scores from FAO 2013 and peer-reviewed digestion studies. Used for single-food bioavailability display. Scores above 1.0 are capped at 1.0. More specific entries are listed before general ones — first match wins. Distinct from the digestibility coefficients in `diaas.py`, which are used for meal-level pooled calculation.
 
-**Anti-nutrient flags:** A static table maps food keywords to advisory messages (phytate, oxalate, lectins, trypsin inhibitors, bound niacin). Flags can be suppressed by cooking-state keywords — e.g., "cooked"/"boiled" suppresses lectin and trypsin inhibitor warnings for beans, since these compounds are fully inactivated by cooking.
+**Anti-nutrient flags:** A static table maps food keywords to advisory messages (phytate, oxalate, lectins, trypsin inhibitors, bound niacin). Flags can be suppressed by cooking-state keywords — e.g., "cooked"/"boiled" suppresses lectin and trypsin inhibitor warnings for beans.
 
 **Density lookup:** `get_density_g_per_ml` first checks the food's USDA portion list for any cup or tablespoon entry and derives density from it. If none is found, it falls back to a static keyword table covering ~50 food categories. Returns `None` if density cannot be determined.
+
+### `usda.py` — backwards-compatible shim (29 lines)
+
+Re-exports all public names from `usda_api` and `usda_nutrients` so that every `import usda as _usda` call in the codebase continues to work unchanged. Edit `usda_api.py` or `usda_nutrients.py` directly; `usda.py` itself never needs to change.
 
 ### `diaas.py` — Meal-level DIAAS calculation
 
@@ -956,12 +1148,39 @@ The original design specified three phases. Phase 1 is complete.
 - Non-essential amino acids (alanine, arginine, glycine, etc.) are silently discarded with a note. Unrecognized names are flagged in yellow. Essential amino acids (the nine stored by the program) are shown in green with a ✓.
 - Designed for entering FAO/WHO/literature amino acid composition tables that report values in g per 100g protein — the most common format in peer-reviewed nutrition literature.
 
+**Item 14: UX fixes and recipe volume/weight — Coded ✓**  *(2026-04-13)*
+
+- **Startup banner**: First line is now `NutriMagnus ("nourishment wizard")` (bold green); second line is `Nutritional Analysis for individuals and families`. Previously a single combined line.
+- **Default-value prompt display**: All prompts with a default now show `(Press enter to keep VALUE)` before the colon, with the value rendered in the theme's blue (`default_hint` style). Nothing is pre-filled after the colon; pressing Enter on a blank input returns the stored default.
+- **Choices prompt — single keypress only**: When `choices` is provided (e.g. `y/n/q`), the prompt now accepts only valid single keystrokes. Any character not in the choices list is silently ignored, preventing multi-character input like a food name from being misread as a menu selection.
+- **Recipe create — procedure editor gate**: Opening the text editor now requires the user to press Enter first (or `b` to skip), consistent with the recipe-edit flow. Previously the editor launched immediately after printing the message.
+- **Recipe search in meal add**: The "add items to meal" search now tokenizes the query and matches a recipe if **any** word appears in its name. Previously the entire query string had to be a substring of the name, making multi-word searches like `coffee Mexican Tom` fail to find `Mexican coffee`.
+- **Recipe total volume and weight**: New optional fields `total_volume`, `total_volume_unit`, `total_weight`, `total_weight_unit` added to the `recipes` table (auto-migrated). Both fields are prompted during recipe create (after servings, before the procedure editor) and recipe edit (after name/description/servings). Input format: `NUMBER UNIT` (e.g. `4 cups`, `800 g`). Either or both may be skipped (Enter on blank). `_parse_measure()` helper handles parsing.
+
+**Item 15: Recipe UX improvements and piece-count portions — Coded ✓** *(2026-04-13)*
+
+- **Recipes menu restructured (1→6 items)**: item 3 is now a plain text view (new `_do_recipe_display`); item 4 is Edit (unchanged); item 5 is Analyze (was item 3 "View / analyze"); item 6 is Delete (was item 5).
+- **Recipe view (item 3)**: lists recipes → user picks by ID → displays full recipe text (name, description, servings, volume/weight, ingredients with notes, procedure) and returns to the menu automatically. No nutritional analysis.
+- **Ingredients menu `b` key**: `b` and `d` both proceed to the Procedure editor. `m` and `q` remain the escape hatches that skip Procedure (menu labels updated to note this). Previously `b` exited the edit entirely, bypassing Procedure.
+- **Recipe always-save on exit**: header fields in create (`_do_recipe_create`) each have their own `try/except Cancelled` so Ctrl+C at any prompt after the name still creates the record. In edit (`_do_recipe_edit`), `b`, `q`, and Ctrl+C in the meta loop now break to the save block instead of returning early — any fields already changed are written to the DB before exit. `q` specifically was saving nothing; it now saves then raises `SystemExit`.
+- **Servings default changed to 0** (was 1) in the recipe creation flow.
+- **Blank line added** before "Current recipe ingredients" heading in the ingredient-edit loop.
+- **Piece/count portion input**: a bare number (e.g. `2`) now means pieces/count, not grams — `grams = 0.0`, label `"2 pc"`. Explicit piece-unit words also accepted: `pc`, `pcs`, `piece`, `pieces`, `each`, `ea`, `count`, `ct`, `item`, `items`. Nutritional contribution of piece-count ingredients is zero in totals. Prompt hint and error message updated to explain the distinction. `_PIECE_UNITS` frozenset added to `portions.py`.
+
+**Item 16: Recipe analysis servings=0, DCP UX fixes, and display polish — Coded ✓** *(2026-04-13)*
+
+- **Servings=0 analysis**: when a recipe has no serving count, `_do_recipe_view` now shows: (1) whole-recipe nutrient totals, (2) per-100g table if total weight was recorded, (3) per-100ml and per-1-cup tables if total volume was recorded. The complement-suggestions basis menu is skipped; the analysis nutrients are used directly with a label reflecting what they represent (whole recipe / per 100 g / per 100 ml). DCP is not saved to the DB when servings=0. Export labels updated to say "whole recipe (no serving count)" instead of "whole recipe, 0 servings".
+- **Servings prompt clarified**: both the create and edit prompts now read `Number of servings  (0 = analyze by weight/volume)`.
+- **DCP missing-data Options menu loops**: the options menu (provide data / calculate anyway / skip) is now shown inside a `while True` so pressing `b` during "Provide missing data" re-displays the menu rather than exiting the analysis.
+- **DCP warning note**: a dim note is printed after the missing-ingredient list reminding the user that non-protein ingredients (spices, oil, salt) can safely be ignored in the warning.
+- **Report file path color**: path strings in the auto-save and previous-reports display are now rendered in `thistle1` (light lavender) instead of `dim`, which was unreadable on dark terminal backgrounds.
+
 **Remaining Phase 2 items — Planned**
 
 - Development of a slightly modified version that will run on Windows operating systems. (The developmental version is Linux-only.)
 - Nutrient trend analysis over time (charts or tables)
 - Meal planning and dietary pattern analysis
-- Transition from a command line interface to graphic user interface.
+- Transition from a menu-driven interface to graphic user interface.
 
 ### Phase 3 — Planned
 
@@ -969,3 +1188,79 @@ The original design specified three phases. Phase 1 is complete.
 - Integration with smart kitchen devices
 - API for third-party app integration
 - Machine learning components for dietary recommendations
+
+
+## Appendix - Understanding Protein Quality: The FAO Reference Values and DIAAS
+
+### The Core Question
+
+When you eat protein, not all of it is equally useful to your body. The usefulness depends on two things: **how much** protein you eat, and **how well-matched** its amino acid composition is to human physiological needs. The FAO reference values and the DIAAS score exist to answer that second question — protein quality — independently of the first.
+
+### The Nine Essential Amino Acids
+
+Your body requires twenty amino acids to build proteins. Eleven of these it can synthesize from other raw materials. The remaining nine — the essential amino acids (EAAs) — must come from food. These nine must all be present simultaneously for protein synthesis to proceed; if any one runs short, it acts as a bottleneck and limits how much protein your body can actually build from what you've eaten. The surplus of the other eight cannot be stored and is instead broken down for energy — a functional waste.
+
+This means that the *pattern* of EAAs in a food matters, not just the total protein quantity.
+
+### Where the FAO Reference Values Come From
+
+Researchers established human requirements for each EAA independently, through controlled human trials. For each amino acid separately, they asked: how much of this amino acid does a healthy adult need per day to maintain physiological function? These studies produced absolute daily requirement figures for each of the nine EAAs, expressed in milligrams per kilogram of body weight per day.
+
+Separately, research has established how much total protein a healthy adult needs per day. By dividing each EAA's daily requirement by the total daily protein requirement, researchers produced a normalized figure: how many milligrams of each EAA a person needs per gram of protein consumed. These normalized figures are the FAO reference values.
+
+The key point is that the reference values for each amino acid were determined *independently*, not in relation to each other. The ratios between EAAs that fall out of the reference values are a byproduct of separately established requirements — not the starting point.
+
+### What the FAO Reference Values Actually Ask
+
+The reference values allow a simple and powerful question to be asked about any food protein:
+
+> If I eat enough of this food to meet my total daily protein needs, will each essential amino acid also arrive in sufficient quantity?
+
+If the answer is yes for all nine EAAs, the protein is high quality — no bottleneck will limit your body's ability to use it. If the answer is no for even one EAA, that amino acid becomes your limiting factor.
+
+### The DIAAS Score
+
+The Digestible Indispensable Amino Acid Score (DIAAS) puts this question into numerical form. For each EAA, it calculates:
+
+> (mg of that EAA actually absorbed per gram of food protein) ÷ (FAO reference value for that EAA)
+
+The word "actually absorbed" is critical. Not all amino acids in a food survive digestion intact and cross into the bloodstream. DIAAS uses ileal digestibility — the fraction of each amino acid absorbed by the end of the small intestine — to correct for this. The result is a score based on what your body actually receives, not merely what was in the food.
+
+A ratio of 1.0 means the food delivers exactly the required amount of that EAA (per gram of protein eaten). A ratio below 1.0 means a shortfall — that EAA is limiting. A ratio above 1.0 means a surplus above the floor. The overall DIAAS score for the food is set by whichever EAA has the lowest ratio — the weakest link.
+
+### A Concrete Example: Chia Seed
+
+Consider a protein quality analysis of chia seed that produces output like this:
+
+```
+ Amino Acid      Ratio vs. FAO
+ Tryptophan               3.77
+ Threonine                1.86
+ Isoleucine               1.61
+ Leucine                  1.40
+ Lysine                   1.30
+ Methionine               1.62
+ Phenylalanine            1.62
+ Valine                   1.47
+ Histidine                2.14
+```
+
+Every ratio exceeds 1.0. This means that if you eat enough chia seed to meet your total daily protein requirement, every one of the nine EAAs will arrive in at least the required amount. No bottleneck. No limiting amino acid. The protein is complete and efficiently usable.
+
+Lysine at 1.30 is the weakest link — your slimmest margin. It would be the first amino acid to fall below the floor if you ate progressively less chia. But at 1.30, it still clears the threshold comfortably.
+
+Importantly, these ratios do *not* mean that 100 grams of chia seed provides all the EAAs you need for a day. Chia seed contains roughly 17 grams of protein per 100 grams. If your daily protein target is 80 grams, 100 grams of chia gets you only about 21% of the way there. The quality score tells you that every gram of protein chia delivers is efficiently usable — but you still need to eat enough of it to accumulate your daily protein target.
+
+Think of it like fuel efficiency: a car that gets 50 miles per gallon is efficient, but knowing that tells you nothing about whether one gallon is enough to reach your destination. Quality and quantity are separate questions answered separately.
+
+### Summary
+
+| Concept | What it answers |
+|---|---|
+| FAO reference values | How many mg of each EAA a human needs per gram of protein consumed |
+| DIAAS ratio for one EAA | Does this food deliver enough of that EAA, accounting for digestibility? |
+| Overall DIAAS score | What is the weakest link — the most limiting EAA in this food? |
+| Ratio > 1.0 for all EAAs | Complete protein: no bottleneck, full usability of what you eat |
+| Daily protein target | Separate calculation: how many grams of protein do you need total? |
+
+The DIAAS table characterizes the quality of each gram. Hitting your daily protein target is about counting how many grams you eat.

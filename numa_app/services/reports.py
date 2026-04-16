@@ -22,9 +22,9 @@ def _offer_export(report_title: str, sections: list[dict]) -> None:
     existing = _find_existing_reports(report_title)
     if existing:
         state.console.print("\n  [dim]Previous reports:[/dim]")
-        state.console.print(f"  [dim]{_AUTO_SAVE_DIR.resolve()}[/dim]")
+        state.console.print(f"  [thistle1]{_AUTO_SAVE_DIR.resolve()}[/thistle1]")
         for i, p in enumerate(existing, 1):
-            state.console.print(f"  [dim]  {i}. {p.name}[/dim]")
+            state.console.print(f"  [dim]  {i}. [/dim][thistle1]{p.name}[/thistle1]")
         try:
             ans = _prompt_with_options(
                 "Report option",
@@ -50,7 +50,7 @@ def _offer_export(report_title: str, sections: list[dict]) -> None:
     auto_name = _export.default_filename(report_title, "md")
     auto_path = _AUTO_SAVE_DIR / auto_name
     _export.write_report(auto_path, _export.build_report(report_title, sections, "md"))
-    state.console.print(f"  [dim]Report auto-saved → {auto_path.resolve()}[/dim]")
+    state.console.print(f"  [dim]Report auto-saved →[/dim] [thistle1]{auto_path.resolve()}[/thistle1]")
 
     try:
         ans = _prompt_with_options(

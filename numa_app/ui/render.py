@@ -7,6 +7,7 @@ import diaas as _diaas
 import usda as _usda
 import profile as _profile
 from .. import state
+from ..ui.common import _id_cell, ID_KEY
 from ..ui.prompts import Cancelled, _prompt
 
 
@@ -122,14 +123,15 @@ def _print_protein_completeness(
         aa_label, _ = _usda.nutrient_label(result["limiting_aa"])
         state.console.print(f"  Most limiting amino acid: [{state.T['warning']}]{aa_label}[/{state.T['warning']}]")
 
-    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 2))
-    tbl.add_column("Amino Acid", min_width=18)
-    tbl.add_column("Ratio vs. FAO pattern", justify="right", min_width=22)
+    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+    tbl.add_column("Amino Acid", min_width=14)
+    tbl.add_column("Ratio vs. FAO", justify="right", min_width=5)
+    tbl.add_column("", justify="left", min_width=10, no_wrap=True)
     for aa_key, score in result["scores"].items():
         label, _ = _usda.nutrient_label(aa_key)
         bar = "█" * min(int(score * 10), 20)
         color = state.T["success"] if score >= 1.0 else state.T["warning"]
-        tbl.add_row(label, f"[{color}]{score:.2f}  {bar}[/{color}]")
+        tbl.add_row(label, f"[{color}]{score:.2f}[/{color}]", f"[{color}]{bar}[/{color}]")
     state.console.print(tbl)
     state.console.print(
         "  [dim]Interpretation: 1.0 = meets the FAO pattern · >1.0 = exceeds it · <1.0 = limiting[/dim]",
@@ -145,13 +147,23 @@ def _print_protein_adequacy(
     profile: "_profile.UserProfile",
     *,
     context_label: str | None = None,
+    dcp_g: float | None = None,
 ) -> None:
-    """Print personalized protein adequacy vs. the user's profile-derived target."""
+    """Print personalized protein adequacy vs. the user's profile-derived target.
+
+    dcp_g: when provided (from DIAAS analysis), used as the effective protein intake
+           figure instead of the raw total protein from nutrients.
+    """
     protein_target = _profile.compute_rda(profile).get("protein_g", (0.0, "g", "minimum"))[0]
     if protein_target <= 0:
         return
 
-    protein_intake = nutrients.get("protein_g", 0.0)
+    if dcp_g is not None:
+        protein_intake = dcp_g
+        intake_label = "Digestible complete protein"
+    else:
+        protein_intake = nutrients.get("protein_g", 0.0)
+        intake_label = "Protein here"
     pct = (protein_intake / protein_target * 100.0) if protein_target > 0 else 0.0
     title = f"Personalized protein adequacy — {context_label}" if context_label else "Personalized protein adequacy"
     state.console.print(f"\n  [{state.T['hi']}]{title}[/{state.T['hi']}]", highlight=False)
@@ -162,12 +174,12 @@ def _print_protein_adequacy(
     )
     color = state.T["success"] if pct >= 100 else (state.T["warning"] if pct >= 50 else state.T["error"])
     state.console.print(
-        f"  Protein here: [{color}]{protein_intake:.1f} g[/{color}]  [dim]({pct:.0f}% of daily target)[/dim]",
+        f"  {intake_label}: [{color}]{protein_intake:.1f} g[/{color}]  [dim]({pct:.0f}% of daily target)[/dim]",
         highlight=False,
     )
 
 
-def _print_meal_diaas(ingredient_list: list[dict]) -> list[str]:
+def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | None]:
     """
     Print meal-level DIAAS analysis for a list of ingredients.
 
@@ -176,12 +188,12 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> list[str]:
         "nutrients_100g": dict[str, float]
         "grams":          float
 
-    Returns a list of food names that were excluded due to missing AA data.
-    Empty list means analysis was complete.
-    Callers should suppress complement suggestions when non-empty.
+    Returns (missing_aa_names, dcp_g):
+        missing_aa_names: food names excluded due to missing AA data; empty = analysis complete.
+        dcp_g: digestible complete protein in grams, or None if DIAAS analysis unavailable.
     """
     if not ingredient_list:
-        return []
+        return [], None
 
     with _db.get_db() as conn:
         result = _diaas.meal_level_diaas(ingredient_list, conn)
@@ -196,7 +208,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> list[str]:
                 "\n  [dim](Meal-level DIAAS analysis unavailable — "
                 "no amino acid data for any ingredient.)[/dim]"
             )
-        return result["missing_aa_names"]
+        return result["missing_aa_names"], None
 
     state.console.print(f"\n  [{state.T['hi']}]Meal-Level DIAAS Complete Protein Analysis[/{state.T['hi']}]"
                   f"  [dim](digestibility-corrected, pooled across foods)[/dim]",
@@ -210,11 +222,12 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> list[str]:
         f"  [dim]Digestibility color key:[/dim]  "
         f"[{state.T['success']}]≥0.90 good[/{state.T['success']}]  "
         f"[{state.T['warning']}]0.80–0.89 fair[/{state.T['warning']}]  "
-        f"[{state.T['error']}]<0.80 poor[/{state.T['error']}]",
+        f"[{state.T['error']}]<0.80 poor[/{state.T['error']}]  ·  {ID_KEY}",
         highlight=False,
     )
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("Food",      min_width=48)
+    tbl.add_column("ID",        justify="right", min_width=7)
+    tbl.add_column("Food",      min_width=40)
     tbl.add_column("Protein",         justify="right", min_width=8)
     tbl.add_column("Digestibility",   justify="right", min_width=14)
     tbl.add_column("Digestible prot", justify="right", min_width=15)
@@ -231,7 +244,8 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> list[str]:
             source_tag = f"  [dim]~est[/dim]"
         color = state.T["success"] if d >= 0.90 else (state.T["warning"] if d >= 0.80 else state.T["error"])
         tbl.add_row(
-            ing["food_name"][:50],
+            _id_cell(ing.get("fdc_id")),
+            ing['food_name'][:50],
             f"{p:.1f}g",
             f"[{color}]{d:.2f}[/{color}]{source_tag}",
             f"{dig_p:.1f}g",
@@ -337,7 +351,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> list[str]:
             highlight=False,
         )
 
-    return result["missing_aa_names"]
+    return result["missing_aa_names"], result.get("digestible_complete_protein_g")
 
 def _print_recipe_bioavailability(
     ingredient_stats: list[dict],  # [{"name": str, "protein_g": float, "diaas": float|None}]
@@ -351,20 +365,27 @@ def _print_recipe_bioavailability(
     state.console.print(f"\n  [{state.T['hi']}]Bioavailability — per serving[/{state.T['hi']}]"
                   f"  [dim](DIAAS: [{state.T['success']}]≥0.90 good[/{state.T['success']}]"
                   f" · [{state.T['warning']}]≥0.70 moderate[/{state.T['warning']}]"
-                  f" · [{state.T['error']}]<0.70 poor[/{state.T['error']}])[/dim]",
+                  f" · [{state.T['error']}]<0.70 poor[/{state.T['error']}]"
+                  f"  ·  {ID_KEY})[/dim]",
                   highlight=False)
 
-    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 2))
-    tbl.add_column("Ingredient", min_width=32)
-    tbl.add_column("Protein", justify="right", min_width=8)
-    tbl.add_column("DIAAS", justify="right", min_width=7)
-    tbl.add_column("Digestible", justify="right", min_width=10)
+    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+    tbl.add_column("ID", justify="right", min_width=7)
+    tbl.add_column("Ingredient", min_width=22)
+    tbl.add_column("Serving", justify="right", min_width=7)
+    tbl.add_column("Crude protein", justify="right", min_width=13)
+    tbl.add_column("DIAAS", justify="right", min_width=6)
+    tbl.add_column("Limiting IAA", min_width=16)
+    tbl.add_column("Bioavailable", justify="right", min_width=12)
 
     total_digestible = 0.0
     unknown_count = 0
     for s in ingredient_stats:
         p = s["protein_g"]
         diaas = s["diaas"]
+        amount_g = s.get("amount_g")
+        limiting_aa = s.get("limiting_aa")
+
         if diaas is not None:
             dig = p * diaas
             score = diaas
@@ -376,10 +397,22 @@ def _print_recipe_bioavailability(
             unknown_count += 1
         total_digestible += dig
         color = state.T["success"] if score >= 0.90 else (state.T["warning"] if score >= 0.70 else state.T["error"])
+
+        amount_str = f"{amount_g:.4g}g" if amount_g else "—"
+        if limiting_aa:
+            lim_label, _ = _usda.nutrient_label(limiting_aa)
+        else:
+            lim_label = "— (complete)" if s.get("has_aa") else "—"
+        lim_cell = (f"[dim]{lim_label}[/dim]" if "complete" in lim_label
+                    else f"[{state.T['warning']}]{lim_label}[/{state.T['warning']}]")
+
         tbl.add_row(
-            s["name"][:34],
+            _id_cell(s.get("fdc_id")),
+            s['name'][:30],
+            amount_str,
             f"{p:.1f}g",
             f"[{color}]{diaas_str}[/{color}]",
+            lim_cell,
             f"{dig:.1f}g",
         )
 
@@ -388,13 +421,13 @@ def _print_recipe_bioavailability(
     eff_diaas = total_digestible / total_protein if total_protein > 0 else 0.0
     color = state.T["success"] if eff_diaas >= 0.90 else (state.T["warning"] if eff_diaas >= 0.70 else state.T["error"])
     state.console.print(
-        f"  Total digestible protein: [{state.T['hi']}]{total_digestible:.1f}g[/{state.T['hi']}]"
+        f"  Total bioavailable protein: [{state.T['hi']}]{total_digestible:.1f}g[/{state.T['hi']}]"
         f"  [dim](from {total_protein:.1f}g, effective DIAAS [{color}]{eff_diaas:.2f}[/{color}])[/dim]",
         highlight=False,
     )
     if unknown_count:
         state.console.print(
-            f"  [dim]  ({unknown_count} ingredient(s) had no DIAAS data — assumed fully digestible)[/dim]",
+            f"  [dim]  ({unknown_count} ingredient(s) had no DIAAS data — assumed fully bioavailable)[/dim]",
             highlight=False,
         )
 
@@ -496,6 +529,7 @@ def _print_complement_suggestions(
     offer_if_covered: bool = False,  # kept for call-site compat, no longer used
     base_food_name: str | None = None,
     basis_label: str | None = None,  # e.g. "per serving" or "whole recipe (7 servings)"
+    base_diaas: float | None = None,  # pass effective DIAAS directly (e.g. for multi-ingredient recipes)
 ) -> None:
     """
     Display protein complement suggestions.
@@ -519,7 +553,8 @@ def _print_complement_suggestions(
     )
 
     base_protein = base_nutrients.get("protein_g", 0.0)
-    base_diaas = _usda.get_diaas(base_food_name) if base_food_name else None
+    if base_diaas is None:
+        base_diaas = _usda.get_diaas(base_food_name) if base_food_name else None
     base_digestible = base_protein * base_diaas if base_diaas else base_protein
 
     pantry_suggs = suggestions["pantry"]
@@ -527,16 +562,6 @@ def _print_complement_suggestions(
 
     if pantry is None:
         pantry = []
-
-    if not pantry:
-        state.console.print(
-            "[dim](No pantry items saved yet — add protein sources via Foods → My Pantry.)[/dim]"
-        )
-    elif not pantry_suggs:
-        state.console.print(
-            "[dim](Pantry items found but none qualify: their amino acid/protein ratio "
-            "for the limiting amino acid falls below the FAO reference.)[/dim]"
-        )
 
     def _ranking_key(s: dict) -> tuple[float, float, str]:
         grams = float(s.get("grams", 10**9) or 10**9)
@@ -559,6 +584,16 @@ def _print_complement_suggestions(
         for aa, score, _ in gaps
     )
     state.console.print(f"  [dim]Gaps: {gap_labels}[/dim]")
+
+    if not pantry:
+        state.console.print(
+            "  [dim](No pantry items saved yet — add protein sources via Foods → My Pantry.)[/dim]"
+        )
+    elif not pantry_suggs:
+        state.console.print(
+            "  [dim](Pantry items found but none qualify: their amino acid/protein ratio "
+            "for the limiting amino acid falls below the FAO reference.)[/dim]"
+        )
 
     if context == "recipe":
         add_verb = "Add to recipe"
@@ -641,7 +676,7 @@ def _print_complement_suggestions(
         limiting_aa = gaps[0][0] if gaps else None
         limiting_label = _usda.nutrient_label(limiting_aa)[0] if limiting_aa else "this amino acid"
         low_in = _AA_LOW_IN.get(limiting_aa or "", "many plant foods")
-        prefix = "These are all qualifying options." if n_shown > 0 \
+        prefix = "All options that qualify are shown above — no others meet the criteria." if n_shown > 0 \
                  else "No qualifying options found in the database."
         state.console.print(
             f"\n  [dim]{prefix}[/dim]\n"
@@ -661,13 +696,13 @@ def _print_complement_suggestions(
             except Cancelled:
                 return
             if ans == "y":
-                _show_paged(general_suggs, "Other good options", page_size=5)
+                _show_paged(general_suggs, "Other options", page_size=5)
                 _general_exhausted_msg(len(general_suggs))
         else:
             _general_exhausted_msg(0)
     else:
         if general_suggs:
-            _show_paged(general_suggs, "Other good options", page_size=5)
+            _show_paged(general_suggs, "Suggestions", page_size=5)
             _general_exhausted_msg(len(general_suggs))
         else:
             _general_exhausted_msg(0)

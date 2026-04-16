@@ -121,6 +121,17 @@ def init_db() -> None:
             conn.execute("ALTER TABLE recipes ADD COLUMN dcp_computed_at TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migrate: add total volume / weight columns if absent
+        for _col in (
+            "total_volume      REAL",
+            "total_volume_unit TEXT",
+            "total_weight      REAL",
+            "total_weight_unit TEXT",
+        ):
+            try:
+                conn.execute(f"ALTER TABLE recipes ADD COLUMN {_col}")
+            except sqlite3.OperationalError:
+                pass  # column already exists
         # Migrate: reset rows cached before portions were fetched so they re-fetch once.
         # '[]' with the old NOT NULL DEFAULT meant "never fetched"; 'null' now means the same.
         # Using JSON 'null' (not SQL NULL) so this works even on old NOT NULL columns.
@@ -179,6 +190,12 @@ def list_cached_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def delete_cached_food(conn: sqlite3.Connection, fdc_id: int) -> bool:
+    """Delete a food from the cache. Returns True if a row was deleted."""
+    cur = conn.execute("DELETE FROM foods WHERE fdc_id = ?", (fdc_id,))
+    return cur.rowcount > 0
+
+
 def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
     like = f"%{query}%"
     return conn.execute(
@@ -192,11 +209,19 @@ def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Ro
 # ---------------------------------------------------------------------------
 
 def recipe_create(conn: sqlite3.Connection, name: str, description: str,
-                  servings: int, instructions: str) -> int:
+                  servings: int, instructions: str,
+                  total_volume: float | None = None,
+                  total_volume_unit: str | None = None,
+                  total_weight: float | None = None,
+                  total_weight_unit: str | None = None) -> int:
     cur = conn.execute("""
-        INSERT INTO recipes (name, description, servings, instructions)
-        VALUES (?, ?, ?, ?)
-    """, (name, description or None, servings, instructions or None))
+        INSERT INTO recipes (name, description, servings, instructions,
+                             total_volume, total_volume_unit,
+                             total_weight, total_weight_unit)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (name, description or None, servings, instructions or None,
+          total_volume, total_volume_unit or None,
+          total_weight, total_weight_unit or None))
     assert cur.lastrowid is not None
     return cur.lastrowid
 
@@ -242,10 +267,17 @@ def recipe_get_ingredients(conn: sqlite3.Connection, recipe_id: int) -> list[sql
 
 
 def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
-                  description: str, servings: int, instructions: str) -> None:
+                  description: str, servings: int, instructions: str,
+                  total_volume: float | None = None,
+                  total_volume_unit: str | None = None,
+                  total_weight: float | None = None,
+                  total_weight_unit: str | None = None) -> None:
     conn.execute(
-        "UPDATE recipes SET name=?, description=?, servings=?, instructions=? WHERE id=?",
-        (name, description or None, servings, instructions or None, recipe_id)
+        "UPDATE recipes SET name=?, description=?, servings=?, instructions=?, "
+        "total_volume=?, total_volume_unit=?, total_weight=?, total_weight_unit=? WHERE id=?",
+        (name, description or None, servings, instructions or None,
+         total_volume, total_volume_unit or None,
+         total_weight, total_weight_unit or None, recipe_id)
     )
 
 
