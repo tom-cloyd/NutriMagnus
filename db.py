@@ -53,30 +53,34 @@ def init_db() -> None:
             );
             
             CREATE TABLE IF NOT EXISTS recipes (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                name        TEXT    NOT NULL,
-                description TEXT,
-                servings    INTEGER NOT NULL DEFAULT 1,
-                instructions TEXT,
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                name            TEXT    NOT NULL,
+                description     TEXT,
+                servings        INTEGER NOT NULL DEFAULT 1,
+                serving_size    TEXT,
+                complete        INTEGER NOT NULL DEFAULT 0,
+                instructions    TEXT,
                 dcp_g           REAL,
                 dcp_computed_at TEXT,
                 created_at      TEXT    DEFAULT (date('now'))
             );
 
             CREATE TABLE IF NOT EXISTS recipe_ingredients (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                recipe_id   INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
-                fdc_id      INTEGER NOT NULL,
-                food_name   TEXT    NOT NULL,
-                amount      REAL    NOT NULL,
-                unit        TEXT    NOT NULL,
-                notes       TEXT
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipe_id     INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                fdc_id        INTEGER NOT NULL,
+                food_name     TEXT    NOT NULL,
+                amount        REAL    NOT NULL,
+                unit          TEXT    NOT NULL,
+                notes         TEXT,
+                ref_recipe_id INTEGER REFERENCES recipes(id)
             );
 
             CREATE TABLE IF NOT EXISTS meals (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 name        TEXT    NOT NULL,
                 meal_date   TEXT    NOT NULL,
+                complete    INTEGER NOT NULL DEFAULT 0,
                 created_at  TEXT    DEFAULT (datetime('now'))
             );
 
@@ -151,9 +155,29 @@ def init_db() -> None:
             conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN notes TEXT")
         except sqlite3.OperationalError:
             pass
+
+        try:
+            conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN ref_recipe_id INTEGER REFERENCES recipes(id)")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN serving_size TEXT")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN complete INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         
         try:
             conn.execute("ALTER TABLE meal_items ADD COLUMN notes TEXT")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE meals ADD COLUMN complete INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass
 
@@ -213,26 +237,31 @@ def recipe_create(conn: sqlite3.Connection, name: str, description: str,
                   total_volume: float | None = None,
                   total_volume_unit: str | None = None,
                   total_weight: float | None = None,
-                  total_weight_unit: str | None = None) -> int:
+                  total_weight_unit: str | None = None,
+                  serving_size: str | None = None,
+                  complete: bool = False) -> int:
     cur = conn.execute("""
         INSERT INTO recipes (name, description, servings, instructions,
                              total_volume, total_volume_unit,
-                             total_weight, total_weight_unit)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                             total_weight, total_weight_unit,
+                             serving_size, complete)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (name, description or None, servings, instructions or None,
           total_volume, total_volume_unit or None,
-          total_weight, total_weight_unit or None))
+          total_weight, total_weight_unit or None,
+          serving_size or None, 1 if complete else 0))
     assert cur.lastrowid is not None
     return cur.lastrowid
 
 
 def recipe_add_ingredient(conn: sqlite3.Connection, recipe_id: int, fdc_id: int,
                           food_name: str, amount: float, unit: str,
-                          notes: str | None = None) -> None:
+                          notes: str | None = None,
+                          *, ref_recipe_id: int | None = None) -> None:
     conn.execute("""
-        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit, notes)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (recipe_id, fdc_id, food_name, amount, unit, notes or None))
+        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (recipe_id, fdc_id, food_name, amount, unit, notes or None, ref_recipe_id))
 
 
 def recipe_set_dcp(
@@ -271,13 +300,17 @@ def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
                   total_volume: float | None = None,
                   total_volume_unit: str | None = None,
                   total_weight: float | None = None,
-                  total_weight_unit: str | None = None) -> None:
+                  total_weight_unit: str | None = None,
+                  serving_size: str | None = None,
+                  complete: bool = False) -> None:
     conn.execute(
         "UPDATE recipes SET name=?, description=?, servings=?, instructions=?, "
-        "total_volume=?, total_volume_unit=?, total_weight=?, total_weight_unit=? WHERE id=?",
+        "total_volume=?, total_volume_unit=?, total_weight=?, total_weight_unit=?, "
+        "serving_size=?, complete=? WHERE id=?",
         (name, description or None, servings, instructions or None,
          total_volume, total_volume_unit or None,
-         total_weight, total_weight_unit or None, recipe_id)
+         total_weight, total_weight_unit or None,
+         serving_size or None, 1 if complete else 0, recipe_id)
     )
 
 
@@ -401,6 +434,13 @@ def meal_remove_item(conn: sqlite3.Connection, item_id: int, meal_id: int) -> bo
 def meal_delete(conn: sqlite3.Connection, meal_id: int) -> bool:
     cur = conn.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
     return cur.rowcount > 0
+
+
+def meal_set_complete(conn: sqlite3.Connection, meal_id: int, complete: bool) -> None:
+    conn.execute(
+        "UPDATE meals SET complete = ? WHERE id = ?",
+        (1 if complete else 0, meal_id)
+    )
 
 
 def meal_copy_items(conn: sqlite3.Connection, from_meal_id: int, to_meal_id: int) -> int:

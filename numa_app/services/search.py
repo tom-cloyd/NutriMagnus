@@ -38,6 +38,21 @@ _BRAND_ADJECTIVES = {
     "unsweetened", "sweetened", "salted", "unsalted", "plain",
 }
 
+# Preparation/state words that users naturally add to queries but that USDA omits
+# from food names (e.g. "peeled orange" → USDA has "Oranges, raw, navels", not
+# "orange, peeled"). Stripping these from the API query gets better recall; the
+# full user query is still used for local ranking.
+_PREP_WORDS = {
+    "peeled", "unpeeled", "sliced", "diced", "chopped", "minced", "grated",
+    "shredded", "mashed", "pureed", "juiced", "squeezed", "seeded", "pitted",
+    "skinless", "boneless", "trimmed", "halved", "quartered", "cubed",
+    "cooked", "boiled", "steamed", "baked", "fried", "grilled", "sauteed",
+    "blanched", "poached", "braised", "stewed", "microwaved",
+    "frozen", "canned", "pickled", "smoked", "cured", "fermented",
+    "fresh", "raw", "dried", "dehydrated", "reconstituted",
+    "plain", "unseasoned", "seasoned", "marinated",
+}
+
 
 def _ensure_api_key() -> bool:
     """Return True if an API key is configured, prompting the user if not."""
@@ -202,6 +217,11 @@ def _search_and_pick_food(
         cache_results = _search_cached_foods_by_name(query)
         cache_fdcids = {r.get("fdcId") for r in cache_results if r.get("fdcId")}
 
+        # Strip prep words for the API query so "peeled orange" finds "Oranges, raw, navels".
+        # The full user query is still used for local ranking.
+        _api_words = [w for w in query.lower().split() if w not in _PREP_WORDS]
+        api_query = " ".join(_api_words) if _api_words else query
+
         if data_types == ["Foundation"]:
             label = "Foundation Foods"
         elif data_types == ["Foundation", "SR Legacy"]:
@@ -213,7 +233,7 @@ def _search_and_pick_food(
         state.console.print(f"[dim]Searching {label}...[/dim]")
         state.console.print()
         try:
-            api_results = _usda.search_foods(query, data_types=data_types)
+            api_results = _usda.search_foods(api_query, data_types=data_types)
         except _usda.USDAError as e:
             if cache_results:
                 state.console.print(
@@ -224,7 +244,11 @@ def _search_and_pick_food(
                 state.console.print(f"[{state.T['error']}]API error: {e}[/{state.T['error']}]")
                 return None
         if include_off:
-            off_results = _off.search_foods(query, page_size=6)
+            try:
+                off_results = _off.search_foods(api_query, page_size=6)
+            except Exception:
+                off_results = []
+                state.console.print("[dim]Open Food Facts unavailable; skipping.[/dim]")
             existing_names = {r.get("description", "").lower() for r in api_results}
             for r in off_results:
                 if r["description"].lower() not in existing_names:
@@ -257,7 +281,7 @@ def _search_and_pick_food(
                 deduped.append(food)
 
         # Sort: tier-first unless the query names a specific brand.
-        # Tier order: cache (0) → Foundation/SR Legacy (1) → Open Food Facts (2) → Branded (3)
+        # Tier order: cache (0) → Foundation (1) → SR Legacy (2) → Open Food Facts (3) → Branded (4)
         # Within each tier, rank by number of query words matched in the description.
         def _norm(s: str) -> str:  # re-define to keep local scope clean
             return " ".join(re.sub(r'[^a-z0-9]', ' ', s.lower()).split())
@@ -266,17 +290,24 @@ def _search_and_pick_food(
 
         def _word_score(food: dict) -> int:
             desc_words = set(_norm(food.get("description", "")).split())
-            return len(query_words & desc_words)
+            # One-directional: query word must be a prefix/substring of a description word,
+            # not the reverse — prevents "peel" in "peeled" causing false matches.
+            return sum(
+                1 for qw in query_words
+                if any(qw in dw for dw in desc_words)
+            )
 
         def _source_tier(food: dict) -> int:
             if food.get("_from_cache"):
                 return 0
             dtype = food.get("dataType", "")
-            if dtype in ("Foundation", "SR Legacy"):
+            if dtype == "Foundation":
                 return 1
-            if food.get("_from_off") or dtype == "Open Food Facts":
+            if dtype == "SR Legacy":
                 return 2
-            return 3  # Branded or unknown
+            if food.get("_from_off") or dtype == "Open Food Facts":
+                return 3
+            return 4  # Branded or unknown
 
         # Detect a brand-specific query: any brand word (≥4 chars) appears in the query.
         query_lower = query.lower()
@@ -287,10 +318,7 @@ def _search_and_pick_food(
             if len(word) >= 4
         )
 
-        if brand_in_query:
-            results = sorted(deduped, key=_word_score, reverse=True)
-        else:
-            results = sorted(deduped, key=lambda f: (_source_tier(f), -_word_score(f)))
+        results = sorted(deduped, key=lambda f: (-_word_score(f), _source_tier(f)))
 
         recipe_rows = prepend_recipes or []
 

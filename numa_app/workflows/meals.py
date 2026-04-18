@@ -154,11 +154,15 @@ def _menu_meals() -> bool:
 def _meal_add_items(meal_id: int) -> None:
     """Interactive loop to add food or recipe items to an existing meal.
     A single search finds both saved recipes (shown first as R#) and USDA/OFF foods."""
-    state.console.print(f"\n  Search for a food or recipe name to add (Enter/b=back, m=main, q=quit)")
+    with _db.get_db() as conn:
+        meal_row = _db.meal_get(conn, meal_id)
+    meal_name = meal_row["name"] if meal_row else ""
+    _print_meal_items(meal_id, meal_name)
+    state.console.print(f"\n  Add new items  (Enter/b=back, m=main, q=quit)")
     while True:
         state.console.print()
         try:
-            query = _prompt("Search", free_text=True).strip()
+            query = _prompt("Search food or recipe", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()
@@ -240,19 +244,21 @@ def _do_meal_log() -> None:
             tbl.add_row(str(i), str(m["id"]), m["name"])
         state.console.print(f"\n  [dim]You already have {len(existing)} meal(s) logged today:[/dim]")
         state.console.print(tbl)
-        try:
-            raw = _prompt(
-                "Add items to an existing meal (#), or log a new one  [dim](n=new, b=back, m=main)[/dim]"
-            ).strip().lower()
-        except Cancelled:
-            return
-        if raw in ("b", ""):
-            return
-        if raw == "m":
-            raise ReturnToMain()
-        if raw == "q":
-            raise SystemExit(0)
-        if raw != "n":
+        while True:
+            try:
+                raw = _prompt(
+                    "Add items to an existing meal (#), or log a new one  [dim](n=new, b=back, m=main)[/dim]"
+                ).strip().lower()
+            except Cancelled:
+                return
+            if raw in ("b", ""):
+                return
+            if raw == "m":
+                raise ReturnToMain()
+            if raw == "q":
+                raise SystemExit(0)
+            if raw == "n":
+                break
             try:
                 idx = int(raw)
                 if 1 <= idx <= len(existing):
@@ -261,8 +267,7 @@ def _do_meal_log() -> None:
                     return
             except ValueError:
                 pass
-            state.console.print(f"[{state.T['warning']}]Enter a row number or n.[/{state.T['warning']}]")
-            return
+            state.console.print(f"[{state.T['warning']}]Enter a row number (1–{len(existing)}), n, b, or m.[/{state.T['warning']}]")
 
     try:
         meal_date = _ask_date("Date", default=today)
@@ -334,12 +339,14 @@ def _pick_meal(verb: str = "work with") -> "sqlite3.Row | None":
             return None
 
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-        tbl.add_column("ID",    justify="right", min_width=4)
-        tbl.add_column("Date",  min_width=12)
-        tbl.add_column("Meal",  min_width=28)
-        tbl.add_column("Items", justify="right", min_width=5)
+        tbl.add_column("ID",       justify="right", min_width=4)
+        tbl.add_column("Date",     min_width=12)
+        tbl.add_column("Complete", justify="center", min_width=8)
+        tbl.add_column("Meal",     min_width=28)
+        tbl.add_column("Items",    justify="right", min_width=5)
         for m in page:
-            tbl.add_row(str(m["id"]), m["meal_date"], m["name"], str(m["item_count"]))
+            done_cell = "[green]✓[/green]" if m["complete"] else "[dim]?[/dim]"
+            tbl.add_row(str(m["id"]), m["meal_date"], done_cell, m["name"], str(m["item_count"]))
         state.console.print(tbl)
 
         hints = ["id=pick"]
@@ -428,21 +435,26 @@ def _do_meal_view_by_date() -> None:
         # Action loop; break with _back_to_list=True to re-show meal picker
         _back_to_list = False
         while True:
+            with _db.get_db() as conn:
+                meal_row = _db.meal_get(conn, meal_id)
+            is_complete = bool(meal_row["complete"]) if meal_row else False
             siblings = _sibling_meals()
             menu_items = [
                 ("1", "Add items"),
                 ("2", "Edit an item"),
                 ("3", "Delete an item"),
                 ("4", "Delete this meal"),
+                ("5", "Mark complete" if not is_complete else "Mark incomplete"),
             ]
             if siblings:
-                menu_items.append(("5", "Merge with meal(s) on same date"))
+                menu_items.append(("6", "Merge with meal(s) on same date"))
             menu_items += [
                 ("b", "Back to previous menu"),
                 ("m", "Return to main menu"),
                 ("q", "Quit"),
             ]
-            _show_menu(f"Actions — {meal_name}", menu_items)
+            status_label = "[green]✓ complete[/green]" if is_complete else "[dim][?] incomplete[/dim]"
+            _show_menu(f"Actions — {meal_name}  {status_label}", menu_items)
             try:
                 choice = _prompt("Choice").strip().lower()
             except Cancelled:
@@ -605,7 +617,14 @@ def _do_meal_view_by_date() -> None:
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Deleted: {meal_name}")
                 break
 
-            elif choice == "5" and siblings:
+            elif choice == "5":
+                new_complete = not is_complete
+                with _db.get_db() as conn:
+                    _db.meal_set_complete(conn, meal_id, new_complete)
+                label = "complete" if new_complete else "incomplete"
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Marked {label}.")
+
+            elif choice == "6" and siblings:
                 # siblings already loaded at top of loop; show all meals on date including current
                 with _db.get_db() as conn:
                     all_on_date = _db.meal_list_by_date(conn, meal_date)

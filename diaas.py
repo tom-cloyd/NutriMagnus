@@ -229,6 +229,7 @@ def meal_level_diaas(
         "estimate_sources":             list[str]   — food names using category/default digestibility
     """
     total_protein_g = 0.0
+    aa_protein_g = 0.0   # protein only from foods that have AA data (used for reference denominator)
     pooled: dict[str, float] = {k: 0.0 for k in FAO_REFERENCE}
     pooled_counts: dict[str, int] = {k: 0 for k in FAO_REFERENCE}
     ingredient_results: list[dict] = []
@@ -263,6 +264,7 @@ def meal_level_diaas(
             continue
 
         any_aa_data = True
+        aa_protein_g += protein_g
         ing_iaa: dict[str, float] = {}
 
         for aa_key, secondary in _IAA_PAIRS.items():
@@ -306,12 +308,16 @@ def meal_level_diaas(
         for ing in ingredients
     )
 
-    # Compute composite IAA ratios vs. FAO reference
+    # Compute composite IAA ratios vs. FAO reference.
+    # Use aa_protein_g (protein from foods with AA data) as the denominator — foods
+    # without AA data are excluded from the numerator, so including their protein in
+    # the reference would artificially deflate all ratios.
     iaa_ratios: dict[str, float] = {}
+    ref_basis = aa_protein_g if aa_protein_g > 0 else total_protein_g
     for aa_key, ref_mg_per_g in FAO_REFERENCE.items():
         if pooled_counts[aa_key] == 0:
             continue  # no ingredient had data for this IAA — omit from scoring
-        ref_g = ref_mg_per_g / 1000.0 * total_protein_g
+        ref_g = ref_mg_per_g / 1000.0 * ref_basis
         iaa_ratios[aa_key] = pooled[aa_key] / ref_g if ref_g > 0 else 0.0
 
     if not iaa_ratios:
@@ -331,11 +337,12 @@ def meal_level_diaas(
 
     limiting_iaa = min(iaa_ratios, key=lambda k: iaa_ratios[k])
     composite_diaas = iaa_ratios[limiting_iaa]
-    dcp = total_protein_g * min(composite_diaas, 1.0)
+    dcp = ref_basis * min(composite_diaas, 1.0)
 
     return {
         "diaas": composite_diaas,
         "total_protein_g": total_protein_g,
+        "aa_protein_g": aa_protein_g,
         "digestible_complete_protein_g": dcp,
         "limiting_iaa": limiting_iaa,
         "limiting_label": IAA_LABELS.get(limiting_iaa),

@@ -22,7 +22,7 @@ from ..ui.render import (
     _print_protein_completeness, _print_recipe_bioavailability,
 )
 from .recipes import (
-    _do_recipe_list, _pick_recipe_portion, _compute_recipe_dcp,
+    _pick_recipe_portion, _compute_recipe_dcp,
     _augment_aa_from_curated,
 )
 
@@ -253,15 +253,12 @@ def _recipe_vol_to_ml(amount: float | None, unit: str | None) -> float | None:
 
 
 def _do_recipe_view() -> None:
-    _do_recipe_list()
-    rid = _ask_int("Recipe ID")
-    if rid is None:
+    from .recipes import _pick_recipe
+    recipe = _pick_recipe()
+    if recipe is None:
         return
+    rid = recipe["id"]
     with _db.get_db() as conn:
-        recipe = _db.recipe_get(conn, rid)
-        if recipe is None:
-            state.console.print(f"[{state.T['warning']}]Recipe {rid} not found.[/{state.T['warning']}]")
-            return
         ingredients = _db.recipe_get_ingredients(conn, rid)
 
     if not ingredients:

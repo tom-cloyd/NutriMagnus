@@ -16,21 +16,17 @@ from ..services.portions import (
     _UNIT_TO_GRAMS, _VOLUME_TO_ML,
 )
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
-from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call
+from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
-from .recipes import _do_recipe_list, _parse_measure, _compute_recipe_dcp
+from .recipes import _parse_measure, _compute_recipe_dcp, _format_recipe_portion_label, _parse_serving_amount
 
 def _do_recipe_edit() -> None:
-    _do_recipe_list()
-    rid = _ask_int("Recipe ID to edit")
-    if rid is None:
-        return
-    with _db.get_db() as conn:
-        recipe = _db.recipe_get(conn, rid)
+    from .recipes import _pick_recipe
+    recipe = _pick_recipe()
     if recipe is None:
-        state.console.print(f"[{state.T['warning']}]Recipe {rid} not found.[/{state.T['warning']}]")
         return
+    rid = recipe["id"]
 
     state.console.print(f"\n[{state.T['accent']}]Editing: {recipe['name']}[/{state.T['accent']}]")
     state.console.print("[dim]Press Enter to keep current value.  p = previous field,  b = back to menu.[/dim]\n")
@@ -43,6 +39,7 @@ def _do_recipe_edit() -> None:
         ("Name",        "name",        recipe["name"],                "str"),
         ("Description", "description", recipe["description"] or "",   "str"),
         ("Servings  [dim](0 = analyze by weight/volume)[/dim]", "servings", str(recipe["servings"]), "int"),
+        ("Serving size  [dim](e.g. 1 cup, 1 slice — Enter to skip)[/dim]", "serving_size", recipe["serving_size"] or "", "str"),
     ]
     _meta_vals: dict = {f[1]: f[2] for f in _meta_fields}
     _meta_complete = True
@@ -78,12 +75,20 @@ def _do_recipe_edit() -> None:
             else:
                 state.console.print(f"  [{state.T['warning']}]Enter a whole number.[/{state.T['warning']}]")
                 continue
+        elif _typ == "bool":
+            if _val.lower() in ("y", "n", "yes", "no"):
+                _meta_vals[_key] = "y" if _val.lower() in ("y", "yes") else "n"
+            else:
+                state.console.print(f"  [{state.T['warning']}]Enter y or n.[/{state.T['warning']}]")
+                continue
         else:
             _meta_vals[_key] = _val
         _mi += 1
-    name     = _meta_vals["name"]
-    desc     = _meta_vals["description"]
-    servings = _meta_vals["servings"]
+    name         = _meta_vals["name"]
+    desc         = _meta_vals["description"]
+    servings     = _meta_vals["servings"]
+    serving_size = _meta_vals["serving_size"] or None
+    complete     = bool(recipe["complete"])  # set after vol/wt below
 
     # Volume and weight — only prompt when the meta loop completed; otherwise
     # keep existing values so we don't prompt for more after a b/Ctrl+C.
@@ -106,12 +111,19 @@ def _do_recipe_edit() -> None:
                 default=cur_wt_str, free_text=True,
             ).strip()
             total_weight, total_weight_unit = _parse_measure(raw_wt)
+            _cur_complete = "y" if recipe["complete"] else "n"
+            _complete_hint = f"(Press enter to keep [{state.T['default_hint']}]{_cur_complete}[/{state.T['default_hint']}])"
+            raw_complete = _prompt(f"Complete?  [dim](y/n)[/dim] {_complete_hint}", free_text=True).strip().lower()
+            if not raw_complete:
+                raw_complete = _cur_complete
+            complete = raw_complete in ("y", "yes")
         except Cancelled:
-            # Keep whatever volume/weight existed; still save meta changes above.
+            # Keep whatever volume/weight/complete existed; still save meta changes above.
             total_volume      = recipe["total_volume"]
             total_volume_unit = recipe["total_volume_unit"]
             total_weight      = recipe["total_weight"]
             total_weight_unit = recipe["total_weight_unit"]
+            complete          = bool(recipe["complete"])
             _meta_complete = False
     else:
         total_volume      = recipe["total_volume"]
@@ -124,6 +136,8 @@ def _do_recipe_edit() -> None:
         name != recipe["name"]
         or desc != (recipe["description"] or "")
         or servings != recipe["servings"]
+        or serving_size != (recipe["serving_size"] or None)
+        or complete != bool(recipe["complete"])
         or total_volume  != recipe["total_volume"]
         or total_volume_unit != (recipe["total_volume_unit"] or None)
         or total_weight  != recipe["total_weight"]
@@ -132,7 +146,8 @@ def _do_recipe_edit() -> None:
     if meta_changed:
         with _db.get_db() as conn:
             _db.recipe_update(conn, rid, name, desc, servings, recipe["instructions"] or "",
-                              total_volume, total_volume_unit, total_weight, total_weight_unit)
+                              total_volume, total_volume_unit, total_weight, total_weight_unit,
+                              serving_size, complete)
         state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Recipe details updated.")
 
     # If the user backed out during meta/vol/wt prompts, stop here — changes above are saved.
@@ -161,7 +176,8 @@ def _do_recipe_edit() -> None:
             if has_notes:
                 tbl.add_column("Note", min_width=20)
             for i, ing in enumerate(ingredients, 1):
-                row = [str(i), _normalize_unit_display(ing["unit"]), _id_cell(ing["fdc_id"]), ing["food_name"]]
+                id_cell = "[dim]recipe[/dim]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
+                row = [str(i), _normalize_unit_display(ing["unit"]), id_cell, ing["food_name"]]
                 if has_notes:
                     row.append(ing["notes"] or "")
                 tbl.add_row(*row)
@@ -192,21 +208,70 @@ def _do_recipe_edit() -> None:
         if choice == "q":
             raise SystemExit(0)
         elif choice == "1":
-            food = _search_and_pick_food()
+            state.console.print()
+            try:
+                query = _prompt("Search food or recipe", free_text=True).strip()
+            except Cancelled:
+                continue
+            ql = query.lower()
+            if not query or ql == "b":
+                continue
+            if ql == "m":
+                raise ReturnToMain()
+            if ql == "q":
+                raise SystemExit(0)
+            with _db.get_db() as conn:
+                all_recipes = _db.recipe_list(conn)
+            query_words = ql.split()
+            matching_recipes = [
+                r for r in all_recipes
+                if r["id"] != rid and any(w in r["name"].lower() for w in query_words)
+            ]
+            food = _search_and_pick_food(
+                initial_query=query,
+                prepend_recipes=matching_recipes or None,
+            )
             if food is None:
                 continue
-            result = _pick_portion(food)
-            if result is None:
-                continue
-            grams, label, _ = result
-            try:
-                notes = _prompt("Note for this ingredient  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
-            except Cancelled:
-                notes = None
-            with _db.get_db() as conn:
-                _db.recipe_add_ingredient(conn, rid, food["fdcId"], food["name"], grams, label, notes)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
-            ingredients_changed = True
+
+            if food.get("_type") == "recipe":
+                sub_rid  = food["id"]
+                sub_name = food["name"]
+                try:
+                    raw_srv = _prompt(
+                        "Servings of this recipe  [dim](e.g. 1, 0.5, 2 — b=back)[/dim]",
+                        default="1",
+                    ).strip()
+                except Cancelled:
+                    continue
+                if not raw_srv or raw_srv.lower() == "b":
+                    continue
+                servings = _parse_serving_amount(raw_srv)
+                if servings is None or servings <= 0:
+                    state.console.print(f"[{state.T['warning']}]Enter a positive number.[/{state.T['warning']}]")
+                    continue
+                try:
+                    notes = _prompt("Note  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
+                except Cancelled:
+                    notes = None
+                label = _format_recipe_portion_label(servings)
+                with _db.get_db() as conn:
+                    _db.recipe_add_ingredient(conn, rid, 0, sub_name, servings, "servings", notes, ref_recipe_id=sub_rid)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added recipe: {sub_name}  {label}")
+                ingredients_changed = True
+            else:
+                result = _pick_portion(food)
+                if result is None:
+                    continue
+                grams, label, _ = result
+                try:
+                    notes = _prompt("Note for this ingredient  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
+                except Cancelled:
+                    notes = None
+                with _db.get_db() as conn:
+                    _db.recipe_add_ingredient(conn, rid, food["fdcId"], food["name"], grams, label, notes)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
+                ingredients_changed = True
         elif choice == "2":
             if not ingredients:
                 state.console.print(f"[{state.T['warning']}]No ingredients to edit.[/{state.T['warning']}]")
@@ -216,6 +281,29 @@ def _do_recipe_edit() -> None:
                 state.console.print(f"[{state.T['warning']}]Invalid number.[/{state.T['warning']}]")
                 continue
             ing = ingredients[idx - 1]
+
+            if ing["ref_recipe_id"]:
+                try:
+                    raw_srv = _prompt(
+                        f"Servings  [dim](current: {ing['amount']:g})[/dim]",
+                        default=str(ing["amount"]),
+                    ).strip()
+                except Cancelled:
+                    continue
+                servings = _parse_serving_amount(raw_srv)
+                if servings is None or servings <= 0:
+                    state.console.print(f"[{state.T['warning']}]Enter a positive number.[/{state.T['warning']}]")
+                    continue
+                try:
+                    notes_new = _prompt("Note  [dim](Enter to keep current)[/dim]", default=ing["notes"] or "", free_text=True).strip() or None
+                except Cancelled:
+                    notes_new = ing["notes"]
+                with _db.get_db() as conn:
+                    _db.recipe_update_ingredient(conn, ing["id"], servings, "servings", ing["food_name"], notes_new)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Updated to {_format_recipe_portion_label(servings)}.")
+                ingredients_changed = True
+                continue
+
             with _db.get_db() as conn:
                 cached = _db.get_cached_food(conn, ing["fdc_id"])
             if cached is None:
@@ -344,7 +432,8 @@ def _do_recipe_edit() -> None:
         _db.recipe_update(conn, rid, recipe["name"], recipe["description"] or "",
                           recipe["servings"], instructions,
                           recipe["total_volume"], recipe["total_volume_unit"],
-                          recipe["total_weight"], recipe["total_weight_unit"])
+                          recipe["total_weight"], recipe["total_weight_unit"],
+                          recipe["serving_size"], bool(recipe["complete"]))
     if ingredients_changed:
         dcp = _compute_recipe_dcp(rid)
         ts = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat() if dcp is not None else None

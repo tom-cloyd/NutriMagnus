@@ -225,12 +225,14 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
         f"[{state.T['error']}]<0.80 poor[/{state.T['error']}]  ·  {ID_KEY}",
         highlight=False,
     )
+    _FOOD_COL_W = 48
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("ID",        justify="right", min_width=7)
-    tbl.add_column("Food",      min_width=40)
+    tbl.add_column("Food",      min_width=_FOOD_COL_W, max_width=_FOOD_COL_W, no_wrap=True)
     tbl.add_column("Protein",         justify="right", min_width=8)
     tbl.add_column("Digestibility",   justify="right", min_width=14)
     tbl.add_column("Digestible prot", justify="right", min_width=15)
+    tbl.add_column("AA",              justify="center", min_width=3)
 
     for ing in result["ingredients"]:
         p = ing["protein_g"]
@@ -243,12 +245,19 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
         elif "category estimate" in src or "default estimate" in src:
             source_tag = f"  [dim]~est[/dim]"
         color = state.T["success"] if d >= 0.90 else (state.T["warning"] if d >= 0.80 else state.T["error"])
+        aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
+                   if ing["has_aa_data"]
+                   else f"[{state.T['error']}]✗[/{state.T['error']}]")
+        name = ing['food_name'][:_FOOD_COL_W - 1]
+        dots = "·" * (_FOOD_COL_W - len(name) - 1)
+        food_cell = f"{name} [dim]{dots}[/dim]"
         tbl.add_row(
             _id_cell(ing.get("fdc_id")),
-            ing['food_name'][:50],
+            food_cell,
             f"{p:.1f}g",
             f"[{color}]{d:.2f}[/{color}]{source_tag}",
             f"{dig_p:.1f}g",
+            aa_cell,
         )
     state.console.print()
     state.console.print(tbl, highlight=False)
@@ -319,9 +328,13 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
         highlight=False,
     )
     if dcp is not None:
+        aa_p = result.get("aa_protein_g", total_p)
+        suffix = (f"from {aa_p:.1f}g analyzed  (of {total_p:.1f}g total)"
+                  if aa_p < total_p - 0.05
+                  else f"from {total_p:.1f}g total")
         state.console.print(
             f"  Digestible complete protein: [{color}]{dcp:.1f}g[/{color}]"
-            f"  [dim]from {total_p:.1f}g total[/dim]",
+            f"  [dim]{suffix}[/dim]",
             highlight=False,
         )
 
