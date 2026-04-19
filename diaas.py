@@ -15,6 +15,7 @@ Lookup order for digestibility coefficients:
   2. Curated table: literature-sourced values for ~30 specific foods/categories
   3. Category default: broad averages for food type (legume, seed, grain, etc.)
   4. Overall default: 0.82 (conservative plant-protein average)
+Docs: README-numa-documentation.md, Architecture: "diaas.py — Meal-level DIAAS calculation"
 """
 
 from __future__ import annotations

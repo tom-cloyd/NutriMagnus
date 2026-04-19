@@ -3,9 +3,11 @@ recipe_analysis.py — recipe nutrition analysis workflow for numa.
 
 Contains _resolve_recipe_dcp_data, helper converters, and _do_recipe_view
 (menu option 5 "Analyze recipe").  Called from recipes.py.
+Docs: README-numa-documentation.md, Architecture: "numa_app/workflows/recipe_analysis.py — analyze recipe workflow"
 """
 import json
 from datetime import datetime, timezone
+from typing import Literal
 
 from rich.table import Table
 
@@ -15,7 +17,7 @@ from .. import state
 from ..services.portions import _normalize_unit_display, _parse_portion_input, _pick_portion
 from ..services.search import _refresh_cache_if_missing_aa
 from ..services.reports import _offer_export
-from ..ui.common import _id_cell, ID_KEY, _safe_call
+from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import (
     _print_complement_suggestions, _print_nutrient_table,
@@ -31,14 +33,15 @@ def _resolve_recipe_dcp_data(
     ingredients: list,
     ingredient_stats: list[dict],
     combined: dict[str, float],
-) -> tuple[list[dict], dict[str, float], bool, list[str]] | None:
+) -> tuple[list[dict], dict[str, float], bool, list[str]] | Literal["rerun", "back"] | None:
     """
     Detect missing data that blocks or degrades DCP calculation.
     Prompts the user to provide data, calculate with assumptions, or skip.
 
-    Returns (updated_stats, updated_combined, approximate, notes),
-    None if the user chooses to skip DCP entirely,
-    or the string "rerun" if ingredients were replaced and analysis should restart.
+    Returns (updated_stats, updated_combined, approximate, notes) on success.
+    Returns None if the user chooses to skip DCP entirely.
+    Returns "rerun" if ingredients were replaced and _do_recipe_view should restart.
+    Returns "back" if the user cancelled out (caller should return immediately).
     """
     zero_weight = [ing for ing in ingredients if "(weight not known)" in (ing["unit"] or "")]
     no_diaas    = [s for s in ingredient_stats if s["diaas"] is None]
@@ -86,7 +89,7 @@ def _resolve_recipe_dcp_data(
             try:
                 choice = _prompt("Choice").strip().lower()
             except Cancelled:
-                return "back"  # type: ignore[return-value]
+                return "back"
             if choice in valid_nums or choice in ("b", "m", "q"):
                 break
             state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
@@ -132,7 +135,7 @@ def _resolve_recipe_dcp_data(
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Replaced with: {food['name']}  {label}")
                 replaced_any = True
             if replaced_any:
-                return "rerun"  # type: ignore[return-value]
+                return "rerun"
             return None
 
         approximate = False
@@ -252,12 +255,15 @@ def _recipe_vol_to_ml(amount: float | None, unit: str | None) -> float | None:
     return amount * factor if factor is not None else None
 
 
-def _do_recipe_view() -> None:
-    from .recipes import _pick_recipe
-    recipe = _pick_recipe()
+def _do_recipe_view(recipe=None) -> None:
+    if recipe is None:
+        from .recipes import _pick_recipe
+        recipe = _pick_recipe()
     if recipe is None:
         return
     rid = recipe["id"]
+    with _db.get_db() as conn:
+        _db.recipe_touch(conn, rid)
     with _db.get_db() as conn:
         ingredients = _db.recipe_get_ingredients(conn, rid)
 

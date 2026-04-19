@@ -1,3 +1,7 @@
+"""
+portions.py — portion-string parsing (_parse_portion_input) and the _pick_portion() interactive flow.
+Docs: README-numa-documentation.md, Architecture: "numa_app/services/portions.py — portion parsing"
+"""
 import json
 import re
 

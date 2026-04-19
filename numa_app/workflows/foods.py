@@ -1,3 +1,7 @@
+"""
+foods.py — Foods menu: food search, portion analysis, unit conversion, and cached-food viewer.
+Docs: README-numa-documentation.md, Architecture: "numa_app/workflows/foods.py — Foods menu"
+"""
 import json
 from rich.table import Table
 
@@ -6,7 +10,7 @@ import db as _db
 import usda as _usda
 from ..services.portions import _pick_portion, _parse_portion_input
 from ..services.search import _search_and_pick_food, _suggest_foundation_search
-from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options
+from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options, dot_cell, table_title, table_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_bioavailability, _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness
 from ..services.reports import _offer_export
@@ -57,7 +61,21 @@ def _menu_foods() -> bool:
 
 
 def _do_food_search() -> None:
-    food = _search_and_pick_food()
+    try:
+        query = _prompt("Search food or recipe", free_text=True).strip()
+    except Cancelled:
+        return
+    if not query or query.lower() in ("b", "m", "q"):
+        return
+    ql = query.lower()
+    with _db.get_db() as conn:
+        all_recipes = _db.recipe_list(conn)
+    query_words = ql.split()
+    matching_recipes = sorted(
+        [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)],
+        key=lambda r: (-sum(1 for w in query_words if w in r["name"].lower()), r["name"].lower()),
+    )
+    food = _search_and_pick_food(initial_query=query, prepend_recipes=matching_recipes or None)
     if food is None:
         return
     _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
@@ -260,20 +278,16 @@ def _do_list_cached_foods() -> None:
             tbl.add_row(str(i), f["name"], f["data_type"] or "", f["brand"] or "")
 
         if filter_text:
-            state.console.print(
-                f"\n  [dim]{len(foods)} match for '[bold]{filter_text}[/bold]' "
-                f"({len(all_foods)} foods total).  Enter [bold]/[/bold] to clear filter.[/dim]"
-            )
+            table_title("Cached Foods",
+                        f"[dim]{len(foods)} match for '[bold]{filter_text}[/bold]' "
+                        f"({len(all_foods)} total) — enter / to clear filter[/dim]")
         else:
-            state.console.print(
-                f"\n  [dim]{len(all_foods)} cached foods — enter [bold]/text[/bold] to filter by name.[/dim]"
-            )
+            table_title("Cached Foods",
+                        f"[dim]{len(all_foods)} foods — enter /text to filter by name[/dim]")
 
         state.console.print(tbl)
-        state.console.print(
-            "  [dim]To refresh a corrupt or outdated entry: delete it here (option d), "
-            "then re-search the food — it will be re-cached automatically.[/dim]"
-        )
+        table_footer("  [dim]To refresh a corrupt or outdated entry: delete it here, "
+                     "then re-search — it will be re-fetched automatically.[/dim]")
 
         try:
             raw = _prompt("Pick number  (/filter, Enter/b=back, m=main, q=quit)").strip()

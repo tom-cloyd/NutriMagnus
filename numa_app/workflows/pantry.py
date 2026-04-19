@@ -1,3 +1,7 @@
+"""
+pantry.py — My Pantry menu: manage protein sources on hand (add, edit, remove); AA data status shown.
+Docs: README-numa-documentation.md, Menu Structure: "Foods → 6. My pantry"
+"""
 import json
 
 import db as _db
@@ -7,7 +11,7 @@ from .. import state
 from ..services.search import _search_and_pick_food
 from ..services.portions import _normalize_unit_display, _pick_portion
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
-from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY
+from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY, dot_cell, section_title, table_footer
 from ..ui.render import _print_nutrient_table, _print_protein_completeness
 
 def _load_pantry_candidates() -> list[dict]:
@@ -40,21 +44,43 @@ def _do_pantry_menu() -> None:
     while True:
         with _db.get_db() as conn:
             rows = _db.pantry_list(conn)
-        state.console.print(f"\n  [{state.T['hi']}]My Pantry — protein sources on hand[/{state.T['hi']}]")
-        state.console.rule()
+        section_title("My Pantry — protein sources on hand")
         if not rows:
             state.console.print("  [dim](empty — no foods added yet)[/dim]")
         else:
+            _FOOD_W = 32
             tbl = Table(show_header=True, header_style=state.T["accent_plain"],
                         box=None, padding=(0, 1))
             tbl.add_column("#",    justify="right", min_width=3)
             tbl.add_column("ID",   justify="right", min_width=7)
-            tbl.add_column("Food", min_width=28)
+            tbl.add_column("Food", min_width=_FOOD_W, max_width=_FOOD_W, no_wrap=True)
+            tbl.add_column("AA",   min_width=4)
             tbl.add_column("Notes", min_width=20)
             for row in rows:
-                tbl.add_row(str(row["id"]), _id_cell(row["fdc_id"]), row["food_name"], row["notes"] or "")
+                fdc_id = row["fdc_id"]
+                if fdc_id is None:
+                    aa_cell = "[dim]—[/dim]"
+                else:
+                    with _db.get_db() as conn:
+                        cached = _db.get_cached_food(conn, fdc_id)
+                    if cached is None:
+                        aa_cell = "[dim]?[/dim]"
+                    else:
+                        nutrients = json.loads(cached["nutrients_json"])
+                        if _usda.has_amino_acid_data(nutrients):
+                            aa_cell = f"[{state.T['success']}]✓[/{state.T['success']}]"
+                        else:
+                            aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
+                tbl.add_row(str(row["id"]), _id_cell(fdc_id),
+                            dot_cell(row["food_name"], _FOOD_W), aa_cell, row["notes"] or "")
             state.console.print(tbl)
-            state.console.print(f"  {ID_KEY}")
+            table_footer(
+                f"  {ID_KEY}",
+                f"  [dim]AA: [{state.T['success']}]✓[/{state.T['success']}] amino acid data in cache  "
+                f"[{state.T['error']}]✗[/{state.T['error']}] none — research needed  "
+                f"[dim]—[/dim] name-only entry (add via USDA search)[/dim]",
+            )
+            state.console.rule(style="grey50")
         state.console.print()
         state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Add a food")
         state.console.print(f"  [{state.T['accent']}]e.[/{state.T['accent']}] Edit an entry")

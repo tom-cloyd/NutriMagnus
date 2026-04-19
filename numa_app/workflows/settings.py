@@ -1,3 +1,7 @@
+"""
+settings.py — Settings menu: color theme, user profile, dietary preferences, DIAAS overrides, API key.
+Docs: README-numa-documentation.md, Architecture: "numa_app/workflows/settings.py — settings menu, profile, and RDA"
+"""
 import pathlib
 
 from rich.table import Table
@@ -12,17 +16,16 @@ from ..config.prefs import _save_prefs
 from ..config.prefs import _save_prefs
 from ..config import theme as theme_config
 from ..config.theme import _change_theme
-from ..ui.common import _safe_call, _show_menu
+from ..ui.common import _safe_call, _show_menu, table_title, table_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 def _do_diaas_overrides() -> None:
     """Manage per-food protein digestibility overrides for DIAAS calculation."""
+    table_title("Protein Digestibility Overrides")
     state.console.print(
-        f"\n  [{state.T['hi']}]Protein digestibility overrides[/{state.T['hi']}]"
-        f"\n  [dim]These let you set a specific true ileal digestibility coefficient "
-        f"(0.0–1.0) for a food,\n  overriding the curated or estimated value numa "
-        f"uses in meal-level DIAAS calculations.\n  Values come from published "
-        f"nutrition studies — see the calculation notes for sources.[/dim]",
+        "  [dim]Set a specific true ileal digestibility coefficient (0.0–1.0) for a food,\n"
+        "  overriding the curated or estimated value numa uses in meal-level DIAAS\n"
+        "  calculations. Values should come from published nutrition studies.[/dim]",
         highlight=False,
     )
     while True:
@@ -30,13 +33,16 @@ def _do_diaas_overrides() -> None:
             rows = _diaas.diaas_override_list(conn)
 
         if rows:
+            _OV_W = 38
             tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-            tbl.add_column("Food name",      min_width=34)
+            tbl.add_column("Food name",      min_width=_OV_W, max_width=_OV_W, no_wrap=True)
             tbl.add_column("Digestibility",  justify="right", min_width=14)
             tbl.add_column("Notes",          min_width=20)
             for r in rows:
+                fname = r["food_name"][:_OV_W - 1]
+                fdots = "·" * (_OV_W - len(fname) - 1)
                 tbl.add_row(
-                    r["food_name"],
+                    f"{fname} [dim]{fdots}[/dim]",
                     f"{r['digestibility']:.2f}",
                     r["notes"] or "",
                 )
@@ -245,86 +251,6 @@ def _do_user_profile() -> None:
         f"  Estimated calorie target: [{state.T['hi']}]{cal} kcal[/{state.T['hi']}]"
         f"  ·  Protein minimum: [{state.T['hi']}]{prot} g[/{state.T['hi']}]",
         highlight=False,
-    )
-
-
-def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserProfile") -> None:
-    """Print a table comparing daily nutrient totals against personalized RDA targets."""
-    rda = _profile.compute_rda(profile)
-    nutrient_label = _usda.nutrient_label  # (key) → (label, unit) | None
-
-    state.console.print(f"\n[{state.T['accent']}]Daily Intake vs. Recommended Values[/{state.T['accent']}]")
-    state.console.rule()
-    state.console.print(
-        f"  Profile: age {profile.age}  ·  {profile.sex}"
-        f"  ·  {_profile.format_weight(profile.weight_kg, profile.weight_unit)}"
-        f"  ·  {_profile.format_height(profile.height_cm, profile.height_unit)}"
-        f"  ·  {_profile.ACTIVITY_LABELS.get(profile.activity_level, profile.activity_level)}\n",
-        highlight=False,
-    )
-
-    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("Nutrient",  min_width=26)
-    tbl.add_column("Intake",    justify="right", min_width=12)
-    tbl.add_column("Target",    justify="right", min_width=12)
-    tbl.add_column("% of RDA",  justify="right", min_width=10)
-    tbl.add_column("Status",    min_width=28)
-
-    BAR_WIDTH = 16
-
-    for key, (rda_val, unit, rda_type) in rda.items():
-        intake = nutrients.get(key, 0.0)
-        label_info = nutrient_label(key)
-        label = label_info[0] if label_info else key.replace("_", " ").title()
-
-        if rda_val and rda_val > 0:
-            pct = (intake / rda_val) * 100.0
-        else:
-            pct = 0.0
-
-        # Format intake and target
-        if unit in ("kcal", "g"):
-            intake_str = f"{intake:.1f} {unit}"
-            target_str = f"{rda_val:.1f} {unit}"
-        else:
-            intake_str = f"{intake:.1f} {unit}"
-            target_str = f"{rda_val:.1f} {unit}"
-        pct_str = f"{pct:.0f}%"
-
-        # Status bar and color
-        if rda_type == "limit":
-            # For limits: green if under, yellow if near (80-100%), red if over
-            if pct <= 80:
-                bar_color = state.T["success"]
-                status_note = "within limit"
-            elif pct <= 100:
-                bar_color = state.T["warning"]
-                status_note = "approaching limit"
-            else:
-                bar_color = state.T["error"]
-                status_note = f"over limit by {pct - 100:.0f}%"
-            filled = min(int(BAR_WIDTH * min(pct, 200) / 200), BAR_WIDTH)
-        else:
-            # For minimums/targets: red < 70%, yellow 70-99%, green 100%+
-            if pct >= 100:
-                bar_color = state.T["success"]
-                status_note = "met"
-            elif pct >= 70:
-                bar_color = state.T["warning"]
-                status_note = f"{100 - pct:.0f}% short"
-            else:
-                bar_color = state.T["error"]
-                status_note = f"{100 - pct:.0f}% short"
-            filled = min(int(BAR_WIDTH * min(pct, 100) / 100), BAR_WIDTH)
-
-        bar = f"[{bar_color}]{'█' * filled}[/{bar_color}]{'░' * (BAR_WIDTH - filled)}"
-        status_cell = f"{bar}  [{bar_color}]{status_note}[/{bar_color}]"
-
-        tbl.add_row(label, intake_str, target_str, pct_str, status_cell)
-
-    state.console.print(tbl, highlight=False)
-    state.console.print(
-        "  [dim]Target = RDA or Adequate Intake  ·  Limit = Tolerable Upper Intake Level[/dim]\n"
     )
 
 

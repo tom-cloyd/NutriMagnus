@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""numa.py — CLI entry point for the numa nutritional analysis program.
-version 2026-04-03 - 18:00
+"""
+numa.py — CLI entry point for the numa nutritional analysis program.
+
+Parses --api-key / --theme command-line flags, then delegates to numa_app.main.run_app().
+Docs: README-numa-documentation.md, Project Structure
 """
 
 import argparse

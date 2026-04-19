@@ -11,6 +11,7 @@ Synthetic fdc_id assignment:
   OFF products do not have USDA FDC IDs. We assign deterministic negative IDs
   in the range -2_000_000_000 to -3_000_000_000 based on the product barcode,
   well separated from user-drafted foods (-1, -2, -3, …).
+Docs: README-numa-documentation.md, Architecture: "openfoodfacts.py — Open Food Facts API client"
 """
 
 import hashlib

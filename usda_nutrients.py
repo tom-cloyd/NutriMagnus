@@ -3,13 +3,18 @@ usda_nutrients.py — nutrient math, protein analysis, complement suggestions,
 DIAAS scoring, anti-nutrient flags, and density lookup for numa.
 
 Called via usda.py which re-exports everything as usda.<name>.
+Docs: README-numa-documentation.md, Architecture: "usda_nutrients.py — nutrient math and data tables"
 """
 import re
 
 from usda_api import NUTRIENT_MAP, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_PROTEIN
 
-def scale_nutrients(nutrients: dict[str, float], amount: float,
-                    base_size: float = 100.0) -> dict[str, float]:
+# Type alias for all per-100g nutrient dicts throughout the codebase.
+Nutrients = dict[str, float]
+
+
+def scale_nutrients(nutrients: Nutrients, amount: float,
+                    base_size: float = 100.0) -> Nutrients:
     """
     Scale a nutrient dict from base_size grams to amount grams.
     USDA data is always per 100g unless a serving size is specified.
@@ -19,7 +24,7 @@ def scale_nutrients(nutrients: dict[str, float], amount: float,
     return {k: v * ratio for k, v in nutrients.items()}
 
 
-def sum_nutrients(*nutrient_dicts: dict[str, float]) -> dict[str, float]:
+def sum_nutrients(*nutrient_dicts: Nutrients) -> Nutrients:
     """Add together multiple nutrient dicts."""
     total: dict[str, float] = {}
     for nd in nutrient_dicts:
@@ -28,7 +33,7 @@ def sum_nutrients(*nutrient_dicts: dict[str, float]) -> dict[str, float]:
     return total
 
 
-def has_amino_acid_data(nutrients: dict[str, float]) -> bool:
+def has_amino_acid_data(nutrients: Nutrients) -> bool:
     """Return True if the nutrients dict contains sufficient amino acid data."""
     if nutrients.get("protein_g", 0) <= 0:
         return True   # no protein — AA data irrelevant
@@ -36,7 +41,7 @@ def has_amino_acid_data(nutrients: dict[str, float]) -> bool:
     return len(aa_present) >= 5
 
 
-def protein_completeness(nutrients: dict[str, float]) -> dict:
+def protein_completeness(nutrients: Nutrients) -> dict:
     """
     Assess protein completeness based on essential amino acid profile.
     Returns a dict with:
@@ -84,7 +89,7 @@ def nutrient_label(key: str) -> tuple[str, str]:
     return key, ""
 
 
-def get_aa_gaps(nutrients: dict[str, float]) -> list[tuple[str, float, float]]:
+def get_aa_gaps(nutrients: Nutrients) -> list[tuple[str, float, float]]:
     """
     Return (aa_key, score, deficit_g) for each essential AA below score 1.0,
     sorted by score ascending (most limiting first).
@@ -459,7 +464,7 @@ def _find_complement_by_name(food_name: str) -> dict | None:
     return None
 
 
-def get_complement_nutrients(food_name: str) -> dict[str, float] | None:
+def get_complement_nutrients(food_name: str) -> Nutrients | None:
     """
     Return the nutrient profile from the complement table for a food name,
     or None if not found. Used as a fallback when USDA cache lacks AA data.
@@ -469,7 +474,7 @@ def get_complement_nutrients(food_name: str) -> dict[str, float] | None:
 
 
 def suggest_complements(
-    base_nutrients: dict[str, float],
+    base_nutrients: Nutrients,
     pantry_candidates: list[dict],
     exclude_animal: bool = False,
 ) -> dict[str, list[dict]]:

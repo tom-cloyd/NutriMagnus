@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from numa_app.services.search import _search_and_pick_food; from numa_app.workflows.meals import _meal_add_items; print\\('OK'\\)\")",
+      "Bash(python -c \"from numa_app.workflows.meals import _meal_action_loop; print\\('OK'\\)\")",
+      "Bash(python -c \"from numa_app.workflows.meals import _print_meal_items; import db; print\\('OK'\\)\")",
+      "Bash(python -c \"from numa_app.workflows.foods import _do_food_search; print\\('OK'\\)\")",
+      "Bash(python -c \"from numa_app.services.search import _search_and_pick_food; print\\('OK'\\)\")",
+      "Bash(sed -n '81,88p' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/numa_app/ui/common.py)",
+      "Bash(sed -n '25,30p' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/numa_app/ui/prompts.py)",
+      "Bash(sed -n '95,100p' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/numa_app/ui/render.py)",
+      "Bash(sed -n '147,155p' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/numa_app/ui/render.py)",
+      "Bash(sed -n '365,377p' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/numa_app/ui/render.py)"
+    ]
+  }
+}

@@ -1,3 +1,7 @@
+"""
+render.py — terminal output rendering: nutrient tables, protein completeness, bioavailability, RDA comparison.
+Docs: README-numa-documentation.md, Architecture: "numa_app/ui/render.py — output rendering"
+"""
 import json
 
 from rich.table import Table
@@ -7,7 +11,7 @@ import diaas as _diaas
 import usda as _usda
 import profile as _profile
 from .. import state
-from ..ui.common import _id_cell, ID_KEY
+from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer
 from ..ui.prompts import Cancelled, _prompt
 
 
@@ -65,14 +69,12 @@ def _print_nutrient_table(nutrients: dict[str, float], title: str = "Nutrients",
         ]),
     ]
 
-    heading = title
-    if per_label:
-        heading += f"  [dim]({per_label})[/dim]"
-    state.console.print(f"\n[{state.T['accent']}]{heading}[/{state.T['accent']}]")
-    state.console.rule()
+    sub = f"({per_label})" if per_label else ""
+    section_title(title, sub)
 
+    _NUT_W = 28
     tbl = Table(show_header=True, header_style=state.T["accent"], box=None, padding=(0, 2))
-    tbl.add_column("Nutrient", style="", min_width=24)
+    tbl.add_column("Nutrient", style="", min_width=_NUT_W, max_width=_NUT_W, no_wrap=True)
     tbl.add_column("Amount", justify="right", min_width=10)
     tbl.add_column("Unit", style="dim", min_width=8)
 
@@ -83,7 +85,9 @@ def _print_nutrient_table(nutrients: dict[str, float], title: str = "Nutrients",
         tbl.add_row(f"[{state.T['hi']}]{group_name}[/{state.T['hi']}]", "", "")
         for key, val in present:
             label, unit = _usda.nutrient_label(key)
-            tbl.add_row(f"  {label}", f"{val:.2f}", unit)
+            visible = f"  {label}"
+            dots = "·" * max(0, _NUT_W - len(visible) - 1)
+            tbl.add_row(f"{visible} [dim]{dots}[/dim]", f"{val:.2f}", unit)
 
     state.console.print(tbl)
 
@@ -102,13 +106,11 @@ def _print_protein_completeness(
         return False
 
     if context_label:
-        state.console.print(
-            f"\n  [{state.T['hi']}]Protein quality — {context_label}[/{state.T['hi']}]",
-            highlight=False,
-        )
+        table_title(f"Protein quality — {context_label}")
     status = (f"[{state.T['success']}]Complete protein[/{state.T['success']}]"
               if result["complete"]
               else f"[{state.T['warning']}]Incomplete protein[/{state.T['warning']}]")
+    state.console.print()
     state.console.print(f"  Protein Quality: {status}")
     state.console.print(
         "  [dim]Ratios below compare this protein's amino acid pattern per gram of protein[/dim]",
@@ -123,22 +125,22 @@ def _print_protein_completeness(
         aa_label, _ = _usda.nutrient_label(result["limiting_aa"])
         state.console.print(f"  Most limiting amino acid: [{state.T['warning']}]{aa_label}[/{state.T['warning']}]")
 
+    _AA_W = 22
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("Amino Acid", min_width=14)
+    tbl.add_column("Amino Acid", min_width=_AA_W, max_width=_AA_W, no_wrap=True)
     tbl.add_column("Ratio vs. FAO", justify="right", min_width=5)
     tbl.add_column("", justify="left", min_width=10, no_wrap=True)
     for aa_key, score in result["scores"].items():
         label, _ = _usda.nutrient_label(aa_key)
         bar = "█" * min(int(score * 10), 20)
         color = state.T["success"] if score >= 1.0 else state.T["warning"]
-        tbl.add_row(label, f"[{color}]{score:.2f}[/{color}]", f"[{color}]{bar}[/{color}]")
+        tbl.add_row(dot_cell(label, _AA_W), f"[{color}]{score:.2f}[/{color}]", f"[{color}]{bar}[/{color}]")
+    state.console.print()
     state.console.print(tbl)
-    state.console.print(
-        "  [dim]Interpretation: 1.0 = meets the FAO pattern · >1.0 = exceeds it · <1.0 = limiting[/dim]",
-        highlight=False,
-    )
+    footer = ["  [dim]Interpretation: 1.0 = meets the FAO pattern · >1.0 = exceeds it · <1.0 = limiting[/dim]"]
     if partial_data_note:
-        state.console.print(f"  [dim]{partial_data_note}[/dim]", highlight=False)
+        footer.append(f"  [dim]{partial_data_note}[/dim]")
+    table_footer(*footer)
     return True
 
 
@@ -210,14 +212,11 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
             )
         return result["missing_aa_names"], None
 
-    state.console.print(f"\n  [{state.T['hi']}]Meal-Level DIAAS Complete Protein Analysis[/{state.T['hi']}]"
-                  f"  [dim](digestibility-corrected, pooled across foods)[/dim]",
-                  highlight=False)
-    state.console.rule()
+    section_title("Meal-Level DIAAS Complete Protein Analysis",
+                  "digestibility-corrected, pooled across foods")
 
     # Per-food digestibility table
-    state.console.print(f"\n  [{state.T['accent_plain']}]Meal Foods: Digestibility Analysis[/{state.T['accent_plain']}]", highlight=False)
-    state.console.print()
+    table_title("Meal Foods: Digestibility Analysis")
     state.console.print(
         f"  [dim]Digestibility color key:[/dim]  "
         f"[{state.T['success']}]≥0.90 good[/{state.T['success']}]  "
@@ -248,9 +247,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
         aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
                    if ing["has_aa_data"]
                    else f"[{state.T['error']}]✗[/{state.T['error']}]")
-        name = ing['food_name'][:_FOOD_COL_W - 1]
-        dots = "·" * (_FOOD_COL_W - len(name) - 1)
-        food_cell = f"{name} [dim]{dots}[/dim]"
+        food_cell = dot_cell(ing['food_name'], _FOOD_COL_W)
         tbl.add_row(
             _id_cell(ing.get("fdc_id")),
             food_cell,
@@ -275,16 +272,16 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
     # IAA composite ratio table
     iaa_ratios = result["iaa_ratios"]
     if iaa_ratios:
-        state.console.print(
-            f"\n  [{state.T['accent_plain']}]Meal Amino Acid Ratios for DIAAS[/{state.T['accent_plain']}]"
-            f"  [dim](≥1.0 = meets reference  |  color:[/dim]"
+        iaa_key = (
+            f"[dim](≥1.0 = meets reference  |  color:[/dim]"
             f"  [{state.T['success']}]≥1.0[/{state.T['success']}]"
             f"  [{state.T['warning']}]0.80–0.99[/{state.T['warning']}]"
-            f"  [{state.T['error']}]<0.80[/{state.T['error']}]",
-            highlight=False,
+            f"  [{state.T['error']}]<0.80[/{state.T['error']}]"
         )
+        table_title("Meal Amino Acid Ratios for DIAAS", iaa_key)
+        _MAA_W = 22
         aa_tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-        aa_tbl.add_column("Amino Acid", min_width=14)
+        aa_tbl.add_column("Amino Acid", min_width=_MAA_W, max_width=_MAA_W, no_wrap=True)
         aa_tbl.add_column("Ratio",      justify="right", min_width=7)
         aa_tbl.add_column("",           min_width=22)
 
@@ -304,15 +301,14 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
                 color = state.T["error"]
             limiting_tag = f"  [dim]← LIMITING[/dim]" if is_limiting else ""
             aa_tbl.add_row(
-                label,
+                dot_cell(label, _MAA_W),
                 f"[{color}]{ratio:.3f}[/{color}]{limiting_tag}",
                 f"[{color}]{bar}[/{color}]",
             )
 
         if result["phe_tyr_gap"]:
-            aa_tbl.add_row("[dim]Phe+Tyr[/dim]", "[dim]n/a[/dim]",
+            aa_tbl.add_row(f"[dim]{dot_cell('Phe+Tyr', _MAA_W)}[/dim]", "[dim]n/a[/dim]",
                            "[dim](tyrosine absent from USDA data)[/dim]")
-        state.console.print()
         state.console.print(aa_tbl, highlight=False)
 
     # Summary line
@@ -375,16 +371,18 @@ def _print_recipe_bioavailability(
     if total_protein <= 0:
         return
 
-    state.console.print(f"\n  [{state.T['hi']}]Bioavailability — per serving[/{state.T['hi']}]"
-                  f"  [dim](DIAAS: [{state.T['success']}]≥0.90 good[/{state.T['success']}]"
-                  f" · [{state.T['warning']}]≥0.70 moderate[/{state.T['warning']}]"
-                  f" · [{state.T['error']}]<0.70 poor[/{state.T['error']}]"
-                  f"  ·  {ID_KEY})[/dim]",
-                  highlight=False)
+    diaas_key = (
+        f"[dim](DIAAS: [{state.T['success']}]≥0.90 good[/{state.T['success']}]"
+        f" · [{state.T['warning']}]≥0.70 moderate[/{state.T['warning']}]"
+        f" · [{state.T['error']}]<0.70 poor[/{state.T['error']}]"
+        f"  ·  {ID_KEY})[/dim]"
+    )
+    table_title("Bioavailability — per serving", diaas_key)
 
+    _ING_W = 30
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("ID", justify="right", min_width=7)
-    tbl.add_column("Ingredient", min_width=22)
+    tbl.add_column("Ingredient", min_width=_ING_W, max_width=_ING_W, no_wrap=True)
     tbl.add_column("Serving", justify="right", min_width=7)
     tbl.add_column("Crude protein", justify="right", min_width=13)
     tbl.add_column("DIAAS", justify="right", min_width=6)
@@ -421,7 +419,7 @@ def _print_recipe_bioavailability(
 
         tbl.add_row(
             _id_cell(s.get("fdc_id")),
-            s['name'][:30],
+            dot_cell(s['name'], _ING_W),
             amount_str,
             f"{p:.1f}g",
             f"[{color}]{diaas_str}[/{color}]",
@@ -453,7 +451,7 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
     if diaas is None and not flags:
         return
 
-    state.console.print(f"\n  [{state.T['hi']}]Bioavailability[/{state.T['hi']}]")
+    table_title("Bioavailability")
 
     if diaas is not None:
         protein_raw = nutrients.get("protein_g", 0.0)
@@ -725,8 +723,7 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
     rda = _profile.compute_rda(profile)
     nutrient_label = _usda.nutrient_label  # (key) → (label, unit) | None
 
-    state.console.print(f"\n[{state.T['accent']}]Daily Intake vs. Recommended Values[/{state.T['accent']}]")
-    state.console.rule()
+    section_title("Daily Intake vs. Recommended Values")
     state.console.print(
         f"  Profile: age {profile.age}  ·  {profile.sex}"
         f"  ·  {_profile.format_weight(profile.weight_kg, profile.weight_unit)}"
@@ -735,8 +732,9 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
         highlight=False,
     )
 
+    _RDA_W = 30
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("Nutrient",  min_width=26)
+    tbl.add_column("Nutrient",  min_width=_RDA_W, max_width=_RDA_W, no_wrap=True)
     tbl.add_column("Intake",    justify="right", min_width=12)
     tbl.add_column("Target",    justify="right", min_width=12)
     tbl.add_column("% of RDA",  justify="right", min_width=10)
@@ -792,9 +790,7 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
         bar = f"[{bar_color}]{'█' * filled}[/{bar_color}]{'░' * (BAR_WIDTH - filled)}"
         status_cell = f"{bar}  [{bar_color}]{status_note}[/{bar_color}]"
 
-        tbl.add_row(label, intake_str, target_str, pct_str, status_cell)
+        tbl.add_row(dot_cell(label, _RDA_W), intake_str, target_str, pct_str, status_cell)
 
     state.console.print(tbl, highlight=False)
-    state.console.print(
-        "  [dim]Target = RDA or Adequate Intake  ·  Limit = Tolerable Upper Intake Level[/dim]\n"
-    )
+    table_footer("  [dim]Target = RDA or Adequate Intake  ·  Limit = Tolerable Upper Intake Level[/dim]")

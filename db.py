@@ -2,6 +2,7 @@
 db.py — SQLite database for numa nutritional analysis program.
 
 Database location: ~/.local/share/numa/numa.db
+Docs: README-numa-documentation.md, Architecture: "db.py — SQLite database"
 """
 
 import json
@@ -19,6 +20,8 @@ def get_db_path() -> pathlib.Path:
 
 @contextmanager
 def get_db() -> Generator[sqlite3.Connection, None, None]:
+    """Yield a sqlite3.Connection; commits on clean exit, rolls back on exception.
+    Never hold the connection across a _prompt() call — open, query, close, prompt, reopen."""
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(_DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -181,13 +184,18 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN last_accessed_at TEXT")
+        except sqlite3.OperationalError:
+            pass
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
 
 def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
                brand: str | None, serving_size: float | None, serving_unit: str | None,
-               nutrients: dict, portions: list | None = None,
+               nutrients: dict[str, float], portions: list[dict] | None = None,
                *, user_drafted: bool = False, notes: str | None = None) -> None:
     conn.execute("""
         INSERT OR REPLACE INTO foods
@@ -278,8 +286,26 @@ def recipe_set_dcp(
 
 def recipe_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at FROM recipes ORDER BY name"
+        "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete,"
+        " last_accessed_at, total_weight, total_weight_unit"
+        " FROM recipes ORDER BY name"
     ).fetchall()
+
+
+def recipe_list_recent(conn: sqlite3.Connection, limit: int = 20) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete,"
+        " last_accessed_at, total_weight, total_weight_unit"
+        " FROM recipes ORDER BY COALESCE(last_accessed_at, created_at) DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+
+
+def recipe_touch(conn: sqlite3.Connection, recipe_id: int) -> None:
+    conn.execute(
+        "UPDATE recipes SET last_accessed_at = datetime('now') WHERE id = ?",
+        (recipe_id,)
+    )
 
 
 def recipe_get(conn: sqlite3.Connection, recipe_id: int) -> sqlite3.Row | None:
@@ -356,12 +382,12 @@ def meal_add_food(conn: sqlite3.Connection, meal_id: int, fdc_id: int,
 
 
 def meal_add_recipe(conn: sqlite3.Connection, meal_id: int, recipe_id: int,
-                    recipe_name: str, servings: float) -> None:
+                    recipe_name: str, servings: float, unit: str = "servings") -> None:
     conn.execute("""
         INSERT INTO meal_items
             (meal_id, item_type, recipe_id, food_name, amount, unit)
-        VALUES (?, 'recipe', ?, ?, ?, 'servings')
-    """, (meal_id, recipe_id, recipe_name, servings))
+        VALUES (?, 'recipe', ?, ?, ?, ?)
+    """, (meal_id, recipe_id, recipe_name, servings, unit))
 
 
 def meal_list_by_date(conn: sqlite3.Connection, meal_date: str) -> list[sqlite3.Row]:
@@ -514,13 +540,13 @@ def update_cached_food_profile(
     conn: sqlite3.Connection,
     fdc_id: int,
     name: str,
-    nutrients: dict,
+    nutrients: dict[str, float],
     *,
     data_type: str | None = None,
     brand: str | None = None,
     serving_size: float | None = None,
     serving_unit: str | None = None,
-    portions: list | None = None,
+    portions: list[dict] | None = None,
     notes: str | None = None,
     user_drafted: bool = True,
 ) -> None:

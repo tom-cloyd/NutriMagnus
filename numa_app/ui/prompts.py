@@ -1,8 +1,13 @@
+"""
+prompts.py — _prompt() and input primitives: Cancelled, ReturnToMain, _ask_float/int/date.
+Docs: README-numa-documentation.md, Architecture: "numa_app/ui/prompts.py — input primitives"
+"""
 import readline
 import sys
 import termios
 import tty
 from datetime import date, datetime
+from typing import Any
 
 from .. import state
 
@@ -18,7 +23,10 @@ class ReturnToMain(Exception):
 _NO_DEFAULT = object()
 
 
-def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=False, free_text=False) -> str:
+def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False) -> str:
+    """Unified input primitive. choices=list enables single-keypress mode (only listed chars accepted).
+    free_text=True uses readline so arrow-keys/editing work. prefill=True pre-populates with default.
+    Raises Cancelled on Ctrl+C / Escape. Never use bare input() — always use this."""
     if not sys.stdin.isatty():
         from rich.prompt import Prompt
         kw: dict = {} if default is _NO_DEFAULT else {"default": default}
@@ -57,7 +65,7 @@ def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=Fals
         sys.stdout.flush()
         _prefill_text = str(default)
 
-        def _hook():
+        def _hook() -> None:
             readline.insert_text(_prefill_text)
             readline.redisplay()
 
@@ -170,6 +178,7 @@ def _prompt(prompt_text: str, *, default=_NO_DEFAULT, choices=None, prefill=Fals
 
 
 def _ask_float(prompt_text: str, *, default: float | None = None) -> float | None:
+    """Prompt for a float; returns None on empty/b (back). Raises ReturnToMain on m, SystemExit on q."""
     d = str(default) if default is not None else _NO_DEFAULT
     raw = _prompt(f"{prompt_text}  (b=back, m=main, q=quit)", default=d).strip().lower()
     if not raw or raw == "b":
@@ -186,6 +195,7 @@ def _ask_float(prompt_text: str, *, default: float | None = None) -> float | Non
 
 
 def _ask_int(prompt_text: str, *, default: int | None = None) -> int | None:
+    """Prompt for an int; returns None on empty/b (back). Raises ReturnToMain on m, SystemExit on q."""
     d = str(default) if default is not None else _NO_DEFAULT
     raw = _prompt(f"{prompt_text}  (b=back, m=main, q=quit)", default=d).strip().lower()
     if not raw or raw == "b":
@@ -202,6 +212,7 @@ def _ask_int(prompt_text: str, *, default: int | None = None) -> int | None:
 
 
 def _ask_date(prompt_text: str, *, default: str | None = None) -> str | None:
+    """Prompt for a YYYY-MM-DD date string; returns None on invalid input (caller should retry)."""
     today = date.today().isoformat()
     raw = _prompt(prompt_text, default=default or today).strip()
     if not raw:

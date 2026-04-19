@@ -1,3 +1,7 @@
+"""
+theme.py — color theme load/save/detect and the _change_theme() interactive flow.
+Docs: README-numa-documentation.md, Project Structure
+"""
 import pathlib
 
 from .. import state

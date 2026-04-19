@@ -1,3 +1,7 @@
+"""
+main.py — top-level orchestration: initialize_app(), print_startup_banner(), _run_menu(), run_app().
+Docs: README-numa-documentation.md, Architecture: "numa_app/main.py — startup and top-level menu"
+"""
 import db as _db
 import profile as _profile
 import usda as _usda
@@ -9,7 +13,7 @@ from .ui.common import _safe_call
 from .ui.prompts import Cancelled, ReturnToMain, _prompt
 from .workflows.foods import _menu_foods
 from .workflows.meals import _menu_meals
-from .workflows.settings import _do_dietary_prefs, _menu_settings
+from .workflows.settings import _menu_settings
 from .workflows.recipes import _menu_recipes
 from .workflows.summary import _menu_summary
 
@@ -21,18 +25,17 @@ def _run_menu() -> None:
     while True:
         diet_label = "animal foods included" if state._include_animal_foods else "plant-based only"
         state.console.print()
-        state.console.print(f"[{state.T['accent']}]Nutrimagnus Menu[/{state.T['accent']}]")
+        state.console.print(f"[{state.T['accent']}]NutriMagnus Menu[/{state.T['accent']}]")
         state.console.rule()
-        state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] Foods")
+        state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] [bold]Foods[/bold]")
         state.console.print("     [dim]search · analyze portion · convert portion <==> weight · view cache · pantry · drafted food profiles[/dim]")
-        state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] Recipes")
-        state.console.print("     [dim]create · list · view/analyze · edit · delete[/dim]")
-        state.console.print(f"  [{state.T['accent']}]3.[/{state.T['accent']}] Meals & Log")
+        state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] [bold]Recipes[/bold]")
+        state.console.print("     [dim]create · browse/manage · develop (add/remove ingredients with nutritional feedback)[/dim]")
+        state.console.print(f"  [{state.T['accent']}]3.[/{state.T['accent']}] [bold]Meals & Log[/bold]")
         state.console.print("     [dim]log meal · view/edit by date · analyze · delete[/dim]")
-        state.console.print(f"  [{state.T['accent']}]4.[/{state.T['accent']}] Daily Summary")
+        state.console.print(f"  [{state.T['accent']}]4.[/{state.T['accent']}] [bold]Daily Summary[/bold]")
         state.console.print("     [dim]today · by date · recent days[/dim]")
-        state.console.print(f"  [{state.T['accent']}]d.[/{state.T['accent']}] Dietary preferences  [dim](currently: {diet_label})[/dim]")
-        state.console.print(f"  [dim]s.[/dim] Settings  [dim](API key, theme, user profile, DB path)[/dim]")
+        state.console.print(f"  [dim]5.[/dim] [bold]Settings[/bold]  [dim](theme · user profile · dietary preferences · API key · DB path)[/dim]")
         state.console.print("  [dim]q.[/dim] Quit")
         state.console.print()
         state.console.print("  [dim]Ctrl+C at any prompt — cancel and go back[/dim]")
@@ -55,9 +58,7 @@ def _run_menu() -> None:
             elif choice == "4":
                 if not _menu_summary():
                     break
-            elif choice == "d":
-                _safe_call(_do_dietary_prefs)
-            elif choice == "s":
+            elif choice == "5":
                 if not _menu_settings():
                     break
             elif choice == "q":
@@ -117,7 +118,7 @@ def print_startup_banner() -> None:
 
     state.console.print()
     state.console.print(f"[dim]Color theme: {state._current_theme_name}  ({source}) -- change via Settings[/dim]")
-    state.console.print(f"[dim]Dietary preferences: {diet_label} -- change via d or Settings[/dim]")
+    state.console.print(f"[dim]Dietary preferences: {diet_label} -- change via Settings[/dim]")
     state.console.print(f"[dim]User profile: {profile_label}[/dim]", highlight=False)
 
 

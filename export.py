@@ -12,6 +12,7 @@ Each report is a list of typed section dicts:
   {"type": "complement_suggestions",  "nutrients": dict, "base_diaas": float|None}
 
 Formats: "txt", "md", "html"
+Docs: README-numa-documentation.md, Project Structure
 """
 
 import pathlib

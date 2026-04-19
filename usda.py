@@ -2,6 +2,7 @@
 # To work on this code, edit usda_api.py or usda_nutrients.py directly.
 #   usda_api.py      — HTTP client: API key, search_foods, get_food_detail
 #   usda_nutrients.py — nutrient math, AA analysis, DIAAS, complements, density
+# Docs: README-numa-documentation.md, Architecture: "usda.py — backwards-compatible shim"
 
 from usda_api import (       # noqa: F401
     NUTRIENT_MAP,
@@ -15,6 +16,7 @@ from usda_api import (       # noqa: F401
     _parse_food,             # used by tests
 )
 from usda_nutrients import (  # noqa: F401
+    Nutrients,
     scale_nutrients,
     sum_nutrients,
     has_amino_acid_data,

@@ -3,6 +3,7 @@ drafted_foods.py — user-drafted food profile management for numa.
 
 Handles editing any cached food's nutrients, and the full drafted-profile
 workflow (create, edit, delete, bulk AA import).  Called from foods.py.
+Docs: README-numa-documentation.md, Architecture: "numa_app/workflows/drafted_foods.py — cache editing and drafted profiles"
 """
 import json
 import re
@@ -12,7 +13,7 @@ from rich.table import Table
 import db as _db
 from .. import state
 from ..services.search import _search_and_pick_food
-from ..ui.common import _id_cell, ID_KEY, _show_menu
+from ..ui.common import _id_cell, ID_KEY, _show_menu, dot_cell, table_title, table_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
 
@@ -298,14 +299,16 @@ def _list_drafted_foods() -> list:
     if not rows:
         state.console.print("[dim]No drafted food profiles yet.[/dim]")
         return []
+    table_title("Drafted Food Profiles")
+    _NAME_W = 36
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("ID",   justify="right", min_width=7)
-    tbl.add_column("Name", min_width=36)
+    tbl.add_column("Name", min_width=_NAME_W, max_width=_NAME_W, no_wrap=True)
     tbl.add_column("Note", min_width=24)
     for r in rows:
-        tbl.add_row(_id_cell(r["fdc_id"]), r["name"], r["notes"] or "")
+        tbl.add_row(_id_cell(r["fdc_id"]), dot_cell(r["name"], _NAME_W), r["notes"] or "")
     state.console.print(tbl)
-    state.console.print(f"  {ID_KEY}")
+    table_footer(f"  {ID_KEY}")
     return list(rows)
 
 
@@ -416,14 +419,15 @@ def _do_copy_cached_food() -> None:
         state.console.print(f"[{state.T['warning']}]No cached foods matching '{query}'.[/{state.T['warning']}]")
         return
 
+    _CNAME_W = 36
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("ID",   justify="right", min_width=7)
-    tbl.add_column("Name", min_width=36)
+    tbl.add_column("Name", min_width=_CNAME_W, max_width=_CNAME_W, no_wrap=True)
     tbl.add_column("Type", min_width=14)
     for r in rows:
-        tbl.add_row(_id_cell(r["fdc_id"]), r["name"], r["data_type"] or "")
+        tbl.add_row(_id_cell(r["fdc_id"]), dot_cell(r["name"], _CNAME_W), r["data_type"] or "")
     state.console.print(tbl)
-    state.console.print(f"  {ID_KEY}")
+    table_footer(f"  {ID_KEY}")
 
     fdc_id = _ask_int("Food ID to copy")
     if fdc_id is None:

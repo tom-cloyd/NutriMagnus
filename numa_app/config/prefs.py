@@ -1,3 +1,7 @@
+"""
+prefs.py — dietary preference load/save and first-run animal-foods prompt.
+Docs: README-numa-documentation.md, Project Structure
+"""
 import json
 import pathlib
 

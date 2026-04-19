@@ -4,6 +4,7 @@ profile.py — User profile and personalized RDA computation for numa.
 Profile is stored in ~/.config/numa/profile.json.
 RDA targets follow the 2020-2025 USDA Dietary Guidelines and NIH/Institute
 of Medicine Dietary Reference Intakes (DRIs).
+Docs: README-numa-documentation.md, Architecture: "profile.py — User profile and RDA"
 """
 
 from __future__ import annotations

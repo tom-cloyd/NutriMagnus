@@ -1,3 +1,7 @@
+"""
+search.py — food lookup flow: _search_and_pick_food(), result ranking, and cache integration.
+Docs: README-numa-documentation.md, Architecture: "numa_app/services/search.py — food lookup flow"
+"""
 import json
 import re
 
@@ -322,21 +326,26 @@ def _search_and_pick_food(
 
         recipe_rows = prepend_recipes or []
 
+        _SRCH_W = 36
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         tbl.add_column("#",       justify="right", min_width=3)
         tbl.add_column("Type",    min_width=12)
         tbl.add_column("ID",      justify="right", min_width=7)
-        tbl.add_column("Food / Recipe", min_width=32)
+        tbl.add_column("Food / Recipe", min_width=_SRCH_W, max_width=_SRCH_W, no_wrap=True)
         tbl.add_column("Brand",   min_width=20)
         if show_aa_status:
             tbl.add_column("AA data", min_width=8)
+
+        def _srch_cell(text: str) -> str:
+            t = text[:_SRCH_W - 1]
+            return f"{t} [dim]{'·' * (_SRCH_W - len(t) - 1)}[/dim]"
 
         # Recipe rows at top (R1, R2, …)
         for i, r in enumerate(recipe_rows, 1):
             aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
                        if r["dcp_g"] is not None
                        else "[dim]—[/dim]")
-            row = [f"R{i}", "Recipe", "", r["name"], ""]
+            row = [f"R{i}", "Recipe", "", _srch_cell(r["name"]), ""]
             if show_aa_status:
                 row.append(aa_cell)
             tbl.add_row(*row)
@@ -374,9 +383,9 @@ def _search_and_pick_food(
                     else:
                         # Branded / unknown: virtually never have AA data in USDA
                         aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
-                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), food.get('description', ''), brand, aa_cell)
+                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), brand, aa_cell)
             else:
-                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), food.get('description', ''), brand)
+                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), brand)
         if show_aa_status:
             likely_count = 0
             for food in results:
@@ -456,11 +465,12 @@ def _search_and_pick_food(
             if 0 <= ridx < len(recipe_rows):
                 r = recipe_rows[ridx]
                 return {
-                    "_type":    "recipe",
-                    "id":       r["id"],
-                    "name":     r["name"],
-                    "servings": r["servings"],
-                    "dcp_g":    r["dcp_g"],
+                    "_type":        "recipe",
+                    "id":           r["id"],
+                    "name":         r["name"],
+                    "servings":     r["servings"],
+                    "dcp_g":        r["dcp_g"],
+                    "total_weight": r["total_weight"] if r["total_weight"] else None,
                 }
             state.console.print(f"[{state.T['warning']}]Invalid recipe selection.[/{state.T['warning']}]")
             continue
@@ -526,6 +536,12 @@ def _search_and_pick_food(
                 f"[{state.T['error']}]API error: {e}[/{state.T['error']}]\n"
                 f"[dim]  (The USDA search index sometimes lists FDC IDs that no longer exist.\n"
                 f"   Try a different result, or use id:FDCID with a known-good ID.)[/dim]"
+            )
+            continue
+        except (TimeoutError, OSError) as e:
+            state.console.print(
+                f"[{state.T['error']}]Network error fetching food details: {e}[/{state.T['error']}]\n"
+                f"[dim]  Check your connection and try again.[/dim]"
             )
             continue
 

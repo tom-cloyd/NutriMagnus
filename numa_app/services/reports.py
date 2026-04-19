@@ -1,3 +1,7 @@
+"""
+reports.py — auto-save and user-export of nutrition reports (Markdown, txt, HTML).
+Docs: README-numa-documentation.md, Project Structure
+"""
 import pathlib
 
 from rich.markdown import Markdown

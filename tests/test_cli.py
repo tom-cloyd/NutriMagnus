@@ -15,11 +15,10 @@ Strategy:
     so tests don't write real files and don't need extra input lines.
 
 Input sequence notation used in comments:
-    Main menu choices: 1=Foods, 2=Recipes, 3=Meals, 4=Summary, d=Dietary prefs,
-                       s=Settings, q=Quit
+    Main menu choices: 1=Foods, 2=Recipes, 3=Meals, 4=Summary, 5=Settings, q=Quit
     Foods submenu:     1=Search, 2=Analyze USDA portion, 3=Analyze recipe portion,
                        4=Convert, 5=View cached, 6=Pantry, b=Back, q=Quit
-    Recipes submenu:   1=Create, 2=List, 3=View/analyze, 4=Edit, 5=Delete, b=Back
+    Recipes submenu:   1=Create, 2=Browse (action+id: v/e/x/a/d/c), 3=Develop, b=Back, q=Quit
     Settings submenu:  1=Theme, 2=User profile, 3=Dietary prefs, 4=Editor,
                        5=Display settings, 6=Advanced (API key/DB/DIAAS), b=Back
 """
@@ -308,15 +307,15 @@ class TestFoodsRecipePortionAnalysis:
         """Foods → 3 analyzes a saved recipe by portion and prints a nutrient table."""
         _mock_api(monkeypatch)
         # Create a recipe with 2 servings of 200g chicken
-        # Sequence: name → desc → servings → vol(skip) → weight(skip) → proc(b=skip) →
-        #           search → pick → amount g → note(skip) → no more → quit
-        runner.invoke(input="2\n1\nChicken Dish\n\n2\n\n\nb\nchicken\n1\n200 g\n\nn\nq\n")
+        # Sequence: name → desc → servings → serving_size(skip) → vol(skip) → weight(skip) →
+        #           complete(n) → search → pick → amount g → note(skip) → no more → editor(b=skip) → quit
+        runner.invoke(input="2\n1\nChicken Dish\n\n2\n\n\n\nn\nchicken\n1\n200 g\n\nn\nb\nq\n")
 
         with _db.get_db() as conn:
             rid = _db.recipe_list(conn)[0]["id"]
 
-        # Foods → 3 → recipe id → 1 serving → back → quit
-        result = runner.invoke(input=f"1\n3\n{rid}\n1\nb\nq\n")
+        # Foods → 3 → list-all(empty) → recipe id → 1 serving → back → quit
+        result = runner.invoke(input=f"1\n3\n\n{rid}\n1\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
 
@@ -345,10 +344,11 @@ class TestRecipesMenu:
 
     def test_create_recipe(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        # Recipes: 1 (Create) → name → description → servings → instructions (d=skip) →
-        # add ingredient: search "chicken" → pick 1 → amount 150 →
-        # add another? n → b → q
-        inp = "2\n1\nChicken Salad\nA fresh salad\n2\nd\nchicken\n1\n150\nn\nb\nq\n"
+        # Recipes: 1 (Create) → name → description → servings → serving_size(skip) →
+        # vol(skip) → weight(skip) → complete(n) →
+        # search "chicken" → pick 1 → amount 150 → note(skip) →
+        # add another? n → editor(b=skip) → q
+        inp = "2\n1\nChicken Salad\nA fresh salad\n2\n\n\n\nn\nchicken\n1\n150\n\nn\nb\nq\n"
         result = runner.invoke(input=inp)
         assert result.exit_code == 0
         assert "saved" in result.output.lower() or "created" in result.output.lower()
@@ -360,7 +360,7 @@ class TestRecipesMenu:
 
     def test_create_recipe_saves_ingredients(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        inp = "2\n1\nMy Recipe\n\n1\n\n\nb\nchicken\n1\n100 g\n\nn\nq\n"
+        inp = "2\n1\nMy Recipe\n\n1\n\n\n\nn\nchicken\n1\n100 g\n\nn\nb\nq\n"
         runner.invoke(input=inp)
 
         with _db.get_db() as conn:
@@ -373,21 +373,21 @@ class TestRecipesMenu:
     def test_list_recipe_after_create(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         # Create one recipe
-        runner.invoke(input="2\n1\nSoup\n\n1\nd\nchicken\n1\n100\nn\nb\nq\n")
-        # List recipes
-        result = runner.invoke(input="2\n2\nb\nq\n")
+        runner.invoke(input="2\n1\nSoup\n\n1\n\n\n\nn\nchicken\n1\n100\n\nn\nb\nq\n")
+        # List recipes: empty search → list all → auto-returns (single page) → quit
+        result = runner.invoke(input="2\n2\n\nq\n")
         assert "Soup" in result.output
 
     def test_delete_recipe(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         # Create
-        runner.invoke(input="2\n1\nDeleteMe\n\n1\n\n\nb\nchicken\n1\n100 g\n\nn\nq\n")
+        runner.invoke(input="2\n1\nDeleteMe\n\n1\n\n\n\nn\nchicken\n1\n100 g\n\nn\nb\nq\n")
 
         with _db.get_db() as conn:
             rid = _db.recipe_list(conn)[0]["id"]
 
-        # Delete (Recipes: 6 → show list → enter id → confirm y)
-        result = runner.invoke(input=f"2\n6\n{rid}\ny\nq\n")
+        # Delete (Recipes: 2=Browse → d{id} → confirm y → q=quit)
+        result = runner.invoke(input=f"2\n2\nd{rid}\ny\nq\n")
         assert result.exit_code == 0
         assert "Deleted" in result.output
 
@@ -396,13 +396,13 @@ class TestRecipesMenu:
 
     def test_view_recipe_shows_nutrients(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="2\n1\nChicken Dish\n\n2\n\n\nb\nchicken\n1\n200 g\n\nn\nq\n")
+        runner.invoke(input="2\n1\nChicken Dish\n\n2\n\n\n\nn\nchicken\n1\n200 g\n\nn\nb\nq\n")
 
         with _db.get_db() as conn:
             rid = _db.recipe_list(conn)[0]["id"]
 
-        # Recipes: 5 (Analyze) → recipe id → quit; export is mocked to no-op
-        result = runner.invoke(input=f"2\n5\n{rid}\nq\n")
+        # Recipes: 2=Browse → a{id} (analyze) → q=quit; export is mocked to no-op
+        result = runner.invoke(input=f"2\n2\na{rid}\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
 
@@ -547,7 +547,7 @@ class TestSettingsMenu:
         config_file = tmp_path / "config.json"
         monkeypatch.setattr(_usda_api, "_CONFIG_FILE", config_file)
         # Settings: 6 (Advanced) → 2 (API key) → enter key → b (back from advanced) → b → q
-        result = runner.invoke(input="s\n6\n2\nMYNEWKEY\nb\nb\nq\n")
+        result = runner.invoke(input="5\n6\n2\nMYNEWKEY\nb\nb\nq\n")
         assert result.exit_code == 0
         assert "saved" in result.output.lower()
         assert config_file.exists()
@@ -557,31 +557,31 @@ class TestSettingsMenu:
         theme_file = tmp_path / "theme"
         monkeypatch.setattr(_theme_mod, "_THEME_FILE", theme_file)
         # Settings: 1 (Theme) → pick 3 (neutral) → b → q
-        result = runner.invoke(input="s\n1\n3\nb\nq\n")
+        result = runner.invoke(input="5\n1\n3\nb\nq\n")
         assert result.exit_code == 0
         assert "neutral" in result.output.lower()
 
 
 # ---------------------------------------------------------------------------
-# Dietary preferences (main menu 'd')
+# Dietary preferences (Settings menu → item 3)
 # ---------------------------------------------------------------------------
 
 class TestDietaryPrefs:
     def test_toggle_to_plant_based(self, runner: NumaTestRunner):
-        # d = dietary prefs → n (plant-based only) → q
-        result = runner.invoke(input="d\nn\nq\n")
+        # 5=Settings → 3=Dietary prefs → n (plant-based only) → b → q
+        result = runner.invoke(input="5\n3\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "plant" in result.output.lower()
 
     def test_toggle_to_animal_included(self, runner: NumaTestRunner):
-        # d = dietary prefs → y (include animal foods) → q
-        result = runner.invoke(input="d\ny\nq\n")
+        # 5=Settings → 3=Dietary prefs → y (include animal foods) → b → q
+        result = runner.invoke(input="5\n3\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "animal" in result.output.lower()
 
     def test_enter_keeps_current(self, runner: NumaTestRunner):
         # Empty Enter at the prompt keeps the current preference without error
-        result = runner.invoke(input="d\n\nq\n")
+        result = runner.invoke(input="5\n3\n\nb\nq\n")
         assert result.exit_code == 0
 
 
@@ -635,7 +635,7 @@ class TestVolumeHint:
 class TestUserProfileSettings:
     def test_profile_option_visible_in_settings(self, runner: NumaTestRunner):
         """Settings menu must show a User profile option."""
-        result = runner.invoke(input="s\nb\nq\n")
+        result = runner.invoke(input="5\nb\nq\n")
         assert result.exit_code == 0
         assert "profile" in result.output.lower()
 
@@ -645,7 +645,7 @@ class TestUserProfileSettings:
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         # Settings: 2 (User profile) → age=35 → sex=m → weight=80 → height=178 →
         # activity=3 (moderate) → b → q
-        result = runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
+        result = runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
         assert pf.exists()
         data = json.loads(pf.read_text())
@@ -656,7 +656,7 @@ class TestUserProfileSettings:
         """After saving, the response shows the estimated calorie target."""
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        result = runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
+        result = runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
         assert "kcal" in result.output.lower() or "calorie" in result.output.lower()
 
@@ -665,7 +665,7 @@ class TestUserProfileSettings:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         # bad age → valid age → sex → weight → height → activity → back → quit
-        result = runner.invoke(input="s\n2\nnotanage\n35\nm\n80\n178\n3\nb\nq\n")
+        result = runner.invoke(input="5\n2\nnotanage\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
         assert pf.exists()
         assert json.loads(pf.read_text())["age"] == 35
@@ -674,7 +674,7 @@ class TestUserProfileSettings:
         """Settings menu shows 'not set' when no profile exists."""
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        result = runner.invoke(input="s\nb\nq\n")
+        result = runner.invoke(input="5\nb\nq\n")
         assert result.exit_code == 0
         assert "not set" in result.output.lower()
 
@@ -685,9 +685,9 @@ class TestUserProfileSettings:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         # Set profile first
-        runner.invoke(input="s\n2\n40\nf\n62\n165\n2\nb\nq\n")
+        runner.invoke(input="5\n2\n40\nf\n62\n165\n2\nb\nq\n")
         # Now open settings again — status line should show details
-        result = runner.invoke(input="s\nb\nq\n")
+        result = runner.invoke(input="5\nb\nq\n")
         assert result.exit_code == 0
         assert "40" in result.output   # age
         assert "female" in result.output

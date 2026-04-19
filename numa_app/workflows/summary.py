@@ -1,3 +1,7 @@
+"""
+summary.py — Daily Summary menu: today's, by-date, and recent-days nutrient summaries with RDA comparison.
+Docs: README-numa-documentation.md, Menu Structure: "4. Daily Summary"
+"""
 from datetime import date
 
 import db as _db

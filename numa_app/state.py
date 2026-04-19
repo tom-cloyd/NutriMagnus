@@ -1,3 +1,7 @@
+"""
+state.py — shared mutable application state: AppContext dataclass, theme dict, and dietary preference flag.
+Docs: README-numa-documentation.md, Architecture: "numa_app/state.py — shared state"
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

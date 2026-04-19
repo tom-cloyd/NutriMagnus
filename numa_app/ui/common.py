@@ -1,6 +1,11 @@
+"""
+common.py — menu rendering, safe dispatch, and table formatting helpers (dot_cell, section_title, etc.).
+Docs: README-numa-documentation.md, Architecture: "numa_app/ui/common.py — menu rendering and safe dispatch"
+"""
 import os
 import subprocess
 import tempfile
+from typing import Any, Callable
 
 from .. import state
 from .prompts import Cancelled
@@ -11,6 +16,38 @@ _OFF_ID_THRESHOLD = -1_000_000_000
 
 # One-line key shown near any table or list that displays food IDs.
 ID_KEY = "[dim](ID key: number = USDA FDC · OFF = Open Food Facts · usr = user-drafted)[/dim]"
+
+
+def dot_cell(text: str, width: int) -> str:
+    """Truncate *text* to *width* chars and pad the remainder with dim dot leaders."""
+    t = text[:width - 1]
+    return f"{t} [dim]{'·' * (width - len(t) - 1)}[/dim]"
+
+
+def table_title(title: str, subtitle: str = "") -> None:
+    """Blank line + indented hi-colour title for a table within an analysis section.
+    Pass *subtitle* as a pre-formatted Rich markup string when a colour legend or
+    extra context belongs on the same line as the title."""
+    sub = f"  {subtitle}" if subtitle else ""
+    state.console.print()
+    state.console.print(f"  [{state.T['hi']}]{title}[/{state.T['hi']}]{sub}", highlight=False)
+
+
+def section_title(title: str, subtitle: str = "") -> None:
+    """Blank line + full-width accent title + rule — for top-level output sections.
+    *subtitle* is plain text; it is wrapped in dim automatically."""
+    sub = f"  [dim]{subtitle}[/dim]" if subtitle else ""
+    state.console.print()
+    state.console.print(f"[{state.T['accent']}]{title}[/{state.T['accent']}]{sub}", highlight=False)
+    state.console.rule()
+
+
+def table_footer(*lines: str) -> None:
+    """Blank line then each line printed as-is — for key legends, totals, and notes.
+    Callers supply their own Rich markup (dim, colour, etc.)."""
+    state.console.print()
+    for line in lines:
+        state.console.print(line, highlight=False)
 
 
 def _id_cell(fdc_id: int | None) -> str:
@@ -42,7 +79,9 @@ def _show_menu(title: str, items: list[tuple[str, str]]) -> None:
     state.console.print()
 
 
-def _safe_call(fn, *args):
+def _safe_call(fn: Callable[..., Any], *args: Any) -> None:
+    """Call fn(*args), silencing Cancelled (prints 'Cancelled.').
+    SystemExit(0) and ReturnToMain propagate — never swallow them here."""
     try:
         fn(*args)
     except SystemExit as e:

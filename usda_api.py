@@ -3,6 +3,7 @@ usda_api.py — USDA FoodData Central HTTP client for numa.
 
 Handles API key management, food search, and detail fetching.
 Called via usda.py which re-exports everything as usda.<name>.
+Docs: README-numa-documentation.md, Architecture: "usda_api.py — USDA HTTP client"
 """
 import json
 import pathlib
