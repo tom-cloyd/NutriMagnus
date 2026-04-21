@@ -238,6 +238,15 @@ def _search_and_pick_food(
         state.console.print()
         try:
             api_results = _usda.search_foods(api_query, data_types=data_types)
+            # For default (unrestricted) searches the USDA API ranks by its own relevance
+            # score, which buries Foundation/SR Legacy under many branded results.
+            # Fetch them explicitly and prepend so they always appear.
+            if data_types is None:
+                generic = _usda.search_foods(
+                    api_query, data_types=["Foundation", "SR Legacy"], page_size=8
+                )
+                generic_ids = {r["fdcId"] for r in generic}
+                api_results = generic + [r for r in api_results if r["fdcId"] not in generic_ids]
         except _usda.USDAError as e:
             if cache_results:
                 state.console.print(
@@ -301,9 +310,8 @@ def _search_and_pick_food(
                 if any(qw in dw for dw in desc_words)
             )
 
-        def _source_tier(food: dict) -> int:
-            if food.get("_from_cache"):
-                return 0
+        def _data_tier(food: dict) -> int:
+            """Tier by data type; cache status is a tiebreaker, not a tier override."""
             dtype = food.get("dataType", "")
             if dtype == "Foundation":
                 return 1
@@ -322,30 +330,62 @@ def _search_and_pick_food(
             if len(word) >= 4
         )
 
-        results = sorted(deduped, key=lambda f: (-_word_score(f), _source_tier(f)))
+        if brand_in_query:
+            # Brand named explicitly: word relevance first, then type tier, cached items preferred.
+            results = sorted(deduped, key=lambda f: (-_word_score(f), _data_tier(f), not f.get("_from_cache")))
+        else:
+            # Generic query: non-branded types always appear before branded, regardless of cache.
+            results = sorted(deduped, key=lambda f: (_data_tier(f), -_word_score(f), not f.get("_from_cache")))
 
         recipe_rows = prepend_recipes or []
 
         _SRCH_W = 36
+        _BRAND_W = 24
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         tbl.add_column("#",       justify="right", min_width=3)
         tbl.add_column("Type",    min_width=12)
         tbl.add_column("ID",      justify="right", min_width=7)
         tbl.add_column("Food / Recipe", min_width=_SRCH_W, max_width=_SRCH_W, no_wrap=True)
-        tbl.add_column("Brand",   min_width=20)
+        tbl.add_column("Brand",   min_width=_BRAND_W, max_width=_BRAND_W, no_wrap=True)
         if show_aa_status:
             tbl.add_column("AA data", min_width=8)
 
         def _srch_cell(text: str) -> str:
-            t = text[:_SRCH_W - 1]
-            return f"{t} [dim]{'·' * (_SRCH_W - len(t) - 1)}[/dim]"
+            """Word-wrap to _SRCH_W; dot-pad the last line only."""
+            words = text.split()
+            if not words:
+                return ""
+            lines: list[str] = []
+            current = ""
+            for word in words:
+                candidate = f"{current} {word}" if current else word
+                if len(candidate) <= _SRCH_W - 1:
+                    current = candidate
+                else:
+                    if current:
+                        lines.append(current)
+                    current = word[: _SRCH_W - 1]
+            if current:
+                lines.append(current)
+            last = lines[-1]
+            pad = _SRCH_W - len(last) - 1
+            if pad > 0:
+                lines[-1] = f"{last} [dim]{'·' * pad}[/dim]"
+            return "\n".join(lines)
+
+        def _brand_cell(brand: str) -> str:
+            if not brand:
+                return f"[dim]{'·' * _BRAND_W}[/dim]"
+            t = brand[: _BRAND_W - 1]
+            pad = _BRAND_W - len(t) - 1
+            return f"{t} [dim]{'·' * pad}[/dim]" if pad > 0 else t
 
         # Recipe rows at top (R1, R2, …)
         for i, r in enumerate(recipe_rows, 1):
             aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
                        if r["dcp_g"] is not None
                        else "[dim]—[/dim]")
-            row = [f"R{i}", "Recipe", "", _srch_cell(r["name"]), ""]
+            row = [f"R{i}", "Recipe", "", _srch_cell(r["name"]), _brand_cell("")]
             if show_aa_status:
                 row.append(aa_cell)
             tbl.add_row(*row)
@@ -383,9 +423,9 @@ def _search_and_pick_food(
                     else:
                         # Branded / unknown: virtually never have AA data in USDA
                         aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
-                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), brand, aa_cell)
+                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), aa_cell)
             else:
-                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), brand)
+                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand))
         if show_aa_status:
             likely_count = 0
             for food in results:

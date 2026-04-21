@@ -79,16 +79,17 @@ def _do_food_search() -> None:
     if food is None:
         return
     _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
-    has_aa = _print_protein_completeness(food["nutrients"])
+    has_aa = _print_protein_completeness(food["nutrients"], food_name=food["name"])
     aa_food = food  # tracks whichever food has AA data for all subsequent steps
     if not has_aa:
         alt = _suggest_foundation_search(food)
         if alt:
             _print_nutrient_table(alt["nutrients"], title=alt["name"], per_label="per 100g")
-            has_aa = _print_protein_completeness(alt["nutrients"])
+            has_aa = _print_protein_completeness(alt["nutrients"], food_name=alt["name"])
             aa_food = alt
     _print_bioavailability(aa_food["name"], aa_food["nutrients"])
-    if has_aa and _usda.get_aa_gaps(aa_food["nutrients"]):
+    _aa_diaas = _usda.get_diaas(aa_food["name"]) or 1.0
+    if has_aa and _usda.get_aa_gaps(aa_food["nutrients"], digestibility=_aa_diaas):
         _print_complement_suggestions(aa_food["nutrients"], context="food",
                                       offer_if_covered=False,
                                       base_food_name=aa_food["name"])
@@ -106,9 +107,9 @@ def _do_food_search() -> None:
         return
     grams, label, scaled = result
     _print_nutrient_table(scaled, title=aa_food["name"], per_label=label)
-    has_aa = _print_protein_completeness(scaled)
+    has_aa = _print_protein_completeness(scaled, food_name=aa_food["name"])
     _print_bioavailability(aa_food["name"], scaled)
-    if has_aa and _usda.get_aa_gaps(scaled):
+    if has_aa and _usda.get_aa_gaps(scaled, digestibility=_aa_diaas):
         _print_complement_suggestions(scaled, context="food", offer_if_covered=False,
                                       base_food_name=aa_food["name"])
 
@@ -122,7 +123,7 @@ def _do_analyze_food_portion() -> None:
         return
     grams, label, scaled = result
     _print_nutrient_table(scaled, title=food["name"], per_label=label)
-    has_aa = _print_protein_completeness(scaled)
+    has_aa = _print_protein_completeness(scaled, food_name=food["name"])
     # export_name / export_sections track what to offer for export at the end
     export_name = f"{food['name']} — {label}"
     export_sections: list[dict] = [
@@ -139,7 +140,7 @@ def _do_analyze_food_portion() -> None:
                 alt_grams, alt_label, alt_scaled = alt_result
                 _print_nutrient_table(alt_scaled, title=alt["name"],
                                       per_label=alt_label)
-                has_aa = _print_protein_completeness(alt_scaled)
+                has_aa = _print_protein_completeness(alt_scaled, food_name=alt["name"])
                 _print_bioavailability(alt["name"], alt_scaled)
                 export_name = f"{alt['name']} — {alt_label}"
                 export_sections = [
@@ -149,13 +150,15 @@ def _do_analyze_food_portion() -> None:
                     {"type": "bioavailability", "food_name": alt["name"],
                      "nutrients": alt_scaled},
                 ]
-                if has_aa and _usda.get_aa_gaps(alt_scaled):
+                _alt_diaas = _usda.get_diaas(alt["name"]) or 1.0
+                if has_aa and _usda.get_aa_gaps(alt_scaled, digestibility=_alt_diaas):
                     _print_complement_suggestions(alt_scaled, context="food",
                                                   offer_if_covered=False,
                                                   base_food_name=alt["name"])
     else:
         _print_bioavailability(food["name"], scaled)
-        if _usda.get_aa_gaps(scaled):
+        _food_diaas = _usda.get_diaas(food["name"]) or 1.0
+        if _usda.get_aa_gaps(scaled, digestibility=_food_diaas):
             _print_complement_suggestions(scaled, context="food", offer_if_covered=False,
                                           base_food_name=food["name"])
     _offer_export(export_name, export_sections)
@@ -372,9 +375,9 @@ def _do_list_cached_foods() -> None:
                 continue
             grams, label, scaled = result
             _print_nutrient_table(scaled, title=food["name"], per_label=label)
-            _print_protein_completeness(scaled)
+            _print_protein_completeness(scaled, food_name=food["name"])
         else:
             _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
-            _print_protein_completeness(food["nutrients"])
+            _print_protein_completeness(food["nutrients"], food_name=food["name"])
 
 

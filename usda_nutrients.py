@@ -12,6 +12,18 @@ from usda_api import NUTRIENT_MAP, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_
 # Type alias for all per-100g nutrient dicts throughout the codebase.
 Nutrients = dict[str, float]
 
+# FAO 2013 specifies Met+Cys and Phe+Tyr as combined pairs.  The reference
+# values in AA_REFERENCE_MG_PER_G_PROTEIN are for the combined pair, so we
+# must sum both members before scoring against the reference.
+_AA_PAIRS: dict[str, str] = {
+    "aa_methionine_g":    "aa_cystine_g",   # Met+Cys combined reference = 22 mg/g
+    "aa_phenylalanine_g": "aa_tyrosine_g",  # Phe+Tyr combined reference = 38 mg/g
+}
+
+# AAs scoring above this threshold are considered adequate; gaps below it are
+# too small to generate practical complement suggestions (e.g. score=0.994 → 1g).
+_MIN_GAP_SCORE: float = 0.95
+
 
 def scale_nutrients(nutrients: Nutrients, amount: float,
                     base_size: float = 100.0) -> Nutrients:
@@ -41,14 +53,20 @@ def has_amino_acid_data(nutrients: Nutrients) -> bool:
     return len(aa_present) >= 5
 
 
-def protein_completeness(nutrients: Nutrients) -> dict:
+def protein_completeness(nutrients: Nutrients, digestibility: float = 1.0) -> dict:
     """
     Assess protein completeness based on essential amino acid profile.
+
+    digestibility: overall protein digestibility factor (e.g. DIAAS score).
+        Applied to scores before determining complete/limiting_aa so the
+        classification reflects bioavailable amino acids, not just raw content.
+        Scores in the returned dict are always raw (pre-digestibility) for display.
+
     Returns a dict with:
         has_data     bool — True if amino acid data is present
-        complete     bool — True if all essential AAs meet reference levels
-        limiting_aa  str | None — name of the most limiting amino acid
-        scores       dict — AA key → score vs. reference (1.0 = meets reference)
+        complete     bool — True if all digestibility-adjusted AA scores ≥ 1.0
+        limiting_aa  str | None — name of the most limiting (digestibility-adjusted) AA
+        scores       dict — AA key → raw score vs. reference (1.0 = meets reference)
     """
     protein_g = nutrients.get("protein_g", 0)
     if protein_g <= 0:
@@ -62,16 +80,21 @@ def protein_completeness(nutrients: Nutrients) -> dict:
     for aa_key in ESSENTIAL_AMINO_ACIDS:
         if aa_key not in nutrients:
             continue
-        # Convert g of AA per (protein_g grams of protein) to mg/g protein
-        aa_mg_per_g_protein = (nutrients[aa_key] / protein_g) * 1000
+        # Combine paired AAs per FAO 2013 (Met+Cys, Phe+Tyr) before scoring.
+        aa_val = nutrients[aa_key]
+        if aa_key in _AA_PAIRS:
+            aa_val = aa_val + nutrients.get(_AA_PAIRS[aa_key], 0.0)
+        aa_mg_per_g_protein = (aa_val / protein_g) * 1000
         ref = AA_REFERENCE_MG_PER_G_PROTEIN.get(aa_key, 1)
         scores[aa_key] = aa_mg_per_g_protein / ref
 
     if not scores:
         return {"has_data": False, "complete": False, "limiting_aa": None, "scores": {}}
 
-    limiting = min(scores, key=lambda k: scores[k])
-    complete = all(v >= 1.0 for v in scores.values())
+    # Apply digestibility for completeness determination; keep raw scores for display.
+    adj = {k: v * digestibility for k, v in scores.items()}
+    limiting = min(adj, key=lambda k: adj[k])
+    complete = all(v >= 1.0 for v in adj.values())
 
     return {
         "has_data":    True,
@@ -89,11 +112,11 @@ def nutrient_label(key: str) -> tuple[str, str]:
     return key, ""
 
 
-def get_aa_gaps(nutrients: Nutrients) -> list[tuple[str, float, float]]:
+def get_aa_gaps(nutrients: Nutrients, digestibility: float = 1.0) -> list[tuple[str, float, float]]:
     """
-    Return (aa_key, score, deficit_g) for each essential AA below score 1.0,
-    sorted by score ascending (most limiting first).
-    deficit_g is the additional grams of that AA needed to reach score 1.0.
+    Return (aa_key, score, deficit_g) for each essential AA below score 1.0
+    after applying digestibility, sorted by score ascending (most limiting first).
+    deficit_g is the additional grams of that AA (raw) needed to reach score 1.0.
     Returns [] if protein data is missing or insufficient.
     """
     protein_g = nutrients.get("protein_g", 0)
@@ -104,11 +127,15 @@ def get_aa_gaps(nutrients: Nutrients) -> list[tuple[str, float, float]]:
         if aa_key not in nutrients:
             continue
         ref = AA_REFERENCE_MG_PER_G_PROTEIN[aa_key]
-        aa_mg_per_g = (nutrients[aa_key] / protein_g) * 1000
-        score = aa_mg_per_g / ref
-        if score < 1.0 - 1e-9:  # small epsilon avoids floating-point false gaps at exactly 1.0
-            target_g = ref * protein_g / 1000
-            deficit_g = target_g - nutrients[aa_key]
+        aa_val = nutrients[aa_key]
+        if aa_key in _AA_PAIRS:
+            aa_val = aa_val + nutrients.get(_AA_PAIRS[aa_key], 0.0)
+        aa_mg_per_g = (aa_val / protein_g) * 1000
+        score = (aa_mg_per_g / ref) * digestibility
+        if score < _MIN_GAP_SCORE:
+            # Target raw AA needed so that digestible amount meets reference.
+            target_g = ref * protein_g / 1000 / digestibility
+            deficit_g = target_g - aa_val
             gaps.append((aa_key, score, deficit_g))
     return sorted(gaps, key=lambda x: x[1])
 
@@ -477,6 +504,7 @@ def suggest_complements(
     base_nutrients: Nutrients,
     pantry_candidates: list[dict],
     exclude_animal: bool = False,
+    base_digestibility: float = 1.0,
 ) -> dict[str, list[dict]]:
     """
     Suggest complement foods to close essential amino acid gaps.
@@ -492,7 +520,7 @@ def suggest_complements(
         name, grams, new_scores, new_complete, gaps_closed,
         remaining_gaps, protein_added, digestible_protein_added, diaas
     """
-    gaps = get_aa_gaps(base_nutrients)
+    gaps = get_aa_gaps(base_nutrients, digestibility=base_digestibility)
     if not gaps:
         return {"pantry": [], "general": []}
 
@@ -510,15 +538,25 @@ def suggest_complements(
         Rearranging: X = (R*base_protein - base_aa) / (alpha - R*beta)
         This is valid only when alpha > R*beta (candidate AA/protein > reference).
         """
-        alpha = nutrients_100g.get(target_aa, 0.0) / 100.0   # g AA per g food
+        # Use combined AA values for paired AAs (Met+Cys, Phe+Tyr) per FAO 2013.
+        if target_aa in _AA_PAIRS:
+            pair_key = _AA_PAIRS[target_aa]
+            alpha = (nutrients_100g.get(target_aa, 0.0) + nutrients_100g.get(pair_key, 0.0)) / 100.0
+        else:
+            alpha = nutrients_100g.get(target_aa, 0.0) / 100.0   # g AA per g food
         beta = nutrients_100g.get("protein_g", 0.0) / 100.0  # g protein per g food
-        R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0
+        # Use digestibility-adjusted reference: need raw AA/protein ≥ reference/digestibility
+        # so that the digestible ratio meets 1.0.
+        R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0 / max(base_digestibility, 0.01)
         denom = alpha - R * beta
         if denom <= 0:
             # Candidate's AA/protein ratio is below the reference — adding it
             # won't close the gap (may worsen it).
             return None
-        base_aa = base_nutrients.get(target_aa, 0.0)
+        if target_aa in _AA_PAIRS:
+            base_aa = base_nutrients.get(target_aa, 0.0) + base_nutrients.get(_AA_PAIRS[target_aa], 0.0)
+        else:
+            base_aa = base_nutrients.get(target_aa, 0.0)
         base_protein = base_nutrients.get("protein_g", 0.0)
         grams = (R * base_protein - base_aa) / denom
         # Cap at a reasonable serving (500g) to avoid impractical suggestions
@@ -526,16 +564,22 @@ def suggest_complements(
             return None
         added = scale_nutrients(nutrients_100g, grams)
         combined = sum_nutrients(base_nutrients, added)
-        new_pc = protein_completeness(combined)
-        new_gaps = get_aa_gaps(combined)
+        new_pc = protein_completeness(combined, digestibility=base_digestibility)
+        new_gaps = get_aa_gaps(combined, digestibility=base_digestibility)
         gaps_closed = len(gaps) - len(new_gaps)
         # Require that the targeted AA gap is actually closed.
-        # We allow suggestions where a different gap opens (gaps_closed == 0),
-        # since the user can layer complements — but the targeted AA must improve.
+        # We allow suggestions where a different gap opens, since the user can
+        # layer complements — but the targeted AA must improve.
         target_still_gapped = any(aa == target_aa for aa, _, _ in new_gaps)
         if target_still_gapped:
             return None
-        opens_new_gap = gaps_closed < 0
+        # Detect when this complement closes the target gap but opens a gap in
+        # a different AA that was not previously limiting (e.g. Brazil nuts
+        # close Met+Cys but dilute lysine enough to open a new gap there).
+        original_gap_set = {aa for aa, _, _ in gaps}
+        new_gap_set = {aa for aa, _, _ in new_gaps}
+        opens_new_gap = bool(new_gap_set - original_gap_set)
+        closes_primary = (target_aa == gaps[0][0])
         protein_added = nutrients_100g.get("protein_g", 0) * grams / 100
         dig_added = protein_added * (diaas if diaas is not None else 1.0)
         return {
@@ -544,6 +588,7 @@ def suggest_complements(
             "new_complete":             new_pc.get("complete", False),
             "gaps_closed":              gaps_closed,
             "opens_new_gap":            opens_new_gap,
+            "closes_primary":           closes_primary,
             "remaining_gaps":           len(new_gaps),
             "protein_added":            protein_added,
             "digestible_protein_added": dig_added,
@@ -577,8 +622,8 @@ def suggest_complements(
                 continue
             seen_names.add(name)
             results.append({"name": name, **metrics})
-        # Sort by gaps_closed (desc) then grams (asc)
-        results.sort(key=lambda r: (-r["gaps_closed"], r["grams"]))
+        # Sort: primary-gap closers first, then by most gaps closed, then smallest grams.
+        results.sort(key=lambda r: (not r.get("closes_primary"), -r["gaps_closed"], r["grams"]))
         return results
 
     pantry_suggestions = _build_suggestions(pantry_candidates)
@@ -626,12 +671,12 @@ _DIAAS_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("quinoa",),                                   0.85),
     (("chickpea", "garbanzo"),                      0.83),
     (("lentil",),                                   0.75),
-    (("black bean",),                               0.75),
-    (("kidney bean",),                              0.75),
-    (("navy bean", "haricot"),                      0.75),
-    (("pinto bean",),                               0.73),
-    (("lima bean",),                                0.72),
-    (("mung bean",),                                0.73),
+    (("black bean", "beans, black"),                0.75),
+    (("kidney bean", "beans, kidney"),              0.75),
+    (("navy bean", "haricot", "beans, navy"),       0.75),
+    (("pinto bean", "beans, pinto"),                0.73),
+    (("lima bean", "beans, lima"),                  0.72),
+    (("mung bean", "beans, mung"),                  0.73),
     (("bean",),                                     0.75),   # generic legume fallback
     (("peas", "split pea"),                         0.79),
     # Yeast — direct DIAAS data is sparse; estimate from PDCAAS literature
@@ -817,7 +862,7 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("powdered sugar", "confectioner",),                       0.56),
     (("brown sugar",),                                          0.93),
     (("sugar",),                                                0.85),
-    (("salt",),                                                 1.22),
+    (("salt, ", "table salt", "sea salt", "kosher salt"),       1.22),
     (("all-purpose flour", "white flour"),                      0.53),
     (("whole wheat flour",),                                    0.52),
     (("flour",),                                                0.53),
@@ -840,6 +885,11 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("almond", "walnut", "pecan", "cashew",
       "pistachio", "hazelnut", "macadamia"),                    0.60),
     (("peanut",),                                               0.60),
+    # Legumes (cooked) — USDA descriptions use "Beans, [type], mature seeds, cooked" format;
+    # cooked beans absorb water and are less dense than dry (~0.72 g/ml vs 0.77 dry).
+    (("beans, pinto", "beans, black", "beans, kidney", "beans, navy",
+      "beans, great", "beans, garbanzo", "beans, small", "beans, large",
+      "lentils, mature", "chickpeas, mature"),                  0.72),
     # Legumes (dried)
     (("lentil",),                                               0.77),
     (("chickpea", "garbanzo"),                                  0.81),

@@ -15,6 +15,19 @@ from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, 
 from ..ui.prompts import Cancelled, _prompt
 
 
+# FAO 2013 scores Met+Cys and Phe+Tyr as combined pairs; use these labels
+# wherever amino acid completeness scores are displayed.
+_AA_PAIR_LABELS: dict[str, str] = {
+    "aa_methionine_g":    "Met+Cys",
+    "aa_phenylalanine_g": "Phe+Tyr",
+}
+
+
+def _aa_label(aa_key: str) -> str:
+    """Return display label for an AA key, using combined form for paired AAs."""
+    return _AA_PAIR_LABELS.get(aa_key) or _usda.nutrient_label(aa_key)[0]
+
+
 def _load_pantry_candidates() -> list[dict]:
     """Return pantry foods usable for complement suggestions.
 
@@ -95,12 +108,18 @@ def _print_nutrient_table(nutrients: dict[str, float], title: str = "Nutrients",
 def _print_protein_completeness(
     nutrients: dict[str, float],
     *,
+    food_name: str | None = None,
     context_label: str | None = None,
     partial_data_note: str | None = None,
 ) -> bool:
     """Print protein completeness assessment if amino acid data is available.
-    Returns True if amino acid data was present, False otherwise."""
-    result = _usda.protein_completeness(nutrients)
+    Returns True if amino acid data was present, False otherwise.
+
+    food_name: when provided, DIAAS is looked up and applied so that
+        complete/incomplete classification reflects bioavailable amino acids.
+    """
+    digestibility = (_usda.get_diaas(food_name) or 1.0) if food_name else 1.0
+    result = _usda.protein_completeness(nutrients, digestibility=digestibility)
     if not result["has_data"]:
         state.console.print("[dim]  (No amino acid data available for protein completeness analysis.)[/dim]")
         return False
@@ -122,8 +141,7 @@ def _print_protein_completeness(
     )
 
     if not result["complete"] and result["limiting_aa"]:
-        aa_label, _ = _usda.nutrient_label(result["limiting_aa"])
-        state.console.print(f"  Most limiting amino acid: [{state.T['warning']}]{aa_label}[/{state.T['warning']}]")
+        state.console.print(f"  Most limiting amino acid: [{state.T['warning']}]{_aa_label(result['limiting_aa'])}[/{state.T['warning']}]")
 
     _AA_W = 22
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
@@ -131,13 +149,16 @@ def _print_protein_completeness(
     tbl.add_column("Ratio vs. FAO", justify="right", min_width=5)
     tbl.add_column("", justify="left", min_width=10, no_wrap=True)
     for aa_key, score in result["scores"].items():
-        label, _ = _usda.nutrient_label(aa_key)
+        label = _aa_label(aa_key)
         bar = "█" * min(int(score * 10), 20)
         color = state.T["success"] if score >= 1.0 else state.T["warning"]
         tbl.add_row(dot_cell(label, _AA_W), f"[{color}]{score:.2f}[/{color}]", f"[{color}]{bar}[/{color}]")
     state.console.print()
     state.console.print(tbl)
-    footer = ["  [dim]Interpretation: 1.0 = meets the FAO pattern · >1.0 = exceeds it · <1.0 = limiting[/dim]"]
+    footer = [
+        "  [dim]Interpretation: 1.0 = meets the FAO pattern · >1.0 = exceeds it · <1.0 = limiting[/dim]",
+        "  [dim]Met+Cys and Phe+Tyr are combined per FAO 2013 where data is available[/dim]",
+    ]
     if partial_data_note:
         footer.append(f"  [dim]{partial_data_note}[/dim]")
     table_footer(*footer)
@@ -459,7 +480,7 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
         bar_len = min(int(diaas * 20), 20)
         color = state.T["success"] if diaas >= 0.90 else (state.T["warning"] if diaas >= 0.70 else state.T["error"])
         state.console.print(
-            f"  Protein digestibility (DIAAS): [{color}]{diaas:.2f}  "
+            f"  Protein digestibility (est. DIAAS): [{color}]{diaas:.2f}  "
             f"{'█' * bar_len}[/{color}]"
         )
         if protein_raw > 0:
@@ -549,7 +570,11 @@ def _print_complement_suggestions(
                     the total digestible protein line is accurate.
     basis_label: appended to the section header to clarify what the gram amounts refer to.
     """
-    gaps = _usda.get_aa_gaps(base_nutrients)
+    if base_diaas is None:
+        base_diaas = _usda.get_diaas(base_food_name) if base_food_name else None
+    _digestibility = base_diaas if base_diaas is not None else 1.0
+
+    gaps = _usda.get_aa_gaps(base_nutrients, digestibility=_digestibility)
     if not gaps:
         state.console.print(f"\n  [{state.T['hi']}]Protein Complement Suggestions[/{state.T['hi']}]")
         state.console.print("  [dim]No complement suggestions are needed.[/dim]")
@@ -560,12 +585,11 @@ def _print_complement_suggestions(
     except Exception:
         pantry = []
     suggestions = _usda.suggest_complements(
-        base_nutrients, pantry, exclude_animal=not state._include_animal_foods
+        base_nutrients, pantry, exclude_animal=not state._include_animal_foods,
+        base_digestibility=_digestibility,
     )
 
     base_protein = base_nutrients.get("protein_g", 0.0)
-    if base_diaas is None:
-        base_diaas = _usda.get_diaas(base_food_name) if base_food_name else None
     base_digestible = base_protein * base_diaas if base_diaas else base_protein
 
     pantry_suggs = suggestions["pantry"]
@@ -591,7 +615,7 @@ def _print_complement_suggestions(
                         highlight=False)
     state.console.print("  [dim]Ranked by the smallest practical amount needed to close the main amino acid gap.[/dim]")
     gap_labels = ", ".join(
-        _usda.nutrient_label(aa)[0] + f" ({score:.2f})"
+        _aa_label(aa) + f" ({score:.2f})"
         for aa, score, _ in gaps
     )
     state.console.print(f"  [dim]Gaps: {gap_labels}[/dim]")
@@ -630,7 +654,7 @@ def _print_complement_suggestions(
         score_parts = []
         for aa, orig_score, _ in gaps[:3]:
             new_score = s["new_scores"].get(aa, orig_score)
-            label_aa, _ = _usda.nutrient_label(aa)
+            label_aa = _aa_label(aa)
             arrow = f"[{state.T['success']}]{new_score:.2f}[/{state.T['success']}]" if new_score >= 1.0 \
                 else f"[{state.T['warning']}]{new_score:.2f}[/{state.T['warning']}]"
             score_parts.append(f"{label_aa}: {orig_score:.2f}→{arrow}")
@@ -685,7 +709,7 @@ def _print_complement_suggestions(
 
     def _general_exhausted_msg(n_shown: int) -> None:
         limiting_aa = gaps[0][0] if gaps else None
-        limiting_label = _usda.nutrient_label(limiting_aa)[0] if limiting_aa else "this amino acid"
+        limiting_label = _aa_label(limiting_aa) if limiting_aa else "this amino acid"
         low_in = _AA_LOW_IN.get(limiting_aa or "", "many plant foods")
         prefix = "All options that qualify are shown above — no others meet the criteria." if n_shown > 0 \
                  else "No qualifying options found in the database."

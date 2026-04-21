@@ -500,6 +500,19 @@ class TestGetAaGaps:
     def test_missing_protein_key_returns_empty(self):
         assert _usda.get_aa_gaps({"aa_lysine_g": 1.0}) == []
 
+    def test_near_complete_aa_not_reported_as_gap(self):
+        # AAs scoring ≥ 0.95 should not appear — they are too close to adequate
+        # to generate practical complement suggestions (e.g. pinto bean isoleucine
+        # at score 0.994 used to produce trivial 1g suggestions).
+        nutrients = dict(_COMPLETE_NUTRIENTS)
+        nutrients["aa_isoleucine_g"] = nutrients["aa_isoleucine_g"] * 0.97  # score ~0.97 < 1.0 but ≥ 0.95
+        # Lysine far below threshold — should appear
+        nutrients["aa_lysine_g"] = 0.2  # score ≈ 0.22
+        gaps = _usda.get_aa_gaps(nutrients)
+        gap_keys = [g[0] for g in gaps]
+        assert "aa_lysine_g" in gap_keys
+        assert "aa_isoleucine_g" not in gap_keys
+
 
 # ---------------------------------------------------------------------------
 # suggest_complements
