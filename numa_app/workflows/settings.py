@@ -12,8 +12,7 @@ import profile as _profile
 import usda as _usda
 from .. import state
 from ..config import prefs as prefs_config
-from ..config.prefs import _save_prefs
-from ..config.prefs import _save_prefs
+from ..config.prefs import _save_prefs, _DIET_LABELS
 from ..config import theme as theme_config
 from ..config.theme import _change_theme
 from ..ui.common import _safe_call, _show_menu, table_title, table_footer
@@ -255,27 +254,25 @@ def _do_user_profile() -> None:
 
 
 def _do_dietary_prefs() -> None:
-    """Toggle the include_animal_foods preference."""
-    current = "animal foods included" if state._include_animal_foods else "plant-based only"
-    state.console.print(f"\n  Current setting: [bold]{current}[/bold]")
+    """Set the dietary preference for protein complement suggestions."""
+    current_label = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
+    state.console.print(f"\n  Current setting: [bold]{current_label}[/bold]")
     state.console.print(
-        f"\n  [{state.T['accent']}]y[/{state.T['accent']}] — Include animal foods  "
-        f"[{state.T['accent']}]n[/{state.T['accent']}] — Plant-based only  "
-        f"[dim]Enter — keep current[/dim]"
+        f"\n  [{state.T['accent']}]1[/{state.T['accent']}] — All animal foods  [dim](meat, fish, dairy, eggs)[/dim]"
+        f"\n  [{state.T['accent']}]2[/{state.T['accent']}] — Vegetarian  [dim](dairy + eggs only)[/dim]"
+        f"\n  [{state.T['accent']}]3[/{state.T['accent']}] — Plant-based only"
+        f"\n  [dim]Enter — keep current[/dim]"
     )
     try:
-        ans = _prompt("Change to?  [dim](y / n / Enter)[/dim]", default="").strip().lower()
+        ans = _prompt("Change to?  [dim](1 / 2 / 3 / Enter)[/dim]", default="").strip()
     except Cancelled:
         return
-    if ans == "y":
-        state.set_include_animal_foods(True)
-    elif ans == "n":
-        state.set_include_animal_foods(False)
-    else:
+    pref = {"1": "all", "2": "vegetarian", "3": "plant_only"}.get(ans)
+    if pref is None:
         return
+    state.set_diet_pref(pref)
     _save_prefs()
-    label = "animal foods included" if state._include_animal_foods else "plant-based only"
-    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved: {label}.")
+    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved: {_DIET_LABELS[pref]}.")
 
 
 
@@ -352,7 +349,7 @@ def _menu_advanced_settings() -> None:
 def _menu_settings() -> bool:
     """Settings submenu. Returns True to go back, False to quit."""
     while True:
-        diet_status = "animal foods included" if state._include_animal_foods else "plant-based only"
+        diet_status = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
         p = _profile.load_profile()
         if p:
             profile_status = (

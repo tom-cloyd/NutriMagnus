@@ -484,80 +484,132 @@ def _search_and_pick_food(
         pick_hint = ("R#/# or id:FDCID, Enter/b=back, m=main, q=quit"
                      if recipe_rows else
                      "Pick number, id:FDCID, or Enter/b=back, m=main, q=quit")
-        try:
-            raw = _prompt(pick_hint).strip()
-        except Cancelled:
-            return None
-        if raw.lower() == "m":
-            raise ReturnToMain()
-        if raw.lower() == "q":
-            raise SystemExit(0)
-        if not raw or raw.lower() == "b":
-            if allow_research:
-                query = None
-                continue
-            return None
 
-        # Recipe pick: R1, R2, …
-        rl = raw.lower()
-        if rl.startswith("r") and rl[1:].isdigit():
-            ridx = int(rl[1:]) - 1
-            if 0 <= ridx < len(recipe_rows):
-                r = recipe_rows[ridx]
-                return {
-                    "_type":        "recipe",
-                    "id":           r["id"],
-                    "name":         r["name"],
-                    "servings":     r["servings"],
-                    "dcp_g":        r["dcp_g"],
-                    "total_weight": r["total_weight"] if r["total_weight"] else None,
-                }
-            state.console.print(f"[{state.T['warning']}]Invalid recipe selection.[/{state.T['warning']}]")
-            continue
-
-        # Direct FDC ID lookup: id:171545 (USDA only)
-        selected_result: dict | None = None
-        selected_name: str | None = None
-        if raw.lower().startswith("id:"):
+        # Inner loop: re-prompt on bad pick without re-running the search.
+        while True:
             try:
-                fdc_id = int(raw[3:].strip())
-            except ValueError:
-                state.console.print(f"[{state.T['warning']}]Invalid FDC ID.[/{state.T['warning']}]")
+                raw = _prompt(pick_hint).strip()
+            except Cancelled:
+                return None
+            if raw.lower() == "m":
+                raise ReturnToMain()
+            if raw.lower() == "q":
+                raise SystemExit(0)
+            if not raw or raw.lower() == "b":
+                if allow_research:
+                    query = None
+                    break  # → outer loop re-prompts for query
+                return None
+
+            # Recipe pick: R1, R2, …
+            rl = raw.lower()
+            if rl.startswith("r") and rl[1:].isdigit():
+                ridx = int(rl[1:]) - 1
+                if 0 <= ridx < len(recipe_rows):
+                    r = recipe_rows[ridx]
+                    return {
+                        "_type":        "recipe",
+                        "id":           r["id"],
+                        "name":         r["name"],
+                        "servings":     r["servings"],
+                        "dcp_g":        r["dcp_g"],
+                        "total_weight": r["total_weight"] if r["total_weight"] else None,
+                    }
+                state.console.print(f"[{state.T['warning']}]Invalid recipe selection.[/{state.T['warning']}]")
                 continue
-        else:
+
+            # Direct FDC ID lookup: id:171545 (USDA only)
+            selected_result: dict | None = None
+            selected_name: str | None = None
+            if raw.lower().startswith("id:"):
+                try:
+                    fdc_id = int(raw[3:].strip())
+                except ValueError:
+                    state.console.print(f"[{state.T['warning']}]Invalid FDC ID.[/{state.T['warning']}]")
+                    continue
+            else:
+                try:
+                    idx = int(raw) - 1
+                    if idx < 0 or idx >= len(results):
+                        raise ValueError
+                except ValueError:
+                    state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
+                    continue
+                selected_result = results[idx]
+                fdc_id = selected_result["fdcId"]
+                selected_name = selected_result.get("description", "")
+
+            # Try cache first
+            with _db.get_db() as conn:
+                cached = _db.get_cached_food(conn, fdc_id)
+            if cached:
+                nutrients = json.loads(cached["nutrients_json"])
+                pj = cached["portions_json"]
+                if nutrients and pj is not None and pj != "null":
+                    return {
+                        "fdcId":            cached["fdc_id"],
+                        "name":             cached["name"],
+                        "dataType":         cached["data_type"],
+                        "brand":            cached["brand"],
+                        "servingSize":      cached["serving_size"],
+                        "servingUnit":      cached["serving_unit"],
+                        "householdServing": None,
+                        "nutrients":        nutrients,
+                        "portions":         json.loads(cached["portions_json"]),
+                    }
+
+            # Open Food Facts: nutrients are already in the search result — no second call needed
+            if selected_result and selected_result.get("_from_off"):
+                detail = _off.get_food_detail(selected_result)
+                with _db.get_db() as conn:
+                    _db.cache_food(
+                        conn,
+                        detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
+                        detail["servingSize"], detail["servingUnit"], detail["nutrients"],
+                        detail.get("portions"),
+                    )
+                return detail
+
+            # USDA: fetch full detail from API
+            state.console.print("[dim]Fetching details...[/dim]")
             try:
-                idx = int(raw) - 1
-                if idx < 0 or idx >= len(results):
-                    raise ValueError
-            except ValueError:
-                state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
+                detail = _usda.get_food_detail(fdc_id)
+            except _usda.USDAError as e:
+                state.console.print(
+                    f"[{state.T['error']}]API error: {e}[/{state.T['error']}]\n"
+                    f"[dim]  (The USDA search index sometimes lists FDC IDs that no longer exist.\n"
+                    f"   Try a different result, or use id:FDCID with a known-good ID.)[/dim]"
+                )
                 continue
-            selected_result = results[idx]
-            fdc_id = selected_result["fdcId"]
-            selected_name = selected_result.get("description", "")
+            except (TimeoutError, OSError) as e:
+                state.console.print(
+                    f"[{state.T['error']}]Network error fetching food details: {e}[/{state.T['error']}]\n"
+                    f"[dim]  Check your connection and try again.[/dim]"
+                )
+                continue
 
-        # Try cache first
-        with _db.get_db() as conn:
-            cached = _db.get_cached_food(conn, fdc_id)
-        if cached:
-            nutrients = json.loads(cached["nutrients_json"])
-            pj = cached["portions_json"]
-            if nutrients and pj is not None and pj != "null":
-                return {
-                    "fdcId":            cached["fdc_id"],
-                    "name":             cached["name"],
-                    "dataType":         cached["data_type"],
-                    "brand":            cached["brand"],
-                    "servingSize":      cached["serving_size"],
-                    "servingUnit":      cached["serving_unit"],
-                    "householdServing": None,
-                    "nutrients":        nutrients,
-                    "portions":         json.loads(cached["portions_json"]),
-                }
+            # Verify the returned food matches what was selected (USDA search IDs can be wrong)
+            if selected_name:
+                def _name_words(s: str) -> set[str]:
+                    return {w for w in re.sub(r'[^a-z0-9]', ' ', s.lower()).split() if len(w) > 2}
+                sel_words = _name_words(selected_name)
+                got_words = _name_words(detail["name"])
+                overlap = len(sel_words & got_words) / max(len(sel_words), 1)
+                if overlap < 0.4:
+                    state.console.print(
+                        f"\n  [{state.T['warning']}]⚠  USDA returned a different food than selected:[/{state.T['warning']}]\n"
+                        f"  Selected:  {selected_name}\n"
+                        f"  Returned:  {detail['name']}\n"
+                        f"  [dim]This is a known USDA API issue. Try searching again or use id:FDCID.[/dim]"
+                    )
+                    confirm = _ask_yes_no_quit("Use it anyway?  [dim](y=yes · n=no · q=quit)[/dim]", default="n")
+                    if confirm == "q":
+                        raise SystemExit(0)
+                    if confirm != "y":
+                        query = None
+                        break  # → outer loop re-prompts for query
 
-        # Open Food Facts: nutrients are already in the search result — no second call needed
-        if selected_result and selected_result.get("_from_off"):
-            detail = _off.get_food_detail(selected_result)
+            # Cache it
             with _db.get_db() as conn:
                 _db.cache_food(
                     conn,
@@ -565,54 +617,5 @@ def _search_and_pick_food(
                     detail["servingSize"], detail["servingUnit"], detail["nutrients"],
                     detail.get("portions"),
                 )
+
             return detail
-
-        # USDA: fetch full detail from API
-        state.console.print("[dim]Fetching details...[/dim]")
-        try:
-            detail = _usda.get_food_detail(fdc_id)
-        except _usda.USDAError as e:
-            state.console.print(
-                f"[{state.T['error']}]API error: {e}[/{state.T['error']}]\n"
-                f"[dim]  (The USDA search index sometimes lists FDC IDs that no longer exist.\n"
-                f"   Try a different result, or use id:FDCID with a known-good ID.)[/dim]"
-            )
-            continue
-        except (TimeoutError, OSError) as e:
-            state.console.print(
-                f"[{state.T['error']}]Network error fetching food details: {e}[/{state.T['error']}]\n"
-                f"[dim]  Check your connection and try again.[/dim]"
-            )
-            continue
-
-        # Verify the returned food matches what was selected (USDA search IDs can be wrong)
-        if selected_name:
-            def _name_words(s: str) -> set[str]:
-                return {w for w in re.sub(r'[^a-z0-9]', ' ', s.lower()).split() if len(w) > 2}
-            sel_words = _name_words(selected_name)
-            got_words = _name_words(detail["name"])
-            overlap = len(sel_words & got_words) / max(len(sel_words), 1)
-            if overlap < 0.4:
-                state.console.print(
-                    f"\n  [{state.T['warning']}]⚠  USDA returned a different food than selected:[/{state.T['warning']}]\n"
-                    f"  Selected:  {selected_name}\n"
-                    f"  Returned:  {detail['name']}\n"
-                    f"  [dim]This is a known USDA API issue. Try searching again or use id:FDCID.[/dim]"
-                )
-                confirm = _ask_yes_no_quit("Use it anyway?  [dim](y=yes · n=no · q=quit)[/dim]", default="n")
-                if confirm == "q":
-                    raise SystemExit(0)
-                if confirm != "y":
-                    query = None
-                    continue
-
-        # Cache it
-        with _db.get_db() as conn:
-            _db.cache_food(
-                conn,
-                detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
-                detail["servingSize"], detail["servingUnit"], detail["nutrients"],
-                detail.get("portions"),
-            )
-
-        return detail

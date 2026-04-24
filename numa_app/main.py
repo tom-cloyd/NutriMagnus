@@ -7,7 +7,7 @@ import profile as _profile
 import usda as _usda
 from rich.rule import Rule
 from . import state
-from .config.prefs import _PREFS_FILE, _ask_animal_foods_pref, _load_prefs
+from .config.prefs import _PREFS_FILE, _ask_animal_foods_pref, _load_prefs, _DIET_LABELS
 from .config.theme import _detect_terminal_theme, _load_theme, _save_theme, _theme_source
 from .ui.common import _safe_call
 from .ui.prompts import Cancelled, ReturnToMain, _prompt
@@ -23,10 +23,11 @@ _load_theme()
 def _run_menu() -> None:
     """Top-level menu loop."""
     while True:
-        diet_label = "animal foods included" if state._include_animal_foods else "plant-based only"
+        diet_label = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
         state.console.print()
+        _W = min(100, state.console.width)
         state.console.print(f"[{state.T['accent']}]NutriMagnus Menu[/{state.T['accent']}]")
-        state.console.rule()
+        state.console.print(Rule(), width=_W)
         state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] [bold]Foods[/bold]")
         state.console.print("     [dim]search · analyze portion · convert portion <==> weight · view cache · pantry · drafted food profiles[/dim]")
         state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] [bold]Recipes[/bold]")
@@ -91,19 +92,20 @@ def initialize_app(*, theme: str | None = None, api_key: str | None = None) -> b
 
     _db.init_db()
     _load_prefs()
-    if not _PREFS_FILE.exists() or "include_animal_foods" not in _PREFS_FILE.read_text():
+    if not _PREFS_FILE.exists() or "diet_pref" not in _PREFS_FILE.read_text():
         _ask_animal_foods_pref()
     return True
 
 
 def print_startup_banner() -> None:
     source = _theme_source()
-    diet_label = "animal foods included" if state._include_animal_foods else "plant-based only"
+    diet_label = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
     p = _profile.load_profile()
 
+    _W = min(100, state.console.width)
     state.console.print()
-    state.console.print(Rule(style="green"))
-    state.console.print(Rule(style="green"))
+    state.console.print(Rule(style="green"), width=_W)
+    state.console.print(Rule(style="green"), width=_W)
     state.console.print('[bold green]NutriMagnus[/bold green] [dim]("nourishment wizard")[/dim]')
     state.console.print("Nutritional Analysis for individuals and families")
     if p:

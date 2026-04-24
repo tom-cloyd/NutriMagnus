@@ -65,10 +65,10 @@ numa/
     __init__.py
     __main__.py
     main.py                        — run_app(), initialize_app(), print_startup_banner(), _run_menu()
-    state.py                       — AppContext; theme/dietary state; set_theme(), set_include_animal_foods()
+    state.py                       — AppContext; theme/dietary state; set_theme(), set_diet_pref()
     config/
       __init__.py
-      prefs.py                     — dietary preferences load/save; first-run animal-foods prompt
+      prefs.py                     — dietary preferences load/save; first-run diet-pref prompt; _DIET_LABELS
       theme.py                     — theme load/save/detect; _change_theme()
     ui/
       __init__.py
@@ -195,7 +195,7 @@ The program launches into a startup banner (showing profile, theme, and dietary-
 search results, ID entry, portion size entry, and ingredient/item loops. You
 are never required to complete a flow before being able to leave it.
 
-**First run:** On first launch, if no dietary preferences file exists, the program asks whether protein complement suggestions should include animal-based foods (eggs, cheese, fish, chicken, whey). The answer is saved to `~/.config/numa/prefs.json` and can be changed at any time via **Settings → Dietary preferences**.
+**First run:** On first launch, if no dietary preferences file have been saved yet, the program asks which foods protein complement suggestions should include: all animal foods, vegetarian (dairy + eggs only), or plant-based only. The answer is saved to `~/.config/numa/prefs.json` as the `diet_pref` key and can be changed at any time via **Settings → Dietary preferences**. Existing installs that have the legacy `include_animal_foods` boolean are migrated automatically on the next launch.
 
 ---
 
@@ -336,8 +336,9 @@ Main Menu  ("NutriMagnus Menu")
 └── 5. Settings
     ├── 1. Color theme  (dark / light / neutral / auto)
     ├── 2. User profile  (age, sex, weight, height, activity level)
-    ├── 3. Dietary preferences  (animal foods included / plant-based only)
-    │       Toggle whether complement suggestions include animal-based foods.
+    ├── 3. Dietary preferences  (all animal foods / vegetarian / plant-based only)
+    │       Choose which protein sources appear in complement suggestions:
+    │       1 = all animal foods, 2 = vegetarian (dairy + eggs), 3 = plant-based only.
     │       Saved immediately to ~/.config/numa/prefs.json.
     ├── 4. Editor command  (for opening export files)
     ├── 5. Display program settings at launch  (yes / no)
@@ -686,7 +687,15 @@ The pantry is the key input: populate **Foods → My pantry** with the protein s
 
 ### Dietary preferences
 
-**Settings → Dietary preferences** toggles whether protein complement suggestions include animal-based foods (eggs, cheese, fish, chicken, whey protein). The setting is saved immediately to `~/.config/numa/prefs.json` and applied to both pantry and general suggestions.
+**Settings → Dietary preferences** controls which protein sources appear in complement suggestions. There are three options:
+
+| Option | Value | What is included |
+|--------|-------|-----------------|
+| 1 | `all` | All animal foods — meat, fish, dairy, eggs, whey |
+| 2 | `vegetarian` | Dairy + eggs only (no meat or fish) |
+| 3 | `plant_only` | Plant-based sources only |
+
+The setting is saved immediately to `~/.config/numa/prefs.json` (key: `diet_pref`) and applied to both interactive complement suggestions and exported reports.
 
 ### Building a recipe
 
@@ -739,6 +748,8 @@ After auto-saving, numa optionally exports an additional copy in your choice of 
 
 You can accept the default filename (shown in the prompt) or enter your own. **The full path of any user-exported file is also printed in the terminal after saving.** Press Enter to skip the extra export.
 
+Exported reports respect the active **dietary preferences** setting: complement suggestion sections in the exported file show only the same sources (all / vegetarian / plant-only) that the interactive display would show. This is implemented by passing `diet_pref=state._diet_pref` to `export.build_report()` from `reports._offer_export()`. The `build_report(title, sections, fmt, diet_pref="all")` signature accepts the preference and overrides the static `complement_suggestions` renderer for that call.
+
 ### Daily summary
 
 Select **Daily Summary → Today's summary** to see the combined nutrition for all meals logged today. Use **Summary for a specific date** to look back at any past day.
@@ -753,7 +764,7 @@ The original monolithic `numa.py` was split into a `numa_app/` package (see `REA
 
 - **`numa.py`** — five lines: parse args with `argparse`, call `run_app()`. Uses stdlib only; no `typer`.
 - **`numa_app/main.py`** — top-level orchestration: `initialize_app()`, `print_startup_banner()`, `_run_menu()`, `run_app()`.
-- **`numa_app/state.py`** — shared mutable state: `AppContext` dataclass holding the `Console`, current theme, and dietary preference flag. Module-level aliases (`console`, `T`, `_current_theme_name`, `_include_animal_foods`) are kept for convenience; `sync_globals()` refreshes them when state changes.
+- **`numa_app/state.py`** — shared mutable state: `AppContext` dataclass holding the `Console`, current theme, and dietary preference. Module-level aliases (`console`, `T`, `_current_theme_name`, `_diet_pref`) are kept for convenience; `sync_globals()` refreshes them when state changes.
 - **`numa_app/config/`** — persistence for theme and dietary preferences.
 - **`numa_app/ui/`** — all terminal I/O primitives and rendering.
 - **`numa_app/services/`** — stateless helpers for food search, portion parsing, and report export.
@@ -784,7 +795,7 @@ Similarly, the three largest workflow files were split to keep each under 600 li
 
 ### `numa_app/state.py` — shared state
 
-`AppContext` is the single source of truth. `set_theme(name, theme_dict)` and `set_include_animal_foods(value)` are the only mutation points; both call `sync_globals()` to keep the module-level aliases in sync with the dataclass. All workflow modules import `state` and reference `state.T`, `state.console`, `state._include_animal_foods` directly.
+`AppContext` is the single source of truth. `set_theme(name, theme_dict)` and `set_diet_pref(value)` are the only mutation points; both call `sync_globals()` to keep the module-level aliases in sync with the dataclass. All workflow modules import `state` and reference `state.T`, `state.console`, `state._diet_pref` directly. `_diet_pref` is a string: `"all"` | `"vegetarian"` | `"plant_only"`.
 
 ### `numa_app/ui/prompts.py` — input primitives
 
@@ -954,7 +965,7 @@ Contains the Foods menu dispatch and the search/analyze/convert/cached-food-view
 
 `_do_user_profile()` collects age, sex, weight (accepts kg or lb), height (accepts cm or feet+inches), and activity level. Existing values are shown and kept on empty input. On save, prints the computed calorie and protein targets.
 
-`_do_dietary_prefs()` toggles the animal-foods preference, saves to `prefs.json`, and updates `state._include_animal_foods` immediately.
+`_do_dietary_prefs()` presents a three-option menu (all animal foods / vegetarian / plant-based only), saves the chosen value to `prefs.json`, and updates `state._diet_pref` immediately. Label strings for all three values are defined in `_DIET_LABELS` (in `prefs.py`) and imported by both `settings.py` and `main.py`.
 
 `_do_diaas_overrides()` manages the `diaas_overrides` table: list, add/update, delete. Shows the current numa-calculated value before prompting for the override. Uses `table_title()` and `dot_cell()` from `ui.common` for consistent table styling.
 
@@ -1021,7 +1032,7 @@ Imports `NUTRIENT_MAP`, `ESSENTIAL_AMINO_ACIDS`, and `AA_REFERENCE_MG_PER_G_PROT
 | `sum_nutrients(*dicts)` | Add any number of nutrient dicts together |
 | `protein_completeness(nutrients)` | Assess essential amino acid completeness vs. FAO/WHO reference. Requires 5+ AAs with **non-zero** values; zero-keyed AA entries (common in branded USDA foods) are ignored. |
 | `get_aa_gaps(nutrients, digestibility=1.0)` | Return `(aa_key, score, deficit_g)` for each essential AA with digestibility-adjusted score below 0.95, sorted most-limiting first. The 0.95 threshold filters out near-adequate AAs (e.g. score 0.994) that would otherwise generate impractically small complement amounts. |
-| `suggest_complements(base_nutrients, pantry_candidates)` | Compute minimum-gram complement suggestions from pantry and curated table; returns `{"pantry": [...], "general": [...]}`. The curated table (`_COMPLEMENT_TABLE`) holds protein + nine essential AAs per 100g for ~30 common protein sources; used only for complement scoring and AA gap augmentation — not for general food search. |
+| `suggest_complements(base_nutrients, pantry_candidates, diet_pref="all")` | Compute minimum-gram complement suggestions from pantry and curated table; returns `{"pantry": [...], "general": [...]}`. `diet_pref` controls which curated-table entries are eligible: `"all"` includes everything, `"vegetarian"` includes only plant and dairy/egg entries (those flagged `dairy_egg=True` in `_COMPLEMENT_TABLE`), `"plant_only"` excludes all animal entries. The curated table holds protein + nine essential AAs per 100g for ~30 common protein sources; used only for complement scoring and AA gap augmentation — not for general food search. |
 | `nutrient_label(key)` | Reverse-lookup display name and unit for any nutrient key |
 | `get_diaas(food_name)` | Return DIAAS protein digestibility score for a food (keyword lookup) |
 | `get_antinutrient_flags(food_name)` | Return consolidated anti-nutrient flags as a list of `{"problem": str, "cause": str, "solutions": [(label, description), ...]}` dicts. Entries sharing the same group are merged into one flag with multiple solutions. |
@@ -1087,7 +1098,7 @@ Profile is saved to and loaded from `~/.config/numa/profile.json`.
 | `~/.local/share/numa/numa.db` | SQLite database (foods cache, recipes, meals, pantry, DIAAS overrides) |
 | `~/.config/numa/config.json` | USDA API key |
 | `~/.config/numa/theme` | Saved color theme preference |
-| `~/.config/numa/prefs.json` | Dietary preferences (include_animal_foods flag) |
+| `~/.config/numa/prefs.json` | Dietary preferences (`diet_pref`: `"all"` / `"vegetarian"` / `"plant_only"`) |
 | `~/.config/numa/profile.json` | User profile (age, sex, weight, height, activity level) |
 | `~/.numa/reports/` | Auto-saved nutrition reports (Markdown) — one file per analysis |
 | `~/.numa/user-requested-nutrition-reports/` | User-exported reports (txt, md, or html) |

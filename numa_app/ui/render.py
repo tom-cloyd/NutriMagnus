@@ -11,7 +11,7 @@ import diaas as _diaas
 import usda as _usda
 import profile as _profile
 from .. import state
-from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer
+from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, _prompt
 
 
@@ -162,6 +162,7 @@ def _print_protein_completeness(
     if partial_data_note:
         footer.append(f"  [dim]{partial_data_note}[/dim]")
     table_footer(*footer)
+    help_footer("complete", "aa", "fao")
     return True
 
 
@@ -381,6 +382,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
             highlight=False,
         )
 
+    help_footer("diaas", "dcp", "aa", "fao")
     return result["missing_aa_names"], result.get("digestible_complete_protein_g")
 
 def _print_recipe_bioavailability(
@@ -462,6 +464,7 @@ def _print_recipe_bioavailability(
             f"  [dim]  ({unknown_count} ingredient(s) had no DIAAS data — assumed fully bioavailable)[/dim]",
             highlight=False,
         )
+    help_footer("diaas", "dcp")
 
 
 def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
@@ -509,6 +512,7 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
                       f"{flag['problem']} — {flag['cause']}")
         for label, sol in flag["solutions"]:
             state.console.print(f"    [dim]* {label}: {sol}[/dim]")
+    help_footer("diaas", "dcp")
 
 def _volume_hint(grams: float, food_name: str) -> str | None:
     """Return a human-readable volume equivalent for *grams* of *food_name*, or None."""
@@ -585,7 +589,7 @@ def _print_complement_suggestions(
     except Exception:
         pantry = []
     suggestions = _usda.suggest_complements(
-        base_nutrients, pantry, exclude_animal=not state._include_animal_foods,
+        base_nutrients, pantry, diet_pref=state._diet_pref,
         base_digestibility=_digestibility,
     )
 
@@ -729,6 +733,7 @@ def _print_complement_suggestions(
                 ans = _prompt("Look elsewhere for more options?  [dim](y/N)[/dim]",
                               default="n").strip().lower()
             except Cancelled:
+                help_footer("comp", "gap", "fao", "diet")
                 return
             if ans == "y":
                 _show_paged(general_suggs, "Other options", page_size=5)
@@ -741,6 +746,7 @@ def _print_complement_suggestions(
             _general_exhausted_msg(len(general_suggs))
         else:
             _general_exhausted_msg(0)
+    help_footer("comp", "gap", "fao", "diet")
 
 def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserProfile") -> None:
     """Print a table comparing daily nutrient totals against personalized RDA targets."""
@@ -818,3 +824,4 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
 
     state.console.print(tbl, highlight=False)
     table_footer("  [dim]Target = RDA or Adequate Intake  ·  Limit = Tolerable Upper Intake Level[/dim]")
+    help_footer("rda")

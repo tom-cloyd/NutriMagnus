@@ -35,15 +35,22 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
     if not affected:
         return False
 
+    recipe_missing = len(missing_names) - len(affected)
+    recipe_note = (
+        f"\n  [dim]  ({recipe_missing} other(s) are sub-ingredients of embedded recipes"
+        f" and cannot be replaced here.)[/dim]"
+        if recipe_missing > 0 else ""
+    )
     state.console.print(
         f"\n  [dim]Some of these may be minor ingredients (fruit, garnishes, etc.) with\n"
         f"  negligible protein — those can safely be ignored here. Only proceed if\n"
         f"  one or more of them are meaningful protein sources in your meal.\n"
-        f"  If none are, enter [bold]n[/bold].[/dim]"
+        f"  If none are, enter [bold]n[/bold].[/dim]{recipe_note}",
+        highlight=False,
     )
     try:
         go = _prompt(
-            f"Obtain missing amino acid (AA) profiles for {len(affected)} ingredient(s)?",
+            f"Obtain missing AA profiles for {len(affected)} of {len(missing_names)} ingredient(s)?",
             choices=["y", "n"], default="n",
         )
     except Cancelled:
@@ -166,7 +173,7 @@ def _meal_add_items(meal_id: int) -> None:
     while True:
         state.console.print()
         try:
-            query = _prompt("Search food or recipe", free_text=True).strip()
+            query = _prompt("Search food or recipe  [dim](b=back, m=main, q=quit)[/dim]", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()

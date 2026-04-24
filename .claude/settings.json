@@ -12,7 +12,8 @@
       "Bash(sed -n '147,155p' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/numa_app/ui/render.py)",
       "Bash(sed -n '365,377p' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/numa_app/ui/render.py)",
       "Bash(python -m pytest tests/test_usda.py -x -q)",
-      "Bash(python -m pytest -x -q)"
+      "Bash(python -m pytest -x -q)",
+      "Read(//home/tomc/**)"
     ]
   }
 }

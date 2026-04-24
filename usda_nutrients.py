@@ -389,12 +389,14 @@ _COMPLEMENT_TABLE: list[dict] = [
             "aa_histidine_g":   1.550,
         },
     },
-    # ---- Animal / dairy sources (shown only when include_animal_foods=True) ----
+    # ---- Animal sources ----
+    # dairy_egg=True: allowed for vegetarians. meat/fish entries have animal=True only.
     # Methionine and sulfur-AA gaps are difficult to close with plant foods alone;
     # most grains and legumes fall below the FAO reference ratio for methionine.
     {
         "name": "Egg, whole, cooked",
         "animal": True,
+        "dairy_egg": True,
         "diaas": 1.13,
         "nutrients": {
             "protein_g":        12.56,
@@ -408,6 +410,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     {
         "name": "Cheese, cheddar",
         "animal": True,
+        "dairy_egg": True,
         "diaas": 1.08,
         "nutrients": {
             "protein_g":        24.90,
@@ -421,6 +424,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     {
         "name": "Greek yogurt, plain",
         "animal": True,
+        "dairy_egg": True,
         "diaas": 1.14,
         "nutrients": {
             "protein_g":        9.95,
@@ -434,6 +438,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     {
         "name": "Whey protein powder",
         "animal": True,
+        "dairy_egg": True,
         "diaas": 1.09,
         "nutrients": {
             "protein_g":        78.00,
@@ -503,7 +508,7 @@ def get_complement_nutrients(food_name: str) -> Nutrients | None:
 def suggest_complements(
     base_nutrients: Nutrients,
     pantry_candidates: list[dict],
-    exclude_animal: bool = False,
+    diet_pref: str = "all",
     base_digestibility: float = 1.0,
 ) -> dict[str, list[dict]]:
     """
@@ -513,7 +518,8 @@ def suggest_complements(
         "name": str
         "nutrients": dict | None   (per-100g; None if not in USDA cache)
         "diaas": float | None
-    exclude_animal: if True, animal-sourced entries are omitted from general suggestions.
+    diet_pref: "all" includes all sources; "vegetarian" allows dairy/eggs but not
+        meat/fish; "plant_only" excludes all animal-sourced entries.
 
     Returns {"pantry": [...], "general": [...]}
     Each suggestion dict contains:
@@ -628,14 +634,23 @@ def suggest_complements(
 
     pantry_suggestions = _build_suggestions(pantry_candidates)
 
-    # General suggestions from the curated table, excluding pantry foods and,
-    # optionally, animal-sourced entries.
+    # General suggestions from the curated table, filtered by dietary preference.
     pantry_names_lower = {c["name"].lower() for c in pantry_candidates}
+
+    def _diet_allows(c: dict) -> bool:
+        if not c.get("animal", False):
+            return True
+        if diet_pref == "all":
+            return True
+        if diet_pref == "vegetarian":
+            return bool(c.get("dairy_egg", False))
+        return False  # plant_only
+
     general_candidates = [
         {"name": c["name"], "nutrients": c["nutrients"], "diaas": c["diaas"]}
         for c in _COMPLEMENT_TABLE
         if c["name"].lower() not in pantry_names_lower
-        and not (exclude_animal and c.get("animal", False))
+        and _diet_allows(c)
     ]
     general_suggestions = _build_suggestions(general_candidates)
 

@@ -7,6 +7,8 @@ import subprocess
 import tempfile
 from typing import Any, Callable
 
+from rich.rule import Rule
+
 from .. import state
 from .prompts import Cancelled
 
@@ -37,9 +39,10 @@ def section_title(title: str, subtitle: str = "") -> None:
     """Blank line + full-width accent title + rule — for top-level output sections.
     *subtitle* is plain text; it is wrapped in dim automatically."""
     sub = f"  [dim]{subtitle}[/dim]" if subtitle else ""
+    _W = min(100, state.console.width)
     state.console.print()
     state.console.print(f"[{state.T['accent']}]{title}[/{state.T['accent']}]{sub}", highlight=False)
-    state.console.rule()
+    state.console.print(Rule(), width=_W)
 
 
 def table_footer(*lines: str) -> None:
@@ -48,6 +51,17 @@ def table_footer(*lines: str) -> None:
     state.console.print()
     for line in lines:
         state.console.print(line, highlight=False)
+
+
+def help_footer(*anchors: str) -> None:
+    """Warning-coloured one-liner listing lookupable help topics for the preceding output block.
+    anchors: short manual anchor names (e.g. 'diaas', 'complete', 'fao').
+    User types ?anchor at any prompt to display that section of the user manual."""
+    topics = "  ".join(f"?{a}" for a in anchors)
+    state.console.print(
+        f"\n  [{state.T['warning']}]Help: {topics}[/{state.T['warning']}]",
+        highlight=False,
+    )
 
 
 def _id_cell(fdc_id: int | None) -> str:
@@ -69,8 +83,9 @@ def _id_cell(fdc_id: int | None) -> str:
 
 def _show_menu(title: str, items: list[tuple[str, str]]) -> None:
     """Render a numbered/lettered menu with a title."""
+    _W = min(100, state.console.width)
     state.console.print(f"\n[{state.T['accent']}]{title}[/{state.T['accent']}]")
-    state.console.rule()
+    state.console.print(Rule(), width=_W)
     for key, label in items:
         if key.isdigit():
             state.console.print(f"  [{state.T['accent']}]{key}.[/{state.T['accent']}] {label}", highlight=False)

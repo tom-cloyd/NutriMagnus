@@ -400,12 +400,13 @@ def _render_recipe_bioavailability_html(ingredient_stats: list[dict], total_prot
 # ---------------------------------------------------------------------------
 
 def _render_complement_suggestions_txt(nutrients: dict[str, float],
-                                       base_diaas: float | None) -> str:
+                                       base_diaas: float | None,
+                                       diet_pref: str = "all") -> str:
     gaps = _usda.get_aa_gaps(nutrients)
     if not gaps:
         return "PROTEIN COMPLEMENT SUGGESTIONS\n" + "=" * 30 + "\n  No complement suggestions needed."
 
-    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], exclude_animal=False)
+    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], diet_pref=diet_pref)
     general_suggs = sorted(suggestions.get("general", []),
                            key=lambda s: (0.0 if s.get("new_complete") else 1.0,
                                          float(s.get("grams", 10**9) or 10**9)))
@@ -443,12 +444,13 @@ def _render_complement_suggestions_txt(nutrients: dict[str, float],
 
 
 def _render_complement_suggestions_md(nutrients: dict[str, float],
-                                      base_diaas: float | None) -> str:
+                                      base_diaas: float | None,
+                                      diet_pref: str = "all") -> str:
     gaps = _usda.get_aa_gaps(nutrients)
     if not gaps:
         return "## Protein Complement Suggestions\n\nNo complement suggestions needed."
 
-    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], exclude_animal=False)
+    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], diet_pref=diet_pref)
     general_suggs = sorted(suggestions.get("general", []),
                            key=lambda s: (0.0 if s.get("new_complete") else 1.0,
                                          float(s.get("grams", 10**9) or 10**9)))
@@ -485,12 +487,13 @@ def _render_complement_suggestions_md(nutrients: dict[str, float],
 
 
 def _render_complement_suggestions_html(nutrients: dict[str, float],
-                                        base_diaas: float | None) -> str:
+                                        base_diaas: float | None,
+                                        diet_pref: str = "all") -> str:
     gaps = _usda.get_aa_gaps(nutrients)
     if not gaps:
         return "<h2>Protein Complement Suggestions</h2>\n<p>No complement suggestions needed.</p>"
 
-    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], exclude_animal=False)
+    suggestions = _usda.suggest_complements(nutrients, pantry_candidates=[], diet_pref=diet_pref)
     general_suggs = sorted(suggestions.get("general", []),
                            key=lambda s: (0.0 if s.get("new_complete") else 1.0,
                                          float(s.get("grams", 10**9) or 10**9)))
@@ -579,20 +582,33 @@ _RENDERERS = {
     },
 }
 
+# Per-format complement suggestion renderers, used by build_report to inject diet_pref.
+_COMPLEMENT_RENDERERS = {
+    "txt":  _render_complement_suggestions_txt,
+    "md":   _render_complement_suggestions_md,
+    "html": _render_complement_suggestions_html,
+}
 
-def build_report(report_title: str, sections: list[dict], fmt: str) -> str:
+
+def build_report(report_title: str, sections: list[dict], fmt: str,
+                 diet_pref: str = "all") -> str:
     """
     Render a report to the given format ("txt", "md", "html").
 
     report_title: appears as the document header
     sections:     list of typed section dicts (see module docstring)
     fmt:          "txt", "md", or "html"
+    diet_pref:    passed to complement_suggestions sections ("all", "vegetarian", "plant_only")
     """
     if fmt not in _RENDERERS:
         raise ValueError(f"Unknown format: {fmt!r}. Choose txt, md, or html.")
 
     today = date.today().isoformat()
-    renderers = _RENDERERS[fmt]
+    renderers = dict(_RENDERERS[fmt])  # shallow copy so we can override one key
+    comp_fn = _COMPLEMENT_RENDERERS[fmt]
+    renderers["complement_suggestions"] = lambda s: comp_fn(
+        s["nutrients"], s.get("base_diaas"), diet_pref=diet_pref
+    )
 
     rendered_sections = []
     for section in sections:

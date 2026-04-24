@@ -1,0 +1,204 @@
+NutriMagnus User Manual
+=======================
+
+Sections in this file are referenced from within the program. At any prompt,
+type ? followed by the short anchor shown in brackets — for example, a table
+column labelled "DIAAS [diaas]" can be looked up by typing ?diaas.
+
+Type ?help at any prompt to see a full list of available topics.
+
+
+
+Using the ? Help System [help]
+------------------------------
+
+At any prompt in NutriMagnus, type ? followed by a topic name to display an
+explanation. The topic name is shown in brackets in the program output — for
+example, a table column labelled "DIAAS [diaas]" can be looked up by typing
+?diaas at the next prompt.
+
+Available topics:
+
+  ?aa         Essential amino acids
+  ?comp       Protein complement food suggestions
+  ?complete   What makes a protein "complete"
+  ?dcp        Digestible Complete Protein
+  ?diaas      Digestible Indispensable Amino Acid Score
+  ?diet       Dietary preferences setting
+  ?fao        FAO 2013 amino acid reference standard
+  ?gap        Amino acid gaps and how they are scored
+  ?rda        Recommended Dietary Allowances
+
+Aliases also work: ?suggest, ?dietary, ?completeness, ?digestible, etc.
+
+Type ?help at any time to show this list again.
+
+
+
+DIAAS — Digestible Indispensable Amino Acid Score [diaas]
+---------------------------------------------------------
+
+DIAAS measures how well your body can actually use the protein in a food.
+A score of 1.0 means the protein fully meets the FAO 2013 amino acid
+reference standard after accounting for digestibility. Scores above 1.0
+are excellent; below 1.0 means one or more amino acids fall short.
+
+Animal proteins typically score 1.0 or above. Most plant proteins score
+below 1.0, though some (pea protein, soy) come close. Digestibility matters
+because some protein in food is never absorbed — it passes through unchanged
+or is broken down by gut bacteria rather than used by your body.
+
+NutriMagnus uses DIAAS to calculate digestible complete protein (DCP), which
+is a better indicator of actual protein quality than raw grams. See
+"Digestible Complete Protein (DCP) [dcp]" section here.
+
+
+
+Protein Completeness [complete]
+-------------------------------
+
+A protein is "complete" when it supplies all nine essential amino acids at or
+above the FAO 2013 reference amounts, adjusted for digestibility. Essential
+amino acids cannot be made by the body — they must come from food.
+
+Most animal proteins are complete. Most plant proteins are not, but combining
+plant foods across a day can produce a complete profile — see
+"Protein Complement Suggestions [comp]" section here.
+
+The score shown in completeness tables is the ratio of each amino acid to the
+FAO reference level. A score of 1.0 or above for all nine means the protein
+is complete. The most-limiting amino acid (the one with the lowest score) is
+identified as the bottleneck.
+
+
+
+Amino Acid Gaps [gap]
+---------------------
+
+An amino acid gap means one or more essential amino acids are below the FAO
+2013 reference level after digestibility adjustment. The gap is expressed as
+a score: 0.70 means the food supplies 70% of what is needed for that amino
+acid.
+
+Gaps are sorted from most-limiting to least. A small gap (score 0.90–0.95)
+is near-adequate and may not be worth correcting on its own. A large gap
+(below 0.70) in a food that forms a major part of your diet is worth
+addressing with a complement food.
+
+Methionine is the most commonly limiting amino acid in plant-based diets.
+Lysine is the most commonly limiting in grain-heavy diets.
+
+See "Protein Complement Suggestions [comp]" section here for how NutriMagnus
+suggests foods to close gaps.
+
+
+
+Protein Complement Suggestions [comp]
+--------------------------------------
+
+When amino acid gaps are detected, NutriMagnus suggests foods that would
+close those gaps with the smallest practical addition.
+
+Suggestions come from two sources:
+  1. Your pantry — foods you have added under Foods → My pantry. These
+     are always shown first.
+  2. A built-in table of about 30 common protein sources, filtered by your
+     dietary preferences (see "Dietary Preferences [diet]" section here).
+
+For each suggestion NutriMagnus shows:
+  - How many grams to add
+  - Which gaps it closes
+  - How much digestible protein it adds to the total
+
+The calculation is based on FAO 2013 amino acid reference ratios. You do
+not need to eat complement foods at the same meal — meeting daily totals
+is sufficient for adults in normal health.
+
+
+
+Dietary Preferences [diet]
+--------------------------
+
+This setting controls which protein sources appear in complement suggestions.
+Change it under Settings → Dietary preferences (option 3 in the Settings menu).
+
+  1 — All animal foods     meat, fish, dairy, and eggs
+  2 — Vegetarian           dairy and eggs only (no meat or fish)
+  3 — Plant-based only     plant sources only
+
+The setting is saved between sessions and applies to both the interactive
+complement display and any exported reports.
+
+
+
+Recommended Dietary Allowances [rda]
+-------------------------------------
+
+RDA values in NutriMagnus come from the Dietary Reference Intakes (DRI)
+published by the U.S. National Academies of Sciences. They represent the
+average daily intake sufficient to meet the needs of most healthy adults
+in a given age and sex group.
+
+When you set a user profile (Settings → User profile), NutriMagnus uses
+your age, sex, weight, height, and activity level to estimate personalized
+targets. The calorie estimate uses the Mifflin-St Jeor equation with an
+activity multiplier. The protein target uses 0.8 g per kg body weight as
+a baseline minimum.
+
+RDA values appear in the comparison table shown after nutrient analysis.
+
+
+
+Essential Amino Acids [aa]
+--------------------------
+
+Amino acids are the building blocks of protein. Nine of them are "essential"
+— the body cannot make them, so they must come from food every day:
+
+  Histidine, Isoleucine, Leucine, Lysine, Methionine, Phenylalanine,
+  Threonine, Tryptophan, Valine
+
+Two others — Cystine and Tyrosine — can be made from Methionine and
+Phenylalanine respectively. NutriMagnus evaluates Met+Cys and Phe+Tyr as
+combined pairs when scoring protein quality, following FAO 2013 guidelines.
+
+See "Protein Completeness [complete]" and "Amino Acid Gaps [gap]" sections
+here for how completeness is scored and what a gap means.
+
+
+
+FAO 2013 Reference Standard [fao]
+----------------------------------
+
+The FAO (Food and Agriculture Organization of the United Nations) published
+a reference amino acid scoring pattern in 2013 that defines the minimum
+amounts of each essential amino acid per gram of protein needed to meet adult
+human requirements.
+
+NutriMagnus uses this pattern as the benchmark for all protein quality
+scoring: completeness, gaps, and complement calculations. A score of 1.0
+for an amino acid means the food exactly meets the FAO reference for that
+amino acid; above 1.0 exceeds it; below 1.0 falls short.
+
+The FAO 2013 pattern replaced an older 1991 standard and is the current
+international reference for protein quality assessment.
+
+
+
+Digestible Complete Protein (DCP) [dcp]
+---------------------------------------
+
+DCP — digestible complete protein — is the grams of protein in a food or
+meal that are both digestible (absorbed by the body) and complete (supply
+all essential amino acids at or above reference levels).
+
+It is more meaningful than raw grams of protein because it accounts for:
+  - Digestibility: how much protein is actually absorbed (from DIAAS)
+  - Completeness: whether the amino acid profile meets all requirements
+
+A food with 30 g of protein but a DIAAS of 0.70 and several amino acid gaps
+contributes less usable protein than those numbers suggest. DCP captures that.
+
+NutriMagnus shows DCP in the bioavailability section of food and recipe
+analysis. See also "DIAAS — Digestible Indispensable Amino Acid Score [diaas]"
+and "Protein Completeness [complete]" sections here.

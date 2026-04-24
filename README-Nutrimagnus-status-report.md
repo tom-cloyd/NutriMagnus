@@ -58,11 +58,13 @@ Development is focusing at present on coding and validating core features in a c
 
 - **Personalized nutrition targets**: Enter your age, sex, weight, height, and activity level, and NM computes calorie, protein, and micronutrient targets calibrated to you. After viewing a daily summary, you can compare your intake against these personal targets, with color-coded results for each nutrient.
 
-- **Dietary preferences**: Tell NM whether to include animal-based foods (eggs, dairy, fish, poultry) in its complement suggestions, or to limit suggestions to plant-based sources only.
+- **Dietary preferences**: Tell NM which protein sources to include in complement suggestions — all animal foods (meat, fish, dairy, eggs), vegetarian (dairy and eggs only, no meat or fish), or plant-based only. The setting is saved between sessions and applies to both the on-screen display and any exported reports.
 
 - **Recipe portion analysis**: Analyze the nutrients in a specific portion of any saved recipe — for example, how much protein and calcium you get from one serving of your chickpea stew.
 
 - **Flexible portion entry**: Portions can be entered by weight (grams, ounces, pounds), or by volume (cups, tablespoons, teaspoons) for foods where a density is known.
+
+- **Built-in help system**: NM includes a plain-language user manual you can consult without leaving the program. After any analysis that uses specialized terms — protein completeness, DIAAS, amino acid gaps, and others — a brief line at the bottom of the output lists the topics available. Type `?topic` at the next prompt to read the explanation. For example, `?diaas` explains the protein digestibility score, `?fao` explains the international reference standard used for protein quality assessment, and `?help` lists everything available. The explanation appears on screen and the prompt returns immediately afterward.
 
 **Still planned for Phase 2:**
 

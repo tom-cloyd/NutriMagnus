@@ -23,10 +23,29 @@ class ReturnToMain(Exception):
 _NO_DEFAULT = object()
 
 
+def _show_help(ref: str) -> None:
+    """Display a user-manual section for ref. Silently no-ops if manual not available."""
+    try:
+        import manual as _manual
+        _manual.show(ref)
+    except Exception:
+        state.console.print(f"  [dim]Help not available.[/dim]")
+
+
 def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False) -> str:
     """Unified input primitive. choices=list enables single-keypress mode (only listed chars accepted).
     free_text=True uses readline so arrow-keys/editing work. prefill=True pre-populates with default.
-    Raises Cancelled on Ctrl+C / Escape. Never use bare input() — always use this."""
+    Raises Cancelled on Ctrl+C / Escape. Never use bare input() — always use this.
+    In interactive (tty) mode, any input starting with ? performs a manual lookup and re-prompts."""
+    while True:
+        result = _prompt_once(prompt_text, default=default, choices=choices, prefill=prefill, free_text=free_text)
+        if not sys.stdin.isatty() or choices or not result.startswith("?"):
+            return result
+        _show_help(result[1:].strip() or "help")
+
+
+def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False) -> str:
+    """Single-shot input — called by _prompt(); do not call directly."""
     if not sys.stdin.isatty():
         from rich.prompt import Prompt
         kw: dict = {} if default is _NO_DEFAULT else {"default": default}
@@ -38,27 +57,6 @@ def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] 
             sys.stdout.write("\n")
             sys.stdout.flush()
             raise Cancelled
-
-    # free_text=True: use readline-based input so arrow keys, cursor movement,
-    # and editing work properly.  Also used by the prefill path.
-    if free_text and not choices:
-        _default_str = str(default) if default is not _NO_DEFAULT and default not in (None,) else ""
-        if _default_str:
-            hint = (
-                f" (Press enter to keep"
-                f" [{state.T['default_hint']}]{_default_str}[/{state.T['default_hint']}])"
-            )
-        else:
-            hint = ""
-        state.console.print(f"{prompt_text}{hint}: ", end="", highlight=False)
-        sys.stdout.flush()
-        try:
-            result = input("")
-        except (KeyboardInterrupt, EOFError):
-            state.console.print()
-            raise Cancelled
-        result = result.strip()
-        return result if result else _default_str
 
     if prefill and default is not _NO_DEFAULT and default not in ("", None) and not choices:
         state.console.print(f"{prompt_text}: ", end="", highlight=False)
@@ -179,36 +177,36 @@ def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] 
 
 def _ask_float(prompt_text: str, *, default: float | None = None) -> float | None:
     """Prompt for a float; returns None on empty/b (back). Raises ReturnToMain on m, SystemExit on q."""
-    d = str(default) if default is not None else _NO_DEFAULT
-    raw = _prompt(f"{prompt_text}  (b=back, m=main, q=quit)", default=d).strip().lower()
-    if not raw or raw == "b":
-        return None
-    if raw == "m":
-        raise ReturnToMain()
-    if raw == "q":
-        raise SystemExit(0)
-    try:
-        return float(raw)
-    except ValueError:
-        state.console.print(f"[{state.T['warning']}]Not a number — try again.[/{state.T['warning']}]")
-        return None
+    while True:
+        d = str(default) if default is not None else _NO_DEFAULT
+        raw = _prompt(f"{prompt_text}  (b=back, m=main, q=quit)", default=d).strip().lower()
+        if not raw or raw == "b":
+            return None
+        if raw == "m":
+            raise ReturnToMain()
+        if raw == "q":
+            raise SystemExit(0)
+        try:
+            return float(raw)
+        except ValueError:
+            state.console.print(f"[{state.T['warning']}]Not a number — try again.[/{state.T['warning']}]")
 
 
 def _ask_int(prompt_text: str, *, default: int | None = None) -> int | None:
     """Prompt for an int; returns None on empty/b (back). Raises ReturnToMain on m, SystemExit on q."""
-    d = str(default) if default is not None else _NO_DEFAULT
-    raw = _prompt(f"{prompt_text}  (b=back, m=main, q=quit)", default=d).strip().lower()
-    if not raw or raw == "b":
-        return None
-    if raw == "m":
-        raise ReturnToMain()
-    if raw == "q":
-        raise SystemExit(0)
-    try:
-        return int(raw)
-    except ValueError:
-        state.console.print(f"[{state.T['warning']}]Not an integer — try again.[/{state.T['warning']}]")
-        return None
+    while True:
+        d = str(default) if default is not None else _NO_DEFAULT
+        raw = _prompt(f"{prompt_text}  (b=back, m=main, q=quit)", default=d).strip().lower()
+        if not raw or raw == "b":
+            return None
+        if raw == "m":
+            raise ReturnToMain()
+        if raw == "q":
+            raise SystemExit(0)
+        try:
+            return int(raw)
+        except ValueError:
+            state.console.print(f"[{state.T['warning']}]Not an integer — try again.[/{state.T['warning']}]")
 
 
 def _ask_date(prompt_text: str, *, default: str | None = None) -> str | None:

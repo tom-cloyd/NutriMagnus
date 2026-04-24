@@ -53,7 +53,7 @@ def _offer_export(report_title: str, sections: list[dict]) -> None:
     # Auto-save
     auto_name = _export.default_filename(report_title, "md")
     auto_path = _AUTO_SAVE_DIR / auto_name
-    _export.write_report(auto_path, _export.build_report(report_title, sections, "md"))
+    _export.write_report(auto_path, _export.build_report(report_title, sections, "md", diet_pref=state._diet_pref))
     state.console.print(f"  [dim]Report auto-saved →[/dim] [thistle1]{auto_path.resolve()}[/thistle1]")
 
     try:
@@ -82,6 +82,6 @@ def _offer_export(report_title: str, sections: list[dict]) -> None:
     if not fname:
         fname = default
     path = _USER_EXPORT_DIR / pathlib.Path(fname).name
-    content = _export.build_report(report_title, sections, ans)
+    content = _export.build_report(report_title, sections, ans, diet_pref=state._diet_pref)
     _export.write_report(path, content)
     state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved: {path.resolve()}")
