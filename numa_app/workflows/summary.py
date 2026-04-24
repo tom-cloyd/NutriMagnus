@@ -86,8 +86,8 @@ def _do_daily_summary(meal_date: str) -> None:
         try:
             ans = _prompt(
                 f"\nCompare to your personalized RDA targets?  [{state.T['accent']}]y[/{state.T['accent']}]/[dim]N[/dim]",
-                default="n",
-            ).strip().lower()
+                choices=["y", "n"], default="n",
+            )
         except Cancelled:
             ans = "n"
         if ans == "y":

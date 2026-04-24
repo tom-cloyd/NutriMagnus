@@ -96,7 +96,7 @@ def _do_food_search() -> None:
 
     try:
         ans = _prompt("Analyze a portion of this food?  [dim](y/N)[/dim]",
-                      default="n").strip().lower()
+                      choices=["y", "n"], default="n")
     except Cancelled:
         return
     if ans != "y":

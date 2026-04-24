@@ -100,7 +100,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
                           f"  ({item['amount']:.0f} g)[/dim]")
             try:
                 keep = _prompt("Keep this amount for the replacement?  [dim](Y/n)[/dim]",
-                               default="y").strip().lower()
+                               choices=["y", "n"], default="y")
             except Cancelled:
                 keep = "y"
             if keep != "n":
@@ -800,7 +800,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
 
         elif choice == "5":
             try:
-                confirm = _prompt(f"Delete '{meal_name}'?  [dim](y/n)[/dim]", default="n").strip().lower()
+                confirm = _prompt(f"Delete '{meal_name}'?  [dim](y/n)[/dim]", choices=["y", "n"], default="n")
             except Cancelled:
                 continue
             if confirm != "y":
@@ -868,7 +868,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Created '{new_name}' "
                           f"(ID {new_mid}) with {total_items} item(s).")
             try:
-                del_orig = _prompt("Delete original meals?  [dim](y/n)[/dim]", default="y").strip().lower()
+                del_orig = _prompt("Delete original meals?  [dim](y/n)[/dim]", choices=["y", "n"], default="y")
             except Cancelled:
                 del_orig = "n"
             if del_orig == "y":

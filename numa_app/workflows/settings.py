@@ -306,11 +306,8 @@ def _do_editor_command() -> None:
 def _do_launch_display_setting() -> None:
     current = "y" if bool(getattr(state, "_display_program_settings", False)) else "n"
     try:
-        raw = _prompt("Display program settings at program launch?  [dim](y|n)[/dim]", default=current).strip().lower()
+        raw = _prompt("Display program settings at program launch?  [dim](y|n)[/dim]", choices=["y", "n"], default=current)
     except Cancelled:
-        return
-    if raw not in ("", "y", "n"):
-        state.console.print(f"[{state.T['warning']}]Please enter y or n.[/{state.T['warning']}]")
         return
     setattr(state, "_display_program_settings", raw == "y")
     _save_prefs()
