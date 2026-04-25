@@ -54,12 +54,20 @@ def table_footer(*lines: str) -> None:
 
 
 def help_footer(*anchors: str) -> None:
-    """Warning-coloured one-liner listing lookupable help topics for the preceding output block.
+    """One-liner prompt listing lookupable help topics for the preceding output block.
     anchors: short manual anchor names (e.g. 'diaas', 'complete', 'fao').
     User types ?anchor at any prompt to display that section of the user manual."""
-    topics = "  ".join(f"?{a}" for a in anchors)
+    if not anchors:
+        return
+    refs = [f"?{a}" for a in anchors]
+    if len(refs) == 1:
+        topics = refs[0]
+    elif len(refs) == 2:
+        topics = f"{refs[0]} or {refs[1]}"
+    else:
+        topics = ", ".join(refs[:-1]) + f" or {refs[-1]}"
     state.console.print(
-        f"\n  [{state.T['warning']}]Help: {topics}[/{state.T['warning']}]",
+        f"\n  [{state.T['warning']}]At any prompt, type {topics} for help with these columns.[/{state.T['warning']}]",
         highlight=False,
     )
 

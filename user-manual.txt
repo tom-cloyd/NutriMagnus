@@ -249,6 +249,10 @@ NutriMagnus displays GL in the nutrient summary alongside GI when carbohydrate
 data is available. Like GI, it is shown for reference and does not affect
 protein quality calculations.
 
+For a discussion of how GL compares to other approaches for evaluating the
+blood glucose impact of different meal choices — particularly relevant for
+people managing diabetes — see Appendix A: GL and Blood Glucose Comparison.
+
 
 
 Recommended Dietary Allowances [rda]
@@ -266,3 +270,57 @@ activity multiplier. The protein target uses 0.8 g per kg body weight as
 a baseline minimum.
 
 RDA values appear in the comparison table shown after nutrient analysis.
+
+
+
+===========================================================================
+Appendix A: GL and Blood Glucose Comparison
+===========================================================================
+
+Glycemic load is a useful approximation, but no single formula-derived figure
+reliably predicts an individual's blood glucose response to a mixed meal. Three
+reasons account for this:
+
+  - The fat and protein suppression effect varies by person, by degree of
+    insulin resistance, and by the specific foods involved.
+  - GI values were measured in healthy subjects and may not translate directly
+    to someone with diabetes or insulin resistance.
+  - Individual glucose responses to identical meals vary substantially, even
+    in the same person on different days.
+
+GL is therefore most reliable when comparing meals of broadly similar
+composition — two different grain-based breakfasts, for example. When meals
+differ significantly in fat or protein content, the calculated GL will
+understate the difference in actual glycemic impact.
+
+
+Continuous Glucose Monitoring
+------------------------------
+
+The practical gold standard today is continuous glucose monitoring (CGM) —
+devices such as the Dexterity G7 or Libre 3 that measure interstitial glucose
+every few minutes. A person with diabetes can eat a meal, watch their glucose
+curve in the accompanying app, and directly compare their own real response
+across different meal choices over time. No formula approaches this for
+accuracy in individual prediction.
+
+
+Predictive Apps
+---------------
+
+Some applications (January AI, Levels) go a step further, using machine
+learning models trained on large CGM datasets to predict glucose response to a
+described meal before it is eaten — effectively personalising the GI and GL
+concepts. These predictions are probabilistic rather than exact, but they
+represent the closest available alternative to direct measurement.
+
+
+Clinical Practice Without CGM
+------------------------------
+
+For clinical guidance without CGM, dietitians working with people with
+diabetes typically use carbohydrate counting combined with qualitative
+judgment about fat and protein content, rather than relying on GL as a
+single summary figure. GL remains a reasonable guide for comparing meals
+similar in structure, but should not be the deciding number when fat and
+protein differ significantly between the options being considered.

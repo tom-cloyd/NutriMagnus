@@ -373,7 +373,7 @@ def _do_list_cached_foods() -> None:
         state.console.print(tbl)
         table_footer("  [dim]To refresh a corrupt or outdated entry: delete it here, "
                      "then re-search — it will be re-fetched automatically.[/dim]")
-        help_footer("aa", "diaas")
+        help_footer("aa", "gi", "diaas")
 
         try:
             raw = _prompt("(Enter # to see options, d#[,#…] to delete, /[food name] to filter, b=back, m=main, q=quit)").strip()

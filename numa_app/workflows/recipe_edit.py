@@ -20,7 +20,7 @@ from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_foo
 from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, dot_cell, table_title, table_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
-from .recipes import _parse_measure, _compute_recipe_dcp, _format_recipe_portion_label, _parse_serving_amount
+from .recipes import _parse_measure, _compute_recipe_dcp, _compute_recipe_gl, _format_recipe_portion_label, _parse_serving_amount
 
 def _do_recipe_edit(recipe=None) -> None:
     if recipe is None:
@@ -435,6 +435,9 @@ def _do_recipe_edit(recipe=None) -> None:
             ts = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat() if dcp is not None else None
             with _db.get_db() as conn:
                 _db.recipe_set_dcp(conn, rid, dcp, ts)
+            gl, gl_blockers = _compute_recipe_gl(rid)
+            with _db.get_db() as conn:
+                _db.recipe_set_gl(conn, rid, gl if not gl_blockers else None)
         return
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, rid)
@@ -466,6 +469,9 @@ def _do_recipe_edit(recipe=None) -> None:
         ts = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat() if dcp is not None else None
         with _db.get_db() as conn:
             _db.recipe_set_dcp(conn, rid, dcp, ts)
+        gl, gl_blockers = _compute_recipe_gl(rid)
+        with _db.get_db() as conn:
+            _db.recipe_set_gl(conn, rid, gl if not gl_blockers else None)
     state.console.print(f"[{state.T['success']}]Recipe saved.[/{state.T['success']}]")
 
 

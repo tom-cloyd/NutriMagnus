@@ -24,7 +24,7 @@ from ..ui.render import (
     _print_protein_completeness, _print_recipe_bioavailability,
 )
 from .recipes import (
-    _pick_recipe_portion, _compute_recipe_dcp,
+    _pick_recipe_portion, _compute_recipe_dcp, _compute_recipe_gl,
     _augment_aa_from_curated,
 )
 
@@ -470,6 +470,36 @@ def _do_recipe_view(recipe=None) -> None:
                 if dcp_notes:
                     for note in dcp_notes:
                         state.console.print(f"    [dim]↳ {note}[/dim]")
+
+        # GL calculation — requires GI annotation on every ingredient
+        gl_whole, gl_blockers = _compute_recipe_gl(recipe["id"])
+        if gl_blockers:
+            with _db.get_db() as conn:
+                _db.recipe_set_gl(conn, recipe["id"], None)
+            state.console.print(
+                f"\n  [{state.T['warning']}]Glycemic load: not available"
+                f" — GI annotation missing for:[/{state.T['warning']}]"
+            )
+            for name in gl_blockers:
+                state.console.print(f"    [dim]• {name}[/dim]")
+            state.console.print(
+                "  [dim]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/dim]"
+            )
+        else:
+            save_gl = None if no_servings else gl_whole
+            with _db.get_db() as conn:
+                _db.recipe_set_gl(conn, recipe["id"], save_gl)
+            gl_per_serving = gl_whole / effective_servings if effective_servings > 0 else gl_whole
+            color = (state.T["success"] if gl_per_serving <= 10
+                     else state.T["warning"] if gl_per_serving <= 19
+                     else state.T["error"])
+            state.console.print(
+                f"\n  Glycemic load: [{color}]{gl_per_serving:.1f}[/{color}]"
+                f"  [dim]{dcp_label}[/dim]",
+                highlight=False,
+            )
+            if save_gl is not None:
+                state.console.print("  [dim]↳ Saved to recipe[/dim]", highlight=False)
 
         # Full protein analysis — always shown
         if True:

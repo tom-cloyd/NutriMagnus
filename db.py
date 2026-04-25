@@ -129,13 +129,17 @@ def init_db() -> None:
             conn.execute("ALTER TABLE foods ADD COLUMN portions_json TEXT DEFAULT 'null'")
         except sqlite3.OperationalError:
             pass  # column already exists
-        # Migrate: add dcp_g / dcp_computed_at columns if absent
+        # Migrate: add dcp_g / dcp_computed_at / gl_g columns if absent
         try:
             conn.execute("ALTER TABLE recipes ADD COLUMN dcp_g REAL")
         except sqlite3.OperationalError:
             pass  # column already exists
         try:
             conn.execute("ALTER TABLE recipes ADD COLUMN dcp_computed_at TEXT")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN gl_g REAL")
         except sqlite3.OperationalError:
             pass  # column already exists
         # Migrate: add total volume / weight columns if absent
@@ -351,6 +355,11 @@ def recipe_set_dcp(
         "UPDATE recipes SET dcp_g = ?, dcp_computed_at = ? WHERE id = ?",
         (dcp_g, computed_at, recipe_id),
     )
+
+
+def recipe_set_gl(conn: sqlite3.Connection, recipe_id: int, gl_g: float | None) -> None:
+    """Store whole-recipe glycemic load (GL). None means GI data incomplete."""
+    conn.execute("UPDATE recipes SET gl_g = ? WHERE id = ?", (gl_g, recipe_id))
 
 
 def recipe_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:

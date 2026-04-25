@@ -48,9 +48,10 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
         f"  If none are, enter [bold]n[/bold].[/dim]{recipe_note}",
         highlight=False,
     )
+    n_label = (f"{len(affected)} replaceable" if recipe_missing > 0 else str(len(affected)))
     try:
         go = _prompt(
-            f"Obtain missing AA profiles for {len(affected)} of {len(missing_names)} ingredient(s)?",
+            f"Obtain missing AA profiles for {n_label} ingredient(s)?",
             choices=["y", "n"], default="n",
         )
     except Cancelled:
@@ -600,6 +601,48 @@ def _compute_meal_ingredient_list(meal_id: int) -> list[dict]:
     return result
 
 
+def _compute_meal_gl(meal_id: int) -> tuple[float, list[str]]:
+    """Compute glycemic load for a meal. Returns (gl_total, blockers).
+    blockers is empty if GL is fully computable; non-empty means incomplete GI data."""
+    with _db.get_db() as conn:
+        items = _db.meal_get_items(conn, meal_id)
+
+    food_ids = [it["fdc_id"] for it in items if it["item_type"] == "food" and it["fdc_id"]]
+    with _db.get_db() as conn:
+        ann_map = _db.annotations_for_fdcids(conn, food_ids) if food_ids else {}
+
+    blockers: list[str] = []
+    gl_total = 0.0
+
+    for item in items:
+        if item["item_type"] == "recipe":
+            with _db.get_db() as conn:
+                recipe = _db.recipe_get(conn, item["recipe_id"])
+            if recipe is None or recipe["gl_g"] is None:
+                name = recipe["name"] if recipe else f"recipe #{item['recipe_id']}"
+                blockers.append(f"{name} (no GL — analyze it first)")
+            else:
+                servings = recipe["servings"] or 1
+                gl_total += recipe["gl_g"] * (item["amount"] / servings)
+            continue
+
+        ann = ann_map.get(item["fdc_id"])
+        if ann is None or ann["gi_estimate"] is None:
+            blockers.append(item["food_name"])
+            continue
+
+        with _db.get_db() as conn:
+            cached = _db.get_cached_food(conn, item["fdc_id"])
+        if cached is None:
+            blockers.append(item["food_name"])
+            continue
+
+        carbs_g = json.loads(cached["nutrients_json"]).get("carbs_g", 0.0) * item["amount"] / 100.0
+        gl_total += ann["gi_estimate"] * carbs_g / 100.0
+
+    return (gl_total, blockers)
+
+
 def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
     """Analyze a single meal: nutrients, DIAAS, protein adequacy, complement suggestions."""
     nutrients = _compute_meal_nutrients(meal_id)
@@ -608,7 +651,8 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                       "Ensure all ingredients are in the cache.[/dim]")
         return
     _print_nutrient_table(nutrients, title=f"{meal_name} — {meal_date}")
-    with state.console.status("[dim]Fetching amino acid data…[/dim]", spinner="dots"):
+    state.console.print()
+    with state.console.status("[bold]Fetching amino acid data…[/bold]", spinner="dots"):
         ing_list = _compute_meal_ingredient_list(meal_id)
     missing_aa, _dcp_g = _print_meal_diaas(ing_list)
     if missing_aa:
@@ -624,6 +668,27 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                                 context_label=f"{meal_name} ({meal_date})", dcp_g=_dcp_g)
     if aa_nutrients:
         _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True)
+
+    gl_total, gl_blockers = _compute_meal_gl(meal_id)
+    if gl_blockers:
+        state.console.print(
+            f"\n  [{state.T['warning']}]Glycemic load: not available"
+            f" — GI annotation missing for:[/{state.T['warning']}]"
+        )
+        for name in gl_blockers:
+            state.console.print(f"    [dim]• {name}[/dim]")
+        state.console.print(
+            "  [dim]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/dim]"
+        )
+    else:
+        color = (state.T["success"] if gl_total <= 10
+                 else state.T["warning"] if gl_total <= 19
+                 else state.T["error"])
+        state.console.print(
+            f"\n  Glycemic load: [{color}]{gl_total:.1f}[/{color}]"
+            f"  [dim]whole meal[/dim]",
+            highlight=False,
+        )
 
 
 def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
@@ -919,7 +984,8 @@ def _do_meal_analyze() -> None:
             # Combine all meals for the day
             combined: dict[str, float] = {}
             all_ings: list[dict] = []
-            with state.console.status("[dim]Fetching amino acid data…[/dim]", spinner="dots"):
+            state.console.print()
+            with state.console.status("[bold]Fetching amino acid data…[/bold]", spinner="dots"):
                 for m in meals:
                     n = _compute_meal_nutrients(m["id"])
                     if n:
@@ -939,6 +1005,35 @@ def _do_meal_analyze() -> None:
                     _print_protein_adequacy(combined, profile, context_label=title, dcp_g=_dcp_g)
                 if aa_nutrients:
                     _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True)
+                gl_total_day = 0.0
+                gl_blockers_day: list[str] = []
+                for m in meals:
+                    gl, bl = _compute_meal_gl(m["id"])
+                    if not bl:
+                        gl_total_day += gl
+                    gl_blockers_day.extend(bl)
+                if gl_blockers_day:
+                    state.console.print(
+                        f"\n  [{state.T['warning']}]Glycemic load: not available"
+                        f" — GI annotation missing for:[/{state.T['warning']}]"
+                    )
+                    seen: set[str] = set()
+                    for name in gl_blockers_day:
+                        if name not in seen:
+                            state.console.print(f"    [dim]• {name}[/dim]")
+                            seen.add(name)
+                    state.console.print(
+                        "  [dim]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/dim]"
+                    )
+                else:
+                    color = (state.T["success"] if gl_total_day <= 10
+                             else state.T["warning"] if gl_total_day <= 19
+                             else state.T["error"])
+                    state.console.print(
+                        f"\n  Glycemic load: [{color}]{gl_total_day:.1f}[/{color}]"
+                        f"  [dim]all meals — {meal_date}[/dim]",
+                        highlight=False,
+                    )
                 _offer_export(title, [
                     {"type": "nutrient_table", "title": title, "nutrients": combined},
                     {"type": "protein_completeness", "nutrients": combined},

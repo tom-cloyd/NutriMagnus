@@ -56,7 +56,8 @@ def _do_daily_summary(meal_date: str) -> None:
         return
     combined: dict[str, float] = {}
     all_ings: list[dict] = []
-    with state.console.status("[dim]Fetching amino acid data…[/dim]", spinner="dots"):
+    state.console.print()
+    with state.console.status("[bold]Fetching amino acid data…[/bold]", spinner="dots"):
         for meal in meals:
             n = _compute_meal_nutrients(meal["id"])
             if n:
