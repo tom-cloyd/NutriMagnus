@@ -16,7 +16,8 @@
       "Bash(python -c \"import openfoodfacts as _off; help\\(_off.search_foods\\)\")",
       "Bash(python -c ' *)",
       "Bash(python -c \"import usda_api; import numa_app.services.search\")",
-      "Bash(python -c \"import db; import numa_app.workflows.meals\")"
+      "Bash(python -c \"import db; import numa_app.workflows.meals\")",
+      "Bash(sqlite3 ~/.local/share/numa/numa.db \"SELECT fdc_id, name FROM foods WHERE name LIKE '%pinto%' LIMIT 10;\")"
     ]
   }
 }

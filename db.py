@@ -245,10 +245,14 @@ def delete_cached_food(conn: sqlite3.Connection, fdc_id: int) -> bool:
 
 
 def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
-    like = f"%{query}%"
+    words = query.split()
+    if not words:
+        return []
+    conditions = " AND ".join("name LIKE ?" for _ in words)
+    params = [f"%{w}%" for w in words]
     return conn.execute(
-        "SELECT fdc_id, name, data_type, brand FROM foods WHERE name LIKE ? ORDER BY name",
-        (like,)
+        f"SELECT fdc_id, name, data_type, brand FROM foods WHERE {conditions} ORDER BY name",
+        params,
     ).fetchall()
 
 

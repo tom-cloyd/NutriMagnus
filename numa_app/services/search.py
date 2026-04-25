@@ -198,17 +198,27 @@ def _search_and_pick_food(
         return None
 
     query: str | None = initial_query
+    full_search: bool = initial_query is not None  # initial_query always does a full search
     while True:
         if query is None:
             try:
-                query = _prompt("Search food").strip()
+                raw = _prompt("Search food  (prefix 'a ' for full USDA search)").strip()
             except Cancelled:
                 return None
-            q_lower = query.lower()
+            q_lower = raw.lower()
             if q_lower == "q":
                 raise SystemExit(0)
-            if q_lower == "b" or not query:
+            if q_lower == "b" or not raw:
                 return None
+            if raw[:2].lower() == "a ":
+                full_search = True
+                query = raw[2:].strip()
+                if not query:
+                    query = None
+                    continue
+            else:
+                full_search = False
+                query = raw
 
         results = []
         # Include Open Food Facts only in unrestricted (default) searches.
@@ -216,68 +226,72 @@ def _search_and_pick_food(
         # not include OFF products, which never have amino acid data.
         include_off = (data_types is None)
 
-        # Always search the local cache first, then merge with remote results.
         state.console.print("[dim]Searching local cache...[/dim]")
         cache_results = _search_cached_foods_by_name(query)
         cache_fdcids = {r.get("fdcId") for r in cache_results if r.get("fdcId")}
 
-        # Strip prep words for the API query so "peeled orange" finds "Oranges, raw, navels".
-        # The full user query is still used for local ranking.
-        _api_words = [w for w in query.lower().split() if w not in _PREP_WORDS]
-        api_query = " ".join(_api_words) if _api_words else query
-
-        if data_types == ["Foundation"]:
-            label = "Foundation Foods"
-        elif data_types == ["Foundation", "SR Legacy"]:
-            label = "SR Legacy + Foundation Foods"
-        elif include_off:
-            label = "USDA + Open Food Facts"
+        if not full_search and cache_results:
+            # Cache hits found: show them immediately; skip USDA/OFF API.
+            results = [{**r, "_from_cache": True} for r in cache_results]
+            state.console.print()
         else:
-            label = "USDA"
-        state.console.print(f"[dim]Searching {label}...[/dim]")
-        state.console.print()
-        try:
-            api_results = _usda.search_foods(api_query, data_types=data_types)
-            # For default (unrestricted) searches the USDA API ranks by its own relevance
-            # score, which buries Foundation/SR Legacy under many branded results.
-            # Fetch them explicitly and prepend so they always appear.
-            if data_types is None:
-                generic = _usda.search_foods(
-                    api_query, data_types=["Foundation", "SR Legacy"], page_size=8
-                )
-                generic_ids = {r["fdcId"] for r in generic}
-                api_results = generic + [r for r in api_results if r["fdcId"] not in generic_ids]
-        except _usda.USDAError as e:
-            if cache_results:
-                state.console.print(
-                    f"[{state.T['warning']}]{e} — showing cached results only.[/{state.T['warning']}]"
-                )
-                api_results = []
-            else:
-                state.console.print(
-                    f"[{state.T['error']}]{e}[/{state.T['error']}]\n"
-                    f"[dim]No cached results for this query. Try a different search term or check your connection.[/dim]"
-                )
-                if allow_research:
-                    query = None
-                    continue
-                return None
-        if include_off:
-            try:
-                off_results = _off.search_foods(api_query, page_size=6)
-            except Exception:
-                off_results = []
-                state.console.print("[dim]Open Food Facts unavailable; skipping.[/dim]")
-            existing_names = {r.get("description", "").lower() for r in api_results}
-            for r in off_results:
-                if r["description"].lower() not in existing_names:
-                    api_results.append(r)
+            # Full search: Strip prep words for the API query so "peeled orange" finds
+            # "Oranges, raw, navels". The full user query is still used for local ranking.
+            _api_words = [w for w in query.lower().split() if w not in _PREP_WORDS]
+            api_query = " ".join(_api_words) if _api_words else query
 
-        # Merge: tag cache hits, then append remote items not already cached.
-        tagged_cache = [{**r, "_from_cache": True} for r in cache_results]
-        results = tagged_cache + [
-            r for r in api_results if r.get("fdcId") not in cache_fdcids
-        ]
+            if data_types == ["Foundation"]:
+                label = "Foundation Foods"
+            elif data_types == ["Foundation", "SR Legacy"]:
+                label = "SR Legacy + Foundation Foods"
+            elif include_off:
+                label = "USDA + Open Food Facts"
+            else:
+                label = "USDA"
+            state.console.print(f"[dim]Searching {label}...[/dim]")
+            state.console.print()
+            try:
+                api_results = _usda.search_foods(api_query, data_types=data_types)
+                # For default (unrestricted) searches the USDA API ranks by its own relevance
+                # score, which buries Foundation/SR Legacy under many branded results.
+                # Fetch them explicitly and prepend so they always appear.
+                if data_types is None:
+                    generic = _usda.search_foods(
+                        api_query, data_types=["Foundation", "SR Legacy"], page_size=8
+                    )
+                    generic_ids = {r["fdcId"] for r in generic}
+                    api_results = generic + [r for r in api_results if r["fdcId"] not in generic_ids]
+            except _usda.USDAError as e:
+                if cache_results:
+                    state.console.print(
+                        f"[{state.T['warning']}]{e} — showing cached results only.[/{state.T['warning']}]"
+                    )
+                    api_results = []
+                else:
+                    state.console.print(
+                        f"[{state.T['error']}]{e}[/{state.T['error']}]\n"
+                        f"[dim]No cached results for this query. Try a different search term or check your connection.[/dim]"
+                    )
+                    if allow_research:
+                        query = None
+                        continue
+                    return None
+            if include_off:
+                try:
+                    off_results = _off.search_foods(api_query, page_size=6)
+                except Exception:
+                    off_results = []
+                    state.console.print("[dim]Open Food Facts unavailable; skipping.[/dim]")
+                existing_names = {r.get("description", "").lower() for r in api_results}
+                for r in off_results:
+                    if r["description"].lower() not in existing_names:
+                        api_results.append(r)
+
+            # Merge: tag cache hits, then append remote items not already cached.
+            tagged_cache = [{**r, "_from_cache": True} for r in cache_results]
+            results = tagged_cache + [
+                r for r in api_results if r.get("fdcId") not in cache_fdcids
+            ]
 
         if not results:
             state.console.print(f"[{state.T['warning']}]No results found.[/{state.T['warning']}]")

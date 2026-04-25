@@ -10,7 +10,7 @@ import db as _db
 import usda as _usda
 from ..services.portions import _pick_portion, _parse_portion_input
 from ..services.search import _search_and_pick_food, _suggest_foundation_search
-from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options, dot_cell, table_title, table_footer
+from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options, dot_cell, table_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_bioavailability, _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness
 from ..services.annotations import annotate_food_interactive
@@ -22,12 +22,12 @@ from .drafted_foods import _do_edit_cached_food, _do_drafted_foods_menu
 def _menu_foods() -> bool:
     """Foods submenu. Returns True to go back, False to quit."""
     while True:
-        _show_menu("Foods — Search & Analyze", [
+        _show_menu("Foods — Search, Edit, & Analyze", [
             ("1", "Search food databases (USDA + Open Food Facts)"),
             ("2", "Analyze a food portion  (USDA + Open Food Facts)"),
             ("3", "Analyze a saved recipe portion"),
             ("4", "Convert a portion <==> weight  (volume/weight conversion, no analysis)"),
-            ("5", "View cached / saved foods"),
+            ("5", "View / edit / delete cached foods"),
             ("6", "My pantry  (protein sources on hand)"),
             ("7", "Drafted food profiles  (custom nutrient profiles)"),
             ("8", "Annotate a cached food  (GI / DIAAS estimates)"),
@@ -373,9 +373,10 @@ def _do_list_cached_foods() -> None:
         state.console.print(tbl)
         table_footer("  [dim]To refresh a corrupt or outdated entry: delete it here, "
                      "then re-search — it will be re-fetched automatically.[/dim]")
+        help_footer("aa", "diaas")
 
         try:
-            raw = _prompt("Pick number  (/filter, Enter/b=back, m=main, q=quit)").strip()
+            raw = _prompt("(Enter # to see options, d#[,#…] to delete, /[food name] to filter, b=back, m=main, q=quit)").strip()
         except Cancelled:
             return
 
@@ -388,6 +389,49 @@ def _do_list_cached_foods() -> None:
             raise SystemExit(0)
         if raw.startswith("/"):
             filter_text = raw[1:].strip() or None
+            continue
+
+        # Delete command: d1  d1,3  d1 3 5  (space or comma separators)
+        if raw_lower.startswith("d") and len(raw_lower) > 1:
+            rest = raw_lower[1:].replace(",", " ")
+            try:
+                indices = [int(p) - 1 for p in rest.split()]
+                if not indices:
+                    raise ValueError
+            except ValueError:
+                state.console.print(f"[{state.T['warning']}]Use d# or d#,# (e.g. d3  d1,4,7).[/{state.T['warning']}]")
+                continue
+            out_of_range = [i + 1 for i in indices if i < 0 or i >= len(foods)]
+            if out_of_range:
+                state.console.print(f"[{state.T['warning']}]Out of range: {out_of_range}[/{state.T['warning']}]")
+                continue
+            to_delete = [foods[i] for i in indices]
+            if len(to_delete) == 1:
+                confirm_msg = (f"Delete [bold]{to_delete[0]['name']}[/bold] from cache?  "
+                               f"[dim]Recipes using it will need to re-fetch.  (y/N)[/dim]")
+            else:
+                preview = "\n".join(f"  · {f['name']}" for f in to_delete[:5])
+                if len(to_delete) > 5:
+                    preview += f"\n  · … and {len(to_delete) - 5} more"
+                confirm_msg = (f"Delete {len(to_delete)} foods from cache?  [dim](y/N)[/dim]\n"
+                               + preview)
+            try:
+                confirm = _prompt(confirm_msg, default="n").strip().lower()
+            except Cancelled:
+                continue
+            if confirm == "y":
+                with _db.get_db() as conn:
+                    n_deleted = sum(1 for f in to_delete if _db.delete_cached_food(conn, f["fdc_id"]))
+                if n_deleted == len(to_delete):
+                    state.console.print(
+                        f"  [{state.T['success']}]✓[/{state.T['success']}]  "
+                        f"Deleted {n_deleted} food{'s' if n_deleted != 1 else ''} from cache."
+                    )
+                else:
+                    state.console.print(
+                        f"  [{state.T['warning']}]Deleted {n_deleted} of {len(to_delete)} "
+                        f"(some may have already been removed).[/{state.T['warning']}]"
+                    )
             continue
 
         try:
