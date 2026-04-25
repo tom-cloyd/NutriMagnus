@@ -14,7 +14,9 @@
       "Bash(python -c \"from numa_app.services.portions import _parse_portion_input; print\\(_parse_portion_input\\('150', []\\)\\); print\\(_parse_portion_input\\('1/4', []\\)\\); print\\(_parse_portion_input\\('1 1/2', []\\)\\)\")",
       "Bash(python -m pytest tests/ -q --tb=short)",
       "Bash(python -c \"import openfoodfacts as _off; help\\(_off.search_foods\\)\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import usda_api; import numa_app.services.search\")",
+      "Bash(python -c \"import db; import numa_app.workflows.meals\")"
     ]
   }
 }

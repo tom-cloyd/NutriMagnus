@@ -250,11 +250,17 @@ def _search_and_pick_food(
         except _usda.USDAError as e:
             if cache_results:
                 state.console.print(
-                    f"[{state.T['warning']}]USDA API error ({e}); showing cached results only.[/{state.T['warning']}]"
+                    f"[{state.T['warning']}]{e} — showing cached results only.[/{state.T['warning']}]"
                 )
                 api_results = []
             else:
-                state.console.print(f"[{state.T['error']}]API error: {e}[/{state.T['error']}]")
+                state.console.print(
+                    f"[{state.T['error']}]{e}[/{state.T['error']}]\n"
+                    f"[dim]No cached results for this query. Try a different search term or check your connection.[/dim]"
+                )
+                if allow_research:
+                    query = None
+                    continue
                 return None
         if include_off:
             try:

@@ -522,6 +522,32 @@ def meal_remove_item(conn: sqlite3.Connection, item_id: int, meal_id: int) -> bo
     return cur.rowcount > 0
 
 
+def search_meal_history(
+    conn: sqlite3.Connection, query: str
+) -> list[sqlite3.Row]:
+    """Search food items across all meals by name (LIKE) and by fdc_id cross-reference.
+    Returns rows ordered by meal_date DESC. Recipe items are excluded."""
+    like = f"%{query}%"
+    return conn.execute(
+        """
+        SELECT m.meal_date, m.name AS meal_name, m.id AS meal_id,
+               mi.id AS item_id, mi.item_type, mi.food_name, mi.fdc_id,
+               mi.amount, mi.unit, mi.notes
+        FROM meal_items mi
+        JOIN meals m ON mi.meal_id = m.id
+        WHERE (
+            mi.food_name LIKE ?
+            OR (mi.fdc_id IS NOT NULL AND mi.fdc_id IN (
+                SELECT DISTINCT fdc_id FROM meal_items
+                WHERE food_name LIKE ? AND fdc_id IS NOT NULL
+            ))
+        )
+        ORDER BY m.meal_date DESC, m.id, mi.id
+        """,
+        (like, like),
+    ).fetchall()
+
+
 def meal_delete(conn: sqlite3.Connection, meal_id: int) -> bool:
     cur = conn.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
     return cur.rowcount > 0

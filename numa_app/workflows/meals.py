@@ -14,7 +14,7 @@ from .. import state
 from ..services.portions import _normalize_unit_display, _pick_portion
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
-from ..ui.common import _safe_call, _show_menu, dot_cell, table_title, section_title
+from ..ui.common import _prompt_with_options, _safe_call, _show_menu, dot_cell, table_title, section_title
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_date, _ask_int, _prompt
 from ..ui.render import _print_complement_suggestions, _print_meal_diaas, _print_nutrient_table, _print_protein_adequacy
 from .recipes import _do_recipe_list, _format_recipe_portion_label, _parse_serving_amount
@@ -137,6 +137,7 @@ def _menu_meals() -> bool:
             ("2", "View / edit a meal"),
             ("3", "Analyze a meal"),
             ("4", "Delete a meal"),
+            ("5", "Search food in meal history"),
             ("b", "Back to main menu"),
             ("q", "Quit"),
         ])
@@ -154,6 +155,8 @@ def _menu_meals() -> bool:
             _safe_call(_do_meal_analyze)
         elif choice == "4":
             _safe_call(_do_meal_delete)
+        elif choice == "5":
+            _safe_call(_do_meal_food_search)
         elif choice in ("b", "m"):
             return True
         elif choice == "q":
@@ -347,8 +350,10 @@ def _do_meal_log() -> None:
 def _print_meal_items(meal_id: int, meal_name: str) -> list:
     """Print items for a meal and return the list of items."""
     with _db.get_db() as conn:
-        items = _db.meal_get_items(conn, meal_id)
-    section_title(f"{meal_name}  [dim](ID {meal_id})[/dim]")
+        meal_row = _db.meal_get(conn, meal_id)
+        items    = _db.meal_get_items(conn, meal_id)
+    date_prefix = f"{meal_row['meal_date']}  ·  " if meal_row else ""
+    section_title(f"{date_prefix}{meal_name}  [dim](ID {meal_id})[/dim]")
     if not items:
         state.console.print("    [dim]No items logged.[/dim]")
     else:
@@ -963,3 +968,117 @@ def _do_meal_delete() -> None:
         state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Deleted.")
     else:
         state.console.print("[dim]Cancelled.[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Meal history food search
+# ---------------------------------------------------------------------------
+
+def _print_meal_history_flat(rows: list, query: str) -> None:
+    _W_MEAL = 18
+    _W_FOOD = 32
+    _W_NOTE = 16
+    table_title("Meal History — Occurrences", f"[dim]search: '{query}'[/dim]")
+    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+    tbl.add_column("Date",    min_width=10, no_wrap=True)
+    tbl.add_column("Meal",    min_width=_W_MEAL, max_width=_W_MEAL, no_wrap=True)
+    tbl.add_column("Food / Recipe", min_width=_W_FOOD, max_width=_W_FOOD, no_wrap=True)
+    tbl.add_column("Portion", min_width=12, justify="right")
+    tbl.add_column("Notes",   min_width=_W_NOTE, max_width=_W_NOTE, no_wrap=True)
+    for r in rows:
+        is_recipe = r["item_type"] == "recipe"
+        portion   = r["unit"] if r["unit"] else (f"{r['amount']:.0f} g" if r["amount"] else "[dim]—[/dim]")
+        notes     = r["notes"] or ""
+        name_cell = (f"{r['food_name']} [dim](recipe)[/dim]" if is_recipe else r["food_name"])
+        tbl.add_row(r["meal_date"], r["meal_name"], name_cell, portion, notes)
+    state.console.print(tbl)
+
+
+def _print_meal_history_summary(rows: list) -> None:
+    from collections import defaultdict
+    groups: dict[str, list] = defaultdict(list)
+    for r in rows:
+        groups[r["food_name"]].append(r)
+
+    table_title("Meal History — Summary")
+    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+    tbl.add_column("Food / Recipe", min_width=34, max_width=34, no_wrap=True)
+    tbl.add_column("Times", min_width=5,  justify="right")
+    tbl.add_column("Total", min_width=10, justify="right")
+    tbl.add_column("First", min_width=10)
+    tbl.add_column("Last",  min_width=10)
+
+    sorted_groups = sorted(
+        groups.items(),
+        key=lambda kv: max(r["meal_date"] for r in kv[1]),
+        reverse=True,
+    )
+    s = state.T["success"]
+    for food_name, items in sorted_groups:
+        is_recipe  = items[0]["item_type"] == "recipe"
+        dates      = sorted(r["meal_date"] for r in items)
+        if is_recipe:
+            total_str  = "[dim]—[/dim]"
+            name_cell  = f"{food_name} [dim](recipe)[/dim]"
+        else:
+            total_g   = sum(r["amount"] for r in items if r["amount"])
+            total_str = f"[{s}]{total_g:.0f} g[/{s}]" if total_g else "[dim]—[/dim]"
+            name_cell = food_name
+        tbl.add_row(name_cell, str(len(items)), total_str, dates[0], dates[-1])
+    state.console.print(tbl)
+
+
+def _do_meal_food_search() -> None:
+    """Search all logged meal items for a food by name (and fdc_id cross-reference)."""
+    try:
+        query = _prompt("Search food in meal history", free_text=True).strip()
+    except Cancelled:
+        return
+    if not query or query.lower() == "b":
+        return
+    if query.lower() == "m":
+        raise ReturnToMain()
+    if query.lower() == "q":
+        raise SystemExit(0)
+
+    with _db.get_db() as conn:
+        rows = _db.search_meal_history(conn, query)
+
+    if not rows:
+        state.console.print(
+            f"[{state.T['warning']}]No meal items match '{query}'.[/{state.T['warning']}]\n"
+            f"[dim]Note: ingredients inside logged recipes are not searched — only foods and recipes logged directly.[/dim]"
+        )
+        return
+
+    n_items = len(rows)
+    n_meals = len({r["meal_id"] for r in rows})
+    n_dates = len({r["meal_date"] for r in rows})
+    state.console.print(
+        f"\n  [dim]Found [bold]{n_items}[/bold] occurrence{'s' if n_items != 1 else ''} "
+        f"across [bold]{n_meals}[/bold] meal{'s' if n_meals != 1 else ''} "
+        f"on [bold]{n_dates}[/bold] date{'s' if n_dates != 1 else ''}.[/dim]"
+        f"\n  [dim]Ingredients inside logged recipes are not included.[/dim]\n"
+    )
+
+    try:
+        view = _prompt_with_options(
+            "View as",
+            [("1", "Flat list  (every occurrence)"),
+             ("2", "Summary  (totals per food name)"),
+             ("3", "Both")],
+            default="3",
+        )
+    except Cancelled:
+        return
+    if not view or view == "b":
+        return
+    if view == "m":
+        raise ReturnToMain()
+    if view == "q":
+        raise SystemExit(0)
+
+    if view in ("1", "3"):
+        _print_meal_history_flat(rows, query)
+    if view in ("2", "3"):
+        _print_meal_history_summary(rows)

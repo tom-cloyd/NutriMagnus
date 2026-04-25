@@ -128,8 +128,17 @@ def _get(path: str, params: dict) -> Any:
         with urllib.request.urlopen(req, timeout=10) as resp:
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")
-        raise USDAError(f"HTTP {e.code}: {body[:300]}") from e
+        _HTTP_REASONS = {
+            400: "bad request — query may be malformed",
+            401: "API key rejected — check Settings → Advanced → USDA API key",
+            403: "API key rejected — check Settings → Advanced → USDA API key",
+            404: "endpoint not found — possible API change",
+            429: "rate limit hit — too many requests; wait a minute and try again",
+            500: "USDA server error — not your key or query; try again shortly",
+            503: "USDA server temporarily unavailable — overloaded or under maintenance, not an issue on your end; usually resolves in a few minutes",
+        }
+        reason = _HTTP_REASONS.get(e.code, f"unexpected HTTP {e.code}")
+        raise USDAError(f"USDA API {e.code}: {reason}") from e
     except urllib.error.URLError as e:
         raise USDAError(f"Network error: {e.reason}") from e
 
