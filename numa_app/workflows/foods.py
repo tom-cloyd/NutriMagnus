@@ -13,6 +13,7 @@ from ..services.search import _search_and_pick_food, _suggest_foundation_search
 from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options, dot_cell, table_title, table_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_bioavailability, _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness
+from ..services.annotations import annotate_food_interactive
 from ..services.reports import _offer_export
 from .pantry import _do_pantry_menu
 from .recipes import _do_recipe_list, _get_recipe_total_nutrients, _pick_recipe_portion
@@ -29,6 +30,7 @@ def _menu_foods() -> bool:
             ("5", "View cached / saved foods"),
             ("6", "My pantry  (protein sources on hand)"),
             ("7", "Drafted food profiles  (custom nutrient profiles)"),
+            ("8", "Annotate a cached food  (GI / DIAAS estimates)"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -52,6 +54,8 @@ def _menu_foods() -> bool:
             _safe_call(_do_pantry_menu)
         elif choice == "7":
             _safe_call(_do_drafted_foods_menu)
+        elif choice == "8":
+            _safe_call(_do_annotate_food)
         elif choice == "m":
             return True
         elif choice == "q":
@@ -256,6 +260,66 @@ def _do_analyze_recipe_portion() -> None:
 # Cached food viewer / editor
 # ---------------------------------------------------------------------------
 
+def _do_annotate_food() -> None:
+    """Foods menu entry: pick a cached food and open the annotation editor."""
+    filter_text: str | None = None
+    while True:
+        with _db.get_db() as conn:
+            all_foods = _db.list_cached_foods(conn)
+        if not all_foods:
+            state.console.print("[dim]No foods cached yet — search for a food first.[/dim]")
+            return
+
+        foods = (
+            [f for f in all_foods
+             if filter_text and (filter_text.lower() in f["name"].lower()
+                                 or (f["brand"] and filter_text.lower() in f["brand"].lower()))]
+            if filter_text else list(all_foods)
+        )
+
+        from rich.table import Table
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("#",     justify="right", min_width=3)
+        tbl.add_column("Name",  min_width=40)
+        tbl.add_column("Type",  min_width=14)
+        for i, f in enumerate(foods, 1):
+            tbl.add_row(str(i), f["name"], f["data_type"] or "")
+
+        from ..ui.common import table_title, table_footer
+        title_note = (
+            f"[dim]{len(foods)} match · /text to filter[/dim]"
+            if filter_text else
+            f"[dim]{len(all_foods)} foods · /text to filter[/dim]"
+        )
+        table_title("Annotate Cached Food", title_note)
+        state.console.print(tbl)
+
+        try:
+            raw = _prompt("Pick number  (/filter, Enter/b=back, m=main, q=quit)").strip()
+        except Cancelled:
+            return
+        raw_lower = raw.lower()
+        if not raw or raw_lower == "b":
+            return
+        if raw_lower == "m":
+            raise ReturnToMain()
+        if raw_lower == "q":
+            raise SystemExit(0)
+        if raw.startswith("/"):
+            filter_text = raw[1:].strip() or None
+            continue
+        try:
+            idx = int(raw) - 1
+            if idx < 0 or idx >= len(foods):
+                raise ValueError
+        except ValueError:
+            state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
+            continue
+
+        row = foods[idx]
+        annotate_food_interactive(row["fdc_id"], row["name"])
+
+
 def _do_list_cached_foods() -> None:
     filter_text: str | None = None
     while True:
@@ -272,13 +336,31 @@ def _do_list_cached_foods() -> None:
         else:
             foods = list(all_foods)
 
+        fdc_ids = [f["fdc_id"] for f in foods]
+        with _db.get_db() as conn:
+            ann_map = _db.annotations_for_fdcids(conn, fdc_ids)
+
+        s, e = state.T["success"], state.T["error"]
+
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         tbl.add_column("#",     justify="right", min_width=3)
         tbl.add_column("Name",  min_width=40)
         tbl.add_column("Type",  min_width=14)
         tbl.add_column("Brand", min_width=20)
+        tbl.add_column("AA",    min_width=3, justify="center")
+        tbl.add_column("GI",    min_width=4, justify="right")
+        tbl.add_column("DIAAS", min_width=5, justify="right")
         for i, f in enumerate(foods, 1):
-            tbl.add_row(str(i), f["name"], f["data_type"] or "", f["brand"] or "")
+            nutrients = json.loads(f["nutrients_json"])
+            aa_cell = (f"[{s}]✓[/{s}]" if _usda.has_amino_acid_data(nutrients)
+                       else f"[{e}]✗[/{e}]")
+            ann = ann_map.get(f["fdc_id"])
+            gi_cell = (f"[{s}]{ann['gi_estimate']:.0f}[/{s}]"
+                       if ann and ann["gi_estimate"] is not None else "[dim]——[/dim]")
+            diaas_cell = (f"[{s}]{ann['diaas_estimate']:.2f}[/{s}]"
+                          if ann and ann["diaas_estimate"] is not None else "[dim]——[/dim]")
+            tbl.add_row(str(i), f["name"], f["data_type"] or "", f["brand"] or "",
+                        aa_cell, gi_cell, diaas_cell)
 
         if filter_text:
             table_title("Cached Foods",
@@ -342,6 +424,7 @@ def _do_list_cached_foods() -> None:
                     ("1", "View nutrients"),
                     ("2", "Analyze portion"),
                     ("3", "Edit nutrients"),
+                    ("4", "Annotate  (GI / DIAAS estimates)"),
                     ("d", "Delete from cache"),
                 ],
                 default="1",
@@ -349,7 +432,10 @@ def _do_list_cached_foods() -> None:
         except Cancelled:
             continue
 
-        if action == "3":
+        if action == "4":
+            annotate_food_interactive(row["fdc_id"], cached["name"])
+            continue
+        elif action == "3":
             _do_edit_cached_food(row["fdc_id"], cached)
         elif action == "d":
             try:

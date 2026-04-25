@@ -293,9 +293,17 @@ def _search_and_pick_food(
                 seen.add(key)
                 deduped.append(food)
 
-        # Sort: tier-first unless the query names a specific brand.
-        # Tier order: cache (0) → Foundation (1) → SR Legacy (2) → Open Food Facts (3) → Branded (4)
-        # Within each tier, rank by number of query words matched in the description.
+        # Bulk-fetch annotations for all candidates (single query, used for sort + display).
+        with _db.get_db() as _ann_conn:
+            _annotations = _db.annotations_for_fdcids(
+                _ann_conn, [f["fdcId"] for f in deduped if isinstance(f.get("fdcId"), int)]
+            )
+        for food in deduped:
+            food["_annotation"] = _annotations.get(food.get("fdcId"))
+
+        # Sort: cache hits always first; within cache, annotated before unannotated;
+        # then by data quality tier and word relevance.
+        # Tier order: Foundation (1) → SR Legacy (2) → Open Food Facts (3) → Branded (4)
         def _norm(s: str) -> str:  # re-define to keep local scope clean
             return " ".join(re.sub(r'[^a-z0-9]', ' ', s.lower()).split())
 
@@ -311,7 +319,6 @@ def _search_and_pick_food(
             )
 
         def _data_tier(food: dict) -> int:
-            """Tier by data type; cache status is a tiebreaker, not a tier override."""
             dtype = food.get("dataType", "")
             if dtype == "Foundation":
                 return 1
@@ -320,6 +327,12 @@ def _search_and_pick_food(
             if food.get("_from_off") or dtype == "Open Food Facts":
                 return 3
             return 4  # Branded or unknown
+
+        def _ann_has_data(food: dict) -> bool:
+            ann = food.get("_annotation")
+            return ann is not None and (
+                ann["gi_estimate"] is not None or ann["diaas_estimate"] is not None
+            )
 
         # Detect a brand-specific query: any brand word (≥4 chars) appears in the query.
         query_lower = query.lower()
@@ -331,11 +344,19 @@ def _search_and_pick_food(
         )
 
         if brand_in_query:
-            # Brand named explicitly: word relevance first, then type tier, cached items preferred.
-            results = sorted(deduped, key=lambda f: (-_word_score(f), _data_tier(f), not f.get("_from_cache")))
+            results = sorted(deduped, key=lambda f: (
+                not f.get("_from_cache"),
+                not _ann_has_data(f),
+                -_word_score(f),
+                _data_tier(f),
+            ))
         else:
-            # Generic query: non-branded types always appear before branded, regardless of cache.
-            results = sorted(deduped, key=lambda f: (_data_tier(f), -_word_score(f), not f.get("_from_cache")))
+            results = sorted(deduped, key=lambda f: (
+                not f.get("_from_cache"),
+                not _ann_has_data(f),
+                _data_tier(f),
+                -_word_score(f),
+            ))
 
         recipe_rows = prepend_recipes or []
 
@@ -347,6 +368,7 @@ def _search_and_pick_food(
         tbl.add_column("ID",      justify="right", min_width=7)
         tbl.add_column("Food / Recipe", min_width=_SRCH_W, max_width=_SRCH_W, no_wrap=True)
         tbl.add_column("Brand",   min_width=_BRAND_W, max_width=_BRAND_W, no_wrap=True)
+        tbl.add_column("Ann",     min_width=5)
         if show_aa_status:
             tbl.add_column("AA data", min_width=8)
 
@@ -380,12 +402,25 @@ def _search_and_pick_food(
             pad = _BRAND_W - len(t) - 1
             return f"{t} [dim]{'·' * pad}[/dim]" if pad > 0 else t
 
+        def _ann_cell(food: dict) -> str:
+            ann = food.get("_annotation")
+            has_gi    = ann is not None and ann["gi_estimate"]    is not None
+            has_diaas = ann is not None and ann["diaas_estimate"] is not None
+            s = state.T["success"]
+            if has_gi and has_diaas:
+                return f"[{s}]GI DI[/{s}]"
+            if has_gi:
+                return f"[{s}]GI[/{s}][dim] ··[/dim]"
+            if has_diaas:
+                return f"[dim]·· [/dim][{s}]DI[/{s}]"
+            return "[dim]·····[/dim]"
+
         # Recipe rows at top (R1, R2, …)
         for i, r in enumerate(recipe_rows, 1):
             aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
                        if r["dcp_g"] is not None
                        else "[dim]—[/dim]")
-            row = [f"R{i}", "Recipe", "", _srch_cell(r["name"]), _brand_cell("")]
+            row = [f"R{i}", "Recipe", "", _srch_cell(r["name"]), _brand_cell(""), "[dim]——[/dim]"]
             if show_aa_status:
                 row.append(aa_cell)
             tbl.add_row(*row)
@@ -423,9 +458,9 @@ def _search_and_pick_food(
                     else:
                         # Branded / unknown: virtually never have AA data in USDA
                         aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
-                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), aa_cell)
+                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), _ann_cell(food), aa_cell)
             else:
-                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand))
+                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), _ann_cell(food))
         if show_aa_status:
             likely_count = 0
             for food in results:
@@ -447,6 +482,11 @@ def _search_and_pick_food(
                     likely_count += 1
         state.console.print(tbl)
         state.console.print(f"  {ID_KEY}")
+        state.console.print(
+            f"  [dim]Ann: [{state.T['success']}]GI[/{state.T['success']}] glycemic index · "
+            f"[{state.T['success']}]DI[/{state.T['success']}] DIAAS — your saved estimates[/dim]",
+            highlight=False,
+        )
         if show_aa_status:
             state.console.print()
             state.console.print(

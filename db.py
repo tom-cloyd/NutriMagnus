@@ -113,6 +113,16 @@ def init_db() -> None:
                 notes           TEXT,
                 updated_at      TEXT    DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS food_annotations (
+                fdc_id          INTEGER PRIMARY KEY REFERENCES foods(fdc_id) ON DELETE CASCADE,
+                gi_estimate     REAL,
+                gi_no_prompt    INTEGER DEFAULT 0,
+                diaas_estimate  REAL,
+                diaas_no_prompt INTEGER DEFAULT 0,
+                prep_context    TEXT,
+                updated_at      TEXT    DEFAULT (datetime('now'))
+            );
         """)
         # Migrate: add portions_json column if absent (pre-portions-feature DB)
         try:
@@ -189,6 +199,12 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        for _col in ("gi_no_prompt INTEGER DEFAULT 0", "diaas_no_prompt INTEGER DEFAULT 0"):
+            try:
+                conn.execute(f"ALTER TABLE food_annotations ADD COLUMN {_col}")
+            except sqlite3.OperationalError:
+                pass
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
@@ -217,7 +233,7 @@ def get_cached_food(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None
 
 def list_cached_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit "
+        "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json "
         "FROM foods ORDER BY name"
     ).fetchall()
 
@@ -234,6 +250,55 @@ def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Ro
         "SELECT fdc_id, name, data_type, brand FROM foods WHERE name LIKE ? ORDER BY name",
         (like,)
     ).fetchall()
+
+
+# ---------------------------------------------------------------------------
+# Food annotations (user-supplied GI / DIAAS estimates)
+# ---------------------------------------------------------------------------
+
+def get_food_annotation(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM food_annotations WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()
+
+
+def upsert_food_annotation(
+    conn: sqlite3.Connection,
+    fdc_id: int,
+    *,
+    gi_estimate: float | None = None,
+    gi_no_prompt: int | None = None,
+    diaas_estimate: float | None = None,
+    diaas_no_prompt: int | None = None,
+    prep_context: str | None = None,
+) -> None:
+    """Update annotation fields for a food. Pass None to leave a field unchanged.
+    gi_no_prompt / diaas_no_prompt: 0 = re-enable prompts, 1 = suppress prompts."""
+    conn.execute("""
+        INSERT INTO food_annotations
+            (fdc_id, gi_estimate, gi_no_prompt, diaas_estimate, diaas_no_prompt, prep_context, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(fdc_id) DO UPDATE SET
+            gi_estimate     = COALESCE(excluded.gi_estimate,     gi_estimate),
+            gi_no_prompt    = COALESCE(excluded.gi_no_prompt,    gi_no_prompt),
+            diaas_estimate  = COALESCE(excluded.diaas_estimate,  diaas_estimate),
+            diaas_no_prompt = COALESCE(excluded.diaas_no_prompt, diaas_no_prompt),
+            prep_context    = COALESCE(excluded.prep_context,    prep_context),
+            updated_at      = datetime('now')
+    """, (fdc_id, gi_estimate, gi_no_prompt, diaas_estimate, diaas_no_prompt, prep_context))
+
+
+def annotations_for_fdcids(
+    conn: sqlite3.Connection, fdc_ids: list[int]
+) -> dict[int, sqlite3.Row]:
+    """Bulk-fetch annotations for a list of fdc_ids. Returns {fdc_id: row}."""
+    if not fdc_ids:
+        return {}
+    placeholders = ",".join("?" * len(fdc_ids))
+    rows = conn.execute(
+        f"SELECT * FROM food_annotations WHERE fdc_id IN ({placeholders})", fdc_ids
+    ).fetchall()
+    return {row["fdc_id"]: row for row in rows}
 
 
 # ---------------------------------------------------------------------------

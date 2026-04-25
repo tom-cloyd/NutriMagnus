@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nourishment wizard")**.
 
-UPDATED: 2026-04-18:1832
+UPDATED: 2026-04-24
 ---
 
 ## Table of Contents
@@ -14,6 +14,7 @@ UPDATED: 2026-04-18:1832
 - [Menu Structure](#menu-structure)
 - [Usage Guide](#usage-guide)
   - [The local food cache](#the-local-food-cache)
+  - [Food annotations (GI and DIAAS estimates)](#food-annotations-gi-and-diaas-estimates)
   - [Drafted food profiles](#drafted-food-profiles-user-modified-nutrients)
   - [Searching for a food](#searching-for-a-food)
 - [Architecture](#architecture)
@@ -78,6 +79,7 @@ numa/
                                      _print_bioavailability(), _print_complement_suggestions()
     services/
       __init__.py
+      annotations.py               — annotate_food_interactive(), maybe_prompt_gi/diaas(); food annotation UI
       portions.py                  — _pick_portion(), _parse_portion_input()
       reports.py                   — export rendering support
       search.py                    — _search_and_pick_food(), _suggest_foundation_search()
@@ -217,20 +219,29 @@ Main Menu  ("NutriMagnus Menu")
 │   │       Search → select → enter volume or weight → display gram equivalent
 │   │       (no nutritional analysis; useful for recipe measurement conversion)
 │   ├── 5. View cached / saved foods
-│   │       List all foods previously fetched and stored locally
+│   │       List all foods previously fetched and stored locally.
+│   │       The table now shows AA (✓/✗), GI, and DIAAS columns so you can
+│   │       see at a glance which foods have annotation data on file.
 │   ├── 6. My pantry  (protein sources on hand)
 │   │       Manage a persistent list of protein foods currently in stock.
 │   │       Add via USDA search (links full amino acid data) or by name only.
 │   │       Remove or edit entries by pantry ID. Stored in the local database.
 │   │       The table shows an AA column: ✓ = amino acid data in cache,
 │   │       ✗ = USDA-linked but no AA data (research needed), — = name-only entry.
-│   └── 7. User-drafted food profiles  (custom nutrient profiles)
-│           Create, edit, delete, and copy hand-crafted nutrient profiles for
-│           foods lacking adequate official data. Profiles live in the local
-│           food cache and behave like any other food (portions, recipes, meals).
-│           Item 5 "Copy a cached food as draft" copies any cached food (USDA,
-│           Open Food Facts, or existing draft) into a new editable draft.
-│           See "User-drafted food profiles" under Usage Guide.
+│   ├── 7. User-drafted food profiles  (custom nutrient profiles)
+│   │       Create, edit, delete, and copy hand-crafted nutrient profiles for
+│   │       foods lacking adequate official data. Profiles live in the local
+│   │       food cache and behave like any other food (portions, recipes, meals).
+│   │       Item 5 "Copy a cached food as draft" copies any cached food (USDA,
+│   │       Open Food Facts, or existing draft) into a new editable draft.
+│   │       See "User-drafted food profiles" under Usage Guide.
+│   └── 8. Annotate a cached food  (GI / DIAAS estimates)
+│           Pick any cached food and attach your own estimates for glycemic
+│           index (0–100) and/or DIAAS (0.0–1.5), plus an optional prep-context
+│           note ("cooked", "raw", etc.). Each value can be skipped (ask again
+│           next time) or suppressed (never ask again). Prompts can be
+│           re-enabled, or all annotations cleared, from this same menu.
+│           Annotations are also accessible from Foods → 5 → pick food → 4.
 │
 ├── 2. Recipes
 │   ├── 1. Create new recipe
@@ -378,6 +389,45 @@ A legend repeating this key appears below every such table.
 
 ---
 
+### Food annotations (GI and DIAAS estimates)
+
+The `food_annotations` table stores user-supplied estimates attached to individual cached foods by `fdc_id`. These fill gaps where official data is absent — particularly glycemic index (not available in any free API) and DIAAS for foods without amino acid data.
+
+**What can be annotated:**
+
+| Field | Scale | Notes |
+|---|---|---|
+| `gi_estimate` | 0–100 | Glycemic index (glucose = 100). Low < 55, medium 55–69, high ≥ 70. |
+| `diaas_estimate` | 0.0–1.5 | Protein digestibility. 1.0 = fully digestible. |
+| `prep_context` | text | Free-form context: "cooked", "raw", "soaked then boiled", etc. |
+
+**How to annotate a food:**
+
+- **Foods → 8. Annotate a cached food** — filterable list of all cached foods → pick one → annotation editor.
+- **Foods → 5 → pick food → 4. Annotate** — same editor, reached from the cached food viewer.
+
+Inside the editor you can set or update each field, re-enable prompts (if you had previously chosen "never ask"), or clear all annotations for that food.
+
+**Prompt behavior:**
+When a GI or DIAAS value is needed during analysis and none is on file, the program prompts inline. At that prompt:
+
+| Input | Effect |
+|---|---|
+| A number | Value saved and used immediately |
+| Enter or `s` | Skip — value not saved; will ask again next time |
+| `x` | Never ask again for this food — prompt suppressed permanently |
+| `b` | Cancel the current action |
+
+The `gi_no_prompt` and `diaas_no_prompt` flags stored in `food_annotations` control this suppression. Clearing annotations (via the editor) also resets these flags.
+
+**Visibility in search results:**
+The **Ann** column in search result tables shows `GI`, `DI`, or `GI DI` (green) when estimates exist, helping you choose a cached food over an equivalent unannotated result from a remote source.
+
+**Visibility in the cached food list:**
+**Foods → 5. View cached / saved foods** shows `AA`, `GI`, and `DIAAS` columns so the state of each food is visible at a glance without opening it.
+
+---
+
 ### Drafted food profiles (user-modified nutrients)
 
 When a food lacks complete official data — or when you want to model a modified version (different cooking method, fortification, substitution) — you can build a **drafted food profile** with your own nutrient values.
@@ -401,16 +451,17 @@ Select **Foods → Search food databases**, enter a search term (e.g., "chicken 
 
 Every search queries the **local food cache first**, then USDA FoodData Central (and Open Food Facts for unrestricted searches). All results are merged into a single table so you always see every available option in one view.
 
-**Result ordering** — unless your search term contains a brand name, results are ranked in this order:
+**Result ordering** — results are ranked in this order:
 
-1. **Local cache** — foods you have already fetched appear first
-2. **USDA Foundation Foods and SR Legacy** — whole-food entries with the most complete nutrient profiles
-3. **Open Food Facts** — community-sourced packaged foods
-4. **Branded (USDA)** — commercial products
+1. **Local cache** — foods you have already fetched always appear first
+2. **Annotated cache hits** — within cached foods, those with GI or DIAAS estimates on file sort above unannotated ones
+3. **USDA Foundation Foods and SR Legacy** — whole-food entries with the most complete nutrient profiles
+4. **Open Food Facts** — community-sourced packaged foods
+5. **Branded (USDA)** — commercial products
 
-If the search string contains a brand name (any brand word of four or more characters that appears in a result's brand field), the ranking switches to relevance order (most query-word matches first) so the specific product you named surfaces at the top.
+If the search string contains a brand name (any brand word of four or more characters that appears in a result's brand field), the ranking switches to relevance order (most query-word matches first) so the specific product you named surfaces at the top; cache and annotation status still apply as tiebreakers.
 
-The results table always includes an **AA data** column (✓ confirmed / ✗ none / ? not yet fetched) so you can immediately see which options have the amino acid data needed for protein completeness and complement analysis.
+The results table always includes an **AA data** column (✓ confirmed / ~✓ likely / ✗ none) and an **Ann** column showing which foods have GI and/or DIAAS estimates saved (`GI`, `DI`, or `GI DI` in green; `·····` if none). Use these columns to pick the option with the richest existing data before committing to a fetch.
 
 After viewing the full nutrient breakdown, the program now offers to immediately proceed to portion analysis for the same food — saving you from navigating back to "Analyze a food portion".
 
