@@ -1,5 +1,8 @@
-NutriMagnus User Manual
-=======================
+NutriMagnus User Manual - version 2026-04-25 - 11:50 AM
+=======================================================
+
+Special note
+============
 
 Sections in this file are referenced from within the program. At any prompt,
 type ? followed by the short anchor shown in brackets — for example, a table

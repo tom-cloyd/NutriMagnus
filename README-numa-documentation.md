@@ -1,8 +1,8 @@
-# NutriMagnus — Nutritional Analysis Program
+# NutriMagnus — Nutritional Analysis Program documentataion
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nourishment wizard")**.
 
-UPDATED: 2026-04-24
+UPDATED: 2026-04-26:2020
 ---
 
 ## Table of Contents

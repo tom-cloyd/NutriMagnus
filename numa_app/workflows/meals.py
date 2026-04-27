@@ -36,22 +36,24 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
         return False
 
     recipe_missing = len(missing_names) - len(affected)
-    recipe_note = (
-        f"\n  [dim]  ({recipe_missing} other(s) are sub-ingredients of embedded recipes"
-        f" and cannot be replaced here.)[/dim]"
-        if recipe_missing > 0 else ""
-    )
+    total_missing = len(missing_names)
+    if recipe_missing > 0:
+        recipe_word = "ingredient is" if recipe_missing == 1 else "ingredients are"
+        state.console.print(
+            f"\n  Missing AA profiles for {total_missing} ingredient(s): "
+            f"{recipe_missing} {recipe_word} inside a recipe — edit that recipe to add AA data.",
+            highlight=False,
+        )
     state.console.print(
         f"\n  [dim]Some of these may be minor ingredients (fruit, garnishes, etc.) with\n"
         f"  negligible protein — those can safely be ignored here. Only proceed if\n"
         f"  one or more of them are meaningful protein sources in your meal.\n"
-        f"  If none are, enter [bold]n[/bold].[/dim]{recipe_note}",
+        f"  If none are, enter [bold]n[/bold].[/dim]",
         highlight=False,
     )
-    n_label = (f"{len(affected)} replaceable" if recipe_missing > 0 else str(len(affected)))
     try:
         go = _prompt(
-            f"Obtain missing AA profiles for {n_label} ingredient(s)?",
+            f"Fetch missing AA profiles for {len(affected)} standalone meal ingredient(s)?",
             choices=["y", "n"], default="n",
         )
     except Cancelled:

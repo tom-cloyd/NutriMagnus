@@ -56,7 +56,7 @@ def _menu_foods() -> bool:
             _safe_call(_do_drafted_foods_menu)
         elif choice == "8":
             _safe_call(_do_annotate_food)
-        elif choice == "m":
+        elif choice in ("m", "b"):
             return True
         elif choice == "q":
             return False

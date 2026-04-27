@@ -21,6 +21,7 @@ class ReturnToMain(Exception):
 
 
 _NO_DEFAULT = object()
+_last_input: str = ""
 
 
 def _show_help(ref: str) -> None:
@@ -132,6 +133,7 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
+    global _last_input
     buf: list[str] = []
     try:
         tty.setcbreak(fd)
@@ -148,7 +150,16 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                 import select as _sel
                 r, _, _ = _sel.select([sys.stdin], [], [], 0.05)
                 if r:
-                    sys.stdin.read(2)
+                    seq = sys.stdin.read(2)
+                    if seq == "[A" and _last_input:  # up arrow — recall last input
+                        sys.stdout.write("\b \b" * len(buf))
+                        buf = list(_last_input)
+                        sys.stdout.write("".join(buf))
+                        sys.stdout.flush()
+                    elif seq == "[B":  # down arrow — restore blank
+                        sys.stdout.write("\b \b" * len(buf))
+                        sys.stdout.flush()
+                        buf = []
                 else:
                     state.console.print()
                     raise Cancelled
@@ -170,6 +181,8 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
     result = "".join(buf).strip()
+    if result:
+        _last_input = result
     if result == "" and default is not _NO_DEFAULT and default not in (None,):
         return str(default)
     return result
