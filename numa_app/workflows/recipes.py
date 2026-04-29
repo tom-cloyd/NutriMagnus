@@ -8,6 +8,7 @@ import textwrap
 from fractions import Fraction
 from datetime import datetime, timezone
 
+from rich.rule import Rule
 from rich.table import Table
 
 import db as _db
@@ -16,7 +17,7 @@ from .. import state
 from ..services.portions import _normalize_unit_display, _parse_portion_input, _pick_portion, _UNIT_TO_GRAMS, _VOLUME_TO_ML
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
 from ..services.reports import _offer_export
-from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu
+from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, table_title, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness, _print_recipe_bioavailability
 
@@ -42,8 +43,8 @@ _RNAME_W = 34
 
 def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> None:
     page = recipes[offset : offset + _RECIPE_PAGE]
-    if label:
-        state.console.print(f"\n  [dim]{label}[/dim]", highlight=False)
+    subtitle = f"[dim]{label}[/dim]" if label else ""
+    table_title("RECIPES", subtitle)
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("ID",       justify="right", min_width=4)
     tbl.add_column("Name",     min_width=_RNAME_W, max_width=_RNAME_W, no_wrap=True)
@@ -60,6 +61,7 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
     state.console.print(tbl)
     if not label:
         state.console.print(f"  [dim]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/dim]")
+    help_footer()
 
 
 def _pick_recipe() -> dict | None:
@@ -370,18 +372,18 @@ def _do_recipe_display(recipe=None) -> None:
         state.console.print("\n  [dim]No ingredients yet.[/dim]")
 
     state.console.print(f"\n  [{state.T['accent']}]Procedure:[/{state.T['accent']}]")
+    _W = min(100, state.console.width)
     if recipe["instructions"] and recipe["instructions"].strip():
-        width = max(40, state.console.width - 1)
         for line in recipe["instructions"].splitlines():
             state.console.print(
-                textwrap.fill(line, width=width,
+                textwrap.fill(line, width=_W,
                               initial_indent="  ", subsequent_indent="  "),
                 markup=False, highlight=False,
             )
     else:
         state.console.print("  [dim](none given)[/dim]")
 
-    state.console.rule()
+    state.console.print(Rule(), width=_W)
 
 
 def _do_copy_recipe(recipe=None) -> None:
@@ -604,7 +606,8 @@ def _do_recipe_browse() -> None:
     from .recipe_edit import _do_recipe_edit
     from .recipe_analysis import _do_recipe_view
 
-    search_query: str | None = None  # None = show recent 20
+    search_query: str | None = None
+    offset = 0
 
     while True:
         with _db.get_db() as conn:
@@ -616,9 +619,12 @@ def _do_recipe_browse() -> None:
         total = len(all_recipes)
 
         if search_query is None:
-            with _db.get_db() as conn:
-                display = _db.recipe_list_recent(conn, _RECIPE_PAGE)
-            label = f"20 most recently accessed  (of {total} total)"
+            display = sorted(
+                all_recipes,
+                key=lambda r: r["last_accessed_at"] or r["created_at"] or "",
+                reverse=True,
+            )
+            label = f"Most recently accessed  ({total} total)"
         else:
             words = search_query.lower().split()
             scored = []
@@ -628,18 +634,34 @@ def _do_recipe_browse() -> None:
                 if hits:
                     scored.append((hits, r))
             scored.sort(key=lambda x: (-x[0], x[1]["name"].lower()))
-            display = [r for _, r in scored[:_RECIPE_PAGE]]
-            label = f"Search '{search_query}' — {len(scored)} match(es)" + (
-                f"  (showing top {_RECIPE_PAGE})" if len(scored) > _RECIPE_PAGE else ""
-            )
+            display = [r for _, r in scored]
+            label = f"Search '{search_query}' — {len(display)} match(es)"
             if not display:
                 state.console.print(f"  [{state.T['warning']}]No recipes match '{search_query}'.[/{state.T['warning']}]")
                 search_query = None
+                offset = 0
                 continue
 
-        _show_recipe_page(display, 0, label=label)
+        has_prev = offset > 0
+        has_next = offset + _RECIPE_PAGE < len(display)
+        if len(display) > _RECIPE_PAGE:
+            page_num = offset // _RECIPE_PAGE + 1
+            total_pages = (len(display) + _RECIPE_PAGE - 1) // _RECIPE_PAGE
+            page_label = f"{label}  —  page {page_num} of {total_pages}"
+        else:
+            page_label = label
 
-        nav = "s=search" + ("  r=recent" if search_query else "") + "  b=done"
+        _show_recipe_page(display, offset, label=page_label)
+
+        nav_parts = ["s=search"]
+        if search_query:
+            nav_parts.append("r=recent")
+        if has_next:
+            nav_parts.append("n=next")
+        if has_prev:
+            nav_parts.append("p=prev")
+        nav_parts.append("b=done")
+        nav = "  ".join(nav_parts)
         state.console.print(f"  [dim]v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  {nav}[/dim]", highlight=False)
         state.console.print(f"  [dim]Enter action + ID, e.g. v3 or x 14[/dim]", highlight=False)
 
@@ -654,6 +676,12 @@ def _do_recipe_browse() -> None:
             raise ReturnToMain()
         if raw == "q":
             raise SystemExit(0)
+        if raw == "n" and has_next:
+            offset += _RECIPE_PAGE
+            continue
+        if raw == "p" and has_prev:
+            offset = max(0, offset - _RECIPE_PAGE)
+            continue
         if raw == "s":
             try:
                 q = _prompt("Search  [dim](words in recipe name)[/dim]", free_text=True).strip()
@@ -662,9 +690,11 @@ def _do_recipe_browse() -> None:
             ql = q.lower()
             if q and ql not in ("b", "q", "m"):
                 search_query = q
+                offset = 0
             continue
         if raw == "r":
             search_query = None
+            offset = 0
             continue
 
         if len(raw) >= 2 and raw[0] in "veadcx":
@@ -704,7 +734,7 @@ def _menu_recipes() -> bool:
     while True:
         _show_menu("Recipes", [
             ("1", "Create new recipe"),
-            ("2", "Browse / manage recipes"),
+            ("2", "Browse / view, edit, copy, delete recipes"),
             ("3", "Develop a recipe  [dim](add/remove ingredients with nutritional feedback)[/dim]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),

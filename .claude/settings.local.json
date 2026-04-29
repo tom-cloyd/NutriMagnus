@@ -22,7 +22,8 @@
       "Bash(python -m pytest tests/ -x -q)",
       "Bash(python -m pytest tests/ -q --ignore=tests/test_cli.py)",
       "Bash(python -m pytest tests/test_cli.py -q -k \"not test_search_displays_results\")",
-      "Bash(python -m pytest tests/test_cli.py -q -k \"not \\(test_search_displays_results or test_search_shows_nutrient_table\\)\")"
+      "Bash(python -m pytest tests/test_cli.py -q -k \"not \\(test_search_displays_results or test_search_shows_nutrient_table\\)\")",
+      "Bash(llm --help)"
     ]
   }
 }

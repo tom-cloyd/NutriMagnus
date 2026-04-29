@@ -125,7 +125,7 @@ def _print_protein_completeness(
         return False
 
     if context_label:
-        table_title(f"Protein quality — {context_label}")
+        table_title(f"PROTEIN QUALITY — {context_label}")
     status = (f"[{state.T['success']}]Complete protein[/{state.T['success']}]"
               if result["complete"]
               else f"[{state.T['warning']}]Incomplete protein[/{state.T['warning']}]")
@@ -162,7 +162,7 @@ def _print_protein_completeness(
     if partial_data_note:
         footer.append(f"  [dim]{partial_data_note}[/dim]")
     table_footer(*footer)
-    help_footer("complete", "aa", "fao")
+    help_footer()
     return True
 
 
@@ -238,7 +238,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
                   "digestibility-corrected, pooled across foods")
 
     # Per-food digestibility table
-    table_title("Meal Foods: Digestibility Analysis")
+    table_title("MEAL FOODS: DIGESTIBILITY ANALYSIS")
     state.console.print(
         f"  [dim]Digestibility color key:[/dim]  "
         f"[{state.T['success']}]≥0.90 good[/{state.T['success']}]  "
@@ -300,7 +300,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
             f"  [{state.T['warning']}]0.80–0.99[/{state.T['warning']}]"
             f"  [{state.T['error']}]<0.80[/{state.T['error']}]"
         )
-        table_title("Meal Amino Acid Ratios for DIAAS", iaa_key)
+        table_title("MEAL AMINO ACID RATIOS FOR DIAAS", iaa_key)
         _MAA_W = 22
         aa_tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         aa_tbl.add_column("Amino Acid", min_width=_MAA_W, max_width=_MAA_W, no_wrap=True)
@@ -382,7 +382,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
             highlight=False,
         )
 
-    help_footer("diaas", "dcp", "aa", "fao")
+    help_footer()
     return result["missing_aa_names"], result.get("digestible_complete_protein_g")
 
 def _print_recipe_bioavailability(
@@ -400,7 +400,7 @@ def _print_recipe_bioavailability(
         f" · [{state.T['error']}]<0.70 poor[/{state.T['error']}]"
         f"  ·  {ID_KEY})[/dim]"
     )
-    table_title("Bioavailability — per serving", diaas_key)
+    table_title("BIOAVAILABILITY — PER SERVING", diaas_key)
 
     _ING_W = 30
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
@@ -464,7 +464,7 @@ def _print_recipe_bioavailability(
             f"  [dim]  ({unknown_count} ingredient(s) had no DIAAS data — assumed fully bioavailable)[/dim]",
             highlight=False,
         )
-    help_footer("diaas", "dcp")
+    help_footer()
 
 
 def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
@@ -475,7 +475,7 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
     if diaas is None and not flags:
         return
 
-    table_title("Bioavailability")
+    table_title("BIOAVAILABILITY")
 
     if diaas is not None:
         protein_raw = nutrients.get("protein_g", 0.0)
@@ -512,7 +512,7 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
                       f"{flag['problem']} — {flag['cause']}")
         for label, sol in flag["solutions"]:
             state.console.print(f"    [dim]* {label}: {sol}[/dim]")
-    help_footer("diaas", "dcp")
+    help_footer()
 
 def _volume_hint(grams: float, food_name: str) -> str | None:
     """Return a human-readable volume equivalent for *grams* of *food_name*, or None."""
@@ -733,7 +733,7 @@ def _print_complement_suggestions(
                 ans = _prompt("Look elsewhere for more options?  [dim](y/N)[/dim]",
                               default="n").strip().lower()
             except Cancelled:
-                help_footer("comp", "gap", "fao", "diet")
+                help_footer()
                 return
             if ans == "y":
                 _show_paged(general_suggs, "Other options", page_size=5)
@@ -746,7 +746,7 @@ def _print_complement_suggestions(
             _general_exhausted_msg(len(general_suggs))
         else:
             _general_exhausted_msg(0)
-    help_footer("comp", "gap", "fao", "diet")
+    help_footer()
 
 def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserProfile") -> None:
     """Print a table comparing daily nutrient totals against personalized RDA targets."""
@@ -824,4 +824,4 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
 
     state.console.print(tbl, highlight=False)
     table_footer("  [dim]Target = RDA or Adequate Intake  ·  Limit = Tolerable Upper Intake Level[/dim]")
-    help_footer("rda")
+    help_footer()

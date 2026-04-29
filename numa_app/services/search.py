@@ -11,7 +11,7 @@ import db as _db
 import usda as _usda
 import openfoodfacts as _off
 from .. import state
-from ..ui.common import _id_cell, ID_KEY
+from ..ui.common import _id_cell, ID_KEY, table_title, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 
@@ -500,6 +500,7 @@ def _search_and_pick_food(
                     likely_count += 1
                 elif cached is None and fdtype in ("Foundation", "SR Legacy"):
                     likely_count += 1
+        table_title("FOOD SEARCH RESULTS")
         state.console.print(tbl)
         state.console.print(f"  {ID_KEY}")
         state.console.print(
@@ -540,6 +541,8 @@ def _search_and_pick_food(
                 "generic foods, try adding 'cooked', 'raw', or 'usda' to your search "
                 "(e.g. 'pinto beans cooked').[/dim]"
             )
+
+        help_footer()
 
         pick_hint = ("R#/# or id:FDCID, Enter/b=back, m=main, q=quit"
                      if recipe_rows else

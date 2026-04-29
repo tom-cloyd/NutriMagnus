@@ -162,7 +162,7 @@ def _do_recipe_edit(recipe=None) -> None:
             ingredients = _db.recipe_get_ingredients(conn, rid)
 
         if ingredients:
-            table_title("Current recipe ingredients")
+            table_title("CURRENT RECIPE INGREDIENTS")
             has_notes = any(ing["notes"] for ing in ingredients)
             _RFOOD_W = 36
             tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))

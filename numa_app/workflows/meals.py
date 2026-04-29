@@ -1075,7 +1075,7 @@ def _print_meal_history_flat(rows: list, query: str) -> None:
     _W_MEAL = 18
     _W_FOOD = 32
     _W_NOTE = 16
-    table_title("Meal History — Occurrences", f"[dim]search: '{query}'[/dim]")
+    table_title("MEAL HISTORY — OCCURRENCES", f"[dim]search: '{query}'[/dim]")
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("Date",    min_width=10, no_wrap=True)
     tbl.add_column("Meal",    min_width=_W_MEAL, max_width=_W_MEAL, no_wrap=True)
@@ -1097,7 +1097,7 @@ def _print_meal_history_summary(rows: list) -> None:
     for r in rows:
         groups[r["food_name"]].append(r)
 
-    table_title("Meal History — Summary")
+    table_title("MEAL HISTORY — SUMMARY")
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("Food / Recipe", min_width=34, max_width=34, no_wrap=True)
     tbl.add_column("Times", min_width=5,  justify="right")

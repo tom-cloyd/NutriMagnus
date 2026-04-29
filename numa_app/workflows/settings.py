@@ -20,7 +20,7 @@ from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 def _do_diaas_overrides() -> None:
     """Manage per-food protein digestibility overrides for DIAAS calculation."""
-    table_title("Protein Digestibility Overrides")
+    table_title("PROTEIN DIGESTIBILITY OVERRIDES")
     state.console.print(
         "  [dim]Set a specific true ileal digestibility coefficient (0.0–1.0) for a food,\n"
         "  overriding the curated or estimated value numa uses in meal-level DIAAS\n"

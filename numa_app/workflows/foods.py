@@ -291,7 +291,7 @@ def _do_annotate_food() -> None:
             if filter_text else
             f"[dim]{len(all_foods)} foods · /text to filter[/dim]"
         )
-        table_title("Annotate Cached Food", title_note)
+        table_title("ANNOTATE CACHED FOOD", title_note)
         state.console.print(tbl)
 
         try:
@@ -363,17 +363,17 @@ def _do_list_cached_foods() -> None:
                         aa_cell, gi_cell, diaas_cell)
 
         if filter_text:
-            table_title("Cached Foods",
+            table_title("CACHED FOODS",
                         f"[dim]{len(foods)} match for '[bold]{filter_text}[/bold]' "
                         f"({len(all_foods)} total) — enter / to clear filter[/dim]")
         else:
-            table_title("Cached Foods",
+            table_title("CACHED FOODS",
                         f"[dim]{len(all_foods)} foods — enter /text to filter by name[/dim]")
 
         state.console.print(tbl)
         table_footer("  [dim]To refresh a corrupt or outdated entry: delete it here, "
                      "then re-search — it will be re-fetched automatically.[/dim]")
-        help_footer("aa", "gi", "diaas")
+        help_footer()
 
         try:
             raw = _prompt("(Enter # to see options, d#[,#…] to delete, /[food name] to filter, b=back, m=main, q=quit)").strip()

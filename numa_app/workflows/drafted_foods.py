@@ -299,7 +299,7 @@ def _list_drafted_foods() -> list:
     if not rows:
         state.console.print("[dim]No drafted food profiles yet.[/dim]")
         return []
-    table_title("Drafted Food Profiles")
+    table_title("DRAFTED FOOD PROFILES")
     _NAME_W = 36
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("ID",   justify="right", min_width=7)

@@ -77,13 +77,16 @@ def _load() -> dict[str, tuple[str, str]]:
             i += 2  # consume title line + underline
             continue
 
-        # Legacy format: "## Title [anchor]"
-        if stripped.startswith("## ") and stripped.endswith("]") and "[" in stripped:
+        # Legacy format: any markdown heading level — "## Title [anchor]" or "### Title [anchor]"
+        stripped_hashes = stripped.lstrip("#")
+        if (stripped_hashes.startswith(" ") and stripped_hashes != stripped
+                and stripped.endswith("]") and "[" in stripped):
             _flush()
             current_lines = []
-            open_b = stripped.rfind("[")
-            current_anchor = stripped[open_b + 1:-1].strip().lower()
-            current_title = stripped[3:open_b].strip() or current_anchor
+            text = stripped_hashes.strip()
+            open_b = text.rfind("[")
+            current_anchor = text[open_b + 1:-1].strip().lower()
+            current_title = text[:open_b].strip() or current_anchor
         elif current_anchor is not None:
             current_lines.append(line)
 
