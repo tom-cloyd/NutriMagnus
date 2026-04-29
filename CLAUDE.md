@@ -218,6 +218,47 @@ dot_cell(text, width)                          # truncate + dim dot leaders
 
 ---
 
+## ? Help System
+
+Users type `?topic` at any prompt to display an inline help panel. The lookup chain is:
+
+1. `_prompt()` in `numa_app/ui/prompts.py` detects a `?`-prefixed input and calls `manual.show(ref)`.
+2. `manual.show()` resolves aliases via `_ALIASES`, then looks up `(title, body)` in the parsed section dict.
+3. The section is rendered as a Rich `Panel` and the prompt repeats.
+
+**Adding a new help topic:**
+
+1. Add a section to `user-manual.md` with an anchored heading:
+   ```
+   ## My New Topic [mytopic]
+
+   Plain text body. No markdown tables — Rich renders this as-is inside a Panel.
+   ```
+   The anchor is the text inside `[…]`, lower-cased. It must be unique.
+
+2. If you want shortcut aliases, add entries to `_ALIASES` in `manual.py`:
+   ```python
+   "my-topic": "mytopic",
+   "my topic": "mytopic",
+   ```
+
+3. Surface it from the relevant output block using `help_footer()` in `ui/common.py`:
+   ```python
+   from ..ui.common import help_footer
+   help_footer("mytopic")                  # one topic
+   help_footer("mytopic", "diaas")         # two topics — joined with "or"
+   ```
+   This prints: `At any prompt, type ?mytopic or ?diaas for help with these columns.`
+
+4. Update the topic list in the `## Using the ? Help System [help]` section of `user-manual.md`.
+
+**Format rules for manual sections:**
+- Plain text only — no Markdown tables, no bold/italic markup (Rich won't render it).
+- Indented preformatted blocks (4-space indent) are preserved as-is.
+- `---` separator lines are stripped from section bodies automatically.
+
+---
+
 ## Circular Import Pattern
 
 `recipes.py` imports from `recipe_analysis.py` and `recipe_edit.py` at call time (not at module top) to break circular dependencies:

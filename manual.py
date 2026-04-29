@@ -1,7 +1,7 @@
 """
 manual.py — User manual parser and ?keyword help lookup.
 
-user-manual.txt format:
+user-manual.md format:
   ## [anchor] Section Title
   Body text (plain text, multiple lines).
   (next ## [anchor] line starts the next section)
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pathlib
 
-_MANUAL_FILE = pathlib.Path(__file__).parent / "user-manual.txt"
+_MANUAL_FILE = pathlib.Path(__file__).parent / "user-manual.md"
 _sections: dict[str, tuple[str, str]] | None = None
 
 # Common shortcuts → canonical anchor.

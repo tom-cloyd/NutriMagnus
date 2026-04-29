@@ -14,7 +14,8 @@ UPDATED: 2026-04-26:2020
 - [Menu Structure](#menu-structure)
 - [Usage Guide](#usage-guide)
   - [The local food cache](#the-local-food-cache)
-  - [Food annotations (GI and DIAAS estimates)](#food-annotations-gi-and-diaas-estimates)
+  - [Food annotations (GI and DIAAS estimates)](#food-an## ? Help System
+notations-gi-and-diaas-estimates)
   - [Drafted food profiles](#drafted-food-profiles-user-modified-nutrients)
   - [Searching for a food](#searching-for-a-food)
 - [Architecture](#architecture)
@@ -94,6 +95,10 @@ numa/
       recipe_edit.py               — Edit recipe workflow (_do_recipe_edit)
       settings.py                  — Settings menu; user profile; DIAAS overrides; RDA comparison
       summary.py                   — Daily Summary menu
+  manual.py                        — User manual parser; ?keyword help lookup; show(), lookup(),
+                                     available(); _ALIASES for topic shortcuts
+  user-manual.md                   — Essential instructions, tips, and reference material for
+                                     users; plain-text sections keyed by [anchor] for inline display
   .venv/                           — Python virtual environment (not committed)
 ```
 
@@ -867,6 +872,45 @@ Ctrl+C and `\x04` (EOF) raise `Cancelled` in all tty paths. Escape is detected b
 
 `_ask_float()`, `_ask_int()`, `_ask_date()` are thin wrappers that append `(b=back, m=main, q=quit)` to the prompt text and handle the `b` (return `None`), `m` (raise `ReturnToMain`), and `q` (`SystemExit(0)`) shortcuts.
 
+### `manual.py` — inline help lookup
+
+Parses `user-manual.md` on first use and caches sections keyed by anchor. Sections are headed `## Title [anchor]`; the anchor is the bracketed token, lower-cased.
+
+`show(ref)` resolves aliases via `_ALIASES`, looks up the section, and renders it as a Rich `Panel` using the app's console. Returns `True` if found, `False` (with a list of available topics) if not. Called from `_prompt()` whenever the user types a `?`-prefixed command at any prompt.
+
+`lookup(ref)` returns `(title, body)` or `None` — use this when the caller wants to handle display itself.
+
+`available()` returns all defined anchor names sorted — used to build the "Available topics" fallback message.
+
+`_ALIASES` maps common alternate spellings and synonyms to canonical anchors (e.g. `"suggest"` → `"comp"`, `"?"` → `"help"`).
+
+#### Adding a new help topic
+
+1. Add a section to `user-manual.md` with an anchored heading:
+   ```
+   ## My New Topic [mytopic]
+
+   Plain text body. No Markdown tables or markup — Rich renders this as-is inside a Panel.
+   ```
+   The anchor must be unique and lower-case.
+
+2. If alternate spellings should resolve to the same section, add them to `_ALIASES` in `manual.py`:
+   ```python
+   "my-topic": "mytopic",
+   ```
+
+3. Surface the topic from the relevant output block using `help_footer()` in `ui/common.py`:
+   ```python
+   from ..ui.common import help_footer
+   help_footer("mytopic")            # single topic
+   help_footer("mytopic", "diaas")   # multiple — joined with "or"
+   ```
+   This prints: `At any prompt, type ?mytopic or ?diaas for help with these columns.`
+
+4. Add the new topic to the topic list in the `## Using the ? Help System [help]` section of `user-manual.md`.
+
+**Format rules for manual sections:** plain text only — no Markdown tables, no bold/italic (Rich won't interpret them). `---` separator lines are stripped from section bodies automatically. Indented blocks are preserved as-is.
+
 ### `numa_app/ui/common.py` — menu rendering and safe dispatch
 
 `_show_menu(title, items)` renders a title, horizontal rule, and numbered/lettered items. Numeric keys are styled with the accent color; non-numeric keys (b, q, etc.) use dim.
@@ -881,6 +925,7 @@ Ctrl+C and `\x04` (EOF) raise `Cancelled` in all tty paths. Escape is detected b
 | `table_title(title, subtitle)` | Blank line + indented hi-colour title for a table within an analysis section. `subtitle` is a pre-formatted Rich markup string for color legends or context. |
 | `section_title(title, subtitle)` | Blank line + full-width accent title + rule — for top-level output sections. `subtitle` is plain text (auto-wrapped in dim). |
 | `table_footer(*lines)` | Blank line then each line printed as-is — for key legends, totals, and notes below a table. |
+| `help_footer(*anchors)` | One-liner beneath a table listing `?topic` commands the user can type. Joins multiple anchors with "or". No-ops if called with no arguments. |
 
 ### `numa_app/ui/render.py` — output rendering
 
