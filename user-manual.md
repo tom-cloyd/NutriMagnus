@@ -132,7 +132,7 @@ Choice: 2
 
 Notice the options available in the **Recipes** menu: One can start a recipe and return to it later to edit it or even delete it. One can also copy it to have multiple versions. Item 3 on the menu is particularly interesting: One can develop a recipe, using nutritional feedback to make ingredient choices that achieve nutritional goals.
 
-Now, looking at the displayed list of recipes, I see that the one I want to enter is already there, so I enter `v5` (it could also have been `v5`) to look at recipe 5, which is then immediately displayed.
+Now, looking at the displayed list of recipes, I see that the one I want to enter is already there, so I enter `v 5` (it could also have been `v5`) to look at recipe 5, which is then immediately displayed.
 
 ```
 Choice: 2

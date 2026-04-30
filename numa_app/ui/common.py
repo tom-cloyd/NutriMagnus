@@ -56,7 +56,7 @@ def table_footer(*lines: str) -> None:
 def help_footer() -> None:
     """Fixed one-liner reminding the user that ?help lists all available help topics."""
     state.console.print(
-        f"\n  [{state.T['warning']}]At any prompt, type ?help to see a list of available help topics.[/{state.T['warning']}]",
+        f"\n  [{state.T['warning']}]At any prompt, type ?help to see a list of available help topics.[/{state.T['warning']}]\n",
         highlight=False,
     )
 

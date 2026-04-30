@@ -23,6 +23,7 @@ Tests use `NumaTestRunner` (see `tests/conftest.py`) — never call `numa.py` as
 ```
 numa.py              — 5-line CLI entry point (argparse only)
 db.py                — all SQLite access (get_db context manager + query functions)
+manual.py            — ?-help system: show(ref), _ALIASES, section parsing
 usda.py              — thin re-export shim; edit usda_api.py / usda_nutrients.py instead
 usda_api.py          — USDA HTTP client, NUTRIENT_MAP, amino acid constants
 usda_nutrients.py    — nutrient math, AA analysis, DIAAS, complement suggestions
@@ -44,6 +45,7 @@ numa_app/
     render.py        — _print_nutrient_table, _print_protein_completeness, _print_bioavailability,
                        _print_recipe_bioavailability, _print_rda_comparison
   services/
+    annotations.py   — GI/DIAAS annotation prompts for foods
     portions.py      — _parse_portion_input(), _pick_portion()
     search.py        — _search_and_pick_food()
     reports.py       — auto-save + user-export offer
@@ -96,7 +98,7 @@ with _db.get_db() as conn:
     _db.some_write(conn, data)
 ```
 
-`get_db()` is a `@contextmanager`; the connection is `sqlite3.connect(..., check_same_thread=False)` with `row_factory = sqlite3.Row`.
+`get_db()` sets `row_factory = sqlite3.Row` on the connection.
 
 **Row column names** (key tables):
 
@@ -151,8 +153,6 @@ Returns `None` if the user cancels, or one of two dict shapes depending on what 
 ```
 
 Callers must check `food.get("_type") == "recipe"` before accessing recipe-only keys.
-
-**`_id_cell(fdc_id)`** (from `ui/common.py`) — renders the ID column value for any food table: positive int → `"123456"` (dim), negative OFF ID → `"OFF"` (dim), `None` → `""`. Always use this for ID columns; never format IDs manually. `ID_KEY` is the matching legend string for `table_footer()`.
 
 ---
 
@@ -216,6 +216,8 @@ table_footer("  [dim]legend text[/dim]")      # blank line + footer lines
 dot_cell(text, width)                          # truncate + dim dot leaders
 ```
 
+**`_id_cell(fdc_id)`** (from `ui/common.py`) — renders the ID column value for any food table: positive int → `"123456"` (dim), negative OFF ID → `"OFF"` (dim), `None` → `""`. Always use this for ID columns; never format IDs manually. `ID_KEY` is the matching legend string for `table_footer()`.
+
 ---
 
 ## ? Help System
@@ -276,8 +278,6 @@ Follow this pattern for any new cross-imports between workflow modules.
 ## Key Invariants
 
 - **Never `import usda_api` or `import usda_nutrients` directly** — always `import usda as _usda`. `usda.py` is the stable public surface.
-- **Never use `requests`** — HTTP via stdlib `urllib` only (`usda_api.py`).
-- **Never use `typer`** — CLI is stdlib `argparse` in `numa.py`.
 - **Never open the DB outside `get_db()`** — no raw `sqlite3.connect()` calls in workflow code.
 - **Never hold a DB connection across a `_prompt()` call.**
 - **Never hardcode Rich color strings** — always `state.T["key"]`.

@@ -3,6 +3,7 @@ prompts.py — _prompt() and input primitives: Cancelled, ReturnToMain, _ask_flo
 Docs: README-numa-documentation.md, Architecture: "numa_app/ui/prompts.py — input primitives"
 """
 import readline
+import select as _select
 import sys
 import termios
 import tty
@@ -22,6 +23,24 @@ class ReturnToMain(Exception):
 
 _NO_DEFAULT = object()
 _last_input: str = ""
+
+
+def _read_escape_seq() -> str:
+    """Read the bytes that follow an ESC character.
+    Returns the sequence string (usually '[A'–'[D' for arrow keys), or '' if
+    nothing arrives within the timeout (bare ESC key press).
+    Drains any extended bytes beyond the first two so they never leak into the
+    next prompt (e.g. ESC[1;5D sent by some terminals for ctrl+arrow)."""
+    r, _, _ = _select.select([sys.stdin], [], [], 0.15)
+    if not r:
+        return ""
+    seq = sys.stdin.read(2)
+    while True:
+        r2, _, _ = _select.select([sys.stdin], [], [], 0.02)
+        if not r2:
+            break
+        sys.stdin.read(1)
+    return seq
 
 
 def _show_help(ref: str) -> None:
@@ -109,11 +128,7 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                     state.console.print()
                     raise Cancelled
                 if ch == "\x1b":
-                    import select as _sel
-                    r, _, _ = _sel.select([sys.stdin], [], [], 0.05)
-                    if r:
-                        sys.stdin.read(2)
-                    else:
+                    if not _read_escape_seq():
                         state.console.print()
                         raise Cancelled
                     continue
@@ -147,22 +162,19 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                 state.console.print()
                 raise Cancelled
             if ch == "\x1b":
-                import select as _sel
-                r, _, _ = _sel.select([sys.stdin], [], [], 0.05)
-                if r:
-                    seq = sys.stdin.read(2)
-                    if seq == "[A" and _last_input:  # up arrow — recall last input
-                        sys.stdout.write("\b \b" * len(buf))
-                        buf = list(_last_input)
-                        sys.stdout.write("".join(buf))
-                        sys.stdout.flush()
-                    elif seq == "[B":  # down arrow — restore blank
-                        sys.stdout.write("\b \b" * len(buf))
-                        sys.stdout.flush()
-                        buf = []
-                else:
+                seq = _read_escape_seq()
+                if not seq:
                     state.console.print()
                     raise Cancelled
+                if seq == "[A" and _last_input:  # up arrow — recall last input
+                    sys.stdout.write("\b \b" * len(buf))
+                    buf = list(_last_input)
+                    sys.stdout.write("".join(buf))
+                    sys.stdout.flush()
+                elif seq == "[B":  # down arrow — clear buffer
+                    sys.stdout.write("\b \b" * len(buf))
+                    sys.stdout.flush()
+                    buf = []
                 continue
             if ch in ("\r", "\n"):
                 state.console.print()
