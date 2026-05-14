@@ -534,7 +534,6 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
                 if pc.get("complete"):
                     state.console.print(
                         f"  Digestible complete protein: [{state.T['success']}]{dig_complete:.1f}g[/{state.T['success']}]"
-                        f"  [dim](protein is complete)[/dim]"
                     )
                 else:
                     limiting_label = _usda.nutrient_label(pc["limiting_aa"])[0] if pc.get("limiting_aa") else "?"

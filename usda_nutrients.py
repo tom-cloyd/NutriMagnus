@@ -551,9 +551,12 @@ def suggest_complements(
         else:
             alpha = nutrients_100g.get(target_aa, 0.0) / 100.0   # g AA per g food
         beta = nutrients_100g.get("protein_g", 0.0) / 100.0  # g protein per g food
-        # Use digestibility-adjusted reference: need raw AA/protein ≥ reference/digestibility
-        # so that the digestible ratio meets 1.0.
-        R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0 / max(base_digestibility, 0.01)
+        # Use the raw (unadjusted) reference for sizing the complement. Applying
+        # base_digestibility here inflates required amounts by 1/DIAAS — a single-food
+        # correction that doesn't apply to a combined meal whose digestibility may differ.
+        # Gaps are still identified using digestibility in get_aa_gaps(); the complement
+        # amount is simply what brings the combined raw AA profile to reference.
+        R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0
         denom = alpha - R * beta
         if denom <= 0:
             # Candidate's AA/protein ratio is below the reference — adding it
@@ -565,7 +568,7 @@ def suggest_complements(
             base_aa = base_nutrients.get(target_aa, 0.0)
         base_protein = base_nutrients.get("protein_g", 0.0)
         grams = (R * base_protein - base_aa) / denom
-        # Cap at a reasonable serving (500g) to avoid impractical suggestions
+        # Cap at 500g to exclude mathematically valid but impractical suggestions.
         if grams <= 0 or grams > 500:
             return None
         added = scale_nutrients(nutrients_100g, grams)
