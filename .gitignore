@@ -24,3 +24,6 @@ lib/
 # Exclude large data or model weights for local LLMs
 data/
 models/
+
+# --- Claude Code agent worktrees (internal, never commit) ---
+.claude/worktrees/
