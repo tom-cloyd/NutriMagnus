@@ -19,8 +19,8 @@ Input sequence notation used in comments:
     Foods submenu:     1=Search, 2=Analyze USDA portion, 3=Analyze recipe portion,
                        4=Convert, 5=View cached, 6=Pantry, b=Back, q=Quit
     Recipes submenu:   1=Create, 2=Browse (action+id: v/e/x/a/d/c), 3=Develop, b=Back, q=Quit
-    Settings submenu:  1=Theme, 2=User profile, 3=Dietary prefs, 4=Editor,
-                       5=Display settings, 6=Advanced (API key/DB/DIAAS), b=Back
+    Settings submenu:  1=Theme, 2=User profile, 3=Daily targets, 4=Dietary prefs,
+                       5=Editor, 6=Display settings, 7=Advanced (API key/DB/DIAAS), b=Back
 """
 
 import json
@@ -233,14 +233,15 @@ class TestFoodsMenu:
 
     def test_search_displays_results(self, runner: NumaTestRunner, monkeypatch):
         _mock_api(monkeypatch)
-        # Main: 1 → Foods: 1 (Search) → query: "chicken" → pick: 1 → Foods: b → Main: q
-        result = runner.invoke(input="1\n1\nchicken\n1\nb\nq\n")
+        # Main: 1 → Foods: 1 (Search) → query: "chicken" → pick: 1 → n (skip portion) → b → q
+        result = runner.invoke(input="1\n1\nchicken\n1\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "Chicken" in result.output
 
     def test_search_shows_nutrient_table(self, runner: NumaTestRunner, monkeypatch):
         _mock_api(monkeypatch)
-        result = runner.invoke(input="1\n1\nchicken\n1\nb\nq\n")
+        # Main: 1 → Foods: 1 (Search) → query: "chicken" → pick: 1 → n (skip portion) → b → q
+        result = runner.invoke(input="1\n1\nchicken\n1\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
         assert "Calories" in result.output
@@ -546,8 +547,8 @@ class TestSettingsMenu:
     def test_set_api_key(self, runner: NumaTestRunner, tmp_path, monkeypatch):
         config_file = tmp_path / "config.json"
         monkeypatch.setattr(_usda_api, "_CONFIG_FILE", config_file)
-        # Settings: 6 (Advanced) → 2 (API key) → enter key → b (back from advanced) → b → q
-        result = runner.invoke(input="5\n6\n2\nMYNEWKEY\nb\nb\nq\n")
+        # Settings: 7 (Advanced) → 2 (API key) → enter key → b (back from advanced) → b → q
+        result = runner.invoke(input="5\n7\n2\nMYNEWKEY\nb\nb\nq\n")
         assert result.exit_code == 0
         assert "saved" in result.output.lower()
         assert config_file.exists()
@@ -568,20 +569,20 @@ class TestSettingsMenu:
 
 class TestDietaryPrefs:
     def test_toggle_to_plant_based(self, runner: NumaTestRunner):
-        # 5=Settings → 3=Dietary prefs → n (plant-based only) → b → q
-        result = runner.invoke(input="5\n3\nn\nb\nq\n")
+        # 5=Settings → 4=Dietary prefs → n (plant-based only) → b → q
+        result = runner.invoke(input="5\n4\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "plant" in result.output.lower()
 
     def test_toggle_to_animal_included(self, runner: NumaTestRunner):
-        # 5=Settings → 3=Dietary prefs → y (include animal foods) → b → q
-        result = runner.invoke(input="5\n3\ny\nb\nq\n")
+        # 5=Settings → 4=Dietary prefs → y (include animal foods) → b → q
+        result = runner.invoke(input="5\n4\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "animal" in result.output.lower()
 
     def test_enter_keeps_current(self, runner: NumaTestRunner):
         # Empty Enter at the prompt keeps the current preference without error
-        result = runner.invoke(input="5\n3\n\nb\nq\n")
+        result = runner.invoke(input="5\n4\n\nb\nq\n")
         assert result.exit_code == 0
 
 

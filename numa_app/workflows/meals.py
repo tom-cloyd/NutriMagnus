@@ -652,7 +652,21 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
         state.console.print("[dim]No nutrient data found for this meal. "
                       "Ensure all ingredients are in the cache.[/dim]")
         return
-    _print_nutrient_table(nutrients, title=f"{meal_name} — {meal_date}")
+
+    # Compute today's running total and RDA for the % today column
+    profile = _profile.load_profile()
+    daily_nutrients: dict[str, float] | None = None
+    rda = None
+    if profile:
+        with _db.get_db() as conn:
+            today_meals = _db.meal_list_by_date(conn, meal_date)
+        daily_parts = [n for m in today_meals if (n := _compute_meal_nutrients(m["id"]))]
+        if daily_parts:
+            daily_nutrients = _usda.sum_nutrients(*daily_parts)
+        rda = _profile.compute_rda(profile)
+
+    _print_nutrient_table(nutrients, title=f"{meal_name} — {meal_date}",
+                          daily_nutrients=daily_nutrients, rda=rda)
     state.console.print()
     with state.console.status("[bold]Fetching amino acid data…[/bold]", spinner="dots"):
         ing_list = _compute_meal_ingredient_list(meal_id)
@@ -664,7 +678,6 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
         for ing in ing_list
         if _usda.has_amino_acid_data(ing["nutrients_100g"])
     ]) if ing_list else {}
-    profile = _profile.load_profile()
     if profile:
         _print_protein_adequacy(nutrients, profile,
                                 context_label=f"{meal_name} ({meal_date})", dcp_g=_dcp_g)

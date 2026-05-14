@@ -38,6 +38,11 @@ _ALIASES: dict[str, str] = {
     "protein-completeness": "complete",
     "digestible":           "dcp",
     "digestible-protein":   "dcp",
+    "goal":                 "goals",
+    "daily-goals":          "goals",
+    "nutrient-goals":       "goals",
+    "targets":              "goals",
+    "daily-targets":        "goals",
 }
 
 

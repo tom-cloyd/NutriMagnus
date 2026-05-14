@@ -17,6 +17,7 @@ from ..config import theme as theme_config
 from ..config.theme import _change_theme
 from ..ui.common import _safe_call, _show_menu, table_title, table_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
+from ..ui.render import _print_rda_targets
 
 def _do_diaas_overrides() -> None:
     """Manage per-food protein digestibility overrides for DIAAS calculation."""
@@ -253,6 +254,17 @@ def _do_user_profile() -> None:
     )
 
 
+def _do_view_goals() -> None:
+    """Display the user's personalized daily nutrient targets."""
+    profile = _profile.load_profile()
+    if not profile:
+        state.console.print(
+            "\n  [dim]No profile set. Go to Settings → User profile to set your details.[/dim]"
+        )
+        return
+    _print_rda_targets(profile)
+
+
 def _do_dietary_prefs() -> None:
     """Set the dietary preference for protein complement suggestions."""
     current_label = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
@@ -362,10 +374,11 @@ def _menu_settings() -> bool:
         _show_menu("Settings", [
             ("1", f"Color theme  (current setting: {state._current_theme_name})"),
             ("2", f"User profile  (current setting: {profile_status})"),
-            ("3", f"Dietary preferences  (current setting: {diet_status})"),
-            ("4", f"Editor command  (current setting: {editor_status})"),
-            ("5", f"Display program settings at launch  (current setting: {launch_status})"),
-            ("6", "Advanced settings  [dim](API key, storage, protein overrides)[/dim]"),
+            ("3", "View daily nutrient targets"),
+            ("4", f"Dietary preferences  (current setting: {diet_status})"),
+            ("5", f"Editor command  (current setting: {editor_status})"),
+            ("6", f"Display program settings at launch  (current setting: {launch_status})"),
+            ("7", "Advanced settings  [dim](API key, storage, protein overrides)[/dim]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -380,12 +393,14 @@ def _menu_settings() -> bool:
         elif choice == "2":
             _safe_call(_do_user_profile)
         elif choice == "3":
-            _safe_call(_do_dietary_prefs)
+            _safe_call(_do_view_goals)
         elif choice == "4":
-            _safe_call(_do_editor_command)
+            _safe_call(_do_dietary_prefs)
         elif choice == "5":
-            _safe_call(_do_launch_display_setting)
+            _safe_call(_do_editor_command)
         elif choice == "6":
+            _safe_call(_do_launch_display_setting)
+        elif choice == "7":
             _safe_call(_menu_advanced_settings)
         elif choice == "m":
             return True

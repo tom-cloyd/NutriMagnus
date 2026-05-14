@@ -272,6 +272,7 @@ Available topics:
   ?gap      Amino acid gaps and how they are scored
   ?gi       Glycemic index
   ?gl       Glycemic load
+  ?goals    How daily nutrient goals are calculated
   ?rda      Recommended Dietary Allowances
 
 Aliases also work: ?suggest, ?dietary, ?completeness, ?digestible, etc.
@@ -501,6 +502,62 @@ activity multiplier. The protein target uses 0.8 g per kg body weight as
 a baseline minimum.
 
 RDA values appear in the comparison table shown after nutrient analysis.
+
+
+### Daily Nutrient Goals [goals]
+
+NutriMagnus calculates personalized daily nutrient goals from your user
+profile (Settings → User profile). Each goal is one of three types:
+
+    Minimum  — RDA or Adequate Intake (AI): the daily amount needed to
+               meet the requirements of most healthy adults.
+    Target   — an estimated ideal intake (currently applies to calories).
+    Limit    — Tolerable Upper Intake Level: the maximum safe daily
+               amount (currently applies to sodium only).
+
+HOW EACH GOAL IS CALCULATED
+
+Calories (target)
+    Mifflin-St Jeor equation for Basal Metabolic Rate, multiplied by an
+    activity factor based on your activity level setting:
+
+        Sedentary (desk job, little exercise)           x 1.2
+        Lightly active (light exercise 1-3 days/week)   x 1.375
+        Moderately active (3-5 days/week)               x 1.55
+        Active (hard exercise 6-7 days/week)            x 1.725
+        Very active (physical job or twice-daily)       x 1.9
+
+Protein (minimum)
+    Scaled to body weight and activity level:
+
+        Sedentary or lightly active   0.8 g per kg body weight
+        Moderately active             1.0 g per kg body weight
+        Active or very active         1.2 g per kg body weight
+
+Carbohydrates (minimum)
+    130 g/day — the brain's minimum glucose requirement (fixed for all).
+
+Fiber (minimum)
+    Age- and sex-dependent Adequate Intake:
+
+        Men under 50: 38 g/day     Men 50+: 30 g/day
+        Women under 50: 25 g/day   Women 50+: 21 g/day
+
+Sodium (limit)
+    2300 mg/day — standard Tolerable Upper Intake Level (fixed for all).
+
+Minerals and vitamins
+    All use age- and sex-specific values from the Dietary Reference
+    Intakes published by the U.S. National Academies of Sciences.
+    Values vary by age group and sex; the most common adjustments are
+    calcium (increases after age 50-70), iron (higher for premenopausal
+    women), vitamin D (increases at age 70), and B6 (increases after 50).
+
+Nutrients without established DRIs (phytonutrients, amino acids) have no
+goal shown. The "% today" column and "Daily goal" column are blank for
+those rows.
+
+Type ?rda for a general overview of where these values come from.
 
 
 ## Appendix A: Raw protein, protein quality, and protein digestibility

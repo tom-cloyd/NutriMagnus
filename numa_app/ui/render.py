@@ -58,9 +58,19 @@ def _load_pantry_candidates() -> list[dict]:
         })
     return candidates
 
-def _print_nutrient_table(nutrients: dict[str, float], title: str = "Nutrients",
-                           per_label: str = "") -> None:
-    """Render a rich table of nutrients grouped by category."""
+def _print_nutrient_table(
+    nutrients: dict[str, float],
+    title: str = "Nutrients",
+    per_label: str = "",
+    *,
+    daily_nutrients: "dict[str, float] | None" = None,
+    rda: "dict | None" = None,
+) -> None:
+    """Render a rich table of nutrients grouped by category.
+
+    daily_nutrients + rda: when both provided, adds a '% today' column showing
+    how far today's running total is toward each RDA goal.
+    """
     groups = [
         ("Macronutrients", [
             "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
@@ -85,24 +95,50 @@ def _print_nutrient_table(nutrients: dict[str, float], title: str = "Nutrients",
     sub = f"({per_label})" if per_label else ""
     section_title(title, sub)
 
+    show_pct = daily_nutrients is not None and rda is not None
+
     _NUT_W = 28
     tbl = Table(show_header=True, header_style=state.T["accent"], box=None, padding=(0, 2))
     tbl.add_column("Nutrient", style="", min_width=_NUT_W, max_width=_NUT_W, no_wrap=True)
     tbl.add_column("Amount", justify="right", min_width=10)
     tbl.add_column("Unit", style="dim", min_width=8)
+    if show_pct:
+        tbl.add_column("% today", justify="right", min_width=9)
+        tbl.add_column("Daily goal", justify="right", min_width=12)
 
     for group_name, keys in groups:
         present = [(k, nutrients[k]) for k in keys if k in nutrients]
         if not present:
             continue
-        tbl.add_row(f"[{state.T['hi']}]{group_name}[/{state.T['hi']}]", "", "")
+        header_row = [f"[{state.T['hi']}]{group_name}[/{state.T['hi']}]", "", ""]
+        tbl.add_row(*(header_row + (["", ""] if show_pct else [])))
         for key, val in present:
             label, unit = _usda.nutrient_label(key)
             visible = f"  {label}"
             dots = "·" * max(0, _NUT_W - len(visible) - 1)
-            tbl.add_row(f"{visible} [dim]{dots}[/dim]", f"{val:.2f}", unit)
+            if show_pct:
+                rda_entry = rda.get(key) if rda else None
+                if rda_entry and rda_entry[0] > 0:
+                    rda_val, rda_unit, rda_type = rda_entry
+                    pct = daily_nutrients.get(key, 0.0) / rda_val * 100.0
+                    if rda_type == "limit":
+                        color = state.T["success"] if pct <= 80 else (state.T["warning"] if pct <= 100 else state.T["error"])
+                    else:
+                        color = state.T["success"] if pct >= 100 else (state.T["warning"] if pct >= 70 else state.T["error"])
+                    pct_cell = f"[{color}]{pct:.0f}%[/{color}]"
+                    goal_cell = f"[dim]{rda_val:.1f} {rda_unit}[/dim]"
+                else:
+                    pct_cell = ""
+                    goal_cell = ""
+                tbl.add_row(f"{visible} [dim]{dots}[/dim]", f"{val:.2f}", unit, pct_cell, goal_cell)
+            else:
+                tbl.add_row(f"{visible} [dim]{dots}[/dim]", f"{val:.2f}", unit)
 
     state.console.print(tbl)
+    if show_pct:
+        state.console.print()
+        state.console.print("  [dim]% today = day's running total ÷ daily goal (all meals so far)[/dim]")
+        help_footer("goals")
 
 
 def _print_protein_completeness(
@@ -747,6 +783,65 @@ def _print_complement_suggestions(
         else:
             _general_exhausted_msg(0)
     help_footer()
+
+def _print_rda_targets(profile: "_profile.UserProfile") -> None:
+    """Print a table of personalized daily nutrient targets derived from the user's profile."""
+    rda = _profile.compute_rda(profile)
+
+    section_title("Daily Nutrient Targets")
+    state.console.print(
+        f"  Profile: age {profile.age}  ·  {profile.sex}"
+        f"  ·  {_profile.format_weight(profile.weight_kg, profile.weight_unit)}"
+        f"  ·  {_profile.format_height(profile.height_cm, profile.height_unit)}"
+        f"  ·  {_profile.ACTIVITY_LABELS.get(profile.activity_level, profile.activity_level)}\n",
+        highlight=False,
+    )
+
+    groups = [
+        ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g"]),
+        ("Minerals", ["calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
+                      "potassium_mg", "sodium_mg", "zinc_mg"]),
+        ("Vitamins", ["vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+                      "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
+                      "b6_mg", "folate_mcg", "b12_mcg", "choline_mg"]),
+    ]
+
+    _RDA_W = 30
+    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+    tbl.add_column("Nutrient",   min_width=_RDA_W, max_width=_RDA_W, no_wrap=True)
+    tbl.add_column("Daily Goal", justify="right", min_width=14)
+    tbl.add_column("Goal Type",  min_width=14)
+
+    for group_name, keys in groups:
+        present = [(k, rda[k]) for k in keys if k in rda]
+        if not present:
+            continue
+        tbl.add_row(f"[{state.T['hi']}]{group_name}[/{state.T['hi']}]", "", "")
+        for key, (val, unit, rda_type) in present:
+            label_info = _usda.nutrient_label(key)
+            label = label_info[0] if label_info else key.replace("_", " ").title()
+            if rda_type == "limit":
+                type_color = state.T["warning"]
+                type_label = "limit (max)"
+            elif rda_type == "target":
+                type_color = state.T["hi"]
+                type_label = "target"
+            else:
+                type_color = state.T["success"]
+                type_label = "minimum"
+            tbl.add_row(
+                dot_cell(label, _RDA_W),
+                f"{val:.1f} {unit}",
+                f"[{type_color}]{type_label}[/{type_color}]",
+            )
+
+    state.console.print(tbl, highlight=False)
+    table_footer(
+        "  [dim]Minimum = daily requirement  ·  Target = recommended intake  ·  Limit = upper safe intake[/dim]",
+        "  [dim]Targets are personalized to your age, sex, weight, height, and activity level.[/dim]",
+    )
+    help_footer("goals")
+
 
 def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserProfile") -> None:
     """Print a table comparing daily nutrient totals against personalized RDA targets."""
