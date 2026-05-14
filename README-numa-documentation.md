@@ -14,8 +14,7 @@ UPDATED: 2026-04-26:2020
 - [Menu Structure](#menu-structure)
 - [Usage Guide](#usage-guide)
   - [The local food cache](#the-local-food-cache)
-  - [Food annotations (GI and DIAAS estimates)](#food-an## ? Help System
-notations-gi-and-diaas-estimates)
+  - [Food annotations (GI and DIAAS estimates)](#food-annotations-gi-and-diaas-estimates)
   - [Drafted food profiles](#drafted-food-profiles-user-modified-nutrients)
   - [Searching for a food](#searching-for-a-food)
 - [Architecture](#architecture)
@@ -626,7 +625,13 @@ If the food is not in the DIAAS lookup table, this line is omitted silently — 
 
 #### How DIAAS values are sourced
 
-DIAAS scores are not available from any API — they come from controlled digestion studies conducted in laboratory settings. numa uses a static lookup table of ~50 common food categories, built from FAO 2013 reference values and peer-reviewed studies (principally Mathai et al. 2017, *Br J Nutr*; Gorissen et al. 2018, *Amino Acids*). The lookup uses keyword matching on the food name (case-insensitive, longest match wins).
+DIAAS scores are not available from any API — they come from controlled digestion studies conducted in laboratory settings. numa uses a static lookup table of ~60 common food categories, built from FAO 2013 reference values and peer-reviewed studies (principally Mathai et al. 2017, *Br J Nutr*; Gorissen et al. 2018, *Amino Acids*). The lookup uses keyword matching on the food name (case-insensitive, first match wins). More specific entries appear before general ones in the table so that, e.g., "chickpea pasta" resolves to the chickpea score (0.83) rather than the generic pasta/wheat score (0.46).
+
+**Notable entries:** Collagen and gelatin are scored at 0.04 — effectively zero — because tryptophan is essentially absent from these proteins. Without this entry, collagen powder added to a recipe would be silently treated as fully digestible, substantially inflating the displayed digestible protein figure.
+
+**Lookup is not cached.** The keyword scan takes microseconds and is repeated on each analysis. USDA nutrient data (macros, minerals, vitamins, amino acids) is cached in the `foods` table after first fetch and never re-fetched unless you delete the cache entry. DIAAS scores, by contrast, are derived from the food name at runtime and are not written back to the database.
+
+**Per-food DIAAS via annotations.** If you have a primary-literature DIAAS value for a specific food, you can save it via **Foods → Annotate a cached food** or the inline prompt during analysis. A saved annotation in `food_annotations.diaas_estimate` takes priority over the keyword table for that food. This is the only path to storing a DIAAS value per-food in the database.
 
 ### Meal-level DIAAS analysis
 
@@ -1079,7 +1084,8 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 | `meals`              | Meal log entries with date                           |
 | `meal_items`         | Foods or recipes added to a meal; foreign key to `meals` |
 | `pantry`             | User's protein-source inventory (food name, optional fdc_id, notes) |
-| `diaas_overrides`    | User-set true ileal digestibility coefficients, keyed by food name |
+| `food_annotations`   | Per-food user-supplied estimates (GI, DIAAS, prep context), keyed by fdc_id; also stores `gi_no_prompt` / `diaas_no_prompt` suppression flags |
+| `diaas_overrides`    | User-set true ileal digestibility coefficients, keyed by food name (used by meal-level DIAAS in `diaas.py`; distinct from per-food annotations above) |
 
 `recipes.total_volume` / `recipes.total_volume_unit` and `recipes.total_weight` / `recipes.total_weight_unit` store the user-entered batch size (e.g. 4.0 / "cups", 800.0 / "g"). Both pairs are nullable — either or both may be omitted. Added via `ALTER TABLE` migration so existing databases are upgraded automatically on first run.
 
@@ -1136,7 +1142,7 @@ Imports `NUTRIENT_MAP`, `ESSENTIAL_AMINO_ACIDS`, and `AA_REFERENCE_MG_PER_G_PROT
 
 **Protein completeness method:** The FAO 2013 dietary protein quality evaluation reference pattern (mg of each essential amino acid per gram of protein) is used. Met+Cys and Phe+Tyr are evaluated as combined pairs per FAO 2013, with reference values of 22 and 38 mg/g protein respectively. A protein digestibility factor (DIAAS) is applied to scores before the complete/incomplete determination so the classification reflects bioavailable amino acids. A food is complete when all digestibility-adjusted AA scores ≥ 1.0; the most limiting AA is the one with the lowest adjusted score. Raw (pre-digestibility) scores are shown in the display table.
 
-**DIAAS lookup (`get_diaas`):** A static ordered table of ~50 food categories maps keyword patterns to DIAAS scores from FAO 2013 and peer-reviewed digestion studies. Used for single-food bioavailability display. Scores above 1.0 are capped at 1.0. More specific entries are listed before general ones — first match wins. Distinct from the digestibility coefficients in `diaas.py`, which are used for meal-level pooled calculation.
+**DIAAS lookup (`get_diaas`):** A static ordered table of ~60 food categories maps keyword patterns to DIAAS scores from FAO 2013 and peer-reviewed digestion studies. Used for single-food bioavailability display. Scores above 1.0 are capped at 1.0. More specific entries are listed before general ones — first match wins. If no entry matches, returns `None` and the caller treats the food as fully digestible (1.0). Results are **not** written back to the database; the scan is repeated on each analysis (microsecond cost). Distinct from the digestibility coefficients in `diaas.py`, which are used for meal-level pooled calculation. Notable: collagen/gelatin is scored 0.04 (near-zero tryptophan) — without this entry these proteins would be silently over-credited.
 
 **Anti-nutrient flags:** A static table maps food keywords to advisory messages (phytate, oxalate, lectins, trypsin inhibitors, bound niacin). Flags can be suppressed by cooking-state keywords — e.g., "cooked"/"boiled" suppresses lectin and trypsin inhibitor warnings for beans.
 
@@ -1403,9 +1409,10 @@ The original design specified three phases. Phase 1 is complete.
 
 ### Phase 3 — Planned
 
-- Barcode scanning for packaged foods
-- Integration with smart kitchen devices
-- API for third-party app integration
+- Replacement of external editor with internal one - v. `2026-04-13-numa-system-editor-versus-python-replacement` for details
+?-Barcode scanning for packaged foods
+- ?-Integration with smart kitchen devices
+- ?-API for third-party app integration
 - Machine learning components for dietary recommendations
 
 
@@ -1436,6 +1443,60 @@ The reference values allow a simple and powerful question to be asked about any 
 > If I eat enough of this food to meet my total daily protein needs, will each essential amino acid also arrive in sufficient quantity?
 
 If the answer is yes for all nine EAAs, the protein is high quality — no bottleneck will limit your body's ability to use it. If the answer is no for even one EAA, that amino acid becomes your limiting factor.
+
+### How the Ratio Is Calculated in numa
+
+For each essential amino acid, the ratio shown in numa's output is computed in two steps:
+
+**Step 1 — convert to mg per gram of protein:**
+
+    (AA content in g per 100g food ÷ protein content in g per 100g food) × 1000
+
+This expresses how many milligrams of that amino acid are present for every gram of total protein the food contains.
+
+**Step 2 — divide by the FAO reference value:**
+
+    mg AA per g protein ÷ FAO reference value (mg/g protein)
+
+A ratio of 1.0 means the food hits the reference exactly. A ratio of 2.14 means it delivers more than twice the required amount. A ratio of 0.80 means it delivers only 80% of what is needed.
+
+**Concrete example — cocoa (USDA #169594):**
+
+    Protein:      19.6 g per 100g food
+    Tryptophan:    0.293 g per 100g food
+
+    Step 1:  (0.293 / 19.6) × 1000  =  14.9 mg tryptophan per g protein
+    Step 2:  14.9 / 7               =  2.14
+
+The FAO reference for tryptophan is 7 mg/g protein. Cocoa's protein delivers 14.9 mg/g — 2.14 times the floor.
+
+### Why Total Protein Is the Denominator
+
+A reasonable question is why the ratio uses total protein (including non-essential amino acids) as its denominator rather than comparing EAA amounts in absolute terms.
+
+Total protein is a normalizing device — a common scale that makes the quality metric meaningful across foods with very different protein concentrations and very different serving sizes.
+
+The practical interpretation is direct: **if a food's protein clears all nine floors, eating enough of that food to meet your daily protein target will automatically also deliver your daily EAA requirements.** No separate EAA accounting is needed. A food that fails even one floor means you would reach your protein target before accumulating enough of that EAA — the protein source is insufficient on its own.
+
+The non-essential amino acids that make up the rest of the protein are biologically irrelevant to this specific calculation. They appear in the denominator only because total protein is the natural unit for expressing protein intake. They are not required to "activate" the EAAs — they are simply passengers.
+
+### What "Complete" Actually Means
+
+"Complete" does not mean the amino acid ratios are all close to 1.0, or close to each other. It means **every one of the nine ratios is at or above 1.0** — each amino acid clears its own independent floor.
+
+The nine FAO reference values were determined in separate human trials, one amino acid at a time. They are not ratios between amino acids; they are nine independent thresholds. Having tryptophan at 2.14× its floor while Met+Cys sits at 1.02× its floor creates no imbalance — the tryptophan surplus cannot compensate for a deficit in another amino acid, but it does not create one either.
+
+A food can therefore have wildly varying ratios across its amino acids and still be complete. Cocoa's protein ranges from 1.02 to 2.25 across the nine amino acids — a factor of more than two between the lowest and highest — and is still complete because nothing falls below 1.0.
+
+The floor analogy: imagine a building with nine rooms, each with its own minimum ceiling height requirement. A room that comfortably exceeds its requirement does not help or hurt any other room. Every room must pass independently.
+
+### The Limiting Amino Acid — A Practical Analogy
+
+When any one EAA ratio falls below 1.0, that amino acid is "limiting" — it acts as a bottleneck that caps how much protein your body can fully incorporate into tissue.
+
+A concrete analogy: you are mixing mortar to build a small wall. You have plenty of dry mix but run out of water before you have mixed enough for the full job. Without water, the remaining dry mix is unusable — you can build only 90 bricks worth of wall instead of 150. The water is your limiting amino acid. The unused dry mix is the protein your body cannot build into tissue, and instead breaks down and excretes.
+
+Complementary proteins work by pooling the limiting amino acids from multiple foods — a grain that is low in lysine paired with a legume that is rich in lysine can together clear all nine floors even though neither does so alone.
 
 ### The DIAAS Score
 

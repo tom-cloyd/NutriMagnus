@@ -9,7 +9,7 @@ from .. import state
 import db as _db
 import usda as _usda
 from ..services.portions import _pick_portion, _parse_portion_input
-from ..services.search import _search_and_pick_food, _suggest_foundation_search
+from ..services.search import _search_and_pick_food, _suggest_foundation_search, _fetch_food_from_result
 from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options, dot_cell, table_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_bioavailability, _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness
@@ -22,15 +22,16 @@ from .drafted_foods import _do_edit_cached_food, _do_drafted_foods_menu
 def _menu_foods() -> bool:
     """Foods submenu. Returns True to go back, False to quit."""
     while True:
-        _show_menu("Foods — Search, Edit, & Analyze", [
-            ("1", "Search food databases (USDA + Open Food Facts)"),
-            ("2", "Analyze a food portion  (USDA + Open Food Facts)"),
+        _show_menu("Foods — Search, Analyze & Manage", [
+            ("1", "Search food databases  (USDA + Open Food Facts)"),
+            ("2", "Analyze a food portion"),
             ("3", "Analyze a saved recipe portion"),
-            ("4", "Convert a portion <==> weight  (volume/weight conversion, no analysis)"),
-            ("5", "View / edit / delete cached foods"),
-            ("6", "My pantry  (protein sources on hand)"),
-            ("7", "Drafted food profiles  (custom nutrient profiles)"),
-            ("8", "Annotate a cached food  (GI / DIAAS estimates)"),
+            ("4", "Convert a portion <==> weight  (volume/weight, no analysis)"),
+            ("5", "Compare foods  (side-by-side nutrient table, up to 4)"),
+            ("6", "Saved food library  (view, edit, delete foods you have looked up)"),
+            ("7", "My pantry  (foods you have on hand)"),
+            ("8", "Custom food profiles  (create and edit your own food data)"),
+            ("9", "Annotate a food  (add your GI / DIAAS estimates)"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -49,12 +50,14 @@ def _menu_foods() -> bool:
         elif choice == "4":
             _safe_call(_do_convert_portion)
         elif choice == "5":
-            _safe_call(_do_list_cached_foods)
+            _safe_call(_do_compare_foods)
         elif choice == "6":
-            _safe_call(_do_pantry_menu)
+            _safe_call(_do_list_cached_foods)
         elif choice == "7":
-            _safe_call(_do_drafted_foods_menu)
+            _safe_call(_do_pantry_menu)
         elif choice == "8":
+            _safe_call(_do_drafted_foods_menu)
+        elif choice == "9":
             _safe_call(_do_annotate_food)
         elif choice in ("m", "b"):
             return True
@@ -257,6 +260,184 @@ def _do_analyze_recipe_portion() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Food comparison
+# ---------------------------------------------------------------------------
+
+_COMPARE_GROUPS: list[tuple[str, list[str]]] = [
+    ("Macronutrients", [
+        "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
+        "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+    ]),
+    ("Minerals", [
+        "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
+        "potassium_mg", "sodium_mg", "zinc_mg",
+    ]),
+    ("Vitamins", [
+        "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+        "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
+        "b6_mg", "folate_mcg", "b12_mcg",
+    ]),
+    ("Phytonutrients", [
+        "beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
+        "lutein_zeaxanthin_mcg", "choline_mg", "beta_sitosterol_mg", "isoflavones_mg",
+    ]),
+    ("Amino Acids", [
+        "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
+        "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
+        "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g",
+    ]),
+]
+
+
+def _print_food_comparison(entries: list[dict]) -> None:
+    """Render side-by-side nutrient table for 2–4 foods."""
+    N = len(entries)
+    _NUT_W = 26
+
+    from ..ui.common import section_title, table_footer
+    section_title("FOOD COMPARISON", f"{N} foods · per portion selected")
+    for i, e in enumerate(entries, 1):
+        state.console.print(f"  [{state.T['accent']}]{i}.[/{state.T['accent']}] {e['label']}", highlight=False)
+
+    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+    tbl.add_column("Nutrient", min_width=_NUT_W, max_width=_NUT_W, no_wrap=True)
+    for i, e in enumerate(entries, 1):
+        name = e["name"]
+        short = (name[:11] + "…") if len(name) > 12 else name
+        tbl.add_column(f"{i}. {short}", justify="right", min_width=9)
+
+    for group_name, keys in _COMPARE_GROUPS:
+        if not any(e["nutrients"].get(k, 0.0) > 0 for e in entries for k in keys):
+            continue
+        tbl.add_row(f"[{state.T['hi']}]{group_name}[/{state.T['hi']}]", *[""] * N)
+        for key in keys:
+            vals = [e["nutrients"].get(key, 0.0) for e in entries]
+            if not any(v > 0 for v in vals):
+                continue
+            lbl, unit = _usda.nutrient_label(key)
+            raw_cell = f"  {lbl} ({unit})"
+            nut_cell = raw_cell if len(raw_cell) <= _NUT_W else raw_cell[:_NUT_W - 1] + "…"
+            max_val = max(vals)
+            cells = []
+            for v in vals:
+                if v <= 0:
+                    cells.append("[dim]—[/dim]")
+                elif v == max_val:
+                    cells.append(f"[{state.T['success']}]{v:.2f}[/{state.T['success']}]")
+                else:
+                    cells.append(f"{v:.2f}")
+            tbl.add_row(nut_cell, *cells)
+
+    state.console.print()
+    state.console.print(tbl)
+    table_footer(
+        f"  [{state.T['success']}]Highlighted[/{state.T['success']}]"
+        f" [dim]= highest in row   —  = no data for this food[/dim]"
+    )
+
+
+def _do_compare_foods() -> None:
+    """Collect up to 4 foods or recipe portions and display a side-by-side nutrient table."""
+    MAX = 4
+    entries: list[dict] = []  # {"name": str, "label": str, "nutrients": dict[str, float]}
+    last_results: list[dict] = []  # food result dicts from the most recent search
+
+    while len(entries) < MAX:
+        n = len(entries)
+        state.console.print()
+        if n == 0:
+            state.console.print(
+                f"  [{state.T['hi']}]Food Comparison — select up to {MAX} foods[/{state.T['hi']}]"
+            )
+        else:
+            names = "  ·  ".join(e["name"] for e in entries)
+            state.console.print(f"  [dim]Added: {names}[/dim]")
+
+        if n >= 1 and last_results:
+            hint = "  [dim](# to re-pick from last results · new query to search again · Enter to compare)[/dim]"
+        elif n >= 2:
+            hint = "  [dim](Enter to compare)[/dim]"
+        else:
+            hint = ""
+        try:
+            raw = _prompt(f"  Food {n + 1} — search{hint}", free_text=True).strip()
+        except Cancelled:
+            if n >= 2:
+                break
+            return
+
+        rl = raw.lower()
+        if not raw or rl == "b":
+            if n >= 2:
+                break
+            return
+        if rl == "m":
+            raise ReturnToMain()
+        if rl == "q":
+            raise SystemExit(0)
+
+        # Re-pick by number from the last search results (no new API call)
+        if last_results and raw.isdigit():
+            idx = int(raw) - 1
+            if 0 <= idx < len(last_results):
+                food: dict | None = _fetch_food_from_result(last_results[idx])
+                if food is None:
+                    state.console.print(f"[{state.T['warning']}]Could not load that food.[/{state.T['warning']}]")
+                    continue
+            else:
+                state.console.print(
+                    f"[{state.T['warning']}]Number out of range — "
+                    f"last search had {len(last_results)} results.[/{state.T['warning']}]"
+                )
+                continue
+        else:
+            # New search — result_out keeps the displayed list for future re-picks
+            with _db.get_db() as conn:
+                all_recipes = _db.recipe_list(conn)
+            words = rl.split()
+            matching = sorted(
+                [r for r in all_recipes if any(w in r["name"].lower() for w in words)],
+                key=lambda r: (-sum(1 for w in words if w in r["name"].lower()), r["name"].lower()),
+            )
+            food = _search_and_pick_food(
+                initial_query=raw, prepend_recipes=matching or None, result_out=last_results
+            )
+            if food is None:
+                continue
+
+        if food.get("_type") == "recipe":
+            from .recipes import _get_recipe_total_nutrients, _pick_recipe_portion
+            recipe, _, combined = _get_recipe_total_nutrients(food["id"])
+            if recipe is None or not combined:
+                state.console.print(
+                    f"[{state.T['warning']}]Recipe has no analyzable ingredients.[/{state.T['warning']}]"
+                )
+                continue
+            portion = _pick_recipe_portion(recipe)
+            if portion is None:
+                continue
+            servings, label = portion
+            factor = servings / (recipe["servings"] or 1)
+            scaled = {k: v * factor for k, v in combined.items()}
+            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled})
+        else:
+            result = _pick_portion(food)
+            if result is None:
+                continue
+            grams, label, scaled = result
+            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled})
+
+    if len(entries) < 2:
+        if entries:
+            state.console.print(
+                f"[{state.T['warning']}]Add at least 2 foods to compare.[/{state.T['warning']}]"
+            )
+        return
+
+    _print_food_comparison(entries)
+
+
+# ---------------------------------------------------------------------------
 # Cached food viewer / editor
 # ---------------------------------------------------------------------------
 
@@ -342,14 +523,16 @@ def _do_list_cached_foods() -> None:
 
         s, e = state.T["success"], state.T["error"]
 
+        _NAME_W  = 40
+        _BRAND_W = 20
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         tbl.add_column("#",     justify="right", min_width=3)
-        tbl.add_column("Name",  min_width=40)
-        tbl.add_column("Type",  min_width=14)
-        tbl.add_column("Brand", min_width=20)
         tbl.add_column("AA",    min_width=3, justify="center")
         tbl.add_column("GI",    min_width=4, justify="right")
         tbl.add_column("DIAAS", min_width=5, justify="right")
+        tbl.add_column("Name",  min_width=_NAME_W)
+        tbl.add_column("Type",  min_width=14)
+        tbl.add_column("Brand", min_width=_BRAND_W)
         for i, f in enumerate(foods, 1):
             nutrients = json.loads(f["nutrients_json"])
             aa_cell = (f"[{s}]✓[/{s}]" if _usda.has_amino_acid_data(nutrients)
@@ -359,8 +542,9 @@ def _do_list_cached_foods() -> None:
                        if ann and ann["gi_estimate"] is not None else "[dim]——[/dim]")
             diaas_cell = (f"[{s}]{ann['diaas_estimate']:.2f}[/{s}]"
                           if ann and ann["diaas_estimate"] is not None else "[dim]——[/dim]")
-            tbl.add_row(str(i), f["name"], f["data_type"] or "", f["brand"] or "",
-                        aa_cell, gi_cell, diaas_cell)
+            tbl.add_row(str(i), aa_cell, gi_cell, diaas_cell,
+                        dot_cell(f["name"], _NAME_W), f["data_type"] or "",
+                        dot_cell(f["brand"], _BRAND_W) if f["brand"] else "")
 
         if filter_text:
             table_title("CACHED FOODS",

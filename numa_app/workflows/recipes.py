@@ -662,8 +662,8 @@ def _do_recipe_browse() -> None:
             nav_parts.append("p=prev")
         nav_parts.append("b=done")
         nav = "  ".join(nav_parts)
-        state.console.print(f"  [dim]v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  {nav}[/dim]", highlight=False)
-        state.console.print(f"  [dim]Enter action + ID, e.g. v3 or x 14[/dim]", highlight=False)
+        state.console.print(f"  [dim]Actions: v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  {nav}[/dim]", highlight=False)
+        state.console.print(f"  [dim](Enter action + ID, e.g. v3 or x 14)[/dim]", highlight=False)
 
         try:
             raw = _prompt("").strip().lower()

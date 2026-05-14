@@ -4,6 +4,8 @@ Docs: README-numa-documentation.md, Architecture: "numa_app/services/search.py �
 """
 import json
 import re
+import textwrap
+import threading
 
 from rich.table import Table
 
@@ -57,6 +59,12 @@ _PREP_WORDS = {
     "plain", "unseasoned", "seasoned", "marinated",
 }
 
+# Words users type as source hints (e.g. "almonds usda") that must be stripped
+# before any API or cache query — "usda" appears in every SR Legacy food name
+# ("Includes foods for USDA's Food Distribution Program") and would otherwise
+# match thousands of irrelevant foods.
+_META_WORDS = {"usda", "off", "openfoodfacts"}
+
 
 def _ensure_api_key() -> bool:
     """Return True if an API key is configured, prompting the user if not."""
@@ -100,11 +108,12 @@ def _search_cached_foods_by_name(query: str) -> list[dict]:
     with _db.get_db() as conn:
         rows = _db.search_cached_foods(conn, query)
     return [{
-        "fdcId": row["fdc_id"],
-        "description": row["name"],
-        "dataType": row["data_type"],
-        "brandOwner": row["brand"],
-        "_from_cache": True,
+        "fdcId":         row["fdc_id"],
+        "description":   row["name"],
+        "dataType":      row["data_type"],
+        "brandOwner":    row["brand"],
+        "_from_cache":   True,
+        "_portions_json": row["portions_json"],
     } for row in rows]
 
 
@@ -177,12 +186,73 @@ def _suggest_foundation_search(food: dict) -> dict | None:
         return None
     return _search_and_pick_food(data_types=["Foundation"], initial_query=suggested)
 
+def _fetch_food_from_result(result: dict) -> dict | None:
+    """Fetch full food detail for a search result item (cache → OFF → USDA).
+
+    Used when re-picking from a previously displayed result list without re-running
+    the search. Returns a food dict suitable for _pick_portion, or None on failure.
+    The name-mismatch guard that exists in the main pick loop is intentionally omitted
+    here — the caller already showed the user the food name before they picked it.
+    """
+    fdc_id = result.get("fdcId")
+    if fdc_id is None:
+        return None
+
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if cached:
+        nutrients = json.loads(cached["nutrients_json"])
+        pj = cached["portions_json"]
+        if nutrients and pj is not None and pj != "null":
+            return {
+                "fdcId":            cached["fdc_id"],
+                "name":             cached["name"],
+                "dataType":         cached["data_type"],
+                "brand":            cached["brand"],
+                "servingSize":      cached["serving_size"],
+                "servingUnit":      cached["serving_unit"],
+                "householdServing": None,
+                "nutrients":        nutrients,
+                "portions":         json.loads(pj),
+            }
+
+    if result.get("_from_off"):
+        detail = _off.get_food_detail(result)
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn,
+                detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
+                detail["servingSize"], detail["servingUnit"], detail["nutrients"],
+                detail.get("portions"),
+            )
+        return detail
+
+    state.console.print("[dim]Fetching details...[/dim]")
+    try:
+        detail = _usda.get_food_detail(fdc_id)
+    except _usda.USDAError as e:
+        state.console.print(f"[{state.T['error']}]API error: {e}[/{state.T['error']}]")
+        return None
+    except (TimeoutError, OSError) as e:
+        state.console.print(f"[{state.T['error']}]Network error: {e}[/{state.T['error']}]")
+        return None
+    with _db.get_db() as conn:
+        _db.cache_food(
+            conn,
+            detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
+            detail["servingSize"], detail["servingUnit"], detail["nutrients"],
+            detail.get("portions"),
+        )
+    return detail
+
+
 def _search_and_pick_food(
     data_types: list[str] | None = None,
     initial_query: str | None = None,
     show_aa_status: bool = True,
     allow_research: bool = True,
     prepend_recipes: list[dict] | None = None,
+    result_out: list | None = None,
 ) -> dict | None:
     """
     Interactive food search: prompts for a query, shows results, user picks one.
@@ -193,12 +263,14 @@ def _search_and_pick_food(
     show_aa_status: add an AA column — always True by default.
     allow_research: when False, backing out of the pick list skips the current flow
         instead of returning to a new search prompt.
+    result_out: if provided, populated (in-place) with the displayed food result list
+        after each search so callers can offer re-picks without re-running the search.
     """
     if not _ensure_api_key():
         return None
 
     query: str | None = initial_query
-    full_search: bool = initial_query is not None  # initial_query always does a full search
+    full_search: bool = False  # set True only when user types 'a ' prefix
     while True:
         if query is None:
             try:
@@ -226,20 +298,150 @@ def _search_and_pick_food(
         # not include OFF products, which never have amino acid data.
         include_off = (data_types is None)
 
+        # Strip source-hint meta words (e.g. "usda", "off") before any search.
+        # "usda" appears in every SR Legacy food name and would match thousands of
+        # irrelevant foods if passed to the API or cache query.
+        _clean_words = [w for w in query.lower().split() if w not in _META_WORDS]
+        clean_query = " ".join(_clean_words) if _clean_words else query
+
         state.console.print("[dim]Searching local cache...[/dim]")
-        cache_results = _search_cached_foods_by_name(query)
+        cache_results = _search_cached_foods_by_name(clean_query)
         cache_fdcids = {r.get("fdcId") for r in cache_results if r.get("fdcId")}
 
-        if not full_search and cache_results:
-            # Cache hits found: show them immediately; skip USDA/OFF API.
-            results = [{**r, "_from_cache": True} for r in cache_results]
-            state.console.print()
-        else:
-            # Full search: Strip prep words for the API query so "peeled orange" finds
-            # "Oranges, raw, navels". The full user query is still used for local ranking.
-            _api_words = [w for w in query.lower().split() if w not in _PREP_WORDS]
-            api_query = " ".join(_api_words) if _api_words else query
+        # Strip prep words for the API query so "peeled orange" finds "Oranges, raw, navels".
+        _api_words = [w for w in clean_query.split() if w not in _PREP_WORDS]
+        api_query = " ".join(_api_words) if _api_words else clean_query
 
+        if not full_search and cache_results:
+            # Only foods with complete cached data (nutrients + portions) are usable
+            # for immediate pick; incomplete entries still count for deduplication.
+            # When data_types is restricted (e.g. Foundation only), also filter by type
+            # so we don't offer off-type cached foods in the quick-pick.
+            _complete_cache = [
+                r for r in cache_results
+                if (r.get("_portions_json") is not None and r.get("_portions_json") != "null")
+                and (data_types is None or r.get("dataType") in data_types)
+            ]
+
+            _bg_results: list[dict] = []
+            _bg_exc: list[Exception] = []
+            _bg_done = threading.Event()
+
+            def _bg_search() -> None:
+                try:
+                    found = _usda.search_foods(api_query, data_types=data_types)
+                    if data_types is None:
+                        generic = _usda.search_foods(
+                            api_query, data_types=["Foundation", "SR Legacy"], page_size=8
+                        )
+                        generic_ids = {x["fdcId"] for x in generic}
+                        found = generic + [x for x in found if x["fdcId"] not in generic_ids]
+                    if include_off:
+                        try:
+                            off_found = _off.search_foods(api_query, page_size=6)
+                        except Exception:
+                            off_found = []
+                        existing = {x.get("description", "").lower() for x in found}
+                        for item in off_found:
+                            if item["description"].lower() not in existing:
+                                found.append(item)
+                    _bg_results.extend(found)
+                except Exception as exc:
+                    _bg_exc.append(exc)
+                finally:
+                    _bg_done.set()
+
+            threading.Thread(target=_bg_search, daemon=True).start()
+
+            if _complete_cache:
+                state.console.print()
+                state.console.print(f"  [{state.T['hi']}]In your food cache:[/{state.T['hi']}]")
+                for _ci, _cr in enumerate(_complete_cache, 1):
+                    _cbrand = _cr.get("brandOwner") or ""
+                    _cbrand_str = f"  [dim]{_cbrand}[/dim]" if _cbrand else ""
+                    state.console.print(
+                        f"    [{state.T['accent']}]{_ci}.[/{state.T['accent']}]"
+                        f" {_cr['description']}{_cbrand_str}"
+                        f"  [dim]{_cr.get('dataType', '')}[/dim]",
+                        highlight=False,
+                    )
+                state.console.print()
+
+                try:
+                    cache_raw = _prompt(
+                        "Pick # for cached food, or press Enter for full USDA results"
+                    ).strip()
+                except Cancelled:
+                    return None
+
+                if cache_raw.lower() == "q":
+                    raise SystemExit(0)
+                if cache_raw.lower() == "m":
+                    raise ReturnToMain()
+                if cache_raw.lower() == "b":
+                    if allow_research:
+                        query = None
+                        continue
+                    return None
+
+                if cache_raw.isdigit():
+                    _cidx = int(cache_raw) - 1
+                    if 0 <= _cidx < len(_complete_cache):
+                        _cfdc_id = _complete_cache[_cidx]["fdcId"]
+                        with _db.get_db() as conn:
+                            _cc = _db.get_cached_food(conn, _cfdc_id)
+                        if _cc:
+                            _cn = json.loads(_cc["nutrients_json"])
+                            _cpj = _cc["portions_json"]
+                            if _cn and _cpj is not None and _cpj != "null":
+                                return {
+                                    "fdcId":            _cc["fdc_id"],
+                                    "name":             _cc["name"],
+                                    "dataType":         _cc["data_type"],
+                                    "brand":            _cc["brand"],
+                                    "servingSize":      _cc["serving_size"],
+                                    "servingUnit":      _cc["serving_unit"],
+                                    "householdServing": None,
+                                    "nutrients":        _cn,
+                                    "portions":         json.loads(_cc["portions_json"]),
+                                }
+
+            # Wait for background search (may already be done)
+            if not _bg_done.is_set():
+                if data_types == ["Foundation"]:
+                    _lbl = "Foundation Foods"
+                elif data_types == ["Foundation", "SR Legacy"]:
+                    _lbl = "SR Legacy + Foundation Foods"
+                elif include_off:
+                    _lbl = "USDA + Open Food Facts"
+                else:
+                    _lbl = "USDA"
+                state.console.print(f"[dim]Searching {_lbl}...[/dim]")
+                _bg_done.wait()
+
+            if _bg_exc and not _bg_results:
+                _be = _bg_exc[0]
+                if isinstance(_be, _usda.USDAError):
+                    state.console.print(
+                        f"[{state.T['warning']}]{_be} — showing cached results only.[/{state.T['warning']}]"
+                    )
+                    results = [{**r, "_from_cache": True} for r in cache_results]
+                else:
+                    state.console.print(
+                        f"[{state.T['error']}]{_be}[/{state.T['error']}]\n"
+                        f"[dim]No results available. Try a different search term or check your connection.[/dim]"
+                    )
+                    if allow_research:
+                        query = None
+                        continue
+                    return None
+            else:
+                tagged_cache = [{**r, "_from_cache": True} for r in cache_results]
+                results = tagged_cache + [
+                    r for r in _bg_results if r.get("fdcId") not in cache_fdcids
+                ]
+        else:
+            # No cache hits (or explicit full search): run API search synchronously.
             if data_types == ["Foundation"]:
                 label = "Foundation Foods"
             elif data_types == ["Foundation", "SR Legacy"]:
@@ -378,6 +580,9 @@ def _search_and_pick_food(
                 -_word_score(f),
             ))
 
+        if result_out is not None:
+            result_out[:] = results
+
         recipe_rows = prepend_recipes or []
 
         _SRCH_W = 36
@@ -421,6 +626,12 @@ def _search_and_pick_food(
             t = brand[: _BRAND_W - 1]
             pad = _BRAND_W - len(t) - 1
             return f"{t} [dim]{'·' * pad}[/dim]" if pad > 0 else t
+
+        def _type_cell(food: dict) -> str:
+            dtype = food.get("dataType", "")
+            if food.get("_from_cache"):
+                return f"[{state.T['success']}]★[/{state.T['success']}] {dtype}"
+            return dtype
 
         def _ann_cell(food: dict) -> str:
             ann = food.get("_annotation")
@@ -478,9 +689,9 @@ def _search_and_pick_food(
                     else:
                         # Branded / unknown: virtually never have AA data in USDA
                         aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
-                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), _ann_cell(food), aa_cell)
+                tbl.add_row(str(i), _type_cell(food), _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), _ann_cell(food), aa_cell)
             else:
-                tbl.add_row(str(i), dtype, _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), _ann_cell(food))
+                tbl.add_row(str(i), _type_cell(food), _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), _ann_cell(food))
         if show_aa_status:
             likely_count = 0
             for food in results:
@@ -502,9 +713,16 @@ def _search_and_pick_food(
                     likely_count += 1
         table_title("FOOD SEARCH RESULTS")
         state.console.print(tbl)
+        state.console.print()
         state.console.print(f"  {ID_KEY}")
+        _cached_count = sum(1 for f in results if f.get("_from_cache"))
+        if _cached_count:
+            state.console.print(
+                f"  [dim][{state.T['success']}]★[/{state.T['success']}] in Type column = already in your local cache (instant — no network fetch)[/dim]",
+                highlight=False,
+            )
         state.console.print(
-            f"  [dim]Ann: [{state.T['success']}]GI[/{state.T['success']}] glycemic index · "
+            f"  [dim]Ann (Annotations): [{state.T['success']}]GI[/{state.T['success']}] glycemic index · "
             f"[{state.T['success']}]DI[/{state.T['success']}] DIAAS — your saved estimates[/dim]",
             highlight=False,
         )
@@ -530,23 +748,31 @@ def _search_and_pick_food(
                     highlight=False,
                 )
 
+        _W = min(98, state.console.width - 2)
         if branded_count == 0 and data_types != ["Foundation"]:
+            _msg = textwrap.fill(
+                f"No branded or Open Food Facts products found for \"{query}\" — "
+                f"showing generic/legacy equivalents.",
+                width=_W, initial_indent="  ", subsequent_indent="  ",
+            )
             state.console.print(
-                f"[{state.T['warning']}]No branded or Open Food Facts products found for \"{query}\" — "
-                f"showing generic/legacy equivalents.[/{state.T['warning']}]"
+                f"[{state.T['warning']}]{_msg}[/{state.T['warning']}]",
+                highlight=False,
             )
         elif branded_count >= len(results) // 2:
-            state.console.print(
-                "[dim]Tip: most results are branded products. For home-cooked or "
+            _msg = textwrap.fill(
+                "Tip: most results are branded products. For home-cooked or "
                 "generic foods, try adding 'cooked', 'raw', or 'usda' to your search "
-                "(e.g. 'pinto beans cooked').[/dim]"
+                "(e.g. 'pinto beans cooked').",
+                width=_W, initial_indent="  ", subsequent_indent="  ",
             )
+            state.console.print(f"[dim]{_msg}[/dim]", highlight=False)
 
         help_footer()
 
-        pick_hint = ("R#/# or id:FDCID, Enter/b=back, m=main, q=quit"
+        pick_hint = ("  R#/# or id:FDCID, Enter/b=back, m=main, q=quit"
                      if recipe_rows else
-                     "Pick number, id:FDCID, or Enter/b=back, m=main, q=quit")
+                     "  Pick number, id:FDCID, or Enter/b=back, m=main, q=quit")
 
         # Inner loop: re-prompt on bad pick without re-running the search.
         while True:
@@ -578,7 +804,7 @@ def _search_and_pick_food(
                         "dcp_g":        r["dcp_g"],
                         "total_weight": r["total_weight"] if r["total_weight"] else None,
                     }
-                state.console.print(f"[{state.T['warning']}]Invalid recipe selection.[/{state.T['warning']}]")
+                state.console.print(f"  [{state.T['warning']}]Invalid recipe selection.[/{state.T['warning']}]")
                 continue
 
             # Direct FDC ID lookup: id:171545 (USDA only)
@@ -588,7 +814,7 @@ def _search_and_pick_food(
                 try:
                     fdc_id = int(raw[3:].strip())
                 except ValueError:
-                    state.console.print(f"[{state.T['warning']}]Invalid FDC ID.[/{state.T['warning']}]")
+                    state.console.print(f"  [{state.T['warning']}]Invalid FDC ID.[/{state.T['warning']}]")
                     continue
             else:
                 try:
@@ -596,7 +822,7 @@ def _search_and_pick_food(
                     if idx < 0 or idx >= len(results):
                         raise ValueError
                 except ValueError:
-                    state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
+                    state.console.print(f"  [{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
                     continue
                 selected_result = results[idx]
                 fdc_id = selected_result["fdcId"]

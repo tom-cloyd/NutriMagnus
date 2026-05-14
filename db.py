@@ -255,7 +255,7 @@ def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Ro
     conditions = " AND ".join("name LIKE ?" for _ in words)
     params = [f"%{w}%" for w in words]
     return conn.execute(
-        f"SELECT fdc_id, name, data_type, brand FROM foods WHERE {conditions} ORDER BY name",
+        f"SELECT fdc_id, name, data_type, brand, portions_json FROM foods WHERE {conditions} ORDER BY name",
         params,
     ).fetchall()
 

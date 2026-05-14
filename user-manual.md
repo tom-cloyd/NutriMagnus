@@ -2,6 +2,8 @@
 
 *Updated 2026-04-29:1040*
 
+[TOC]
+
 ## The problem that NutriMagnus (NM) addresses
 
 Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the readily modifiable design that I have wanted. So, with the development of NutriMagnus, both problems are addressed.
@@ -24,13 +26,38 @@ There are two other related dietary protein problems to be addressed:
 
 These are technical problems that are beyond the ability of ordinary people to solve well. An easy-to-use, freely available computer program will go far toward solving this problem. This is what this project is about.
 
-## Developmental approach
+## What a user can do with NutriMagnus - brief overview
+
+(To be developed)
+
+For more detailed information on what can be done with the program, look at 
+
+## Understanding your food data
+
+NutriMagnus gets food information from two large, well-maintained online databases:
+
+- **USDA FoodData Central** — the U.S. government's nutrition database, covering hundreds of thousands of whole foods, ingredients, and branded products. This is NutriMagnus's primary source. (Visit [FoodData Central FAQ](https://fdc.nal.usda.gov/faq/) to learn more.)
+- **Open Food Facts** — a community-maintained database of packaged and processed food products, useful for branded items not found in the USDA database. (Visit [Open Food Facts - Discover](https://world.openfoodfacts.org/discover) to learn more.)
+
+When you search for and select a food, NutriMagnus saves a copy of that food's nutrient numbers on your computer. Future lookups are faster, and already-looked-up foods are available even without an internet connection. Think of this as your **personal food library** that grows as you use the program.
+
+### Things you can add or change yourself
+
+Three features let you build on the food library with your own information:
+
+**My Pantry** keeps a short list of foods you currently have on hand — particularly protein sources. When NutriMagnus suggests foods to fill protein gaps in your diet, it checks your pantry first and puts those suggestions at the top of the list.
+
+**Custom food profiles** let you enter nutrient information by hand — for a food not found in either database, or to enter values from a product label you trust. Custom profiles appear in search results alongside regular foods.
+
+**Food annotations** let you attach a glycemic index (GI) estimate or a protein quality (DIAAS) estimate to any food already in the library, when you have that information from another source. The food's nutrient numbers stay unchanged; you are simply adding extra detail that NutriMagnus can then use in its calculations.
+
+## Incremental approach to developing NutriMagnus
 
 NM is being developed using Claude Code AI, in the VSCodium programming editor, which allows for rapid progress and excellent human/AI pairing.
 
 Development is focusing at present on coding and validating core features in a command line environment. Progress to a graphic user interface (GUI) is planned, but will not occur until core features are in place. Command and menu-driven operation of NM will always be available after the GUI is working.
 
-## Developmental Plan
+## Developmental Plan - functions developed and planned
 
 ### Phase 1 — Functions completed ✓
 
@@ -100,7 +127,7 @@ User profile: age 80, male, 158.0 lb  (71.7 kg), 5'9"  (175.3 cm), Very active (
 NutriMagnus Menu
 ────────────────────────────────────────────────────────────────────────────────────────────────────
   1. Foods
-     search · analyze portion · convert portion <==> weight · view cache · pantry · drafted food profiles
+     search · analyze · compare · annotate · manage pantry · custom profiles
   2. Recipes
      create · browse/manage · develop (add/remove ingredients with nutritional feedback)
   3. Meals & Log
@@ -135,39 +162,15 @@ Notice the options available in the **Recipes** menu: One can start a recipe and
 Now, looking at the displayed list of recipes, I see that the one I want to enter is already there, so I enter `v 5` (it could also have been `v5`) to look at recipe 5, which is then immediately displayed.
 
 ```
+Recipes
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  1. Create new recipe
+  2. Browse / view, edit, copy, delete recipes
+  3. Develop a recipe  (add/remove ingredients with nutritional feedback)
+  m. Return to main menu
+  q. Quit
+
 Choice: 2
-
-  RECIPES  20 most recently accessed  (of 12 total)
-   ID  Name                                Servings    DCP/srv  Complete  Created      
-   15  Smoothie core - developmental 3 ··         1          —     ✓      2026-04-27   
-   13  Smoothie core - developmental 2 ··         1      33.7g     —      2026-04-18   
-   10  Refried beans, Tom's ·············         0          —     ✓      2026-04-14   
-   12  Coffee 2 ·························         1       2.3g     —      2026-04-17   
-    3  Smoothie core - developmental ····         1      35.4g     —      2026-04-03   
-   11  coffee 1 ·························         1       9.1g     —      2026-04-17   
-   14  Smoothie core - minimal ··········         1       8.9g     —      2026-04-18   
-    8  Garbanzo bean broccoli soup ······        10      22.6g     —      2026-04-13   
-    7  Okara whole wheat pasta ··········         1          —     —      2026-04-11   
-    5  Marinara pasta sauce ·············         7       0.0g     —      2026-04-10   
-    6  Mexican coffee - Tom's ···········         7          —     —      2026-04-10   
-    4  Walnut milk ······················         5          —     —      2026-04-09   
-
-  At any prompt, type ?help to see a list of available help topics.
-  v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  s=search  b=done
-  Enter action + ID, e.g. v3 or x 14
-
-: v 5
-
-  Marinara pasta sauce  7 serving(s)  incomplete
-  Serving size: 2/3 c · Volume: 4.7 c
-
-  Ingredients:  (ID key: number = USDA FDC · OFF = Open Food Facts · usr = user-drafted)
-  • 2 T (27 gr)  748608  Oil, olive, extra virgin
-  • 175 g (1 c + 1 1/2 T)  170000  Onions, raw
-
-  Procedure:
-  Saute onions until they start to brown. Add tomato sauce, herbs and spices and stir in well while heating. Chop garlic and add along with rest of ingredients. Bring to simmer and cook 15 minutes.
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
   RECIPES  Most recently accessed  (12 total)
    ID  Name                                Servings    DCP/srv  Complete  Created      
@@ -185,8 +188,42 @@ Choice: 2
     4  Walnut milk ······················         5          —     —      2026-04-09   
 
   At any prompt, type ?help to see a list of available help topics.
-  v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  s=search  b=done
-  Enter action + ID, e.g. v3 or x 14
+
+  Actions: v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  s=search  b=done
+  (Enter action + ID, e.g. v3 or x 14)
+: v5
+
+  Marinara pasta sauce  7 serving(s)  incomplete
+  Serving size: 2/3 c · Volume: 4.7 c
+
+  Ingredients:  (ID key: number = USDA FDC · OFF = Open Food Facts · usr = user-drafted)
+  • 2 T (27 gr)  748608  Oil, olive, extra virgin
+  • 175 g (1 c + 1 1/2 T)  170000  Onions, raw
+
+  Procedure:
+  Saute onions until they start to brown. Add tomato sauce, herbs and spices and stir in well while
+  heating. Chop garlic and add along with rest of ingredients. Bring to simmer and cook 15 minutes.
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  RECIPES  Most recently accessed  (12 total)
+   ID  Name                                Servings    DCP/srv  Complete  Created      
+    5  Marinara pasta sauce ·············         7       0.0g     —      2026-04-10   
+   15  Smoothie core - developmental 3 ··         1          —     ✓      2026-04-27   
+   13  Smoothie core - developmental 2 ··         1      33.7g     —      2026-04-18   
+   10  Refried beans, Tom's ·············         0          —     ✓      2026-04-14   
+   12  Coffee 2 ·························         1       2.3g     —      2026-04-17   
+    3  Smoothie core - developmental ····         1      35.4g     —      2026-04-03   
+   11  coffee 1 ·························         1       9.1g     —      2026-04-17   
+   14  Smoothie core - minimal ··········         1       8.9g     —      2026-04-18   
+    8  Garbanzo bean broccoli soup ······        10      22.6g     —      2026-04-13   
+    7  Okara whole wheat pasta ··········         1          —     —      2026-04-11   
+    6  Mexican coffee - Tom's ···········         7          —     —      2026-04-10   
+    4  Walnut milk ······················         5          —     —      2026-04-09   
+
+  At any prompt, type ?help to see a list of available help topics.
+
+  Actions: v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  s=search  b=done
+  (Enter action + ID, e.g. v3 or x 14)
 : e5
 
 ```
@@ -196,6 +233,12 @@ The recipe is incomplete, and now I can work to complete it, by entering `e5`
 In the output you will see a program 'bug' - The **Procedure** is not wrapped around to match the length of the other lines, and the line beneath it should be truncated. This is now fixed, but I leave the problem for you to see because the program is still at the beta stage, and such bugs are to be expected - especially in output formatting (which is a concern secondary to output content) is still being tuned up.
 
 (Additional output samples are coming...)
+
+## Usage tips
+
+(under development)
+
+* **Enter food portions:** if at all possible, enter weights, not volume measures. A cup of flour can vary greatly depending upon how much air is stirred into it. A cup of spinach is even harder to pin down. Even nuts can be a problem. But weights are far less likely to vary, and so are much more reliable.
 
 ## The NutriMagnus help system
 
@@ -209,7 +252,7 @@ this manual will be displayed inline. You can also type `?help` at any
 prompt to see the full list of available topics.
 
 
-### Using the ? Help System [help]
+### Using the "?{topic}" Help System [help]
 
 At any prompt in NutriMagnus, type `?` followed by a topic name to display an
 explanation. Wherever help is available, a line at the bottom of the table or
@@ -460,7 +503,142 @@ a baseline minimum.
 RDA values appear in the comparison table shown after nutrient analysis.
 
 
-## Appendix A: GL and Blood Glucose Comparison
+## Appendix A: Raw protein, protein quality, and protein digestibility
+
+### The core problems with protein
+
+When you eat protein, not all of it is equally useful to your body. The usefulness depends on three things: **how much** protein you eat, and **how well-matched** its amino acid composition is to human physiological needs, and **how digestible** it is. 
+
+### The Nine Essential Amino Acids and their required relationship
+
+Your body requires twenty amino acids to build proteins. Eleven of these it can synthesize from other raw materials. The remaining nine — the essential amino acids (EAAs) — must come from food. 
+
+These nine must all be present simultaneously for protein synthesis to proceed. They must also be present in the right amount. If any one of them is insufficiently supplied, then to the degree that its amount is short the other cannot be used. The surplus of the other eight cannot be stored and is instead broken down for energy — a functional waste.
+
+In summary, the *pattern* of EAAs in a food matters, not just the total protein quantity.
+
+### The required EAA pattern, established by the FAO
+
+The Food and Agriculture Organization (FAO) of the United Nations leads international efforts to defeat hunger, achieve food security for all, and make sure that people have regular access to enough high-quality food to lead active, healthy lives.
+
+Research has established human requirements for each EAA independently, through controlled human trials. For each amino acid separately, researchers determined how much a healthy adult needs per day to maintain physiological function. From these studies came absolute daily requirement figures for each of the nine EAAs, expressed in milligrams per kilogram of body weight per day.
+
+Separately, research has established how much total protein a healthy adult needs per day. By dividing each EAA's daily requirement by the total daily protein requirement, researchers produced a normalized figure: how many milligrams of each EAA a person needs per gram of protein consumed. These normalized figures are the **FAO reference values**.
+
+From the reference values for each amino acid which were determined *independently* come the ratios between EAAs. The reference values' relationship are a byproduct of the separately established requirements — not the starting point.
+
+### The FAO reference values tell you about the quality of protein in a food
+
+The reference values allow a simple and powerful question to be asked about any food protein source:
+
+> If I eat enough of this food to meet my total daily protein needs, will each essential amino acid also arrive in sufficient quantity?
+
+If the answer is yes for all nine EAAs, the protein is high quality — no bottleneck will limit your body's ability to use it. If the answer is no for even one EAA, that amino acid becomes your limiting factor.
+
+### How the Ratio Is Calculated in numa
+
+For each essential amino acid, the ratio shown in numa's output is computed in two steps:
+
+**Step 1 — convert AA amount to mg per gram of total protein:**
+
+    (AA content in g per 100g food ÷ protein content in g per 100g food) × 1000
+
+This expresses how many milligrams of that amino acid are present for every gram of total protein the food contains.
+
+**Step 2 — divide by the FAO reference value:**
+
+    mg AA per g protein ÷ FAO reference value (mg/g protein)
+
+A ratio of 1.0 means the food hits the reference exactly. A ratio of 2.14 means it delivers more than twice the required amount. A ratio of 0.80 means it delivers only 80% of what is needed.
+
+**Concrete example — cocoa (USDA #169594):**
+
+    Cocoa Protein total:      19.6 g per 100g food
+    Tryptophan AA in cocoa:   0.293 g per 100g food
+
+    Step 1:  (0.293 / 19.6) × 1000  =  14.9 mg tryptophan per g protein
+    Step 2:  14.9 / 7               =  2.14
+
+The FAO reference value for tryptophan is 7 mg/g protein. Cocoa's protein delivers 14.9 mg/g — 2.14 times what is required.
+
+Think for a moment: what if cocoa contained none of the needed EAAs? Then the protein it contained would be unusable, if it were your only protein source. It could only be broken down for energy - the fate of all unusable protein. And what if it contained all the needed EAAs, in the right amount - except one was totally missing? That one would make all the other unusable.
+
+### Why Total Protein Is the Denominator
+
+A reasonable question is why the ratio uses total protein (including non-essential amino acids) as its denominator rather than comparing EAA amounts in absolute terms.
+
+Total protein is a normalizing device — **a common scale that makes the quality metric meaningful across foods with very different protein concentrations and very different serving sizes.**
+
+The practical interpretation is direct: **if a food's protein clears all nine floors, eating enough of that food to meet your daily protein target will automatically also deliver your daily EAA requirements.** No separate EAA accounting is needed. A food that fails even one floor means you would reach your protein target before accumulating enough of that EAA — the protein source is insufficient on its own.
+
+The non-essential amino acids that make up the rest of the protein are biologically irrelevant to this specific calculation. They appear in the denominator only because total protein is the natural unit for expressing protein intake. They are not required to "activate" the EAAs — they are simply passengers.
+
+### What "Complete" Actually Means
+
+"Complete" does not mean the amino acid ratios are all close to 1.0, or close to each other. It means **every one of the nine ratios is at or above 1.0** — each amino acid clears its own independent floor.
+
+The nine FAO reference values were determined in separate human trials, one amino acid at a time. They are not ratios between amino acids; they are nine independent thresholds. Having tryptophan at 2.14× its floor while Met+Cys sits at 1.02× its floor creates no imbalance — the tryptophan surplus cannot compensate for a deficit in another amino acid, but it does not create one either.
+
+A food can therefore have wildly varying ratios across its amino acids and still be complete. Cocoa's protein ranges from 1.02 to 2.25 across the nine amino acids — a factor of more than two between the lowest and highest — and is still complete because nothing falls below 1.0.
+
+The floor analogy: imagine a building with nine rooms, each with its own minimum ceiling height requirement. A room that comfortably exceeds its requirement does not help or hurt any other room. Every room must pass independently.
+
+### The Limiting Amino Acid — A Practical Analogy
+
+When any one EAA ratio falls below 1.0, that amino acid is "limiting" — it acts as a bottleneck that caps how much protein your body can fully incorporate into tissue.
+
+A concrete analogy: you are mixing mortar to build a small wall. You have plenty of dry mix but run out of water before you have mixed enough for the full job. Without water, the remaining dry mix is unusable — you can build only 90 bricks worth of wall instead of 150. The water is your limiting amino acid. The unused dry mix is the protein your body cannot build into tissue, and instead breaks down and excretes.
+
+Complementary proteins work by pooling the limiting amino acids from multiple foods — a grain that is low in lysine paired with a legume that is rich in lysine can together clear all nine floors even though neither does so alone.
+
+### The DIAAS Score
+
+The Digestible Indispensable Amino Acid Score (DIAAS) assesses the degree to which a food protein can actually be accessed puts this question into by our body. For each EAA, it calculates:
+
+> (mg of that EAA actually absorbed per gram of food protein) ÷ (FAO reference value for that EAA)
+
+The word "actually absorbed" is critical. Not all amino acids in a food survive digestion intact and cross into the bloodstream. DIAAS uses ileal digestibility — the fraction of each amino acid absorbed by the end of the small intestine — to correct for this. The result is a score based on what your body actually receives, not merely what was in the food.
+
+A ratio of 1.0 means the food **delivers** exactly the required amount of that EAA (per gram of protein eaten). A ratio below 1.0 means a shortfall — that EAA is limiting. A ratio above 1.0 means a surplus above the floor. **The overall DIAAS score for the food is set by whichever EAA has the lowest ratio — the weakest link.**
+
+### A Concrete Example: Chia Seed
+
+Consider a protein quality analysis of chia seed that produces output like this:
+
+```
+ Amino Acid      Ratio vs. FAO
+ Tryptophan               3.77
+ Threonine                1.86
+ Isoleucine               1.61
+ Leucine                  1.40
+ Lysine                   1.30
+ Methionine               1.62
+ Phenylalanine            1.62
+ Valine                   1.47
+ Histidine                2.14
+```
+
+Every ratio exceeds 1.0. This means that if you eat enough chia seed to meet your total daily protein requirement, every one of the nine EAAs will arrive in at least the required amount. No bottleneck. No limiting amino acid. The protein is complete and efficiently usable.
+
+Lysine at 1.30 is the weakest link — your slimmest margin. It would be the first amino acid to fall below the floor if you ate progressively less chia. But at 1.30, it still clears the threshold comfortably.
+
+Importantly, these ratios do *not* mean that 100 grams of chia seed provides all the EAAs you need for a day. Chia seed contains roughly 17 grams of protein per 100 grams. If your daily protein target is 80 grams, 100 grams of chia gets you only about 21% of the way there. The quality score tells you that every gram of protein chia delivers is efficiently usable — but you still need to eat enough of it to accumulate your daily protein target.
+
+Think of it like fuel efficiency: a car that gets 50 miles per gallon is efficient, but knowing that tells you nothing about whether one gallon is enough to reach your destination. Quality and quantity are separate questions answered separately.
+
+### Summary
+
+| Concept | What it answers |
+|---|---|
+| FAO reference values | How many mg of each EAA a human needs per gram of protein consumed |
+| DIAAS ratio for one EAA | Does this food deliver enough of that EAA, accounting for digestibility? |
+| Overall DIAAS score | What is the weakest link — the most limiting EAA in this food? |
+| Ratio > 1.0 for all EAAs | Complete protein: no bottleneck, full usability of what you eat |
+| Daily protein target | Separate calculation: how many grams of protein do you need total? |
+
+The DIAAS table characterizes the quality of each gram. Hitting your daily protein target is about counting how many grams you eat.
+
+## Appendix B: Glycemic load (GL) and Blood Glucose Comparison
 
 Glycemic load is a useful approximation, but no single formula-derived figure
 reliably predicts an individual's blood glucose response to a mixed meal. Three
@@ -500,3 +678,19 @@ judgment about fat and protein content, rather than relying on GL as a
 single summary figure. GL remains a reasonable guide for comparing meals
 similar in structure, but should not be the deciding number when fat and
 protein differ significantly between the options being considered.
+
+## Appendix D: Protein ingestion timing
+
+To research.
+
+Resources:
+
+* https://runningmagazine.ca/health-nutrition/could-you-be-timing-your-protein-all-wrong/
+
+## Appendix D: Meal timing
+
+To research.
+
+Resources:
+
+* https://www.theguardian.com/commentisfree/2026/may/05/game-changer-good-health-scientists-we-are-when-we-eat - article by expert

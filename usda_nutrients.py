@@ -676,6 +676,8 @@ _DIAAS_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("pork", "ham", "bacon"),                      0.99),
     (("salmon", "tuna", "cod", "tilapia", "shrimp",
       "fish", "seafood", "clam", "oyster"),         1.00),
+    # Collagen/gelatin — near-zero DIAAS: tryptophan is essentially absent
+    (("collagen", "gelatin"),                        0.04),
     # Soy — best plant source
     (("soy protein isolate",),                      0.97),
     (("soy protein concentrate",),                  0.92),
@@ -696,8 +698,14 @@ _DIAAS_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("peas", "split pea"),                         0.79),
     # Yeast — direct DIAAS data is sparse; estimate from PDCAAS literature
     (("nutritional yeast",),                        0.72),
+    # Cocoa / cacao — estimate from AA profile and plant protein digestibility
+    (("cocoa", "cacao", "chocolate"),               0.78),
+    # Spirulina / chlorella — high protein density but limited digestibility
+    (("spirulina", "chlorella"),                    0.67),
+    # Mushrooms — modest protein, digestibility varies by species
+    (("mushroom",),                                 0.60),
     # Nuts and seeds
-    (("hemp seed", "hemp protein"),                 0.63),
+    (("hemp seed", "hemp protein", "hemp milk"),     0.63),
     (("flax seed", "flaxseed", "linseed"),          0.52),
     (("peanut",),                                   0.52),
     (("almond",),                                   0.40),
@@ -710,7 +718,9 @@ _DIAAS_TABLE: list[tuple[tuple[str, ...], float]] = [
     # Grains
     (("rice protein",),                             0.59),
     (("okara",),                                    0.75),  # soy byproduct; must precede generic "flour" catch-all
-    (("wheat protein", "gluten"),                   0.46),
+    (("lentil pasta", "lentil noodle"),             0.75),  # must precede generic pasta catch-all
+    (("chickpea pasta", "chickpea noodle"),         0.83),  # must precede generic pasta catch-all
+    (("seitan", "wheat protein", "gluten"),          0.46),
     (("brown rice", "whole grain rice"),            0.59),
     (("white rice",),                               0.62),
     (("oat",),                                      0.57),

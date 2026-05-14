@@ -260,13 +260,13 @@ class TestFoodsMenu:
         assert result.exit_code == 0
 
     def test_list_cached_foods_empty(self, runner: NumaTestRunner):
-        # Foods item 5 = View cached (was item 4 before new item 3 was added)
-        result = runner.invoke(input="1\n5\nb\nq\n")
+        # Foods item 6 = View cached (item 5 is now Compare foods)
+        result = runner.invoke(input="1\n6\nb\nq\n")
         assert result.exit_code == 0
         assert "cached" in result.output.lower() or "No foods" in result.output
 
     def test_list_cached_foods_shows_entry(self, runner: NumaTestRunner, cached_food):
-        result = runner.invoke(input="1\n5\nb\nq\n")
+        result = runner.invoke(input="1\n6\nb\nq\n")
         assert result.exit_code == 0
         assert "Chicken" in result.output
 
