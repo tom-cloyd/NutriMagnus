@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-04-29:1040*
+*Updated 2026-05-16:2350*
 
 [TOC]
 
@@ -30,81 +30,10 @@ These are technical problems that are beyond the ability of ordinary people to s
 
 (To be developed)
 
-For more detailed information on what can be done with the program, look at 
+For more detailed information on what can be done with the program, look at the [Output samples](#outputSamples) section.
 
-## Understanding your food data
 
-NutriMagnus gets food information from two large, well-maintained online databases:
-
-- **USDA FoodData Central** — the U.S. government's nutrition database, covering hundreds of thousands of whole foods, ingredients, and branded products. This is NutriMagnus's primary source. (Visit [FoodData Central FAQ](https://fdc.nal.usda.gov/faq/) to learn more.)
-- **Open Food Facts** — a community-maintained database of packaged and processed food products, useful for branded items not found in the USDA database. (Visit [Open Food Facts - Discover](https://world.openfoodfacts.org/discover) to learn more.)
-
-When you search for and select a food, NutriMagnus saves a copy of that food's nutrient numbers on your computer. Future lookups are faster, and already-looked-up foods are available even without an internet connection. Think of this as your **personal food library** that grows as you use the program.
-
-### Things you can add or change yourself
-
-Three features let you build on the food library with your own information:
-
-**My Pantry** keeps a short list of foods you currently have on hand — particularly protein sources. When NutriMagnus suggests foods to fill protein gaps in your diet, it checks your pantry first and puts those suggestions at the top of the list.
-
-**Custom food profiles** let you enter nutrient information by hand — for a food not found in either database, or to enter values from a product label you trust. Custom profiles appear in search results alongside regular foods.
-
-**Food annotations** let you attach a glycemic index (GI) estimate or a protein quality (DIAAS) estimate to any food already in the library, when you have that information from another source. The food's nutrient numbers stay unchanged; you are simply adding extra detail that NutriMagnus can then use in its calculations.
-
-## Incremental approach to developing NutriMagnus
-
-NM is being developed using Claude Code AI, in the VSCodium programming editor, which allows for rapid progress and excellent human/AI pairing.
-
-Development is focusing at present on coding and validating core features in a command line environment. Progress to a graphic user interface (GUI) is planned, but will not occur until core features are in place. Command and menu-driven operation of NM will always be available after the GUI is working.
-
-## Developmental Plan - functions developed and planned
-
-### Phase 1 — Functions completed ✓
-
-- Search the USDA food database and view detailed nutrient information for any food
-- Analyze the nutritional content of a specific portion of a food
-- Build and save recipes; view and analyze their nutritional content
-- Log meals by date; view what you ate and analyze its nutritional content
-- Daily nutrition summary
-- Protein completeness analysis: see whether a food, recipe, or meal provides all nine essential amino acids in adequate proportions
-- **Automated test suite** *(development tool)*: a set of automated checks that verify every key function of the program still works correctly after any code change. Running the tests after a change immediately reveals what, if anything, has broken — catching errors before they can reach users.
-
-### Phase 2 — Features coded and in use; two items still planned
-
-**Available now:**
-
-- **Richer nutrient information**: In addition to the standard macronutrients and micronutrients, NM tracks several plant bioactive compounds (carotenoids, choline, isoflavones, and others) where USDA data is available. Foods that contain substances known to reduce nutrient absorption are flagged with practical notes on how cooking or preparation reduces their effect.
-
-- **Protein quality score (DIAAS)**: For any food or recipe, NM shows not just how much protein is present but how much your body can realistically use — adjusted for both digestibility and amino acid completeness. This matters especially on a plant-based diet, where raw protein figures routinely overstate what the body actually absorbs.
-
-- **Protein complement suggestions**: After analyzing any food, recipe, meal, or daily summary, NM can suggest specific foods — drawing from your personal pantry list first — that would fill in your amino acid gaps. It calculates the minimum amount needed to close the gap, so you know exactly what to add to your meal.
-
-- **My Pantry**: Keep a personal list of protein sources you currently have on hand. The complement advisor draws from this list first when making suggestions.
-
-- **Meal-level protein quality**: When you analyze a full meal, NM computes a composite protein quality score across all the meal's ingredients combined, capturing how different foods complement each other.
-
-- **Personalized nutrition targets**: Enter your age, sex, weight, height, and activity level, and NM computes calorie, protein, and micronutrient targets calibrated to you. After viewing a daily summary, you can compare your intake against these personal targets, with color-coded results for each nutrient.
-
-- **Dietary preferences**: Tell NM which protein sources to include in complement suggestions — all animal foods (meat, fish, dairy, eggs) may be included, vegetarian (dairy and eggs only, no meat or fish), or plant-based only. The setting is saved between sessions and applies to both the on-screen display and any exported reports.
-
-- **Recipe portion analysis**: Analyze the nutrients in a specific portion of any saved recipe — for example, how much protein and calcium you get from one serving of your chickpea stew.
-
-- **Flexible portion entry**: Portions can be entered by weight (grams, ounces, pounds), or by volume (cups, tablespoons, teaspoons) for foods where a density is known.
-
-- **Built-in help system**: NM includes a plain-language user manual you can consult without leaving the program. After any analysis that uses specialized terms — protein completeness, DIAAS, amino acid gaps, and others — a brief line at the bottom of the output lists the topics available. Type `?topic` at the next prompt to read the explanation. For example, `?diaas` explains the protein digestibility score, `?fao` explains the international reference standard used for protein quality assessment, and `?help` lists everything available. The explanation appears on screen and the prompt returns immediately afterward.
-
-**Still planned for Phase 2:**
-
-- Development of a slightly modified version that will run on Windows operating systems. (The developmental version is Linux-only.)
-- Nutrient trend charts or tables: see how your intake of key nutrients has varied over days or weeks
-- Dietary pattern analysis
-- Transition to a graphical user interface (GUI); menu-driven operation will remain available
-
-### Phase 3 — Possible further development
-
-- Machine learning components for dietary recommendations
-
-## Output samples
+## Output samples { #outputSamples}
 
 (Incomplete and under development...)
 
@@ -240,6 +169,184 @@ In the output you will see a program 'bug' - The **Procedure** is not wrapped ar
 
 * **Enter food portions:** if at all possible, enter weights, not volume measures. A cup of flour can vary greatly depending upon how much air is stirred into it. A cup of spinach is even harder to pin down. Even nuts can be a problem. But weights are far less likely to vary, and so are much more reliable.
 
+## Food data — where it comes from and how it is stored
+
+**Two large online tables** are NutriMagnus's primary sources of food information:
+
+- **USDA FoodData Central** — the U.S. government's nutrition database, covering hundreds of thousands of whole foods, ingredients, and branded products. This is NutriMagnus's primary source. ([FoodData Central FAQ](https://fdc.nal.usda.gov/faq/))
+- **Open Food Facts** — a community-maintained database of packaged and processed food products, especially useful for branded items not found in the USDA table. ([Open Food Facts](https://world.openfoodfacts.org/discover))
+
+Every food in these online tables has a unique ID number — think of it as a product code that identifies that one food and nothing else.
+
+**Your Food Cache** is a table stored on your own computer. When you search for a food, NutriMagnus checks your Food Cache first — any food you have looked up before will be there and is thus found instantly, without going online. If the food is not yet in your cache, the program searches both online tables and shows you a combined list of matches. When you select a food from that list, NutriMagnus saves a copy of its nutrient data in your Food Cache automatically. Over time, most of foods you normally eat will be in your Food Cache table for quick retrieval.
+
+Food enters your Food Cache in three ways:
+
+1. **From USDA** — you search, find a match, and select it. It is instantly saved into your Food Cache.
+2. **From Open Food Facts** — same process; the food is saved the moment you pick it.
+3. **By hand** — you create a custom food profile yourself, entering nutrient values from a product label or research source. These entries go straight into your Food Cache without coming from any online source.
+
+In every case, NutriMagnus saves the food's original ID number alongside its data. That ID is the key that allows everything else in the program to refer back to a specific food unambiguously.
+
+**Food Annotations** are a second table on your computer. They hold extra information you choose to add about a specific food — information that does not exist in either online table:
+
+- **Glycemic index (GI)** — how quickly a food raises blood sugar (scale 0–100). Neither USDA nor Open Food Facts provides GI values, so if you have a figure from a research table or a product source, you can record it here.
+- **DIAAS estimate** — a protein quality score (scale 0–1.5). NutriMagnus can calculate this automatically for whole foods that have complete amino acid data. For packaged foods where that data is absent, you can record a known DIAAS figure here instead.
+- **A preparation note** — a short reminder such as "boiled 20 minutes" or "soaked overnight."
+
+Each annotation is linked to one specific food in your Food Cache by that food's ID number. This means two things: you can only annotate a food that is already in your cache, and if you ever remove a food from your cache, its annotation is removed with it automatically.
+
+**Your Recipes** are stored in their own table on your computer. Each recipe holds a list of ingredients, and each ingredient is linked to a specific entry in your Food Cache — by that food's ID. NutriMagnus handles this link automatically: when you add an ingredient to a recipe, it searches your cache and the online tables exactly as it would for any other food search, and caches the result if it isn't stored yet.
+
+A recipe can also include another recipe as one of its ingredients, allowing you to build complex dishes from simpler prepared components. When you log a meal, you can add a portion of a recipe — or a portion of a recipe-within-a-recipe — exactly as you would add a single food.
+
+**My Pantry** is a short personal list of protein sources you currently have on hand — tofu, lentils, Greek yogurt, and so on. It is a separate table used for one specific purpose: when NutriMagnus suggests foods to fill a protein gap in your diet, it checks your pantry first and moves those foods to the top of the suggestion list. This way the program recommends things you can actually use right now, rather than foods you would need to go and buy.
+
+## How NutriMagnus scores meal and recipe protein quality
+
+Single-food analysis and meal-level analysis use different methods. For a single food, NutriMagnus computes a DIAAS score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the FAO's endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
+
+This section explains the meal-level method. For background on single-food DIAAS and how amino acid ratios work, see Appendix A.
+
+### Why meals need their own calculation
+
+A food that is short in one amino acid can be rescued by a companion food that supplies it generously — but only if you account for both foods together. A calculation that scores each food separately and then averages the scores misses this complementarity. The pooled method captures it correctly: amino acids from every ingredient in the meal are counted together before any ratio is computed.
+
+### The method, step by step
+
+NutriMagnus applies this procedure for each of the nine essential amino acids. For the paired amino acids Met+Cys and Phe+Tyr, both members of the pair are combined before scoring, following FAO practice.
+
+**For each ingredient in the meal:**
+
+Step 1. Determine the amino acid content in grams for the actual portion eaten. USDA data is per 100 g; NutriMagnus scales to the weight you entered.
+
+Step 2. Multiply each amino acid amount by the food's true ileal digestibility coefficient — a number between 0 and 1 representing the fraction that actually reaches your bloodstream. The result is the digestible grams of that amino acid from this ingredient.
+
+    Digestible AA (g) = raw AA in portion (g) × digestibility coefficient
+
+Digestibility coefficients come from published literature and are looked up automatically. Eggs and dairy sit near 1.0; whole legumes are typically in the 0.79–0.85 range; most grains and seeds fall between 0.79 and 0.88.
+
+**Then, across all ingredients:**
+
+Step 3. Sum the digestible grams of each essential amino acid across every ingredient. This gives nine pooled totals — one per essential amino acid.
+
+Step 4. For each amino acid, compute the ratio of the pooled digestible total to the FAO reference requirement for the total protein in the meal:
+
+    Ratio = pooled digestible AA (g) ÷ (FAO reference value × total meal protein in g)
+
+A ratio of 1.0 means the meal exactly meets the FAO target for that amino acid. A ratio of 0.80 means it supplies 80% of the target — a 20% shortfall.
+
+Step 5. The lowest ratio across all nine essential amino acids is the meal's DIAAS score. The amino acid with that lowest ratio is the limiting amino acid.
+
+### From DIAAS to digestible complete protein
+
+    Digestible complete protein (g) = total meal protein (g) × min(DIAAS, 1.0)
+
+If a meal contains 40 g of total protein and a DIAAS of 0.82, NutriMagnus reports 32.8 g of digestible complete protein. The remaining 7.2 g cannot be efficiently incorporated into tissue — the limiting amino acid is exhausted before the rest of the protein can be used.
+
+### A worked example — two ingredients, two amino acids
+
+To keep the arithmetic readable, only lysine and Met+Cys are shown. The full calculation runs the same steps for all nine essential amino acids.
+
+**The meal:**
+
+    150 g cooked lentils:    13.5 g protein    lysine 0.94 g    Met+Cys 0.25 g    digestibility 0.83
+     50 g pumpkin seeds:     12.3 g protein    lysine 0.49 g    Met+Cys 0.42 g    digestibility 0.85
+
+Lentils are rich in lysine but short in Met+Cys. Pumpkin seeds supply more Met+Cys. Together they cover each other's gap.
+
+**Steps 1–2 — digestible AA per ingredient:**
+
+    Lentils:        digestible lysine   = 0.94 × 0.83 = 0.780 g
+                    digestible Met+Cys  = 0.25 × 0.83 = 0.208 g
+
+    Pumpkin seeds:  digestible lysine   = 0.49 × 0.85 = 0.417 g
+                    digestible Met+Cys  = 0.42 × 0.85 = 0.357 g
+
+**Step 3 — pool across ingredients:**
+
+    Pooled lysine   = 0.780 + 0.417 = 1.197 g
+    Pooled Met+Cys  = 0.208 + 0.357 = 0.565 g
+
+**Step 4 — compute ratios (total meal protein = 13.5 + 12.3 = 25.8 g):**
+
+The FAO reference values are 48 mg of lysine and 23 mg of Met+Cys per gram of protein.
+
+    FAO target for lysine   = 48 ÷ 1000 × 25.8 = 1.238 g
+    FAO target for Met+Cys  = 23 ÷ 1000 × 25.8 = 0.593 g
+
+    Ratio for lysine   = 1.197 ÷ 1.238 = 0.97
+    Ratio for Met+Cys  = 0.565 ÷ 0.593 = 0.95
+
+**Step 5 — DIAAS = lowest ratio:**
+
+    DIAAS = 0.95    (Met+Cys is the limiting amino acid)
+
+**Digestible complete protein:**
+
+    25.8 g × 0.95 = 24.5 g digestible complete protein
+
+Neither food alone would produce this result — lentils score poorly on Met+Cys when analyzed individually, but pumpkin seeds supply enough to bring the combined score to 0.95.
+
+### A note about missing amino acid data
+
+Not every food in the USDA database has a complete amino acid profile. When an ingredient is missing that data, NutriMagnus runs the meal-level DIAAS calculation using only the ingredients for which data exists, and flags the result as an estimate. The digestible complete protein figure is then computed against only the protein that comes from those data-complete ingredients — so the result remains meaningful rather than artificially inflated.
+
+---
+
+## Incremental approach to developing NutriMagnus
+
+NM is being developed using Claude Code AI, in the VSCodium programming editor, which allows for rapid progress and excellent human/AI pairing.
+
+Development is focusing at present on coding and validating core features in a command line environment. Progress to a graphic user interface (GUI) is planned, but will not occur until core features are in place. Command and menu-driven operation of NM will always be available after the GUI is working.
+
+## Developmental Plan - functions developed and planned
+
+### Phase 1 — Functions completed ✓
+
+- Search the USDA food database and view detailed nutrient information for any food
+- Analyze the nutritional content of a specific portion of a food
+- Build and save recipes; view and analyze their nutritional content
+- Log meals by date; view what you ate and analyze its nutritional content
+- Daily nutrition summary
+- Protein completeness analysis: see whether a food, recipe, or meal provides all nine essential amino acids in adequate proportions
+- **Automated test suite** *(development tool)*: a set of automated checks that verify every key function of the program still works correctly after any code change. Running the tests after a change immediately reveals what, if anything, has broken — catching errors before they can reach users.
+
+### Phase 2 — Features coded and in use; two items still planned
+
+**Available now:**
+
+- **Richer nutrient information**: In addition to the standard macronutrients and micronutrients, NM tracks several plant bioactive compounds (carotenoids, choline, isoflavones, and others) where USDA data is available. Foods that contain substances known to reduce nutrient absorption are flagged with practical notes on how cooking or preparation reduces their effect.
+
+- **Protein quality score (DIAAS)**: For any food or recipe, NM shows not just how much protein is present but how much your body can realistically use — adjusted for both digestibility and amino acid completeness. This matters especially on a plant-based diet, where raw protein figures routinely overstate what the body actually absorbs.
+
+- **Protein complement suggestions**: After analyzing any food, recipe, meal, or daily summary, NM can suggest specific foods — drawing from your personal pantry list first — that would fill in your amino acid gaps. It calculates the minimum amount needed to close the gap, so you know exactly what to add to your meal.
+
+- **My Pantry**: Keep a personal list of protein sources you currently have on hand. The complement advisor draws from this list first when making suggestions.
+
+- **Meal-level protein quality**: When you analyze a full meal, NM computes a composite protein quality score across all the meal's ingredients combined, capturing how different foods complement each other.
+
+- **Personalized nutrition targets**: Enter your age, sex, weight, height, and activity level, and NM computes calorie, protein, and micronutrient targets calibrated to you. After viewing a daily summary, you can compare your intake against these personal targets, with color-coded results for each nutrient.
+
+- **Dietary preferences**: Tell NM which protein sources to include in complement suggestions — all animal foods (meat, fish, dairy, eggs) may be included, vegetarian (dairy and eggs only, no meat or fish), or plant-based only. The setting is saved between sessions and applies to both the on-screen display and any exported reports.
+
+- **Recipe portion analysis**: Analyze the nutrients in a specific portion of any saved recipe — for example, how much protein and calcium you get from one serving of your chickpea stew.
+
+- **Flexible portion entry**: Portions can be entered by weight (grams, ounces, pounds), or by volume (cups, tablespoons, teaspoons) for foods where a density is known.
+
+- **Built-in help system**: NM includes a plain-language user manual you can consult without leaving the program. After any analysis that uses specialized terms — protein completeness, DIAAS, amino acid gaps, and others — a brief line at the bottom of the output lists the topics available. Type `?topic` at the next prompt to read the explanation. For example, `?diaas` explains the protein digestibility score, `?fao` explains the international reference standard used for protein quality assessment, and `?help` lists everything available. The explanation appears on screen and the prompt returns immediately afterward.
+
+**Still planned for Phase 2:**
+
+- Development of a slightly modified version that will run on Windows operating systems. (The developmental version is Linux-only.)
+- Nutrient trend charts or tables: see how your intake of key nutrients has varied over days or weeks
+- Dietary pattern analysis
+- Transition to a graphical user interface (GUI); menu-driven operation will remain available
+
+### Phase 3 — Possible further development
+
+- Machine learning components for dietary recommendations
+
 ## The NutriMagnus help system
 
 NutriMagnus displays a help footer at the bottom of tables and analysis
@@ -299,23 +406,63 @@ what a gap means.
 
 ### Protein Complement Suggestions [comp]
 
-When amino acid gaps are detected, NutriMagnus suggests foods that would
-close those gaps with the smallest practical addition.
+When amino acid gaps are detected, NutriMagnus suggests foods that can
+improve the protein quality of the base food or meal. Two separate tiers
+are shown, and they use different methods:
 
-Suggestions come from two sources:
+TIER 1 — GAP CLOSERS
 
-1. **Your pantry** — foods you have added under Foods → My pantry. These are always shown first.
-2. **A built-in table** of about 30 common protein sources, filtered by your dietary preferences (see [Dietary Preferences](#dietary-preferences-diet)).
+These foods can mathematically close a specific amino acid gap with a
+practical amount (up to 500 g). A gap closer has a high enough ratio of
+the limiting amino acid to protein that adding it to the base food brings
+that amino acid's score to 1.0 (the FAO reference floor).
 
-For each suggestion NutriMagnus shows:
+Each suggestion shows:
+  - Grams to add
+  - Which gaps it closes, with scores before and after
+  - Digestible protein added
 
-- How many grams to add
-- Which gaps it closes
-- How much digestible protein it adds to the total
+TIER 2 — DIAAS-BOOSTING OPTIONS
 
-The calculation is based on FAO 2013 amino acid reference ratios. You do
-not need to eat complement foods at the same meal — meeting daily totals
-is sufficient for adults in normal health.
+Sometimes the digestibility of the base food is low enough that no
+practical amount of any single food can "close the gap" mathematically.
+This happens when the food's raw amino acid ratios are already near the
+FAO reference — the gaps are digestibility-driven rather than
+composition-driven. Adding even a very good complement raises the pool's
+digestible amino acids but can't fully overcome the base food's own
+digestibility penalty via the gap-closer formula.
+
+For those situations, DIAAS-boosting options are shown instead. These
+foods raise the combined meal DIAAS score toward 0.90 by contributing
+digestible amino acids that pool with the base food's amino acids. The
+calculation uses each food's own true ileal digestibility (not just the
+DIAAS score), so a high-digestibility food like soy protein isolate
+(95%) contributes disproportionately more digestible amino acids than
+its raw content alone would suggest.
+
+Each DIAAS-boosting suggestion shows:
+  - Grams to add
+  - Meal DIAAS before and after adding that amount
+
+WHICH TIER IS RIGHT FOR YOU?
+
+If gap closers are available, they are the most targeted choice: they
+fix a specific deficiency and fully complete the amino acid profile.
+
+If only DIAAS-boosting options are shown, the underlying problem is that
+the base food is not highly digestible. Adding a well-digested,
+amino-acid-rich food improves the overall protein quality of the meal
+even without closing any single gap definitively. This is nutritionally
+meaningful — a meal DIAAS of 0.90 means 90% of the protein is both
+complete and digestible.
+
+You do not need to eat complement foods at the same meal — meeting daily
+totals is sufficient for healthy adults. See also
+?diaas and ?gap for background.
+
+Data sources: your pantry (Foods → My Pantry) is checked first; a
+built-in table of about 30 common protein sources is used otherwise,
+filtered by your dietary preferences (see ?diet).
 
 
 ### Protein Completeness [complete]
@@ -738,7 +885,7 @@ protein differ significantly between the options being considered.
 
 ## Appendix D: Protein ingestion timing
 
-To research.
+To be researched.
 
 Resources:
 
@@ -746,8 +893,98 @@ Resources:
 
 ## Appendix D: Meal timing
 
-To research.
+To be researched.
 
 Resources:
 
 * https://www.theguardian.com/commentisfree/2026/may/05/game-changer-good-health-scientists-we-are-when-we-eat - article by expert
+
+## Appendix E: Why some foods appear only in DIAAS-boosting suggestions [comp-appendix]
+
+This appendix explains why certain nutritionally excellent protein sources —
+soy protein isolate, nutritional yeast, pea protein — sometimes appear only
+in the DIAAS-boosting tier and not as gap closers, even though they are
+well-known complements to legumes.
+
+DIGESTIBILITY-DRIVEN GAPS
+
+When a legume such as pinto beans has a low DIAAS (e.g., 0.73), that low score
+is often not caused by a weak amino acid profile. Pinto beans' raw Met+Cys
+ratio is approximately 22 mg/g protein — right at the FAO reference of 22.
+The gap emerges only because its true ileal digestibility is 0.80: the body
+absorbs only 80% of the protein, which pulls every amino acid's effective
+contribution below the reference threshold.
+
+The gap-closer formula accounts for this by raising the target threshold:
+
+    R = FAO_reference / base_digestibility
+      = 22 mg/g / 0.73 = 30.1 mg/g (adjusted target)
+
+A gap closer must have an amino acid/protein ratio above 30.1 mg/g to
+mathematically close the Met+Cys gap. Most plant proteins are excluded:
+
+    Soy protein isolate  Met+Cys  =  23.0 mg/g  (below 30.1) → excluded
+    Nutritional yeast    Met+Cys  =  21.2 mg/g  (below 30.1) → excluded
+    Sesame seeds         Met+Cys  =  49.7 mg/g  (above 30.1) → qualifies
+
+This is mathematically correct: because pinto beans absorb poorly, you need
+a complement with a disproportionately high amino acid ratio to overcome the
+digestibility deficit in the gap-closer framework. Sesame qualifies; SPI and
+nutritional yeast do not.
+
+WHY DIAAS-BOOSTING STILL WORKS FOR SPI
+
+The DIAAS-boosting formula takes a different view. Instead of asking "can this
+food close the gap for pinto beans alone?", it asks: "what happens when I pool
+the digestible amino acids from pinto beans and SPI together?"
+
+    Pooled digestible Met+Cys = (pinto Met+Cys * 0.80) + (SPI Met+Cys/100 * X * 0.95)
+    Denominator = pinto raw protein + SPI raw protein/100 * X
+
+Because SPI has a much higher digestibility (0.95 vs. 0.80), its amino acids
+contribute more efficiently per gram than pinto's own amino acids do. At
+approximately 25-35 g of SPI added to 100 g of pinto beans, the pooled meal
+DIAAS reaches 0.90 — a meaningful improvement from 0.73.
+
+The reason SPI still can't be a gap closer is that its raw Met+Cys ratio
+(23 mg/g) is below the inflated 30.1 mg/g threshold the gap-closer formula
+requires. But in the pooled DIAAS calculation, where each food's digestibility
+applies only to its own amino acids, SPI's superior digestibility (0.95 vs.
+pinto's 0.80) is sufficient to lift the combined score above the target.
+
+PRACTICAL INTERPRETATION
+
+From a dietary standpoint both tiers are useful, but they mean different things:
+
+Gap closers (sesame, Brazil nuts, hemp seeds):
+  These close the specific amino acid deficiency. After adding them, the
+  combined protein is mathematically complete per the gap-closer model.
+  Required amounts are often small (8-30 g).
+
+DIAAS boosters (soy protein isolate, nutritional yeast, egg, whey):
+  These are high-quality proteins with excellent digestibility. They raise
+  the effective quality of the whole meal by contributing highly digestible
+  amino acids. A meal DIAAS of 0.90 means 90% of the meal's protein is both
+  complete and bioavailable — a strong nutritional outcome even if the
+  precise gap-closer criterion isn't met.
+
+In practice, combining a gap closer (e.g., sesame tahini) with a DIAAS
+booster (e.g., a small serving of Greek yogurt or egg) gives both a complete
+amino acid profile and high overall digestibility — the best outcome for
+protein quality from a high-legume meal.
+
+THE REFERENCE VALUES
+
+NutriMagnus uses two slightly different reference sets:
+
+Gap-closer tier:  usda_api.AA_REFERENCE_MG_PER_G_PROTEIN
+  Met+Cys = 22 mg/g, Lysine = 45 mg/g, Leucine = 59 mg/g
+
+DIAAS-booster tier: diaas.FAO_REFERENCE (FAO 2013, Table 6)
+  Met+Cys = 23 mg/g, Lysine = 48 mg/g, Leucine = 61 mg/g
+
+The small differences (1-3 mg/g) reflect different published FAO tables used
+at different points in the codebase. Both are within normal rounding variance
+across FAO publications. The gap-closer tier's values are the older set;
+the DIAAS-booster tier uses the authoritative FAO 2013 adult reference pattern.
+

@@ -9,6 +9,7 @@ Docs: README-numa-documentation.md, Project Structure
 import argparse
 
 from numa_app.main import run_app
+from version import VERSION  # noqa: F401  — single source of truth for app version
 
 
 def parse_args() -> argparse.Namespace:

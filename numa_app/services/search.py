@@ -271,8 +271,63 @@ def _search_and_pick_food(
 
     query: str | None = initial_query
     full_search: bool = False  # set True only when user types 'a ' prefix
+    _instant_recipes_offered = False  # fire once per call, not on re-searches
+
+    _SRCH_W = 36
+    _BRAND_W = 24
+
+    def _srch_cell(text: str) -> str:
+        """Word-wrap to _SRCH_W; dot-pad the last line only."""
+        words = text.split()
+        if not words:
+            return ""
+        lines: list[str] = []
+        current = ""
+        for word in words:
+            candidate = f"{current} {word}" if current else word
+            if len(candidate) <= _SRCH_W - 1:
+                current = candidate
+            else:
+                if current:
+                    lines.append(current)
+                current = word[: _SRCH_W - 1]
+        if current:
+            lines.append(current)
+        last = lines[-1]
+        pad = _SRCH_W - len(last) - 1
+        if pad > 0:
+            lines[-1] = f"{last} [dim]{'·' * pad}[/dim]"
+        return "\n".join(lines)
+
+    def _brand_cell(brand: str) -> str:
+        if not brand:
+            return f"[dim]{'·' * _BRAND_W}[/dim]"
+        t = brand[: _BRAND_W - 1]
+        pad = _BRAND_W - len(t) - 1
+        return f"{t} [dim]{'·' * pad}[/dim]" if pad > 0 else t
+
+    def _type_cell(food: dict) -> str:
+        dtype = food.get("dataType", "")
+        if food.get("_from_cache"):
+            return f"[{state.T['success']}]★[/{state.T['success']}] {dtype}"
+        return dtype
+
+    def _ann_cell(food: dict) -> str:
+        ann = food.get("_annotation")
+        has_gi    = ann is not None and ann["gi_estimate"]    is not None
+        has_diaas = ann is not None and ann["diaas_estimate"] is not None
+        s = state.T["success"]
+        if has_gi and has_diaas:
+            return f"[{s}]GI DI[/{s}]"
+        if has_gi:
+            return f"[{s}]GI[/{s}][dim] ··[/dim]"
+        if has_diaas:
+            return f"[dim]·· [/dim][{s}]DI[/{s}]"
+        return "[dim]·····[/dim]"
+
     while True:
         if query is None:
+            _instant_recipes_offered = True  # suppress stale recipe list on re-search
             try:
                 raw = _prompt("Search food  (prefix 'a ' for full USDA search)").strip()
             except Cancelled:
@@ -291,6 +346,55 @@ def _search_and_pick_food(
             else:
                 full_search = False
                 query = raw
+
+        # Instant recipe pick — show pre-matched recipes before any search.
+        # Returns immediately if the user picks one; falls through to food search on Enter.
+        if not _instant_recipes_offered and prepend_recipes:
+            _instant_recipes_offered = True
+            state.console.print()
+            state.console.print(f"  [{state.T['hi']}]Your recipes:[/{state.T['hi']}]")
+            for _ri, _rr in enumerate(prepend_recipes, 1):
+                _dcp_hint = "  [dim]DCP ✓[/dim]" if _rr["dcp_g"] is not None else ""
+                state.console.print(
+                    f"    [{state.T['accent']}]R{_ri}.[/{state.T['accent']}]"
+                    f" {_rr['name']}{_dcp_hint}",
+                    highlight=False,
+                )
+            state.console.print(
+                "  [dim]DCP ✓ = digestible complete protein score computed for this recipe[/dim]",
+                highlight=False,
+            )
+            state.console.print()
+            try:
+                _rpick = _prompt(
+                    "R# to use a recipe, or press Enter to search foods"
+                    "  [dim](b=back, m=main, q=quit)[/dim]"
+                ).strip()
+            except Cancelled:
+                return None
+            _rpl = _rpick.lower()
+            if _rpl == "q":
+                raise SystemExit(0)
+            if _rpl == "m":
+                raise ReturnToMain()
+            if _rpl == "b":
+                if allow_research:
+                    query = None
+                    continue
+                return None
+            if _rpick.upper().startswith("R") and _rpick[1:].isdigit():
+                _ridx = int(_rpick[1:]) - 1
+                if 0 <= _ridx < len(prepend_recipes):
+                    _rr = prepend_recipes[_ridx]
+                    return {
+                        "_type":        "recipe",
+                        "id":           _rr["id"],
+                        "name":         _rr["name"],
+                        "servings":     _rr["servings"],
+                        "dcp_g":        _rr["dcp_g"],
+                        "total_weight": _rr["total_weight"] or None,
+                    }
+            # Empty Enter or unrecognised input: fall through to food search
 
         results = []
         # Include Open Food Facts only in unrestricted (default) searches.
@@ -354,22 +458,71 @@ def _search_and_pick_food(
             threading.Thread(target=_bg_search, daemon=True).start()
 
             if _complete_cache:
-                state.console.print()
-                state.console.print(f"  [{state.T['hi']}]In your food cache:[/{state.T['hi']}]")
+                with _db.get_db() as _ann_conn:
+                    _cache_anns = _db.annotations_for_fdcids(
+                        _ann_conn,
+                        [r["fdcId"] for r in _complete_cache if isinstance(r.get("fdcId"), int)],
+                    )
+                for r in _complete_cache:
+                    r["_annotation"] = _cache_anns.get(r.get("fdcId"))
+
+                _ctbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+                _ctbl.add_column("#",             justify="right", min_width=3)
+                _ctbl.add_column("Type",          min_width=12)
+                _ctbl.add_column("ID",            justify="right", min_width=7)
+                _ctbl.add_column("Food / Recipe", min_width=_SRCH_W, max_width=_SRCH_W, no_wrap=True)
+                _ctbl.add_column("Brand",         min_width=_BRAND_W, max_width=_BRAND_W, no_wrap=True)
+                _ctbl.add_column("Ann",           min_width=5)
+                if show_aa_status:
+                    _ctbl.add_column("AA data", min_width=8)
+
                 for _ci, _cr in enumerate(_complete_cache, 1):
-                    _cbrand = _cr.get("brandOwner") or ""
-                    _cbrand_str = f"  [dim]{_cbrand}[/dim]" if _cbrand else ""
+                    _cr_brand = _cr.get("brandOwner") or ""
+                    if show_aa_status:
+                        with _db.get_db() as _aac:
+                            _aa_cached = _db.get_cached_food(_aac, _cr["fdcId"])
+                        if _aa_cached and _usda.has_amino_acid_data(json.loads(_aa_cached["nutrients_json"])):
+                            _cr_aa = f"[{state.T['success']}]✓[/{state.T['success']}]"
+                        else:
+                            _cr_aa = f"[{state.T['error']}]✗[/{state.T['error']}]"
+                        _ctbl.add_row(
+                            str(_ci), _type_cell(_cr), _id_cell(_cr["fdcId"]),
+                            _srch_cell(_cr["description"]), _brand_cell(_cr_brand),
+                            _ann_cell(_cr), _cr_aa,
+                        )
+                    else:
+                        _ctbl.add_row(
+                            str(_ci), _type_cell(_cr), _id_cell(_cr["fdcId"]),
+                            _srch_cell(_cr["description"]), _brand_cell(_cr_brand),
+                            _ann_cell(_cr),
+                        )
+
+                state.console.print()
+                table_title("Food cache")
+                state.console.print(_ctbl)
+
+                _cache_recipes = prepend_recipes or []
+                if _cache_recipes:
+                    state.console.print()
+                    state.console.print(f"  [{state.T['hi']}]Your recipes:[/{state.T['hi']}]")
+                    for _ri, _rr in enumerate(_cache_recipes, 1):
+                        _dcp_hint = f"  [dim]DCP ✓[/dim]" if _rr["dcp_g"] is not None else ""
+                        state.console.print(
+                            f"    [{state.T['accent']}]R{_ri}.[/{state.T['accent']}]"
+                            f" {_rr['name']}{_dcp_hint}",
+                            highlight=False,
+                        )
                     state.console.print(
-                        f"    [{state.T['accent']}]{_ci}.[/{state.T['accent']}]"
-                        f" {_cr['description']}{_cbrand_str}"
-                        f"  [dim]{_cr.get('dataType', '')}[/dim]",
+                        "  [dim]DCP ✓ = digestible complete protein score computed for this recipe[/dim]",
                         highlight=False,
                     )
+
                 state.console.print()
 
+                _recipe_hint = ", R# for a recipe" if _cache_recipes else ""
                 try:
                     cache_raw = _prompt(
-                        "Pick # for cached food, or press Enter for full USDA results"
+                        f"Pick # for cached food{_recipe_hint}, or press Enter for full USDA results"
                     ).strip()
                 except Cancelled:
                     return None
@@ -383,6 +536,20 @@ def _search_and_pick_food(
                         query = None
                         continue
                     return None
+
+                _cache_raw_up = cache_raw.upper()
+                if _cache_raw_up.startswith("R") and cache_raw[1:].isdigit() and _cache_recipes:
+                    _ridx = int(cache_raw[1:]) - 1
+                    if 0 <= _ridx < len(_cache_recipes):
+                        _rr = _cache_recipes[_ridx]
+                        return {
+                            "_type":        "recipe",
+                            "id":           _rr["id"],
+                            "name":         _rr["name"],
+                            "servings":     _rr["servings"],
+                            "dcp_g":        _rr["dcp_g"],
+                            "total_weight": _rr["total_weight"] or None,
+                        }
 
                 if cache_raw.isdigit():
                     _cidx = int(cache_raw) - 1
@@ -495,7 +662,7 @@ def _search_and_pick_food(
                 r for r in api_results if r.get("fdcId") not in cache_fdcids
             ]
 
-        if not results:
+        if not results and not prepend_recipes:
             state.console.print(f"[{state.T['warning']}]No results found.[/{state.T['warning']}]")
             if allow_research:
                 query = None
@@ -585,8 +752,6 @@ def _search_and_pick_food(
 
         recipe_rows = prepend_recipes or []
 
-        _SRCH_W = 36
-        _BRAND_W = 24
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         tbl.add_column("#",       justify="right", min_width=3)
         tbl.add_column("Type",    min_width=12)
@@ -596,55 +761,6 @@ def _search_and_pick_food(
         tbl.add_column("Ann",     min_width=5)
         if show_aa_status:
             tbl.add_column("AA data", min_width=8)
-
-        def _srch_cell(text: str) -> str:
-            """Word-wrap to _SRCH_W; dot-pad the last line only."""
-            words = text.split()
-            if not words:
-                return ""
-            lines: list[str] = []
-            current = ""
-            for word in words:
-                candidate = f"{current} {word}" if current else word
-                if len(candidate) <= _SRCH_W - 1:
-                    current = candidate
-                else:
-                    if current:
-                        lines.append(current)
-                    current = word[: _SRCH_W - 1]
-            if current:
-                lines.append(current)
-            last = lines[-1]
-            pad = _SRCH_W - len(last) - 1
-            if pad > 0:
-                lines[-1] = f"{last} [dim]{'·' * pad}[/dim]"
-            return "\n".join(lines)
-
-        def _brand_cell(brand: str) -> str:
-            if not brand:
-                return f"[dim]{'·' * _BRAND_W}[/dim]"
-            t = brand[: _BRAND_W - 1]
-            pad = _BRAND_W - len(t) - 1
-            return f"{t} [dim]{'·' * pad}[/dim]" if pad > 0 else t
-
-        def _type_cell(food: dict) -> str:
-            dtype = food.get("dataType", "")
-            if food.get("_from_cache"):
-                return f"[{state.T['success']}]★[/{state.T['success']}] {dtype}"
-            return dtype
-
-        def _ann_cell(food: dict) -> str:
-            ann = food.get("_annotation")
-            has_gi    = ann is not None and ann["gi_estimate"]    is not None
-            has_diaas = ann is not None and ann["diaas_estimate"] is not None
-            s = state.T["success"]
-            if has_gi and has_diaas:
-                return f"[{s}]GI DI[/{s}]"
-            if has_gi:
-                return f"[{s}]GI[/{s}][dim] ··[/dim]"
-            if has_diaas:
-                return f"[dim]·· [/dim][{s}]DI[/{s}]"
-            return "[dim]·····[/dim]"
 
         # Recipe rows at top (R1, R2, …)
         for i, r in enumerate(recipe_rows, 1):
@@ -711,7 +827,7 @@ def _search_and_pick_food(
                     likely_count += 1
                 elif cached is None and fdtype in ("Foundation", "SR Legacy"):
                     likely_count += 1
-        table_title("FOOD SEARCH RESULTS")
+        table_title("USDA food search & recipe results")
         state.console.print(tbl)
         state.console.print()
         state.console.print(f"  {ID_KEY}")

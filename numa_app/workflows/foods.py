@@ -28,7 +28,7 @@ def _menu_foods() -> bool:
             ("3", "Analyze a saved recipe portion"),
             ("4", "Convert a portion <==> weight  (volume/weight, no analysis)"),
             ("5", "Compare foods  (side-by-side nutrient table, up to 4)"),
-            ("6", "Saved food library  (view, edit, delete foods you have looked up)"),
+            ("6", "Food Cache  (view, edit, delete foods you have looked up)"),
             ("7", "My pantry  (foods you have on hand)"),
             ("8", "Custom food profiles  (create and edit your own food data)"),
             ("9", "Annotate a food  (add your GI / DIAAS estimates)"),

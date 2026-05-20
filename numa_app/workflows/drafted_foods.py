@@ -11,6 +11,7 @@ import re
 from rich.table import Table
 
 import db as _db
+import usda as _usda
 from .. import state
 from ..services.search import _search_and_pick_food
 from ..ui.common import _id_cell, ID_KEY, _show_menu, dot_cell, table_title, table_footer
@@ -316,11 +317,13 @@ def _prompt_nutrients(existing: dict | None = None) -> dict:
     """
     Interactively prompt for nutrient values (per 100 g).
     existing: pre-fill from this dict if provided (e.g. loaded from USDA cache).
-    Returns a nutrients dict.
+    Returns a nutrients dict (may be partial if user exits early via Ctrl+C or 'b').
+    Raises ReturnToMain if user types 'm'. Raises SystemExit on 'q'.
     """
     state.console.print(
         f"\n  [dim]Enter nutrient values per [bold]100 g[/bold]. "
-        f"Press Enter to keep the current value, or enter a number to override.[/dim]"
+        f"Press Enter to keep the current value, or enter a number to override. "
+        f"Ctrl+C or [bold]b[/bold] to stop and continue.[/dim]"
     )
     nutrients: dict = {}
 
@@ -335,9 +338,14 @@ def _prompt_nutrients(existing: dict | None = None) -> dict:
                     default=default_str if default_str else ""
                 ).strip()
             except Cancelled:
-                raw = ""
-            if raw.lower() == "q":
+                return nutrients
+            lower = raw.lower()
+            if lower == "q":
                 raise SystemExit(0)
+            if lower == "m":
+                raise ReturnToMain()
+            if lower == "b":
+                return nutrients
             if not raw:
                 if current is not None:
                     nutrients[key] = current
@@ -368,7 +376,7 @@ def _prompt_nutrients(existing: dict | None = None) -> dict:
 
     if aa_choice == "1":
         state.console.print(f"\n  [{state.T['accent']}]— Amino acids (g per 100g food) —[/{state.T['accent']}]")
-        state.console.print("  [dim]All are optional. Press Enter to skip any.[/dim]")
+        state.console.print("  [dim]All are optional. Press Enter to skip, Ctrl+C or 'b' to stop.[/dim]")
         for key, label, unit in _DRAFT_AMINO_ACIDS:
             current = existing.get(key) if existing else None
             default_str = f"{current:.5g}" if current is not None else None
@@ -379,9 +387,14 @@ def _prompt_nutrients(existing: dict | None = None) -> dict:
                         default=default_str if default_str else ""
                     ).strip()
                 except Cancelled:
-                    raw = ""
-                if raw.lower() == "q":
+                    return nutrients
+                lower = raw.lower()
+                if lower == "q":
                     raise SystemExit(0)
+                if lower == "m":
+                    raise ReturnToMain()
+                if lower == "b":
+                    return nutrients
                 if not raw:
                     if current is not None:
                         nutrients[key] = current
@@ -420,21 +433,72 @@ def _do_copy_cached_food() -> None:
         return
 
     _CNAME_W = 36
+    _CBRAND_W = 24
+
+    with _db.get_db() as _ann_conn:
+        _anns = _db.annotations_for_fdcids(
+            _ann_conn, [r["fdc_id"] for r in rows if isinstance(r["fdc_id"], int)]
+        )
+
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("ID",   justify="right", min_width=7)
-    tbl.add_column("Name", min_width=_CNAME_W, max_width=_CNAME_W, no_wrap=True)
-    tbl.add_column("Type", min_width=14)
-    for r in rows:
-        tbl.add_row(_id_cell(r["fdc_id"]), dot_cell(r["name"], _CNAME_W), r["data_type"] or "")
+    tbl.add_column("#",             justify="right", min_width=3)
+    tbl.add_column("Type",          min_width=12)
+    tbl.add_column("ID",            justify="right", min_width=7)
+    tbl.add_column("Food / Recipe", min_width=_CNAME_W, max_width=_CNAME_W, no_wrap=True)
+    tbl.add_column("Brand",         min_width=_CBRAND_W, max_width=_CBRAND_W, no_wrap=True)
+    tbl.add_column("Ann",           min_width=5)
+    tbl.add_column("AA data",       min_width=8)
+
+    for _ci, r in enumerate(rows, 1):
+        ann = _anns.get(r["fdc_id"])
+        has_gi    = ann is not None and ann["gi_estimate"]    is not None
+        has_diaas = ann is not None and ann["diaas_estimate"] is not None
+        s = state.T["success"]
+        if has_gi and has_diaas:
+            ann_cell = f"[{s}]GI DI[/{s}]"
+        elif has_gi:
+            ann_cell = f"[{s}]GI[/{s}][dim] ··[/dim]"
+        elif has_diaas:
+            ann_cell = f"[dim]·· [/dim][{s}]DI[/{s}]"
+        else:
+            ann_cell = "[dim]·····[/dim]"
+
+        nutrients = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
+        if _usda.has_amino_acid_data(nutrients):
+            aa_cell = f"[{s}]✓[/{s}]"
+        else:
+            aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
+
+        brand = r["brand"] or ""
+        type_str = f"[{s}]★[/{s}] {r['data_type'] or ''}"
+        if not brand:
+            brand_cell = f"[dim]{'·' * _CBRAND_W}[/dim]"
+        else:
+            _bt = brand[:_CBRAND_W - 1]
+            _bp = _CBRAND_W - len(_bt) - 1
+            brand_cell = f"{_bt} [dim]{'·' * _bp}[/dim]" if _bp > 0 else _bt
+
+        tbl.add_row(
+            str(_ci), type_str, _id_cell(r["fdc_id"]),
+            dot_cell(r["name"], _CNAME_W), brand_cell,
+            ann_cell, aa_cell,
+        )
+
+    state.console.print()
+    table_title("Food cache")
     state.console.print(tbl)
     table_footer(f"  {ID_KEY}")
 
-    fdc_id = _ask_int("Food ID to copy")
-    if fdc_id is None:
+    pick = _ask_int("Pick #")
+    if pick is None:
+        return
+    if pick < 1 or pick > len(rows):
+        state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
         return
 
     with _db.get_db() as conn:
-        cached = _db.get_cached_food(conn, fdc_id)
+        cached = _db.get_cached_food(conn, rows[pick - 1]["fdc_id"])
+    fdc_id = rows[pick - 1]["fdc_id"]
     if cached is None:
         state.console.print(f"[{state.T['warning']}]Food not found in cache.[/{state.T['warning']}]")
         return
@@ -624,8 +688,9 @@ def _do_create_drafted_food() -> None:
 
     # Serving size (optional metadata — not used in nutrient calculations)
     try:
+        _srv_unit_hint = f" ({default_serving_unit})" if (default_serving_size and default_serving_unit) else ""
         srv_raw = _prompt(
-            "Serving size  [dim](e.g. 30, or Enter to skip)[/dim]",
+            f"Serving size{_srv_unit_hint}" if default_serving_size else "Serving size  [dim](e.g. 30, or Enter to skip)[/dim]",
             default=f"{default_serving_size:.0f}" if default_serving_size else ""
         ).strip()
     except Cancelled:
@@ -639,7 +704,7 @@ def _do_create_drafted_food() -> None:
 
     try:
         serving_unit = _prompt(
-            "Serving unit  [dim](e.g. g, oz, cup — or Enter to skip)[/dim]",
+            "Serving unit" if default_serving_unit else "Serving unit  [dim](e.g. g, oz, cup — or Enter to skip)[/dim]",
             default=default_serving_unit or ""
         ).strip() or None
     except Cancelled:
@@ -656,6 +721,23 @@ def _do_create_drafted_food() -> None:
         ).strip() or None
     except Cancelled:
         notes = None
+
+    # Confirm before saving
+    state.console.print(
+        f"\n  [dim]s[/dim]  Save draft"
+        f"\n  [dim]d[/dim]  Discard"
+        f"\n  [dim]m[/dim]  Discard and return to main menu"
+    )
+    try:
+        action = _prompt("Action", choices=["s", "d", "m"], default="s")
+    except Cancelled:
+        action = "d"
+    if action == "d":
+        state.console.print(f"\n  [dim]Draft discarded.[/dim]")
+        return
+    if action == "m":
+        state.console.print(f"\n  [dim]Draft discarded.[/dim]")
+        raise ReturnToMain()
 
     # Assign a negative fdc_id and save
     with _db.get_db() as conn:

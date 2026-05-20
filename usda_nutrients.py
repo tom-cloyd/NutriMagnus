@@ -154,10 +154,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.75,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 172421
             "protein_g":        9.02,
             "aa_tryptophan_g":  0.077, "aa_threonine_g":   0.355,
             "aa_isoleucine_g":  0.374, "aa_leucine_g":     0.636,
-            "aa_lysine_g":      0.624, "aa_methionine_g":  0.077,
+            "aa_lysine_g":      0.624, "aa_methionine_g":  0.077, "aa_cystine_g": 0.089,
             "aa_phenylalanine_g": 0.450, "aa_valine_g":    0.432,
             "aa_histidine_g":   0.254,
         },
@@ -167,10 +168,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.83,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 173756
             "protein_g":        8.86,
             "aa_tryptophan_g":  0.079, "aa_threonine_g":   0.337,
             "aa_isoleucine_g":  0.383, "aa_leucine_g":     0.623,
-            "aa_lysine_g":      0.519, "aa_methionine_g":  0.086,
+            "aa_lysine_g":      0.519, "aa_methionine_g":  0.086, "aa_cystine_g": 0.107,
             "aa_phenylalanine_g": 0.471, "aa_valine_g":    0.377,
             "aa_histidine_g":   0.239,
         },
@@ -180,10 +182,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.75,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 175236
             "protein_g":        8.86,
             "aa_tryptophan_g":  0.099, "aa_threonine_g":   0.355,
             "aa_isoleucine_g":  0.376, "aa_leucine_g":     0.677,
-            "aa_lysine_g":      0.535, "aa_methionine_g":  0.117,
+            "aa_lysine_g":      0.535, "aa_methionine_g":  0.117, "aa_cystine_g": 0.111,
             "aa_phenylalanine_g": 0.473, "aa_valine_g":    0.452,
             "aa_histidine_g":   0.264,
         },
@@ -193,10 +196,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.75,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 175200 (pinto used as proxy; kidney similar)
             "protein_g":        8.67,
             "aa_tryptophan_g":  0.096, "aa_threonine_g":   0.366,
             "aa_isoleucine_g":  0.406, "aa_leucine_g":     0.700,
-            "aa_lysine_g":      0.598, "aa_methionine_g":  0.111,
+            "aa_lysine_g":      0.598, "aa_methionine_g":  0.111, "aa_cystine_g": 0.107,
             "aa_phenylalanine_g": 0.490, "aa_valine_g":    0.467,
             "aa_histidine_g":   0.276,
         },
@@ -206,10 +210,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.84,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 172479
             "protein_g":        8.08,
             "aa_tryptophan_g":  0.121, "aa_threonine_g":   0.321,
             "aa_isoleucine_g":  0.434, "aa_leucine_g":     0.652,
-            "aa_lysine_g":      0.550, "aa_methionine_g":  0.103,
+            "aa_lysine_g":      0.550, "aa_methionine_g":  0.103, "aa_cystine_g": 0.079,
             "aa_phenylalanine_g": 0.393, "aa_valine_g":    0.407,
             "aa_histidine_g":   0.231,
         },
@@ -219,10 +224,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.87,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 168190
             "protein_g":        20.29,
             "aa_tryptophan_g":  0.287, "aa_threonine_g":   0.861,
             "aa_isoleucine_g":  1.013, "aa_leucine_g":     1.545,
-            "aa_lysine_g":      1.171, "aa_methionine_g":  0.274,
+            "aa_lysine_g":      1.171, "aa_methionine_g":  0.274, "aa_cystine_g": 0.222,
             "aa_phenylalanine_g": 1.052, "aa_valine_g":    1.073,
             "aa_histidine_g":   0.582,
         },
@@ -232,10 +238,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.84,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 168411
             "protein_g":        11.91,
             "aa_tryptophan_g":  0.156, "aa_threonine_g":   0.477,
             "aa_isoleucine_g":  0.534, "aa_leucine_g":     0.911,
-            "aa_lysine_g":      0.782, "aa_methionine_g":  0.135,
+            "aa_lysine_g":      0.782, "aa_methionine_g":  0.135, "aa_cystine_g": 0.163,
             "aa_phenylalanine_g": 0.580, "aa_valine_g":    0.559,
             "aa_histidine_g":   0.321,
         },
@@ -245,10 +252,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.79,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 170420
             "protein_g":        5.36,
             "aa_tryptophan_g":  0.050, "aa_threonine_g":   0.213,
             "aa_isoleucine_g":  0.238, "aa_leucine_g":     0.370,
-            "aa_lysine_g":      0.305, "aa_methionine_g":  0.082,
+            "aa_lysine_g":      0.305, "aa_methionine_g":  0.082, "aa_cystine_g": 0.037,
             "aa_phenylalanine_g": 0.253, "aa_valine_g":    0.264,
             "aa_histidine_g":   0.117,
         },
@@ -258,10 +266,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.85,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 168917
             "protein_g":        4.40,
             "aa_tryptophan_g":  0.052, "aa_threonine_g":   0.121,
             "aa_isoleucine_g":  0.152, "aa_leucine_g":     0.257,
-            "aa_lysine_g":      0.233, "aa_methionine_g":  0.086,
+            "aa_lysine_g":      0.233, "aa_methionine_g":  0.086, "aa_cystine_g": 0.049,
             "aa_phenylalanine_g": 0.180, "aa_valine_g":    0.175,
             "aa_histidine_g":   0.113,
         },
@@ -271,10 +280,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.76,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 170285
             "protein_g":        3.80,
             "aa_tryptophan_g":  0.056, "aa_threonine_g":   0.104,
             "aa_isoleucine_g":  0.131, "aa_leucine_g":     0.237,
-            "aa_lysine_g":      0.213, "aa_methionine_g":  0.060,
+            "aa_lysine_g":      0.213, "aa_methionine_g":  0.060, "aa_cystine_g": 0.039,
             "aa_phenylalanine_g": 0.148, "aa_valine_g":    0.163,
             "aa_histidine_g":   0.097,
         },
@@ -284,10 +294,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.63,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 170148 — hulled (shelled) hemp seeds
             "protein_g":        31.56,
             "aa_tryptophan_g":  0.490, "aa_threonine_g":   1.190,
             "aa_isoleucine_g":  1.430, "aa_leucine_g":     2.160,
-            "aa_lysine_g":      0.960, "aa_methionine_g":  0.960,
+            "aa_lysine_g":      0.960, "aa_methionine_g":  0.960, "aa_cystine_g": 0.480,
             "aa_phenylalanine_g": 1.440, "aa_valine_g":    1.780,
             "aa_histidine_g":   0.870,
         },
@@ -302,7 +313,7 @@ _COMPLEMENT_TABLE: list[dict] = [
             "protein_g":        17.73,
             "aa_tryptophan_g":  0.330, "aa_threonine_g":   0.736,
             "aa_isoleucine_g":  0.762, "aa_leucine_g":     1.299,
-            "aa_lysine_g":      0.570, "aa_methionine_g":  0.586,
+            "aa_lysine_g":      0.570, "aa_methionine_g":  0.586, "aa_cystine_g": 0.295,
             "aa_phenylalanine_g": 0.940, "aa_valine_g":    0.982,
             "aa_histidine_g":   0.482,
         },
@@ -311,14 +322,14 @@ _COMPLEMENT_TABLE: list[dict] = [
         "name": "Brazil nuts",
         "animal": False,
         # DIAAS ~0.54: lysine is limiting (34 mg/g vs 45 mg/g reference); digestibility ~0.87
-        # Met/protein ratio ~70 mg/g — among the highest of any plant food.
+        # Met+Cys/protein ratio ~94 mg/g — highest of any common food.
         # Source: USDA SR Legacy FDC 12078 — Nuts, brazilnuts, dried, unblanched
         "diaas": 0.54,
         "nutrients": {
             "protein_g":        14.32,
             "aa_tryptophan_g":  0.141, "aa_threonine_g":   0.362,
             "aa_isoleucine_g":  0.516, "aa_leucine_g":     1.155,
-            "aa_lysine_g":      0.492, "aa_methionine_g":  1.008,
+            "aa_lysine_g":      0.492, "aa_methionine_g":  1.008, "aa_cystine_g": 0.342,
             "aa_phenylalanine_g": 0.630, "aa_valine_g":    0.756,
             "aa_histidine_g":   0.386,
         },
@@ -328,10 +339,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.64,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 12014 — Seeds, pumpkin and squash seed kernels, roasted
             "protein_g":        24.54,
             "aa_tryptophan_g":  0.330, "aa_threonine_g":   0.801,
             "aa_isoleucine_g":  1.239, "aa_leucine_g":     2.408,
-            "aa_lysine_g":      0.979, "aa_methionine_g":  0.528,
+            "aa_lysine_g":      0.979, "aa_methionine_g":  0.528, "aa_cystine_g": 0.305,
             "aa_phenylalanine_g": 1.558, "aa_valine_g":    1.539,
             "aa_histidine_g":   0.745,
         },
@@ -341,10 +353,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.53,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 12036 — Seeds, sunflower seed kernels, dried
             "protein_g":        19.33,
             "aa_tryptophan_g":  0.294, "aa_threonine_g":   0.892,
             "aa_isoleucine_g":  0.883, "aa_leucine_g":     1.434,
-            "aa_lysine_g":      0.728, "aa_methionine_g":  0.430,
+            "aa_lysine_g":      0.728, "aa_methionine_g":  0.430, "aa_cystine_g": 0.327,
             "aa_phenylalanine_g": 0.988, "aa_valine_g":    1.022,
             "aa_histidine_g":   0.510,
         },
@@ -358,7 +371,7 @@ _COMPLEMENT_TABLE: list[dict] = [
             "protein_g":        13.15,
             "aa_tryptophan_g":  0.182, "aa_threonine_g":   0.382,
             "aa_isoleucine_g":  0.503, "aa_leucine_g":     0.980,
-            "aa_lysine_g":      0.637, "aa_methionine_g":  0.207,
+            "aa_lysine_g":      0.637, "aa_methionine_g":  0.207, "aa_cystine_g": 0.321,
             "aa_phenylalanine_g": 0.665, "aa_valine_g":    0.688,
             "aa_histidine_g":   0.275,
         },
@@ -368,12 +381,27 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.72,
         "nutrients": {
+            # Cystine estimate from amino acid composition studies (DIAAS data sparse)
             "protein_g":        52.00,
             "aa_tryptophan_g":  0.660, "aa_threonine_g":   2.460,
             "aa_isoleucine_g":  2.520, "aa_leucine_g":     3.600,
-            "aa_lysine_g":      3.110, "aa_methionine_g":  0.860,
+            "aa_lysine_g":      3.110, "aa_methionine_g":  0.860, "aa_cystine_g": 0.240,
             "aa_phenylalanine_g": 2.000, "aa_valine_g":    2.770,
             "aa_histidine_g":   1.180,
+        },
+    },
+    {
+        "name": "Soy protein isolate",
+        "animal": False,
+        "diaas": 0.97,
+        "nutrients": {
+            # Source: USDA SR Legacy FDC 174276 — Soy protein isolate
+            "protein_g":        86.04,
+            "aa_tryptophan_g":  1.143, "aa_threonine_g":   3.579,
+            "aa_isoleucine_g":  4.382, "aa_leucine_g":     7.133,
+            "aa_lysine_g":      5.379, "aa_methionine_g":  1.145, "aa_cystine_g": 0.833,
+            "aa_phenylalanine_g": 4.870, "aa_valine_g":    4.487,
+            "aa_histidine_g":   2.425,
         },
     },
     {
@@ -381,28 +409,28 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": False,
         "diaas": 0.82,
         "nutrients": {
+            # Cystine estimate for commercial pea protein isolate (~80% protein)
             "protein_g":        80.00,
             "aa_tryptophan_g":  0.730, "aa_threonine_g":   2.700,
             "aa_isoleucine_g":  3.440, "aa_leucine_g":     5.950,
-            "aa_lysine_g":      5.360, "aa_methionine_g":  0.930,
+            "aa_lysine_g":      5.360, "aa_methionine_g":  0.930, "aa_cystine_g": 0.600,
             "aa_phenylalanine_g": 3.760, "aa_valine_g":    3.630,
             "aa_histidine_g":   1.550,
         },
     },
     # ---- Animal sources ----
     # dairy_egg=True: allowed for vegetarians. meat/fish entries have animal=True only.
-    # Methionine and sulfur-AA gaps are difficult to close with plant foods alone;
-    # most grains and legumes fall below the FAO reference ratio for methionine.
     {
         "name": "Egg, whole, cooked",
         "animal": True,
         "dairy_egg": True,
         "diaas": 1.13,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 173424
             "protein_g":        12.56,
             "aa_tryptophan_g":  0.153, "aa_threonine_g":   0.556,
             "aa_isoleucine_g":  0.671, "aa_leucine_g":     1.086,
-            "aa_lysine_g":      0.904, "aa_methionine_g":  0.392,
+            "aa_lysine_g":      0.904, "aa_methionine_g":  0.392, "aa_cystine_g": 0.292,
             "aa_phenylalanine_g": 0.668, "aa_valine_g":    0.858,
             "aa_histidine_g":   0.298,
         },
@@ -413,10 +441,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "dairy_egg": True,
         "diaas": 1.08,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 171241
             "protein_g":        24.90,
             "aa_tryptophan_g":  0.320, "aa_threonine_g":   0.880,
             "aa_isoleucine_g":  1.220, "aa_leucine_g":     2.380,
-            "aa_lysine_g":      1.850, "aa_methionine_g":  0.650,
+            "aa_lysine_g":      1.850, "aa_methionine_g":  0.650, "aa_cystine_g": 0.096,
             "aa_phenylalanine_g": 1.280, "aa_valine_g":    1.600,
             "aa_histidine_g":   0.720,
         },
@@ -427,10 +456,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "dairy_egg": True,
         "diaas": 1.14,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 170903
             "protein_g":        9.95,
             "aa_tryptophan_g":  0.049, "aa_threonine_g":   0.338,
             "aa_isoleucine_g":  0.456, "aa_leucine_g":     0.785,
-            "aa_lysine_g":      0.699, "aa_methionine_g":  0.253,
+            "aa_lysine_g":      0.699, "aa_methionine_g":  0.253, "aa_cystine_g": 0.028,
             "aa_phenylalanine_g": 0.408, "aa_valine_g":    0.560,
             "aa_histidine_g":   0.230,
         },
@@ -441,10 +471,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "dairy_egg": True,
         "diaas": 1.09,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 173218 (whey protein concentrate, ~78g protein)
             "protein_g":        78.00,
             "aa_tryptophan_g":  1.680, "aa_threonine_g":   5.800,
             "aa_isoleucine_g":  5.900, "aa_leucine_g":    10.100,
-            "aa_lysine_g":      8.900, "aa_methionine_g":  2.250,
+            "aa_lysine_g":      8.900, "aa_methionine_g":  2.250, "aa_cystine_g": 1.670,
             "aa_phenylalanine_g": 3.100, "aa_valine_g":    5.300,
             "aa_histidine_g":   1.700,
         },
@@ -454,10 +485,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": True,
         "diaas": 1.08,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 171477
             "protein_g":        31.02,
             "aa_tryptophan_g":  0.365, "aa_threonine_g":   1.326,
             "aa_isoleucine_g":  1.452, "aa_leucine_g":     2.476,
-            "aa_lysine_g":      2.778, "aa_methionine_g":  0.740,
+            "aa_lysine_g":      2.778, "aa_methionine_g":  0.740, "aa_cystine_g": 0.322,
             "aa_phenylalanine_g": 1.277, "aa_valine_g":    1.566,
             "aa_histidine_g":   0.942,
         },
@@ -467,10 +499,11 @@ _COMPLEMENT_TABLE: list[dict] = [
         "animal": True,
         "diaas": 1.00,
         "nutrients": {
+            # Source: USDA SR Legacy FDC 175168
             "protein_g":        25.44,
             "aa_tryptophan_g":  0.285, "aa_threonine_g":   1.115,
             "aa_isoleucine_g":  1.159, "aa_leucine_g":     2.054,
-            "aa_lysine_g":      2.338, "aa_methionine_g":  0.800,
+            "aa_lysine_g":      2.338, "aa_methionine_g":  0.800, "aa_cystine_g": 0.300,
             "aa_phenylalanine_g": 0.990, "aa_valine_g":    1.312,
             "aa_histidine_g":   0.757,
         },
@@ -510,6 +543,7 @@ def suggest_complements(
     pantry_candidates: list[dict],
     diet_pref: str = "all",
     base_digestibility: float = 1.0,
+    base_food_name: str | None = None,
 ) -> dict[str, list[dict]]:
     """
     Suggest complement foods to close essential amino acid gaps.
@@ -520,17 +554,31 @@ def suggest_complements(
         "diaas": float | None
     diet_pref: "all" includes all sources; "vegetarian" allows dairy/eggs but not
         meat/fish; "plant_only" excludes all animal-sourced entries.
+    base_food_name: used to look up true ileal digestibility for DIAAS-improver
+        calculations; falls back to base_digestibility if None.
 
-    Returns {"pantry": [...], "general": [...]}
-    Each suggestion dict contains:
+    Returns {"pantry": [...], "general": [...], "diaas_improvers": [...]}
+    Gap-closer dicts contain:
         name, grams, new_scores, new_complete, gaps_closed,
         remaining_gaps, protein_added, digestible_protein_added, diaas
+    DIAAS-improver dicts contain:
+        name, grams, current_diaas, new_diaas,
+        protein_added, digestible_protein_added, diaas
     """
     gaps = get_aa_gaps(base_nutrients, digestibility=base_digestibility)
     if not gaps:
-        return {"pantry": [], "general": []}
+        return {"pantry": [], "general": [], "diaas_improvers": []}
 
     primary_aa, _primary_score, primary_deficit_g = gaps[0]
+
+    # True ileal digestibility for the base food (separate from DIAAS score).
+    # Used only for the DIAAS-improver tier which mirrors diaas.meal_level_diaas().
+    from diaas import FAO_REFERENCE as _FAO_REF, _IAA_PAIRS as _DIAAS_PAIRS
+    from diaas import get_digestibility as _get_dig
+    if base_food_name:
+        base_tid, _ = _get_dig(base_food_name)
+    else:
+        base_tid = base_digestibility  # DIAAS used as TID proxy when name unavailable
 
     def _score_candidate(nutrients_100g: dict, diaas: float | None,
                          target_aa: str) -> dict | None:
@@ -551,16 +599,16 @@ def suggest_complements(
         else:
             alpha = nutrients_100g.get(target_aa, 0.0) / 100.0   # g AA per g food
         beta = nutrients_100g.get("protein_g", 0.0) / 100.0  # g protein per g food
-        # Use the raw (unadjusted) reference for sizing the complement. Applying
-        # base_digestibility here inflates required amounts by 1/DIAAS — a single-food
-        # correction that doesn't apply to a combined meal whose digestibility may differ.
-        # Gaps are still identified using digestibility in get_aa_gaps(); the complement
-        # amount is simply what brings the combined raw AA profile to reference.
-        R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0
+        # Use digestibility-adjusted reference so that the sizing is consistent
+        # with get_aa_gaps(), which uses the same adjustment to detect gaps.
+        # Without this, a food whose raw ratio meets the reference but whose
+        # digestibility-adjusted score is below 1.0 would compute grams ≈ 0
+        # and no complement would qualify.
+        R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0 / max(base_digestibility, 0.01)
         denom = alpha - R * beta
         if denom <= 0:
-            # Candidate's AA/protein ratio is below the reference — adding it
-            # won't close the gap (may worsen it).
+            # Candidate's AA/protein ratio is below the (digestibility-adjusted)
+            # reference — adding it won't close the gap (may worsen it).
             return None
         if target_aa in _AA_PAIRS:
             base_aa = base_nutrients.get(target_aa, 0.0) + base_nutrients.get(_AA_PAIRS[target_aa], 0.0)
@@ -568,7 +616,7 @@ def suggest_complements(
             base_aa = base_nutrients.get(target_aa, 0.0)
         base_protein = base_nutrients.get("protein_g", 0.0)
         grams = (R * base_protein - base_aa) / denom
-        # Cap at 500g to exclude mathematically valid but impractical suggestions.
+        # Cap at 500g: excludes mathematically valid but wholly impractical suggestions.
         if grams <= 0 or grams > 500:
             return None
         added = scale_nutrients(nutrients_100g, grams)
@@ -604,8 +652,128 @@ def suggest_complements(
             "diaas":                    diaas,
         }
 
-    def _build_suggestions(candidates: list[dict]) -> list[dict]:
-        results = []
+    def _diaas_improver_score(
+        comp_nutrients: dict,
+        comp_name: str,
+        comp_diaas_val: float | None,
+        target: float = 0.90,
+    ) -> dict | None:
+        """
+        Find the smallest practical serving of comp that meaningfully improves the
+        combined pooled DIAAS (base + complement), using numerical search.
+
+        Uses pooled DIAAS methodology (consistent with diaas.meal_level_diaas):
+          pooled_dig_aa_k = base_aa_k * base_tid + comp_aa_k/100 * X * d_comp
+          ratio_k(X) = pooled_dig_aa_k / (FAO_ref_k/1000 * (base_protein + comp_protein/100 * X))
+          DIAAS(X) = min_k(ratio_k(X))
+
+        The analytical formula can only solve for AAs where the complement's
+        digestibility-weighted AA/protein ratio exceeds the target threshold.  Foods
+        like nutritional yeast are strong in most AAs but weak in Met+Cys — they
+        can still meaningfully raise DIAAS even though they can't analytically close
+        every gap.  The numerical approach handles that correctly.
+
+        Returns None if improvement < 0.05 DIAAS points or best X > 300g.
+        """
+        base_protein = base_nutrients.get("protein_g", 0.0)
+        comp_protein = comp_nutrients.get("protein_g", 0.0)
+        if base_protein <= 0 or comp_protein <= 0:
+            return None
+
+        d_comp, _ = _get_dig(comp_name)
+        P = base_protein
+        Q = comp_protein / 100.0  # raw protein per gram of complement
+
+        def _pooled_diaas(X: float) -> float:
+            new_protein = P + Q * X
+            ratios: dict[str, float] = {}
+            for aa_key, ref_mg_per_g in _FAO_REF.items():
+                secondary = _DIAAS_PAIRS.get(aa_key)
+                base_aa = base_nutrients.get(aa_key, 0.0)
+                if secondary:
+                    base_aa += base_nutrients.get(secondary, 0.0)
+                comp_aa = comp_nutrients.get(aa_key, 0.0)
+                if secondary:
+                    comp_aa += comp_nutrients.get(secondary, 0.0)
+                if base_aa <= 0 and comp_aa <= 0:
+                    continue
+                pooled = base_aa * base_tid + comp_aa / 100.0 * X * d_comp
+                ref_g = ref_mg_per_g / 1000.0 * new_protein
+                if ref_g > 0:
+                    ratios[aa_key] = pooled / ref_g
+            return min(ratios.values()) if ratios else 0.0
+
+        current_diaas_val = _pooled_diaas(0.0)
+        if current_diaas_val >= target:
+            return None  # base already meets target
+
+        # Collect analytical candidate X values for AAs where denom > 0.
+        candidate_X: list[float] = []
+        for aa_key, ref_mg_per_g in _FAO_REF.items():
+            secondary = _DIAAS_PAIRS.get(aa_key)
+            base_aa = base_nutrients.get(aa_key, 0.0)
+            if secondary:
+                base_aa += base_nutrients.get(secondary, 0.0)
+            if base_aa <= 0:
+                continue
+            comp_aa = comp_nutrients.get(aa_key, 0.0)
+            if secondary:
+                comp_aa += comp_nutrients.get(secondary, 0.0)
+            A_k = base_aa * base_tid
+            C_k = comp_aa / 100.0 * d_comp
+            R_t_k = target * ref_mg_per_g / 1000.0
+            ref_g = ref_mg_per_g / 1000.0 * P
+            if ref_g <= 0 or A_k / ref_g >= target:
+                continue  # already meets target for this AA
+            denom = C_k - R_t_k * Q
+            if denom > 0:
+                grams_k = (R_t_k * P - A_k) / denom
+                if 1.0 <= grams_k <= 300.0:
+                    candidate_X.append(grams_k)
+        # Always probe a range of practical amounts — catches foods where the
+        # DIAAS peak is not aligned with any single analytical crossing point.
+        candidate_X.extend([10, 20, 30, 50, 75, 100, 150, 200, 250, 300])
+
+        # Find the X that maximises pooled DIAAS.
+        best_X = 0.0
+        best_diaas = current_diaas_val
+        for X in candidate_X:
+            d = _pooled_diaas(X)
+            if d > best_diaas:
+                best_diaas = d
+                best_X = X
+
+        if best_X <= 0 or best_diaas < current_diaas_val + 0.05:
+            return None  # no meaningful improvement at any practical amount
+
+        # If target is reachable, find the minimum X that crosses it (binary search).
+        if best_diaas >= target:
+            lo, hi = 1.0, best_X
+            for _ in range(20):
+                mid = (lo + hi) / 2.0
+                if _pooled_diaas(mid) >= target:
+                    hi = mid
+                else:
+                    lo = mid
+            best_X = hi
+
+        if best_X > 300:
+            return None  # impractical even if mathematically valid
+
+        protein_added = Q * best_X
+        dig_added = protein_added * (comp_diaas_val if comp_diaas_val is not None else d_comp)
+        return {
+            "grams":                    round(best_X),
+            "current_diaas":            round(current_diaas_val, 2),
+            "new_diaas":                round(min(best_diaas, target + 0.01), 2),
+            "protein_added":            protein_added,
+            "digestible_protein_added": dig_added,
+            "diaas":                    comp_diaas_val,
+        }
+
+    def _build_suggestions(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
+        gap_closers: list[dict] = []
+        diaas_improvers: list[dict] = []
         seen_names: set[str] = set()
         for cand in candidates:
             name = cand["name"]
@@ -621,21 +789,28 @@ def suggest_complements(
                     cand_diaas = cand_diaas or entry["diaas"]
             if cand_nutrients is None:
                 continue
-            # Try each gap in priority order; use the first target the candidate can address
+            # Try gap-closer first (targeted AA-ratio formula)
             metrics = None
             for target_aa, _score, _deficit in gaps:
                 metrics = _score_candidate(cand_nutrients, cand_diaas, target_aa)
                 if metrics is not None:
                     break
-            if metrics is None:
-                continue
-            seen_names.add(name)
-            results.append({"name": name, **metrics})
-        # Sort: primary-gap closers first, then by most gaps closed, then smallest grams.
-        results.sort(key=lambda r: (not r.get("closes_primary"), -r["gaps_closed"], r["grams"]))
-        return results
+            if metrics is not None:
+                seen_names.add(name)
+                gap_closers.append({"name": name, **metrics})
+            else:
+                # Try DIAAS-improver (pooled DIAAS formula with per-food digestibilities)
+                imp = _diaas_improver_score(cand_nutrients, name, cand_diaas)
+                if imp is not None:
+                    seen_names.add(name)
+                    diaas_improvers.append({"name": name, **imp})
+        # Sort gap-closers: primary-gap first, then most gaps closed, then smallest grams.
+        gap_closers.sort(key=lambda r: (not r.get("closes_primary"), -r["gaps_closed"], r["grams"]))
+        # Sort DIAAS-improvers: best resulting DIAAS first, then smallest grams.
+        diaas_improvers.sort(key=lambda r: (-r["new_diaas"], r["grams"]))
+        return gap_closers, diaas_improvers
 
-    pantry_suggestions = _build_suggestions(pantry_candidates)
+    pantry_gap_closers, pantry_diaas_improvers = _build_suggestions(pantry_candidates)
 
     # General suggestions from the curated table, filtered by dietary preference.
     pantry_names_lower = {c["name"].lower() for c in pantry_candidates}
@@ -655,9 +830,21 @@ def suggest_complements(
         if c["name"].lower() not in pantry_names_lower
         and _diet_allows(c)
     ]
-    general_suggestions = _build_suggestions(general_candidates)
+    general_gap_closers, general_diaas_improvers = _build_suggestions(general_candidates)
 
-    return {"pantry": pantry_suggestions, "general": general_suggestions}
+    # Merge DIAAS-improvers from both sources, excluding names already in gap-closer lists.
+    gap_closer_names = {s["name"].lower() for s in pantry_gap_closers + general_gap_closers}
+    all_diaas_improvers = [
+        s for s in pantry_diaas_improvers + general_diaas_improvers
+        if s["name"].lower() not in gap_closer_names
+    ]
+    all_diaas_improvers.sort(key=lambda r: (-r["new_diaas"], r["grams"]))
+
+    return {
+        "pantry": pantry_gap_closers,
+        "general": general_gap_closers,
+        "diaas_improvers": all_diaas_improvers,
+    }
 
 
 # ---------------------------------------------------------------------------
