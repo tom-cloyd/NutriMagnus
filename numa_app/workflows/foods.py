@@ -87,14 +87,15 @@ def _do_food_search() -> None:
         return
     _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
     has_aa = _print_protein_completeness(food["nutrients"], food_name=food["name"])
+    _print_bioavailability(food["name"], food["nutrients"])
     aa_food = food  # tracks whichever food has AA data for all subsequent steps
     if not has_aa:
         alt = _suggest_foundation_search(food)
         if alt:
             _print_nutrient_table(alt["nutrients"], title=alt["name"], per_label="per 100g")
             has_aa = _print_protein_completeness(alt["nutrients"], food_name=alt["name"])
+            _print_bioavailability(alt["name"], alt["nutrients"])
             aa_food = alt
-    _print_bioavailability(aa_food["name"], aa_food["nutrients"])
     _aa_diaas = _usda.get_diaas(aa_food["name"]) or 1.0
     if has_aa and _usda.get_aa_gaps(aa_food["nutrients"], digestibility=_aa_diaas):
         _print_complement_suggestions(aa_food["nutrients"], context="food",

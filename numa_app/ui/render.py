@@ -721,7 +721,11 @@ def _print_complement_suggestions(
         raw = s["protein_added"]
         state.console.print(f"    Adds: [bold]{dig:.1f}g[/bold] digestible protein "
                       f"[dim](from {raw:.1f}g raw)[/dim]", highlight=False)
-        total_dig = base_digestible + dig
+        if s.get("new_scores"):
+            pooled_diaas = min(1.0, min(s["new_scores"].values()) * _digestibility)
+            total_dig = (base_protein + raw) * pooled_diaas
+        else:
+            total_dig = base_digestible + dig
         state.console.print(f"    Total bioavailable complete protein now = "
                       f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
                       highlight=False)
@@ -801,7 +805,11 @@ def _print_complement_suggestions(
         raw = s["protein_added"]
         state.console.print(f"    Adds: [bold]{dig:.1f}g[/bold] digestible protein "
                       f"[dim](from {raw:.1f}g raw)[/dim]", highlight=False)
-        total_dig = base_digestible + dig
+        new_diaas = s.get("new_diaas")
+        if new_diaas is not None:
+            total_dig = (base_protein + raw) * min(1.0, new_diaas)
+        else:
+            total_dig = base_digestible + dig
         state.console.print(f"    Total bioavailable complete protein now = "
                       f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
                       highlight=False)
