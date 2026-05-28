@@ -910,6 +910,7 @@ _DIAAS_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("okara",),                                    0.75),  # soy byproduct; must precede generic "flour" catch-all
     (("lentil pasta", "lentil noodle"),             0.75),  # must precede generic pasta catch-all
     (("chickpea pasta", "chickpea noodle"),         0.83),  # must precede generic pasta catch-all
+    (("vital wheat gluten",),                        0.67),  # AA-computed (lysine-limited); SID 0.86 per FAO FNP 92
     (("seitan", "wheat protein", "gluten"),          0.46),
     (("brown rice", "whole grain rice"),            0.59),
     (("white rice",),                               0.62),

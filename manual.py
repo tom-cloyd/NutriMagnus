@@ -43,6 +43,10 @@ _ALIASES: dict[str, str] = {
     "nutrient-goals":       "goals",
     "targets":              "goals",
     "daily-targets":        "goals",
+    "terms":                "glossary",
+    "abbreviations":        "glossary",
+    "abbrev":               "glossary",
+    "definitions":          "glossary",
 }
 
 

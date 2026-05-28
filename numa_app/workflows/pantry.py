@@ -8,11 +8,9 @@ import db as _db
 import usda as _usda
 from rich.table import Table
 from .. import state
-from ..services.search import _search_and_pick_food
-from ..services.portions import _normalize_unit_display, _pick_portion
+from ..services.search import _search_and_pick_food, _suggest_foundation_search
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY, dot_cell, section_title, table_footer
-from ..ui.render import _print_nutrient_table, _print_protein_completeness
 
 def _load_pantry_candidates() -> list[dict]:
     """
@@ -48,7 +46,7 @@ def _do_pantry_menu() -> None:
         if not rows:
             state.console.print("  [dim](empty — no foods added yet)[/dim]")
         else:
-            _FOOD_W = 32
+            _FOOD_W = 47
             tbl = Table(show_header=True, header_style=state.T["accent_plain"],
                         box=None, padding=(0, 1))
             tbl.add_column("#",    justify="right", min_width=3)
@@ -83,10 +81,15 @@ def _do_pantry_menu() -> None:
             state.console.rule(style="grey50")
         state.console.print()
         state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Add a food")
-        state.console.print(f"  [{state.T['accent']}]e.[/{state.T['accent']}] Edit an entry")
         state.console.print(f"  [{state.T['accent']}]r.[/{state.T['accent']}] Remove a food")
+        state.console.print(f"  [{state.T['accent']}]c.[/{state.T['accent']}] Go to Food Cache  [dim](edit nutrients there)[/dim]")
         state.console.print(f"  [dim]b.[/dim] Back to Foods menu")
         state.console.print(f"  [dim]m.[/dim] Return to main menu")
+        state.console.print()
+        state.console.print(
+            f"  [{state.T['warning']}]To edit nutrient data for any food, use the Food Cache (option c).\n"
+            f"  All pantry foods are visible and editable there.[/{state.T['warning']}]"
+        )
         state.console.print()
         try:
             choice = _prompt("Choice").strip().lower()
@@ -94,9 +97,9 @@ def _do_pantry_menu() -> None:
             return
         if choice == "a":
             _safe_call(_do_pantry_add)
-        elif choice == "e":
-            if rows:
-                _safe_call(_do_pantry_edit)
+        elif choice == "c":
+            from ..workflows.foods import _do_list_cached_foods
+            _do_list_cached_foods()
         elif choice == "r":
             if rows:
                 _safe_call(_do_pantry_remove)
@@ -127,9 +130,23 @@ def _do_pantry_add() -> None:
         return
 
     if method == "1":
-        food = _search_and_pick_food()
+        food = _search_and_pick_food(show_aa_status=True)
         if food is None:
             return
+        if not _usda.has_amino_acid_data(food.get("nutrients") or {}):
+            data_type = food.get("dataType", "")
+            if data_type == "Branded":
+                state.console.print(
+                    f"\n  [{state.T['warning']}]Branded foods rarely include amino acid data in USDA.\n"
+                    f"  A generic (Foundation or SR Legacy) equivalent will have complete data.[/{state.T['warning']}]"
+                )
+            else:
+                state.console.print(
+                    f"\n  [{state.T['warning']}]This food has no amino acid data.[/{state.T['warning']}]"
+                )
+            alt = _suggest_foundation_search(food)
+            if alt is not None:
+                food = alt
         food_name = food["name"]
         fdc_id = food["fdcId"]
         try:
@@ -138,7 +155,9 @@ def _do_pantry_add() -> None:
             return
         with _db.get_db() as conn:
             _db.pantry_add(conn, food_name, fdc_id=fdc_id, notes=notes or None)
-        state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food_name}")
+        has_aa = _usda.has_amino_acid_data(food.get("nutrients") or {})
+        aa_note = "" if has_aa else f"  [{state.T['warning']}](no AA data)[/{state.T['warning']}]"
+        state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food_name}{aa_note}")
     else:
         try:
             food_name = _prompt("Food name").strip()
@@ -179,66 +198,4 @@ def _do_pantry_remove() -> None:
     state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {row['food_name']}")
 
 
-def _do_pantry_edit() -> None:
-    """Edit an existing pantry entry — name, USDA link, or notes."""
-    try:
-        raw = _prompt("Pantry ID to edit").strip()
-    except Cancelled:
-        return
-    try:
-        pid = int(raw)
-    except ValueError:
-        state.console.print(f"[{state.T['warning']}]Invalid ID.[/{state.T['warning']}]")
-        return
-    with _db.get_db() as conn:
-        row = _db.pantry_get(conn, pid)
-    if row is None:
-        state.console.print(f"[{state.T['warning']}]ID {pid} not found.[/{state.T['warning']}]")
-        return
-
-    food_name = row["food_name"]
-    fdc_id = row["fdc_id"]
-    notes = row["notes"] or ""
-
-    state.console.print(f"\n  Editing: [bold]{food_name}[/bold]"
-                  f"  [dim](Enter to keep current value)[/dim]")
-
-    # Name
-    try:
-        new_name = _prompt("Food name", default=food_name, prefill=True).strip()
-    except Cancelled:
-        return
-    if new_name:
-        food_name = new_name
-
-    # USDA link — offer to re-link or clear
-    linked_str = f"fdc:{fdc_id}" if fdc_id else "none"
-    state.console.print(f"  Current USDA link: [dim]{linked_str}[/dim]")
-    state.console.print(f"  [{state.T['accent']}]u[/{state.T['accent']}] Re-link via USDA search  "
-                  f"[dim]c[/dim] Clear link  "
-                  f"[dim]Enter[/dim] Keep current")
-    try:
-        link_choice = _prompt("USDA link", default="").strip().lower()
-    except Cancelled:
-        return
-    if link_choice == "u":
-        food = _search_and_pick_food()
-        if food is not None:
-            food_name = food["name"]
-            fdc_id = food["fdcId"]
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Linked to: {food_name}")
-    elif link_choice == "c":
-        fdc_id = None
-        state.console.print("  [dim]USDA link cleared.[/dim]")
-
-    # Notes
-    try:
-        new_notes = _prompt("Notes", default=notes, prefill=True).strip()
-    except Cancelled:
-        return
-    notes = new_notes
-
-    with _db.get_db() as conn:
-        _db.pantry_update(conn, pid, food_name, fdc_id, notes or None)
-    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Updated: {food_name}")
 

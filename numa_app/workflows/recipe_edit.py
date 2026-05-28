@@ -162,7 +162,9 @@ def _do_recipe_edit(recipe=None) -> None:
             ingredients = _db.recipe_get_ingredients(conn, rid)
 
         if ingredients:
-            table_title("CURRENT RECIPE INGREDIENTS")
+            table_title(f"Recipe: {name}")
+            if desc:
+                state.console.print(f"  [dim]({desc})[/dim]")
             has_notes = any(ing["notes"] for ing in ingredients)
             _RFOOD_W = 36
             tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
@@ -208,7 +210,7 @@ def _do_recipe_edit(recipe=None) -> None:
         elif choice == "1":
             state.console.print()
             try:
-                query = _prompt("Search food or recipe", free_text=True).strip()
+                query = _prompt("Search food or recipe  [dim](name or FDC ID · b=back)[/dim]", free_text=True).strip()
             except Cancelled:
                 continue
             ql = query.lower()

@@ -237,12 +237,14 @@ def _fetch_food_from_result(result: dict) -> dict | None:
         state.console.print(f"[{state.T['error']}]Network error: {e}[/{state.T['error']}]")
         return None
     with _db.get_db() as conn:
-        _db.cache_food(
-            conn,
-            detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
-            detail["servingSize"], detail["servingUnit"], detail["nutrients"],
-            detail.get("portions"),
-        )
+        _existing = _db.get_cached_food(conn, detail["fdcId"])
+        if not (_existing and _existing["user_drafted"]):
+            _db.cache_food(
+                conn,
+                detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
+                detail["servingSize"], detail["servingUnit"], detail["nutrients"],
+                detail.get("portions"),
+            )
     return detail
 
 
@@ -329,7 +331,7 @@ def _search_and_pick_food(
         if query is None:
             _instant_recipes_offered = True  # suppress stale recipe list on re-search
             try:
-                raw = _prompt("Search food  (prefix 'a ' for full USDA search)").strip()
+                raw = _prompt("Search food  [dim](name or FDC ID · prefix 'a ' for full USDA search)[/dim]").strip()
             except Cancelled:
                 return None
             q_lower = raw.lower()
@@ -346,6 +348,25 @@ def _search_and_pick_food(
             else:
                 full_search = False
                 query = raw
+
+        # Pre-search cache before the recipe prompt so cached foods and recipes
+        # can be shown together in one combined prompt instead of two separate steps.
+        _clean_words = [w for w in query.lower().split() if w not in _META_WORDS]
+        clean_query = " ".join(_clean_words) if _clean_words else query
+        _api_words = [w for w in clean_query.split() if w not in _PREP_WORDS]
+        api_query = " ".join(_api_words) if _api_words else clean_query
+
+        state.console.print("[dim]Searching local cache...[/dim]")
+        cache_results = _search_cached_foods_by_name(clean_query)
+        cache_fdcids = {r.get("fdcId") for r in cache_results if r.get("fdcId")}
+
+        if not _instant_recipes_offered and prepend_recipes and not full_search:
+            _pre_complete = [
+                r for r in cache_results
+                if (data_types is None or r.get("dataType") in data_types)
+            ]
+            if _pre_complete:
+                _instant_recipes_offered = True  # cache display block shows recipes below
 
         # Instant recipe pick — show pre-matched recipes before any search.
         # Returns immediately if the user picks one; falls through to food search on Enter.
@@ -401,30 +422,16 @@ def _search_and_pick_food(
         # AA-fix searches pass data_types=["Foundation", "SR Legacy"] and should
         # not include OFF products, which never have amino acid data.
         include_off = (data_types is None)
-
-        # Strip source-hint meta words (e.g. "usda", "off") before any search.
-        # "usda" appears in every SR Legacy food name and would match thousands of
-        # irrelevant foods if passed to the API or cache query.
-        _clean_words = [w for w in query.lower().split() if w not in _META_WORDS]
-        clean_query = " ".join(_clean_words) if _clean_words else query
-
-        state.console.print("[dim]Searching local cache...[/dim]")
-        cache_results = _search_cached_foods_by_name(clean_query)
-        cache_fdcids = {r.get("fdcId") for r in cache_results if r.get("fdcId")}
-
-        # Strip prep words for the API query so "peeled orange" finds "Oranges, raw, navels".
-        _api_words = [w for w in clean_query.split() if w not in _PREP_WORDS]
-        api_query = " ".join(_api_words) if _api_words else clean_query
+        # clean_query, api_query, cache_results, cache_fdcids already computed above
 
         if not full_search and cache_results:
-            # Only foods with complete cached data (nutrients + portions) are usable
-            # for immediate pick; incomplete entries still count for deduplication.
-            # When data_types is restricted (e.g. Foundation only), also filter by type
-            # so we don't offer off-type cached foods in the quick-pick.
+            # All cached matches go into the quick-pick table. When data_types is
+            # restricted (e.g. Foundation only), filter by type so off-type cached
+            # foods aren't offered. Incomplete entries (null portions_json) are shown
+            # too — they trigger a USDA refetch on selection.
             _complete_cache = [
                 r for r in cache_results
-                if (r.get("_portions_json") is not None and r.get("_portions_json") != "null")
-                and (data_types is None or r.get("dataType") in data_types)
+                if (data_types is None or r.get("dataType") in data_types)
             ]
 
             _bg_results: list[dict] = []
@@ -572,6 +579,8 @@ def _search_and_pick_food(
                                     "nutrients":        _cn,
                                     "portions":         json.loads(_cc["portions_json"]),
                                 }
+                        # Incomplete cache entry (missing portions) — refetch from USDA
+                        return _fetch_food_from_result(_complete_cache[_cidx])
 
             # Wait for background search (may already be done)
             if not _bg_done.is_set():
@@ -842,6 +851,10 @@ def _search_and_pick_food(
             f"[{state.T['success']}]DI[/{state.T['success']}] DIAAS — your saved estimates[/dim]",
             highlight=False,
         )
+        state.console.print(
+            "  [dim]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/dim]",
+            highlight=False,
+        )
         if show_aa_status:
             state.console.print()
             state.console.print(
@@ -886,9 +899,9 @@ def _search_and_pick_food(
 
         help_footer()
 
-        pick_hint = ("  R#/# or id:FDCID, Enter/b=back, m=main, q=quit"
+        pick_hint = ("  R#/# or id:FDCID, Enter to skip / b=back, m=main, q=quit"
                      if recipe_rows else
-                     "  Pick number, id:FDCID, or Enter/b=back, m=main, q=quit")
+                     "  Pick number, id:FDCID, or Enter to skip / b=back, m=main, q=quit")
 
         # Inner loop: re-prompt on bad pick without re-running the search.
         while True:
@@ -1014,13 +1027,15 @@ def _search_and_pick_food(
                         query = None
                         break  # → outer loop re-prompts for query
 
-            # Cache it
+            # Cache it — skip if user_drafted to preserve manual edits
             with _db.get_db() as conn:
-                _db.cache_food(
-                    conn,
-                    detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
-                    detail["servingSize"], detail["servingUnit"], detail["nutrients"],
-                    detail.get("portions"),
-                )
+                _existing = _db.get_cached_food(conn, detail["fdcId"])
+                if not (_existing and _existing["user_drafted"]):
+                    _db.cache_food(
+                        conn,
+                        detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
+                        detail["servingSize"], detail["servingUnit"], detail["nutrients"],
+                        detail.get("portions"),
+                    )
 
             return detail

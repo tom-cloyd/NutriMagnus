@@ -296,7 +296,7 @@ def _pick_portion(
     brand_str = f" ({brand})" if brand else ""
     state.console.print(f"\n  Food: [{state.T['hi']}]{food['name']}{brand_str}[/{state.T['hi']}]")
 
-    state.console.print("  [dim]Enter an amount: 150 g, 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)[/dim]")
+    state.console.print("  [dim]Enter an amount, for example: 150 g, 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)[/dim]")
     if portions:
         state.console.print("  [dim]USDA portions (use pN or NUMBER pN):[/dim]")
         for i, p in enumerate(portions, 1):
@@ -304,18 +304,25 @@ def _pick_portion(
         state.console.print("  [dim]  e.g. 'p1' for one portion, '2 p1' for two[/dim]")
     else:
         state.console.print("  [dim]A bare number means pieces/count (no gram weight). Add a unit for weight or volume.[/dim]")
-    state.console.print("  [dim]Enter or skip to omit.[/dim]")
     if current:
         state.console.print(
             f"  Current: [{state.T['default_hint']}]{current}[/{state.T['default_hint']}]"
         )
 
     editing = current_grams is not None and current_label is not None
-    enter_hint = "Enter=keep current" if editing else "Enter=skip"
+    if editing:
+        enter_hint = "Enter=keep current"
+        _default = current
+    else:
+        enter_hint = "Enter=100 g"
+        _default = "100 g"
     food_name = food.get("name", "")
     while True:
         try:
-            raw = _prompt(f"Portion amount  ({enter_hint}, b=back, m=main, q=quit)", free_text=True).strip()
+            raw = _prompt(
+                f"Portion amount  ({enter_hint}, b=back, m=main, q=quit)",
+                default=_default, free_text=True,
+            ).strip()
         except Cancelled:
             return None
         if raw.lower() == "m":
@@ -329,7 +336,7 @@ def _pick_portion(
                 assert current_grams is not None and current_label is not None
                 scaled = _usda.scale_nutrients(food["nutrients"], current_grams, base_size=100.0)
                 return current_grams, current_label, scaled
-            return 0.0, "—", {}
+            raw = "100 g"
 
         result = _parse_portion_input(raw, portions, food_name=food_name)
         if result is None:

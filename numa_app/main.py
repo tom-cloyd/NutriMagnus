@@ -29,7 +29,7 @@ def _run_menu() -> None:
         state.console.print(f"[{state.T['accent']}]NutriMagnus Menu[/{state.T['accent']}]")
         state.console.print(Rule(), width=_W)
         state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] [bold]Foods[/bold]")
-        state.console.print("     [dim]search · analyze · compare · annotate · manage pantry · custom profiles[/dim]")
+        state.console.print("     [dim]search · analyze · compare · annotate · pantry · cache · custom profiles[/dim]")
         state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] [bold]Recipes[/bold]")
         state.console.print("     [dim]create · browse/manage · develop (add/remove ingredients with nutritional feedback)[/dim]")
         state.console.print(f"  [{state.T['accent']}]3.[/{state.T['accent']}] [bold]Meals & Log[/bold]")
@@ -130,4 +130,8 @@ def run_app(*, theme: str | None = None, api_key: str | None = None) -> None:
         return
     if getattr(state, "_display_program_settings", False):
         print_startup_banner()
-    _run_menu()
+    try:
+        _run_menu()
+    except SystemExit:
+        pass
+    state.console.print("\n[bold]Happy eating![/bold]\n")

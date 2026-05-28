@@ -427,12 +427,11 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
 
     if result["estimate_sources"]:
         state.console.print(
-            f"\n  [dim]  Digestibility estimated (literature average) for: "
-            f"{', '.join(result['estimate_sources'][:4])}"
-            + (f" + {len(result['estimate_sources']) - 4} more" if len(result["estimate_sources"]) > 4 else "")
-            + "[/dim]",
+            "\n  [dim]  Digestibility estimated (literature average) for:[/dim]",
             highlight=False,
         )
+        for _src in result["estimate_sources"]:
+            state.console.print(f"  [dim]    • {_src}[/dim]", highlight=False)
 
     help_footer()
     return result["missing_aa_names"], result.get("digestible_complete_protein_g")

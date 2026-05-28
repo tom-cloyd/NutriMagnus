@@ -69,7 +69,7 @@ def _menu_foods() -> bool:
 
 def _do_food_search() -> None:
     try:
-        query = _prompt("Search food or recipe", free_text=True).strip()
+        query = _prompt("Search food or recipe  [dim](name or FDC ID · b=back)[/dim]", free_text=True).strip()
     except Cancelled:
         return
     if not query or query.lower() in ("b", "m", "q"):
@@ -185,7 +185,7 @@ def _do_convert_portion() -> None:
     state.console.print(f"\n  Food: [bold]{food_name}[/bold]")
     if density is not None:
         state.console.print(f"  [dim]Weight: {density:.3f} g/ml[/dim]")
-    state.console.print(f"  Enter an amount: 150 (g/gr), 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)")
+    state.console.print(f"  Enter an amount, for example: 150 (g/gr), 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)")
 
     while True:
         try:
@@ -475,6 +475,9 @@ def _do_annotate_food() -> None:
         )
         table_title("ANNOTATE CACHED FOOD", title_note)
         state.console.print(tbl)
+        table_footer(
+            "  [dim]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/dim]",
+        )
 
         try:
             raw = _prompt("Pick number  (/filter, Enter/b=back, m=main, q=quit)").strip()
@@ -524,7 +527,7 @@ def _do_list_cached_foods() -> None:
 
         s, e = state.T["success"], state.T["error"]
 
-        _NAME_W  = 40
+        _NAME_W  = 55
         _BRAND_W = 20
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         tbl.add_column("#",     justify="right", min_width=3)
@@ -533,6 +536,7 @@ def _do_list_cached_foods() -> None:
         tbl.add_column("DIAAS", min_width=5, justify="right")
         tbl.add_column("Name",  min_width=_NAME_W)
         tbl.add_column("Type",  min_width=14)
+        tbl.add_column("ID#",   justify="right", min_width=7)
         tbl.add_column("Brand", min_width=_BRAND_W)
         for i, f in enumerate(foods, 1):
             nutrients = json.loads(f["nutrients_json"])
@@ -545,6 +549,7 @@ def _do_list_cached_foods() -> None:
                           if ann and ann["diaas_estimate"] is not None else "[dim]——[/dim]")
             tbl.add_row(str(i), aa_cell, gi_cell, diaas_cell,
                         dot_cell(f["name"], _NAME_W), f["data_type"] or "",
+                        _id_cell(f["fdc_id"]),
                         dot_cell(f["brand"], _BRAND_W) if f["brand"] else "")
 
         if filter_text:
@@ -556,8 +561,11 @@ def _do_list_cached_foods() -> None:
                         f"[dim]{len(all_foods)} foods — enter /text to filter by name[/dim]")
 
         state.console.print(tbl)
-        table_footer("  [dim]To refresh a corrupt or outdated entry: delete it here, "
-                     "then re-search — it will be re-fetched automatically.[/dim]")
+        table_footer(
+            "  [dim]To refresh a corrupt or outdated entry: delete it here, "
+            "then re-search — it will be re-fetched automatically.[/dim]",
+            "  [dim]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/dim]",
+        )
         help_footer()
 
         try:

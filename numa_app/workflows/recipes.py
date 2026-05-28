@@ -334,13 +334,14 @@ def _do_recipe_display(recipe=None) -> None:
     with _db.get_db() as conn:
         ingredients = _db.recipe_get_ingredients(conn, recipe["id"])
 
-    complete_tag = f"[green]✓ complete[/green]" if recipe["complete"] else "[dim]incomplete[/dim]"
+    complete_tag = f"[{state.T['success']}]✓ complete[/{state.T['success']}]" if recipe["complete"] else "[dim]incomplete[/dim]"
     state.console.print(
         f"\n  [{state.T['accent']}]{recipe['name']}[/{state.T['accent']}]  "
-        f"[dim]{recipe['servings']} serving(s)[/dim]  {complete_tag}"
+        f"[{state.T['accent']}]{recipe['servings']} serving(s)[/{state.T['accent']}]  {complete_tag}",
+        highlight=False,
     )
     if recipe["description"]:
-        state.console.print(f"  {recipe['description']}")
+        state.console.print(f"  ({recipe['description']})", highlight=False)
 
     def _fmt(val: float | None, unit: str | None) -> str | None:
         return f"{val:g} {unit}" if unit else f"{val:g}" if val is not None else None
@@ -355,7 +356,7 @@ def _do_recipe_display(recipe=None) -> None:
     if wt:
         parts.append(f"Weight: {wt}")
     if parts:
-        state.console.print(f"  [dim]{' · '.join(parts)}[/dim]")
+        state.console.print(f"  [dim]{' · '.join(parts)}[/dim]", highlight=False)
 
     if ingredients:
         state.console.print(f"\n  [{state.T['accent']}]Ingredients:[/{state.T['accent']}]  {ID_KEY}")
@@ -481,7 +482,7 @@ def _do_recipe_develop(recipe=None) -> None:
         if choice == "a":
             state.console.print()
             try:
-                query = _prompt("Search food or recipe", free_text=True).strip()
+                query = _prompt("Search food or recipe  [dim](name or FDC ID · b=back)[/dim]", free_text=True).strip()
             except Cancelled:
                 continue
             ql = query.lower()
@@ -662,8 +663,8 @@ def _do_recipe_browse() -> None:
             nav_parts.append("p=prev")
         nav_parts.append("b=done")
         nav = "  ".join(nav_parts)
-        state.console.print(f"  [dim]Actions: v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  {nav}[/dim]", highlight=False)
-        state.console.print(f"  [dim](Enter action + ID, e.g. v3 or x 14)[/dim]", highlight=False)
+        state.console.print(f"  [dim]Actions: v=view  e=edit  a=analyze  d=delete  c=copy  ·  x=develop new recipe  ·  {nav}[/dim]", highlight=False)
+        state.console.print(f"  [dim](Enter action + ID, e.g. v3 or e 14)[/dim]", highlight=False)
 
         try:
             raw = _prompt("").strip().lower()
@@ -697,7 +698,10 @@ def _do_recipe_browse() -> None:
             offset = 0
             continue
 
-        if len(raw) >= 2 and raw[0] in "veadcx":
+        if raw == "x":
+            _safe_call(_do_recipe_create)
+            continue
+        if len(raw) >= 2 and raw[0] in "veadc":
             action, id_str = raw[0], raw[1:].strip()
         else:
             state.console.print(f"[{state.T['warning']}]Enter action + ID (e.g. v3, e 14) or s=search.[/{state.T['warning']}]")
@@ -823,7 +827,7 @@ def _do_recipe_create() -> None:
     while True:
         state.console.print()
         try:
-            query = _prompt("Search food or recipe  [dim](Enter/b=done adding)[/dim]", free_text=True).strip()
+            query = _prompt("Search food or recipe  [dim](name or FDC ID · Enter/b=done adding)[/dim]", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()

@@ -53,7 +53,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
     )
     try:
         go = _prompt(
-            f"Fetch missing AA profiles for {len(affected)} standalone meal ingredient(s)?",
+            f"\nFetch missing AA profiles for {len(affected)} standalone meal ingredient(s)?",
             choices=["y", "n"], default="n",
         )
     except Cancelled:
@@ -62,9 +62,9 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
         return False
 
     state.console.print(
-        f"\n  [dim]For each ingredient, search for a replacement with AA data.\n"
-        f"  In results, prefer [bold]SR Legacy[/bold] or [bold]Foundation[/bold] entries"
-        f" — these typically include full amino acid profiles.\n"
+        f"\n  [dim]For each ingredient, you can search for a replacement with AA data.\n"
+        f"  In the search results, [bold]SR Legacy[/bold] or [bold]Foundation[/bold] entries"
+        f" typically include full amino acid profiles — check the AA column.\n"
         f"  Press Enter to skip an ingredient.[/dim]"
     )
 
@@ -179,7 +179,7 @@ def _meal_add_items(meal_id: int) -> None:
     while True:
         state.console.print()
         try:
-            query = _prompt("Search food or recipe  [dim](b=back, m=main, q=quit)[/dim]", free_text=True).strip()
+            query = _prompt("Search food or recipe  [dim](name or FDC ID · b=back, m=main, q=quit)[/dim]", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()

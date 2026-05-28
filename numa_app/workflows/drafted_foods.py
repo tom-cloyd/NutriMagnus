@@ -303,13 +303,12 @@ def _list_drafted_foods() -> list:
     table_title("DRAFTED FOOD PROFILES")
     _NAME_W = 36
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("ID",   justify="right", min_width=7)
+    tbl.add_column("#",    justify="right", min_width=3)
     tbl.add_column("Name", min_width=_NAME_W, max_width=_NAME_W, no_wrap=True)
     tbl.add_column("Note", min_width=24)
-    for r in rows:
-        tbl.add_row(_id_cell(r["fdc_id"]), dot_cell(r["name"], _NAME_W), r["notes"] or "")
+    for i, r in enumerate(rows, 1):
+        tbl.add_row(str(i), dot_cell(r["name"], _NAME_W), r["notes"] or "")
     state.console.print(tbl)
-    table_footer(f"  {ID_KEY}")
     return list(rows)
 
 
@@ -579,13 +578,17 @@ def _do_drafted_foods_menu() -> None:
         _show_menu("Drafted Food Profiles", [
             ("1", "List drafted profiles"),
             ("2", "Create new drafted profile"),
-            ("3", "Edit a drafted profile"),
-            ("4", "Delete a drafted profile"),
-            ("5", "Copy a cached food as draft"),
+            ("3", "Delete a drafted profile"),
+            ("4", "Copy a cached food as draft"),
+            ("c", "Go to Food Cache  (edit nutrients there)"),
             ("b", "Back to Foods menu"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
+        state.console.print(
+            f"\n  [{state.T['warning']}]To edit nutrient data for any food, use the Food Cache (option c).\n"
+            f"  All drafted profiles are visible and editable there.[/{state.T['warning']}]"
+        )
         try:
             choice = _prompt("Choice").strip().lower()
         except Cancelled:
@@ -601,26 +604,14 @@ def _do_drafted_foods_menu() -> None:
             rows = _list_drafted_foods()
             if not rows:
                 continue
-            fdc_id = _ask_int("Profile ID to edit")
-            if fdc_id is None:
+            pick = _ask_int("Pick #")
+            if pick is None:
                 continue
-            row = next((r for r in rows if r["fdc_id"] == fdc_id), None)
-            if row is None:
-                state.console.print(f"[{state.T['warning']}]ID {fdc_id} not found.[/{state.T['warning']}]")
+            if pick < 1 or pick > len(rows):
+                state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
                 continue
-            _do_edit_drafted_food(fdc_id, row)
-
-        elif choice == "4":
-            rows = _list_drafted_foods()
-            if not rows:
-                continue
-            fdc_id = _ask_int("Profile ID to delete")
-            if fdc_id is None:
-                continue
-            row = next((r for r in rows if r["fdc_id"] == fdc_id), None)
-            if row is None:
-                state.console.print(f"[{state.T['warning']}]ID {fdc_id} not found.[/{state.T['warning']}]")
-                continue
+            row = rows[pick - 1]
+            fdc_id = row["fdc_id"]
             try:
                 confirm = _prompt(
                     f"Delete [{state.T['hi']}]{row['name']}[/{state.T['hi']}]?",
@@ -633,8 +624,12 @@ def _do_drafted_foods_menu() -> None:
                     conn.execute("DELETE FROM foods WHERE fdc_id = ? AND user_drafted = 1", (fdc_id,))
                 state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Deleted.")
 
-        elif choice == "5":
+        elif choice == "4":
             _do_copy_cached_food()
+
+        elif choice == "c":
+            from ..workflows.foods import _do_list_cached_foods
+            _do_list_cached_foods()
 
         elif choice == "b":
             return
@@ -761,10 +756,3 @@ def _do_create_drafted_food() -> None:
         _print_nutrient_table(nutrients, title=name, per_label="per 100g")
 
 
-def _do_edit_drafted_food(fdc_id: int, row) -> None:
-    with _db.get_db() as conn:
-        cached = _db.get_cached_food(conn, fdc_id)
-    if cached is None:
-        state.console.print(f"[{state.T['warning']}]Food not found in cache.[/{state.T['warning']}]")
-        return
-    _do_edit_cached_food(fdc_id, cached)

@@ -374,6 +374,12 @@ NutriMagnus does not store full nutrient profiles for every food in a built-in d
 **When a food enters the cache:**
 A food is cached the moment you **pick it** from a search results table — not during the search itself. Browsing results does not cache anything; selecting a result triggers the fetch-and-cache step. If you pick a food that is already cached, the stored copy is returned immediately and no network call is made.
 
+**Cache quick-pick:**
+Before showing API search results, the program checks your cache for name matches and offers them in a fast "Food cache" table. This lets you reuse a cached food without waiting for a network search. Foods in the cache that lack USDA portion data are included in this table; selecting one triggers a background USDA refetch to complete the entry.
+
+**Overwrite protection for edited foods:**
+Once you edit a food's nutrients through Food Cache (or create a food manually), it is marked `user_drafted = True`. Any subsequent USDA fetch for the same food — triggered by selecting it from a search results table — will not overwrite a user-drafted entry. Your manual edits, AA patches, and custom notes are permanent unless you explicitly edit or delete them.
+
 **What is stored:**
 Name, data type, brand (if any), serving size and unit, the full nutrient profile (macros, minerals, vitamins, amino acids), and USDA portion data (e.g. "1 cup, chopped"). All nutrient values are per 100 g.
 
@@ -429,6 +435,36 @@ The **Ann** column in search result tables shows `GI`, `DI`, or `GI DI` (green) 
 
 **Visibility in the cached food list:**
 **Foods → 5. View cached / saved foods** shows `AA`, `GI`, and `DIAAS` columns so the state of each food is visible at a glance without opening it.
+
+---
+
+### Data model: cache, drafted foods, and pantry
+
+These three lists are related but distinct. Understanding the relationship prevents confusion when editing or annotating a food.
+
+**One source of truth — the `foods` table (the cache).**
+
+Every food — USDA, Open Food Facts, or user-created — is a row in the `foods` SQLite table, uniquely identified by `fdc_id`. That row holds the name, serving metadata, `nutrients_json`, and a `user_drafted` flag.
+
+| View | What it shows | Underlying table |
+|------|--------------|-----------------|
+| Food Cache (Foods → 6) | All rows in `foods` | `foods` |
+| Drafted Food Profiles (Foods → 8) | Rows where `user_drafted = 1` | `foods` (filtered) |
+| My Pantry (Foods → 7) | Pantry entries, each optionally FK'd to `foods` | `pantry` |
+
+**Food Cache vs Drafted Food Profiles:**
+The "Drafted Food Profiles" list is a filtered view of the same `foods` table — `WHERE user_drafted = 1`. A food becomes `user_drafted = True` when you create it manually or when you edit its nutrients through Food Cache. Editing a food in Food Cache immediately affects what Drafted Food Profiles shows, and vice versa, because they are the same row.
+
+`user_drafted = True` also activates overwrite protection: all code paths that write a fresh USDA fetch result to the cache check this flag first and skip the write if it is set. This means manual AA patches, serving-size corrections, and other edits survive repeated searches for the same food.
+
+**Pantry:**
+The `pantry` table has its own `id` (autoincrement), a `food_name` text field, and a nullable `fdc_id` FK pointing into `foods`. A pantry entry can exist without a cache entry (name-only). When `fdc_id` is set, all nutrient calculations use the live `foods` row — so editing that food in Food Cache instantly updates any pantry-based analysis. However, the pantry stores its own `food_name` string; renaming a cached food does not update the pantry display name.
+
+**Annotations:**
+The `food_annotations` table is keyed by `fdc_id` and foreign-keyed to `foods` (`ON DELETE CASCADE`). Annotations are visible everywhere that food appears — search results, cache list, analyses — because they are always looked up by `fdc_id`.
+
+**Editing rule:**
+All nutrient editing goes through **Food Cache** (Foods → 6). Both the Drafted Food Profiles menu and the Pantry menu redirect there for edits and display a notice to that effect. This keeps a single edit path regardless of how you reached the food.
 
 ---
 
@@ -686,6 +722,15 @@ The ingredient table shows the digestibility coefficient used for each food and 
 
 If any ingredient lacks amino acid data in the USDA cache, it is excluded from IAA pooling and listed in a note. If tyrosine data is absent (it was not tracked before April 2026; re-fetch foods to get it), the Phe+Tyr row is flagged as a gap.
 
+#### Filling missing AA profiles at analysis time
+
+When a meal has ingredients without AA data, the analysis reports how many are affected and distinguishes two categories:
+
+- **Inside a recipe** — the ingredient is part of a recipe logged as a meal item. To fix these, edit the recipe directly (Recipes → browse → edit ingredients) and replace or re-fetch the ingredient there.
+- **Standalone meal ingredients** — foods logged directly to the meal (not inside a recipe). These can be replaced interactively: the program offers a `y/n` prompt asking whether to search for a substitute.
+
+If you answer `y`, for each affected standalone ingredient the program runs a focused search of USDA **SR Legacy** and **Foundation** foods — the datasets most likely to include full amino acid profiles. The **AA** column in the results table (✓/✗) shows at a glance which candidates have AA data. Picking a replacement updates that ingredient in the meal for the current analysis session. Press Enter to skip an ingredient and leave it excluded from IAA pooling.
+
 #### Digestibility data — three-tier lookup
 
 For each food, the digestibility coefficient is resolved in order:
@@ -844,7 +889,7 @@ Similarly, the three largest workflow files were split to keep each under 600 li
 - **`recipe_analysis.py`** — the "Analyze recipe" workflow: `_resolve_recipe_dcp_data()` and `_do_recipe_view()` (~575 lines).
 - **`recipe_edit.py`** — the "Edit recipe" workflow: `_do_recipe_edit()` (~355 lines).
 - **`foods.py`** — Foods menu + search/analyze/convert/cached-food viewer (~365 lines).
-- **`drafted_foods.py`** — `_do_edit_cached_food()`, `_prompt_nutrients()`, `_bulk_import_aa()`, and the full drafted-profile CRUD (`_do_drafted_foods_menu`, `_do_create_drafted_food`, `_do_edit_drafted_food`) (~570 lines).
+- **`drafted_foods.py`** — `_do_edit_cached_food()`, `_prompt_nutrients()`, `_bulk_import_aa()`, and drafted-profile management (`_do_drafted_foods_menu`, `_do_create_drafted_food`) — no separate edit entry point; editing goes through Food Cache.
 
 ### `numa_app/main.py` — startup and top-level menu
 
@@ -1054,7 +1099,7 @@ Contains the Foods menu dispatch and the search/analyze/convert/cached-food-view
 
 `_bulk_import_aa(protein_g)` accepts amino acid values as `name: value` pairs (full name, 3-letter, or 1-letter codes). If `protein_g` is provided, converts from g/100g-protein to g/100g-food automatically. Classifies each entry as stored, non-essential (skipped with note), or unrecognized (warning).
 
-`_do_drafted_foods_menu()` / `_do_create_drafted_food()` / `_do_edit_drafted_food()` — full CRUD for user-drafted food profiles. Create supports starting from a USDA food (pre-fills all values) or from scratch. Drafted profiles are saved with small negative `fdc_id` values (−1, −2, …) and `user_drafted=True`.
+`_do_drafted_foods_menu()` / `_do_create_drafted_food()` — drafted-profile management. Create supports starting from a USDA food (pre-fills all values) or from scratch. Drafted profiles are saved with small negative `fdc_id` values (−1, −2, …) and `user_drafted=True`. Nutrient editing is not exposed here — the menu redirects to Food Cache, which calls `_do_edit_cached_food()` directly.
 
 ### `numa_app/workflows/settings.py` — settings menu, profile, and RDA
 
