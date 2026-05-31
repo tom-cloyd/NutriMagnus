@@ -78,18 +78,20 @@ ESSENTIAL_AMINO_ACIDS = [
     "aa_histidine_g",
 ]
 
-# WHO/FAO reference pattern for essential amino acids (mg per g of protein)
-# Source: FAO 2013 dietary protein quality evaluation
+# FAO 2013 adult reference pattern (mg of IAA per g of total protein)
+# Source: FAO Food and Nutrition Paper 92 (2013), Table 6.
+# Met+Cys and Phe+Tyr are combined pairs per DIAAS methodology.
+# Must stay in sync with diaas.FAO_REFERENCE.
 AA_REFERENCE_MG_PER_G_PROTEIN = {
-    "aa_tryptophan_g":    7,
-    "aa_threonine_g":    23,
+    "aa_tryptophan_g":    6.6,
+    "aa_threonine_g":    25,
     "aa_isoleucine_g":   30,
-    "aa_leucine_g":      59,
-    "aa_lysine_g":       45,
-    "aa_methionine_g":   22,   # methionine + cystine combined; simplified here
-    "aa_phenylalanine_g":38,   # phe + tyr combined; simplified
-    "aa_valine_g":       39,
-    "aa_histidine_g":    15,
+    "aa_leucine_g":      61,
+    "aa_lysine_g":       48,
+    "aa_methionine_g":   23,   # Met+Cys combined
+    "aa_phenylalanine_g":41,   # Phe+Tyr combined
+    "aa_valine_g":       40,
+    "aa_histidine_g":    16,
 }
 
 

@@ -237,7 +237,7 @@ def get_cached_food(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None
 
 def list_cached_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json "
+        "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, notes "
         "FROM foods ORDER BY name"
     ).fetchall()
 
@@ -255,7 +255,7 @@ def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Ro
     conditions = " AND ".join("name LIKE ?" for _ in words)
     params = [f"%{w}%" for w in words]
     return conn.execute(
-        f"SELECT fdc_id, name, data_type, brand, portions_json FROM foods WHERE {conditions} ORDER BY name",
+        f"SELECT fdc_id, name, data_type, brand, portions_json, notes FROM foods WHERE {conditions} ORDER BY name",
         params,
     ).fetchall()
 
@@ -484,19 +484,27 @@ def meal_list_dates(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.R
 
 
 def meal_list_recent(
-    conn: sqlite3.Connection, limit: int = 9, offset: int = 0
+    conn: sqlite3.Connection,
+    limit: int = 9,
+    offset: int = 0,
+    before_date: str | None = None,
 ) -> list[sqlite3.Row]:
     """Return meals ordered most-recent first, with item count, for the picker UI."""
+    where = "WHERE m.meal_date <= :before_date" if before_date else ""
+    params: dict = {"limit": limit, "offset": offset}
+    if before_date:
+        params["before_date"] = before_date
     return conn.execute(
-        """
+        f"""
         SELECT m.*, COUNT(mi.id) AS item_count
         FROM meals m
         LEFT JOIN meal_items mi ON mi.meal_id = m.id
+        {where}
         GROUP BY m.id
         ORDER BY m.meal_date DESC, m.created_at DESC
-        LIMIT ? OFFSET ?
+        LIMIT :limit OFFSET :offset
         """,
-        (limit, offset),
+        params,
     ).fetchall()
 
 
@@ -571,6 +579,10 @@ def meal_set_complete(conn: sqlite3.Connection, meal_id: int, complete: bool) ->
         "UPDATE meals SET complete = ? WHERE id = ?",
         (1 if complete else 0, meal_id)
     )
+
+
+def meal_rename(conn: sqlite3.Connection, meal_id: int, new_name: str) -> None:
+    conn.execute("UPDATE meals SET name = ? WHERE id = ?", (new_name, meal_id))
 
 
 def meal_copy_items(conn: sqlite3.Connection, from_meal_id: int, to_meal_id: int) -> int:

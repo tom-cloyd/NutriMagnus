@@ -51,8 +51,8 @@ def _do_pantry_menu() -> None:
                         box=None, padding=(0, 1))
             tbl.add_column("#",    justify="right", min_width=3)
             tbl.add_column("ID",   justify="right", min_width=7)
-            tbl.add_column("Food", min_width=_FOOD_W, max_width=_FOOD_W, no_wrap=True)
             tbl.add_column("AA",   min_width=4)
+            tbl.add_column("Food", min_width=_FOOD_W, max_width=_FOOD_W, no_wrap=True)
             tbl.add_column("Notes", min_width=20)
             for row in rows:
                 fdc_id = row["fdc_id"]
@@ -70,7 +70,7 @@ def _do_pantry_menu() -> None:
                         else:
                             aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
                 tbl.add_row(str(row["id"]), _id_cell(fdc_id),
-                            dot_cell(row["food_name"], _FOOD_W), aa_cell, row["notes"] or "")
+                            aa_cell, dot_cell(row["food_name"], _FOOD_W), row["notes"] or "")
             state.console.print(tbl)
             table_footer(
                 f"  {ID_KEY}",

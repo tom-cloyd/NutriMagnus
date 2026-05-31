@@ -22,7 +22,8 @@ class ReturnToMain(Exception):
 
 
 _NO_DEFAULT = object()
-_last_input: str = ""
+_history: list[str] = []
+_MAX_HISTORY = 100
 
 
 def _read_escape_seq() -> str:
@@ -118,6 +119,9 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         choices_lower = [c.lower() for c in choices]
         try:
             tty.setcbreak(fd)
+            # Discard any bytes that accumulated in the OS input queue before
+            # this prompt was reached (e.g. from a Rich spinner or prior prompt).
+            termios.tcflush(fd, termios.TCIFLUSH)
             while True:
                 try:
                     ch = sys.stdin.read(1)
@@ -148,8 +152,10 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
-    global _last_input
+    global _history
     buf: list[str] = []
+    hist_pos = len(_history)  # one past end = current (unsaved) input
+    saved_buf: list[str] = []
     try:
         tty.setcbreak(fd)
         while True:
@@ -166,15 +172,22 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                 if not seq:
                     state.console.print()
                     raise Cancelled
-                if seq == "[A" and _last_input:  # up arrow — recall last input
-                    sys.stdout.write("\b \b" * len(buf))
-                    buf = list(_last_input)
-                    sys.stdout.write("".join(buf))
-                    sys.stdout.flush()
-                elif seq == "[B":  # down arrow — clear buffer
-                    sys.stdout.write("\b \b" * len(buf))
-                    sys.stdout.flush()
-                    buf = []
+                if seq == "[A":  # up arrow — go back in history
+                    if hist_pos > 0:
+                        if hist_pos == len(_history):
+                            saved_buf = buf[:]
+                        hist_pos -= 1
+                        sys.stdout.write("\b \b" * len(buf))
+                        buf = list(_history[hist_pos])
+                        sys.stdout.write("".join(buf))
+                        sys.stdout.flush()
+                elif seq == "[B":  # down arrow — go forward in history
+                    if hist_pos < len(_history):
+                        hist_pos += 1
+                        sys.stdout.write("\b \b" * len(buf))
+                        buf = saved_buf[:] if hist_pos == len(_history) else list(_history[hist_pos])
+                        sys.stdout.write("".join(buf))
+                        sys.stdout.flush()
                 continue
             if ch in ("\r", "\n"):
                 state.console.print()
@@ -193,8 +206,10 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
     result = "".join(buf).strip()
-    if result:
-        _last_input = result
+    if len(result) >= 3 and (_history and _history[-1] != result or not _history):
+        _history.append(result)
+        if len(_history) > _MAX_HISTORY:
+            _history.pop(0)
     if result == "" and default is not _NO_DEFAULT and default not in (None,):
         return str(default)
     return result

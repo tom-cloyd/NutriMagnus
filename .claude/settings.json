@@ -13,7 +13,17 @@
       "Bash(sed -n '365,377p' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/numa_app/ui/render.py)",
       "Bash(python -m pytest tests/test_usda.py -x -q)",
       "Bash(python -m pytest -x -q)",
-      "Read(//home/tomc/**)"
+      "Read(//home/tomc/**)",
+      "Bash(python import_nine_foods.py)",
+      "Bash(python numa_batch2_nutrition.py)",
+      "Bash(python -c \"import numa_app.workflows.foods\")",
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest tests/test_cli.py::TestMealsMenu tests/test_cli.py::TestSummaryMenu tests/test_cli.py::TestDailySummaryRDA -v --tb=short)",
+      "Bash(python -m pytest tests/ -q --tb=no)",
+      "Bash(python -m pytest tests/test_cli.py::TestFoodsMenu::test_search_displays_results tests/test_cli.py::TestFoodsMenu::test_search_shows_nutrient_table tests/test_cli.py::TestFoodsMenu::test_search_offers_portion_analysis_accept tests/test_cli.py::TestFoodsMenu::test_search_offers_portion_analysis_decline tests/test_cli.py::TestRecipesMenu::test_view_recipe_shows_nutrients tests/test_usda.py::TestProteinCompleteness::test_complete_protein -v --tb=long)",
+      "Bash(python -m pytest tests/test_cli.py::TestFoodsMenu::test_search_displays_results -v --tb=long)",
+      "Bash(python -m pytest tests/test_usda.py::TestProteinCompleteness::test_complete_protein -v --tb=long)",
+      "Bash(python -m pytest tests/test_cli.py::TestRecipesMenu::test_view_recipe_shows_nutrients -v --tb=short)"
     ]
   }
 }

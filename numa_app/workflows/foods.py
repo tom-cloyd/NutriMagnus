@@ -530,14 +530,15 @@ def _do_list_cached_foods() -> None:
         _NAME_W  = 55
         _BRAND_W = 20
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-        tbl.add_column("#",     justify="right", min_width=3)
-        tbl.add_column("AA",    min_width=3, justify="center")
-        tbl.add_column("GI",    min_width=4, justify="right")
-        tbl.add_column("DIAAS", min_width=5, justify="right")
-        tbl.add_column("Name",  min_width=_NAME_W)
-        tbl.add_column("Type",  min_width=14)
-        tbl.add_column("ID#",   justify="right", min_width=7)
-        tbl.add_column("Brand", min_width=_BRAND_W)
+        tbl.add_column("#",      justify="right", min_width=3)
+        tbl.add_column("AA",     min_width=3, justify="center")
+        tbl.add_column("GI",     min_width=4, justify="right")
+        tbl.add_column("DIAAS",  min_width=5, justify="right")
+        tbl.add_column("CONF.",  min_width=5, justify="center")
+        tbl.add_column("ID#",    justify="right", min_width=7)
+        tbl.add_column("Name",   min_width=_NAME_W)
+        tbl.add_column("Type",   min_width=14)
+        tbl.add_column("Brand",  min_width=_BRAND_W)
         for i, f in enumerate(foods, 1):
             nutrients = json.loads(f["nutrients_json"])
             aa_cell = (f"[{s}]✓[/{s}]" if _usda.has_amino_acid_data(nutrients)
@@ -547,9 +548,10 @@ def _do_list_cached_foods() -> None:
                        if ann and ann["gi_estimate"] is not None else "[dim]——[/dim]")
             diaas_cell = (f"[{s}]{ann['diaas_estimate']:.2f}[/{s}]"
                           if ann and ann["diaas_estimate"] is not None else "[dim]——[/dim]")
-            tbl.add_row(str(i), aa_cell, gi_cell, diaas_cell,
-                        dot_cell(f["name"], _NAME_W), f["data_type"] or "",
+            conf_cell = "y" if f["notes"] else ""
+            tbl.add_row(str(i), aa_cell, gi_cell, diaas_cell, conf_cell,
                         _id_cell(f["fdc_id"]),
+                        dot_cell(f["name"], _NAME_W), f["data_type"] or "",
                         dot_cell(f["brand"], _BRAND_W) if f["brand"] else "")
 
         if filter_text:
@@ -561,12 +563,7 @@ def _do_list_cached_foods() -> None:
                         f"[dim]{len(all_foods)} foods — enter /text to filter by name[/dim]")
 
         state.console.print(tbl)
-        table_footer(
-            "  [dim]To refresh a corrupt or outdated entry: delete it here, "
-            "then re-search — it will be re-fetched automatically.[/dim]",
-            "  [dim]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/dim]",
-        )
-        help_footer()
+        help_footer("cached")
 
         try:
             raw = _prompt("(Enter # to see options, d#[,#…] to delete, /[food name] to filter, b=back, m=main, q=quit)").strip()
@@ -654,22 +651,31 @@ def _do_list_cached_foods() -> None:
             "portions":         json.loads(cached["portions_json"]),
         }
 
+        has_note = bool(cached["notes"])
+        options = [
+            ("1", "View nutrients"),
+            ("2", "Analyze portion"),
+            ("3", "Edit nutrients"),
+            ("4", "Annotate  (GI / DIAAS estimates)"),
+        ]
+        if has_note:
+            options.append(("5", "View confidence note"))
+        options.append(("d", "Delete from cache"))
+
         try:
-            action = _prompt_with_options(
-                "Cached food action",
-                [
-                    ("1", "View nutrients"),
-                    ("2", "Analyze portion"),
-                    ("3", "Edit nutrients"),
-                    ("4", "Annotate  (GI / DIAAS estimates)"),
-                    ("d", "Delete from cache"),
-                ],
-                default="1",
-            )
+            action = _prompt_with_options("Cached food action", options, default="1")
         except Cancelled:
             continue
 
-        if action == "4":
+        if action == "5" and has_note:
+            state.console.print()
+            state.console.print(
+                f"[{state.T['hi']}]Confidence / source note for {cached['name']}:[/{state.T['hi']}]"
+            )
+            state.console.print(cached["notes"])
+            state.console.print()
+            continue
+        elif action == "4":
             annotate_food_interactive(row["fdc_id"], cached["name"])
             continue
         elif action == "3":

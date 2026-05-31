@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-05-27*:2025
+*Updated 2026-05-30*:1000
 
 [TOC]
 
@@ -16,7 +16,7 @@ There are 9 protein building blocks (amino acids) which human bodies cannot make
 
 Consider someone building a brick wall. Suppose they order a bag of cement and 500 bricks. It is likely that they will run out of cement before they run out of bricks. This is the limitation problem that is inherent in plant-based diets. While the needed amino acids do not need to all be present in a single food, or recipe, or meal, they do need to be present in approximately any given 24-hour period, if the amino acid limitation problem is to be avoided. So, one way or another one needs to tend to the issue of what is missing and where are you to find it so you can add it to your diet in time.
 
-The simple fact is that few people know which food have missing essential amino acids (EEAs), now which have the needed excess EAAs which would make them a good complement to eat in the same 24-hour period.
+The simple fact is that few people know which food have missing essential amino acids (EEAs), nor which have the needed excess EAAs which would make them a good complement to eat in the same 24-hour period.
 
 There are two other related dietary protein problems to be addressed:
 
@@ -60,13 +60,14 @@ NutriMagnus Menu
   2. Recipes
      create · browse/manage · develop (add/remove ingredients with nutritional feedback)
   3. Meals & Log
-     log meal · view/edit by date · analyze · delete
+     n=new · v{id}=view/edit · a{id}=analyze · d{id}=delete · s=search · mr=more · d{YYYY-MM-DD}=jump
   4. Daily Summary
      today · by date · recent days
   5. Settings  (theme · user profile · dietary preferences · API key · DB path)
   q. Quit
 
   Ctrl+C at any prompt — cancel and go back
+  ↑ / ↓  at any text prompt — scroll through your input history
 
 Choice: 2
 
@@ -166,6 +167,8 @@ In the output you will see a program 'bug' - The **Procedure** is not wrapped ar
 ## Usage tips
 
 (under development)
+
+* **Input history:** At any free-text prompt (food or recipe name, search term, amount, note, etc.) you can press the **up arrow** to recall what you typed previously. Press up again to go further back, and **down arrow** to move forward again. If you started typing before pressing up, your partial input is saved and restored when you press down back to the current position. History holds the last 100 entries for the session and resets when you quit.
 
 * **Enter food portions:** if at all possible, enter weights, not volume measures. A cup of flour can vary greatly depending upon how much air is stirred into it. A cup of spinach is even harder to pin down. Even nuts can be a problem. But weights are far less likely to vary, and so are much more reliable.
 
@@ -387,6 +390,7 @@ At any prompt in NutriMagnus, type `?` followed by a topic name to display an ex
 Available topics:
 
   ?aa        Essential amino acids
+  ?cached    Food Cache column guide
   ?comp      Protein complement food suggestions
   ?complete  What makes a protein "complete"
   ?dcp       Digestible Complete Protein
@@ -403,6 +407,50 @@ Available topics:
 Aliases also work: ?suggest, ?dietary, ?completeness, ?digestible, etc.
 
 **Type ?help at any time to show this list again.**
+
+
+### Food Cache — Column Guide [cached]
+
+The CACHED FOODS list shows every food you have stored locally. Columns:
+
+    #       Row number. Enter it at the prompt to open options for that food
+            (view nutrients, analyze a portion, edit, annotate, delete, etc.).
+
+    AA      Amino acid data status.
+              ✓  Amino acid data is present in your cache for this food.
+              ✗  No amino acid data — common for branded and packaged foods.
+
+    GI      Your saved glycemic index estimate for this food, if any.
+            GI reflects how quickly a food raises blood glucose (scale 0-100).
+            Add or update via option 9 (Annotate) in the Foods menu.
+            Type ?gi for a full explanation.
+
+    DIAAS   Your saved DIAAS estimate for this food, if any.
+            DIAAS (Digestible Indispensable Amino Acid Score) rates protein
+            quality: 1.00 = complete, lower = a limiting amino acid is present.
+            Add or update via option 9 (Annotate). Type ?diaas for details.
+
+    CONF.   Confidence note. Shows "y" when you have attached a note to this
+            food describing your confidence in its data (sources, caveats, etc.).
+            Enter the food's row number and choose "View confidence note" to read it.
+
+    ID#     Database identifier.
+            A plain number = USDA FoodData Central FDC ID.
+            "OFF"          = Open Food Facts (community-contributed data).
+
+    Name    Food name as stored in your cache.
+
+    Type    Data source within USDA FoodData Central, or OFF for Open Food Facts.
+              Foundation     — USDA-analyzed reference foods; highest accuracy.
+              SR Legacy      — Standard Reference database (pre-2019).
+              Survey (FNDDS) — Foods as eaten, used in national dietary surveys.
+              Branded        — Manufacturer-submitted data for packaged products.
+              OFF            — Open Food Facts (community-contributed).
+
+    Brand   Brand owner, for Branded and OFF foods.
+
+To refresh a corrupt or outdated cache entry: delete it (d# at the prompt),
+then search for the food again — it will be re-fetched automatically.
 
 
 ### Essential Amino Acids [aa]
@@ -428,6 +476,7 @@ Each suggestion shows:
   - Grams to add
   - Which gaps it closes, with scores before and after
   - Digestible protein added
+  - Total bioavailable complete protein — the base food protein plus the complement protein, multiplied by the combined (pooled) DIAAS of the pair. This is higher than just adding each food's individually-digestible protein, because the complement's amino acids improve the usability of the base food's protein too.
 
 TIER 2 — DIAAS-BOOSTING OPTIONS
 
@@ -688,6 +737,8 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 **RDA**  —  Recommended Dietary Allowance. The average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group. See ?rda.
 
 **SPI**  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See Appendix E.
+
+**TID** —  
 
 **USDA**  —  United States Department of Agriculture. The U.S. government body that publishes FoodData Central, NutriMagnus's primary food data source.
 

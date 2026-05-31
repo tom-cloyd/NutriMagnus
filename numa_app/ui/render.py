@@ -12,7 +12,7 @@ import usda as _usda
 import profile as _profile
 from .. import state
 from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer
-from ..ui.prompts import Cancelled, _prompt
+from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 
 # FAO 2013 scores Met+Cys and Phe+Tyr as combined pairs; use these labels
@@ -338,7 +338,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
         for ing in result["ingredients"]
     )
     state.console.print(
-        f"  [dim]Total digestible protein (before meal-level AA analysis): "
+        f"  [dim]Total digestible protein (per-food protein × digestibility, before DIAAS cap): "
         f"[bold]{total_dig_p:.1f}g[/bold][/dim]",
         highlight=False,
     )
@@ -347,12 +347,13 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
     iaa_ratios = result["iaa_ratios"]
     if iaa_ratios:
         iaa_key = (
-            f"[dim](≥1.0 = meets reference  |  color:[/dim]"
+            f"[dim](digestible AA supply ÷ FAO reference  |  DIAAS = lowest ratio  |  color:[/dim]"
             f"  [{state.T['success']}]≥1.0[/{state.T['success']}]"
             f"  [{state.T['warning']}]0.80–0.99[/{state.T['warning']}]"
             f"  [{state.T['error']}]<0.80[/{state.T['error']}]"
+            f"[dim])[/dim]"
         )
-        table_title("MEAL AMINO ACID RATIOS FOR DIAAS", iaa_key)
+        table_title("MEAL AMINO ACID RATIOS", iaa_key)
         _MAA_W = 22
         aa_tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         aa_tbl.add_column("Amino Acid", min_width=_MAA_W, max_width=_MAA_W, no_wrap=True)
@@ -399,9 +400,11 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
     )
     if dcp is not None:
         aa_p = result.get("aa_protein_g", total_p)
-        suffix = (f"from {aa_p:.1f}g analyzed  (of {total_p:.1f}g total)"
-                  if aa_p < total_p - 0.05
-                  else f"from {total_p:.1f}g total")
+        if aa_p < total_p - 0.05:
+            suffix = (f"= {aa_p:.1f}g raw (AA-analyzed foods) × {diaas_val:.3f} DIAAS"
+                      f"  ·  {total_p:.1f}g = raw protein all foods")
+        else:
+            suffix = f"= {total_p:.1f}g raw protein × {diaas_val:.3f} DIAAS"
         state.console.print(
             f"  Digestible complete protein: [{color}]{dcp:.1f}g[/{color}]"
             f"  [dim]{suffix}[/dim]",
@@ -506,7 +509,7 @@ def _print_recipe_bioavailability(
     eff_diaas = total_digestible / total_protein if total_protein > 0 else 0.0
     color = state.T["success"] if eff_diaas >= 0.90 else (state.T["warning"] if eff_diaas >= 0.70 else state.T["error"])
     state.console.print(
-        f"  Total bioavailable protein: [{state.T['hi']}]{total_digestible:.1f}g[/{state.T['hi']}]"
+        f"\n  [{state.T['warning']}]Total bioavailable protein: {total_digestible:.1f}g[/{state.T['warning']}]"
         f"  [dim](from {total_protein:.1f}g, effective DIAAS [{color}]{eff_diaas:.2f}[/{color}])[/dim]",
         highlight=False,
     )
@@ -752,6 +755,10 @@ def _print_complement_suggestions(
                         default="n").strip().lower()
                 except Cancelled:
                     break
+                if ans == "m":
+                    raise ReturnToMain()
+                if ans == "q":
+                    raise SystemExit(0)
                 if ans != "y":
                     break
 
@@ -830,6 +837,10 @@ def _print_complement_suggestions(
                         default="n").strip().lower()
                 except Cancelled:
                     break
+                if ans == "m":
+                    raise ReturnToMain()
+                if ans == "q":
+                    raise SystemExit(0)
                 if ans != "y":
                     break
 
@@ -842,6 +853,10 @@ def _print_complement_suggestions(
             except Cancelled:
                 help_footer("comp")
                 return
+            if ans == "m":
+                raise ReturnToMain()
+            if ans == "q":
+                raise SystemExit(0)
             if ans == "y":
                 _show_paged(general_suggs, "Other options", page_size=5)
                 _general_exhausted_msg(len(general_suggs))

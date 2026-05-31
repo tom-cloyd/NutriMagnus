@@ -114,6 +114,7 @@ def _search_cached_foods_by_name(query: str) -> list[dict]:
         "brandOwner":    row["brand"],
         "_from_cache":   True,
         "_portions_json": row["portions_json"],
+        "_notes":        row["notes"],
     } for row in rows]
 
 
@@ -327,6 +328,18 @@ def _search_and_pick_food(
             return f"[dim]·· [/dim][{s}]DI[/{s}]"
         return "[dim]·····[/dim]"
 
+    def _gi_cell(food: dict) -> str:
+        ann = food.get("_annotation")
+        if ann is not None and ann["gi_estimate"] is not None:
+            return f"[{state.T['success']}]{int(round(ann['gi_estimate']))}[/{state.T['success']}]"
+        return ""
+
+    def _diaas_ann_cell(food: dict) -> str:
+        ann = food.get("_annotation")
+        if ann is not None and ann["diaas_estimate"] is not None:
+            return f"[{state.T['success']}]{ann['diaas_estimate']:.2f}[/{state.T['success']}]"
+        return ""
+
     while True:
         if query is None:
             _instant_recipes_offered = True  # suppress stale recipe list on re-search
@@ -474,35 +487,31 @@ def _search_and_pick_food(
                     r["_annotation"] = _cache_anns.get(r.get("fdcId"))
 
                 _ctbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-                _ctbl.add_column("#",             justify="right", min_width=3)
-                _ctbl.add_column("Type",          min_width=12)
-                _ctbl.add_column("ID",            justify="right", min_width=7)
-                _ctbl.add_column("Food / Recipe", min_width=_SRCH_W, max_width=_SRCH_W, no_wrap=True)
-                _ctbl.add_column("Brand",         min_width=_BRAND_W, max_width=_BRAND_W, no_wrap=True)
-                _ctbl.add_column("Ann",           min_width=5)
-                if show_aa_status:
-                    _ctbl.add_column("AA data", min_width=8)
+                _ctbl.add_column("#",      justify="right", min_width=3)
+                _ctbl.add_column("AA",     min_width=2)
+                _ctbl.add_column("GI",     min_width=4)
+                _ctbl.add_column("DIAAS",  min_width=5)
+                _ctbl.add_column("CONF.",  min_width=5, justify="center")
+                _ctbl.add_column("ID#",    justify="right", min_width=7)
+                _ctbl.add_column("Name",   min_width=_SRCH_W, max_width=_SRCH_W, no_wrap=True)
+                _ctbl.add_column("Type",   min_width=12)
+                _ctbl.add_column("Brand",  min_width=_BRAND_W, max_width=_BRAND_W, no_wrap=True)
 
                 for _ci, _cr in enumerate(_complete_cache, 1):
                     _cr_brand = _cr.get("brandOwner") or ""
-                    if show_aa_status:
-                        with _db.get_db() as _aac:
-                            _aa_cached = _db.get_cached_food(_aac, _cr["fdcId"])
-                        if _aa_cached and _usda.has_amino_acid_data(json.loads(_aa_cached["nutrients_json"])):
-                            _cr_aa = f"[{state.T['success']}]✓[/{state.T['success']}]"
-                        else:
-                            _cr_aa = f"[{state.T['error']}]✗[/{state.T['error']}]"
-                        _ctbl.add_row(
-                            str(_ci), _type_cell(_cr), _id_cell(_cr["fdcId"]),
-                            _srch_cell(_cr["description"]), _brand_cell(_cr_brand),
-                            _ann_cell(_cr), _cr_aa,
-                        )
+                    with _db.get_db() as _aac:
+                        _aa_cached = _db.get_cached_food(_aac, _cr["fdcId"])
+                    if _aa_cached and _usda.has_amino_acid_data(json.loads(_aa_cached["nutrients_json"])):
+                        _cr_aa = f"[{state.T['success']}]✓[/{state.T['success']}]"
                     else:
-                        _ctbl.add_row(
-                            str(_ci), _type_cell(_cr), _id_cell(_cr["fdcId"]),
-                            _srch_cell(_cr["description"]), _brand_cell(_cr_brand),
-                            _ann_cell(_cr),
-                        )
+                        _cr_aa = f"[{state.T['error']}]✗[/{state.T['error']}]"
+                    _ctbl.add_row(
+                        str(_ci), _cr_aa,
+                        _gi_cell(_cr), _diaas_ann_cell(_cr),
+                        "y" if _cr.get("_notes") else "",
+                        _id_cell(_cr["fdcId"]), _srch_cell(_cr["description"]),
+                        _type_cell(_cr), _brand_cell(_cr_brand),
+                    )
 
                 state.console.print()
                 table_title("Food cache")
@@ -529,7 +538,7 @@ def _search_and_pick_food(
                 _recipe_hint = ", R# for a recipe" if _cache_recipes else ""
                 try:
                     cache_raw = _prompt(
-                        f"Pick # for cached food{_recipe_hint}, or press Enter for full USDA results"
+                        f"Pick # for cached food{_recipe_hint}, Enter for full USDA results, n to skip"
                     ).strip()
                 except Cancelled:
                     return None
@@ -538,8 +547,8 @@ def _search_and_pick_food(
                     raise SystemExit(0)
                 if cache_raw.lower() == "m":
                     raise ReturnToMain()
-                if cache_raw.lower() == "b":
-                    if allow_research:
+                if cache_raw.lower() in ("b", "n"):
+                    if allow_research and cache_raw.lower() == "b":
                         query = None
                         continue
                     return None
@@ -762,23 +771,22 @@ def _search_and_pick_food(
         recipe_rows = prepend_recipes or []
 
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-        tbl.add_column("#",       justify="right", min_width=3)
-        tbl.add_column("Type",    min_width=12)
-        tbl.add_column("ID",      justify="right", min_width=7)
-        tbl.add_column("Food / Recipe", min_width=_SRCH_W, max_width=_SRCH_W, no_wrap=True)
-        tbl.add_column("Brand",   min_width=_BRAND_W, max_width=_BRAND_W, no_wrap=True)
-        tbl.add_column("Ann",     min_width=5)
-        if show_aa_status:
-            tbl.add_column("AA data", min_width=8)
+        tbl.add_column("#",      justify="right", min_width=3)
+        tbl.add_column("AA",     min_width=2)
+        tbl.add_column("GI",     min_width=4)
+        tbl.add_column("DIAAS",  min_width=5)
+        tbl.add_column("CONF.",  min_width=5, justify="center")
+        tbl.add_column("ID#",    justify="right", min_width=7)
+        tbl.add_column("Name",   min_width=_SRCH_W, max_width=_SRCH_W, no_wrap=True)
+        tbl.add_column("Type",   min_width=12)
+        tbl.add_column("Brand",  min_width=_BRAND_W, max_width=_BRAND_W, no_wrap=True)
 
         # Recipe rows at top (R1, R2, …)
         for i, r in enumerate(recipe_rows, 1):
             aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
                        if r["dcp_g"] is not None
                        else "[dim]—[/dim]")
-            row = [f"R{i}", "Recipe", "", _srch_cell(r["name"]), _brand_cell(""), "[dim]——[/dim]"]
-            if show_aa_status:
-                row.append(aa_cell)
+            row = [f"R{i}", aa_cell, "", "", "", "", _srch_cell(r["name"]), "Recipe", _brand_cell("")]
             tbl.add_row(*row)
 
         branded_count = 0
@@ -814,9 +822,9 @@ def _search_and_pick_food(
                     else:
                         # Branded / unknown: virtually never have AA data in USDA
                         aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
-                tbl.add_row(str(i), _type_cell(food), _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), _ann_cell(food), aa_cell)
+                tbl.add_row(str(i), aa_cell, _gi_cell(food), _diaas_ann_cell(food), "y" if food.get("_notes") else "", _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _type_cell(food), _brand_cell(brand))
             else:
-                tbl.add_row(str(i), _type_cell(food), _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _brand_cell(brand), _ann_cell(food))
+                tbl.add_row(str(i), aa_cell, _gi_cell(food), _diaas_ann_cell(food), "y" if food.get("_notes") else "", _id_cell(food['fdcId']), _srch_cell(food.get('description', '')), _type_cell(food), _brand_cell(brand))
         if show_aa_status:
             likely_count = 0
             for food in results:
@@ -847,35 +855,29 @@ def _search_and_pick_food(
                 highlight=False,
             )
         state.console.print(
-            f"  [dim]Ann (Annotations): [{state.T['success']}]GI[/{state.T['success']}] glycemic index · "
-            f"[{state.T['success']}]DI[/{state.T['success']}] DIAAS — your saved estimates[/dim]",
-            highlight=False,
-        )
-        state.console.print(
             "  [dim]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/dim]",
             highlight=False,
         )
-        if show_aa_status:
-            state.console.print()
+        state.console.print()
+        state.console.print(
+            f"  [dim]AA column: [{state.T['success']}]✓[/{state.T['success']}] confirmed · "
+            f"[{state.T['success']}]~✓[/{state.T['success']}] likely (not yet fetched) · "
+            f"[{state.T['error']}]✗[/{state.T['error']}] none[/dim]  "
+            f"  [dim]GI / DIAAS: your saved estimates[/dim]",
+            highlight=False,
+        )
+        if likely_count > 0:
             state.console.print(
-                f"  [dim]AA data column key:[/dim]\n"
-                f"    [{state.T['success']}]✓[/{state.T['success']}]  [dim]confirmed — amino acid data in local cache[/dim]\n"
-                f"    [{state.T['success']}]~✓[/{state.T['success']}] [dim]likely — not fetched yet; pick the number to fetch and confirm[/dim]\n"
-                f"    [{state.T['error']}]✗[/{state.T['error']}]  [dim]none — branded/packaged food; USDA rarely includes AA data for these[/dim]",
+                f"  [dim]  → [bold]~✓[/bold] items are not yet in your cache. "
+                f"Enter the item number to fetch and cache it.[/dim]",
                 highlight=False,
             )
-            if likely_count > 0:
-                state.console.print(
-                    f"  [dim]  → [bold]~✓[/bold] items are not yet in your cache. "
-                    f"Enter the item number to fetch and cache it.[/dim]",
-                    highlight=False,
-                )
-            if likely_count == 0:
-                state.console.print(
-                    f"  [{state.T['warning']}]No options with amino acid data found.[/{state.T['warning']}] "
-                    "[dim]Try searching for a generic equivalent — add 'raw', 'cooked', or 'usda' to your query.[/dim]",
-                    highlight=False,
-                )
+        if likely_count == 0 and show_aa_status:
+            state.console.print(
+                f"  [{state.T['warning']}]No options with amino acid data found.[/{state.T['warning']}] "
+                "[dim]Try searching for a generic equivalent — add 'raw', 'cooked', or 'usda' to your query.[/dim]",
+                highlight=False,
+            )
 
         _W = min(98, state.console.width - 2)
         if branded_count == 0 and data_types != ["Foundation"]:

@@ -46,14 +46,18 @@ SAMPLE_NUTRIENTS: dict = {
     "sodium_mg":       74.0,
     "vitamin_c_mg":     0.0,
     "vitamin_d_mcg":    0.1,
-    # Essential amino acids (chicken breast values per 100g)
+    # Essential amino acids (chicken breast values per 100g, USDA FDC 171477)
+    # aa_tyrosine_g and aa_cystine_g included so Phe+Tyr and Met+Cys pairs
+    # score correctly against the updated FAO 2013 combined-pair references.
     "aa_tryptophan_g":    0.38,
     "aa_threonine_g":     1.38,
     "aa_isoleucine_g":    1.49,
     "aa_leucine_g":       2.42,
     "aa_lysine_g":        2.78,
     "aa_methionine_g":    0.89,
+    "aa_cystine_g":       0.36,
     "aa_phenylalanine_g": 1.19,
+    "aa_tyrosine_g":      1.01,
     "aa_valine_g":        1.58,
     "aa_histidine_g":     0.90,
 }

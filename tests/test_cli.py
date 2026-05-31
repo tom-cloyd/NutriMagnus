@@ -420,8 +420,8 @@ class TestMealsMenu:
 
     def test_log_meal_with_food(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        # Meals: 1 (Log) → date → name → add item: 1 (food) → search → pick → amount → done: d
-        inp = "3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n150\nd\nb\nq\n"
+        # Meals: n (new) → date → name → add item: 1 (food) → search → pick → amount → done: d
+        inp = "3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n150\nd\nb\nq\n"
         result = runner.invoke(input=inp)
         assert result.exit_code == 0
         assert "logged" in result.output.lower() or "Meal" in result.output
@@ -433,7 +433,7 @@ class TestMealsMenu:
 
     def test_log_meal_saves_food_item(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        inp = "3\n1\n2025-03-15\nDinner\n1\nchicken\n1\n200 g\n\nd\nb\nq\n"
+        inp = "3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n200 g\n\nd\nb\nq\n"
         runner.invoke(input=inp)
 
         with _db.get_db() as conn:
@@ -443,36 +443,35 @@ class TestMealsMenu:
         assert items[0]["amount"] == 200.0
 
     def test_view_meals_empty_date(self, runner: NumaTestRunner):
-        # _pick_meal shows "No meals logged yet" immediately when DB is empty
-        result = runner.invoke(input="3\n2\nq\n")
+        result = runner.invoke(input="3\nq\n")
         assert result.exit_code == 0
         assert "No meals" in result.output
 
     def test_view_meals_shows_entry(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nBreakfast\n1\nchicken\n1\n100\nd\nb\nq\n")
-        # Pick row 1 from the recent-meal list, then b=back from action loop, q=quit
-        result = runner.invoke(input="3\n2\n1\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nBreakfast\n1\nchicken\n1\n100\nd\nb\nq\n")
+        # v1 = view meal ID 1, then b=back from action loop, q=quit
+        result = runner.invoke(input="3\nv1\nb\nq\n")
         assert "Breakfast" in result.output
 
     def test_view_meals_shows_food_items(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n150 g\n\nd\nb\nq\n")
-        result = runner.invoke(input="3\n2\n1\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n150 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="3\nv1\nb\nq\n")
         assert result.exit_code == 0
         assert "Chicken" in result.output
         assert "150" in result.output
 
     def test_view_meals_delete_item(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n200 g\n\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n200 g\n\nd\nb\nq\n")
 
         with _db.get_db() as conn:
             mid = _db.meal_list_by_date(conn, "2025-03-15")[0]["id"]
             iid = _db.meal_get_items(conn, mid)[0]["id"]
 
-        # Pick row 1 → action 3 (delete item) → meal auto-selected (only 1) → item id → b → q
-        result = runner.invoke(input=f"3\n2\n1\n3\n{iid}\nb\nq\n")
+        # v1=view meal ID 1 → action 3 (delete item) → item id → b → q
+        result = runner.invoke(input=f"3\nv1\n3\n{iid}\nb\nq\n")
         assert result.exit_code == 0
         assert "removed" in result.output.lower()
 
@@ -481,19 +480,19 @@ class TestMealsMenu:
 
     def test_analyze_meal_shows_nutrients(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
 
-        # Pick row 1; only 1 meal on that date so no scope prompt; b declines any follow-up
-        result = runner.invoke(input="3\n3\n1\nb\nq\n")
+        # a1=analyze meal ID 1; only 1 meal on that date so no scope prompt
+        result = runner.invoke(input="3\na1\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
 
     def test_delete_meal(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
 
-        # Pick row 1, confirm y, then q
-        result = runner.invoke(input="3\n4\n1\ny\nq\n")
+        # d1=delete meal ID 1, confirm y, then q
+        result = runner.invoke(input="3\nd1\ny\nq\n")
         assert result.exit_code == 0
         assert "Deleted" in result.output
 
@@ -519,7 +518,7 @@ class TestSummaryMenu:
     def test_summary_for_date_shows_totals(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         # Log a meal on a known date
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         # View summary for that date
         result = runner.invoke(input="4\n2\n2025-03-15\nb\nq\n")
         assert result.exit_code == 0
@@ -528,7 +527,7 @@ class TestSummaryMenu:
 
     def test_recent_days_shows_dates(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
         result = runner.invoke(input="4\n3\nb\nq\n")
         assert result.exit_code == 0
         assert "2025-03-15" in result.output
@@ -704,7 +703,7 @@ class TestDailySummaryRDA:
         _mock_api(monkeypatch)
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "profile" in result.output.lower()
@@ -719,7 +718,7 @@ class TestDailySummaryRDA:
         # Set profile
         runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         # Log a meal
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         # View summary: decline complement → accept RDA comparison
         result = runner.invoke(input="4\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
@@ -733,7 +732,7 @@ class TestDailySummaryRDA:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
@@ -746,7 +745,7 @@ class TestDailySummaryRDA:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
-        runner.invoke(input="3\n1\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\nn\nb\nq\n")
         assert result.exit_code == 0
         # Table header should not appear

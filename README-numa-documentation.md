@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nourishment wizard")**.
 
-UPDATED: 2026-05-14:0312
+UPDATED: 2026-05-30:1000
 ---
 
 ## Table of Contents
@@ -196,6 +196,7 @@ The program launches into a startup banner (showing profile, theme, and dietary-
 | `q`      | Quit the program entirely (works at every prompt)  |
 | Ctrl+C   | Cancel current prompt, go back      |
 | Escape   | Same as Ctrl+C                      |
+| ↑ / ↓    | Cycle through input history at any free-text prompt |
 
 `b` and `q` are accepted at every prompt throughout the program — menus, food
 search results, ID entry, portion size entry, and ingredient/item loops. You
@@ -310,36 +311,30 @@ Main Menu  ("NutriMagnus Menu")
 │           safely be ignored in the missing-data warning list.
 │
 ├── 3. Meals & Log
-│   ├── 1. Log a meal  (add to today's or create new)
-│   │       If meals already exist today, shows a numbered list and lets you
-│   │       add items to one of them. Choose n=new to create a fresh meal
-│   │       (date defaults to today; enter a different date to log retroactively).
-│   │       Each food item prompts for an optional Note (e.g., brand, preparation).
-│   │       Saved to local database with date.
-│   ├── 2. View / edit a meal
-│   │       Paginated list of recent meals (9 per page, most recent first).
-│   │       Pick by meal ID; page forward/back with more/prev; or jump to a
-│   │       specific date. The selected meal's items are shown, then an action
-│   │       menu offers:
-│   │         1. Add items — unified search: type any name and matching saved
-│   │                recipes appear first (R1, R2 …) above USDA/OFF food results.
-│   │                Pick R# to add a recipe by servings; pick # to add a food
-│   │                by portion.
-│   │         2. Edit an item — change food, amount, or note for a food item;
-│   │                or change servings for a recipe item.
-│   │         3. Delete an item — remove one item from the meal.
-│   │         4. Delete this meal — confirm, then remove the whole meal.
-│   │         5. Merge with meal(s) on same date — appears only when other meals
-│   │                exist on the same date. Choose which IDs to merge (or 'all'),
-│   │                name the new combined meal, and optionally delete the originals.
-│   ├── 3. Analyze a meal
-│   │       Select a meal from the paginated list. If multiple meals share the
-│   │       same date, choose whether to analyze just that meal or all meals on
-│   │       the date together → combined nutrient totals + meal-level DIAAS
-│   │       analysis (digestibility-corrected, pooled across all ingredients)
-│   │       + protein completeness + complement suggestions
-│   └── 4. Delete a meal
-│           Select from the paginated list; confirm before deleting.
+│       Displays up to 15 recent meals (most-recent first) as an inline list.
+│       Commands entered at the prompt act on the listed meals by their DB ID:
+│
+│         n             — new meal: prompts for date (default today or current
+│                         context date) and name, then opens the action loop.
+│         v{id}         — view / edit meal: shows items, then the action menu:
+│                           1. Add items — unified search (recipes first, then
+│                                USDA/OFF foods); add by portion or servings.
+│                           2. Edit an item — change food, amount, or note.
+│                           3. Delete an item — remove one item from the meal.
+│                           4. Analyze this meal
+│                           5. Delete this meal — confirm, then remove.
+│                           6. Mark complete / incomplete
+│                           7. Rename this meal
+│                           8. Merge with meal(s) on same date (when applicable)
+│         a{id}         — analyze meal: full nutrient table + meal-level DIAAS
+│                         (pooled, digestibility-corrected) + protein completeness
+│                         + complement suggestions + glycemic load.
+│                         If multiple meals share the date, choose single or all.
+│         d{id}         — delete meal: confirm before removing.
+│         s             — search food across entire meal history.
+│         mr            — show next 15 meals (older).
+│         d{YYYY-MM-DD} — jump: show meals on or before this date.
+│         b / m / q     — back / main menu / quit.
 │
 ├── 4. Daily Summary
 │   ├── 1. Today's summary
@@ -384,18 +379,7 @@ Once you edit a food's nutrients through Food Cache (or create a food manually),
 Name, data type, brand (if any), serving size and unit, the full nutrient profile (macros, minerals, vitamins, amino acids), and USDA portion data (e.g. "1 cup, chopped"). All nutrient values are per 100 g.
 
 **Viewing and managing the cache:**
-**Foods → View cached / saved foods** lists every cached food with filter-by-name support. From there you can view its full nutrient profile, analyze a portion, or delete the entry. Deleting forces a fresh fetch the next time you search for that food — useful if the cached data looks corrupt or outdated.
-
-**ID column in food tables:**
-Every table that shows food IDs uses a three-format convention:
-
-| Display | Meaning |
-|---------|---------|
-| `123456` (number) | USDA FoodData Central ID |
-| `OFF` | Open Food Facts product |
-| `usr` | User-drafted profile (see below) |
-
-A legend repeating this key appears below every such table.
+Starting with the main menu, select **Foods → Food cache** to list every cached food with filter-by-name suppor/act. From there you can view its full nutrient profile, analyze a portion, or delete the entry. Deleting forces a fresh fetch the next time you search for that food — useful if the cached data looks corrupt or outdated.
 
 ---
 
@@ -783,7 +767,7 @@ Each suggestion shows:
 - **Name** and DIAAS digestibility score
 - **Grams to add** — the minimum amount that brings the most limiting amino acid to exactly 1.0 (the FAO reference requirement level)
 - **Effect** — before → after scores for the top-gap amino acids (green = meets reference, yellow = improved but still below)
-- **Digestible protein added** and updated **total bioavailable complete protein**
+- **Digestible protein added** and updated **total bioavailable complete protein** — computed as `(base protein + complement protein) × combined pooled DIAAS`, capped at 1.0. This is higher than summing each food's individually-weighted digestible protein because the complement's amino acids improve the utilisation of the base food's protein.
 
 **Why score 1.0?** The score is a ratio against the FAO 2013 reference pattern (mg of amino acid per g of protein that humans require). A score of 1.0 means the combined profile exactly meets requirements — it is the floor, not an aspirational target. Suggesting a complement that only reaches 0.85 would mean the gap remains open.
 
@@ -910,7 +894,7 @@ Similarly, the three largest workflow files were split to keep each under 600 li
 - **Non-tty** (e.g., piped input, test runner): delegates to `rich.prompt.Prompt.ask()`.
 - **Interactive tty, free_text**: uses `readline`-backed `input()`. Default values are displayed before the colon as `(Press enter to keep VALUE)` with the value in the theme's blue (`default_hint` style); nothing is pre-filled after the colon. Pressing Enter on a blank line returns the stored default.
 - **Interactive tty, choices**: single-keypress mode via `termios`/`tty`. Only a character in the `choices` list is accepted; all other keystrokes are silently ignored. Pressing Enter on no input returns the default. This prevents accidentally submitting multi-character garbage (e.g., typing a food name at a `y/n/q` prompt).
-- **Interactive tty, no choices, not free_text**: accumulation mode — characters are buffered and echoed until Enter; backspace/delete work. Used for bare prompts with no `default`.
+- **Interactive tty, no choices, not free_text**: accumulation mode — characters are buffered and echoed until Enter; backspace/delete work. Up/down arrow keys navigate a session-scoped input history (last 100 entries of 3+ characters). Pressing up saves the current partial buffer and replaces it with the previous history entry; pressing down restores toward the current input. Single-character and two-character inputs (navigation keys like `b`, `m`, `q`) are not added to history.
 
 Ctrl+C and `\x04` (EOF) raise `Cancelled` in all tty paths. Escape is detected by checking for trailing bytes within 50 ms; a bare Escape raises `Cancelled`.
 
