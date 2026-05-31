@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-05-30*:1000
+*Updated 2026-05-30*:1824
 
 [TOC]
 
@@ -60,7 +60,8 @@ NutriMagnus Menu
   2. Recipes
      create · browse/manage · develop (add/remove ingredients with nutritional feedback)
   3. Meals & Log
-     n=new · v{id}=view/edit · a{id}=analyze · d{id}=delete · s=search · mr=more · d{YYYY-MM-DD}=jump
+     Shows up to 15 recent meals. Commands: n=new · v{id}=view/edit · a{id}=analyze
+     d{id}=delete · s=search history · mr=next 15 older · d{YYYY-MM-DD}=jump to date
   4. Daily Summary
      today · by date · recent days
   5. Settings  (theme · user profile · dietary preferences · API key · DB path)

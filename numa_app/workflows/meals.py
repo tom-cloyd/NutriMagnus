@@ -56,10 +56,12 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
     try:
         go = _prompt(
             f"\nFetch missing AA profiles for {len(affected)} standalone meal ingredient(s)?",
-            choices=["y", "n"], default="n",
+            choices=["y", "n", "b"], default="n",
         )
     except Cancelled:
-        return False
+        raise
+    if go == "b":
+        raise Cancelled
     if go != "y":
         return False
 
@@ -176,7 +178,7 @@ def _menu_meals() -> bool:
             tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
             tbl.add_column("ID",    justify="right", min_width=4)
             tbl.add_column("Date",  min_width=10)
-            tbl.add_column("✓",    justify="center", min_width=2)
+            tbl.add_column("Complete", justify="center", min_width=8)
             tbl.add_column("Meal",  min_width=_W_NAME, max_width=_W_NAME, no_wrap=True)
             tbl.add_column("Items", justify="right", min_width=5)
             for m in page:
@@ -198,14 +200,18 @@ def _menu_meals() -> bool:
                 + " meals" + (f" before {before_date}" if before_date else "") + ".[/dim]"
             )
 
-        nav = "n=new"
+        state.console.print()
+        state.console.print(f"  [{state.T['accent']}]Commands:[/{state.T['accent']}]", highlight=False)
+        state.console.print("  [dim]  n ············  New meal (prompts for date and name)[/dim]", highlight=False)
         if page:
-            nav += "  v{id}=view/edit  a{id}=analyze  d{id}=delete"
-        nav += "  s=search"
+            state.console.print("  [dim]  v{id} ········  View or edit a meal  (e.g. v3)[/dim]", highlight=False)
+            state.console.print("  [dim]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/dim]", highlight=False)
+            state.console.print("  [dim]  d{id} ········  Delete a meal  (e.g. d3)[/dim]", highlight=False)
+        state.console.print("  [dim]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/dim]", highlight=False)
         if has_more:
-            nav += "  mr=more"
-        nav += "  d{YYYY-MM-DD}=jump"
-        state.console.print(f"\n  [dim]{nav}  ·  b · m · q[/dim]", highlight=False)
+            state.console.print("  [dim]  mr ···········  Show next 15 older meals[/dim]", highlight=False)
+        state.console.print("  [dim]  d{YYYY-MM-DD}   Jump to meals on or before a date  (e.g. d2025-03-15)[/dim]", highlight=False)
+        state.console.print("  [dim]  b / m / q ····  Back · Main menu · Quit[/dim]", highlight=False)
 
         try:
             raw = _prompt("Command").strip()
