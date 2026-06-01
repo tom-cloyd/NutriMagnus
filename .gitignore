@@ -17,8 +17,15 @@ lib/
 # Logs and local databases
 *.log
 *.sqlite3
+*.db
 # Confidential credentials (API keys, etc.)
 .env
+
+# --- AI tooling / scratch files ---
+claude_prompt.txt
+claude_response.txt
+numa_gen_prompt.py
+numa_import_claude.py
 
 # --- The "Large Artifacts" ---
 # Exclude large data or model weights for local LLMs
