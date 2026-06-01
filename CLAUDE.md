@@ -167,6 +167,9 @@ Valid keys (from `usda_api.NUTRIENT_MAP`):
 calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
 saturated_fat_g, mono_fat_g, poly_fat_g
 
+# Omega fatty acids (mg)
+omega3_ala_mg, omega3_epa_mg, omega3_dha_mg, omega6_la_mg
+
 # Minerals (mg)
 calcium_mg, iron_mg, magnesium_mg, phosphorus_mg,
 potassium_mg, sodium_mg, zinc_mg

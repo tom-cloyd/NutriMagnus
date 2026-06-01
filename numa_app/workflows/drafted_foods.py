@@ -30,6 +30,36 @@ def _do_edit_cached_food(fdc_id: int, cached) -> None:
     if pj and pj != "null":
         existing_portions = json.loads(pj)
 
+    # Detect supplement mode: single portion with gram_weight == 100
+    is_supplement = (
+        len(existing_portions) == 1
+        and existing_portions[0].get("gram_weight") == 100.0
+    )
+    unit_name = "tablet"
+    if is_supplement:
+        desc = existing_portions[0].get("description", "1 tablet")
+        unit_name = re.sub(r"^1\s*", "", desc).strip() or "tablet"
+
+    # For user-drafted foods not already in supplement mode, ask if they should be
+    if not is_supplement and cached["user_drafted"]:
+        try:
+            supp_q = _prompt(
+                "Is this a supplement?  [dim](tablet, capsule, softgel, scoop… — y/N)[/dim]",
+                choices=["y", "n"], default="n"
+            )
+        except Cancelled:
+            supp_q = "n"
+        if supp_q == "y":
+            is_supplement = True
+            try:
+                unit_name = _prompt(
+                    "Unit name  [dim](Enter for 'tablet' — or: capsule / softgel / pill / scoop)[/dim]",
+                    default="tablet"
+                ).strip() or "tablet"
+            except Cancelled:
+                unit_name = "tablet"
+            existing_portions = [{"description": f"1 {unit_name}", "gram_weight": 100.0}]
+
     state.console.print(
         f"\n  [{state.T['hi']}]Editing:[/{state.T['hi']}] [bold]{cached['name']}[/bold]\n"
         f"  [dim]Press Enter to keep the current value for each field.[/dim]"
@@ -51,30 +81,42 @@ def _do_edit_cached_food(fdc_id: int, cached) -> None:
         name = cached["name"]
 
     # Serving size / unit
-    try:
-        srv_raw = _prompt(
-            "Serving size  [dim](Enter to keep)[/dim]",
-            default=f"{cached['serving_size']:.0f}" if cached["serving_size"] else ""
-        ).strip()
-    except Cancelled:
-        srv_raw = ""
-    serving_size: float | None = cached["serving_size"]
-    if srv_raw:
+    if is_supplement:
+        serving_size = 1.0
+        serving_unit = unit_name
+    else:
         try:
-            serving_size = float(srv_raw)
-        except ValueError:
-            pass
+            srv_raw = _prompt(
+                "Serving size  [dim](Enter to keep)[/dim]",
+                default=f"{cached['serving_size']:.0f}" if cached["serving_size"] else ""
+            ).strip()
+        except Cancelled:
+            srv_raw = ""
+        serving_size: float | None = cached["serving_size"]
+        if srv_raw:
+            try:
+                serving_size = float(srv_raw)
+            except ValueError:
+                pass
 
-    try:
-        serving_unit = _prompt(
-            "Serving unit  [dim](Enter to keep)[/dim]",
-            default=cached["serving_unit"] or ""
-        ).strip() or cached["serving_unit"]
-    except Cancelled:
-        serving_unit = cached["serving_unit"]
+        try:
+            serving_unit = _prompt(
+                "Serving unit  [dim](Enter to keep)[/dim]",
+                default=cached["serving_unit"] or ""
+            ).strip() or cached["serving_unit"]
+        except Cancelled:
+            serving_unit = cached["serving_unit"]
 
     # Nutrients
-    nutrients = _prompt_nutrients(existing_nutrients)
+    if is_supplement:
+        state.console.print(
+            f"\n  [{state.T['hi']}]Supplement mode:[/{state.T['hi']}]"
+            f" enter values per [bold]{unit_name}[/bold] (as shown on the label)."
+        )
+    nutrients = _prompt_nutrients(
+        existing_nutrients,
+        unit_label=unit_name if is_supplement else "100g",
+    )
 
     # Note
     try:
@@ -98,31 +140,76 @@ def _do_edit_cached_food(fdc_id: int, cached) -> None:
             user_drafted=True,
         )
 
+    per_label = f"per {unit_name}" if is_supplement else "per 100g"
     state.console.print(
         f"\n  [{state.T['success']}]✓[/{state.T['success']}]  Profile updated: [bold]{name}[/bold]"
     )
     if nutrients:
-        _print_nutrient_table(nutrients, title=name, per_label="per 100g")
+        _print_nutrient_table(nutrients, title=name, per_label=per_label)
 
 
 # ---------------------------------------------------------------------------
 # Drafted food profiles
 # ---------------------------------------------------------------------------
 
-# Ordered list of (nutrient_key, display_label, unit) for user prompting.
-# Split into two groups: basic macros (always prompted) and optional extras.
+# Ordered lists of (nutrient_key, display_label, unit) for user prompting.
 _DRAFT_MACROS = [
-    ("calories",         "Calories",           "kcal"),
-    ("protein_g",        "Protein",            "g"),
-    ("fat_g",            "Total fat",          "g"),
-    ("carb_g",           "Carbohydrates",      "g"),
-    ("fiber_g",          "Fiber",              "g"),
-    ("sugar_g",          "Sugars",             "g"),
-    ("saturated_fat_g",  "Saturated fat",      "g"),
-    ("sodium_mg",        "Sodium",             "mg"),
-    ("calcium_mg",       "Calcium",            "mg"),
-    ("iron_mg",          "Iron",               "mg"),
+    ("calories",         "Calories",            "kcal"),
+    ("protein_g",        "Protein",             "g"),
+    ("fat_g",            "Total fat",           "g"),
+    ("carbs_g",          "Carbohydrates",       "g"),
+    ("fiber_g",          "Fiber",               "g"),
+    ("sugar_g",          "Sugars",              "g"),
+    ("saturated_fat_g",  "Saturated fat",       "g"),
+    ("mono_fat_g",       "Monounsaturated fat", "g"),
+    ("poly_fat_g",       "Polyunsaturated fat", "g"),
+    ("omega3_ala_mg",    "ALA (omega-3)",       "mg"),
+    ("omega3_epa_mg",    "EPA (omega-3)",       "mg"),
+    ("omega3_dha_mg",    "DHA (omega-3)",       "mg"),
+    ("omega6_la_mg",     "Linoleic (omega-6)",  "mg"),
+    ("sodium_mg",        "Sodium",              "mg"),
 ]
+
+_DRAFT_MINERALS = [
+    ("calcium_mg",       "Calcium",             "mg"),
+    ("iron_mg",          "Iron",                "mg"),
+    ("magnesium_mg",     "Magnesium",           "mg"),
+    ("phosphorus_mg",    "Phosphorus",          "mg"),
+    ("potassium_mg",     "Potassium",           "mg"),
+    ("zinc_mg",          "Zinc",                "mg"),
+]
+
+_DRAFT_VITAMINS = [
+    ("vitamin_a_mcg",    "Vitamin A",           "mcg RAE"),
+    ("vitamin_c_mg",     "Vitamin C",           "mg"),
+    ("vitamin_d_mcg",    "Vitamin D",           "mcg"),
+    ("vitamin_e_mg",     "Vitamin E",           "mg"),
+    ("vitamin_k_mcg",    "Vitamin K",           "mcg"),
+    ("thiamin_mg",       "Thiamin (B1)",         "mg"),
+    ("riboflavin_mg",    "Riboflavin (B2)",      "mg"),
+    ("niacin_mg",        "Niacin (B3)",          "mg"),
+    ("b6_mg",            "Vitamin B6",           "mg"),
+    ("folate_mcg",       "Folate (B9)",          "mcg"),
+    ("b12_mcg",          "Vitamin B12",          "mcg"),
+]
+
+_DRAFT_PHYTO = [
+    ("beta_carotene_mcg",     "Beta-carotene",        "mcg"),
+    ("alpha_carotene_mcg",    "Alpha-carotene",       "mcg"),
+    ("lycopene_mcg",          "Lycopene",             "mcg"),
+    ("lutein_zeaxanthin_mcg", "Lutein + zeaxanthin",  "mcg"),
+    ("choline_mg",            "Choline",              "mg"),
+    ("beta_sitosterol_mg",    "Beta-sitosterol",      "mg"),
+    ("isoflavones_mg",        "Isoflavones",          "mg"),
+]
+
+# Vitamins that supplement labels often express in IU instead of mg/mcg.
+# Value is the conversion factor: stored_unit = IU × factor.
+_IU_VITAMINS: dict[str, float] = {
+    "vitamin_a_mcg": 0.3,    # 1 IU retinol/retinyl ester = 0.3 mcg RAE
+    "vitamin_d_mcg": 0.025,  # 1 IU = 0.025 mcg  (= 1/40 mcg)
+    "vitamin_e_mg":  0.67,   # 1 IU natural d-alpha-tocopherol = 0.67 mg
+}
 
 _DRAFT_AMINO_ACIDS = [
     ("aa_tryptophan_g",   "Tryptophan",    "g"),
@@ -312,50 +399,126 @@ def _list_drafted_foods() -> list:
     return list(rows)
 
 
-def _prompt_nutrients(existing: dict | None = None) -> dict:
+def _prompt_nutrients(existing: dict | None = None, unit_label: str = "100g") -> dict:
     """
-    Interactively prompt for nutrient values (per 100 g).
+    Interactively prompt for nutrient values (per 100 g, or per serving if unit_label set).
     existing: pre-fill from this dict if provided (e.g. loaded from USDA cache).
+    unit_label: display label for the denominator — "100g" for foods, "tablet" etc. for supplements.
     Returns a nutrients dict (may be partial if user exits early via Ctrl+C or 'b').
     Raises ReturnToMain if user types 'm'. Raises SystemExit on 'q'.
     """
-    state.console.print(
-        f"\n  [dim]Enter nutrient values per [bold]100 g[/bold]. "
-        f"Press Enter to keep the current value, or enter a number to override. "
-        f"Ctrl+C or [bold]b[/bold] to stop and continue.[/dim]"
-    )
+    if unit_label == "100g":
+        state.console.print(
+            f"\n  [dim]Enter nutrient values per [bold]100 g[/bold]. "
+            f"Press Enter to keep the current value, or enter a number to override. "
+            f"Ctrl+C or [bold]b[/bold] to stop and save what you have so far.[/dim]"
+        )
+    else:
+        state.console.print(
+            f"\n  [dim]Enter the values shown on the label for [bold]1 {unit_label}[/bold]. "
+            f"Vitamins A, D, and E may be entered in IU (e.g. [bold]400 IU[/bold]). "
+            f"Press Enter to keep the current value, or Ctrl+C / [bold]b[/bold] to stop.[/dim]"
+        )
     nutrients: dict = {}
 
-    state.console.print(f"\n  [{state.T['accent']}]— Basic nutrients —[/{state.T['accent']}]")
-    for key, label, unit in _DRAFT_MACROS:
+    def _prompt_field(key: str, label: str, unit: str, precision: str = ".4g") -> bool:
+        """Prompt for one field. Returns False if user bailed (Ctrl+C or b)."""
+        iu_factor = _IU_VITAMINS.get(key)
+        prompt_unit = f"{unit} or IU" if iu_factor else unit
         current = existing.get(key) if existing else None
-        default_str = f"{current:.4g}" if current is not None else None
+        default_str = f"{current:{precision}}" if current is not None else None
         while True:
             try:
                 raw = _prompt(
-                    f"  {label} ({unit}/100g)",
-                    default=default_str if default_str else ""
+                    f"  {label} ({prompt_unit} per {unit_label})",
+                    default=default_str or ""
                 ).strip()
             except Cancelled:
-                return nutrients
+                return False
             lower = raw.lower()
             if lower == "q":
                 raise SystemExit(0)
             if lower == "m":
                 raise ReturnToMain()
             if lower == "b":
-                return nutrients
+                return False
             if not raw:
                 if current is not None:
                     nutrients[key] = current
-                break
+                return True
+            # IU input: "2000 IU" or "2000iu"
+            if iu_factor and lower.endswith("iu"):
+                val_str = raw[:lower.rfind("iu")].strip()
+                try:
+                    iu_val = float(val_str)
+                    converted = iu_val * iu_factor
+                    state.console.print(
+                        f"    [dim]→ {converted:.4g} {unit}  "
+                        f"({iu_val:g} IU × {iu_factor} = {converted:.4g} {unit})[/dim]"
+                    )
+                    nutrients[key] = converted
+                    return True
+                except ValueError:
+                    pass
+            # Native unit — strip optional "mg"/"mcg" suffix then parse
+            val_str = re.sub(r"\s*(mg|mcg)\s*$", "", lower).strip()
             try:
-                nutrients[key] = float(raw)
-                break
+                nutrients[key] = float(val_str if val_str else raw)
+                return True
             except ValueError:
-                state.console.print(f"    [{state.T['warning']}]Enter a number (or press Enter to skip).[/{state.T['warning']}]")
+                if iu_factor:
+                    state.console.print(
+                        f"    [{state.T['warning']}]Enter a number in {unit} "
+                        f"or append IU  (e.g. 50  or  2000 IU)[/{state.T['warning']}]"
+                    )
+                else:
+                    state.console.print(f"    [{state.T['warning']}]Enter a number (or press Enter to skip).[/{state.T['warning']}]")
 
-    # Amino acids are optional — offer three choices
+    def _prompt_section(fields: list) -> bool:
+        """Prompt for a list of fields. Returns False if user bailed."""
+        for key, label, unit in fields:
+            if not _prompt_field(key, label, unit):
+                return False
+        return True
+
+    def _ask_section(title: str, hint: str, fields: list) -> bool:
+        """Ask whether to enter an optional section, prompt if yes. Returns False if bailed."""
+        has_data = existing and any(existing.get(k) for k, _, _ in fields)
+        state.console.print()
+        state.console.print(
+            f"  [{state.T['accent']}]{title}[/{state.T['accent']}]  [dim]{hint}[/dim]"
+        )
+        try:
+            ans = _prompt("  Enter values?", choices=["y", "n"],
+                          default="y" if has_data else "n")
+        except Cancelled:
+            return False
+        if ans == "y":
+            return _prompt_section(fields)
+        return True
+
+    # --- Basic macros (always prompted) ---
+    state.console.print(f"\n  [{state.T['accent']}]— Basic nutrients —[/{state.T['accent']}]")
+    if not _prompt_section(_DRAFT_MACROS):
+        return nutrients
+
+    # --- Minerals (optional) ---
+    if not _ask_section(
+        "Minerals",
+        "Calcium · Iron · Magnesium · Phosphorus · Potassium · Zinc",
+        _DRAFT_MINERALS,
+    ):
+        return nutrients
+
+    # --- Vitamins (optional) ---
+    if not _ask_section(
+        "Vitamins",
+        "A · C · D · E · K · B1 (Thiamin) · B2 · B3 · B6 · B9 (Folate) · B12",
+        _DRAFT_VITAMINS,
+    ):
+        return nutrients
+
+    # --- Amino acids (optional — three-way choice) ---
     state.console.print()
     state.console.print(
         f"  [{state.T['accent']}]Amino acid profile[/{state.T['accent']}]"
@@ -364,7 +527,6 @@ def _prompt_nutrients(existing: dict | None = None) -> dict:
     state.console.print("  [dim]1[/dim]  Enter values one-by-one (g per 100g food)")
     state.console.print("  [dim]2[/dim]  Bulk import from literature (g per 100g protein — auto-converted)")
     state.console.print("  [dim]n[/dim]  Skip")
-
     while True:
         try:
             aa_choice = _prompt("  Choice", choices=["1", "2", "n"], default="n").strip().lower()
@@ -372,42 +534,23 @@ def _prompt_nutrients(existing: dict | None = None) -> dict:
             aa_choice = "n"
         if aa_choice in ("1", "2", "n"):
             break
-
     if aa_choice == "1":
         state.console.print(f"\n  [{state.T['accent']}]— Amino acids (g per 100g food) —[/{state.T['accent']}]")
         state.console.print("  [dim]All are optional. Press Enter to skip, Ctrl+C or 'b' to stop.[/dim]")
         for key, label, unit in _DRAFT_AMINO_ACIDS:
-            current = existing.get(key) if existing else None
-            default_str = f"{current:.5g}" if current is not None else None
-            while True:
-                try:
-                    raw = _prompt(
-                        f"  {label}",
-                        default=default_str if default_str else ""
-                    ).strip()
-                except Cancelled:
-                    return nutrients
-                lower = raw.lower()
-                if lower == "q":
-                    raise SystemExit(0)
-                if lower == "m":
-                    raise ReturnToMain()
-                if lower == "b":
-                    return nutrients
-                if not raw:
-                    if current is not None:
-                        nutrients[key] = current
-                    break
-                try:
-                    nutrients[key] = float(raw)
-                    break
-                except ValueError:
-                    state.console.print(f"    [{state.T['warning']}]Enter a number (or press Enter to skip).[/{state.T['warning']}]")
-
+            if not _prompt_field(key, label, unit, precision=".5g"):
+                return nutrients
     elif aa_choice == "2":
-        protein_g = nutrients.get("protein_g")
-        bulk_result = _bulk_import_aa(protein_g)
+        bulk_result = _bulk_import_aa(nutrients.get("protein_g"))
         nutrients.update(bulk_result)
+
+    # --- Phytonutrients (optional) ---
+    if not _ask_section(
+        "Phytonutrients",
+        "Beta-carotene · Alpha-carotene · Lycopene · Lutein+zeaxanthin · Choline · Beta-sitosterol · Isoflavones",
+        _DRAFT_PHYTO,
+    ):
+        return nutrients
 
     return nutrients
 
@@ -578,17 +721,13 @@ def _do_drafted_foods_menu() -> None:
         _show_menu("Drafted Food Profiles", [
             ("1", "List drafted profiles"),
             ("2", "Create new drafted profile"),
-            ("3", "Delete a drafted profile"),
-            ("4", "Copy a cached food as draft"),
-            ("c", "Go to Food Cache  (edit nutrients there)"),
+            ("3", "Edit a drafted profile"),
+            ("4", "Delete a drafted profile"),
+            ("5", "Copy a cached food as draft"),
             ("b", "Back to Foods menu"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
-        state.console.print(
-            f"\n  [{state.T['warning']}]To edit nutrient data for any food, use the Food Cache (option c).\n"
-            f"  All drafted profiles are visible and editable there.[/{state.T['warning']}]"
-        )
         try:
             choice = _prompt("Choice").strip().lower()
         except Cancelled:
@@ -601,6 +740,24 @@ def _do_drafted_foods_menu() -> None:
             _do_create_drafted_food()
 
         elif choice == "3":
+            rows = _list_drafted_foods()
+            if not rows:
+                continue
+            pick = _ask_int("Pick #")
+            if pick is None:
+                continue
+            if pick < 1 or pick > len(rows):
+                state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
+                continue
+            row = rows[pick - 1]
+            with _db.get_db() as conn:
+                cached = _db.get_cached_food(conn, row["fdc_id"])
+            if cached is None:
+                state.console.print(f"[{state.T['warning']}]Food not found.[/{state.T['warning']}]")
+                continue
+            _do_edit_cached_food(row["fdc_id"], cached)
+
+        elif choice == "4":
             rows = _list_drafted_foods()
             if not rows:
                 continue
@@ -624,12 +781,8 @@ def _do_drafted_foods_menu() -> None:
                     conn.execute("DELETE FROM foods WHERE fdc_id = ? AND user_drafted = 1", (fdc_id,))
                 state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Deleted.")
 
-        elif choice == "4":
+        elif choice == "5":
             _do_copy_cached_food()
-
-        elif choice == "c":
-            from ..workflows.foods import _do_list_cached_foods
-            _do_list_cached_foods()
 
         elif choice == "b":
             return
@@ -645,7 +798,7 @@ def _do_create_drafted_food() -> None:
     state.console.print(
         f"\n  [{state.T['hi']}]Create a drafted food profile[/{state.T['hi']}]\n"
         f"  [dim]Drafted profiles let you build a best-guess nutrient profile for foods\n"
-        f"  lacking complete official data. All values are per 100 g.[/dim]\n"
+        f"  lacking complete official data.[/dim]\n"
     )
     try:
         start = _prompt(
@@ -681,32 +834,65 @@ def _do_create_drafted_food() -> None:
     if not name or name.lower() == "b":
         return
 
-    # Serving size (optional metadata — not used in nutrient calculations)
+    # Supplement / unit-based mode
     try:
-        _srv_unit_hint = f" ({default_serving_unit})" if (default_serving_size and default_serving_unit) else ""
-        srv_raw = _prompt(
-            f"Serving size{_srv_unit_hint}" if default_serving_size else "Serving size  [dim](e.g. 30, or Enter to skip)[/dim]",
-            default=f"{default_serving_size:.0f}" if default_serving_size else ""
-        ).strip()
+        supp_ans = _prompt(
+            "Is this a supplement?  [dim](tablet, capsule, softgel, scoop… — y/N)[/dim]",
+            choices=["y", "n"], default="n"
+        )
     except Cancelled:
-        srv_raw = ""
-    serving_size: float | None = None
-    if srv_raw:
-        try:
-            serving_size = float(srv_raw)
-        except ValueError:
-            pass
+        return
+    is_supplement = (supp_ans == "y")
+    unit_name = "tablet"
+    serving_size: float | None = default_serving_size
+    serving_unit: str | None = default_serving_unit
+    supplement_portions: list = []
 
-    try:
-        serving_unit = _prompt(
-            "Serving unit" if default_serving_unit else "Serving unit  [dim](e.g. g, oz, cup — or Enter to skip)[/dim]",
-            default=default_serving_unit or ""
-        ).strip() or None
-    except Cancelled:
-        serving_unit = None
+    if is_supplement:
+        try:
+            unit_name = _prompt(
+                "Unit name  [dim](Enter for 'tablet' — or: capsule / softgel / pill / scoop)[/dim]",
+                default="tablet"
+            ).strip() or "tablet"
+        except Cancelled:
+            unit_name = "tablet"
+        serving_size = 1.0
+        serving_unit = unit_name
+        supplement_portions = [{"description": f"1 {unit_name}", "gram_weight": 100.0}]
+        state.console.print(
+            f"\n  [{state.T['hi']}]Supplement mode:[/{state.T['hi']}]"
+            f" enter each value as the amount in one [bold]{unit_name}[/bold],"
+            f" exactly as shown on the label."
+        )
+    else:
+        # Serving size (optional metadata)
+        try:
+            _srv_unit_hint = f" ({default_serving_unit})" if (default_serving_size and default_serving_unit) else ""
+            srv_raw = _prompt(
+                f"Serving size{_srv_unit_hint}" if default_serving_size else "Serving size  [dim](e.g. 30, or Enter to skip)[/dim]",
+                default=f"{default_serving_size:.0f}" if default_serving_size else ""
+            ).strip()
+        except Cancelled:
+            srv_raw = ""
+        serving_size = None
+        if srv_raw:
+            try:
+                serving_size = float(srv_raw)
+            except ValueError:
+                pass
+        try:
+            serving_unit = _prompt(
+                "Serving unit" if default_serving_unit else "Serving unit  [dim](e.g. g, oz, cup — or Enter to skip)[/dim]",
+                default=default_serving_unit or ""
+            ).strip() or None
+        except Cancelled:
+            serving_unit = None
 
     # Nutrients
-    nutrients = _prompt_nutrients(existing_nutrients if existing_nutrients else None)
+    nutrients = _prompt_nutrients(
+        existing_nutrients if existing_nutrients else None,
+        unit_label=unit_name if is_supplement else "100g",
+    )
 
     # Note
     try:
@@ -743,16 +929,22 @@ def _do_create_drafted_food() -> None:
             serving_size=serving_size,
             serving_unit=serving_unit,
             nutrients=nutrients,
-            portions=[],
+            portions=supplement_portions,
             user_drafted=True,
             notes=notes,
         )
 
+    per_label = f"per {unit_name}" if is_supplement else "per 100g"
     state.console.print(
         f"\n  [{state.T['success']}]✓[/{state.T['success']}]  Drafted profile saved: "
         f"[bold]{name}[/bold]  (ID {fdc_id})"
     )
+    if is_supplement:
+        state.console.print(
+            f"  [dim]Portion: 1 {unit_name}  ·  "
+            f"When logged in a meal, contributes exactly the values you entered.[/dim]"
+        )
     if nutrients:
-        _print_nutrient_table(nutrients, title=name, per_label="per 100g")
+        _print_nutrient_table(nutrients, title=name, per_label=per_label)
 
 

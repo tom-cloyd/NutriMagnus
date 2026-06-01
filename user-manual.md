@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-05-30*:1824
+*Updated 2026-05-31*:2345
 
 [TOC]
 
@@ -186,11 +186,14 @@ Every food in these online tables has a unique ID number — think of it as a pr
 
 **Edit protection.** Any food you edit manually — through Foods → 6. Food Cache — is marked as user-modified. NutriMagnus will never silently overwrite a user-modified food with a fresh copy from USDA, even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself.
 
-Food enters your Food Cache in three ways:
+**Omega fatty acid tracking.** NutriMagnus tracks four individual omega fatty acids — ALA (plant-based omega-3, found in flaxseed, walnuts, chia), EPA and DHA (marine omega-3, found in fish and seafood), and linoleic acid (the main omega-6, found in vegetable oils and nuts). These appear in the nutrient table whenever USDA data is available. Foods already in your cache that predate this feature are updated automatically the first time you access them — no action needed on your part.
+
+Food enters your Food Cache in four ways:
 
 1. **From USDA** — you search, find a match, and select it. It is instantly saved into your Food Cache.
 2. **From Open Food Facts** — same process; the food is saved the moment you pick it.
-3. **By hand** — you create a custom food profile yourself, entering nutrient values from a product label or research source. These entries go straight into your Food Cache without coming from any online source.
+3. **By barcode** — at any food search prompt, type the 12-digit UPC-A or 13-digit EAN barcode printed on the product (digits only; spaces and hyphens are ignored). NutriMagnus looks the product up on Open Food Facts by barcode, shows you the product name and brand, and asks whether to use it. This is the fastest way to add packaged foods and dietary supplements — many have an Open Food Facts entry but no USDA record.
+4. **By hand** — you create a custom food profile yourself, entering nutrient values from a product label or research source. These entries go straight into your Food Cache without coming from any online source.
 
 In every case, NutriMagnus saves the food's original ID number alongside its data. That ID is the key that allows everything else in the program to refer back to a specific food unambiguously.
 
@@ -217,6 +220,46 @@ Every food's nutrient data lives in exactly one place: the Food Cache. The Draft
 This means: if you edit a food's nutrients in the Food Cache, that change is immediately reflected everywhere — in Drafted Food Profiles, in any recipe using that food, in pantry-based analyses, and in annotations. There is no syncing, no duplication, and no risk of one list getting out of step with another.
 
 **To edit nutrient data for any food, always go to Foods → 6. Food Cache.** The Pantry and Drafted Food Profiles menus remind you of this and offer a shortcut key to jump there directly. Annotations (GI, DIAAS estimates) work the same way: annotate a food once in the Food Cache and the annotation appears everywhere that food is used.
+
+## Entering custom foods and dietary supplements
+
+### Custom (drafted) food profiles
+
+When you need a food that is not in USDA or Open Food Facts — or when the database entry is incomplete — you can create a custom profile via **Foods → 7. Drafted Food Profiles → 2. Create**. The entry wizard walks you through:
+
+- **Name** — what to call this food in searches and meal logs.
+- **Supplement mode** (see below) or normal serving size and unit.
+- **Basic macros** — calories, protein, total fat, carbohydrates, fiber, sugars, saturated fat, mono/poly fats, sodium. These are always prompted.
+- **Minerals** (optional) — calcium, iron, magnesium, phosphorus, potassium, zinc.
+- **Vitamins** (optional) — A, C, D, E, K, B1 (thiamin), B2 (riboflavin), B3 (niacin), B6, B9 (folate), B12. You can type values in IU for vitamins A, D, and E (e.g. `400 IU`) and the program converts them automatically.
+- **Amino acids** (optional) — enter one-by-one or paste in a block from a research table (g per 100g protein — converted automatically).
+- **Phytonutrients** (optional) — beta-carotene, lycopene, lutein, choline, and others.
+- **Note** — document your source or any caveats about the data.
+
+Once saved, the profile appears in all food searches, and can be used in meals and recipes exactly like any other food.
+
+You can list, edit, or delete custom profiles from **Foods → 7. Drafted Food Profiles** at any time.
+
+### Dietary supplements — tablets, capsules, softgels
+
+Vitamins, minerals, and other supplement tablets are sold in per-tablet amounts, not per-100g amounts. NutriMagnus handles this with **supplement mode**: the program stores the per-tablet values internally in a way that means logging "1 tablet" in a meal contributes exactly the amounts on the label — no weighing required.
+
+**How to create a supplement entry:**
+
+1. Go to **Foods → 7. Drafted Food Profiles → 2. Create**.
+2. Enter the product name (e.g. "Vitamin D3 2000 IU" or "Garden of Life Vitamin B12").
+3. When asked "Is this a supplement?" — answer **y**.
+4. Enter the unit name. For most tablets, just press Enter to accept the default (`tablet`). Other accepted values: `capsule`, `softgel`, `pill`, `scoop`.
+5. Enter the nutrient values from the label. Enter them exactly as printed — e.g., if the label says "Vitamin B12: 5000 mcg", enter `5000` at the Vitamin B12 prompt.
+6. For vitamins A, D, and E, the prompt accepts IU directly (e.g. `2000 IU`). The conversion is shown on screen.
+
+When you later log "1 tablet" in a meal, those exact amounts are added to your nutrient totals.
+
+**Tip:** Try a barcode search first (type the 12-digit number on the label at any search prompt). Many supplement products are already in Open Food Facts with complete nutrient data and require no manual entry.
+
+**Converting an old entry to supplement mode:**
+
+If you created a supplement entry before this feature was added, open it via **Foods → 7. Drafted Food Profiles → 3. Edit**. At the start of the edit session, the program asks "Is this a supplement?" — answer yes, confirm the unit name, and the existing nutrient values are preserved. The supplement portion is added automatically so the entry works correctly going forward.
 
 ## How NutriMagnus scores meal and recipe protein quality
 
@@ -341,7 +384,7 @@ Development is focusing at present on coding and validating core features in a c
 
 **Available now:**
 
-- **Richer nutrient information**: In addition to the standard macronutrients and micronutrients, NM tracks several plant bioactive compounds (carotenoids, choline, isoflavones, and others) where USDA data is available. Foods that contain substances known to reduce nutrient absorption are flagged with practical notes on how cooking or preparation reduces their effect.
+- **Richer nutrient information**: In addition to the standard macronutrients and micronutrients, NM tracks several plant bioactive compounds (carotenoids, choline, isoflavones, and others) where USDA data is available. Four individual omega fatty acids are tracked separately — ALA (plant omega-3), EPA and DHA (marine omega-3), and linoleic acid (omega-6) — so you can see not just total polyunsaturated fat but the specific forms your body uses differently. Foods that contain substances known to reduce nutrient absorption are flagged with practical notes on how cooking or preparation reduces their effect.
 
 - **Protein quality score (DIAAS)**: For any food or recipe, NM shows not just how much protein is present but how much your body can realistically use — adjusted for both digestibility and amino acid completeness. This matters especially on a plant-based diet, where raw protein figures routinely overstate what the body actually absorbs.
 
@@ -414,8 +457,8 @@ Aliases also work: ?suggest, ?dietary, ?completeness, ?digestible, etc.
 
 The CACHED FOODS list shows every food you have stored locally. Columns:
 
-    #       Row number. Enter it at the prompt to open options for that food
-            (view nutrients, analyze a portion, edit, annotate, delete, etc.).
+    #       Row number. Use with a command letter to act on that food
+            (see Commands below).
 
     AA      Amino acid data status.
               ✓  Amino acid data is present in your cache for this food.
@@ -423,35 +466,139 @@ The CACHED FOODS list shows every food you have stored locally. Columns:
 
     GI      Your saved glycemic index estimate for this food, if any.
             GI reflects how quickly a food raises blood glucose (scale 0-100).
-            Add or update via option 9 (Annotate) in the Foods menu.
-            Type ?gi for a full explanation.
+            Add or update via e# (Edit food data). Type ?gi for a full explanation.
 
     DIAAS   Your saved DIAAS estimate for this food, if any.
             DIAAS (Digestible Indispensable Amino Acid Score) rates protein
             quality: 1.00 = complete, lower = a limiting amino acid is present.
-            Add or update via option 9 (Annotate). Type ?diaas for details.
+            Add or update via e# (Edit food data). Type ?diaas for details.
 
-    CONF.   Confidence note. Shows "y" when you have attached a note to this
-            food describing your confidence in its data (sources, caveats, etc.).
-            Enter the food's row number and choose "View confidence note" to read it.
+    C       Confidence / source note indicator.
+              ✓  A source or confidence note is saved for this food.
+              —  No note.
+            View the full note with c# (see Commands below).
+
+    N       Curator notes indicator.
+              ✓  Curator notes are saved for this food (typically added by the
+                 Claude data-fetch workflow).
+              —  No curator notes.
+            View with n# (see Commands below).
 
     ID#     Database identifier.
             A plain number = USDA FoodData Central FDC ID.
             "OFF"          = Open Food Facts (community-contributed data).
+            "usr"          = User-drafted (created or edited by hand).
 
-    Name    Food name as stored in your cache.
+    NAME    Food name as stored in your cache.
 
-    Type    Data source within USDA FoodData Central, or OFF for Open Food Facts.
+    TYPE    Data source within USDA FoodData Central, or OFF for Open Food Facts.
               Foundation     — USDA-analyzed reference foods; highest accuracy.
               SR Legacy      — Standard Reference database (pre-2019).
               Survey (FNDDS) — Foods as eaten, used in national dietary surveys.
               Branded        — Manufacturer-submitted data for packaged products.
               OFF            — Open Food Facts (community-contributed).
+              User Drafted   — Created or edited by hand in NutriMagnus.
 
-    Brand   Brand owner, for Branded and OFF foods.
+    BRAND   Brand owner, for Branded and OFF foods.
 
-To refresh a corrupt or outdated cache entry: delete it (d# at the prompt),
+Commands (type the letter followed by the row number, e.g. v3, e12):
+
+    v#      View nutrients for that food (per 100g).
+    n#      Combined view — nutrients + protein completeness + all notes
+            (confidence note and curator notes). Use this when you want to
+            see everything about a food in one screen.
+    c#      View the confidence/source note only.
+    a#      Analyze a portion — choose serving size, then see scaled nutrients.
+    e#      Edit food data — name, serving, nutrients, note, GI/DIAAS annotation.
+    d#      Delete from cache (also d#,# or d# # # for multiple rows).
+    i#      Fetch missing data from Claude — generates a prompt you paste into
+            claude.ai (free). Also i#,# for multiple rows. Type i alone to
+            select every food in the current list that is missing AA data (✗).
+    r       Read Claude's response — import the data saved in ~/claude_response.txt.
+    /text   Filter list by name or brand. Enter / alone to clear the filter.
+    Enter   Re-display the full food list (clears any in-progress filter view).
+
+To refresh a corrupt or outdated cache entry: delete it with d#,
 then search for the food again — it will be re-fetched automatically.
+
+Type ?fetch for step-by-step instructions on the i/r fetch workflow.
+
+
+### Fetching Missing Nutritional Data from Claude [fetch]
+
+Some foods in your cache are missing amino acid data (shown as ✗ in the AA
+column). You can fill this gap using Claude at claude.ai — no paid subscription
+required. The workflow has four steps.
+
+Step 1 — Generate the prompt.
+
+    In the Food Cache list, type i followed by the row numbers of the foods
+    you want data for:
+
+        i30          (one food — row 30)
+        i30,67       (two foods — rows 30 and 67)
+        i            (all foods in the current list that show ✗)
+
+    NutriMagnus writes a prompt to ~/claude_prompt.txt and tells you its
+    full path. (`~` in that file pathname indicates that the file belong
+    in the root of your computer's user account file system.)
+
+Step 2 — Send the prompt to Claude.
+
+    IMPORTANT: Start a brand-new chat at claude.ai for each request.
+    Do NOT reuse a previous chat window. This ensures the copy step
+    below captures only Claude's one response, nothing else.
+
+    Open ~/claude_prompt.txt (any text editor) and copy its entire contents.
+    Go to claude.ai in your browser (a free account is sufficient).
+    Open a new chat, paste the text, and press Enter or click Send.
+
+Step 3 — Save Claude's response.
+
+    When Claude finishes responding, copy ONLY Claude's reply — not the
+    whole page, not your original prompt. The safest method:
+
+        a. Click at the very beginning of Claude's response text.
+        b. Scroll to the absolute end of that response.
+        c. Shift-click at the end to select everything Claude wrote.
+        d. Copy (Ctrl+C or Cmd+C).
+
+    Avoid using the copy button at the bottom of the chat window — that
+    button copies the entire conversation history, not just Claude's reply.
+
+    Open a plain-text editor (TextEdit, gedit, Notepad, etc.), paste, and
+    save the file as:
+
+        ~/claude_response.txt
+
+    NutriMagnus handles both fenced (```json ...) and bare JSON formats.
+    Any explanatory notes Claude adds after the data are saved automatically
+    as curator notes (viewable with n# in the cache list).
+
+Step 4 — Import the data.
+
+    Return to NutriMagnus, go to Foods → Food Cache, and type r.
+    NutriMagnus reads ~/claude_response.txt, shows you a review table
+    (food name, calories, protein, and how many of the 11 amino acids
+    were found), and asks for confirmation before writing anything.
+
+    After a successful import the cache list refreshes automatically.
+    Foods that gained amino acid data will change from ✗ to ✓.
+    Note: some foods (e.g. FNDDS survey records) structurally lack amino
+    acid data in their source database — for those, ✗ is correct even
+    after a successful import of macros and minerals.
+
+Notes:
+- Per-food source and confidence notes are saved in the Confidence Note
+  field (view with c#). Curator notes that apply to the whole batch are
+  saved with every food in that import (view with n#).
+- You can re-run the workflow at any time to update a food's data or add
+  curator notes that were missed; the import safely overwrites the entry.
+- To add curator notes to foods imported in a previous session: paste
+  both the original JSON response and the notes text into
+  ~/claude_response.txt and run r again — it is safe to re-import.
+- If ~/claude_response.txt already exists from a prior session, overwrite
+  it completely before saving a new response.
 
 
 ### Essential Amino Acids [aa]

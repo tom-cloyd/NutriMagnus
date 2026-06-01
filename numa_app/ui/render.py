@@ -77,6 +77,7 @@ def _print_nutrient_table(
         ("Macronutrients", [
             "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
             "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+            "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg",
         ]),
         ("Minerals", [
             "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
@@ -100,7 +101,7 @@ def _print_nutrient_table(
     show_pct = daily_nutrients is not None and rda is not None
 
     _NUT_W = 28
-    tbl = Table(show_header=True, header_style=state.T["accent"], box=None, padding=(0, 2))
+    tbl = Table(show_header=True, header_style=state.T["accent"], box=None, padding=(0, 1))
     tbl.add_column("Nutrient", style="", min_width=_NUT_W, max_width=_NUT_W, no_wrap=True)
     tbl.add_column("Amount", justify="right", min_width=10)
     tbl.add_column("Unit", style="dim", min_width=8)

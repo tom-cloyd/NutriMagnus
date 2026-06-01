@@ -52,6 +52,7 @@ def init_db() -> None:
                 portions_json    TEXT    DEFAULT 'null',
                 user_drafted     INTEGER DEFAULT 0,
                 notes            TEXT,
+                curator_notes    TEXT,
                 cached_at        TEXT    DEFAULT (datetime('now'))
             );
             
@@ -167,7 +168,12 @@ def init_db() -> None:
             conn.execute("ALTER TABLE foods ADD COLUMN notes TEXT")
         except sqlite3.OperationalError:
             pass
-        
+
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN curator_notes TEXT")
+        except sqlite3.OperationalError:
+            pass
+
         try:
             conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN notes TEXT")
         except sqlite3.OperationalError:
@@ -216,16 +222,17 @@ def init_db() -> None:
 def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
                brand: str | None, serving_size: float | None, serving_unit: str | None,
                nutrients: dict[str, float], portions: list[dict] | None = None,
-               *, user_drafted: bool = False, notes: str | None = None) -> None:
+               *, user_drafted: bool = False, notes: str | None = None,
+               curator_notes: str | None = None) -> None:
     conn.execute("""
         INSERT OR REPLACE INTO foods
             (fdc_id, name, data_type, brand, serving_size, serving_unit,
-             nutrients_json, portions_json, user_drafted, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             nutrients_json, portions_json, user_drafted, notes, curator_notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         fdc_id, name, data_type, brand, serving_size, serving_unit,
         json.dumps(nutrients), json.dumps(portions or []),
-        1 if user_drafted else 0, notes or None
+        1 if user_drafted else 0, notes or None, curator_notes or None
     ))
 
 
@@ -237,7 +244,8 @@ def get_cached_food(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None
 
 def list_cached_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, notes "
+        "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
+        "nutrients_json, notes, curator_notes "
         "FROM foods ORDER BY name"
     ).fetchall()
 
@@ -252,12 +260,18 @@ def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Ro
     words = query.split()
     if not words:
         return []
-    conditions = " AND ".join("name LIKE ?" for _ in words)
+    select = "SELECT fdc_id, name, data_type, brand, portions_json, notes FROM foods"
     params = [f"%{w}%" for w in words]
-    return conn.execute(
-        f"SELECT fdc_id, name, data_type, brand, portions_json, notes FROM foods WHERE {conditions} ORDER BY name",
-        params,
+    # All-words match for the general cache
+    and_cond = " AND ".join("name LIKE ?" for _ in words)
+    and_rows = conn.execute(f"{select} WHERE {and_cond} ORDER BY name", params).fetchall()
+    # Any-word match for user-drafted foods — so "vitamin d" finds "D3 50 mcg" etc.
+    or_cond = " OR ".join("name LIKE ?" for _ in words)
+    or_rows = conn.execute(
+        f"{select} WHERE user_drafted = 1 AND ({or_cond}) ORDER BY name", params
     ).fetchall()
+    seen = {r["fdc_id"] for r in and_rows}
+    return list(and_rows) + [r for r in or_rows if r["fdc_id"] not in seen]
 
 
 # ---------------------------------------------------------------------------
@@ -650,6 +664,19 @@ def list_user_drafted_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, notes, cached_at "
         "FROM foods WHERE user_drafted = 1 ORDER BY name"
     ).fetchall()
+
+
+def update_food_nutrients_partial(conn: sqlite3.Connection, fdc_id: int, new_nutrients: dict) -> None:
+    """Merge new_nutrients into an existing food's nutrients_json without touching other fields."""
+    row = conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if not row:
+        return
+    existing = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+    existing.update(new_nutrients)
+    conn.execute(
+        "UPDATE foods SET nutrients_json = ?, cached_at = datetime('now') WHERE fdc_id = ?",
+        (json.dumps(existing), fdc_id),
+    )
 
 
 def update_cached_food_profile(

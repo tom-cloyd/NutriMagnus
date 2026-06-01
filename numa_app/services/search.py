@@ -205,6 +205,19 @@ def _fetch_food_from_result(result: dict) -> dict | None:
         nutrients = json.loads(cached["nutrients_json"])
         pj = cached["portions_json"]
         if nutrients and pj is not None and pj != "null":
+            # Silently backfill omega fatty acids for USDA foods fetched before these were tracked
+            _OMEGA = {"omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"}
+            if (fdc_id > 0 and not cached["user_drafted"]
+                    and not any(k in nutrients for k in _OMEGA)):
+                try:
+                    detail = _usda.get_food_detail(fdc_id)
+                    omega = {k: v for k, v in detail["nutrients"].items() if k in _OMEGA}
+                    if omega:
+                        nutrients.update(omega)
+                        with _db.get_db() as conn:
+                            _db.update_food_nutrients_partial(conn, fdc_id, omega)
+                except Exception:
+                    pass
             return {
                 "fdcId":            cached["fdc_id"],
                 "name":             cached["name"],
@@ -344,7 +357,7 @@ def _search_and_pick_food(
         if query is None:
             _instant_recipes_offered = True  # suppress stale recipe list on re-search
             try:
-                raw = _prompt("Search food  [dim](name or FDC ID · prefix 'a ' for full USDA search)[/dim]").strip()
+                raw = _prompt("Search food  [dim](name · FDC ID · 12/13-digit barcode · 'a ' for full USDA search)[/dim]").strip()
             except Cancelled:
                 return None
             q_lower = raw.lower()
@@ -361,6 +374,68 @@ def _search_and_pick_food(
             else:
                 full_search = False
                 query = raw
+
+        # Barcode detection: 12 or 13 consecutive digits (UPC-A or EAN-13).
+        # Spaces and hyphens are stripped first so "0 12345 67890 1" also works.
+        _bc_digits = re.sub(r'[\s\-]', '', query)
+        if _bc_digits.isdigit() and len(_bc_digits) in (12, 13):
+            state.console.print(f"[dim]Barcode {_bc_digits} — checking cache…[/dim]")
+            _bc_fdc_id = _off.off_id(_bc_digits)
+            with _db.get_db() as _bc_conn:
+                _bc_cached = _db.get_cached_food(_bc_conn, _bc_fdc_id)
+
+            if _bc_cached:
+                _bc_pj = _bc_cached["portions_json"]
+                _bc_detail: dict | None = {
+                    "fdcId":            _bc_cached["fdc_id"],
+                    "name":             _bc_cached["name"],
+                    "dataType":         _bc_cached["data_type"],
+                    "brand":            _bc_cached["brand"],
+                    "servingSize":      _bc_cached["serving_size"],
+                    "servingUnit":      _bc_cached["serving_unit"],
+                    "householdServing": None,
+                    "nutrients":        json.loads(_bc_cached["nutrients_json"]),
+                    "portions":         json.loads(_bc_pj) if _bc_pj else [],
+                    "_from_off":        True,
+                }
+            else:
+                state.console.print(f"[dim]Looking up barcode in Open Food Facts…[/dim]")
+                _bc_detail = _off.lookup_by_barcode(_bc_digits)
+
+            if _bc_detail is None:
+                state.console.print(
+                    f"[{state.T['warning']}]Barcode {_bc_digits} not found in Open Food Facts.[/{state.T['warning']}]"
+                )
+                state.console.print("[dim]Try searching by product name instead.[/dim]")
+                query = None
+                continue
+
+            state.console.print()
+            _bc_src = f"[{state.T['success']}]★ (already in your cache)[/{state.T['success']}]" \
+                      if _bc_cached else "Open Food Facts"
+            state.console.print(f"  [{state.T['hi']}]Barcode {_bc_digits}[/{state.T['hi']}]  —  {_bc_src}")
+            state.console.print(f"  Product: [bold]{_bc_detail['name']}[/bold]")
+            if _bc_detail.get("brand"):
+                state.console.print(f"  Brand:   {_bc_detail['brand']}")
+            state.console.print()
+            try:
+                _bc_ans = _prompt("Use this product?", choices=["y", "n"], default="y")
+            except Cancelled:
+                return None
+            if _bc_ans != "y":
+                state.console.print("[dim]Cancelled — type the product name to search instead.[/dim]")
+                query = None
+                continue
+
+            if not _bc_cached:
+                with _db.get_db() as conn:
+                    _db.cache_food(
+                        conn,
+                        _bc_detail["fdcId"], _bc_detail["name"], _bc_detail["dataType"],
+                        _bc_detail["brand"], _bc_detail["servingSize"], _bc_detail["servingUnit"],
+                        _bc_detail["nutrients"], _bc_detail.get("portions"),
+                    )
+            return _bc_detail
 
         # Pre-search cache before the recipe prompt so cached foods and recipes
         # can be shown together in one combined prompt instead of two separate steps.
@@ -966,6 +1041,18 @@ def _search_and_pick_food(
                 nutrients = json.loads(cached["nutrients_json"])
                 pj = cached["portions_json"]
                 if nutrients and pj is not None and pj != "null":
+                    _OMEGA = {"omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"}
+                    if (fdc_id > 0 and not cached["user_drafted"]
+                            and not any(k in nutrients for k in _OMEGA)):
+                        try:
+                            detail = _usda.get_food_detail(fdc_id)
+                            omega = {k: v for k, v in detail["nutrients"].items() if k in _OMEGA}
+                            if omega:
+                                nutrients.update(omega)
+                                with _db.get_db() as conn:
+                                    _db.update_food_nutrients_partial(conn, fdc_id, omega)
+                        except Exception:
+                            pass
                     return {
                         "fdcId":            cached["fdc_id"],
                         "name":             cached["name"],

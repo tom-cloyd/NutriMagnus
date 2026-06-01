@@ -80,6 +80,26 @@ def _http_get(url: str) -> dict:
         raise OFFError(f"Network error: {e.reason}") from e
 
 
+def lookup_by_barcode(barcode: str) -> dict | None:
+    """Look up a single product by UPC-12 or EAN-13 barcode.
+
+    Returns a food detail dict (same format as get_food_detail()) or None if not found.
+    """
+    barcode = barcode.strip()
+    fdc_id = off_id(barcode)
+    try:
+        data = _http_get(f"{_PRODUCT_URL}/{urllib.parse.quote(barcode)}")
+    except OFFError:
+        return None
+    if data.get("status") != 1 or not data.get("product"):
+        return None
+    p = data["product"]
+    p.setdefault("code", barcode)
+    if not (p.get("product_name") or "").strip():
+        return None
+    return _parse_product(p, fdc_id)
+
+
 def search_foods(query: str, page_size: int = 8) -> list[dict]:
     """
     Search Open Food Facts. Returns a list of result dicts with the same keys

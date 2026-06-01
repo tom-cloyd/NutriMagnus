@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nourishment wizard")**.
 
-UPDATED: 2026-05-30:1824
+UPDATED: 2026-05-31:2359
 ---
 
 ## Table of Contents
@@ -234,11 +234,17 @@ Main Menu  ("NutriMagnus Menu")
 │   │       The table shows an AA column: ✓ = amino acid data in cache,
 │   │       ✗ = USDA-linked but no AA data (research needed), — = name-only entry.
 │   ├── 7. User-drafted food profiles  (custom nutrient profiles)
-│   │       Create, edit, delete, and copy hand-crafted nutrient profiles for
-│   │       foods lacking adequate official data. Profiles live in the local
-│   │       food cache and behave like any other food (portions, recipes, meals).
-│   │       Item 5 "Copy a cached food as draft" copies any cached food (USDA,
-│   │       Open Food Facts, or existing draft) into a new editable draft.
+│   │       Five options: 1=List, 2=Create, 3=Edit, 4=Delete, 5=Copy.
+│   │       Create: start from a USDA food (pre-filled) or from scratch; includes
+│   │       supplement/unit-based mode (tablet, capsule, etc.) so per-label
+│   │       amounts are entered directly without weighing. Full nutrient coverage:
+│   │       macros, minerals, vitamins (with IU auto-conversion for A/D/E), AAs
+│   │       (one-by-one or bulk import), and phytonutrients.
+│   │       Edit: calls the same flow with current values pre-filled; detects
+│   │       supplement mode automatically and asks non-supplement user-drafted
+│   │       foods whether to convert.
+│   │       Copy: copies any cached food (USDA, OFF, or existing draft) into a
+│   │       new editable draft.
 │   │       See "User-drafted food profiles" under Usage Guide.
 │   └── 8. Annotate a cached food  (GI / DIAAS estimates)
 │           Pick any cached food and attach your own estimates for glycemic
@@ -376,7 +382,10 @@ Before showing API search results, the program checks your cache for name matche
 Once you edit a food's nutrients through Food Cache (or create a food manually), it is marked `user_drafted = True`. Any subsequent USDA fetch for the same food — triggered by selecting it from a search results table — will not overwrite a user-drafted entry. Your manual edits, AA patches, and custom notes are permanent unless you explicitly edit or delete them.
 
 **What is stored:**
-Name, data type, brand (if any), serving size and unit, the full nutrient profile (macros, minerals, vitamins, amino acids), and USDA portion data (e.g. "1 cup, chopped"). All nutrient values are per 100 g.
+Name, data type, brand (if any), serving size and unit, the full nutrient profile (macros, minerals, vitamins, amino acids, omega fatty acids), and USDA portion data (e.g. "1 cup, chopped"). All nutrient values are per 100 g.
+
+**Automatic omega fatty acid backfill:**
+When a cached USDA food is selected and its stored nutrients are missing all four omega keys (`omega3_ala_mg`, `omega3_epa_mg`, `omega3_dha_mg`, `omega6_la_mg`), the program silently fetches and merges just those nutrients from the USDA API and updates the cache entry. This happens transparently on first use; subsequent accesses use the updated cache. User-drafted foods are never touched by this backfill.
 
 **Viewing and managing the cache:**
 Starting with the main menu, select **Foods → Food cache** to list every cached food with filter-by-name suppor/act. From there you can view its full nutrient profile, analyze a portion, or delete the entry. Deleting forces a fresh fetch the next time you search for that food — useful if the cached data looks corrupt or outdated.
@@ -459,19 +468,44 @@ When a food lacks complete official data — or when you want to model a modifie
 **Foods → Drafted food profiles → Create new drafted profile**
 
 The creation flow:
-1. Choose to **start from a USDA food** (searches the database and pre-fills all nutrient values, which you then override) or **start from scratch**
-2. Enter a name, optional serving size and unit
-3. Enter nutrient values per 100 g — basic macros (calories, protein, fat, carbs, fiber, sugars, saturated fat, sodium, calcium, iron) and optionally a full amino acid profile
-4. For amino acids, choose one-by-one entry (g per 100g food) or **bulk import** from a literature source: enter `name: value` pairs using full names, 3-letter codes, or 1-letter codes (e.g. `lysine: 4.8`, `lys: 4.8`, or `K: 4.8`). If your source gives values in g per 100g protein rather than g per 100g food, the program converts them automatically using the protein value you entered.
-5. Enter an optional note to document your sources and assumptions
+1. Choose to **start from a USDA food** (searches the database and pre-fills all nutrient values, which you then override) or **start from scratch**.
+2. Enter a name.
+3. **Supplement check** — the program asks "Is this a supplement?" (tablet, capsule, softgel, etc.). If yes, enter the unit name; the entry is stored in supplement mode (see below). If no, enter the serving size and unit normally.
+4. Enter nutrient values — the prompt walks through five sections:
+   - **Basic macros** (always prompted): calories, protein, fat, carbs, fiber, sugars, saturated fat, mono/poly fats, sodium.
+   - **Minerals** (optional, default y if existing data): calcium, iron, magnesium, phosphorus, potassium, zinc.
+   - **Vitamins** (optional): A, C, D, E, K, B1 (thiamin), B2 (riboflavin), B3 (niacin), B6, B9 (folate), B12. Vitamins A, D, and E can be entered in IU — the program converts to mcg/mg automatically and shows the math.
+   - **Amino acids** (optional): one-by-one (g per 100g food), bulk import from literature (g per 100g protein — auto-converted), or skip.
+   - **Phytonutrients** (optional): beta-carotene, alpha-carotene, lycopene, lutein+zeaxanthin, choline, beta-sitosterol, isoflavones.
+5. Enter an optional note to document your sources and assumptions.
 
 Drafted profiles are saved into the food cache with a small negative ID (−1, −2, −3…) displayed as `usr`. They appear at the top of search results (as cached foods always do), are labeled **User Drafted** in the Type column, and can be used anywhere a regular cached food can — portion analysis, recipes, meal logging, complement suggestions. They can be edited or deleted from the same **Drafted food profiles** menu.
+
+#### Supplement / unit-based mode
+
+Vitamins, minerals, and other supplement tablets are sold in per-tablet amounts, not per-100g amounts. Supplement mode solves this: by treating 1 tablet as equivalent to 100g internally, the stored per-100g values exactly equal the per-tablet label values. No weighing is required.
+
+**Creating a supplement:**
+When you answer yes to "Is this a supplement?", the program asks for the unit name (default: `tablet`; other common values: `capsule`, `softgel`, `pill`, `scoop`). Serving size and unit are set automatically (`1 tablet`). Enter nutrient values exactly as printed on the label — e.g., if the label says "Vitamin B12: 5000 mcg per tablet", enter `5000` at the Vitamin B12 prompt. When you later log "1 tablet" in a meal, those exact amounts are added to your nutrient totals.
+
+**Editing an old entry to convert it to supplement mode:**
+Open the entry via **Drafted food profiles → 3. Edit**. If the entry is user-drafted and not already in supplement mode, the program asks "Is this a supplement?" at the start of the edit session. Answer yes and confirm the unit name — the gram_weight=100 portion is added automatically, preserving any nutrient values you already entered.
+
+**IU input for vitamins A, D, and E:**
+Many US supplement labels express these vitamins in International Units. At those prompts, enter the number followed by `IU` (e.g. `400 IU` or `5000iu`). The program converts automatically:
+- Vitamin A: 1 IU = 0.3 mcg RAE
+- Vitamin D: 1 IU = 0.025 mcg
+- Vitamin E (natural d-alpha-tocopherol): 1 IU = 0.67 mg
+
+The conversion math is shown on screen so you can verify it against the label.
 
 ---
 
 ### Searching for a food
 
 Select **Foods → Search food databases**, enter a search term (e.g., "chicken breast"), and pick from the results table. The program fetches the full nutrient profile and caches it locally so subsequent lookups of the same food are instant.
+
+**Barcode search:** At any food search prompt, enter a 12-digit UPC-A or 13-digit EAN barcode (digits only, spaces or hyphens ignored). The program looks the product up on Open Food Facts by barcode, shows the product name and brand, and asks whether to use it. If found, the product is cached and its nutrient data returned exactly as for a name search. Barcode search is the recommended method for dietary supplement labels, which often have an OFF entry while lacking any USDA record.
 
 Every search queries the **local food cache first**, then USDA FoodData Central (and Open Food Facts for unrestricted searches). All results are merged into a single table so you always see every available option in one view.
 
@@ -556,14 +590,15 @@ When no database (USDA or Open Food Facts) provides amino acid data for a food, 
 **Workflow:**
 
 1. Choose to start from a USDA food (pre-fills all available nutrients — you override only the AA fields) or from scratch.
-2. Enter the food name and optional serving size.
-3. Step through basic macros (calories, protein, fat, carbs, fiber, etc.).
-4. Choose how to enter the amino acid profile:
+2. Enter the food name. Answer "no" to the supplement question (this is a whole food).
+3. Enter the serving size and unit.
+4. Step through macros, then optionally minerals, then optionally vitamins.
+5. Choose how to enter the amino acid profile:
    - **1 — one-by-one (g per 100g food):** step through each essential amino acid individually; all are optional.
    - **2 — bulk import (g per 100g protein):** paste or type a list of `name: value` pairs (e.g. `lysine: 4.8`); values are automatically converted to g per 100g food using the protein content you entered in step 3. Accepts full names, 3-letter codes (e.g. `lys`), and 1-letter codes (e.g. `K`). Non-essential amino acids are silently discarded; unrecognized names are flagged. A summary shows stored values with the conversion math.
    - **n — skip:** no amino acid data will be stored.
-5. Enter a **Note** documenting your source (e.g., *"AA profile from Sarwar et al. 1985, J. Food Sci. 50(2)"*). This is the field for source attribution.
-6. The profile is saved with a negative fdc_id and `data_type = "User Drafted"`. It is immediately available as a food in all search, meal, and recipe flows.
+6. Enter a **Note** documenting your source (e.g., *"AA profile from Sarwar et al. 1985, J. Food Sci. 50(2)"*). This is the field for source attribution.
+7. The profile is saved with a negative fdc_id and `data_type = "User Drafted"`. It is immediately available as a food in all search, meal, and recipe flows.
 
 User-drafted profiles can be edited at any time (**User-drafted food profiles → 3. Edit**) and are listed with their notes in the user-drafted profiles table so the source is always visible. Deleting a user-drafted profile removes it from the cache permanently.
 
@@ -977,7 +1012,7 @@ All functions now use `section_title()`, `table_title()`, `table_footer()`, and 
 
 ### `numa_app/services/search.py` — food lookup flow
 
-`_search_and_pick_food()` handles the full food lookup: prompt → search local cache and USDA (and Open Food Facts for unrestricted searches) → merge results cache-first → remove duplicates and rank → display results table → user picks → fetch detail if not cached → cache and return food dict. Reused by every workflow that needs food selected.
+`_search_and_pick_food()` handles the full food lookup: prompt → search local cache and USDA (and Open Food Facts for unrestricted searches) → merge results cache-first → remove duplicates and rank → display results table → user picks → fetch detail if not cached → cache and return food dict. Reused by every workflow that needs food selected. Both cache-return paths include an omega fatty acid backfill check: if the selected food is a non-user-drafted USDA food missing all four omega keys, the program silently fetches and merges them before returning.
 
 The local cache is **always** searched first. The USDA (and OFF) search always runs alongside it — both sources are queried on every search regardless of cache hits. Remote-only items (not already in the cache) are appended without duplicates (matched by `fdc_id`).
 
@@ -1075,15 +1110,15 @@ Contains `_do_recipe_edit()` (menu option 4 "Edit recipe"). Supports back-naviga
 
 Contains the Foods menu dispatch and the search/analyze/convert/cached-food-viewer handlers. Imports `_do_edit_cached_food` and `_do_drafted_foods_menu` from `drafted_foods.py`.
 
-### `numa_app/workflows/drafted_foods.py` — cache editing and drafted profiles (~570 lines)
+### `numa_app/workflows/drafted_foods.py` — cache editing and drafted profiles (~620 lines)
 
-`_do_edit_cached_food(fdc_id, cached)` edits any cached food (USDA, OFF, or user-drafted): name, serving metadata, all nutrients (pre-filled from existing values), and a note. After saving, marks the entry `user_drafted=True` so automatic AA re-fetches will not overwrite the changes. Preserves original USDA portion data.
+`_do_edit_cached_food(fdc_id, cached)` edits any cached food (USDA, OFF, or user-drafted): name, serving metadata, all nutrients (pre-filled from existing values), and a note. After saving, marks the entry `user_drafted=True` so automatic AA re-fetches will not overwrite the changes. Preserves original USDA portion data. Auto-detects supplement mode (single portion with `gram_weight=100`); for user-drafted foods not yet in supplement mode, asks at the start of the edit session whether to convert.
 
-`_prompt_nutrients(existing)` interactively prompts for all nutrient values per 100g, pre-filled from an existing dict. Offers three amino acid entry modes: one-by-one, bulk import (name: value pairs), or skip.
+`_prompt_nutrients(existing, unit_label)` interactively prompts for all nutrient values per 100g (or per tablet/capsule/etc. when `unit_label` is set). Walks through five optional sections: basic macros (always), minerals, vitamins, amino acids (three modes: one-by-one, bulk import, or skip), and phytonutrients. For vitamins A, D, and E, IU input is accepted and auto-converted to the program's native mcg/mg units. In supplement mode, the intro explains the label-entry convention so naive users are not confused by the "per 100g" framing.
 
 `_bulk_import_aa(protein_g)` accepts amino acid values as `name: value` pairs (full name, 3-letter, or 1-letter codes). If `protein_g` is provided, converts from g/100g-protein to g/100g-food automatically. Classifies each entry as stored, non-essential (skipped with note), or unrecognized (warning).
 
-`_do_drafted_foods_menu()` / `_do_create_drafted_food()` — drafted-profile management. Create supports starting from a USDA food (pre-fills all values) or from scratch. Drafted profiles are saved with small negative `fdc_id` values (−1, −2, …) and `user_drafted=True`. Nutrient editing is not exposed here — the menu redirects to Food Cache, which calls `_do_edit_cached_food()` directly.
+`_do_drafted_foods_menu()` / `_do_create_drafted_food()` — drafted-profile management. The menu offers five options: List, Create, Edit, Delete, and Copy. Create supports starting from a USDA food (pre-fills all values) or from scratch, and includes a supplement/unit-based mode question. Edit calls `_do_edit_cached_food()` directly, which handles supplement detection and the conversion question. Drafted profiles are saved with small negative `fdc_id` values (−1, −2, …) and `user_drafted=True`.
 
 ### `numa_app/workflows/settings.py` — settings menu, profile, and RDA
 
@@ -1429,6 +1464,24 @@ The original design specified three phases. Phase 1 is complete.
 - **DCP warning note**: a dim note is printed after the missing-ingredient list reminding the user that non-protein ingredients (spices, oil, salt) can safely be ignored in the warning.
 - **Report file path color**: path strings in the auto-save and previous-reports display are now rendered in `thistle1` (light lavender) instead of `dim`, which was unreadable on dark terminal backgrounds.
 
+**Item 18: Omega fatty acid tracking and automatic backfill — Coded ✓**  *(2026-05-31)*
+
+- Four individual omega fatty acid keys added to `NUTRIENT_MAP`: `omega3_ala_mg` (ALA, plant-based; USDA ID 1404), `omega3_epa_mg` (EPA, marine; 1278), `omega3_dha_mg` (DHA, marine; 1272), `omega6_la_mg` (linoleic acid; 1269). USDA reports these in grams; `_parse_food` multiplies by 1000 on fetch to store and display in mg.
+- All four appear in the Macronutrients group of the nutrient display table, after polyunsaturated fat, whenever data is present.
+- Added to `_DRAFT_MACROS` so custom food entry prompts them after poly fat.
+- **Automatic backfill**: both cache-return paths in `search.py` (`_fetch_food_from_result` and the main pick loop) check whether the selected USDA food is missing all four omega keys. If so, a silent USDA fetch is made, only the omega values are merged into `nutrients_json` via `db.update_food_nutrients_partial()`, and the updated nutrients are returned. Happens once per food; subsequent accesses use the cached data. User-drafted foods are never touched.
+
+**Item 17: Supplement mode, full nutrient coverage, and barcode search — Coded ✓**  *(2026-05-31)*
+
+- **Supplement / unit-based mode** added to both Create and Edit flows in Drafted Food Profiles. Treating 1 tablet = 100g internally means stored per-100g values equal per-tablet label values exactly — no weighing required. Supplement entries store a single portion `{"description": "1 tablet", "gram_weight": 100.0}` so "1 tablet" in a meal contributes those exact amounts.
+- **Edit flow supplement detection**: `_do_edit_cached_food` auto-detects supplement mode (single portion with `gram_weight=100`). For user-drafted foods not yet in supplement mode, it asks at the start of the session whether to convert; existing nutrient values are preserved as-is and the gram_weight=100 portion is added.
+- **Supplement intro text**: When entering nutrient values in supplement mode, a clear explanation is shown: values should be entered as on the label; no weighing needed; logging "1 tablet" in a meal contributes exactly those amounts.
+- **Full vitamin and mineral coverage**: `_prompt_nutrients` now walks through all 11 vitamins (A, C, D, E, K, B1, B2, B3, B6, B9, B12), 6 minerals (Ca, Fe, Mg, P, K, Zn), and 7 phytonutrients as optional sections. Previously only macros, sodium, Ca, and Fe were prompted.
+- **IU auto-conversion**: at vitamins A, D, and E prompts, input ending in `IU` is auto-converted (A: ×0.3 mcg RAE; D: ×0.025 mcg; E: ×0.67 mg). The conversion math is printed for verification.
+- **Edit option in Drafted Food Profiles menu**: option 3 is now Edit (was absent; editing previously required navigating to Food Cache). Delete moved to 4, Copy to 5.
+- **Barcode search**: at any food search prompt, a 12-digit UPC-A or 13-digit EAN barcode (digits only) triggers an Open Food Facts barcode lookup. The product name and brand are shown and the user confirms before caching. Recommended for supplement labels which rarely have USDA records.
+- **Food Cache C/N indicator columns**: replaced the wide "Confidence Note" text column with two single-character indicator columns — `C` (source/confidence note present) and `N` (curator notes present). Commands updated: `v#` shows nutrients only, `c#` shows confidence note only, `n#` shows nutrients + protein completeness + both notes (combined view).
+
 **Remaining Phase 2 items — Planned**
 
 - Development of a slightly modified version that will run on Windows operating systems. (The developmental version is Linux-only.)
@@ -1439,7 +1492,6 @@ The original design specified three phases. Phase 1 is complete.
 ### Phase 3 — Planned
 
 - Replacement of external editor with internal one - v. `2026-04-13-numa-system-editor-versus-python-replacement` for details
-?-Barcode scanning for packaged foods
 - ?-Integration with smart kitchen devices
 - ?-API for third-party app integration
 - Machine learning components for dietary recommendations

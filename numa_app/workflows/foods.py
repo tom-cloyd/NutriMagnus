@@ -3,6 +3,8 @@ foods.py — Foods menu: food search, portion analysis, unit conversion, and cac
 Docs: README-numa-documentation.md, Architecture: "numa_app/workflows/foods.py — Foods menu"
 """
 import json
+import pathlib
+import re
 from rich.table import Table
 
 from .. import state
@@ -291,7 +293,7 @@ _COMPARE_GROUPS: list[tuple[str, list[str]]] = [
 
 
 def _print_food_comparison(entries: list[dict]) -> None:
-    """Render side-by-side nutrient table for 2–4 foods."""
+    """Render side-by-side nutrient table for 2–8 foods."""
     N = len(entries)
     _NUT_W = 26
 
@@ -338,8 +340,8 @@ def _print_food_comparison(entries: list[dict]) -> None:
 
 
 def _do_compare_foods() -> None:
-    """Collect up to 4 foods or recipe portions and display a side-by-side nutrient table."""
-    MAX = 4
+    """Collect up to 8 foods or recipe portions and display a side-by-side nutrient table."""
+    MAX = 8
     entries: list[dict] = []  # {"name": str, "label": str, "nutrients": dict[str, float]}
     last_results: list[dict] = []  # food result dicts from the most recent search
 
@@ -442,6 +444,369 @@ def _do_compare_foods() -> None:
 # Cached food viewer / editor
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Claude nutrition-data fetch / import
+# ---------------------------------------------------------------------------
+
+_CLAUDE_PROMPT_FILE   = pathlib.Path.home() / "claude_prompt.txt"
+_CLAUDE_RESPONSE_FILE = pathlib.Path.home() / "claude_response.txt"
+
+_CLAUDE_META_KEYS = {"name", "fdc_id", "fdc_type", "source", "confidence_note"}
+
+_CLAUDE_VALID_KEYS: set[str] = {
+    "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
+    "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+    "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
+    "potassium_mg", "sodium_mg", "zinc_mg",
+    "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+    "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
+    "b6_mg", "folate_mcg", "b12_mcg",
+    "beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
+    "lutein_zeaxanthin_mcg", "choline_mg", "beta_sitosterol_mg", "isoflavones_mg",
+    "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
+    "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
+    "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g",
+}
+_CLAUDE_AA_KEYS = {k for k in _CLAUDE_VALID_KEYS if k.startswith("aa_")}
+_CLAUDE_VALID_FDC_TYPES = {
+    "Foundation", "SR Legacy", "Branded", "Survey (FNDDS)", "User Drafted", "OFF",
+}
+
+_CLAUDE_PROMPT_TEMPLATE = """\
+I need complete nutritional data for {n} food(s), formatted as JSON for direct import into a Python nutrition app.
+
+For EACH food, output a SEPARATE fenced JSON block (```json ... ```) with this exact structure — metadata keys first, then all available nutrient keys:
+
+```json
+{{
+  "name": "Full food name",
+  "fdc_id": 123456,
+  "fdc_type": "SR Legacy",
+  "source": "USDA FoodData Central FDC 123456 (measured values)",
+  "confidence_note": "Brief note on data quality and any estimates made",
+  "calories": 0,
+  "protein_g": 0
+}}
+```
+
+All nutrient values are per 100 g edible portion. Use exactly these key names (omit any key whose value is genuinely unknown — never substitute 0 for unknown):
+
+    calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
+    saturated_fat_g, mono_fat_g, poly_fat_g,
+    calcium_mg, iron_mg, magnesium_mg, phosphorus_mg,
+    potassium_mg, sodium_mg, zinc_mg,
+    vitamin_a_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
+    vitamin_k_mcg, thiamin_mg, riboflavin_mg, niacin_mg,
+    b6_mg, folate_mcg, b12_mcg,
+    beta_carotene_mcg, alpha_carotene_mcg, lycopene_mcg,
+    lutein_zeaxanthin_mcg, choline_mg, beta_sitosterol_mg, isoflavones_mg,
+    aa_tryptophan_g, aa_threonine_g, aa_isoleucine_g, aa_leucine_g,
+    aa_lysine_g, aa_methionine_g, aa_cystine_g, aa_phenylalanine_g,
+    aa_tyrosine_g, aa_valine_g, aa_histidine_g
+
+Critical rules:
+1. Amino acid values are per 100 g FOOD, in grams (not mg, not per g protein).
+2. aa_methionine_g and aa_cystine_g are always separate keys — never combined.
+3. aa_phenylalanine_g and aa_tyrosine_g are always separate keys — never combined.
+4. Omit any key where the value is genuinely unknown; do not estimate 0.
+5. For true zeros (e.g. vitamin B12 in plant foods), include the key explicitly with value 0.
+6. Source hierarchy: prefer USDA FoodData Central (cite FDC ID), then USDA SR Legacy (cite FDC ID), then peer-reviewed literature (cite paper), then estimate (flag clearly in confidence_note).
+7. fdc_type must be exactly one of: "Foundation", "SR Legacy", "Branded", "Survey (FNDDS)", "User Drafted".
+8. If scaling from a non-100 g reference portion, show the calculation in confidence_note.
+
+Foods ({n} total — USDA FDC IDs provided where known):
+{food_list}"""
+
+
+def _claude_parse_response(text: str) -> tuple[list[dict], str | None]:
+    """Parse Claude's response into (food_blocks, curator_text).
+
+    Handles fenced ```json blocks and bare JSON objects. Any non-JSON text
+    (curator notes, recommendations, caveats) is returned as curator_text.
+    """
+    blocks: list[dict] = []
+    spans: list[tuple[int, int]] = []  # character spans of JSON content to strip
+
+    # Primary: fenced ```json ... ``` blocks
+    for m in re.finditer(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL):
+        try:
+            obj = json.loads(m.group(1))
+            if isinstance(obj, dict):
+                blocks.append(obj)
+                spans.append((m.start(), m.end()))
+        except json.JSONDecodeError as exc:
+            preview = m.group(1)[:60].replace("\n", " ")
+            state.console.print(
+                f"  [{state.T['warning']}]JSON parse error in fenced block: {preview!r} ({exc})[/{state.T['warning']}]"
+            )
+
+    if not blocks:
+        # Fallback: bare JSON objects — brace-match to find each top-level { }
+        state.console.print("  [dim]No fenced JSON blocks found — scanning for bare JSON objects…[/dim]")
+        i = 0
+        while i < len(text):
+            if text[i] != "{":
+                i += 1
+                continue
+            depth, in_str, esc, j = 0, False, False, i
+            while j < len(text):
+                ch = text[j]
+                if esc:
+                    esc = False
+                elif ch == "\\" and in_str:
+                    esc = True
+                elif ch == '"':
+                    in_str = not in_str
+                elif not in_str:
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            try:
+                                obj = json.loads(text[i : j + 1])
+                                if isinstance(obj, dict) and "fdc_id" in obj:
+                                    blocks.append(obj)
+                                    spans.append((i, j + 1))
+                            except json.JSONDecodeError:
+                                pass
+                            break
+                j += 1
+            i = j + 1
+
+    # Extract non-JSON text (curator notes) by removing JSON spans
+    curator_text: str | None = None
+    if spans:
+        remaining = text
+        for start, end in sorted(spans, reverse=True):
+            remaining = remaining[:start] + remaining[end:]
+        lines = [ln for ln in remaining.split("\n") if ln.strip()]
+        curator_text = "\n".join(lines).strip() or None
+
+    return blocks, curator_text
+
+
+def _claude_validate_block(block: dict, idx: int) -> dict | None:
+    """Validate and clean one food block. Returns cleaned dict or None on fatal error."""
+    name   = block.get("name")
+    fdc_id = block.get("fdc_id")
+
+    if not name:
+        state.console.print(f"  [{state.T['warning']}]Block {idx}: missing 'name' — skipped.[/{state.T['warning']}]")
+        return None
+
+    if isinstance(fdc_id, str):
+        try:
+            fdc_id = int(fdc_id)
+        except ValueError:
+            fdc_id = None
+    if not isinstance(fdc_id, int):
+        state.console.print(
+            f"  [{state.T['warning']}]Block {idx} ({name!r}): missing/invalid 'fdc_id' — skipped.[/{state.T['warning']}]"
+        )
+        return None
+
+    fdc_type = block.get("fdc_type", "User Drafted")
+    if fdc_type not in _CLAUDE_VALID_FDC_TYPES:
+        state.console.print(
+            f"  [{state.T['warning']}]Block {idx} ({name!r}): unknown fdc_type {fdc_type!r} — using 'User Drafted'.[/{state.T['warning']}]"
+        )
+        fdc_type = "User Drafted"
+
+    nutrients: dict[str, float] = {}
+    stripped: list[str] = []
+    for k, v in block.items():
+        if k in _CLAUDE_META_KEYS:
+            continue
+        if k in _CLAUDE_VALID_KEYS:
+            if isinstance(v, (int, float)):
+                nutrients[k] = float(v)
+            else:
+                state.console.print(
+                    f"  [{state.T['warning']}]Block {idx} ({name!r}): {k!r} is non-numeric — skipped.[/{state.T['warning']}]"
+                )
+        else:
+            stripped.append(k)
+
+    if stripped:
+        state.console.print(
+            f"  [dim]Block {idx} ({name!r}): stripped unrecognised keys: {', '.join(stripped)}[/dim]"
+        )
+
+    return {
+        "name":            name,
+        "fdc_id":          fdc_id,
+        "fdc_type":        fdc_type,
+        "source":          block.get("source"),
+        "confidence_note": block.get("confidence_note"),
+        "nutrients":       nutrients,
+    }
+
+
+def _claude_build_notes(food: dict) -> str | None:
+    parts = []
+    if food.get("source"):
+        parts.append(f"Source: {food['source']}")
+    if food.get("confidence_note"):
+        parts.append(f"Confidence: {food['confidence_note']}")
+    return "  |  ".join(parts) if parts else None
+
+
+def _do_claude_fetch(foods: list, rest: str) -> None:
+    """Generate a Claude prompt for selected or AA-incomplete foods."""
+    s, e, w = state.T["success"], state.T["error"], state.T["warning"]
+
+    if rest:
+        try:
+            indices = [int(p) - 1 for p in rest.replace(",", " ").split()]
+            if not indices:
+                raise ValueError
+        except ValueError:
+            state.console.print(f"  [{w}]Use i# or i#,# — e.g. i3  i1,4,7[/{w}]")
+            return
+        out_of_range = [i + 1 for i in indices if i < 0 or i >= len(foods)]
+        if out_of_range:
+            state.console.print(f"  [{w}]Out of range: {out_of_range}[/{w}]")
+            return
+        selected = [(foods[i]["fdc_id"], foods[i]["name"]) for i in indices]
+    else:
+        # No numbers: find all foods in current view missing AA data and confirm
+        candidates = [
+            (f["fdc_id"], f["name"]) for f in foods
+            if not _usda.has_amino_acid_data(json.loads(f["nutrients_json"]))
+        ]
+        if not candidates:
+            state.console.print(f"  [{s}]All foods in the current list already have amino acid data.[/{s}]")
+            return
+        state.console.print(
+            f"\n  {len(candidates)} food(s) in the current list are missing amino acid data:\n"
+        )
+        for fdc_id, name in candidates:
+            tag = str(fdc_id) if fdc_id else "no FDC ID"
+            state.console.print(f"    [{tag}]  {name}")
+        state.console.print()
+        state.console.print(
+            "  [dim]Tip: use /filter to narrow the list first, then type i to "
+            "fetch only the foods you want.[/dim]"
+        )
+        try:
+            ans = _prompt("  Generate prompt for all of these?", choices=["y", "n"], default="n")
+        except Cancelled:
+            return
+        if ans != "y":
+            state.console.print("  [dim]Cancelled — use i# to select specific foods instead.[/dim]")
+            return
+        selected = candidates
+
+    lines = "\n".join(
+        f"    {fdc_id}  {name}" if fdc_id else f"    (no FDC ID)  {name}"
+        for fdc_id, name in selected
+    )
+    prompt = _CLAUDE_PROMPT_TEMPLATE.format(n=len(selected), food_list=lines)
+    _CLAUDE_PROMPT_FILE.write_text(prompt, encoding="utf-8")
+
+    state.console.print()
+    state.console.print(f"  [{s}]✓[/{s}]  Prompt written to: [bold]{_CLAUDE_PROMPT_FILE}[/bold]")
+    state.console.print()
+    state.console.print("  Next steps:")
+    state.console.print("    [bold]1.[/bold]  Open that file and copy its entire contents.")
+    state.console.print("    [bold]2.[/bold]  Go to [bold]claude.ai[/bold] — open a [bold]new chat[/bold] (not an existing one),")
+    state.console.print("           paste the prompt, and send.")
+    state.console.print("    [bold]3.[/bold]  When Claude finishes, select its reply text manually")
+    state.console.print("           (click at the start, shift-click at the end).")
+    state.console.print("           [dim]Do NOT use the chat copy button — it copies the whole conversation.[/dim]")
+    state.console.print("           Paste into a text editor and save as:")
+    state.console.print(f"           [bold]{_CLAUDE_RESPONSE_FILE}[/bold]")
+    state.console.print("    [bold]4.[/bold]  Return here and type [bold]r[/bold] to import the data.")
+    state.console.print(f"  [dim]Type ?fetch for full instructions.[/dim]")
+    state.console.print()
+
+
+def _do_claude_import() -> None:
+    """Import nutritional data from a saved Claude response file."""
+    s, e, w = state.T["success"], state.T["error"], state.T["warning"]
+
+    if not _CLAUDE_RESPONSE_FILE.exists():
+        state.console.print(f"  [{w}]File not found: {_CLAUDE_RESPONSE_FILE}[/{w}]")
+        state.console.print("  Save Claude’s response as that file, then type [bold]r[/bold] again.")
+        return
+
+    text = _CLAUDE_RESPONSE_FILE.read_text(encoding="utf-8")
+    raw_blocks, curator_text = _claude_parse_response(text)
+
+    if not raw_blocks:
+        state.console.print(f"  [{e}]No JSON blocks found in the response file.[/{e}]")
+        state.console.print("  Make sure the file was saved in full and contains ```json blocks.")
+        return
+
+    state.console.print(f"\n  Found {len(raw_blocks)} JSON block(s). Validating…")
+    valid: list[dict] = []
+    for i, block in enumerate(raw_blocks, 1):
+        result = _claude_validate_block(block, i)
+        if result:
+            valid.append(result)
+
+    if curator_text:
+        state.console.print(
+            f"\n  [{state.T['hi']}]Curator notes found[/{state.T['hi']}]"
+            f" [dim](will be stored with each imported food — view with n#)[/dim]"
+        )
+
+    if not valid:
+        state.console.print(f"  [{e}]No valid food records after validation.[/{e}]")
+        return
+
+    # Review table
+    tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+    tbl.add_column("Name",   min_width=42)
+    tbl.add_column("FDC ID", justify="right", min_width=9)
+    tbl.add_column("Cal",    justify="right", min_width=5)
+    tbl.add_column("Prot g", justify="right", min_width=6)
+    tbl.add_column("AAs",    justify="right", min_width=5)
+    for f in valid:
+        n = f["nutrients"]
+        aa_n = sum(1 for k in _CLAUDE_AA_KEYS if k in n)
+        tbl.add_row(
+            f["name"][:42],
+            str(f["fdc_id"]),
+            str(int(n.get("calories", 0))),
+            f"{n.get('protein_g', 0):.1f}",
+            f"{aa_n}/11",
+        )
+    from ..ui.common import table_title
+    table_title("FOODS TO IMPORT", f"[dim]{len(valid)} food(s) from Claude response[/dim]")
+    state.console.print(tbl)
+    state.console.print()
+
+    try:
+        ans = _prompt(f"  Import {len(valid)} food(s) into cache?", choices=["y", "n"], default="n")
+    except Cancelled:
+        return
+    if ans != "y":
+        state.console.print("  [dim]Import cancelled.[/dim]")
+        return
+
+    with _db.get_db() as conn:
+        for f in valid:
+            _db.cache_food(
+                conn,
+                fdc_id=f["fdc_id"],
+                name=f["name"],
+                data_type=f["fdc_type"],
+                brand=None,
+                serving_size=None,
+                serving_unit=None,
+                nutrients=f["nutrients"],
+                notes=_claude_build_notes(f),
+                curator_notes=curator_text,
+            )
+
+    state.console.print(
+        f"  [{s}]✓[/{s}]  Imported {len(valid)} food(s). "
+        "The cache list will refresh now."
+    )
+
+
 def _do_annotate_food() -> None:
     """Foods menu entry: pick a cached food and open the annotation editor."""
     filter_text: str | None = None
@@ -507,6 +872,7 @@ def _do_annotate_food() -> None:
 
 def _do_list_cached_foods() -> None:
     filter_text: str | None = None
+    show_table = True
     while True:
         with _db.get_db() as conn:
             all_foods = _db.list_cached_foods(conn)
@@ -521,71 +887,113 @@ def _do_list_cached_foods() -> None:
         else:
             foods = list(all_foods)
 
-        fdc_ids = [f["fdc_id"] for f in foods]
-        with _db.get_db() as conn:
-            ann_map = _db.annotations_for_fdcids(conn, fdc_ids)
-
         s, e = state.T["success"], state.T["error"]
 
-        _NAME_W  = 55
-        _BRAND_W = 20
-        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-        tbl.add_column("#",      justify="right", min_width=3)
-        tbl.add_column("AA",     min_width=3, justify="center")
-        tbl.add_column("GI",     min_width=4, justify="right")
-        tbl.add_column("DIAAS",  min_width=5, justify="right")
-        tbl.add_column("CONF.",  min_width=5, justify="center")
-        tbl.add_column("ID#",    justify="right", min_width=7)
-        tbl.add_column("Name",   min_width=_NAME_W)
-        tbl.add_column("Type",   min_width=14)
-        tbl.add_column("Brand",  min_width=_BRAND_W)
-        for i, f in enumerate(foods, 1):
-            nutrients = json.loads(f["nutrients_json"])
-            aa_cell = (f"[{s}]✓[/{s}]" if _usda.has_amino_acid_data(nutrients)
-                       else f"[{e}]✗[/{e}]")
-            ann = ann_map.get(f["fdc_id"])
-            gi_cell = (f"[{s}]{ann['gi_estimate']:.0f}[/{s}]"
-                       if ann and ann["gi_estimate"] is not None else "[dim]——[/dim]")
-            diaas_cell = (f"[{s}]{ann['diaas_estimate']:.2f}[/{s}]"
-                          if ann and ann["diaas_estimate"] is not None else "[dim]——[/dim]")
-            conf_cell = "y" if f["notes"] else ""
-            tbl.add_row(str(i), aa_cell, gi_cell, diaas_cell, conf_cell,
-                        _id_cell(f["fdc_id"]),
-                        dot_cell(f["name"], _NAME_W), f["data_type"] or "",
-                        dot_cell(f["brand"], _BRAND_W) if f["brand"] else "")
+        if show_table:
+            fdc_ids = [f["fdc_id"] for f in foods]
+            with _db.get_db() as conn:
+                ann_map = _db.annotations_for_fdcids(conn, fdc_ids)
 
-        if filter_text:
-            table_title("CACHED FOODS",
-                        f"[dim]{len(foods)} match for '[bold]{filter_text}[/bold]' "
-                        f"({len(all_foods)} total) — enter / to clear filter[/dim]")
+            _NAME_W  = 42
+            _BRAND_W = 14
+            tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+            tbl.add_column("#",     justify="right", min_width=3)
+            tbl.add_column("AA",    min_width=3, justify="center")
+            tbl.add_column("GI",    min_width=3, justify="right")
+            tbl.add_column("DIAAS", min_width=5, justify="right")
+            tbl.add_column("ID#",   justify="right", min_width=7)
+            tbl.add_column("NAME",  min_width=_NAME_W)
+            tbl.add_column("TYPE",  min_width=4)
+            tbl.add_column("BRAND", min_width=_BRAND_W)
+            tbl.add_column("C",     min_width=3, justify="center")
+            tbl.add_column("N",     min_width=3, justify="center")
+            for i, f in enumerate(foods, 1):
+                nutrients = json.loads(f["nutrients_json"])
+                aa_cell = (f"[{s}]✓[/{s}]" if _usda.has_amino_acid_data(nutrients)
+                           else f"[{e}]✗[/{e}]")
+                ann = ann_map.get(f["fdc_id"])
+                gi_cell = (f"[{s}]{ann['gi_estimate']:.0f}[/{s}]"
+                           if ann and ann["gi_estimate"] is not None else "—")
+                diaas_cell = (f"[{s}]{ann['diaas_estimate']:.2f}[/{s}]"
+                              if ann and ann["diaas_estimate"] is not None else "—")
+                c_cell = f"[{s}]✓[/{s}]" if f["notes"] else "—"
+                n_cell = f"[{s}]✓[/{s}]" if f["curator_notes"] else "—"
+                tbl.add_row(str(i), aa_cell, gi_cell, diaas_cell,
+                            _id_cell(f["fdc_id"]),
+                            dot_cell(f["name"], _NAME_W), f["data_type"] or "",
+                            dot_cell(f["brand"] or "", _BRAND_W),
+                            c_cell, n_cell)
+
+            if filter_text:
+                table_title("CACHED FOODS",
+                            f"[dim]{len(foods)} match for '[bold]{filter_text}[/bold]' "
+                            f"({len(all_foods)} total) — enter / to clear filter[/dim]")
+            else:
+                table_title("CACHED FOODS",
+                            f"[dim]{len(all_foods)} foods — enter /text to filter by name[/dim]")
+
+            state.console.print(tbl)
+            table_footer(
+                f"  [dim]C = source/confidence note  ·  N = curator notes  ·  {ID_KEY}[/dim]"
+            )
+            help_footer("cached", "fetch")
+
+            state.console.print()
+            state.console.print(f"  [{state.T['hi']}]Options:[/{state.T['hi']}]")
+            state.console.print( "    [bold]v[/bold]    View nutrients only          [dim](e.g. v3)[/dim]")
+            state.console.print( "    [bold]n[/bold]    View nutrients + all notes   [dim](e.g. n3 — nutrients, source, curator)[/dim]")
+            state.console.print( "    [bold]c[/bold]    Confidence/source note only  [dim](e.g. c3)[/dim]")
+            state.console.print( "    [bold]a[/bold]    Analyze portion              [dim](e.g. a3)[/dim]")
+            state.console.print( "    [bold]e[/bold]    Edit food data               [dim](e.g. e3)[/dim]")
+            state.console.print( "    [bold]d[/bold]    Delete from cache            [dim](e.g. d3  d1,4,7)[/dim]")
+            state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [dim](e.g. i3  i1,4,7 — ?fetch for help)[/dim]")
+            state.console.print( "    [bold]r[/bold]    Read Claude response         [dim](import ~/claude_response.txt)[/dim]")
+            state.console.print( "    [bold]l[/bold]    List  [dim](re-display this table)[/dim]")
+            state.console.print( "    [dim]/ to filter  ·  Enter=re-list  ·  b=back  m=main  q=quit[/dim]")
+            show_table = False
         else:
-            table_title("CACHED FOODS",
-                        f"[dim]{len(all_foods)} foods — enter /text to filter by name[/dim]")
-
-        state.console.print(tbl)
-        help_footer("cached")
+            if filter_text:
+                state.console.print(
+                    f"\n  [dim]Cache — {len(foods)} of {len(all_foods)} foods"
+                    f" · filter: '{filter_text}'"
+                    f" · v# c# n# a# e# d# i# r · l=list · /filter · b=back[/dim]"
+                )
+            else:
+                state.console.print(
+                    f"\n  [dim]Cache — {len(all_foods)} foods"
+                    f" · v# c# n# a# e# d# i# r · l=list · /filter · b=back[/dim]"
+                )
 
         try:
-            raw = _prompt("(Enter # to see options, d#[,#…] to delete, /[food name] to filter, b=back, m=main, q=quit)").strip()
+            raw = _prompt("  Command", free_text=True).strip()
         except Cancelled:
             return
 
         raw_lower = raw.lower()
-        if not raw or raw_lower == "b":
+        if raw_lower == "b":
             return
+        if not raw:
+            show_table = True
+            continue
         if raw_lower == "m":
             raise ReturnToMain()
         if raw_lower == "q":
             raise SystemExit(0)
+        if raw_lower == "l":
+            show_table = True
+            continue
         if raw.startswith("/"):
             filter_text = raw[1:].strip() or None
+            show_table = True
             continue
 
-        # Delete command: d1  d1,3  d1 3 5  (space or comma separators)
-        if raw_lower.startswith("d") and len(raw_lower) > 1:
-            rest = raw_lower[1:].replace(",", " ")
+        cmd  = raw_lower[0] if raw_lower else ""
+        rest = raw[1:].strip()
+
+        if cmd == "d" and rest:
+            nums = rest.replace(",", " ")
             try:
-                indices = [int(p) - 1 for p in rest.split()]
+                indices = [int(p) - 1 for p in nums.split()]
                 if not indices:
                     raise ValueError
             except ValueError:
@@ -622,91 +1030,101 @@ def _do_list_cached_foods() -> None:
                         f"  [{state.T['warning']}]Deleted {n_deleted} of {len(to_delete)} "
                         f"(some may have already been removed).[/{state.T['warning']}]"
                     )
+                show_table = True
             continue
 
-        try:
-            idx = int(raw) - 1
-            if idx < 0 or idx >= len(foods):
-                raise ValueError
-        except ValueError:
-            state.console.print(f"[{state.T['warning']}]Invalid selection.[/{state.T['warning']}]")
+        if cmd == "i":
+            _do_claude_fetch(foods, rest)
             continue
 
-        row = foods[idx]
-        with _db.get_db() as conn:
-            cached = _db.get_cached_food(conn, row["fdc_id"])
-        if not cached:
-            state.console.print(f"[{state.T['error']}]Food not found in cache.[/{state.T['error']}]")
+        if cmd == "r":
+            _do_claude_import()
+            show_table = True
             continue
 
-        food = {
-            "fdcId":            cached["fdc_id"],
-            "name":             cached["name"],
-            "dataType":         cached["data_type"],
-            "brand":            cached["brand"],
-            "servingSize":      cached["serving_size"],
-            "servingUnit":      cached["serving_unit"],
-            "householdServing": None,
-            "nutrients":        json.loads(cached["nutrients_json"]),
-            "portions":         json.loads(cached["portions_json"]),
-        }
-
-        has_note = bool(cached["notes"])
-        options = [
-            ("1", "View nutrients"),
-            ("2", "Analyze portion"),
-            ("3", "Edit nutrients"),
-            ("4", "Annotate  (GI / DIAAS estimates)"),
-        ]
-        if has_note:
-            options.append(("5", "View confidence note"))
-        options.append(("d", "Delete from cache"))
-
-        try:
-            action = _prompt_with_options("Cached food action", options, default="1")
-        except Cancelled:
-            continue
-
-        if action == "5" and has_note:
-            state.console.print()
-            state.console.print(
-                f"[{state.T['hi']}]Confidence / source note for {cached['name']}:[/{state.T['hi']}]"
-            )
-            state.console.print(cached["notes"])
-            state.console.print()
-            continue
-        elif action == "4":
-            annotate_food_interactive(row["fdc_id"], cached["name"])
-            continue
-        elif action == "3":
-            _do_edit_cached_food(row["fdc_id"], cached)
-        elif action == "d":
+        if cmd in ("v", "c", "a", "e", "n") and rest:
             try:
-                confirm = _prompt(
-                    f"Delete [bold]{row['name']}[/bold] from cache?  "
-                    f"[dim]Recipes using it will need to re-fetch on next analysis.  (y/N)[/dim]",
-                    default="n",
-                ).strip().lower()
-            except Cancelled:
+                idx = int(rest) - 1
+                if idx < 0 or idx >= len(foods):
+                    raise ValueError
+            except ValueError:
+                state.console.print(f"[{state.T['warning']}]Enter a list number after the command (e.g. v3, a5).[/{state.T['warning']}]")
                 continue
-            if confirm == "y":
-                with _db.get_db() as conn:
-                    deleted = _db.delete_cached_food(conn, row["fdc_id"])
-                if deleted:
+            row = foods[idx]
+            with _db.get_db() as conn:
+                cached = _db.get_cached_food(conn, row["fdc_id"])
+            if not cached:
+                state.console.print(f"[{state.T['error']}]Food not found in cache.[/{state.T['error']}]")
+                continue
+
+            if cmd == "c":
+                if cached["notes"]:
+                    state.console.print()
                     state.console.print(
-                        f"  [{state.T['success']}]✓[/{state.T['success']}]  Deleted '{row['name']}' from cache."
+                        f"  [{state.T['hi']}]Confidence / source note — {cached['name']}:[/{state.T['hi']}]"
                     )
+                    state.console.print(f"  {cached['notes']}")
+                    state.console.print()
                 else:
-                    state.console.print(f"  [{state.T['warning']}]Not found — may have already been removed.[/{state.T['warning']}]")
-        elif action == "2":
-            result = _pick_portion(food)
-            if result is None:
+                    state.console.print("  [dim]No confidence note for this food.[/dim]")
                 continue
-            grams, label, scaled = result
-            _print_nutrient_table(scaled, title=food["name"], per_label=label)
-            _print_protein_completeness(scaled, food_name=food["name"])
-        else:
-            _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
-            _print_protein_completeness(food["nutrients"], food_name=food["name"])
+
+            if cmd == "n":
+                nutrients = json.loads(cached["nutrients_json"])
+                _print_nutrient_table(nutrients, title=cached["name"], per_label="per 100g")
+                _print_protein_completeness(nutrients, food_name=cached["name"])
+                state.console.print()
+                if cached["notes"]:
+                    state.console.print(
+                        f"  [{state.T['hi']}]Source / confidence note:[/{state.T['hi']}]"
+                    )
+                    state.console.print(f"  {cached['notes']}")
+                    state.console.print()
+                else:
+                    state.console.print("  [dim]No source/confidence note for this food.[/dim]")
+                cn = cached["curator_notes"] if "curator_notes" in cached.keys() else None
+                if cn:
+                    state.console.print(
+                        f"  [{state.T['hi']}]Curator notes:[/{state.T['hi']}]"
+                    )
+                    state.console.print()
+                    for line in cn.splitlines():
+                        state.console.print(f"  {line}")
+                    state.console.print()
+                else:
+                    state.console.print("  [dim]No curator notes for this food.[/dim]")
+                continue
+
+            food = {
+                "fdcId":            cached["fdc_id"],
+                "name":             cached["name"],
+                "dataType":         cached["data_type"],
+                "brand":            cached["brand"],
+                "servingSize":      cached["serving_size"],
+                "servingUnit":      cached["serving_unit"],
+                "householdServing": None,
+                "nutrients":        json.loads(cached["nutrients_json"]),
+                "portions":         json.loads(cached["portions_json"]),
+            }
+
+            if cmd == "v":
+                _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
+                _print_protein_completeness(food["nutrients"], food_name=food["name"])
+            elif cmd == "a":
+                result = _pick_portion(food)
+                if result is None:
+                    continue
+                grams, label, scaled = result
+                _print_nutrient_table(scaled, title=food["name"], per_label=label)
+                _print_protein_completeness(scaled, food_name=food["name"])
+            elif cmd == "e":
+                _do_edit_cached_food(row["fdc_id"], cached)
+                try:
+                    annotate_food_interactive(row["fdc_id"], cached["name"])
+                except Cancelled:
+                    pass
+            continue
+
+        state.console.print(f"[{state.T['warning']}]Unrecognized command. Use v#, c#, n#, a#, e#, d#, i#, r, or l — or / to filter.[/{state.T['warning']}]")
 
 

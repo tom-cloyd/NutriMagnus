@@ -29,6 +29,10 @@ NUTRIENT_MAP: dict[int, tuple[str, str, str]] = {
     1258: ("saturated_fat_g",   "Saturated Fat",      "g"),
     1292: ("mono_fat_g",        "Monounsaturated Fat","g"),
     1293: ("poly_fat_g",        "Polyunsaturated Fat","g"),
+    1404: ("omega3_ala_mg",     "ALA (omega-3)",      "mg"),
+    1278: ("omega3_epa_mg",     "EPA (omega-3)",      "mg"),
+    1272: ("omega3_dha_mg",     "DHA (omega-3)",      "mg"),
+    1269: ("omega6_la_mg",      "Linoleic (omega-6)", "mg"),
     # Minerals
     1087: ("calcium_mg",        "Calcium",            "mg"),
     1089: ("iron_mg",           "Iron",               "mg"),
@@ -272,7 +276,11 @@ def _parse_food(data: dict) -> dict:
 
         if nutrient_id in NUTRIENT_MAP:
             key = NUTRIENT_MAP[nutrient_id][0]
-            nutrients[key] = float(value)
+            val = float(value)
+            # USDA reports omega fatty acids in g; store in mg to match display units
+            if nutrient_id in {1404, 1278, 1272, 1269}:
+                val *= 1000
+            nutrients[key] = val
 
     portions = []
     for p in data.get("foodPortions", []):
