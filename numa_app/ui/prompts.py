@@ -53,19 +53,20 @@ def _show_help(ref: str) -> None:
         state.console.print(f"  [dim]Help not available.[/dim]")
 
 
-def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False) -> str:
+def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False, two_line: bool = False) -> str:
     """Unified input primitive. choices=list enables single-keypress mode (only listed chars accepted).
     free_text=True uses readline so arrow-keys/editing work. prefill=True pre-populates with default.
+    two_line=True (requires prefill=True) prints the label on its own line and the editable value below.
     Raises Cancelled on Ctrl+C / Escape. Never use bare input() — always use this.
     In interactive (tty) mode, any input starting with ? performs a manual lookup and re-prompts."""
     while True:
-        result = _prompt_once(prompt_text, default=default, choices=choices, prefill=prefill, free_text=free_text)
+        result = _prompt_once(prompt_text, default=default, choices=choices, prefill=prefill, free_text=free_text, two_line=two_line)
         if not sys.stdin.isatty() or choices or not result.startswith("?"):
             return result
         _show_help(result[1:].strip() or "help")
 
 
-def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False) -> str:
+def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False, two_line: bool = False) -> str:
     """Single-shot input — called by _prompt(); do not call directly."""
     if not sys.stdin.isatty():
         from rich.prompt import Prompt
@@ -80,7 +81,12 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
             raise Cancelled
 
     if prefill and default is not _NO_DEFAULT and default not in ("", None) and not choices:
-        state.console.print(f"{prompt_text}: ", end="", highlight=False)
+        if two_line:
+            state.console.print(f"  {prompt_text}:", highlight=False)
+            # No separate indent print — input() owns the indent so readline
+            # knows the prompt length and keeps cursor arithmetic correct.
+        else:
+            state.console.print(f"{prompt_text}: ", end="", highlight=False)
         sys.stdout.flush()
         _prefill_text = str(default)
 
@@ -89,8 +95,9 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
             readline.redisplay()
 
         readline.set_pre_input_hook(_hook)
+        _input_prompt = "  " if two_line else ""
         try:
-            result = input("")
+            result = input(_input_prompt)
         except (KeyboardInterrupt, EOFError):
             state.console.print()
             raise Cancelled

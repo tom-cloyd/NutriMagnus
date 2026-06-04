@@ -33,7 +33,7 @@ def _do_recipe_edit(recipe=None) -> None:
     with _db.get_db() as conn:
         _db.recipe_touch(conn, rid)
     state.console.print(f"\n[{state.T['accent']}]Editing: {recipe['name']}[/{state.T['accent']}]")
-    state.console.print("[dim]Press Enter to keep current value.  p = previous field,  b = back to menu.[/dim]\n")
+    state.console.print("[dim]Press Enter to keep current value.  p = previous field,  b or Ctrl+C = back to menu.[/dim]\n")
 
     # Edit metadata (name/description/servings) with back-navigation.
     # _meta_complete stays True only if the user steps through every field.
@@ -53,14 +53,14 @@ def _do_recipe_edit(recipe=None) -> None:
     while _mi < len(_meta_fields):
         _label, _key, _, _typ = _meta_fields[_mi]
         _cur = str(_meta_vals[_key])
-        # Show current value in the label but NOT as _prompt default, so that
-        # pressing Enter always returns "" and never falsely triggers b/p/q checks.
-        _hint = f"(Press enter to keep [{state.T['default_hint']}]{_cur}[/{state.T['default_hint']}])"
-        _display_label = f"{_label} {_hint}" if _cur else _label
         try:
-            _raw = _prompt(_display_label, free_text=True).strip()
+            if _cur:
+                _raw = _prompt(_label, default=_cur, prefill=True, free_text=True, two_line=True).strip()
+            else:
+                _raw = _prompt(_label, free_text=True).strip()
         except Cancelled:
             _meta_complete = False
+            state.console.print("  [dim]Cancelled.[/dim]")
             break
         if _raw.lower() == "q":
             _meta_complete = False
@@ -187,21 +187,24 @@ def _do_recipe_edit(recipe=None) -> None:
 
         _show_menu("Ingredients", [
             ("1", "Add ingredient"),
-            ("2", "Edit ingredient"),
+            ("2", "Edit ingredient  [dim](name, amount, etc. — not ingredient ID)[/dim]"),
             ("3", "Remove ingredient"),
             ("4", "Reorder ingredients"),
             ("d", "Done — proceed to Procedure"),
-            ("b", "Done — proceed to Procedure"),
+            ("b", "Back — skip Procedure"),
             ("m", "Return to main menu  [dim](skips Procedure)[/dim]"),
             ("q", "Quit  [dim](skips Procedure)[/dim]"),
         ])
+        state.console.print(f"  [dim]To change an ingredient ID, delete the old one and add the new one.[/dim]\n")
         try:
             choice = _prompt("Choice").strip().lower()
         except Cancelled:
             break
 
-        if choice in ("b", "d"):
+        if choice == "d":
             ingredients_done = True
+            break
+        if choice == "b":
             break
         if choice == "m":
             raise ReturnToMain()
@@ -322,8 +325,8 @@ def _do_recipe_edit(recipe=None) -> None:
             }
             try:
                 food_name_new = _prompt(
-                    f"Name (Press enter to keep [{state.T['default_hint']}]{ing['food_name']}[/{state.T['default_hint']}])",
-                    free_text=True
+                    "Food name (edit or press Enter to keep)",
+                    default=ing["food_name"], prefill=True, free_text=True, two_line=True,
                 ).strip() or ing["food_name"]
             except Cancelled:
                 continue

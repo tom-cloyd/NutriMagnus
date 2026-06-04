@@ -1,8 +1,8 @@
 # NutriMagnus — Nutritional Analysis Program documentataion
 
-A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nourishment wizard")**.
+A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-05-31:2359
+UPDATED: 2026-06-02:2203
 ---
 
 ## Table of Contents
@@ -187,18 +187,19 @@ The program launches into a startup banner (showing profile, theme, and dietary-
 ./numa.py --help            Show options
 ```
 
-**Navigation conventions** (consistent with cmgr):
+**Menu navigation conventions** (consistent with cmgr):
 
 | Key      | Action                              |
 |----------|-------------------------------------|
-| `1`–`5`  | Select numbered menu item           |
+| `1`–`9`  | Select numbered menu item           |
 | `b`      | Go back to the parent menu (works at every prompt) |
+| `m`      | Jump directly to the main menu (works at every prompt) |
 | `q`      | Quit the program entirely (works at every prompt)  |
 | Ctrl+C   | Cancel current prompt, go back      |
 | Escape   | Same as Ctrl+C                      |
 | ↑ / ↓    | Cycle through input history at any free-text prompt |
 
-`b` and `q` are accepted at every prompt throughout the program — menus, food
+`b`, `m`, and `q` are accepted at every prompt throughout the program — menus, food
 search results, ID entry, portion size entry, and ingredient/item loops. You
 are never required to complete a flow before being able to leave it.
 
@@ -208,161 +209,228 @@ are never required to complete a flow before being able to leave it.
 
 ## Menu Structure
 
+numa has five top-level menu areas. The main menu is a simple numbered list; each choice opens a submenu with its own set of commands. The sections below describe each menu in detail.
+
 ```
-Main Menu  ("NutriMagnus Menu")
-├── 1. Foods
-│   ├── 1. Search food databases (USDA + Open Food Facts)
-│   │       Search by name → results from USDA and Open Food Facts merged →
-│   │       select food → display full nutrient breakdown (per 100g) + protein
-│   │       completeness assessment. Optionally proceed to portion analysis.
-│   ├── 2. Analyze a food portion  (USDA + Open Food Facts)
-│   │       Search → select → enter portion size → display scaled nutrients
-│   ├── 3. Analyze a saved recipe portion
-│   │       List saved recipes → select by ID → enter portion (number of servings
-│   │       or fraction) → display scaled nutrient totals + protein completeness
-│   ├── 4. Convert a portion <==> weight
-│   │       Search → select → enter volume or weight → display gram equivalent
-│   │       (no nutritional analysis; useful for recipe measurement conversion)
-│   ├── 5. View cached / saved foods
-│   │       List all foods previously fetched and stored locally.
-│   │       The table now shows AA (✓/✗), GI, and DIAAS columns so you can
-│   │       see at a glance which foods have annotation data on file.
-│   ├── 6. My pantry  (protein sources on hand)
-│   │       Manage a persistent list of protein foods currently in stock.
-│   │       Add via USDA search (links full amino acid data) or by name only.
-│   │       Remove or edit entries by pantry ID. Stored in the local database.
-│   │       The table shows an AA column: ✓ = amino acid data in cache,
-│   │       ✗ = USDA-linked but no AA data (research needed), — = name-only entry.
-│   ├── 7. User-drafted food profiles  (custom nutrient profiles)
-│   │       Five options: 1=List, 2=Create, 3=Edit, 4=Delete, 5=Copy.
-│   │       Create: start from a USDA food (pre-filled) or from scratch; includes
-│   │       supplement/unit-based mode (tablet, capsule, etc.) so per-label
-│   │       amounts are entered directly without weighing. Full nutrient coverage:
-│   │       macros, minerals, vitamins (with IU auto-conversion for A/D/E), AAs
-│   │       (one-by-one or bulk import), and phytonutrients.
-│   │       Edit: calls the same flow with current values pre-filled; detects
-│   │       supplement mode automatically and asks non-supplement user-drafted
-│   │       foods whether to convert.
-│   │       Copy: copies any cached food (USDA, OFF, or existing draft) into a
-│   │       new editable draft.
-│   │       See "User-drafted food profiles" under Usage Guide.
-│   └── 8. Annotate a cached food  (GI / DIAAS estimates)
-│           Pick any cached food and attach your own estimates for glycemic
-│           index (0–100) and/or DIAAS (0.0–1.5), plus an optional prep-context
-│           note ("cooked", "raw", etc.). Each value can be skipped (ask again
-│           next time) or suppressed (never ask again). Prompts can be
-│           re-enabled, or all annotations cleared, from this same menu.
-│           Annotations are also accessible from Foods → 5 → pick food → 4.
-│
-├── 2. Recipes
-│   ├── 1. Create new recipe
-│   │       Name → description → servings → serving size (optional) →
-│   │       total volume (optional) → total weight (optional) → complete? →
-│   │       add ingredients (search + portion, looped) →
-│   │       procedure (editor, optional) → saved to local database.
-│   │
-│   ├── 2. Browse / manage recipes
-│   │       Displays the 20 most recently accessed recipes (labeled as such,
-│   │       with total recipe count). Inline actions: type action letter + ID
-│   │       (e.g. v3, e 14):
-│   │         v<id>  View    — name, description, servings, volume/weight,
-│   │                          ingredients with amounts/notes, procedure text.
-│   │                          No nutritional analysis.
-│   │         e<id>  Edit    — edit name/description/servings/volume/weight/
-│   │                          complete flag/procedure, or add/edit/remove/
-│   │                          reorder ingredients. Each ingredient has an
-│   │                          optional Note field. DCP is recomputed on any
-│   │                          ingredient change. All changes are saved even
-│   │                          if you exit early with b/q/Ctrl+C.
-│   │         x<id>  Develop — launch the Develop workflow (item 3 below) on
-│   │                          the chosen recipe.
-│   │         a<id>  Analyze — full nutritional analysis (see detail below).
-│   │         d<id>  Delete  — confirm, then permanently remove.
-│   │         c<id>  Copy    — enter a name (defaults to "Copy of …") →
-│   │                          saves an exact duplicate with all ingredients,
-│   │                          description, servings, volume/weight, and procedure.
-│   │         s      Search  — filter by one or more words; hits are any recipe
-│   │                          whose name contains at least one word; results
-│   │                          ranked by number of matching words (most first),
-│   │                          capped at 20.
-│   │         r      Recent  — return to the "20 most recently accessed" view.
-│   │       Accessing a recipe via any action (v/e/x/a/d/c) stamps its
-│   │       last_accessed_at timestamp, keeping the recent list current.
-│   │
-│   ├── 3. Develop a recipe  (iterative ingredient development)
-│   │       Pick a recipe, then loop showing current ingredient list:
-│   │         a  Add ingredient — food search → portion → optional note →
-│   │                             added to recipe; then optionally run full
-│   │                             nutritional analysis on the updated recipe.
-│   │         r  Remove ingredient — pick by number from the displayed list →
-│   │                             removed; then optionally run full analysis.
-│   │         d  Done — exit the ingredient loop.
-│   │       After the loop: offered optional access to the Procedure editor.
-│   │       DCP is recomputed and saved on exit if any ingredients changed.
-│   │       Also accessible from Browse via x<id>.
-│   │
-│   └── (Analyze detail — used by Browse a<id> and Develop)
-│           Shows name, description, ingredient list with amounts (and notes if
-│           any are set), then procedure — all before any DCP prompts so the
-│           recipe is fully visible when making decisions about missing data.
-│           Then: total nutrients + digestible complete protein (DCP, saved to
-│           DB) + optional bioavailability breakdown + protein completeness.
-│           If servings > 0: shows per-serving nutrients; DCP is per-serving.
-│           If servings = 0: shows whole-recipe totals + per-100g (if total
-│           weight recorded) + per-100ml and per-cup (if total volume recorded).
-│           If any ingredient lacks weight or DIAAS data, a numbered Options
-│           menu prompts to provide values, calculate anyway (approximate, not
-│           saved), or skip. Pressing b during "Provide missing data" re-shows
-│           the Options menu. Non-protein ingredients (spices, oil, salt) can
-│           safely be ignored in the missing-data warning list.
-│
-├── 3. Meals & Log
-│       Displays up to 15 recent meals (most-recent first) as an inline list.
-│       Commands entered at the prompt act on the listed meals by their DB ID:
-│
-│         n             — new meal: prompts for date (default today or current
-│                         context date) and name, then opens the action loop.
-│         v{id}         — view / edit meal: shows items, then the action menu:
-│                           1. Add items — unified search (recipes first, then
-│                                USDA/OFF foods); add by portion or servings.
-│                           2. Edit an item — change food, amount, or note.
-│                           3. Delete an item — remove one item from the meal.
-│                           4. Analyze this meal
-│                           5. Delete this meal — confirm, then remove.
-│                           6. Mark complete / incomplete
-│                           7. Rename this meal
-│                           8. Merge with meal(s) on same date (when applicable)
-│         a{id}         — analyze meal: full nutrient table + meal-level DIAAS
-│                         (pooled, digestibility-corrected) + protein completeness
-│                         + complement suggestions + glycemic load.
-│                         If multiple meals share the date, choose single or all.
-│         d{id}         — delete meal: confirm before removing.
-│         s             — search food across entire meal history.
-│         mr            — show next 15 meals (older).
-│         d{YYYY-MM-DD} — jump: show meals on or before this date.
-│         b / m / q     — back / main menu / quit.
-│
-├── 4. Daily Summary
-│   ├── 1. Today's summary
-│   │       Sums all meals logged today → full nutrient breakdown
-│   │       + meal-level DIAAS analysis + protein completeness + complement suggestions
-│   ├── 2. Summary for a specific date
-│   └── 3. Recent days (list dates that have meals)
-│
-└── 5. Settings
-    ├── 1. Color theme  (dark / light / neutral / auto)
-    ├── 2. User profile  (age, sex, weight, height, activity level)
-    ├── 3. Dietary preferences  (all animal foods / vegetarian / plant-based only)
-    │       Choose which protein sources appear in complement suggestions:
-    │       1 = all animal foods, 2 = vegetarian (dairy + eggs), 3 = plant-based only.
-    │       Saved immediately to ~/.config/numa/prefs.json.
-    ├── 4. Editor command  (for opening export files)
-    ├── 5. Display program settings at launch  (yes / no)
-    └── 6. Advanced settings
-        ├── 1. Protein digestibility overrides  (for meal-level DIAAS calculation)
-        ├── 2. USDA API key
-        └── 3. Storage location  (display only)
+NutriMagnus Menu
+  1. Foods          — search, analyze, compare, cache, pantry, custom profiles
+  2. Recipes        — create, browse, edit, analyze, copy, develop
+  3. Meals & Log    — log meals, view history, analyze, merge
+  4. Daily Summary  — nutrient totals for today or any date
+  5. Settings       — theme, profile, preferences, API key, advanced
 ```
+
+At every prompt in the program, `b` goes back to the previous menu, `m` jumps directly to the main menu, and `q` quits. Ctrl+C at any prompt is equivalent to `b`.
+
+---
+
+### Foods Menu
+
+**Title:** Foods — Search, Analyze & Manage
+
+The Foods menu is the primary interface for finding food data, exploring nutrients, and managing the local food cache. It has nine items.
+
+**1. Search food databases (USDA + Open Food Facts / display or output data)**
+
+Search by name or FDC ID. The program checks the local cache first and shows any matches in a fast **Food cache** table before going online. If the food is not cached, it queries USDA FoodData Central and Open Food Facts simultaneously and presents a merged results list. Selecting a food displays its full nutrient breakdown (per 100 g) including protein completeness assessment. The user may then proceed to portion analysis. See [Searching for a food](#searching-for-a-food) and [Protein completeness](#protein-completeness) in the Usage Guide.
+
+**`dout` — bulk data output command.** Typing `dout <id> [id …]` at the search prompt (e.g. `dout 2346396 2477360`) fetches complete nutrient data for one or more FDC IDs and writes it to `numa.data` in the user's home directory (`~/numa.data`, i.e. `/home/<user>/numa.data`). The output is a JSON array; each entry contains `fdc_id`, `name`, `data_type`, `source` (`"cache"` or `"USDA"`), `nutrients_per_100g`, and `portions`. The cache is checked first; any food not found locally is fetched from USDA and then stored in the cache. The terminal confirms the full file path on completion. Intended for validation and hand calculations outside the interactive workflow. Implemented in `_do_dout()` in `foods.py`.
+
+**2. Analyze a food portion**
+
+Same search flow as item 1, but proceeds directly to portion sizing after food selection. The user enters an amount (e.g. `150 g`, `3 oz`, `1 cup`) and the program displays scaled nutrient totals, protein completeness, bioavailability (if DIAAS data is available), and complement suggestions. See [Analyzing a portion](#analyzing-a-portion).
+
+**3. Analyze a saved recipe portion**
+
+Lists saved recipes and allows the user to select one by ID. After choosing a portion size (number of servings or a fraction), the program displays scaled nutrient totals and protein completeness for that portion. Equivalent to running the recipe analysis workflow without entering the full Recipes menu. See [Analyzing a recipe portion](#analyzing-a-recipe-portion).
+
+**4. Convert a portion ⟺ weight (volume/weight, no analysis)**
+
+Search for a food, then enter either a volume (e.g. `1 cup`) or a weight (e.g. `200 g`). The program returns the equivalent in the other unit using USDA portion data or estimated density. No nutritional analysis is performed; this is a measurement conversion tool for recipe development.
+
+**5. Compare foods (side-by-side nutrient table, up to 4)**
+
+Select two to four foods (by search or cache pick, each with its own portion choice) and view them in a side-by-side nutrient table. The header lists each food's name and FDC ID. Columns cover all nutrient groups; rows with no data in any column are suppressed. Useful for choosing between protein sources, evaluating substitutions, or comparing branded variants.
+
+**6. Food Cache (view, edit, delete foods you have looked up)**
+
+Lists every food stored in the local cache with columns for AA status (✓/✗), GI annotation, DIAAS annotation, confidence note indicator (C), curator notes indicator (N), FDC ID, name, data type, and brand. Supports name/brand filtering with `/text`. Commands below the table act on individual rows by number:
+
+| Command | Action |
+|---------|--------|
+| `v#` | View nutrient profile (per 100 g) |
+| `n#` | View nutrients + protein completeness + all notes |
+| `c#` | View confidence/source note only |
+| `a#` | Analyze a portion |
+| `e#` | Edit food data (name, serving, nutrients, note, GI/DIAAS annotation) |
+| `d#` / `d#,#` | Delete one or more entries |
+| `i#` / `i#,#` / `i` | Generate a Claude AI prompt for selected or all ✗ foods |
+| `r` | Import a saved Claude response (`~/claude_response.txt`) |
+| `l` | Re-display the full table |
+| `/text` | Filter list by name or brand |
+
+Editing any food marks it `user_drafted=True`, protecting it from future USDA re-fetches. For the Claude fetch workflow (`i` / `r`), see [No amino acid data — the Claude fetch workflow](#no-amino-acid-data--the-claude-fetch-workflow).
+
+**7. My Pantry (foods you have on hand)**
+
+A persistent list of protein foods currently in stock. Pantry foods appear at the top of complement suggestions — the program recommends what you can actually use, not just what is theoretically ideal. Each entry can be linked to a USDA food (bringing full amino acid data) or stored by name only. The AA column shows ✓ (data in cache), ✗ (USDA-linked but no AA data), or — (name-only entry). See [Protein complement suggestions](#protein-complement-suggestions).
+
+**8. Custom food profiles (create and edit your own food data)**
+
+Opens the **Drafted Food Profiles** submenu with five items:
+
+| Item | Action |
+|------|--------|
+| 1. List | Show all user-drafted profiles |
+| 2. Create | Build a new profile from scratch or pre-filled from a USDA food |
+| 3. Edit | Edit name, serving, nutrients, or note for an existing draft |
+| 4. Delete | Remove a drafted profile |
+| 5. Copy | Clone any cached food (USDA, OFF, or existing draft) as a new editable draft |
+
+Create supports a **supplement/unit-based mode** for tablets, capsules, softgels, and scoops — enter per-label amounts directly without converting to grams. Nutrient entry covers macros, minerals, vitamins (IU auto-converted for A, D, E), amino acids (one-by-one or bulk import from g/100 g protein), and phytonutrients. See [Drafted food profiles](#drafted-food-profiles-user-modified-nutrients).
+
+**9. Annotate a food (add your GI / DIAAS estimates)**
+
+Pick any cached food and attach your own estimates for glycemic index (0–100) and/or DIAAS (0.0–1.5), plus an optional preparation-context note ("cooked", "raw", etc.). Each value can be skipped (ask again next time) or suppressed (never prompt again for this food). Suppression can be re-enabled, and all annotations for a food can be cleared, from this same flow. Annotations are also accessible from within the Food Cache (`e#`). See [Food annotations (GI and DIAAS estimates)](#food-annotations-gi-and-diaas-estimates).
+
+---
+
+### Recipes Menu
+
+**Title:** Recipes
+
+The Recipes menu covers the full lifecycle of a recipe: creation, browsing, editing, copying, analysis, iterative development, and saved portion analysis.
+
+**1. Create new recipe**
+
+A sequential wizard: name → description → servings → serving size (optional) → total volume (optional) → total weight (optional) → complete? → add ingredients (search + portion, looped) → procedure (opens a text editor, optional) → save. Each ingredient is linked to a cached food by FDC ID; the program searches and caches automatically if the food is not yet stored. Digestible complete protein (DCP) is computed and saved on first ingredient addition and recomputed on any subsequent change.
+
+**2. Browse / view, edit, copy, delete recipes**
+
+Displays the 20 most recently accessed recipes with total recipe count. Commands are typed as a letter followed immediately by the recipe's DB ID (e.g. `v3`, `x14`):
+
+| Command | Action |
+|---------|--------|
+| `v<id>` | View/edit — displays name, description, servings, volume/weight, ingredients with amounts and notes, and procedure text (no nutritional analysis), then prompts `e=edit  b/Enter=done`. Pressing `e` opens the full edit flow: step through metadata (name/description/servings/serving size/complete flag), manage ingredients (add/edit/remove/reorder), then optionally edit procedure. All changes are saved even if you exit early with b/q/Ctrl+C. DCP is recomputed on any ingredient change. |
+| `a<id>` | Analyze — full nutritional analysis (see below). |
+| `x<id>` | Develop — launch the iterative Develop workflow (item 3) on this recipe. |
+| `c<id>` | Copy — prompts for a name (default: "Copy of …"), saves an exact duplicate with all ingredients, description, servings, volume/weight, and procedure. |
+| `d<id>` | Delete — confirm, then permanently remove. |
+| `s` | Search — filter recipes by one or more words (results ranked by number of matching words, capped at 20). |
+| `r` | Recent — return to the "20 most recently accessed" view after a search. |
+
+Accessing a recipe via any action stamps its `last_accessed_at` timestamp, keeping the recent list current.
+
+**Recipe analysis** (used by `a<id>` in Browse and by Develop):
+
+Shows name, description, ingredient list with amounts and notes, and procedure before any calculation, so the recipe is fully visible when making decisions about missing data. Then: total nutrients + DCP (saved to DB) + optional bioavailability breakdown + protein completeness + complement suggestions.
+
+- If servings > 0: per-serving nutrients; DCP is per-serving.
+- If servings = 0: whole-recipe totals + per-100 g (if total weight recorded) + per-100 ml and per-cup (if total volume recorded).
+- If any ingredient lacks amino acid data or weight, a numbered Options menu offers: provide the missing values, calculate anyway (approximate, not saved), or skip.
+
+Non-protein ingredients (spices, oil, salt) can safely be skipped in the missing-data warning list.
+
+**3. Develop a recipe (add/remove ingredients with nutritional feedback)**
+
+A focused loop for iterative ingredient development. Pick a recipe, then loop:
+
+| Command | Action |
+|---------|--------|
+| `a` | Add ingredient — food search → portion → optional note → added to recipe; then optionally run full analysis on the updated recipe. |
+| `r` | Remove ingredient — pick by number from the displayed list → removed; then optionally run full analysis. |
+| `d` | Done — exit the loop. |
+
+After the loop: optional access to the Procedure editor. DCP is recomputed and saved on exit if any ingredients changed. Also accessible from Browse via `x<id>`.
+
+**4. Analyze a recipe portion (saves analysis with date)**
+
+Runs the full nutritional analysis for a chosen recipe and automatically saves a plain-text snapshot of the report to the database with an ISO timestamp. On subsequent calls for the same recipe, the user is prompted:
+
+- `s` — Show the saved analysis (printed to the terminal; date shown).
+- `r` — Redo the analysis (overwrites the saved snapshot).
+- `b` — Cancel.
+
+The `a<id>` command in Browse also runs the full analysis but does **not** save a snapshot. Item 4 is the intended path when you want a persistent record of where a recipe stands at a point in time.
+
+Storage: `recipes.saved_analysis_at` (ISO UTC timestamp) and `recipes.saved_analysis_text` (plain text string).
+
+---
+
+### Meals & Log Menu
+
+**Title:** Meals & Log
+
+Displays up to 15 recent meals, most-recent first, as an inline numbered list with date, name, item count, and completion status. Commands are entered at the prompt:
+
+| Command | Action |
+|---------|--------|
+| `n` | New meal — prompts for date (default today) and name, then opens the meal action loop. |
+| `v<id>` | View / edit meal — shows items, then the **meal action menu** (see below). |
+| `a<id>` | Analyze meal — full nutrient table + meal-level DIAAS (pooled, digestibility-corrected) + protein completeness + complement suggestions + glycemic load. If multiple meals share the date, choose single or combined. |
+| `d<id>` | Delete meal — confirm before removing. |
+| `s` | Search food across entire meal history. |
+| `mr` | Show next 15 meals (older). |
+| `d<YYYY-MM-DD>` | Jump to meals on or before the given date. |
+
+**Meal action menu** (opened by `v<id>`):
+
+| Item | Action |
+|------|--------|
+| 1. Add items | Unified search — recipes first, then USDA/OFF foods; add by portion or servings. |
+| 2. Edit an item | Change food, amount, or note for a logged item. |
+| 3. Delete an item | Remove one item from the meal. |
+| 4. Analyze this meal | Same analysis as `a<id>` from the list. |
+| 5. Delete this meal | Confirm, then remove the whole meal. |
+| 6. Mark complete / incomplete | Toggle the meal's completion status. |
+| 7. Rename this meal | Edit the meal name. |
+| 8. Merge with meal(s) on same date | Combine multiple meals logged on the same date (shown only when applicable). |
+
+See [Logging a meal](#logging-a-meal) and [Meal-level DIAAS analysis](#meal-level-diaas-analysis) in the Usage Guide.
+
+---
+
+### Daily Summary Menu
+
+**Title:** Daily Nutrition Summary
+
+Aggregates all meals logged on a given date and presents a single combined nutrient breakdown, meal-level DIAAS analysis, protein completeness assessment, and complement suggestions.
+
+| Item | Action |
+|------|--------|
+| 1. Today's summary | Sums all meals logged today. |
+| 2. Summary for a specific date | Prompts for a date (YYYY-MM-DD) and sums all meals on that date. |
+| 3. Recent days | Lists dates that have logged meals, most recent first. Select a date to view its summary. |
+
+See [Daily summary](#daily-summary) in the Usage Guide.
+
+---
+
+### Settings Menu
+
+**Title:** Settings
+
+Configuration for appearance, user profile, dietary preferences, and program behaviour. Current values are displayed inline in each menu item.
+
+| Item | Action |
+|------|--------|
+| 1. Color theme | Switch between dark, light, neutral, and auto themes. Auto follows the terminal's background. Change takes effect immediately. |
+| 2. User profile | Set age, sex, weight, height, and activity level. Used to compute Recommended Daily Allowances (RDAs) shown in nutrient tables and the daily summary. |
+| 3. View daily nutrient targets | Display the current RDA/goal table based on the stored user profile. |
+| 4. Dietary preferences | Choose which protein sources appear in complement suggestions: all animal foods, vegetarian (dairy + eggs), or plant-based only. Saved immediately to `~/.config/numa/prefs.json`. |
+| 5. Editor command | Set the command used to open the procedure editor (e.g. `nano`, `vim`, `code --wait`). Leave blank to use the `$VISUAL`/`$EDITOR` environment variable. Enter `-` to clear back to system default. |
+| 6. Display program settings at launch | Toggle whether the startup banner shows theme, profile, and dietary preference. |
+| 7. Advanced settings | Opens the Advanced Settings submenu (see below). |
+
+**Advanced Settings submenu:**
+
+| Item | Action |
+|------|--------|
+| 1. Protein digestibility overrides | Add, edit, or remove per-food true ileal digestibility coefficients used by the meal-level DIAAS calculation. Overrides take precedence over the curated table and category defaults in `diaas.py`. |
+| 2. USDA API key | Enter or update the key used for all USDA FoodData Central API calls. Required for food search and detail fetch; the program will not search USDA without it. |
+| 3. Storage location | Display the path of the SQLite database file. Read-only. |
+
+See [Dietary preferences](#dietary-preferences) and [Protein digestibility — DIAAS](#protein-digestibility--diaas) in the Usage Guide.
 
 ---
 
@@ -630,6 +698,48 @@ full amino acid profile. The search is pre-filled with the first keyword(s) of
 the original food name (e.g., "beans, pinto, mature seeds, cooked, boiled, with
 salt" becomes "beans"). You can accept the suggestion, refine the query if
 needed, and pick from the Foundation results without leaving the current flow.
+
+#### No amino acid data — the Claude fetch workflow
+
+When no Foundation Foods substitute is available, numa provides a two-step interactive workflow to retrieve amino acid (and other nutrient) data from Claude AI (claude.ai) and import it directly into the cache.
+
+**Access** — **Foods → 5. View cached / saved foods**, commands printed below the table:
+
+| Command | Action |
+|---------|--------|
+| `i#` / `i#,#` | Generate prompt for specific row(s) — e.g. `i3`, `i1,4,7` |
+| `i` alone | Generate prompt for every ✗ food in the current list (with confirmation) |
+| `r` | Read and import `~/claude_response.txt` |
+
+**Step 1 — prompt generation (`_do_claude_fetch` in `foods.py`).**
+
+Builds the food list from the selected rows (or all ✗ foods if no row numbers are given) and writes `~/claude_prompt.txt` using `_CLAUDE_PROMPT_TEMPLATE`. The template instructs Claude to return one fenced JSON block per food containing:
+
+- **Metadata keys**: `name`, `fdc_id`, `fdc_type`, `source`, `confidence_note`
+- **Nutrient keys**: all recognized fields (macros, minerals, vitamins, phytonutrients, and all 11 amino acids), per 100 g edible portion
+
+Key rules embedded in the template: amino acid values must be in grams per 100 g food (not per g protein, not mg); `aa_methionine_g`/`aa_cystine_g` and `aa_phenylalanine_g`/`aa_tyrosine_g` must always be separate keys; unknown values must be omitted entirely (never zero-filled); true zeros may be included explicitly; source hierarchy is USDA FDC → SR Legacy → peer-reviewed literature → estimate.
+
+After writing the file, the function prints a four-step instruction block: open the file, copy its entire contents, paste into a **new** claude.ai chat, and — critically — copy only Claude's reply text (not the full conversation) before saving as `~/claude_response.txt`.
+
+**Step 2 — response import (`_do_claude_import` in `foods.py`).**
+
+Reads `~/claude_response.txt` and passes it to `_claude_parse_response()`, which extracts fenced (` ```json ``` `) and bare JSON objects. Any non-JSON text trailing the last JSON block is collected as **curator text** — Claude's methodological caveats, confidence statements, and batch-level notes.
+
+Each block is validated by `_claude_validate_block()`: it must have `name` (string), `fdc_id` (integer or integer-string), and a valid `fdc_type`; unrecognized nutrient keys are stripped silently; blocks that fail validation are reported and skipped.
+
+Passing blocks are shown in a review table — name, FDC ID, calories, protein, and AA count out of 11 — before the user confirms. On confirmation, each food is written via `_db.cache_food()` with:
+- `notes` — formatted from `source` and `confidence_note`
+- `curator_notes` — the batch-level curator text (shown in the N column; readable with `n#`)
+- `user_drafted` **not set** — entries remain overwritable by subsequent USDA re-fetches (omega backfill, incomplete-cache detection)
+
+#### No amino acid data — `import_foods.py` (scripted alternative)
+
+For stable, literature-sourced food records that need to survive repeated numa updates, `import_foods.py` is a standalone Python script that bypasses the interactive workflow. Food dicts are hardcoded in its `_FOODS` list (one per food, with the same nutrient key conventions as the Claude prompt template). Running the script imports all entries via `cache_food(..., user_drafted=True)`.
+
+The `user_drafted=True` flag is the critical difference from the Claude import path: it prevents USDA re-fetches from overwriting the imported data. Without it, the omega backfill or incomplete-cache detection paths in `_fetch_food_from_result` can silently replace a manually curated entry with raw USDA data (which for Branded foods typically lacks amino acids). Re-running the script is always safe — `cache_food()` uses `INSERT OR REPLACE`, so existing entries are updated in place.
+
+The script does not include portion data; `portions_json` is stored as an empty array `[]` via `json.dumps(portions or [])`.
 
 ### Protein digestibility — DIAAS
 
@@ -914,7 +1024,7 @@ Similarly, the three largest workflow files were split to keep each under 600 li
 
 `initialize_app()` handles `--api-key` and `--theme` command-line flags (both exit after acting), calls `db.init_db()`, loads dietary preferences, and on first run triggers the animal-foods preference prompt.
 
-`print_startup_banner()` renders the double green rule, then two lines: `NutriMagnus ("nourishment wizard")` in bold green, and `Nutritional Analysis for individuals and families`. Then profile summary and theme/dietary status.
+`print_startup_banner()` renders the double green rule, then two lines: `NutriMagnus ("nutrition wizard")` in bold green, and `Nutritional Analysis for individuals and families`. Then profile summary and theme/dietary status.
 
 `_run_menu()` is the top-level loop. It renders the main menu inline (not via `_show_menu()`), dispatches to workflow submenus by return value — `True` means go back, `False` means quit. It catches `ReturnToMain` exceptions, which any nested prompt can raise when the user types `m` to jump directly back here from anywhere in the menu tree.
 
@@ -1074,9 +1184,9 @@ Contains the menu dispatch (`_menu_recipes`), all shared helper functions used b
 
 | Function | Purpose |
 |---|---|
-| `_do_recipe_browse()` | Browse workflow: shows 20 most-recently-accessed recipes; supports inline `v/e/x/a/d/c<id>` actions, `s`=search, `r`=recent. Each action stamps `last_accessed_at` via `recipe_touch()`. |
+| `_do_recipe_browse()` | Browse workflow: shows 20 most-recently-accessed recipes; supports inline `v/x/a/d/c<id>` actions, `s`=search, `r`=recent. Each action stamps `last_accessed_at` via `recipe_touch()`. |
 | `_do_recipe_develop(recipe=None)` | Develop workflow: iterative add/remove ingredients with optional nutritional analysis after each change; prompts for procedure on exit; recomputes and saves DCP if ingredients changed. Accepts optional pre-selected recipe (used by Browse `x<id>`). |
-| `_do_recipe_display(recipe=None)` | Text-only view: name, ingredients, procedure. Accepts optional pre-selected recipe. |
+| `_do_recipe_display(recipe=None)` | Text view: name, ingredients, procedure; ends with `e=edit  b/Enter=done` prompt — pressing `e` chains directly into `_do_recipe_edit`. Accepts optional pre-selected recipe. |
 | `_do_recipe_delete(recipe=None)` | Delete with confirmation. Accepts optional pre-selected recipe. |
 | `_do_copy_recipe(recipe=None)` | Copy recipe under a new name. Accepts optional pre-selected recipe. |
 
@@ -1439,7 +1549,7 @@ The original design specified three phases. Phase 1 is complete.
 
 **Item 14: UX fixes and recipe volume/weight — Coded ✓**  *(2026-04-13)*
 
-- **Startup banner**: First line is now `NutriMagnus ("nourishment wizard")` (bold green); second line is `Nutritional Analysis for individuals and families`. Previously a single combined line.
+- **Startup banner**: First line is now `NutriMagnus ("nutrition wizard")` (bold green); second line is `Nutritional Analysis for individuals and families`. Previously a single combined line.
 - **Default-value prompt display**: All prompts with a default now show `(Press enter to keep VALUE)` before the colon, with the value rendered in the theme's blue (`default_hint` style). Nothing is pre-filled after the colon; pressing Enter on a blank input returns the stored default.
 - **Choices prompt — single keypress only**: When `choices` is provided (e.g. `y/n/q`), the prompt now accepts only valid single keystrokes. Any character not in the choices list is silently ignored, preventing multi-character input like a food name from being misread as a menu selection.
 - **Recipe create — procedure editor gate**: Opening the text editor now requires the user to press Enter first (or `b` to skip), consistent with the recipe-edit flow. Previously the editor launched immediately after printing the message.

@@ -327,10 +327,11 @@ def _do_launch_display_setting() -> None:
 
 def _menu_advanced_settings() -> None:
     while True:
-        key_status = "set" if _usda.get_api_key() else "[bold yellow]not set[/bold yellow]"
+        _key = _usda.get_api_key()
+        key_status = f"{_key[:8]}...{_key[-4:]}" if _key else "[bold yellow]not set[/bold yellow]"
         _show_menu("Advanced settings", [
             ("1", "Protein digestibility overrides  (for DIAAS calculation)"),
-            ("2", f"USDA API key  ({key_status})"),
+            ("2", f"USDA API key  ({key_status})  [dim]· s = show full[/dim]"),
             ("3", f"Storage location: {_db.get_db_path()}"),
             ("b", "Back to previous menu"),
             ("m", "Return to main menu"),
@@ -413,12 +414,20 @@ def _do_set_api_key() -> None:
     current = _usda.get_api_key()
     if current:
         state.console.print(f"  Current key: [dim]{current[:8]}...{current[-4:]}[/dim]")
-    try:
-        key = _prompt("New API key (Enter to keep current)", default="").strip()
-    except Cancelled:
+    while True:
+        try:
+            key = _prompt("New API key  [dim](Enter = keep · s = show full key)[/dim]", default="").strip()
+        except Cancelled:
+            return
+        if key.lower() == "s":
+            if current:
+                state.console.print(f"  Full key: [bold]{current}[/bold]")
+            else:
+                state.console.print("  [dim](No API key set.)[/dim]")
+            continue
+        if key:
+            _usda.set_api_key(key)
+            state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] API key saved.")
+        else:
+            state.console.print("[dim]Unchanged.[/dim]")
         return
-    if key:
-        _usda.set_api_key(key)
-        state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] API key saved.")
-    else:
-        state.console.print("[dim]Unchanged.[/dim]")

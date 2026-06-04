@@ -36,9 +36,25 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
     if not affected:
         return False
 
-    recipe_missing = len(missing_names) - len(affected)
     total_missing = len(missing_names)
     section_title("Missing Amino Acid Profiles")
+
+    # Identify which recipes contain the missing ingredients
+    recipe_missing_lower = missing_lower - {a["food_name"].lower() for a in affected}
+    recipe_aa_gaps: dict[str, list[str]] = {}
+    if recipe_missing_lower:
+        for rit in (it for it in items if it["item_type"] == "recipe"):
+            with _db.get_db() as conn:
+                recipe = _db.recipe_get(conn, rit["recipe_id"])
+                ings   = _db.recipe_get_ingredients(conn, rit["recipe_id"])
+            if not recipe or not ings:
+                continue
+            missing_in = [ing["food_name"] for ing in ings
+                          if ing["food_name"].lower() in recipe_missing_lower]
+            if missing_in:
+                recipe_aa_gaps[recipe["name"]] = missing_in
+
+    recipe_missing = sum(len(v) for v in recipe_aa_gaps.values())
     if recipe_missing > 0:
         recipe_word = "ingredient is" if recipe_missing == 1 else "ingredients are"
         state.console.print(
@@ -46,6 +62,12 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
             f"{recipe_missing} {recipe_word} inside a recipe — edit that recipe to add AA data.",
             highlight=False,
         )
+        for rname, ing_names in recipe_aa_gaps.items():
+            state.console.print(
+                f"    [dim]·[/dim] [{state.T['hi']}]{rname}[/{state.T['hi']}]: "
+                + ", ".join(ing_names),
+                highlight=False,
+            )
     state.console.print(
         f"  [dim]Some of these may be minor ingredients (fruit, garnishes, etc.) with\n"
         f"  negligible protein — those can safely be ignored here. Only proceed if\n"

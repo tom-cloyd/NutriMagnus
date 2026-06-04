@@ -441,21 +441,28 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
     return result["missing_aa_names"], result.get("digestible_complete_protein_g")
 
 def _print_recipe_bioavailability(
-    ingredient_stats: list[dict],  # [{"name": str, "protein_g": float, "diaas": float|None}]
+    ingredient_stats: list[dict],
     analysis_nutrients: dict[str, float],
+    meal_result: dict | None = None,
 ) -> None:
-    """Print per-ingredient DIAAS breakdown and total digestible protein for a recipe."""
+    """Print per-ingredient digestibility breakdown and pooled meal DIAAS for a recipe."""
     total_protein = analysis_nutrients.get("protein_g", 0.0)
     if total_protein <= 0:
         return
 
-    diaas_key = (
-        f"[dim](DIAAS: [{state.T['success']}]≥0.90 good[/{state.T['success']}]"
+    # Digestibility coefficients from pooled meal result (true ileal digestibility)
+    dig_by_name: dict[str, float] = {}
+    if meal_result:
+        for r in meal_result.get("ingredients", []):
+            dig_by_name[r["food_name"]] = r["digestibility"]
+
+    legend = (
+        f"[dim](Digestibility: [{state.T['success']}]≥0.90 high[/{state.T['success']}]"
         f" · [{state.T['warning']}]≥0.70 moderate[/{state.T['warning']}]"
-        f" · [{state.T['error']}]<0.70 poor[/{state.T['error']}]"
+        f" · [{state.T['error']}]<0.70 low[/{state.T['error']}]"
         f"  ·  {ID_KEY})[/dim]"
     )
-    table_title("BIOAVAILABILITY — PER SERVING", diaas_key)
+    table_title("BIOAVAILABILITY — PER SERVING", legend)
 
     _ING_W = 30
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
@@ -463,28 +470,30 @@ def _print_recipe_bioavailability(
     tbl.add_column("Ingredient", min_width=_ING_W, max_width=_ING_W, no_wrap=True)
     tbl.add_column("Serving", justify="right", min_width=7)
     tbl.add_column("Crude protein", justify="right", min_width=13)
-    tbl.add_column("DIAAS", justify="right", min_width=6)
+    tbl.add_column("Digestibility", justify="right", min_width=13)
     tbl.add_column("Limiting IAA", min_width=16)
-    tbl.add_column("Bioavailable", justify="right", min_width=12)
+    tbl.add_column("Digestible", justify="right", min_width=10)
 
     total_digestible = 0.0
-    unknown_count = 0
     for s in ingredient_stats:
         p = s["protein_g"]
-        diaas = s["diaas"]
         amount_g = s.get("amount_g")
         limiting_aa = s.get("limiting_aa")
 
-        if diaas is not None:
-            dig = p * diaas
-            score = diaas
-            diaas_str = f"{diaas:.2f}"
+        # Prefer true ileal digestibility from pooled result; fall back to static DIAAS
+        if s["name"] in dig_by_name:
+            dig_coeff: float | None = dig_by_name[s["name"]]
+        else:
+            dig_coeff = s.get("diaas")
+
+        if dig_coeff is not None:
+            dig = p * dig_coeff
+            coeff_str = f"{dig_coeff:.2f}"
         else:
             dig = p
-            score = 1.0
-            diaas_str = "?"
-            unknown_count += 1
+            coeff_str = "?"
         total_digestible += dig
+        score = dig_coeff if dig_coeff is not None else 1.0
         color = state.T["success"] if score >= 0.90 else (state.T["warning"] if score >= 0.70 else state.T["error"])
 
         amount_str = f"{amount_g:.4g}g" if amount_g else "—"
@@ -500,23 +509,35 @@ def _print_recipe_bioavailability(
             dot_cell(s['name'], _ING_W),
             amount_str,
             f"{p:.1f}g",
-            f"[{color}]{diaas_str}[/{color}]",
+            f"[{color}]{coeff_str}[/{color}]",
             lim_cell,
             f"{dig:.1f}g",
         )
 
     state.console.print(tbl, highlight=False)
 
-    eff_diaas = total_digestible / total_protein if total_protein > 0 else 0.0
-    color = state.T["success"] if eff_diaas >= 0.90 else (state.T["warning"] if eff_diaas >= 0.70 else state.T["error"])
-    state.console.print(
-        f"\n  [{state.T['warning']}]Total bioavailable protein: {total_digestible:.1f}g[/{state.T['warning']}]"
-        f"  [dim](from {total_protein:.1f}g, effective DIAAS [{color}]{eff_diaas:.2f}[/{color}])[/dim]",
-        highlight=False,
-    )
-    if unknown_count:
+    if meal_result and meal_result.get("diaas") is not None:
+        meal_diaas = meal_result["diaas"]
+        dcp = meal_result.get("digestible_complete_protein_g") or 0.0
+        limiting_label = meal_result.get("limiting_label") or ""
+        lim_text = f"  [dim](limiting: {limiting_label})[/dim]" if limiting_label else ""
+        color = state.T["success"] if meal_diaas >= 0.90 else (state.T["warning"] if meal_diaas >= 0.70 else state.T["error"])
         state.console.print(
-            f"  [dim]  ({unknown_count} ingredient(s) had no DIAAS data — assumed fully bioavailable)[/dim]",
+            f"\n  [{state.T['warning']}]Bioavailable complete protein: {dcp:.1f}g[/{state.T['warning']}]"
+            f"  [dim](from {total_protein:.1f}g, meal DIAAS [{color}]{meal_diaas:.2f}[/{color}]{lim_text})[/dim]",
+            highlight=False,
+        )
+        if meal_result.get("missing_aa_names"):
+            state.console.print(
+                f"  [dim]  (⚑ missing AA data: {', '.join(meal_result['missing_aa_names'])})[/dim]",
+                highlight=False,
+            )
+    else:
+        eff = total_digestible / total_protein if total_protein > 0 else 0.0
+        color = state.T["success"] if eff >= 0.90 else (state.T["warning"] if eff >= 0.70 else state.T["error"])
+        state.console.print(
+            f"\n  [{state.T['warning']}]Total digestible protein: {total_digestible:.1f}g[/{state.T['warning']}]"
+            f"  [dim](from {total_protein:.1f}g, eff. digestibility [{color}]{eff:.2f}[/{color}])[/dim]",
             highlight=False,
         )
     help_footer()

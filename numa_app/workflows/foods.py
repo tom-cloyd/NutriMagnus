@@ -25,7 +25,7 @@ def _menu_foods() -> bool:
     """Foods submenu. Returns True to go back, False to quit."""
     while True:
         _show_menu("Foods — Search, Analyze & Manage", [
-            ("1", "Search food databases  (USDA + Open Food Facts)"),
+            ("1", "Search food databases  (USDA + Open Food Facts / display or output data)"),
             ("2", "Analyze a food portion"),
             ("3", "Analyze a saved recipe portion"),
             ("4", "Convert a portion <==> weight  (volume/weight, no analysis)"),
@@ -71,12 +71,19 @@ def _menu_foods() -> bool:
 
 def _do_food_search() -> None:
     try:
-        query = _prompt("Search food or recipe  [dim](name or FDC ID · b=back)[/dim]", free_text=True).strip()
+        query = _prompt(
+            "Search food or recipe  [dim](name or FDC ID · b=back · dout <id…>=output data)[/dim]",
+            free_text=True,
+        ).strip()
     except Cancelled:
         return
     if not query or query.lower() in ("b", "m", "q"):
         return
+
     ql = query.lower()
+    if ql.startswith("dout"):
+        _do_dout(query[4:].strip())
+        return
     with _db.get_db() as conn:
         all_recipes = _db.recipe_list(conn)
     query_words = ql.split()
@@ -297,10 +304,12 @@ def _print_food_comparison(entries: list[dict]) -> None:
     N = len(entries)
     _NUT_W = 26
 
-    from ..ui.common import section_title, table_footer
+    from ..ui.common import section_title, table_footer, _id_cell
     section_title("FOOD COMPARISON", f"{N} foods · per portion selected")
     for i, e in enumerate(entries, 1):
-        state.console.print(f"  [{state.T['accent']}]{i}.[/{state.T['accent']}] {e['label']}", highlight=False)
+        id_str = _id_cell(e.get("fdc_id"))
+        prefix = f"{id_str}  " if id_str else ""
+        state.console.print(f"  [{state.T['accent']}]{i}.[/{state.T['accent']}] {prefix}{e['label']}", highlight=False)
 
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("Nutrient", min_width=_NUT_W, max_width=_NUT_W, no_wrap=True)
@@ -342,7 +351,7 @@ def _print_food_comparison(entries: list[dict]) -> None:
 def _do_compare_foods() -> None:
     """Collect up to 8 foods or recipe portions and display a side-by-side nutrient table."""
     MAX = 8
-    entries: list[dict] = []  # {"name": str, "label": str, "nutrients": dict[str, float]}
+    entries: list[dict] = []  # {"name": str, "label": str, "nutrients": dict[str, float], "fdc_id": int | None}
     last_results: list[dict] = []  # food result dicts from the most recent search
 
     while len(entries) < MAX:
@@ -422,13 +431,13 @@ def _do_compare_foods() -> None:
             servings, label = portion
             factor = servings / (recipe["servings"] or 1)
             scaled = {k: v * factor for k, v in combined.items()}
-            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled})
+            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled, "fdc_id": None})
         else:
             result = _pick_portion(food)
             if result is None:
                 continue
             grams, label, scaled = result
-            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled})
+            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled, "fdc_id": food.get("fdcId")})
 
     if len(entries) < 2:
         if entries:
@@ -450,6 +459,7 @@ def _do_compare_foods() -> None:
 
 _CLAUDE_PROMPT_FILE   = pathlib.Path.home() / "claude_prompt.txt"
 _CLAUDE_RESPONSE_FILE = pathlib.Path.home() / "claude_response.txt"
+_DOUT_FILE            = pathlib.Path.home() / "numa.data"
 
 _CLAUDE_META_KEYS = {"name", "fdc_id", "fdc_type", "source", "confidence_note"}
 
@@ -475,7 +485,7 @@ _CLAUDE_VALID_FDC_TYPES = {
 _CLAUDE_PROMPT_TEMPLATE = """\
 I need complete nutritional data for {n} food(s), formatted as JSON for direct import into a Python nutrition app.
 
-For EACH food, output a SEPARATE fenced JSON block (```json ... ```) with this exact structure — metadata keys first, then all available nutrient keys:
+Output ALL foods in a SINGLE reply — one fenced ```json ... ``` block per food, all in the same response. Do not split your answer across multiple messages. Each block must follow this exact structure — metadata keys first, then all available nutrient keys:
 
 ```json
 {{
@@ -652,6 +662,92 @@ def _claude_build_notes(food: dict) -> str | None:
     return "  |  ".join(parts) if parts else None
 
 
+def _do_dout(id_str: str) -> None:
+    """Fetch complete nutrient data for one or more FDC IDs and write to ~/numa.data.
+
+    Checks the local food cache first; falls back to the USDA API for missing items.
+    Newly fetched foods are also written to the cache.
+    """
+    s, e, w = state.T["success"], state.T["error"], state.T["warning"]
+
+    parts = id_str.split()
+    fdc_ids: list[int] = []
+    for p in parts:
+        try:
+            fdc_ids.append(int(p))
+        except ValueError:
+            state.console.print(f"  [{w}]Skipping non-integer token: {p!r}[/{w}]")
+
+    if not fdc_ids:
+        state.console.print(f"  [{w}]No valid FDC IDs found after 'dout'.[/{w}]")
+        return
+
+    results: list[dict] = []
+
+    for fdc_id in fdc_ids:
+        with _db.get_db() as conn:
+            cached = _db.get_cached_food(conn, fdc_id)
+
+        if cached:
+            source = "cache"
+            nutrients = json.loads(cached["nutrients_json"])
+            portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+            entry = {
+                "fdc_id":            fdc_id,
+                "name":              cached["name"],
+                "data_type":         cached["data_type"] or "",
+                "source":            source,
+                "nutrients_per_100g": nutrients,
+                "portions":          portions,
+            }
+        else:
+            try:
+                food = _usda.get_food_detail(fdc_id)
+                source = "USDA"
+                nutrients = food["nutrients"]
+                portions  = food.get("portions") or []
+                entry = {
+                    "fdc_id":            fdc_id,
+                    "name":              food["name"],
+                    "data_type":         food.get("dataType") or "",
+                    "source":            source,
+                    "nutrients_per_100g": nutrients,
+                    "portions":          portions,
+                }
+                with _db.get_db() as conn:
+                    _db.cache_food(
+                        conn,
+                        fdc_id=fdc_id,
+                        name=food["name"],
+                        data_type=food.get("dataType") or "",
+                        brand=food.get("brand"),
+                        serving_size=food.get("servingSize"),
+                        serving_unit=food.get("servingUnit"),
+                        nutrients=nutrients,
+                        portions=portions,
+                    )
+            except Exception as exc:
+                state.console.print(f"  [{e}]ID {fdc_id}: fetch failed — {exc}[/{e}]")
+                continue
+
+        results.append(entry)
+        name_preview = entry["name"][:45]
+        state.console.print(
+            f"  [{s}]ID {fdc_id}[/{s}] / {name_preview} / data from {source}"
+        )
+
+    if not results:
+        state.console.print(f"  [{w}]No data retrieved.[/{w}]")
+        return
+
+    _DOUT_FILE.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    state.console.print()
+    state.console.print(
+        f"  [{s}]✓[/{s}]  {len(results)} food(s) written to your home directory:"
+    )
+    state.console.print(f"      [bold]{_DOUT_FILE}[/bold]")
+
+
 def _do_claude_fetch(foods: list, rest: str) -> None:
     """Generate a Claude prompt for selected or AA-incomplete foods."""
     s, e, w = state.T["success"], state.T["error"], state.T["warning"]
@@ -712,9 +808,9 @@ def _do_claude_fetch(foods: list, rest: str) -> None:
     state.console.print("    [bold]1.[/bold]  Open that file and copy its entire contents.")
     state.console.print("    [bold]2.[/bold]  Go to [bold]claude.ai[/bold] — open a [bold]new chat[/bold] (not an existing one),")
     state.console.print("           paste the prompt, and send.")
-    state.console.print("    [bold]3.[/bold]  When Claude finishes, select its reply text manually")
-    state.console.print("           (click at the start, shift-click at the end).")
-    state.console.print("           [dim]Do NOT use the chat copy button — it copies the whole conversation.[/dim]")
+    state.console.print("    [bold]3.[/bold]  When Claude finishes, copy its reply.")
+    state.console.print("           [dim]All foods should appear in one response. If Claude splits across")
+    state.console.print("           multiple replies, copy each one and paste them together.[/dim]")
     state.console.print("           Paste into a text editor and save as:")
     state.console.print(f"           [bold]{_CLAUDE_RESPONSE_FILE}[/bold]")
     state.console.print("    [bold]4.[/bold]  Return here and type [bold]r[/bold] to import the data.")

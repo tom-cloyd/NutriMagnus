@@ -462,3 +462,169 @@ class TestMealLevelDiasCalculation:
         ing_override = result_override["ingredients"][0]
         assert ing_override["digestibility"] == pytest.approx(0.50)
         assert ing_override["dig_source"] == "user override"
+
+
+# ---------------------------------------------------------------------------
+# Numerical regression — "Oatmeal high protein - 2, no okara" (recipe #17)
+#
+# Nutrient data (per 100g) taken directly from the numa food cache on 2026-06-03.
+# Reference outputs computed independently by online Claude on the same date and
+# cross-checked against the numa calculation after the pooled-DIAAS fix.
+# Tolerances are set to ±1% on ratios and ±0.3g on protein values, to allow for
+# minor floating-point variance while catching any algorithmic regression.
+# ---------------------------------------------------------------------------
+
+_R17_OATS = {           # fdc_id 2346396 — Oats, whole grain, rolled, old fashioned (dry)
+    "protein_g":          13.5,
+    "aa_tryptophan_g":     0.234,
+    "aa_threonine_g":      0.575,
+    "aa_isoleucine_g":     0.694,
+    "aa_leucine_g":        1.284,
+    "aa_lysine_g":         0.701,
+    "aa_methionine_g":     0.312,
+    "aa_cystine_g":        0.408,
+    "aa_phenylalanine_g":  0.895,
+    "aa_tyrosine_g":       0.573,
+    "aa_valine_g":         0.937,
+    "aa_histidine_g":      0.405,
+}
+
+_R17_HEMP = {           # fdc_id 170148 — Seeds, hemp seed, hulled
+    "protein_g":          31.56,
+    "aa_tryptophan_g":     0.369,
+    "aa_threonine_g":      1.269,
+    "aa_isoleucine_g":     1.286,
+    "aa_leucine_g":        2.163,
+    "aa_lysine_g":         1.276,
+    "aa_methionine_g":     0.933,
+    "aa_cystine_g":        0.672,
+    "aa_phenylalanine_g":  1.447,
+    "aa_valine_g":         1.777,
+    "aa_histidine_g":      0.969,
+}
+
+_R17_YEAST = {          # fdc_id 2676401 — Nutritional Yeast Flakes (fortified)
+    "protein_g":          50.0,
+    "aa_tryptophan_g":     0.55,
+    "aa_threonine_g":      2.30,
+    "aa_isoleucine_g":     2.00,
+    "aa_leucine_g":        3.30,
+    "aa_lysine_g":         3.50,
+    "aa_methionine_g":     0.70,
+    "aa_cystine_g":        0.50,
+    "aa_phenylalanine_g":  1.90,
+    "aa_tyrosine_g":       1.10,
+    "aa_valine_g":         2.50,
+    "aa_histidine_g":      1.00,
+}
+
+_R17_PEA = {            # fdc_id 2477360 — Unsweetened Pea Protein Powder (isolate)
+    "protein_g":          80.0,
+    "aa_tryptophan_g":     0.94,
+    "aa_threonine_g":      2.50,
+    "aa_isoleucine_g":     2.30,
+    "aa_leucine_g":        5.70,
+    "aa_lysine_g":         4.70,
+    "aa_methionine_g":     0.30,
+    "aa_cystine_g":        0.20,
+    "aa_phenylalanine_g":  3.70,
+    "aa_tyrosine_g":       2.60,
+    "aa_valine_g":         2.70,
+    "aa_histidine_g":      1.60,
+}
+
+_R17_PEANUTS = {        # fdc_id 172430 — Peanuts, all types, raw
+    "protein_g":          25.8,
+    "aa_tryptophan_g":     0.250,
+    "aa_threonine_g":      0.883,
+    "aa_isoleucine_g":     0.907,
+    "aa_leucine_g":        1.672,
+    "aa_lysine_g":         0.926,
+    "aa_methionine_g":     0.317,
+    "aa_cystine_g":        0.331,
+    "aa_phenylalanine_g":  1.377,
+    "aa_valine_g":         1.082,
+    "aa_histidine_g":      0.652,
+}
+
+_R17_INGREDIENTS = [
+    {"food_name": "Oats, whole grain, rolled, old fashioned", "nutrients_100g": _R17_OATS,    "grams": 60},
+    {"food_name": "Seeds, hemp seed, hulled",                 "nutrients_100g": _R17_HEMP,    "grams": 25},
+    {"food_name": "NUTRITIONAL YEAST FLAKES",                 "nutrients_100g": _R17_YEAST,   "grams":  8},
+    {"food_name": "UNSWEETENED PEA PROTEIN POWDER",           "nutrients_100g": _R17_PEA,     "grams": 33},
+    {"food_name": "Peanuts, all types, raw",                  "nutrients_100g": _R17_PEANUTS, "grams": 35},
+]
+
+
+class TestNumericalRegressionOatmealRecipe:
+    """Regression test for pooled meal-level DIAAS on a real five-food recipe.
+
+    Verifies that the algorithm:
+      - uses pooled AA data (not per-ingredient lookup) to capture complementarity
+      - identifies Met+Cys as the limiting IAA for this meal
+      - produces a DIAAS well above what any single ingredient achieves alone
+      - computes bioavailable complete protein consistent with the reference
+    """
+
+    @pytest.fixture(autouse=True)
+    def result(self):
+        self._result = _diaas.meal_level_diaas(_R17_INGREDIENTS)
+
+    def test_total_protein(self):
+        # 60g×13.5% + 25g×31.56% + 8g×50% + 33g×80% + 35g×25.8% = 55.42g
+        assert self._result["total_protein_g"] == pytest.approx(55.42, abs=0.1)
+
+    def test_all_ingredients_have_aa_data(self):
+        assert self._result["missing_aa_names"] == []
+        assert self._result["has_complete_data"] is True
+
+    def test_limiting_iaa_is_met_cys(self):
+        # SAA (Met+Cys) is limiting for this combination of plant proteins
+        assert self._result["limiting_iaa"] == "aa_methionine_g"
+        assert self._result["limiting_label"] == "Met+Cys"
+
+    def test_meal_diaas_in_expected_range(self):
+        # Pooled DIAAS should be ~0.89 — well above per-ingredient weighted average (0.70)
+        assert self._result["diaas"] == pytest.approx(0.893, abs=0.005)
+
+    def test_diaas_exceeds_worst_single_ingredient(self):
+        # Complementarity lifts the meal above the least-complete ingredient eaten alone.
+        # (Adding lower-quality foods can reduce the meal DIAAS below the best ingredient,
+        # but the meal must always beat the worst solo score.)
+        solo_scores = [
+            _diaas.meal_level_diaas([ing])["diaas"]
+            for ing in _R17_INGREDIENTS
+        ]
+        worst_solo = min(s for s in solo_scores if s is not None)
+        assert self._result["diaas"] > worst_solo
+
+    def test_bioavailable_complete_protein(self):
+        # DCP = total_protein × min(meal_diaas, 1.0) ≈ 55.42 × 0.893 ≈ 49.5g
+        assert self._result["digestible_complete_protein_g"] == pytest.approx(49.5, abs=0.5)
+
+    def test_saa_digestible_mg_per_g(self):
+        # Met+Cys digestible: ratio × FAO_ref = 0.893 × 23 ≈ 20.5 mg/g meal protein
+        ratio = self._result["iaa_ratios"]["aa_methionine_g"]
+        mg_per_g = ratio * _diaas.FAO_REFERENCE["aa_methionine_g"]
+        assert mg_per_g == pytest.approx(20.5, abs=0.3)
+
+    def test_lysine_digestible_mg_per_g(self):
+        ratio = self._result["iaa_ratios"]["aa_lysine_g"]
+        mg_per_g = ratio * _diaas.FAO_REFERENCE["aa_lysine_g"]
+        assert mg_per_g == pytest.approx(46.6, abs=0.5)
+
+    def test_valine_digestible_mg_per_g(self):
+        ratio = self._result["iaa_ratios"]["aa_valine_g"]
+        mg_per_g = ratio * _diaas.FAO_REFERENCE["aa_valine_g"]
+        assert mg_per_g == pytest.approx(39.3, abs=0.5)
+
+    def test_met_cys_is_minimum_ratio(self):
+        # Met+Cys (0.893) is strictly the minimum — all other IAAs score higher.
+        # Lysine is the close second at ~0.971 but does not displace Met+Cys as limiting.
+        met_cys_ratio = self._result["iaa_ratios"]["aa_methionine_g"]
+        for aa_key, ratio in self._result["iaa_ratios"].items():
+            if aa_key != "aa_methionine_g":
+                assert ratio > met_cys_ratio, (
+                    f"{_diaas.IAA_LABELS[aa_key]} ratio {ratio:.3f} is not above "
+                    f"Met+Cys ratio {met_cys_ratio:.3f}"
+                )

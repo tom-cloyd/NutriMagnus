@@ -299,6 +299,7 @@ def main() -> None:
                 nutrients=nutrients,
                 portions=None,
                 notes=food.get("notes"),
+                user_drafted=True,
             )
             aa_count = sum(1 for k in nutrients if k.startswith("aa_"))
             suffix = f"  [stripped: {', '.join(sorted(stripped))}]" if stripped else ""

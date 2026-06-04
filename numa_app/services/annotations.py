@@ -128,6 +128,7 @@ def annotate_food_interactive(fdc_id: int, food_name: str) -> None:
             ("1", f"Set GI estimate{_val_hint(gi, lambda v: f'{v:.0f}')}"),
             ("2", f"Set DIAAS estimate{_val_hint(diaas, lambda v: f'{v:.2f}')}"),
             ("3", f"Set prep context{_val_hint(prep, lambda v: v)}"),
+            ("b", "Done / back"),
         ]
         if gi_nop or diaas_nop:
             options.append(("r", "Re-enable prompts  [dim](clear 'never ask' flags)[/dim]"))

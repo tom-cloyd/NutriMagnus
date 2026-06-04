@@ -7,8 +7,8 @@ Each report is a list of typed section dicts:
   {"type": "bioavailability",         "food_name": str, "nutrients": dict}
   {"type": "ingredient_list",         "title": str, "items": list[dict]}
     item keys: food_name, amount, unit
-  {"type": "recipe_bioavailability",  "ingredient_stats": list[dict], "total_protein": float}
-    stat keys: name, amount_g, protein_g, diaas, has_aa, limiting_aa
+  {"type": "recipe_bioavailability",  "ingredient_stats": list[dict], "total_protein": float, "meal_result": dict|None}
+    stat keys: name, amount_g, protein_g, diaas, has_aa, limiting_aa, nutrients_100g
   {"type": "complement_suggestions",  "nutrients": dict, "base_diaas": float|None}
 
 Formats: "txt", "md", "html"
@@ -297,29 +297,40 @@ def _render_ingredient_list_html(title: str, items: list[dict]) -> str:
 # Section renderers — recipe per-ingredient bioavailability
 # ---------------------------------------------------------------------------
 
-def _bio_rows(ingredient_stats: list[dict]) -> tuple[list[tuple], float, float, int]:
+def _bio_rows(
+    ingredient_stats: list[dict],
+    meal_result: dict | None = None,
+) -> tuple[list[tuple], float, float]:
     """
-    Return (rows, total_protein, total_digestible, unknown_count).
-    Each row is (name, amount_str, protein_str, diaas_str, lim_label, dig_str).
+    Return (rows, total_protein, total_digestible).
+    Each row is (name, amount_str, protein_str, coeff_str, lim_label, dig_str).
+    Uses true ileal digestibility from meal_result when available.
     """
+    dig_by_name: dict[str, float] = {}
+    if meal_result:
+        for r in meal_result.get("ingredients", []):
+            dig_by_name[r["food_name"]] = r["digestibility"]
+
     rows = []
     total_protein = 0.0
     total_digestible = 0.0
-    unknown_count = 0
     for s in ingredient_stats:
         p = s.get("protein_g", 0.0)
         total_protein += p
-        diaas = s.get("diaas")
         amount_g = s.get("amount_g")
         limiting_aa = s.get("limiting_aa")
 
-        if diaas is not None:
-            dig = p * diaas
-            diaas_str = f"{diaas:.2f}"
+        if s["name"] in dig_by_name:
+            dig_coeff: float | None = dig_by_name[s["name"]]
+        else:
+            dig_coeff = s.get("diaas")
+
+        if dig_coeff is not None:
+            dig = p * dig_coeff
+            coeff_str = f"{dig_coeff:.2f}"
         else:
             dig = p
-            diaas_str = "?"
-            unknown_count += 1
+            coeff_str = "?"
         total_digestible += dig
 
         amount_str = f"{amount_g:.4g}g" if amount_g else "—"
@@ -328,60 +339,83 @@ def _bio_rows(ingredient_stats: list[dict]) -> tuple[list[tuple], float, float, 
         else:
             lim_label = "— (complete)" if s.get("has_aa") else "—"
 
-        rows.append((s["name"][:30], amount_str, f"{p:.1f}g", diaas_str, lim_label, f"{dig:.1f}g"))
-    return rows, total_protein, total_digestible, unknown_count
+        rows.append((s["name"][:30], amount_str, f"{p:.1f}g", coeff_str, lim_label, f"{dig:.1f}g"))
+    return rows, total_protein, total_digestible
 
 
-def _render_recipe_bioavailability_txt(ingredient_stats: list[dict], total_protein: float) -> str:
+def _render_recipe_bioavailability_txt(
+    ingredient_stats: list[dict], total_protein: float, meal_result: dict | None = None
+) -> str:
     if total_protein <= 0:
         return ""
-    rows, tp, td, unk = _bio_rows(ingredient_stats)
+    rows, tp, td = _bio_rows(ingredient_stats, meal_result)
     lines = ["BIOAVAILABILITY — PER SERVING", "=" * 34]
-    lines.append(f"  {'Ingredient':<30}  {'Serving':>8}  {'Crude protein':>13}  {'DIAAS':>6}  {'Limiting IAA':<18}  {'Bioavailable':>12}")
-    lines.append(f"  {'-' * 90}")
-    for name, amt, prot, diaas, lim, dig in rows:
-        lines.append(f"  {name:<30}  {amt:>8}  {prot:>8}  {diaas:>6}  {lim:<18}  {dig:>9}")
-    eff = td / tp if tp > 0 else 0.0
-    lines.append(f"\n  Total bioavailable protein: {td:.1f}g  (from {tp:.1f}g, effective DIAAS {eff:.2f})")
-    if unk:
-        lines.append(f"  ({unk} ingredient(s) had no DIAAS data — assumed fully bioavailable)")
+    lines.append(f"  {'Ingredient':<30}  {'Serving':>8}  {'Crude protein':>13}  {'Digestibility':>13}  {'Limiting IAA':<18}  {'Digestible':>10}")
+    lines.append(f"  {'-' * 96}")
+    for name, amt, prot, coeff, lim, dig in rows:
+        lines.append(f"  {name:<30}  {amt:>8}  {prot:>8}  {coeff:>13}  {lim:<18}  {dig:>7}")
+    if meal_result and meal_result.get("diaas") is not None:
+        dcp = meal_result.get("digestible_complete_protein_g") or 0.0
+        limiting = meal_result.get("limiting_label") or ""
+        lim_text = f"  (limiting: {limiting})" if limiting else ""
+        lines.append(f"\n  Bioavailable complete protein: {dcp:.1f}g  (from {tp:.1f}g, meal DIAAS {meal_result['diaas']:.2f}{lim_text})")
+    else:
+        eff = td / tp if tp > 0 else 0.0
+        lines.append(f"\n  Total digestible protein: {td:.1f}g  (from {tp:.1f}g, eff. digestibility {eff:.2f})")
     return "\n".join(lines)
 
 
-def _render_recipe_bioavailability_md(ingredient_stats: list[dict], total_protein: float) -> str:
+def _render_recipe_bioavailability_md(
+    ingredient_stats: list[dict], total_protein: float, meal_result: dict | None = None
+) -> str:
     if total_protein <= 0:
         return ""
-    rows, tp, td, unk = _bio_rows(ingredient_stats)
+    rows, tp, td = _bio_rows(ingredient_stats, meal_result)
     lines = ["## Bioavailability — per serving", ""]
-    lines.append("| Ingredient | Amount | Protein | DIAAS | Limiting IAA | Bioavailable |")
-    lines.append("|:-----------|-------:|--------:|------:|:-------------|-------------:|")
-    for name, amt, prot, diaas, lim, dig in rows:
-        lines.append(f"| {name} | {amt} | {prot} | {diaas} | {lim} | {dig} |")
-    eff = td / tp if tp > 0 else 0.0
+    lines.append("| Ingredient | Amount | Protein | Digestibility | Limiting IAA | Digestible |")
+    lines.append("|:-----------|-------:|--------:|--------------:|:-------------|----------:|")
+    for name, amt, prot, coeff, lim, dig in rows:
+        lines.append(f"| {name} | {amt} | {prot} | {coeff} | {lim} | {dig} |")
     lines.append("")
-    lines.append(f"**Total bioavailable protein:** {td:.1f}g  *(from {tp:.1f}g, effective DIAAS {eff:.2f})*")
-    if unk:
-        lines.append(f"\n*({unk} ingredient(s) had no DIAAS data — assumed fully bioavailable)*")
+    if meal_result and meal_result.get("diaas") is not None:
+        dcp = meal_result.get("digestible_complete_protein_g") or 0.0
+        limiting = meal_result.get("limiting_label") or ""
+        lim_text = f"  *(limiting: {limiting})*" if limiting else ""
+        lines.append(f"**Bioavailable complete protein:** {dcp:.1f}g  *(from {tp:.1f}g, meal DIAAS {meal_result['diaas']:.2f})*{lim_text}")
+    else:
+        eff = td / tp if tp > 0 else 0.0
+        lines.append(f"**Total digestible protein:** {td:.1f}g  *(from {tp:.1f}g, eff. digestibility {eff:.2f})*")
     return "\n".join(lines)
 
 
-def _render_recipe_bioavailability_html(ingredient_stats: list[dict], total_protein: float) -> str:
+def _render_recipe_bioavailability_html(
+    ingredient_stats: list[dict], total_protein: float, meal_result: dict | None = None
+) -> str:
     if total_protein <= 0:
         return ""
-    rows, tp, td, unk = _bio_rows(ingredient_stats)
-    header = ("Ingredient", "Amount", "Protein", "DIAAS", "Limiting IAA", "Bioavailable")
+    rows, tp, td = _bio_rows(ingredient_stats, meal_result)
+    header = ("Ingredient", "Amount", "Protein", "Digestibility", "Limiting IAA", "Digestible")
     th = "".join(f"<th>{h}</th>" for h in header)
     body_rows = []
-    for name, amt, prot, diaas, lim, dig in rows:
+    for name, amt, prot, coeff, lim, dig in rows:
         body_rows.append(
             f"    <tr><td>{name}</td><td>{amt}</td><td>{prot}</td>"
-            f"<td>{diaas}</td><td>{lim}</td><td>{dig}</td></tr>"
+            f"<td>{coeff}</td><td>{lim}</td><td>{dig}</td></tr>"
         )
-    eff = td / tp if tp > 0 else 0.0
-    unk_note = (
-        f'<p class="diaas-note"><em>({unk} ingredient(s) had no DIAAS data — '
-        f'assumed fully bioavailable)</em></p>'
-    ) if unk else ""
+    if meal_result and meal_result.get("diaas") is not None:
+        dcp = meal_result.get("digestible_complete_protein_g") or 0.0
+        limiting = meal_result.get("limiting_label") or ""
+        lim_text = f", limiting: {limiting}" if limiting else ""
+        footer_p = (
+            f'<p><strong>Bioavailable complete protein:</strong> {dcp:.1f}g '
+            f'<em>(from {tp:.1f}g, meal DIAAS {meal_result["diaas"]:.2f}{lim_text})</em></p>'
+        )
+    else:
+        eff = td / tp if tp > 0 else 0.0
+        footer_p = (
+            f'<p><strong>Total digestible protein:</strong> {td:.1f}g '
+            f'<em>(from {tp:.1f}g, eff. digestibility {eff:.2f})</em></p>'
+        )
     return (
         '<h2>Bioavailability — per serving</h2>\n'
         f'<table class="numa-table bioavailability">\n'
@@ -389,9 +423,7 @@ def _render_recipe_bioavailability_html(ingredient_stats: list[dict], total_prot
         f'  <tbody>\n'
         + "\n".join(body_rows) +
         '\n  </tbody>\n</table>\n'
-        f'<p><strong>Total bioavailable protein:</strong> {td:.1f}g '
-        f'<em>(from {tp:.1f}g, effective DIAAS {eff:.2f})</em></p>'
-        + unk_note
+        + footer_p
     )
 
 
@@ -550,7 +582,7 @@ _RENDERERS = {
         "ingredient_list":         lambda s: _render_ingredient_list_txt(
                                        s["title"], s["items"]),
         "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_txt(
-                                       s["ingredient_stats"], s["total_protein"]),
+                                       s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
         "complement_suggestions":  lambda s: _render_complement_suggestions_txt(
                                        s["nutrients"], s.get("base_diaas")),
     },
@@ -563,7 +595,7 @@ _RENDERERS = {
         "ingredient_list":         lambda s: _render_ingredient_list_md(
                                        s["title"], s["items"]),
         "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_md(
-                                       s["ingredient_stats"], s["total_protein"]),
+                                       s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
         "complement_suggestions":  lambda s: _render_complement_suggestions_md(
                                        s["nutrients"], s.get("base_diaas")),
     },
@@ -576,7 +608,7 @@ _RENDERERS = {
         "ingredient_list":         lambda s: _render_ingredient_list_html(
                                        s["title"], s["items"]),
         "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_html(
-                                       s["ingredient_stats"], s["total_protein"]),
+                                       s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
         "complement_suggestions":  lambda s: _render_complement_suggestions_html(
                                        s["nutrients"], s.get("base_diaas")),
     },

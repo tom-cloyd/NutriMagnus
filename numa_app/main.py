@@ -106,7 +106,7 @@ def print_startup_banner() -> None:
     state.console.print()
     state.console.print(Rule(style="green"), width=_W)
     state.console.print(Rule(style="green"), width=_W)
-    state.console.print('[bold green]NutriMagnus[/bold green] [dim]("nourishment wizard")[/dim]')
+    state.console.print('[bold green]NutriMagnus[/bold green] [dim]("nutrition wizard")[/dim]')
     from version import VERSION
     state.console.print(f"Nutritional Analysis for individuals and families - version {VERSION}", highlight=False)
     if p:

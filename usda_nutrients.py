@@ -1081,6 +1081,7 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("salt, ", "table salt", "sea salt", "kosher salt"),       1.22),
     (("all-purpose flour", "white flour"),                      0.53),
     (("whole wheat flour",),                                    0.52),
+    (("vital wheat gluten",),                                   0.51),  # 121 g/cup
     (("flour",),                                                0.53),
     (("cocoa",),                                                0.47),
     # Grains / seeds
@@ -1139,22 +1140,39 @@ def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
 
     # Fall back to USDA portions
     _VOL_ANCHORS = [
-        ("cup",       236.6),
-        ("tablespoon", 14.8),
-        ("tbsp",       14.8),
-        ("teaspoon",    4.9),
-        ("tsp",         4.9),
-        ("fl oz",      29.6),
+        ("cup",        236.6),
+        ("tablespoon",  14.8),
+        ("tbsp",        14.8),
+        ("tbs",         14.8),
+        ("teaspoon",     4.9),
+        ("tsp",          4.9),
+        ("fl oz",       29.6),
     ]
-    for p in portions:
-        desc = p["description"].lower()
+    # Case-sensitive abbreviations expanded before lowercasing (T=tablespoon, t=teaspoon, c=cup)
+    _ABBREV = [
+        (r"\bT\b", "tablespoon"),
+        (r"\bt\b", "teaspoon"),
+        (r"\bc\b", "cup"),
+    ]
+    for p in (portions or []):
+        raw = p["description"]
+        for pat, word in _ABBREV:
+            raw = re.sub(pat, word, raw)
+        desc = raw.lower()
         gw = p.get("gram_weight", 0)
         if gw <= 0:
             continue
+        # Parse leading number so "2 tablespoons" uses 2×14.8 ml, not 1×14.8 ml
+        m = re.match(r'^(\d+)/(\d+)', desc.strip())
+        if m:
+            count = int(m.group(1)) / int(m.group(2))
+        else:
+            m2 = re.match(r'^(\d+(?:\.\d+)?)', desc.strip())
+            count = float(m2.group(1)) if m2 else 1.0
         for vol_word, ml_val in _VOL_ANCHORS:
             if vol_word in desc:
-                density = gw / ml_val
-                if 0.3 <= density <= 1.6:
+                density = gw / (count * ml_val)
+                if 0.15 <= density <= 1.6:
                     return density
 
     return None

@@ -14,9 +14,65 @@ import db as _db
 import usda as _usda
 from .. import state
 from ..services.search import _search_and_pick_food
-from ..ui.common import _id_cell, ID_KEY, _show_menu, dot_cell, table_title, table_footer
+from ..ui.common import _id_cell, ID_KEY, _prompt_with_options, _show_menu, dot_cell, table_title, table_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
+
+def _edit_portions(portions: list) -> list:
+    """Interactively add / remove portion entries. Returns updated list."""
+    state.console.print(f"\n  [{state.T['hi']}]Portion and weight[/{state.T['hi']}]  [dim]— maps serving descriptions to grams (e.g. '2 tablespoons = 18 g')[/dim]")
+    if portions:
+        for i, p in enumerate(portions, 1):
+            state.console.print(f"    {i}.  {p['description']}  —  {p['gram_weight']:.1f} g")
+    else:
+        state.console.print("  [dim]  None on file.[/dim]")
+
+    while True:
+        state.console.print()
+        try:
+            desc = _prompt(
+                "Portion description  [dim](e.g. '2 tablespoons', '1 cup' · Enter to keep existing · r#=remove existing)[/dim]",
+                free_text=True,
+            ).strip()
+        except Cancelled:
+            break
+
+        if not desc:
+            break
+        if desc.lower() == "m":
+            raise ReturnToMain()
+        if desc.lower() == "q":
+            raise SystemExit(0)
+
+        # r1, r2 … — remove by index
+        if desc.lower().startswith("r") and desc[1:].isdigit():
+            idx = int(desc[1:])
+            if 1 <= idx <= len(portions):
+                removed = portions[idx - 1]
+                portions = [p for i, p in enumerate(portions, 1) if i != idx]
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  Removed: {removed['description']}")
+                for i, p in enumerate(portions, 1):
+                    state.console.print(f"    {i}.  {p['description']}  —  {p['gram_weight']:.1f} g")
+            else:
+                state.console.print(f"  [{state.T['warning']}]No portion #{idx}.[/{state.T['warning']}]")
+            continue
+
+        while True:
+            try:
+                gw_raw = _prompt(f"Weight of '{desc}' in grams").strip()
+            except Cancelled:
+                gw_raw = ""
+                break
+            try:
+                gw = float(gw_raw)
+                portions = portions + [{"description": desc, "gram_weight": gw}]
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  Added: {desc} = {gw:.1f} g")
+                break
+            except ValueError:
+                state.console.print(f"  [{state.T['warning']}]Enter a number.[/{state.T['warning']}]")
+
+    return portions
+
 
 def _do_edit_cached_food(fdc_id: int, cached) -> None:
     """
@@ -61,12 +117,12 @@ def _do_edit_cached_food(fdc_id: int, cached) -> None:
             existing_portions = [{"description": f"1 {unit_name}", "gram_weight": 100.0}]
 
     state.console.print(
-        f"\n  [{state.T['hi']}]Editing:[/{state.T['hi']}] [bold]{cached['name']}[/bold]\n"
-        f"  [dim]Press Enter to keep the current value for each field.[/dim]"
+        f"\n[{state.T['hi']}]Editing:[/{state.T['hi']}] [bold]{cached['name']}[/bold]\n"
+        f"[dim]Press Enter to keep the current value for each field.[/dim]"
     )
     if not cached["user_drafted"]:
         state.console.print(
-            f"\n  [dim]This is a cached {cached['data_type'] or 'external'} food. "
+            f"\n[dim]This is a cached {cached['data_type'] or 'external'} food. "
             f"Saving will mark it as user-modified — automatic re-fetches "
             f"will not overwrite your changes.[/dim]"
         )
@@ -74,38 +130,26 @@ def _do_edit_cached_food(fdc_id: int, cached) -> None:
 
     # Name
     try:
-        name = _prompt("Food name", default=cached["name"]).strip()
+        name = _prompt(
+            "Food name (edit or press Enter to keep)",
+            default=cached["name"], prefill=True, free_text=True, two_line=True,
+        ).strip()
     except Cancelled:
         return
     if not name:
         name = cached["name"]
 
-    # Serving size / unit
+    # Serving size / unit — kept silently from existing data; not prompted
     if is_supplement:
         serving_size = 1.0
         serving_unit = unit_name
     else:
-        try:
-            srv_raw = _prompt(
-                "Serving size  [dim](Enter to keep)[/dim]",
-                default=f"{cached['serving_size']:.0f}" if cached["serving_size"] else ""
-            ).strip()
-        except Cancelled:
-            srv_raw = ""
-        serving_size: float | None = cached["serving_size"]
-        if srv_raw:
-            try:
-                serving_size = float(srv_raw)
-            except ValueError:
-                pass
+        serving_size = cached["serving_size"]
+        serving_unit = cached["serving_unit"]
 
-        try:
-            serving_unit = _prompt(
-                "Serving unit  [dim](Enter to keep)[/dim]",
-                default=cached["serving_unit"] or ""
-            ).strip() or cached["serving_unit"]
-        except Cancelled:
-            serving_unit = cached["serving_unit"]
+    # Portions  (supplements have a fixed single-portion structure — skip)
+    if not is_supplement:
+        existing_portions = _edit_portions(existing_portions)
 
     # Nutrients
     if is_supplement:
@@ -656,7 +700,10 @@ def _do_copy_cached_food() -> None:
     )
 
     try:
-        name = _prompt("Food name", default=f"Copy of {cached['name']}").strip()
+        name = _prompt(
+            "Food name (edit or press Enter to keep)",
+            default=f"Copy of {cached['name']}", prefill=True, free_text=True, two_line=True,
+        ).strip()
     except Cancelled:
         return
     if not name or name.lower() == "b":
@@ -828,7 +875,13 @@ def _do_create_drafted_food() -> None:
 
     # Name
     try:
-        name = _prompt("Food name", default=default_name).strip()
+        if default_name:
+            name = _prompt(
+                "Food name (edit or press Enter to keep)",
+                default=default_name, prefill=True, free_text=True, two_line=True,
+            ).strip()
+        else:
+            name = _prompt("Food name", free_text=True).strip()
     except Cancelled:
         return
     if not name or name.lower() == "b":

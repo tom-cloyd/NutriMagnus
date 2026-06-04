@@ -209,6 +209,16 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN saved_analysis_at TEXT")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN saved_analysis_text TEXT")
+        except sqlite3.OperationalError:
+            pass
+
         for _col in ("gi_no_prompt INTEGER DEFAULT 0", "diaas_no_prompt INTEGER DEFAULT 0"):
             try:
                 conn.execute(f"ALTER TABLE food_annotations ADD COLUMN {_col}")
@@ -374,6 +384,15 @@ def recipe_set_dcp(
 def recipe_set_gl(conn: sqlite3.Connection, recipe_id: int, gl_g: float | None) -> None:
     """Store whole-recipe glycemic load (GL). None means GI data incomplete."""
     conn.execute("UPDATE recipes SET gl_g = ? WHERE id = ?", (gl_g, recipe_id))
+
+
+def recipe_set_saved_analysis(conn: sqlite3.Connection, recipe_id: int,
+                               text: str, timestamp: str) -> None:
+    """Store a plain-text analysis snapshot with an ISO timestamp."""
+    conn.execute(
+        "UPDATE recipes SET saved_analysis_at = ?, saved_analysis_text = ? WHERE id = ?",
+        (timestamp, text, recipe_id),
+    )
 
 
 def recipe_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:

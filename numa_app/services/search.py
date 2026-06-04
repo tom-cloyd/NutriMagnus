@@ -203,8 +203,7 @@ def _fetch_food_from_result(result: dict) -> dict | None:
         cached = _db.get_cached_food(conn, fdc_id)
     if cached:
         nutrients = json.loads(cached["nutrients_json"])
-        pj = cached["portions_json"]
-        if nutrients and pj is not None and pj != "null":
+        if nutrients:
             # Silently backfill omega fatty acids for USDA foods fetched before these were tracked
             _OMEGA = {"omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"}
             if (fdc_id > 0 and not cached["user_drafted"]
@@ -218,6 +217,8 @@ def _fetch_food_from_result(result: dict) -> dict | None:
                             _db.update_food_nutrients_partial(conn, fdc_id, omega)
                 except Exception:
                     pass
+            pj = cached["portions_json"]
+            portions = json.loads(pj) if pj and pj != "null" else []
             return {
                 "fdcId":            cached["fdc_id"],
                 "name":             cached["name"],
@@ -227,7 +228,7 @@ def _fetch_food_from_result(result: dict) -> dict | None:
                 "servingUnit":      cached["serving_unit"],
                 "householdServing": None,
                 "nutrients":        nutrients,
-                "portions":         json.loads(pj),
+                "portions":         portions,
             }
 
     if result.get("_from_off"):
@@ -253,13 +254,33 @@ def _fetch_food_from_result(result: dict) -> dict | None:
     with _db.get_db() as conn:
         _existing = _db.get_cached_food(conn, detail["fdcId"])
         if not (_existing and _existing["user_drafted"]):
+            nutrients = _merge_preserved_aa(_existing, detail["nutrients"])
             _db.cache_food(
                 conn,
                 detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
-                detail["servingSize"], detail["servingUnit"], detail["nutrients"],
+                detail["servingSize"], detail["servingUnit"], nutrients,
                 detail.get("portions"),
+                notes=_existing["notes"] if _existing else None,
+                curator_notes=_existing["curator_notes"] if _existing else None,
             )
+            detail = {**detail, "nutrients": nutrients}
     return detail
+
+
+def _merge_preserved_aa(existing_row, new_nutrients: dict) -> dict:
+    """Return new_nutrients with AA keys from existing_row merged in when new fetch lacks them.
+
+    USDA branded foods never include amino acid data, so re-fetching a food that
+    previously had user-imported AAs would silently erase them. This preserves
+    the existing AAs whenever the incoming data has none.
+    """
+    if existing_row is None:
+        return new_nutrients
+    existing_nuts = json.loads(existing_row["nutrients_json"])
+    existing_aa = {k: v for k, v in existing_nuts.items() if k.startswith("aa_")}
+    if existing_aa and not any(k.startswith("aa_") for k in new_nutrients):
+        return {**new_nutrients, **existing_aa}
+    return new_nutrients
 
 
 def _search_and_pick_food(
@@ -1039,8 +1060,7 @@ def _search_and_pick_food(
                 cached = _db.get_cached_food(conn, fdc_id)
             if cached:
                 nutrients = json.loads(cached["nutrients_json"])
-                pj = cached["portions_json"]
-                if nutrients and pj is not None and pj != "null":
+                if nutrients:
                     _OMEGA = {"omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"}
                     if (fdc_id > 0 and not cached["user_drafted"]
                             and not any(k in nutrients for k in _OMEGA)):
@@ -1053,6 +1073,8 @@ def _search_and_pick_food(
                                     _db.update_food_nutrients_partial(conn, fdc_id, omega)
                         except Exception:
                             pass
+                    pj = cached["portions_json"]
+                    portions = json.loads(pj) if pj and pj != "null" else []
                     return {
                         "fdcId":            cached["fdc_id"],
                         "name":             cached["name"],
@@ -1062,7 +1084,7 @@ def _search_and_pick_food(
                         "servingUnit":      cached["serving_unit"],
                         "householdServing": None,
                         "nutrients":        nutrients,
-                        "portions":         json.loads(cached["portions_json"]),
+                        "portions":         portions,
                     }
 
             # Open Food Facts: nutrients are already in the search result — no second call needed
@@ -1120,11 +1142,15 @@ def _search_and_pick_food(
             with _db.get_db() as conn:
                 _existing = _db.get_cached_food(conn, detail["fdcId"])
                 if not (_existing and _existing["user_drafted"]):
+                    nutrients = _merge_preserved_aa(_existing, detail["nutrients"])
                     _db.cache_food(
                         conn,
                         detail["fdcId"], detail["name"], detail["dataType"], detail["brand"],
-                        detail["servingSize"], detail["servingUnit"], detail["nutrients"],
+                        detail["servingSize"], detail["servingUnit"], nutrients,
                         detail.get("portions"),
+                        notes=_existing["notes"] if _existing else None,
+                        curator_notes=_existing["curator_notes"] if _existing else None,
                     )
+                    detail = {**detail, "nutrients": nutrients}
 
             return detail

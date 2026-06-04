@@ -324,7 +324,8 @@ def _pick_recipe_portion(recipe: object) -> tuple[float, str] | None:
 
 def _do_recipe_display(recipe=None) -> None:
     """Show the full text of a recipe (name, description, volume/weight,
-    ingredients, procedure) without running nutritional analysis."""
+    ingredients, procedure); offers e=edit at the end."""
+    from .recipe_edit import _do_recipe_edit
     if recipe is None:
         recipe = _pick_recipe()
     if recipe is None:
@@ -386,6 +387,13 @@ def _do_recipe_display(recipe=None) -> None:
 
     state.console.print(Rule(), width=_W)
 
+    try:
+        choice = _prompt("e=edit  b/Enter=done", choices=["e", "b"]).strip().lower()
+    except Cancelled:
+        return
+    if choice == "e":
+        _do_recipe_edit(recipe)
+
 
 def _do_copy_recipe(recipe=None) -> None:
     """Pick a recipe and save an exact copy under a new name."""
@@ -395,7 +403,10 @@ def _do_copy_recipe(recipe=None) -> None:
         return
 
     try:
-        new_name = _prompt("New recipe name", default=f"Copy of {recipe['name']}").strip()
+        new_name = _prompt(
+            "Recipe name (edit or press Enter to keep)",
+            default=f"Copy of {recipe['name']}", prefill=True, free_text=True, two_line=True,
+        ).strip()
     except Cancelled:
         return
     if not new_name or new_name.lower() == "b":
@@ -604,7 +615,6 @@ def _do_recipe_develop(recipe=None) -> None:
 
 def _do_recipe_browse() -> None:
     """Show recent recipes or search results with inline actions; loops until b."""
-    from .recipe_edit import _do_recipe_edit
     from .recipe_analysis import _do_recipe_view
 
     search_query: str | None = None
@@ -663,8 +673,8 @@ def _do_recipe_browse() -> None:
             nav_parts.append("p=prev")
         nav_parts.append("b=done")
         nav = "  ".join(nav_parts)
-        state.console.print(f"  [dim]Actions: v=view  e=edit  a=analyze  d=delete  c=copy  ·  x=develop new recipe  ·  {nav}[/dim]", highlight=False)
-        state.console.print(f"  [dim](Enter action + ID, e.g. v3 or e 14)[/dim]", highlight=False)
+        state.console.print(f"  [dim]Actions: v=view/edit  a=analyze  d=delete  c=copy  ·  x=develop new recipe  ·  {nav}[/dim]", highlight=False)
+        state.console.print(f"  [dim](Enter action + ID, e.g. v3)[/dim]", highlight=False)
 
         try:
             raw = _prompt("").strip().lower()
@@ -701,10 +711,10 @@ def _do_recipe_browse() -> None:
         if raw == "x":
             _safe_call(_do_recipe_create)
             continue
-        if len(raw) >= 2 and raw[0] in "veadc":
+        if len(raw) >= 2 and raw[0] in "vadc":
             action, id_str = raw[0], raw[1:].strip()
         else:
-            state.console.print(f"[{state.T['warning']}]Enter action + ID (e.g. v3, e 14) or s=search.[/{state.T['warning']}]")
+            state.console.print(f"[{state.T['warning']}]Enter action + ID (e.g. v3) or s=search.[/{state.T['warning']}]")
             continue
 
         try:
@@ -721,8 +731,6 @@ def _do_recipe_browse() -> None:
 
         if action == "v":
             _safe_call(_do_recipe_display, recipe)
-        elif action == "e":
-            _safe_call(_do_recipe_edit, recipe)
         elif action == "x":
             _safe_call(_do_recipe_develop, recipe)
         elif action == "a":
@@ -733,6 +741,41 @@ def _do_recipe_browse() -> None:
             _safe_call(_do_copy_recipe, recipe)
 
 
+def _do_recipe_analyze_portion() -> None:
+    """Analyze a recipe and save a plain-text snapshot.
+    If a saved analysis already exists, offer to show it or redo."""
+    from .recipe_analysis import _do_recipe_view
+
+    recipe = _pick_recipe()
+    if recipe is None:
+        return
+
+    saved_at = recipe["saved_analysis_at"]
+    if saved_at:
+        date_str = saved_at[:10]
+        state.console.print(f"\n  [dim]Saved analysis from {date_str}.[/dim]")
+        try:
+            choice = _prompt(
+                "s=show saved  r=redo  b=back",
+                choices=["s", "r", "b"],
+            ).strip().lower()
+        except Cancelled:
+            return
+        if choice == "b":
+            return
+        if choice == "s":
+            text = recipe["saved_analysis_text"]
+            if text:
+                state.console.print()
+                state.console.print(text, markup=False, highlight=False)
+            else:
+                state.console.print("  [dim]No saved text found.[/dim]")
+            return
+        # choice == "r": fall through to fresh analysis
+
+    _do_recipe_view(recipe, save_analysis=True)
+
+
 def _menu_recipes() -> bool:
     """Recipes submenu. Returns True to go back, False to quit."""
     while True:
@@ -740,6 +783,7 @@ def _menu_recipes() -> bool:
             ("1", "Create new recipe"),
             ("2", "Browse / view, edit, copy, delete recipes"),
             ("3", "Develop a recipe  [dim](add/remove ingredients with nutritional feedback)[/dim]"),
+            ("4", "Analyze a recipe portion  [dim](saves analysis with date)[/dim]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -755,6 +799,8 @@ def _menu_recipes() -> bool:
             _safe_call(_do_recipe_browse)
         elif choice == "3":
             _safe_call(_do_recipe_develop)
+        elif choice == "4":
+            _safe_call(_do_recipe_analyze_portion)
         elif choice in ("m", "b"):
             return True
         elif choice == "q":

@@ -1,10 +1,10 @@
 # NutriMagnus User Manual
 
-*Updated 2026-05-31*:2345
+*Updated 2026-06-04*:0900
 
 [TOC]
 
-## The problem that NutriMagnus (NM) addresses
+## The problem that NutriMagnus (NuMa) addresses
 
 Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the readily modifiable design that I have wanted. So, with the development of NutriMagnus, both problems are addressed.
 
@@ -16,13 +16,13 @@ There are 9 protein building blocks (amino acids) which human bodies cannot make
 
 Consider someone building a brick wall. Suppose they order a bag of cement and 500 bricks. It is likely that they will run out of cement before they run out of bricks. This is the limitation problem that is inherent in plant-based diets. While the needed amino acids do not need to all be present in a single food, or recipe, or meal, they do need to be present in approximately any given 24-hour period, if the amino acid limitation problem is to be avoided. So, one way or another one needs to tend to the issue of what is missing and where are you to find it so you can add it to your diet in time.
 
-The simple fact is that few people know which food have missing essential amino acids (EEAs), nor which have the needed excess EAAs which would make them a good complement to eat in the same 24-hour period.
+The simple fact is that few people know which foods have missing essential amino acids (EEAs), or which have the needed excess EAAs which would make them a good complement to eat in the same 24-hour period.
 
 There are two other related dietary protein problems to be addressed:
 
 * Protein in a food, however balanced or not, does no good if our bodies do not access it. Different protein sources in plant-based diets are metabolized in differing degrees of efficiency. This is **bioavailable protein** problem.
 
-* Age, sex, and activity level differences in protein needs do exist and they are not minor. Older people and active people, for example, require substantially more protein than do younger people, for several reasons. Almost all common discussions of dietary protein fais to address this problem, and in any case a mere discussion doesn't tell one what to eat and how much.
+* Age, sex, and activity level differences in protein needs do exist and they are not minor. Older people and active people, for example, require substantially more protein than do younger people, for several reasons. Almost all common discussions of dietary protein fail to address this problem, and in any case a mere discussion doesn't tell one what to eat and how much.
 
 These are technical problems that are beyond the ability of ordinary people to solve well. An easy-to-use, freely available computer program will go far toward solving this problem. This is what this project is about.
 
@@ -32,6 +32,29 @@ These are technical problems that are beyond the ability of ordinary people to s
 
 For more detailed information on what can be done with the program, look at the [Output samples](#outputSamples) section.
 
+## Can you trust NuMa? 
+
+NuMa has an extensive validation process, and you should know just a little about it. As of this writing (2026-06-03), there are 327 formal test that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should. A very small number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+
+Still, as the saying goes, all programs have bugs, and this is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all fixes benefit everyone who uses the program.
+
+## Menu navigation
+
+These conventions apply at every prompt throughout the program — menus, search results, ID entry, portion sizing, and ingredient loops. You are never required to finish a flow before you can leave it.
+
+| Key | Action |
+|-----|--------|
+| `1`–`9` | Select a numbered menu item |
+| `b` | Go back to the parent menu |
+| `m` | Jump directly to the main menu |
+| `q` | Quit the program |
+| Ctrl+C | Cancel the current prompt (same as `b`) |
+| Escape | Same as Ctrl+C |
+| ↑ / ↓ | Cycle through input history at any free-text prompt |
+
+`b`, `m`, and `q` are accepted at every prompt. Ctrl+C and Escape are caught silently and treated as "back" — they never crash or exit the program unexpectedly.
+
+---
 
 ## Output samples { #outputSamples}
 
@@ -46,7 +69,7 @@ The main menu is simple. There are 5 main functions, each numbered. There are al
 ```
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 ────────────────────────────────────────────────────────────────────────────────────────────────────
-NutriMagnus ("nourishment wizard")
+NutriMagnus ("nutrition wizard")
 Nutritional Analysis for individuals and families - version 2026-04-29 - 11:30 AM
 
 Color theme: dark  (auto-detected) -- change via Settings
@@ -77,6 +100,7 @@ Recipes
   1. Create new recipe
   2. Browse / view, edit, copy, delete recipes
   3. Develop a recipe  (add/remove ingredients with nutritional feedback)
+  4. Analyze a recipe portion  (saves analysis with date)
   m. Return to main menu
   q. Quit
 
@@ -86,7 +110,7 @@ Choice: 2
 
 ### Entering a recipe
 
-**Main menu** function 2 brings up the **Recipes** menu, and again I enter 2, to get a list of the recipes NM knows about. 
+**Main menu** function 2 brings up the **Recipes** menu, and again I enter 2, to get a list of the recipes NuMa knows about. 
 
 Notice the options available in the **Recipes** menu: One can start a recipe and return to it later to edit it or even delete it. One can also copy it to have multiple versions. Item 3 on the menu is particularly interesting: One can develop a recipe, using nutritional feedback to make ingredient choices that achieve nutritional goals.
 
@@ -98,6 +122,7 @@ Recipes
   1. Create new recipe
   2. Browse / view, edit, copy, delete recipes
   3. Develop a recipe  (add/remove ingredients with nutritional feedback)
+  4. Analyze a recipe portion  (saves analysis with date)
   m. Return to main menu
   q. Quit
 
@@ -120,7 +145,7 @@ Choice: 2
 
   At any prompt, type ?help to see a list of available help topics.
 
-  Actions: v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  s=search  b=done
+  Actions: v=view/edit  x=develop  a=analyze  d=delete  c=copy  ·  s=search  b=done
   (Enter action + ID, e.g. v3 or x 14)
 : v5
 
@@ -153,13 +178,13 @@ Choice: 2
 
   At any prompt, type ?help to see a list of available help topics.
 
-  Actions: v=view  e=edit  x=develop  a=analyze  d=delete  c=copy  ·  s=search  b=done
+  Actions: v=view/edit  x=develop  a=analyze  d=delete  c=copy  ·  s=search  b=done
   (Enter action + ID, e.g. v3 or x 14)
-: e5
+: v5
 
 ```
 
-The recipe is incomplete, and now I can work to complete it, by entering `e5`
+The recipe is incomplete, and now I can work to complete it. Entering `v5` opens the recipe view, which shows the full text (name, ingredients, procedure) and ends with `e=edit  b/Enter=done`. Pressing `e` at that prompt opens the edit flow.
 
 In the output you will see a program 'bug' - The **Procedure** is not wrapped around to match the length of the other lines, and the line beneath it should be truncated. This is now fixed, but I leave the problem for you to see because the program is still at the beta stage, and such bugs are to be expected - especially in output formatting (which is a concern secondary to output content) is still being tuned up.
 
@@ -179,6 +204,14 @@ In the output you will see a program 'bug' - The **Procedure** is not wrapped ar
 
 - **USDA FoodData Central** — the U.S. government's nutrition database, covering hundreds of thousands of whole foods, ingredients, and branded products. This is NutriMagnus's primary source. ([FoodData Central FAQ](https://fdc.nal.usda.gov/faq/))
 - **Open Food Facts** — a community-maintained database of packaged and processed food products, especially useful for branded items not found in the USDA table. ([Open Food Facts](https://world.openfoodfacts.org/discover))
+
+**USDA API key.** NutriMagnus accesses FoodData Central through USDA's public API. Without a personal key it falls back to a shared demonstration key (DEMO_KEY) that has a tight rate limit — heavy use by any user can exhaust it and cause searches to fail temporarily. Getting your own key is free and takes about a minute:
+
+1. Go to https://fdc.nal.usda.gov/api-key-signup and enter your name and email.
+2. USDA emails you a key immediately.
+3. Enter it in NutriMagnus under **Settings → Advanced settings → USDA API key**. Type **s** at that prompt to display your current key if you need to retrieve it.
+
+Your key is stored on your computer only. Once set, all food searches use your personal key with a much higher rate limit.
 
 Every food in these online tables has a unique ID number — think of it as a product code that identifies that one food and nothing else.
 
@@ -220,6 +253,85 @@ Every food's nutrient data lives in exactly one place: the Food Cache. The Draft
 This means: if you edit a food's nutrients in the Food Cache, that change is immediately reflected everywhere — in Drafted Food Profiles, in any recipe using that food, in pantry-based analyses, and in annotations. There is no syncing, no duplication, and no risk of one list getting out of step with another.
 
 **To edit nutrient data for any food, always go to Foods → 6. Food Cache.** The Pantry and Drafted Food Profiles menus remind you of this and offer a shortcut key to jump there directly. Annotations (GI, DIAAS estimates) work the same way: annotate a food once in the Food Cache and the annotation appears everywhere that food is used.
+
+## Getting missing amino acid data into your cache
+
+Many foods in the USDA database — particularly branded products and older SR Legacy entries — have complete macronutrient data but no amino acid values. NutriMagnus marks these with ✗ in the AA column of the Food Cache list. Without amino acid data, protein completeness scores and the meal-level DIAAS calculation cannot include that food. There are two ways to fill the gap.
+
+---
+
+### Method 1 — Ask Claude AI (the interactive workflow)
+
+This is the built-in route, available directly inside NutriMagnus. It takes about two minutes per batch of foods and requires only a free claude.ai account.
+
+**Where to find it:** Foods → 5. View cached / saved foods. The `i` and `r` commands appear in the option list below the food table.
+
+**Step 1 — Generate the prompt.**
+
+From the Food Cache list, type `i` followed immediately by the row number(s) you want data for:
+
+    i30           one food (row 30)
+    i30,67        two foods (rows 30 and 67)
+    i             every food in the current list that shows ✗
+
+NutriMagnus builds a detailed data-request prompt and saves it to:
+
+    ~/claude_prompt.txt
+
+(The `~` means your home folder — the same folder that contains Documents, Desktop, etc.) The program prints the file's full path and shows you the next steps.
+
+**Step 2 — Send the prompt to Claude AI.**
+
+Open `~/claude_prompt.txt` in any text editor and copy its entire contents. Then:
+
+1. Go to **claude.ai** in your browser. A free account is sufficient.
+2. Open a **brand-new chat** — do not reuse a previous chat window.
+3. Paste the text you copied and press Enter or click Send.
+4. Wait for Claude to finish. It will return one structured data block per food.
+
+**Step 3 — Save Claude's reply.**
+
+Copy only Claude's reply — not your original prompt, not the whole page.
+
+The safest way:
+- Click at the very beginning of Claude's reply text.
+- Scroll to the absolute end of that reply.
+- Shift-click to select everything Claude wrote.
+- Copy (Ctrl+C or Cmd+C).
+
+Do not use the copy button at the bottom of the chat window — that captures the entire conversation history, not just Claude's answer.
+
+Open a plain-text editor (Notepad, gedit, TextEdit, nano, etc.), paste, and save the file as:
+
+    ~/claude_response.txt
+
+Overwrite any previous version of that file completely.
+
+**Step 4 — Import the data.**
+
+Return to NutriMagnus, go to Foods → 5. View cached / saved foods, and type `r`.
+
+NutriMagnus reads the file, validates each food record, and shows you a review table — food name, calories, protein, and how many of the 11 amino acids were found. You confirm before anything is written. After a successful import the food's AA column changes from ✗ to ✓.
+
+Any explanatory notes or caveats that Claude added after the data are saved automatically as curator notes, visible with `n#` in the cache list.
+
+**Re-running is safe.** You can run this workflow again at any time to update a food's data or add notes you missed. The import overwrites the existing entry.
+
+---
+
+### Method 2 — The `import_foods.py` script (for permanent, curated records)
+
+If you have sourced nutrient data directly from published literature — amino acid assay papers, authoritative food composition tables, or similar — and you want those figures to stay in your cache permanently, use `import_foods.py` instead of the Claude workflow.
+
+This is a Python script in the NutriMagnus project folder. You add food records directly to its `_FOODS` list (each record is a Python dict with the food's name, FDC ID, data type, and nutrient values), then run:
+
+    python import_foods.py
+
+All records in the list are written into your cache immediately. The script marks each imported food as user-protected, so NutriMagnus will never silently overwrite the data with a fresh copy from USDA — even if you search for that food again later. Re-running the script is always safe: existing entries are updated in place, not duplicated.
+
+Use the Claude workflow for exploratory or one-off data gathering where interactive review is helpful. Use `import_foods.py` for stable, permanently-needed records that you have verified from primary sources.
+
+---
 
 ## Entering custom foods and dietary supplements
 
@@ -364,9 +476,9 @@ If you say yes, for each affected ingredient the program opens a focused search 
 
 ## Incremental approach to developing NutriMagnus
 
-NM is being developed using Claude Code AI, in the VSCodium programming editor, which allows for rapid progress and excellent human/AI pairing.
+NuMa is being developed using Claude Code AI, in the VSCodium programming editor, which allows for rapid progress and excellent human/AI pairing.
 
-Development is focusing at present on coding and validating core features in a command line environment. Progress to a graphic user interface (GUI) is planned, but will not occur until core features are in place. Command and menu-driven operation of NM will always be available after the GUI is working.
+Development is focusing at present on coding and validating core features in a command line environment. Progress to a graphic user interface (GUI) is planned, but will not occur until core features are in place. Command and menu-driven operation of NuMa will always be available after the GUI is working.
 
 ## Developmental Plan - functions developed and planned
 
@@ -384,25 +496,25 @@ Development is focusing at present on coding and validating core features in a c
 
 **Available now:**
 
-- **Richer nutrient information**: In addition to the standard macronutrients and micronutrients, NM tracks several plant bioactive compounds (carotenoids, choline, isoflavones, and others) where USDA data is available. Four individual omega fatty acids are tracked separately — ALA (plant omega-3), EPA and DHA (marine omega-3), and linoleic acid (omega-6) — so you can see not just total polyunsaturated fat but the specific forms your body uses differently. Foods that contain substances known to reduce nutrient absorption are flagged with practical notes on how cooking or preparation reduces their effect.
+- **Richer nutrient information**: In addition to the standard macronutrients and micronutrients, NuMa tracks several plant bioactive compounds (carotenoids, choline, isoflavones, and others) where USDA data is available. Four individual omega fatty acids are tracked separately — ALA (plant omega-3), EPA and DHA (marine omega-3), and linoleic acid (omega-6) — so you can see not just total polyunsaturated fat but the specific forms your body uses differently. Foods that contain substances known to reduce nutrient absorption are flagged with practical notes on how cooking or preparation reduces their effect.
 
-- **Protein quality score (DIAAS)**: For any food or recipe, NM shows not just how much protein is present but how much your body can realistically use — adjusted for both digestibility and amino acid completeness. This matters especially on a plant-based diet, where raw protein figures routinely overstate what the body actually absorbs.
+- **Protein quality score (DIAAS)**: For any food or recipe, NuMa shows not just how much protein is present but how much your body can realistically use — adjusted for both digestibility and amino acid completeness. This matters especially on a plant-based diet, where raw protein figures routinely overstate what the body actually absorbs.
 
-- **Protein complement suggestions**: After analyzing any food, recipe, meal, or daily summary, NM can suggest specific foods — drawing from your personal pantry list first — that would fill in your amino acid gaps. It calculates the minimum amount needed to close the gap, so you know exactly what to add to your meal.
+- **Protein complement suggestions**: After analyzing any food, recipe, meal, or daily summary, NuMa can suggest specific foods — drawing from your personal pantry list first — that would fill in your amino acid gaps. It calculates the minimum amount needed to close the gap, so you know exactly what to add to your meal.
 
 - **My Pantry**: Keep a personal list of protein sources you currently have on hand. The complement advisor draws from this list first when making suggestions.
 
-- **Meal-level protein quality**: When you analyze a full meal, NM computes a composite protein quality score across all the meal's ingredients combined, capturing how different foods complement each other.
+- **Meal-level protein quality**: When you analyze a full meal, NuMa computes a composite protein quality score across all the meal's ingredients combined, capturing how different foods complement each other.
 
-- **Personalized nutrition targets**: Enter your age, sex, weight, height, and activity level, and NM computes calorie, protein, and micronutrient targets calibrated to you. After viewing a daily summary, you can compare your intake against these personal targets, with color-coded results for each nutrient.
+- **Personalized nutrition targets**: Enter your age, sex, weight, height, and activity level, and NuMa computes calorie, protein, and micronutrient targets calibrated to you. After viewing a daily summary, you can compare your intake against these personal targets, with color-coded results for each nutrient.
 
-- **Dietary preferences**: Tell NM which protein sources to include in complement suggestions — all animal foods (meat, fish, dairy, eggs) may be included, vegetarian (dairy and eggs only, no meat or fish), or plant-based only. The setting is saved between sessions and applies to both the on-screen display and any exported reports.
+- **Dietary preferences**: Tell NuMa which protein sources to include in complement suggestions — all animal foods (meat, fish, dairy, eggs) may be included, vegetarian (dairy and eggs only, no meat or fish), or plant-based only. The setting is saved between sessions and applies to both the on-screen display and any exported reports.
 
 - **Recipe portion analysis**: Analyze the nutrients in a specific portion of any saved recipe — for example, how much protein and calcium you get from one serving of your chickpea stew.
 
 - **Flexible portion entry**: Portions can be entered by weight (grams, ounces, pounds), or by volume (cups, tablespoons, teaspoons) for foods where a density is known.
 
-- **Built-in help system**: NM includes a plain-language user manual you can consult without leaving the program. After any analysis that uses specialized terms — protein completeness, DIAAS, amino acid gaps, and others — a brief line at the bottom of the output lists the topics available. Type `?topic` at the next prompt to read the explanation. For example, `?diaas` explains the protein digestibility score, `?fao` explains the international reference standard used for protein quality assessment, and `?help` lists everything available. The explanation appears on screen and the prompt returns immediately afterward.
+- **Built-in help system**: NuMa includes a plain-language user manual you can consult without leaving the program. After any analysis that uses specialized terms — protein completeness, DIAAS, amino acid gaps, and others — a brief line at the bottom of the output lists the topics available. Type `?topic` at the next prompt to read the explanation. For example, `?diaas` explains the protein digestibility score, `?fao` explains the international reference standard used for protein quality assessment, and `?help` lists everything available. The explanation appears on screen and the prompt returns immediately afterward.
 
 **Still planned for Phase 2:**
 
@@ -872,7 +984,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **My Pantry**  —  A personal list of protein sources you currently have on hand. NutriMagnus checks this list first when suggesting complement foods, so suggestions reflect what you can actually use.
 
-**NM**  —  NutriMagnus. The abbreviated name used throughout this manual.
+**NuMa**  —  NutriMagnus. The abbreviated name used throughout this manual.
 
 **OFF**  —  Open Food Facts. A community-maintained database of packaged and branded food products; NutriMagnus's secondary data source. Website: https://world.openfoodfacts.org/
 
@@ -925,9 +1037,9 @@ The reference values allow a simple and powerful question to be asked about any 
 
 If the answer is yes for all nine EAAs, the protein is high quality — no bottleneck will limit your body's ability to use it. If the answer is no for even one EAA, that amino acid becomes your limiting factor.
 
-### How the Ratio Is Calculated in numa
+### How the Ratio Is Calculated in NuMa
 
-For each essential amino acid, the ratio shown in numa's output is computed in two steps:
+For each essential amino acid, the ratio shown in NuMa's output is computed in two steps:
 
 **Step 1 — convert AA amount to mg per gram of total protein:**
 

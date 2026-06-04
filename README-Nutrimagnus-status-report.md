@@ -1,4 +1,4 @@
-# NutriMagnus ("nourishment wizard") - a 21st century nutritional analysis program for individuals and families
+# NutriMagnus ("nutrition wizard") - a 21st century nutritional analysis program for individuals and families
 
 UPDATED: 2026-04-01 - 14:36
 

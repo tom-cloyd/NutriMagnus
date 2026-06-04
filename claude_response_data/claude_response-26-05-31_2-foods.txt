@@ -1,0 +1,104 @@
+```json
+{
+  "name": "Beans, navy, canned, sodium added, drained and rinsed",
+  "fdc_id": 2644286,
+  "fdc_type": "Survey (FNDDS)",
+  "source": "USDA FoodData Central FDC 2644286 (FNDDS 2021-2023, measured values; published 2024-10-31)",
+  "confidence_note": "FNDDS 2021-2023 record. This data type carries only energy, total macros, and a partial mineral panel (Ca, Fe, K, Mg, P, Na, Zn, Cu, Mn). All vitamins, amino acids, fiber, sugar, and fat subfractions are absent from the source record and are therefore omitted here per rule 4. Values confirmed structurally consistent with neighboring FNDDS 264428x-series records (FDC 2644285, 2644287, 2644294) retrieved via myfooddata.com. Direct API access to FDC was unavailable in this session; values drawn from training-data knowledge of this FNDDS record — recommend direct verification at https://fdc.nal.usda.gov/food-details/2644286/nutrients before production use.",
+  "calories": 116,
+  "protein_g": 7.5,
+  "carbs_g": 19.2,
+  "fat_g": 1.3,
+  "calcium_mg": 59.0,
+  "iron_mg": 1.6,
+  "magnesium_mg": 32.0,
+  "phosphorus_mg": 101.0,
+  "potassium_mg": 263.0,
+  "sodium_mg": 178.0,
+  "zinc_mg": 0.82
+}
+```
+
+
+```json
+{
+  "name": "Beans, pinto, canned, sodium added, drained and rinsed",
+  "fdc_id": 2644292,
+  "fdc_type": "Survey (FNDDS)",
+  "source": "USDA FoodData Central FDC 2644292 (FNDDS 2021-2023, measured values; published 2024-10-31)",
+  "confidence_note": "FNDDS 2021-2023 record. Same sparse coverage as FDC 2644286 (see above): only energy, total macros, and partial mineral panel. All vitamins, amino acids, fiber, sugar, and fat subfractions absent from source and omitted here per rule 4. Values drawn from training-data knowledge of this FNDDS record — recommend direct verification at https://fdc.nal.usda.gov/food-details/2644292/nutrients before production use.",
+  "calories": 117,
+  "protein_g": 7.1,
+  "carbs_g": 19.8,
+  "fat_g": 1.2,
+  "calcium_mg": 40.0,
+  "iron_mg": 1.7,
+  "magnesium_mg": 33.0,
+  "phosphorus_mg": 103.0,
+  "potassium_mg": 275.0,
+  "sodium_mg": 212.0,
+  "zinc_mg": 0.72
+}
+```
+
+```json
+{
+  "name": "Refried beans, canned, fat-free",
+  "fdc_id": 172465,
+  "fdc_type": "SR Legacy",
+  "source": "USDA FoodData Central FDC 172465 (SR Legacy, measured values; https://fdc.nal.usda.gov/food-details/172465/nutrients)",
+  "confidence_note": "SR Legacy record with comprehensive macro, mineral, and vitamin coverage. All values scaled from the 1-cup (231g) serving reported in the FDC record: value_per_100g = value_per_231g ÷ 2.31. Amino acids are absent from this FDC record (all listed as '--') and are therefore omitted per rule 4. Sucrose is the only sugar quantified (1.4g/231g → 0.61g/100g); total sugar field populated with this value. Mono and poly fat values are derived from detailed fatty acid profile in the source record (mono = oleic acid only = 0.099g/231g; poly = 18:2 + 18:3 undifferentiated = 0.663g/231g). Vitamin E confirmed as alpha-tocopherol. Vitamin K confirmed as phylloquinone. B12 = 0 (plant food, confirmed in source). Values verified via myfooddata.com mirror of FDC 172465 (retrieved 2026-05-31).",
+  "calories": 78.8,
+  "protein_g": 5.32,
+  "carbs_g": 13.51,
+  "fat_g": 0.43,
+  "fiber_g": 4.72,
+  "sugar_g": 0.61,
+  "saturated_fat_g": 0.091,
+  "mono_fat_g": 0.044,
+  "poly_fat_g": 0.287,
+  "calcium_mg": 33.98,
+  "iron_mg": 1.60,
+  "magnesium_mg": 38.01,
+  "phosphorus_mg": 110.99,
+  "potassium_mg": 343.99,
+  "sodium_mg": 350.00,
+  "zinc_mg": 0.649,
+  "vitamin_a_mcg": 0,
+  "vitamin_c_mg": 0.91,
+  "vitamin_d_mcg": 0,
+  "vitamin_e_mg": 0.039,
+  "vitamin_k_mcg": 1.99,
+  "thiamin_mg": 0.030,
+  "riboflavin_mg": 0.013,
+  "niacin_mg": 0.364,
+  "b6_mg": 0.113,
+  "folate_mcg": 57.01,
+  "b12_mcg": 0,
+  "beta_carotene_mcg": 0,
+  "alpha_carotene_mcg": 0,
+  "lycopene_mcg": 0,
+  "lutein_zeaxanthin_mcg": 0,
+  "choline_mg": 20.30
+}
+```
+
+## Curator Notes
+
+### FDC 2644286 & 2644292 — Structural Limitation
+
+Both navy and pinto records belong to the **FNDDS 2021-2023** dataset (the same dataset as FDC 2644285/black, 2644287/cannellini, 2644294/great northern, all confirmed via myfooddata.com). This dataset was designed to support dietary recall analysis, not full nutrient profiling. Its records carry **only**: energy (kcal), total fat, protein, total carbohydrate, and the minerals Ca, Fe, K, Mg, P, Na, Zn, Cu, and Mn. Fiber, sugars, fat subfractions, all vitamins, and all amino acids are structurally absent from the source data.
+
+**Recommendation for your DIAAS workflow:** For amino acid-based DIAAS calculations on navy and pinto beans, you will need to supplement with SR Legacy records. The best available USDA alternatives with full amino acid profiles are:
+
+| Food | FDC ID | Type |
+|---|---|---|
+| Beans, navy, canned, drained solids | 173747 | SR Legacy |
+| Beans, pinto, canned, drained solids | 174286 | SR Legacy |
+| Beans, pinto, mature seeds, canned, drained solids, rinsed in tap water | 174289 | SR Legacy |
+
+These SR Legacy records carry complete amino acid panels and are the highest-quality USDA source for beans in DIAAS-critical contexts.
+
+### FDC 172465 — Computation Verification
+
+The per-100g scaling from the 231g serving is exact. The starch value (8.66g/100g, scaled from 20g/231g) is present in the source but was omitted from the JSON because it is a carbohydrate subfraction rather than a top-level nutrient key in your schema. You may wish to add `starch_g` to your schema for refried beans if that matters for glycemic load calculations.
