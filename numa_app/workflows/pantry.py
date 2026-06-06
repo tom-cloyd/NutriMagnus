@@ -87,8 +87,8 @@ def _do_pantry_menu() -> None:
         state.console.print(f"  [dim]m.[/dim] Return to main menu")
         state.console.print()
         state.console.print(
-            f"  [{state.T['warning']}]To edit nutrient data for any food, use the Food Cache (option c).\n"
-            f"  All pantry foods are visible and editable there.[/{state.T['warning']}]"
+            f"  [dim]To edit or obtain nutrient data for any food, use the Food Cache (option c).\n"
+            f"  All pantry foods may be managed there.[/dim]"
         )
         state.console.print()
         try:

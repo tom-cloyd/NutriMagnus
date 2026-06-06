@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-04*:0900
+*Updated 2026-06-05*:1854
 
 [TOC]
 
@@ -37,6 +37,15 @@ For more detailed information on what can be done with the program, look at the 
 NuMa has an extensive validation process, and you should know just a little about it. As of this writing (2026-06-03), there are 327 formal test that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should. A very small number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 Still, as the saying goes, all programs have bugs, and this is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all fixes benefit everyone who uses the program.
+
+## Installation
+
+### Windows
+
+
+### Linux
+
+
 
 ## Menu navigation
 
@@ -194,7 +203,7 @@ In the output you will see a program 'bug' - The **Procedure** is not wrapped ar
 
 (under development)
 
-* **Input history:** At any free-text prompt (food or recipe name, search term, amount, note, etc.) you can press the **up arrow** to recall what you typed previously. Press up again to go further back, and **down arrow** to move forward again. If you started typing before pressing up, your partial input is saved and restored when you press down back to the current position. History holds the last 100 entries for the session and resets when you quit.
+* **Input history:** At any free-text prompt (food or recipe name, search term, amount, note, etc.) you can press the **up arrow** to recall what you typed previously. Press up again to go further back, and **down arrow** to move forward again. If you started typing before pressing up, your partial input is saved and restored when you press down back to the current position. History persists across sessions (saved to `~/.numa_history`), holds up to 1000 entries, and skips consecutive duplicates.
 
 * **Enter food portions:** if at all possible, enter weights, not volume measures. A cup of flour can vary greatly depending upon how much air is stirred into it. A cup of spinach is even harder to pin down. Even nuts can be a problem. But weights are far less likely to vary, and so are much more reliable.
 
@@ -518,6 +527,9 @@ Development is focusing at present on coding and validating core features in a c
 
 **Still planned for Phase 2:**
 
+- Research & wr. (mostly via AI summaries) supplement on vitamen/mineral supplementation, RDAs as minimums, and how to set personal goals.
+- Program input of individual vit./min. profile goals, and % accomplished column in main nutrient analysis. 
+- Development of input and use of glycemic index and glycemic load data. 
 - Development of a slightly modified version that will run on Windows operating systems. (The developmental version is Linux-only.)
 - Nutrient trend charts or tables: see how your intake of key nutrients has varied over days or weeks
 - Dietary pattern analysis
@@ -803,6 +815,8 @@ Change it under **Settings → Dietary preferences** (option 3 in the Settings m
 | 3 | Plant-based only | plant sources only |
 
 The setting is saved between sessions and applies to both the interactive complement display and any exported reports.
+
+**Important — this setting also filters food search results.** If your preference is set to "plant-based only" or "vegetarian", foods outside that category will not appear anywhere in NutriMagnus — not in food searches, not in search results within recipes or meals, and not in any lookup by name or FDC ID. If you search for a food and get no results, check whether your dietary preference setting is silently excluding it. To look up any food regardless of category, temporarily switch to "All animal foods" under Settings, do your search, then switch back.
 
 
 ### FAO 2013 Reference Standard [fao]

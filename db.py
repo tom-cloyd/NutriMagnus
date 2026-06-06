@@ -541,6 +541,19 @@ def meal_list_recent(
     ).fetchall()
 
 
+def meal_count_recent(
+    conn: sqlite3.Connection,
+    before_date: str | None = None,
+) -> int:
+    """Return total number of meals (with optional before_date filter) for pagination display."""
+    where = "WHERE meal_date <= :before_date" if before_date else ""
+    params: dict = {}
+    if before_date:
+        params["before_date"] = before_date
+    row = conn.execute(f"SELECT COUNT(*) FROM meals {where}", params).fetchone()
+    return row[0] if row else 0
+
+
 def meal_get(conn: sqlite3.Connection, meal_id: int) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
 

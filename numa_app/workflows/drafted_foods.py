@@ -31,13 +31,13 @@ def _edit_portions(portions: list) -> list:
         state.console.print()
         try:
             desc = _prompt(
-                "Portion description  [dim](e.g. '2 tablespoons', '1 cup' · Enter to keep existing · r#=remove existing)[/dim]",
+                "Portion description  [dim](e.g. '2 tablespoons', '1 cup' · Enter alone = done · r#=remove entry)[/dim]",
                 free_text=True,
             ).strip()
         except Cancelled:
             break
 
-        if not desc:
+        if not desc or desc.lower() == "b":
             break
         if desc.lower() == "m":
             raise ReturnToMain()
@@ -59,9 +59,10 @@ def _edit_portions(portions: list) -> list:
 
         while True:
             try:
-                gw_raw = _prompt(f"Weight of '{desc}' in grams").strip()
+                gw_raw = _prompt(f"Weight of '{desc}' in grams  [dim](b=back)[/dim]", free_text=True).strip()
             except Cancelled:
-                gw_raw = ""
+                break
+            if not gw_raw or gw_raw.lower() == "b":
                 break
             try:
                 gw = float(gw_raw)
@@ -725,7 +726,7 @@ def _do_copy_cached_food() -> None:
 
     try:
         serving_unit = _prompt(
-            "Serving unit",
+            "Serving unit  [dim](e.g. g, oz, cup, tablet)[/dim]",
             default=cached["serving_unit"] or ""
         ).strip() or cached["serving_unit"]
     except Cancelled:
@@ -935,7 +936,7 @@ def _do_create_drafted_food() -> None:
                 pass
         try:
             serving_unit = _prompt(
-                "Serving unit" if default_serving_unit else "Serving unit  [dim](e.g. g, oz, cup — or Enter to skip)[/dim]",
+                "Serving unit  [dim](e.g. g, oz, cup, tablet — or Enter to skip)[/dim]" if not default_serving_unit else "Serving unit  [dim](e.g. g, oz, cup, tablet)[/dim]",
                 default=default_serving_unit or ""
             ).strip() or None
         except Cancelled:

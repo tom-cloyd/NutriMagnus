@@ -303,7 +303,7 @@ def _pick_portion(
             state.console.print(f"    [dim]p{i}[/dim]  {p['description']} [{p['gram_weight']:.4g}g]")
         state.console.print("  [dim]  e.g. 'p1' for one portion, '2 p1' for two[/dim]")
     else:
-        state.console.print("  [dim]A bare number means pieces/count (no gram weight). Add a unit for weight or volume.[/dim]")
+        state.console.print("  [dim]A bare number will be treated as grams (you'll confirm). Add a unit for other measures.[/dim]")
     if current:
         state.console.print(
             f"  Current: [{state.T['default_hint']}]{current}[/{state.T['default_hint']}]"
@@ -345,18 +345,28 @@ def _pick_portion(
             continue
 
         grams, label = result
-        # Bare number with no unit → piece count (0 grams). When USDA portion data
-        # is available this almost always means the user wanted N × a known portion.
-        # Re-prompt rather than silently storing 0 grams.
-        if grams == 0.0 and label.endswith(" pc") and portions:
-            state.console.print(
-                f"  [{state.T['warning']}]'{raw}' was interpreted as {label} with no gram weight "
-                f"— nutrients would be zero.[/{state.T['warning']}]"
-            )
-            state.console.print(
-                f"  [dim]Use 'pN' to select a USDA portion above, e.g. '{raw} p1' for {raw} × {portions[0]['description']}.[/dim]"
-            )
-            continue
+        # Bare number → confirm as grams before storing
+        if grams == 0.0 and label.endswith(" pc"):
+            parsed = _parse_number_tokens(_tokenize_portion(raw))
+            bare_g = parsed[0] if parsed else None
+            if bare_g is None or bare_g <= 0:
+                state.console.print(f"[{state.T['warning']}]Unrecognized input. Try: 150 g, 3 oz, 1/4 cup, 2 T.[/{state.T['warning']}]")
+                continue
+            if portions:
+                state.console.print(
+                    f"  [dim]Use 'pN' to pick a USDA portion, e.g. '{raw} p1' for {raw} × {portions[0]['description']}.[/dim]"
+                )
+            try:
+                confirm = _prompt(
+                    f"Treat [bold]{raw}[/bold] as [bold]{bare_g:g} g[/bold]?",
+                    choices=["y", "n"], default="y",
+                )
+            except Cancelled:
+                return None
+            if confirm != "y":
+                continue
+            grams = bare_g
+            label = f"{bare_g:g} g"
         if grams is None:
             # Volume recognized but density (weight) unknown — ask for weight
             vol_display = label

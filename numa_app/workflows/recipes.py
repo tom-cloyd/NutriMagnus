@@ -17,7 +17,7 @@ from .. import state
 from ..services.portions import _normalize_unit_display, _parse_portion_input, _pick_portion, _UNIT_TO_GRAMS, _VOLUME_TO_ML
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
 from ..services.reports import _offer_export
-from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, table_title, help_footer
+from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, table_footer, table_title, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness, _print_recipe_bioavailability
 
@@ -61,6 +61,8 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
     state.console.print(tbl)
     if not label:
         state.console.print(f"  [dim]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/dim]")
+    table_footer("  [dim]Complete ✓ = recipe is marked finished (all ingredients entered)[/dim]",
+                 "  [dim]DCP/srv  = digestible complete protein per serving (requires analysis)[/dim]")
     help_footer()
 
 
@@ -388,7 +390,7 @@ def _do_recipe_display(recipe=None) -> None:
     state.console.print(Rule(), width=_W)
 
     try:
-        choice = _prompt("e=edit  b/Enter=done", choices=["e", "b"]).strip().lower()
+        choice = _prompt("e=edit  b/Enter=done", choices=["e", "b", ""], default="").strip().lower()
     except Cancelled:
         return
     if choice == "e":
@@ -741,6 +743,125 @@ def _do_recipe_browse() -> None:
             _safe_call(_do_copy_recipe, recipe)
 
 
+def _do_recipe_search() -> None:
+    """Filter recipes by typing text; /N selects from the current filtered list."""
+    from .recipe_analysis import _do_recipe_view
+
+    filter_text: str | None = None
+
+    while True:
+        with _db.get_db() as conn:
+            all_recipes = _db.recipe_list(conn)
+        if not all_recipes:
+            state.console.print("[dim]No recipes saved yet.[/dim]")
+            return
+
+        if filter_text:
+            fl = filter_text.lower()
+            matches = [r for r in all_recipes if fl in r["name"].lower()]
+        else:
+            matches = sorted(
+                all_recipes,
+                key=lambda r: r["last_accessed_at"] or r["created_at"] or "",
+                reverse=True,
+            )
+
+        if filter_text:
+            label = f"{len(matches)} of {len(all_recipes)} · filter: '{filter_text}'"
+        else:
+            label = f"{len(all_recipes)} recipes · most recent first"
+
+        table_title("SEARCH RECIPES", f"[dim]{label}[/dim]")
+
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("#",        justify="right",  min_width=3)
+        tbl.add_column("ID",       justify="right",  min_width=4)
+        tbl.add_column("Name",     min_width=_RNAME_W, max_width=_RNAME_W, no_wrap=True)
+        tbl.add_column("Servings", justify="right",  min_width=8)
+        tbl.add_column("Created",  min_width=10)
+
+        for i, r in enumerate(matches, 1):
+            rname = r["name"][:_RNAME_W - 1]
+            rdots = "·" * (_RNAME_W - len(rname) - 1)
+            tbl.add_row(
+                str(i), str(r["id"]),
+                f"{rname} [dim]{rdots}[/dim]",
+                str(r["servings"]),
+                (r["created_at"] or "")[:10],
+            )
+        state.console.print(tbl, highlight=False)
+
+        if not matches and filter_text:
+            state.console.print(
+                f"  [{state.T['warning']}]No recipes match '{filter_text}'.[/{state.T['warning']}]"
+            )
+
+        slash_n = min(9, len(matches))
+        try:
+            raw = _prompt(
+                "  [dim]Type to filter · /N to pick · b=back · m=main · q=quit[/dim]",
+                free_text=True,
+                slash_max=slash_n,
+            ).strip()
+        except Cancelled:
+            return
+
+        rl = raw.lower()
+        if not raw:
+            continue
+        if rl == "b":
+            return
+        if rl == "m":
+            raise ReturnToMain()
+        if rl == "q":
+            raise SystemExit(0)
+
+        if raw.startswith("/") and raw[1:].isdigit():
+            idx = int(raw[1:]) - 1
+            if matches and 0 <= idx < len(matches):
+                rid = matches[idx]["id"]
+                with _db.get_db() as conn:
+                    recipe = _db.recipe_get(conn, rid)
+                if recipe:
+                    _recipe_search_action(recipe)
+            else:
+                state.console.print(
+                    f"  [{state.T['warning']}]Pick /1–/{len(matches)}.[/{state.T['warning']}]"
+                )
+            continue
+
+        filter_text = raw or None
+
+
+def _recipe_search_action(recipe: dict) -> None:
+    """Show a one-line action prompt after picking a recipe from search."""
+    from .recipe_analysis import _do_recipe_view
+
+    name = recipe["name"]
+    state.console.print(
+        f"\n  [{state.T['hi']}]{name}[/{state.T['hi']}]  "
+        "[dim]v=view/edit · a=analyze · d=delete · c=copy[/dim]"
+    )
+    try:
+        act = _prompt("Action  [dim](Enter/b=back)[/dim]").strip().lower()
+    except Cancelled:
+        return
+    if not act or act == "b":
+        return
+    if act == "m":
+        raise ReturnToMain()
+    if act == "q":
+        raise SystemExit(0)
+    if act == "v":
+        _safe_call(_do_recipe_display, recipe)
+    elif act == "a":
+        _safe_call(_do_recipe_view, recipe)
+    elif act == "d":
+        _safe_call(_do_recipe_delete, recipe)
+    elif act == "c":
+        _safe_call(_do_copy_recipe, recipe)
+
+
 def _do_recipe_analyze_portion() -> None:
     """Analyze a recipe and save a plain-text snapshot.
     If a saved analysis already exists, offer to show it or redo."""
@@ -784,6 +905,7 @@ def _menu_recipes() -> bool:
             ("2", "Browse / view, edit, copy, delete recipes"),
             ("3", "Develop a recipe  [dim](add/remove ingredients with nutritional feedback)[/dim]"),
             ("4", "Analyze a recipe portion  [dim](saves analysis with date)[/dim]"),
+            ("5", "Search recipes  [dim](filter by name · /N to pick)[/dim]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -801,6 +923,8 @@ def _menu_recipes() -> bool:
             _safe_call(_do_recipe_develop)
         elif choice == "4":
             _safe_call(_do_recipe_analyze_portion)
+        elif choice == "5":
+            _safe_call(_do_recipe_search)
         elif choice in ("m", "b"):
             return True
         elif choice == "q":
@@ -934,6 +1058,19 @@ def _do_recipe_create() -> None:
                 _db.recipe_add_ingredient(conn, recipe_id, food["fdcId"],
                                           food["name"], grams, label, notes)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
+
+        with _db.get_db() as conn:
+            cur_ings = _db.recipe_get_ingredients(conn, recipe_id)
+        _W = 36
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("#",      justify="right", min_width=3)
+        tbl.add_column("Amount", min_width=14)
+        tbl.add_column("ID",     justify="right", min_width=7)
+        tbl.add_column("Food",   min_width=_W, max_width=_W, no_wrap=True)
+        for i, ing in enumerate(cur_ings, 1):
+            id_c = "[dim]recipe[/dim]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
+            tbl.add_row(str(i), _normalize_unit_display(ing["unit"]), id_c, ing["food_name"][:_W])
+        state.console.print(tbl)
 
         try:
             cont = _prompt("Add another ingredient?", choices=["y", "n", "q"], default="y")

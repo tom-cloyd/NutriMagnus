@@ -2,12 +2,14 @@
 prompts.py — _prompt() and input primitives: Cancelled, ReturnToMain, _ask_float/int/date.
 Docs: README-numa-documentation.md, Architecture: "numa_app/ui/prompts.py — input primitives"
 """
+import os as _os
 import readline
 import select as _select
 import sys
 import termios
 import tty
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 from .. import state
@@ -22,8 +24,34 @@ class ReturnToMain(Exception):
 
 
 _NO_DEFAULT = object()
-_history: list[str] = []
-_MAX_HISTORY = 100
+
+# ── Input history (Up/Down arrow recall at prompts) ─────────────────────────
+_input_history: list[str] = []
+_HISTORY_FILE = Path.home() / ".numa_history"
+
+
+def _load_input_history() -> None:
+    if _HISTORY_FILE.exists():
+        try:
+            entries = _HISTORY_FILE.read_text().splitlines()
+            _input_history.extend(e for e in entries if e)
+            if len(_input_history) > 1000:
+                del _input_history[:-1000]
+        except OSError:
+            pass
+
+
+def _append_input_history(entry: str) -> None:
+    if not entry:
+        return
+    if _input_history and _input_history[-1] == entry:
+        return  # skip consecutive duplicates
+    _input_history.append(entry)
+    try:
+        with open(_HISTORY_FILE, "a") as fh:
+            fh.write(entry + "\n")
+    except OSError:
+        pass
 
 
 def _read_escape_seq() -> str:
@@ -31,17 +59,29 @@ def _read_escape_seq() -> str:
     Returns the sequence string (usually '[A'–'[D' for arrow keys), or '' if
     nothing arrives within the timeout (bare ESC key press).
     Drains any extended bytes beyond the first two so they never leak into the
-    next prompt (e.g. ESC[1;5D sent by some terminals for ctrl+arrow)."""
-    r, _, _ = _select.select([sys.stdin], [], [], 0.15)
+    next prompt (e.g. ESC[1;5D sent by some terminals for ctrl+arrow).
+
+    Uses os.read() directly on the file descriptor to bypass Python's IO
+    buffering layers entirely — avoids race conditions with TextIOWrapper and
+    BufferedReader internal buffers."""
+    fd = sys.stdin.fileno()
+    r, _, _ = _select.select([fd], [], [], 0.15)
     if not r:
         return ""
-    seq = sys.stdin.read(2)
+    try:
+        chunk = _os.read(fd, 16)
+    except OSError:
+        return ""
+    # Drain any remaining extended sequence bytes (e.g. ESC[1;5D for ctrl+arrow)
     while True:
-        r2, _, _ = _select.select([sys.stdin], [], [], 0.02)
+        r2, _, _ = _select.select([fd], [], [], 0.02)
         if not r2:
             break
-        sys.stdin.read(1)
-    return seq
+        try:
+            _os.read(fd, 16)
+        except OSError:
+            break
+    return chunk[:2].decode("ascii", errors="replace")
 
 
 def _show_help(ref: str) -> None:
@@ -53,20 +93,28 @@ def _show_help(ref: str) -> None:
         state.console.print(f"  [dim]Help not available.[/dim]")
 
 
-def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False, two_line: bool = False) -> str:
+def _hint(n: int) -> str:
+    """Quick-select hint for a numbered result list of n items (n should be ≤ 9)."""
+    if n > 1:
+        return f"/1–{n} to pick · Enter to choose · Esc=cancel"
+    return "Enter to select · Esc=cancel"
+
+
+def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False, two_line: bool = False, slash_max: int = 0) -> str:
     """Unified input primitive. choices=list enables single-keypress mode (only listed chars accepted).
     free_text=True uses readline so arrow-keys/editing work. prefill=True pre-populates with default.
     two_line=True (requires prefill=True) prints the label on its own line and the editable value below.
+    slash_max=N enables /1–N quick-select in the free-text loop (type / then a digit to pick instantly).
     Raises Cancelled on Ctrl+C / Escape. Never use bare input() — always use this.
     In interactive (tty) mode, any input starting with ? performs a manual lookup and re-prompts."""
     while True:
-        result = _prompt_once(prompt_text, default=default, choices=choices, prefill=prefill, free_text=free_text, two_line=two_line)
+        result = _prompt_once(prompt_text, default=default, choices=choices, prefill=prefill, free_text=free_text, two_line=two_line, slash_max=slash_max)
         if not sys.stdin.isatty() or choices or not result.startswith("?"):
             return result
         _show_help(result[1:].strip() or "help")
 
 
-def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False, two_line: bool = False) -> str:
+def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] | None = None, prefill: bool = False, free_text: bool = False, two_line: bool = False, slash_max: int = 0) -> str:
     """Single-shot input — called by _prompt(); do not call directly."""
     if not sys.stdin.isatty():
         from rich.prompt import Prompt
@@ -159,10 +207,9 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
-    global _history
     buf: list[str] = []
-    hist_pos = len(_history)  # one past end = current (unsaved) input
-    saved_buf: list[str] = []
+    hist_idx = len(_input_history)  # one past end = current (unsaved) input
+    hist_saved: list[str] = []
     try:
         tty.setcbreak(fd)
         while True:
@@ -180,19 +227,19 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                     state.console.print()
                     raise Cancelled
                 if seq == "[A":  # up arrow — go back in history
-                    if hist_pos > 0:
-                        if hist_pos == len(_history):
-                            saved_buf = buf[:]
-                        hist_pos -= 1
+                    if hist_idx > 0:
+                        if hist_idx == len(_input_history):
+                            hist_saved = buf[:]
+                        hist_idx -= 1
                         sys.stdout.write("\b \b" * len(buf))
-                        buf = list(_history[hist_pos])
+                        buf = list(_input_history[hist_idx])
                         sys.stdout.write("".join(buf))
                         sys.stdout.flush()
                 elif seq == "[B":  # down arrow — go forward in history
-                    if hist_pos < len(_history):
-                        hist_pos += 1
+                    if hist_idx < len(_input_history):
+                        hist_idx += 1
                         sys.stdout.write("\b \b" * len(buf))
-                        buf = saved_buf[:] if hist_pos == len(_history) else list(_history[hist_pos])
+                        buf = hist_saved[:] if hist_idx == len(_input_history) else list(_input_history[hist_idx])
                         sys.stdout.write("".join(buf))
                         sys.stdout.flush()
                 continue
@@ -205,6 +252,42 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                     sys.stdout.write("\b \b")
                     sys.stdout.flush()
                 continue
+            if ch == "/" and slash_max > 0:
+                sys.stdout.write("/")
+                sys.stdout.flush()
+                try:
+                    ch2 = sys.stdin.read(1)
+                except KeyboardInterrupt:
+                    state.console.print()
+                    raise Cancelled
+                if ch2 in ("\x03", "\x04"):
+                    state.console.print()
+                    raise Cancelled
+                if ch2 == "\x1b":
+                    # Restore: erase the "/" and drain any trailing escape bytes
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+                    _read_escape_seq()
+                    continue
+                if ch2.isdigit() and 1 <= int(ch2) <= slash_max:
+                    sys.stdout.write(ch2)
+                    sys.stdout.flush()
+                    state.console.print()
+                    return f"/{ch2}"
+                # Not a valid quick-pick: keep "/" in buf and handle ch2 normally
+                buf.append("/")
+                if ch2 in ("\r", "\n"):
+                    state.console.print()
+                    break
+                if ch2 in ("\x7f", "\x08"):
+                    buf.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+                elif ch2.isprintable():
+                    buf.append(ch2)
+                    sys.stdout.write(ch2)
+                    sys.stdout.flush()
+                continue
             if ch.isprintable():
                 buf.append(ch)
                 sys.stdout.write(ch)
@@ -213,10 +296,8 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
     result = "".join(buf).strip()
-    if len(result) >= 3 and (_history and _history[-1] != result or not _history):
-        _history.append(result)
-        if len(_history) > _MAX_HISTORY:
-            _history.pop(0)
+    if not choices:
+        _append_input_history(result)
     if result == "" and default is not _NO_DEFAULT and default not in (None,):
         return str(default)
     return result

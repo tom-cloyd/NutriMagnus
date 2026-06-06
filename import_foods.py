@@ -276,6 +276,32 @@ _FOODS = [
             "aa_valine_g": 2.7, "aa_histidine_g": 1.6,
         },
     },
+    {
+        "fdc_id":    168147,
+        "name":      "Vital Wheat Gluten",
+        "data_type": "SR Legacy",
+        "notes":     "Source: USDA FoodData Central FDC #168147 (SR Legacy, measured). "
+                     "High confidence for macros/minerals/amino acids. "
+                     "Essentially devoid of vitamins — starch-washing strips all B vitamins, "
+                     "A, C, D, E, K, and folate; all vitamin values 0 or trace in USDA dataset. "
+                     "selenium_mcg ~39.7/100g (72% DV) — not in schema, noted here. "
+                     "omega3_ala_mg ~48, omega6_la_mg ~763 — not in schema, noted here. "
+                     "Lysine is first limiting AA (DIAAS ~0.74 upper-bound estimate); "
+                     "complement with soy, legumes, or pea protein.",
+        "nutrients": {
+            "calories": 370, "protein_g": 75.2, "carbs_g": 13.8, "fat_g": 1.9,
+            "fiber_g": 0.6, "sugar_g": 0, "saturated_fat_g": 0.27,
+            "mono_fat_g": 0.156, "poly_fat_g": 0.81,
+            "calcium_mg": 142, "iron_mg": 5.2, "magnesium_mg": 25,
+            "phosphorus_mg": 260, "potassium_mg": 100, "sodium_mg": 29, "zinc_mg": 0.85,
+            "vitamin_c_mg": 0, "b12_mcg": 0,
+            "aa_tryptophan_g": 1.300, "aa_threonine_g": 2.600,
+            "aa_isoleucine_g": 3.000, "aa_leucine_g": 6.800,
+            "aa_lysine_g": 2.800, "aa_methionine_g": 1.900, "aa_cystine_g": 1.900,
+            "aa_phenylalanine_g": 4.400, "aa_tyrosine_g": 2.400,
+            "aa_valine_g": 4.500, "aa_histidine_g": 1.800,
+        },
+    },
 ]
 
 

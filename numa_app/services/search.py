@@ -14,7 +14,7 @@ import usda as _usda
 import openfoodfacts as _off
 from .. import state
 from ..ui.common import _id_cell, ID_KEY, table_title, help_footer
-from ..ui.prompts import Cancelled, ReturnToMain, _prompt
+from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _hint
 
 
 def _ask_yes_no_quit(prompt_text: str, *, default: str = "y") -> str:
@@ -632,9 +632,12 @@ def _search_and_pick_food(
                 state.console.print()
 
                 _recipe_hint = ", R# for a recipe" if _cache_recipes else ""
+                _c_slash_max = min(9, len(_complete_cache))
                 try:
                     cache_raw = _prompt(
                         f"Pick # for cached food{_recipe_hint}, Enter for full USDA results, n to skip"
+                        f"  [dim]({_hint(_c_slash_max)})[/dim]",
+                        slash_max=_c_slash_max,
                     ).strip()
                 except Cancelled:
                     return None
@@ -648,6 +651,10 @@ def _search_and_pick_food(
                         query = None
                         continue
                     return None
+
+                # /N quick-select: strip the leading "/" to get the numeric pick
+                if cache_raw.startswith("/") and cache_raw[1:].isdigit():
+                    cache_raw = cache_raw[1:]
 
                 _cache_raw_up = cache_raw.upper()
                 if _cache_raw_up.startswith("R") and cache_raw[1:].isdigit() and _cache_recipes:
@@ -997,14 +1004,16 @@ def _search_and_pick_food(
 
         help_footer()
 
-        pick_hint = ("  R#/# or id:FDCID, Enter to skip / b=back, m=main, q=quit"
+        _r_slash_max = min(9, len(results))
+        _r_hint = f"  [dim]({_hint(_r_slash_max)})[/dim]"
+        pick_hint = ("  R#/# or id:FDCID, Enter to skip / b=back, m=main, q=quit" + _r_hint
                      if recipe_rows else
-                     "  Pick number, id:FDCID, or Enter to skip / b=back, m=main, q=quit")
+                     "  Pick number, id:FDCID, or Enter to skip / b=back, m=main, q=quit" + _r_hint)
 
         # Inner loop: re-prompt on bad pick without re-running the search.
         while True:
             try:
-                raw = _prompt(pick_hint).strip()
+                raw = _prompt(pick_hint, slash_max=_r_slash_max).strip()
             except Cancelled:
                 return None
             if raw.lower() == "m":
@@ -1016,6 +1025,10 @@ def _search_and_pick_food(
                     query = None
                     break  # → outer loop re-prompts for query
                 return None
+
+            # /N quick-select: strip the leading "/" to get the numeric pick
+            if raw.startswith("/") and raw[1:].isdigit():
+                raw = raw[1:]
 
             # Recipe pick: R1, R2, …
             rl = raw.lower()

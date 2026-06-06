@@ -56,18 +56,24 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
 
     recipe_missing = sum(len(v) for v in recipe_aa_gaps.values())
     if recipe_missing > 0:
-        recipe_word = "ingredient is" if recipe_missing == 1 else "ingredients are"
+        n_recipes = len(recipe_aa_gaps)
+        recipe_word = "recipe" if n_recipes == 1 else "recipes"
+        detail_lines = "\n".join(
+            f"    · [{state.T['hi']}]{rname}[/{state.T['hi']}]  —  " + ", ".join(ing_names)
+            for rname, ing_names in recipe_aa_gaps.items()
+        )
         state.console.print(
-            f"  Missing AA profiles for {total_missing} ingredient(s): "
-            f"{recipe_missing} {recipe_word} inside a recipe — edit that recipe to add AA data.",
+            f"  [{state.T['warning']}]⚠  {recipe_missing} ingredient(s) inside "
+            f"{n_recipes} {recipe_word} have no AA profile — edit those {recipe_word} to fix:[/{state.T['warning']}]\n"
+            + detail_lines,
             highlight=False,
         )
-        for rname, ing_names in recipe_aa_gaps.items():
-            state.console.print(
-                f"    [dim]·[/dim] [{state.T['hi']}]{rname}[/{state.T['hi']}]: "
-                + ", ".join(ing_names),
-                highlight=False,
-            )
+    standalone_names = "\n".join(f"    · {it['food_name']}" for it in affected)
+    state.console.print(
+        f"  [dim]Standalone meal ingredients missing AA data:[/dim]\n"
+        + standalone_names,
+        highlight=False,
+    )
     state.console.print(
         f"  [dim]Some of these may be minor ingredients (fruit, garnishes, etc.) with\n"
         f"  negligible protein — those can safely be ignored here. Only proceed if\n"
@@ -77,7 +83,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
     )
     try:
         go = _prompt(
-            f"\nFetch missing AA profiles for {len(affected)} standalone meal ingredient(s)?",
+            f"Fetch missing AA profiles for these {len(affected)} ingredient(s)?",
             choices=["y", "n", "b"], default="n",
         )
     except Cancelled:
@@ -187,6 +193,7 @@ def _menu_meals() -> bool:
             meals = _db.meal_list_recent(
                 conn, limit=_MEALS_PAGE + 1, offset=offset, before_date=before_date
             )
+            total_count = _db.meal_count_recent(conn, before_date=before_date)
         has_more = len(meals) > _MEALS_PAGE
         page = meals[:_MEALS_PAGE]
 
@@ -222,13 +229,19 @@ def _menu_meals() -> bool:
                 + " meals" + (f" before {before_date}" if before_date else "") + ".[/dim]"
             )
 
+        if page:
+            more_count = total_count - offset - len(page)
+            state.console.print(
+                f"  [dim]({len(page)} shown — {more_count} more to show)[/dim]",
+                highlight=False,
+            )
         state.console.print()
         state.console.print(f"  [{state.T['accent']}]Commands:[/{state.T['accent']}]", highlight=False)
         state.console.print("  [dim]  n ············  New meal (prompts for date and name)[/dim]", highlight=False)
         if page:
             state.console.print("  [dim]  v{id} ········  View or edit a meal  (e.g. v3)[/dim]", highlight=False)
             state.console.print("  [dim]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/dim]", highlight=False)
-            state.console.print("  [dim]  d{id} ········  Delete a meal  (e.g. d3)[/dim]", highlight=False)
+            state.console.print("  [dim]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7)[/dim]", highlight=False)
         state.console.print("  [dim]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/dim]", highlight=False)
         if has_more:
             state.console.print("  [dim]  mr ···········  Show next 15 older meals[/dim]", highlight=False)
@@ -268,16 +281,31 @@ def _menu_meals() -> bool:
                 _safe_call(_open_meal_analyze, meal["id"])
             continue
         if len(rl) >= 2 and rl[0] == "d":
-            suffix = raw[1:]
+            suffix = raw[1:].strip()
             if _is_date_str(suffix):
                 before_date = suffix
                 offset = 0
                 continue
-            meal = _resolve_meal(suffix)
-            if meal is None:
-                state.console.print(f"[{state.T['warning']}]Enter d{{id}} to delete (e.g. d42) or d{{YYYY-MM-DD}} to jump.[/{state.T['warning']}]")
+            id_tokens = suffix.split()
+            ids: list[int] = []
+            valid = True
+            for tok in id_tokens:
+                try:
+                    ids.append(int(tok))
+                except ValueError:
+                    valid = False
+                    break
+            if not valid or not ids:
+                state.console.print(f"[{state.T['warning']}]Enter d{{id}} to delete (e.g. d42  or  d3 5 7) or d{{YYYY-MM-DD}} to jump.[/{state.T['warning']}]")
                 continue
-            _safe_call(_do_meal_delete_by_id, meal["id"])
+            if len(ids) == 1:
+                meal = _resolve_meal(str(ids[0]))
+                if meal is None:
+                    state.console.print(f"[{state.T['warning']}]Meal {ids[0]} not found.[/{state.T['warning']}]")
+                    continue
+                _safe_call(_do_meal_delete_by_id, meal["id"])
+            else:
+                _safe_call(_do_meal_delete_multiple, ids)
             continue
         state.console.print(f"[{state.T['warning']}]Unknown command.[/{state.T['warning']}]")
 
@@ -387,6 +415,7 @@ def _meal_add_items(meal_id: int) -> None:
             with _db.get_db() as conn:
                 _db.meal_add_recipe(conn, meal_id, rid, rname, servings, unit=portion_label)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {rname}  {portion_label}")
+            _print_meal_items(meal_id, meal_name)
 
         else:
             food = result
@@ -401,6 +430,7 @@ def _meal_add_items(meal_id: int) -> None:
             with _db.get_db() as conn:
                 _db.meal_add_food(conn, meal_id, food["fdcId"], food["name"], grams, label, notes)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
+            _print_meal_items(meal_id, meal_name)
 
 
 def _do_new_meal(default_date: str | None = None) -> None:
@@ -474,6 +504,36 @@ def _do_meal_delete_by_id(meal_id: int) -> None:
         with _db.get_db() as conn:
             _db.meal_delete(conn, meal_id)
         state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Deleted.")
+    else:
+        state.console.print("[dim]Cancelled.[/dim]")
+
+
+def _do_meal_delete_multiple(meal_ids: list[int]) -> None:
+    meals = []
+    for mid in meal_ids:
+        with _db.get_db() as conn:
+            m = _db.meal_get(conn, mid)
+        if m is None:
+            state.console.print(f"[{state.T['warning']}]Meal {mid} not found — skipping.[/{state.T['warning']}]")
+        else:
+            meals.append(m)
+    if not meals:
+        return
+    state.console.print(f"  [dim]About to delete {len(meals)} meal(s):[/dim]")
+    for m in meals:
+        state.console.print(f"    [dim]· {m['id']}  {m['meal_date']}  {m['name']}[/dim]", highlight=False)
+    try:
+        confirm = _prompt(
+            f"Delete {len(meals)} meal(s)?",
+            choices=["y", "n"], default="n",
+        )
+    except Cancelled:
+        return
+    if confirm == "y":
+        for m in meals:
+            with _db.get_db() as conn:
+                _db.meal_delete(conn, m["id"])
+        state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Deleted {len(meals)} meal(s).")
     else:
         state.console.print("[dim]Cancelled.[/dim]")
 

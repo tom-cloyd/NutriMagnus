@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-06-02:2203
+UPDATED: 2026-06-04:1530
 ---
 
 ## Table of Contents
@@ -1039,7 +1039,7 @@ Similarly, the three largest workflow files were split to keep each under 600 li
 - **Non-tty** (e.g., piped input, test runner): delegates to `rich.prompt.Prompt.ask()`.
 - **Interactive tty, free_text**: uses `readline`-backed `input()`. Default values are displayed before the colon as `(Press enter to keep VALUE)` with the value in the theme's blue (`default_hint` style); nothing is pre-filled after the colon. Pressing Enter on a blank line returns the stored default.
 - **Interactive tty, choices**: single-keypress mode via `termios`/`tty`. Only a character in the `choices` list is accepted; all other keystrokes are silently ignored. Pressing Enter on no input returns the default. This prevents accidentally submitting multi-character garbage (e.g., typing a food name at a `y/n/q` prompt).
-- **Interactive tty, no choices, not free_text**: accumulation mode — characters are buffered and echoed until Enter; backspace/delete work. Up/down arrow keys navigate a session-scoped input history (last 100 entries of 3+ characters). Pressing up saves the current partial buffer and replaces it with the previous history entry; pressing down restores toward the current input. Single-character and two-character inputs (navigation keys like `b`, `m`, `q`) are not added to history.
+- **Interactive tty, no choices, not free_text**: accumulation mode — characters are buffered and echoed until Enter; backspace/delete work. Up/down arrow keys navigate a persistent input history (up to 1000 entries, stored in `~/.numa_history`, loaded at startup). Pressing up saves the current partial buffer (`hist_saved`) and replaces it with the previous history entry; pressing down restores toward the current input. Consecutive duplicates are suppressed. Empty entries are not recorded.
 
 Ctrl+C and `\x04` (EOF) raise `Cancelled` in all tty paths. Escape is detected by checking for trailing bytes within 50 ms; a bare Escape raises `Cancelled`.
 

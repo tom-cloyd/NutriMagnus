@@ -10,7 +10,7 @@ from . import state
 from .config.prefs import _PREFS_FILE, _ask_animal_foods_pref, _load_prefs, _DIET_LABELS
 from .config.theme import _detect_terminal_theme, _load_theme, _save_theme, _theme_source
 from .ui.common import _safe_call
-from .ui.prompts import Cancelled, ReturnToMain, _prompt
+from .ui.prompts import Cancelled, ReturnToMain, _prompt, _load_input_history
 from .workflows.foods import _menu_foods
 from .workflows.meals import _menu_meals
 from .workflows.settings import _menu_settings
@@ -92,6 +92,7 @@ def initialize_app(*, theme: str | None = None, api_key: str | None = None) -> b
 
     _db.init_db()
     _load_prefs()
+    _load_input_history()
     if not _PREFS_FILE.exists() or "diet_pref" not in _PREFS_FILE.read_text():
         _ask_animal_foods_pref()
     return True

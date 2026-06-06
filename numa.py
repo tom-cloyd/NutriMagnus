@@ -7,6 +7,9 @@ Docs: README-numa-documentation.md, Project Structure
 """
 
 import argparse
+import json
+import pathlib
+import sys
 
 from numa_app.main import run_app
 from version import VERSION  # noqa: F401  — single source of truth for app version
@@ -23,10 +26,61 @@ def parse_args() -> argparse.Namespace:
         "--api-key",
         help="Set USDA FoodData Central API key and exit",
     )
+    parser.add_argument(
+        "--export-json",
+        metavar="FDC_ID",
+        nargs="+",
+        type=int,
+        help="Export cached food data as JSON (one or more FDC IDs)",
+    )
+    parser.add_argument(
+        "--output",
+        metavar="FILE",
+        help="Write --export-json output to FILE instead of stdout",
+    )
     return parser.parse_args()
+
+
+def _run_export_json(fdc_ids: list[int], output: str | None) -> None:
+    import db as _db
+
+    results = []
+    missing = []
+    with _db.get_db() as conn:
+        for fdc_id in fdc_ids:
+            row = _db.get_cached_food(conn, fdc_id)
+            if row is None:
+                missing.append(fdc_id)
+                continue
+            results.append({
+                "fdc_id":        row["fdc_id"],
+                "name":          row["name"],
+                "data_type":     row["data_type"],
+                "brand":         row["brand"],
+                "serving_size":  row["serving_size"],
+                "serving_unit":  row["serving_unit"],
+                "nutrients_per_100g": (
+                    json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+                ),
+            })
+
+    if missing:
+        print(f"Warning: FDC IDs not found in cache: {missing}", file=sys.stderr)
+
+    payload = json.dumps(results, indent=2)
+    if output:
+        path = pathlib.Path(output)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(payload, encoding="utf-8")
+        print(f"Wrote {len(results)} food(s) to {path}", file=sys.stderr)
+    else:
+        print(payload)
 
 
 if __name__ == "__main__":
     args = parse_args()
+    if args.export_json:
+        _run_export_json(args.export_json, args.output)
+        sys.exit(0)
     run_app(theme=args.theme, api_key=args.api_key)
     

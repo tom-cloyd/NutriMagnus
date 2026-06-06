@@ -30,7 +30,7 @@ def _menu_foods() -> bool:
             ("3", "Analyze a saved recipe portion"),
             ("4", "Convert a portion <==> weight  (volume/weight, no analysis)"),
             ("5", "Compare foods  (side-by-side nutrient table, up to 4)"),
-            ("6", "Food Cache  (view, edit, delete foods you have looked up)"),
+            ("6", "Food Cache  (foods you have looked up: view, manage, get additional information)"),
             ("7", "My pantry  (foods you have on hand)"),
             ("8", "Custom food profiles  (create and edit your own food data)"),
             ("9", "Annotate a food  (add your GI / DIAAS estimates)"),
@@ -520,7 +520,7 @@ Critical rules:
 3. aa_phenylalanine_g and aa_tyrosine_g are always separate keys — never combined.
 4. Omit any key where the value is genuinely unknown; do not estimate 0.
 5. For true zeros (e.g. vitamin B12 in plant foods), include the key explicitly with value 0.
-6. Source hierarchy: prefer USDA FoodData Central (cite FDC ID), then USDA SR Legacy (cite FDC ID), then peer-reviewed literature (cite paper), then estimate (flag clearly in confidence_note).
+6. Source hierarchy: prefer USDA FoodData Central (cite FDC ID), then USDA SR Legacy (cite FDC ID), then peer-reviewed literature (cite paper), then estimate (flag clearly in confidence_note). Note: direct access to the USDA database is not possible — use your training data, which mirrors these sources.
 7. fdc_type must be exactly one of: "Foundation", "SR Legacy", "Branded", "Survey (FNDDS)", "User Drafted".
 8. If scaling from a non-100 g reference portion, show the calculation in confidence_note.
 
@@ -754,17 +754,27 @@ def _do_claude_fetch(foods: list, rest: str) -> None:
 
     if rest:
         try:
-            indices = [int(p) - 1 for p in rest.replace(",", " ").split()]
-            if not indices:
+            numbers = [int(p) for p in rest.replace(",", " ").split()]
+            if not numbers:
                 raise ValueError
         except ValueError:
-            state.console.print(f"  [{w}]Use i# or i#,# — e.g. i3  i1,4,7[/{w}]")
+            state.console.print(f"  [{w}]Use i# or i#,# — row numbers (e.g. i3  i1,4,7) or FDC IDs (e.g. i172430,170148)[/{w}]")
             return
-        out_of_range = [i + 1 for i in indices if i < 0 or i >= len(foods)]
-        if out_of_range:
-            state.console.print(f"  [{w}]Out of range: {out_of_range}[/{w}]")
-            return
-        selected = [(foods[i]["fdc_id"], foods[i]["name"]) for i in indices]
+        # If any number exceeds the list length, treat all as FDC IDs
+        fdc_id_map = {f["fdc_id"]: f["name"] for f in foods}
+        if any(n > len(foods) for n in numbers):
+            missing = [n for n in numbers if n not in fdc_id_map]
+            if missing:
+                state.console.print(f"  [{w}]FDC IDs not found in current list: {missing}[/{w}]")
+                return
+            selected = [(n, fdc_id_map[n]) for n in numbers]
+        else:
+            indices = [n - 1 for n in numbers]
+            out_of_range = [i + 1 for i in indices if i < 0 or i >= len(foods)]
+            if out_of_range:
+                state.console.print(f"  [{w}]Out of range: {out_of_range}[/{w}]")
+                return
+            selected = [(foods[i]["fdc_id"], foods[i]["name"]) for i in indices]
     else:
         # No numbers: find all foods in current view missing AA data and confirm
         candidates = [
@@ -790,7 +800,7 @@ def _do_claude_fetch(foods: list, rest: str) -> None:
         except Cancelled:
             return
         if ans != "y":
-            state.console.print("  [dim]Cancelled — use i# to select specific foods instead.[/dim]")
+            state.console.print("  [dim]Cancelled — use i# or iFDCID,FDCID to select specific foods.[/dim]")
             return
         selected = candidates
 
@@ -809,8 +819,8 @@ def _do_claude_fetch(foods: list, rest: str) -> None:
     state.console.print("    [bold]2.[/bold]  Go to [bold]claude.ai[/bold] — open a [bold]new chat[/bold] (not an existing one),")
     state.console.print("           paste the prompt, and send.")
     state.console.print("    [bold]3.[/bold]  When Claude finishes, copy its reply.")
-    state.console.print("           [dim]All foods should appear in one response. If Claude splits across")
-    state.console.print("           multiple replies, copy each one and paste them together.[/dim]")
+    state.console.print("           [dim]All foods should appear in one response. If Claude splits across[/dim]")
+    state.console.print("           [dim]multiple replies, copy each one and paste them together.[/dim]")
     state.console.print("           Paste into a text editor and save as:")
     state.console.print(f"           [bold]{_CLAUDE_RESPONSE_FILE}[/bold]")
     state.console.print("    [bold]4.[/bold]  Return here and type [bold]r[/bold] to import the data.")
@@ -1041,8 +1051,8 @@ def _do_list_cached_foods() -> None:
             state.console.print( "    [bold]c[/bold]    Confidence/source note only  [dim](e.g. c3)[/dim]")
             state.console.print( "    [bold]a[/bold]    Analyze portion              [dim](e.g. a3)[/dim]")
             state.console.print( "    [bold]e[/bold]    Edit food data               [dim](e.g. e3)[/dim]")
-            state.console.print( "    [bold]d[/bold]    Delete from cache            [dim](e.g. d3  d1,4,7)[/dim]")
-            state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [dim](e.g. i3  i1,4,7 — ?fetch for help)[/dim]")
+            state.console.print( "    [bold]d[/bold]    Delete from cache            [dim](e.g. d3  d1,4,7)[/dim]", highlight=False)
+            state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [dim](i alone = list foods missing AA data · i3  i1,4,7  iFDCID,FDCID · ?fetch)[/dim]", highlight=False)
             state.console.print( "    [bold]r[/bold]    Read Claude response         [dim](import ~/claude_response.txt)[/dim]")
             state.console.print( "    [bold]l[/bold]    List  [dim](re-display this table)[/dim]")
             state.console.print( "    [dim]/ to filter  ·  Enter=re-list  ·  b=back  m=main  q=quit[/dim]")

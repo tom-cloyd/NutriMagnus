@@ -165,7 +165,7 @@ def _print_protein_completeness(
 
     if context_label:
         table_title(f"PROTEIN QUALITY — {context_label}")
-    status = (f"[{state.T['success']}]Complete protein[/{state.T['success']}]"
+    status = (f"[{state.T['success']}]Complete protein — no complement needed[/{state.T['success']}]"
               if result["complete"]
               else f"[{state.T['warning']}]Incomplete protein[/{state.T['warning']}]")
     state.console.print()
@@ -413,9 +413,10 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
         )
 
     if result["missing_aa_names"]:
+        n_missing = len(result["missing_aa_names"])
         state.console.print(
-            f"\n  [{state.T['warning']}]⚠  DIAAS figure above is unreliable[/{state.T['warning']}] — "
-            f"{len(result['missing_aa_names'])} of your ingredients have no amino acid profile\n"
+            f"\n  [{state.T['warning']}]⚠  DIAAS figure above may be unreliable.[/{state.T['warning']}] "
+            f"{n_missing} ingredient{'s' if n_missing != 1 else ''} in the analysis have no amino acid profile\n"
             f"  in the USDA database and were excluded from the calculation:",
             highlight=False,
         )
@@ -428,6 +429,11 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
             protein = protein_by_name.get(name, 0.0)
             protein_str = f"  [dim]({protein:.1f}g protein)[/dim]" if protein > 0 else "  [dim](trace protein)[/dim]"
             state.console.print(f"    • {name}{protein_str}")
+        food_word = "this food" if n_missing == 1 else "any of these foods"
+        state.console.print(
+            f"  [dim]This is a problem only if significant protein exists in {food_word}.[/dim]",
+            highlight=False,
+        )
 
     if result["estimate_sources"]:
         state.console.print(
