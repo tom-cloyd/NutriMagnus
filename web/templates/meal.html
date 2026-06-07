@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ meal.name }} — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ul>
+    <li><a href="/meals">Meals</a></li>
+    <li>{{ meal.name }}</li>
+  </ul>
+</nav>
+
+<hgroup>
+  <h2>{{ meal.name }}</h2>
+  <p class="muted">{{ meal.meal_date }}</p>
+</hgroup>
+
+{# ── Add food ─────────────────────────────────────────────────────────── #}
+<details {% if q %}open{% endif %}>
+  <summary><strong>Add Food</strong></summary>
+
+  <form method="get" action="/meal/{{ meal.id }}">
+    <div role="group">
+      <input type="text" name="q" value="{{ q }}" placeholder="Search foods…" autofocus>
+      <button type="submit">Search</button>
+    </div>
+  </form>
+
+  {% if search_results %}
+  <table class="nutrient-table add-food-table">
+    <thead>
+      <tr>
+        <th>Food</th>
+        <th>Source</th>
+        <th colspan="2">Amount to add &rarr;</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for food in search_results %}
+      <tr>
+        <td>
+          {{ food.name }}
+          <br><small class="muted">{{ food.data_type }}</small>
+        </td>
+        <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+        <td colspan="2">
+          <form method="post" action="/meal/{{ meal.id }}/add" class="add-food-form">
+            <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+            <input type="hidden" name="food_name" value="{{ food.name }}">
+            <div role="group">
+              <input type="number" name="amount" value="100" min="1" max="9999"
+                     aria-label="Amount in grams" style="max-width:6rem">
+              <span class="portion-unit">g</span>
+              <button type="submit">Add to meal</button>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif q %}
+  <p>No results for <strong>{{ q }}</strong>.</p>
+  {% endif %}
+</details>
+
+{# ── Items list ───────────────────────────────────────────────────────── #}
+{% if items %}
+<details open>
+  <summary><strong>Items ({{ items|length }})</strong></summary>
+  <table class="nutrient-table">
+    <thead>
+      <tr><th>Food</th><th class="num-col">Amount</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td>
+          {% if item.fdc_id %}
+            <a href="/food/{{ item.fdc_id }}?amount={{ item.amount | round(1) }}">{{ item.food_name }}</a>
+          {% else %}
+            {{ item.food_name }} <small class="muted">(recipe)</small>
+          {% endif %}
+        </td>
+        <td class="num-col">{{ item.amount | round(1) }}&thinsp;{{ item.unit }}</td>
+        <td>
+          <form method="post" action="/meal/{{ meal.id }}/remove/{{ item.id }}" style="margin:0">
+            <button type="submit" class="outline secondary" style="padding:0.2rem 0.6rem"
+                    aria-label="Remove">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% else %}
+<p class="muted">No foods added yet. Use the search above.</p>
+{% endif %}
+
+{# ── Meal DIAAS ───────────────────────────────────────────────────────── #}
+{% if diaas %}
+<details open>
+  <summary><strong>Protein Quality (Meal-Level DIAAS)</strong></summary>
+
+  <div class="protein-meta">
+    <p>
+      <strong>DIAAS:</strong>
+      {% if diaas.score is not none %}
+        {{ "%.2f"|format(diaas.score) }}
+      {% else %}
+        N/A
+      {% endif %}
+      &nbsp;&middot;&nbsp;
+      <strong>Total protein:</strong> {{ diaas.total_protein_g }}&thinsp;g
+      &nbsp;&middot;&nbsp;
+      <strong>Digestible complete protein:</strong> {{ diaas.dcp_g }}&thinsp;g
+    </p>
+    {% if diaas.limiting_label %}
+    <p><strong>Limiting amino acid:</strong> {{ diaas.limiting_label }}</p>
+    {% endif %}
+    {% if diaas.missing %}
+    <p class="muted"><small>⚠ Missing AA data for: {{ diaas.missing | join(", ") }}</small></p>
+    {% endif %}
+  </div>
+
+  {% if diaas.iaa_rows %}
+  <table class="nutrient-table">
+    <thead>
+      <tr><th>Amino Acid</th><th class="num-col">Ratio vs. ref.</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {% for aa in diaas.iaa_rows %}
+      <tr>
+        <td>{{ aa.label }}</td>
+        <td class="num-col">{{ "%.3f"|format(aa.ratio) }}</td>
+        <td>
+          {% if aa.met %}<span class="status-met">&#10003; Met</span>
+          {% else %}<span class="status-gap">&#9888; Gap</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</details>
+{% endif %}
+
+{# ── Total nutrients ──────────────────────────────────────────────────── #}
+{% if nutrient_sections %}
+<details>
+  <summary><strong>Total Nutrients for This Meal</strong></summary>
+
+  {% if not has_profile %}
+  <p class="rda-no-profile">
+    No personal profile set up &mdash; RDA % targets are not shown.
+    <a href="/settings">Set up your profile in Settings</a> to enable them.
+  </p>
+  {% endif %}
+
+  {% for section in nutrient_sections %}
+  <h4>{{ section.name }}</h4>
+  <table class="nutrient-table">
+    <thead>
+      <tr>
+        <th>Nutrient</th>
+        <th class="num-col">Total</th>
+        <th>Unit</th>
+        {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in section.rows %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td class="num-col">{{ row.value }}</td>
+        <td class="muted">{{ row.unit }}</td>
+        {% if has_profile %}
+        <td class="num-col">
+          {% if row.pct is not none %}
+          <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+</details>
+{% endif %}
+
+{% endblock %}

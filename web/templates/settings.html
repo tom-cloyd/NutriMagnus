@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Settings — numa{% endblock %}
+
+{% block content %}
+<h2>Settings</h2>
+
+{% if saved %}
+<p class="status-met" style="font-weight:600">&#10003; Profile saved.</p>
+{% endif %}
+
+{# ── Profile form ─────────────────────────────────────────────────────── #}
+<details open>
+  <summary><strong>Your Profile</strong>
+    {% if profile %}<span class="muted"> — used to calculate personalised RDA targets</span>{% endif %}
+  </summary>
+
+  {% if not profile %}
+  <p>No profile set up yet. Fill in the form below to enable personalised
+  RDA (Recommended Daily Allowance) targets on food and meal pages.</p>
+  {% endif %}
+
+  <form method="post" action="/settings">
+    <div class="grid">
+
+      <label>
+        Age (years)
+        <input type="number" name="age" min="1" max="120"
+               value="{{ profile.age if profile else '' }}" required>
+      </label>
+
+      <label>
+        Biological sex
+        <select name="sex">
+          {% for s in sex_values %}
+          <option value="{{ s }}" {{ 'selected' if profile and profile.sex == s }}>
+            {{ s | capitalize }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+
+    </div>
+    <div class="grid">
+
+      <label>
+        Weight
+        <div role="group">
+          <input type="number" name="weight" min="1" max="500" step="0.1"
+                 value="{{ profile.weight_kg | round(1) if profile and profile.weight_unit == 'kg'
+                           else (profile.weight_kg * 2.20462) | round(1) if profile else '' }}"
+                 required>
+          <select name="weight_unit" id="weight-unit">
+            <option value="kg" {{ 'selected' if not profile or profile.weight_unit == 'kg' }}>kg</option>
+            <option value="lb" {{ 'selected' if profile and profile.weight_unit == 'lb' }}>lb</option>
+          </select>
+        </div>
+      </label>
+
+      <label>
+        Height
+        <div role="group">
+          {# cm input #}
+          <span id="height-cm-group"
+                style="{{ 'display:none' if profile and profile.height_unit == 'imperial' else '' }}">
+            <input type="number" name="height_cm" id="height-cm" min="50" max="280" step="0.1"
+                   value="{{ profile.height_cm | round(1) if profile else '' }}">
+          </span>
+          {# ft/in inputs #}
+          <span id="height-imperial-group"
+                style="{{ '' if profile and profile.height_unit == 'imperial' else 'display:none' }}">
+            <input type="number" name="height_ft" id="height-ft" min="1" max="9" placeholder="ft"
+                   value="{{ profile.height_cm | ftin_ft if profile and profile.height_unit == 'imperial' else '' }}"
+                   style="max-width:4rem">
+            <input type="number" name="height_in" id="height-in" min="0" max="11" step="0.1" placeholder="in"
+                   value="{{ profile.height_cm | ftin_in if profile and profile.height_unit == 'imperial' else '' }}"
+                   style="max-width:4rem">
+          </span>
+          <select name="height_unit" id="height-unit"
+                  onchange="toggleHeight(this.value)">
+            <option value="cm"       {{ 'selected' if not profile or profile.height_unit == 'cm' }}>cm</option>
+            <option value="imperial" {{ 'selected' if profile and profile.height_unit == 'imperial' }}>ft / in</option>
+          </select>
+        </div>
+      </label>
+
+    </div>
+
+    <label>
+      Activity level
+      <select name="activity_level">
+        {% for key, label in activity_labels.items() %}
+        <option value="{{ key }}"
+                {{ 'selected' if profile and profile.activity_level == key }}>
+          {{ label }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <button type="submit">Save profile</button>
+  </form>
+</details>
+
+{# ── Computed RDA summary ─────────────────────────────────────────────── #}
+{% if rda_rows %}
+<details>
+  <summary><strong>Your Computed Daily Targets</strong>
+    <span class="muted"> — derived from your profile above</span>
+  </summary>
+  <p class="muted"><small>
+    These targets appear as a <strong>% of daily target</strong> column on food and meal pages.
+    <span class="rda-met">Green</span> = at or above target &nbsp;
+    <span class="rda-near">Yellow</span> = 75–99% &nbsp;
+    <span class="rda-low">Grey</span> = below 75% &nbsp;
+    <span class="rda-over">Red</span> = over the recommended limit.
+  </small></p>
+  <table class="nutrient-table">
+    <thead>
+      <tr>
+        <th>Nutrient</th>
+        <th class="num-col">Daily target</th>
+        <th>Unit</th>
+        <th>Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rda_rows %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td class="num-col">{{ row.value }}</td>
+        <td class="muted">{{ row.unit }}</td>
+        <td class="muted">{{ row.rda_type }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+<script>
+function toggleHeight(unit) {
+  document.getElementById('height-cm-group').style.display =
+    unit === 'cm' ? '' : 'none';
+  document.getElementById('height-imperial-group').style.display =
+    unit === 'imperial' ? '' : 'none';
+}
+</script>
+{% endblock %}

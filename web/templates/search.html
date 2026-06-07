@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Search — numa{% endblock %}
+
+{% block content %}
+<h2>Food Search</h2>
+
+<form method="post" action="/search">
+  <div role="group">
+    <input type="text" name="query" value="{{ query }}"
+           placeholder="e.g. salmon, oat bran, lentils" autofocus>
+    <button type="submit">Search</button>
+  </div>
+</form>
+
+{% if error %}
+<p class="numa-error">{{ error }}</p>
+{% endif %}
+
+{% if results %}
+<p class="result-count">
+  {{ results|length }} result{% if results|length != 1 %}s{% endif %}
+  for <strong>{{ query }}</strong>
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>Food</th>
+      <th>Brand</th>
+      <th>Type</th>
+      <th>Source</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for food in results %}
+    <tr>
+      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></td>
+      <td class="muted">{{ food.brand or "—" }}</td>
+      <td class="muted">{{ food.data_type }}</td>
+      <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% elif query %}
+<p>No results for <strong>{{ query }}</strong>.</p>
+{% endif %}
+{% endblock %}

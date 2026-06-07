@@ -407,7 +407,7 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
         else:
             suffix = f"= {total_p:.1f}g raw protein × {diaas_val:.3f} DIAAS"
         state.console.print(
-            f"  Digestible complete protein: [{color}]{dcp:.1f}g[/{color}]"
+            f"\n  [bold][{color}]Digestible complete protein: {dcp:.1f}g[/{color}][/bold]"
             f"  [dim]{suffix}[/dim]",
             highlight=False,
         )
@@ -580,12 +580,12 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
                 dig_complete = protein_adj * min(1.0, limiting_score)
                 if pc.get("complete"):
                     state.console.print(
-                        f"  Digestible complete protein: [{state.T['success']}]{dig_complete:.1f}g[/{state.T['success']}]"
+                        f"\n  [bold][{state.T['success']}]Digestible complete protein: {dig_complete:.1f}g[/{state.T['success']}][/bold]"
                     )
                 else:
                     limiting_label = _usda.nutrient_label(pc["limiting_aa"])[0] if pc.get("limiting_aa") else "?"
                     state.console.print(
-                        f"  Digestible complete protein: [{state.T['warning']}]{dig_complete:.1f}g[/{state.T['warning']}]"
+                        f"\n  [bold][{state.T['warning']}]Digestible complete protein: {dig_complete:.1f}g[/{state.T['warning']}][/bold]"
                         f"  [dim](limited by {limiting_label} — score {limiting_score:.2f})[/dim]"
                     )
 

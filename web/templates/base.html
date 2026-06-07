@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}numa{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="container-fluid">
+    <nav>
+      <ul>
+        <li><a href="/" class="site-title">NutriMagnus</a></li>
+      </ul>
+      <ul>
+        <li><a href="/">Search</a></li>
+        <li><a href="/meals">Meals</a></li>
+        <li><a href="/settings">Settings</a></li>
+        <li><a href="/manual">Manual</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main class="container">
+    <p class="expand-hint">&#9658; / &#9660; sections can be clicked to expand or collapse</p>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="container-fluid">
+    <small>numa — local nutritional analysis &middot; data per 100 g unless noted</small>
+  </footer>
+</body>
+</html>

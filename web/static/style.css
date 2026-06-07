@@ -1,0 +1,363 @@
+/* numa web app — custom styles layered over Pico CSS */
+
+/* ── Pico CSS variable overrides — density, color, typography ────────── */
+/*    Goal: dark readable fonts, tight spacing, CLI-like information density */
+
+:root {
+  /* Tighten font and rhythm */
+  --pico-font-size:               17px;
+  --pico-line-height:             1.35;
+  --pico-font-family-sans-serif:  system-ui, -apple-system, sans-serif;
+
+  /* Dark text everywhere — no grays */
+  --pico-color:                   #111;
+  --pico-muted-color:             #333;      /* was ~#777; now dark charcoal */
+  --pico-muted-border-color:      #bbb;
+
+  /* Tighten all spacing (Pico default is 1rem) */
+  --pico-spacing:                 0.6rem;
+  --pico-block-spacing-vertical:  0.6rem;
+  --pico-block-spacing-horizontal:0.75rem;
+  --pico-form-element-spacing-vertical:   0.3rem;
+  --pico-form-element-spacing-horizontal: 0.6rem;
+
+  /* Table cell padding */
+  --pico-table-cell-padding-vertical:   0.25rem;
+  --pico-table-cell-padding-horizontal: 0.3rem;
+
+  /* Darker table row separators */
+  --pico-table-border-color:            #999;
+
+  /* Tighter grid column gaps */
+  --pico-grid-column-gap:               0.5rem;
+
+  /* Headings — tighter */
+  --pico-typography-spacing-vertical: 0.5rem;
+}
+
+/* Tighten heading margins globally */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 0.6rem;
+  margin-bottom: 0.3rem;
+}
+
+p { margin-bottom: 0.4rem; }
+
+/* ── Expandable sections (details/summary) ───────────────────────────── */
+
+details {
+  margin-bottom: 0.5rem;
+}
+
+details > summary {
+  cursor: pointer;
+  list-style: none;
+  display: block;
+  padding: 0.3rem 0;
+  background: #f0f4f8;        /* very light blue-gray tint instead of gray text */
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--pico-primary);
+  margin-bottom: 0.4rem;
+}
+
+details > summary::before {
+  content: "▶ ";
+  font-size: 0.75em;
+  color: var(--pico-primary);
+}
+
+details[open] > summary::before {
+  content: "▼ ";
+}
+
+/* ── Page-level expand/collapse hint ─────────────────────────────────── */
+
+.expand-hint {
+  font-size: 1em;
+  color: #333;
+  margin-bottom: 0.6rem;
+  margin-top: 0;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+
+header.container-fluid {
+  border-bottom: 1px solid var(--pico-muted-border-color);
+  margin-bottom: 0.75rem;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+footer.container-fluid {
+  border-top: 1px solid var(--pico-muted-border-color);
+  margin-top: 1rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.95em;
+  color: #333;
+}
+
+.site-title {
+  text-decoration: none;
+  font-size: 3.3rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+header nav a {
+  font-size: 2rem;
+}
+
+/* ── Typography helpers ──────────────────────────────────────────────── */
+
+/* .muted = de-emphasis via subtle background tint, not gray text */
+.muted {
+  color: #333;
+  font-size: 1em;
+  background: #f7f7f7;
+  padding: 0 0.15em;
+}
+
+/* Inline muted that shouldn't have a background (e.g. in table cells) */
+td.muted, th.muted, small.muted, span.muted, p.muted, li.muted {
+  background: transparent;
+  color: #333;
+}
+
+.result-count {
+  margin-bottom: 0.3rem;
+  color: #333;
+  font-size: 1em;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────── */
+
+table {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.nutrient-table {
+  font-size: 0.95rem;
+  width: auto;
+}
+
+.nutrient-table thead th {
+  font-weight: 700;
+  color: #111;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #eef2f7;
+  /* Same padding as td so headers align exactly with their columns */
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+/* All cells get the same 2rem horizontal padding so headers match columns */
+.nutrient-table td {
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.nutrient-table td:first-child,
+.nutrient-table th:first-child {
+  width: 350px;
+  padding-left: 3.6rem;
+}
+
+/* Center all columns except the first */
+.nutrient-table td:not(:first-child),
+.nutrient-table th:not(:first-child) {
+  text-align: center;
+}
+
+.nutrient-table tbody tr {
+  border-bottom: 1px solid #555;
+}
+
+.nutrient-table tbody tr:nth-child(even) {
+  background: #fafafa;
+}
+
+.num-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Source badges ───────────────────────────────────────────────────── */
+
+.source-badge {
+  font-size: 0.9rem;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.source-cache {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.source-usda {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+/* ── Status indicators ───────────────────────────────────────────────── */
+
+.status-met  { color: #166534; font-weight: 600; }
+.status-gap  { color: #92400e; font-weight: 600; }
+
+/* ── Protein quality block ───────────────────────────────────────────── */
+
+.protein-meta { margin-bottom: 0.5rem; }
+.protein-meta p { margin-bottom: 0.2rem; }
+
+/* ── Anti-nutrient cards ─────────────────────────────────────────────── */
+
+.antinutrient-card {
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-left: 3px solid #92400e;
+  background: #fffbeb;
+}
+
+.antinutrient-card header { margin-bottom: 0.15rem; }
+
+.antinutrient-card footer {
+  margin-top: 0.15rem;
+  font-size: 1em;
+  color: #333;
+}
+
+/* ── Portion form ────────────────────────────────────────────────────── */
+
+.portion-form {
+  margin-bottom: 1rem;
+}
+
+.portion-label {
+  margin-bottom: 0.3rem;
+  font-size: 1em;
+}
+
+.portion-input-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  width: fit-content;
+  margin-top: 0.7rem;
+  margin-bottom: 0.7rem;
+}
+
+.portion-amount-input {
+  max-width: 8rem;
+  border-color: #555 !important;
+}
+
+.portion-select {
+  width: auto;
+  margin-left: 1.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  border-color: #555 !important;
+}
+
+.portion-submit {
+  /* margin/padding set via inline style on the element to override Pico */
+}
+
+.portion-unit {
+  padding: 0 0.2rem;
+  color: #333;
+  font-size: 1em;
+}
+
+/* ── Error message ───────────────────────────────────────────────────── */
+
+.numa-error {
+  color: #991b1b;
+  border-left: 3px solid currentColor;
+  padding-left: 0.6rem;
+}
+
+/* ── RDA % column ────────────────────────────────────────────────────── */
+
+.rda-met  { color: #166534; font-weight: 600; }   /* ≥ 100% */
+.rda-near { color: #92400e; }                      /* 75–99% */
+.rda-low  { color: #374151; }                      /* < 75% — dark, not gray */
+.rda-over { color: #991b1b; font-weight: 600; }    /* over limit */
+
+.rda-no-profile {
+  border-left: 3px solid #bbb;
+  padding-left: 0.6rem;
+  background: #f9f9f9;
+  color: #333;
+  margin-bottom: 0.75rem;
+  font-size: 1em;
+}
+
+/* ── Nav breadcrumb ──────────────────────────────────────────────────── */
+
+nav[aria-label="breadcrumb"] {
+  font-size: 1em;
+  margin-bottom: 0.4rem;
+}
+
+/* ── hgroup ──────────────────────────────────────────────────────────── */
+
+hgroup {
+  margin-bottom: 0.5rem;
+}
+
+hgroup h2 {
+  margin-bottom: 0.1rem;
+}
+
+hgroup p {
+  font-size: 1em;
+  margin-top: 0;
+}
+
+/* ── Forms ───────────────────────────────────────────────────────────── */
+
+label {
+  margin-bottom: 0.4rem;
+}
+
+/* Pico defaults buttons to width:100% inside forms — override to inline */
+button, [type="submit"], [type="button"], [type="reset"] {
+  width: auto;
+  display: inline-block;
+}
+
+/* ── Tables — first column indent, tighter columns, darker row separators */
+
+td, th {
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
+}
+
+td:first-child, th:first-child {
+  padding-left: 3.6rem;
+}
+
+/* ── Manual page ─────────────────────────────────────────────────────── */
+
+.manual-body h1, .manual-body h2, .manual-body h3 {
+  margin-top: 1rem;
+}
+
+.manual-body pre {
+  background: #f3f4f6;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.95rem;
+}
+
+.manual-body table { font-size: 1rem; }

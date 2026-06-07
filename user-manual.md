@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-05*:1854
+*Updated 2026-06-06*:1854
 
 [TOC]
 
@@ -480,6 +480,10 @@ When a meal contains ingredients without amino acid data, NutriMagnus tells you 
 - **Standalone meal ingredients**: foods you logged directly to the meal (not inside a recipe). These can be replaced on the spot: NutriMagnus asks whether you want to search for a substitute.
 
 If you say yes, for each affected ingredient the program opens a focused search of USDA SR Legacy and Foundation foods — the datasets most likely to include full amino acid profiles. The **AA** column in the results (✓ or ✗) shows at a glance which options have the data you need. Choosing a replacement updates that ingredient for the current analysis. Press Enter to skip an ingredient and leave it excluded from the calculation.
+
+#### Why the first analysis of a meal can be slow
+
+When you analyze a meal for the first time, you may see a "Fetching amino acid data…" message with a brief wait — sometimes several seconds. This is normal. NutriMagnus is going online to download complete amino acid information for each food in the meal that doesn't already have it saved locally. Once downloaded, the data is stored on your computer, so the next time you analyze the same meal it will be fast.
 
 ---
 

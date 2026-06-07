@@ -449,7 +449,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                         f" — DCP can be calculated.[/dim]"
                     )
                 state.console.print(
-                    f"\n  Digestible complete protein: [{color}]{dcp_amount:.1f}g[/{color}]"
+                    f"\n  [bold][{color}]Digestible complete protein: {dcp_amount:.1f}g[/{color}][/bold]"
                     f"  [dim]{dcp_label}[/dim]{approx_tag}",
                     highlight=False,
                 )

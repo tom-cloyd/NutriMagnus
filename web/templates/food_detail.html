@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}{{ food.name }} — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ul>
+    <li><a href="/">Search</a></li>
+    <li>{{ food.name }}</li>
+  </ul>
+</nav>
+
+<hgroup>
+  <h2>{{ food.name }}</h2>
+  <p class="muted">
+    {% if food.brand %}{{ food.brand }} &middot; {% endif %}
+    {{ food.data_type }}
+    {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
+  </p>
+</hgroup>
+
+{# ── Portion selector ─────────────────────────────────────────────────── #}
+<div class="portion-form">
+  <p class="portion-label">
+    <strong>Recalculate all nutrient values for a different amount:</strong>
+    {% if portions %} choose a preset portion below, or type any weight in grams.{% else %} type any weight in grams.{% endif %}
+  </p>
+  <form method="get" action="/food/{{ food.fdc_id }}">
+    <div class="portion-input-row">
+      <input type="number" name="amount" id="amount-input"
+             value="{{ amount }}" min="1" max="9999" step="any"
+             aria-label="Amount in grams" class="portion-amount-input">
+      <span class="portion-unit">g</span>
+      {% if portions %}
+      <select id="portion-select" class="portion-select" aria-label="Named portions"
+              onchange="document.getElementById('amount-input').value=this.value; this.selectedIndex=0;">
+        <option value="">— or choose a preset —</option>
+        {% for p in portions %}
+        <option value="{{ p.gram_weight }}">{{ p.description }} ({{ p.gram_weight|round(1) }} g)</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <button type="submit" class="outline portion-submit"
+              style="margin-left:1.5rem;padding-left:1.5rem;padding-right:1.5rem">Recalculate nutrients</button>
+    </div>
+  </form>
+  {% if amount != 100.0 %}
+  <small class="muted">Showing values for {{ amount }}&thinsp;g
+    &middot; <a href="/food/{{ food.fdc_id }}">back to 100 g</a>
+  </small>
+  {% endif %}
+</div>
+
+{# ── Nutrient tables ─────────────────────────────────────────────────── #}
+{% if not has_profile %}
+<p class="rda-no-profile">
+  No personal profile set up &mdash; RDA % targets are not shown.
+  <a href="/settings">Set up your profile in Settings</a> to enable them.
+</p>
+{% endif %}
+
+{% for section in nutrient_sections %}
+<details open>
+  <summary><strong>{{ section.name }}</strong></summary>
+  <table class="nutrient-table">
+    <thead>
+      <tr>
+        <th>Nutrient</th>
+        <th class="num-col">{{ amount | int }}{% if amount != amount | int %}{{ amount }}{% endif %}&thinsp;g</th>
+        <th>Unit</th>
+        {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in section.rows %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td class="num-col">{{ row.value }}</td>
+        <td class="muted">{{ row.unit }}</td>
+        {% if has_profile %}
+        <td class="num-col">
+          {% if row.pct is not none %}
+          <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endfor %}
+
+{# ── Protein quality ─────────────────────────────────────────────────── #}
+{% if protein %}
+<details open>
+  <summary><strong>Protein Quality</strong></summary>
+
+  <div class="protein-meta">
+    {% if protein.diaas is not none %}
+    <p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }}
+      &nbsp;<span class="muted">(digestibility factor)</span></p>
+    {% endif %}
+    <p>
+      {% if protein.complete %}
+      <span class="status-met">&#10003; Complete protein</span>
+      {% else %}
+      <span class="status-gap">&#9888; Incomplete &mdash; limiting AA: {{ protein.limiting_aa }}</span>
+      {% endif %}
+    </p>
+  </div>
+
+  <table class="nutrient-table">
+    <thead>
+      <tr>
+        <th>Amino Acid</th>
+        <th class="num-col">Score vs. ref.</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for aa in protein.aa_rows %}
+      <tr>
+        <td>{{ aa.label }}</td>
+        <td class="num-col">{{ "%.3f"|format(aa.score) }}</td>
+        <td>
+          {% if aa.met %}
+          <span class="status-met">&#10003; Met</span>
+          {% else %}
+          <span class="status-gap">&#9888; Gap</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{# ── Anti-nutrient flags ─────────────────────────────────────────────── #}
+{% if antinutrients %}
+<details>
+  <summary><strong>Anti-nutrient Notes</strong></summary>
+  {% for flag in antinutrients %}
+  <article class="antinutrient-card">
+    <header><strong>{{ flag.problem }}</strong></header>
+    <p>{{ flag.cause }}</p>
+    {% if flag.solution %}
+    <footer><em>{{ flag.solution_label }}:</em> {{ flag.solution }}</footer>
+    {% endif %}
+  </article>
+  {% endfor %}
+</details>
+{% endif %}
+
+{% endblock %}

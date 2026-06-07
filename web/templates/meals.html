@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Meals — numa{% endblock %}
+
+{% block content %}
+<h2>Meals</h2>
+
+<details open>
+  <summary><strong>New Meal</strong></summary>
+  <form method="post" action="/meals/create">
+    <div class="grid">
+      <label>
+        Name
+        <input type="text" name="name" placeholder="Breakfast, Lunch…">
+      </label>
+      <label>
+        Date
+        <input type="date" name="meal_date" value="{{ today }}">
+      </label>
+    </div>
+    <button type="submit">Create Meal</button>
+  </form>
+</details>
+
+{% if meals %}
+<p style="font-size:0.85em">
+  Showing {{ meals|length }} of {{ total }} meal{% if total != 1 %}s{% endif %}
+  {% if hidden > 0 %}
+  — <strong>{{ hidden }} not shown</strong>
+  &nbsp;<a href="/meals?show_all=1">Show all {{ total }} meals</a>
+  {% elif show_all and total > 9 %}
+  &nbsp;<a href="/meals">Show recent 9 only</a>
+  {% endif %}
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>Meal</th>
+      <th>Date</th>
+      <th class="num-col">Items</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for meal in meals %}
+    <tr>
+      <td><a href="/meal/{{ meal.id }}">{{ meal.name }}</a></td>
+      <td>{{ meal.meal_date }}</td>
+      <td class="num-col">{{ meal.item_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No meals yet. Create one above.</p>
+{% endif %}
+{% endblock %}
