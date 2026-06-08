@@ -6,16 +6,27 @@ Usage:
     python web/launcher.py --port 8080
     python web/launcher.py --no-browser
 """
-import argparse
-import signal
-import socket
 import sys
+from pathlib import Path
+
+# Inject the project venv's site-packages if we're not already running inside it.
+# Checking sys.prefix (not sys.executable) handles venvs that symlink the system Python.
+# Site-packages location differs by platform: Lib/site-packages on Windows, lib/pythonX.Y/site-packages on Linux/Mac.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_VENV = _PROJECT_ROOT / ".venv"
+if _VENV.exists() and not Path(sys.prefix).resolve().samefile(_VENV.resolve()):
+    _py = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    _site = _VENV / ("Lib/site-packages" if sys.platform == "win32" else f"lib/{_py}/site-packages")
+    if _site.exists() and str(_site) not in sys.path:
+        sys.path.insert(0, str(_site))
+
+import argparse
+import socket
 import threading
 import time
 import webbrowser
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(_PROJECT_ROOT))
 
 import uvicorn
 
@@ -44,9 +55,18 @@ def main() -> None:
             ans = input("Kill the existing process and restart? [y/N] ").strip().lower()
             if ans == "y":
                 import subprocess
-                result = subprocess.run(
-                    ["fuser", "-k", f"{args.port}/tcp"], capture_output=True
-                )
+                if sys.platform == "win32":
+                    # Find and kill the PID holding the port via netstat
+                    out = subprocess.run(
+                        ["netstat", "-ano"], capture_output=True, text=True
+                    ).stdout
+                    for line in out.splitlines():
+                        if f":{args.port} " in line and "LISTENING" in line:
+                            pid = line.split()[-1]
+                            subprocess.run(["taskkill", "/PID", pid, "/F"], capture_output=True)
+                            break
+                else:
+                    subprocess.run(["fuser", "-k", f"{args.port}/tcp"], capture_output=True)
                 time.sleep(0.5)
                 print("Old process terminated.")
             else:

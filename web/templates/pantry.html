@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}My Pantry — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item active" aria-current="page">My Pantry</li>
+  </ol>
+</nav>
+
+<h2>My Pantry</h2>
+<p class="muted">Foods you have on hand. Used first for protein complementarity, and searched before online databases.</p>
+
+{# ── Add form ── #}
+<div class="card mb-4" style="max-width:36rem">
+  <div class="card-body">
+    <h5 class="card-title">Add a pantry item</h5>
+    <form method="post" action="/pantry/add">
+      <div class="mb-2">
+        <label for="food_name" class="form-label">Food name</label>
+        <input type="text" class="form-control" id="food_name" name="food_name"
+               placeholder="e.g. rolled oats" required>
+      </div>
+      <div class="mb-2">
+        <label for="notes" class="form-label">Notes <span class="muted">(optional)</span></label>
+        <textarea class="form-control" id="notes" name="notes" rows="2"
+                  placeholder="e.g. brand, variety, storage location"></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Add to pantry</button>
+    </form>
+  </div>
+</div>
+
+{# ── Pantry list ── #}
+{% if items %}
+<p class="result-count">{{ items|length }} item{% if items|length != 1 %}s{% endif %} in pantry</p>
+<table class="table table-sm table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>Food</th>
+      <th>FDC link</th>
+      <th>Notes</th>
+      <th>Added</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td>{{ item.food_name }}</td>
+      <td>
+        {% if item.fdc_id %}
+        <a href="/food/{{ item.fdc_id }}" class="muted">{{ item.fdc_id }}</a>
+        {% else %}
+        <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td class="muted">{{ item.notes or "—" }}</td>
+      <td class="muted">{{ item.added_at or "—" }}</td>
+      <td>
+        <form method="post" action="/pantry/remove/{{ item.id }}" style="display:inline">
+          <button type="submit" class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Remove {{ item.food_name | replace("'", "\\'") }} from pantry?')">
+            Remove
+          </button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Your pantry is empty. Add some foods above.</p>
+{% endif %}
+{% endblock %}

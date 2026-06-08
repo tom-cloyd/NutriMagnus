@@ -787,6 +787,8 @@ def _print_complement_suggestions(
                     raise ReturnToMain()
                 if ans == "q":
                     raise SystemExit(0)
+                if ans == "b":
+                    raise Cancelled
                 if ans != "y":
                     break
 
@@ -869,33 +871,42 @@ def _print_complement_suggestions(
                     raise ReturnToMain()
                 if ans == "q":
                     raise SystemExit(0)
+                if ans == "b":
+                    raise Cancelled
                 if ans != "y":
                     break
 
-    if pantry_suggs:
-        _show_paged(pantry_suggs, "From your pantry")
-        if general_suggs:
-            try:
-                ans = _prompt("Look elsewhere for more options?  [dim](y/N)[/dim]",
-                              default="n").strip().lower()
-            except Cancelled:
-                help_footer("comp")
-                return
-            if ans == "m":
-                raise ReturnToMain()
-            if ans == "q":
-                raise SystemExit(0)
-            if ans == "y":
-                _show_paged(general_suggs, "Other options", page_size=5)
+    try:
+        if pantry_suggs:
+            _show_paged(pantry_suggs, "From your pantry")
+            if general_suggs:
+                try:
+                    ans = _prompt("Look elsewhere for more options?  [dim](y/N)[/dim]",
+                                  default="n").strip().lower()
+                except Cancelled:
+                    help_footer("comp")
+                    return
+                if ans == "m":
+                    raise ReturnToMain()
+                if ans == "q":
+                    raise SystemExit(0)
+                if ans == "b":
+                    help_footer("comp")
+                    return
+                if ans == "y":
+                    _show_paged(general_suggs, "Other options", page_size=5)
+                    _general_exhausted_msg(len(general_suggs))
+            else:
+                _general_exhausted_msg(0)
+        else:
+            if general_suggs:
+                _show_paged(general_suggs, "Suggestions", page_size=5)
                 _general_exhausted_msg(len(general_suggs))
-        else:
-            _general_exhausted_msg(0)
-    else:
-        if general_suggs:
-            _show_paged(general_suggs, "Suggestions", page_size=5)
-            _general_exhausted_msg(len(general_suggs))
-        else:
-            _general_exhausted_msg(0)
+            else:
+                _general_exhausted_msg(0)
+    except Cancelled:
+        help_footer("comp")
+        return
 
     if diaas_improvers:
         have_gap_closers = bool(pantry_suggs or general_suggs)

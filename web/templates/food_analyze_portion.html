@@ -1,17 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Search — numa{% endblock %}
+{% block title %}Analyze a Food Portion — numa{% endblock %}
 
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Search</li>
+    <li class="breadcrumb-item active" aria-current="page">Analyze a Food Portion</li>
   </ol>
 </nav>
 
-<h2>Food Search</h2>
+<h2>Analyze a Food Portion</h2>
 
-<form method="post" action="/food/search">
+<div class="alert alert-info mb-3" role="alert">
+  Search for a food below, then use the portion selector on the food page to set your amount and see scaled nutrient values.
+</div>
+
+<form method="post" action="/food/analyze-portion">
   <div class="input-group mb-3">
     <input type="text" class="form-control" name="query" value="{{ query }}"
            placeholder="e.g. salmon, oat bran, lentils" autofocus>

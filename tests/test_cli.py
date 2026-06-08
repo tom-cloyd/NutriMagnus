@@ -421,7 +421,7 @@ class TestMealsMenu:
     def test_log_meal_with_food(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         # Meals: n (new) → date → name → add item: 1 (food) → search → pick → amount → done: d
-        inp = "3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n150\nd\nb\nq\n"
+        inp = "3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n150\ny\n\nd\nb\nq\n"
         result = runner.invoke(input=inp)
         assert result.exit_code == 0
         assert "logged" in result.output.lower() or "Meal" in result.output
@@ -449,7 +449,7 @@ class TestMealsMenu:
 
     def test_view_meals_shows_entry(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\nn\n2025-03-15\nBreakfast\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nBreakfast\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
         # v1 = view meal ID 1, then b=back from action loop, q=quit
         result = runner.invoke(input="3\nv1\nb\nq\n")
         assert "Breakfast" in result.output
@@ -489,7 +489,7 @@ class TestMealsMenu:
 
     def test_delete_meal(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
 
         # d1=delete meal ID 1, confirm y, then q
         result = runner.invoke(input="3\nd1\ny\nq\n")
@@ -527,7 +527,7 @@ class TestSummaryMenu:
 
     def test_recent_days_shows_dates(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
-        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n3\nb\nq\n")
         assert result.exit_code == 0
         assert "2025-03-15" in result.output
@@ -703,7 +703,7 @@ class TestDailySummaryRDA:
         _mock_api(monkeypatch)
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "profile" in result.output.lower()
@@ -745,7 +745,7 @@ class TestDailySummaryRDA:
         pf = tmp_path / "profile.json"
         monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
         runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
-        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\nd\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\nn\nb\nq\n")
         assert result.exit_code == 0
         # Table header should not appear

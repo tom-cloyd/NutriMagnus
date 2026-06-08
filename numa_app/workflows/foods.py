@@ -132,7 +132,24 @@ def _do_food_search() -> None:
 
 
 def _do_analyze_food_portion() -> None:
-    food = _search_and_pick_food()
+    try:
+        query = _prompt(
+            "Search food or recipe  [dim](name or FDC ID · b=back)[/dim]",
+            free_text=True,
+        ).strip()
+    except Cancelled:
+        return
+    if not query or query.lower() in ("b", "m", "q"):
+        return
+
+    with _db.get_db() as conn:
+        all_recipes = _db.recipe_list(conn)
+    query_words = query.lower().split()
+    matching_recipes = sorted(
+        [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)],
+        key=lambda r: (-sum(1 for w in query_words if w in r["name"].lower()), r["name"].lower()),
+    )
+    food = _search_and_pick_food(initial_query=query, prepend_recipes=matching_recipes or None)
     if food is None:
         return
     result = _pick_portion(food)
@@ -260,6 +277,17 @@ def _do_analyze_recipe_portion() -> None:
     has_aa = _print_protein_completeness(scaled)
     if has_aa and _usda.get_aa_gaps(scaled):
         _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True)
+    elif not has_aa and scaled.get("protein_g", 0) > 0:
+        state.console.print(
+            f"\n  [{state.T['warning']}]⚑  Insufficient amino acid data to assess protein completeness.[/{state.T['warning']}]",
+            highlight=False,
+        )
+        state.console.print(
+            "  [dim]Recipe ingredients lack USDA amino acid records. If this recipe relies "
+            "mainly on plant proteins, consider pairing with a complementary source "
+            "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/dim]",
+            highlight=False,
+        )
 
     _offer_export(f"{title} — {label}", [
         {"type": "ingredient_list", "title": "Ingredients",
@@ -354,6 +382,49 @@ def _do_compare_foods() -> None:
     entries: list[dict] = []  # {"name": str, "label": str, "nutrients": dict[str, float], "fdc_id": int | None}
     last_results: list[dict] = []  # food result dicts from the most recent search
 
+    # Offer saved lists before starting
+    with _db.get_db() as conn:
+        saved = _db.saved_comparison_list(conn)
+    if saved:
+        state.console.print()
+        state.console.print(f"  [{state.T['hi']}]Saved comparisons ({len(saved)}):[/{state.T['hi']}]")
+        for i, s in enumerate(saved, 1):
+            import json as _json
+            n_foods = len(_json.loads(s["fdc_ids"]))
+            state.console.print(f"    [{state.T['accent']}]{i}.[/{state.T['accent']}]  {s['name']}  [dim]({n_foods} foods · {s['created_at'][:10]})[/dim]")
+        state.console.print(f"  [dim]Type a number to load a saved list, or press Enter to start fresh.[/dim]")
+        try:
+            raw_s = _prompt("  Load saved list").strip()
+        except Cancelled:
+            raw_s = ""
+        if raw_s.isdigit():
+            idx = int(raw_s) - 1
+            if 0 <= idx < len(saved):
+                import json as _json
+                fdc_ids = _json.loads(saved[idx]["fdc_ids"])
+                state.console.print(f"  [{state.T['success']}]Loaded: {saved[idx]['name']}[/{state.T['success']}]")
+                for fid in fdc_ids:
+                    with _db.get_db() as conn:
+                        cached = _db.get_cached_food(conn, fid)
+                    if not cached:
+                        state.console.print(f"  [{state.T['warning']}]Food {fid} no longer in cache — skipping.[/{state.T['warning']}]")
+                        continue
+                    import json as _json2
+                    nuts_100g = _json2.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
+                    portions = _json2.loads(cached["portions_json"]) if cached["portions_json"] else []
+                    food_stub = {
+                        "fdcId": fid, "name": cached["name"],
+                        "dataType": cached["data_type"] or "",
+                        "nutrients": nuts_100g, "portions": portions,
+                    }
+                    result = _pick_portion(food_stub)
+                    if result is None:
+                        continue
+                    grams, label, scaled = result
+                    entries.append({"name": cached["name"], "label": f"{cached['name']} ({label})", "nutrients": scaled, "fdc_id": fid})
+            else:
+                state.console.print(f"  [{state.T['warning']}]No saved list #{raw_s}.[/{state.T['warning']}]")
+
     while len(entries) < MAX:
         n = len(entries)
         state.console.print()
@@ -447,6 +518,24 @@ def _do_compare_foods() -> None:
         return
 
     _print_food_comparison(entries)
+
+    # Offer to save the list
+    food_entries = [e for e in entries if e.get("fdc_id")]
+    if food_entries:
+        try:
+            save_name = _prompt(
+                "Save this food list?  [dim](Enter a name to save · Enter/b=skip)[/dim]",
+                free_text=True,
+            ).strip()
+        except Cancelled:
+            save_name = ""
+        if save_name and save_name.lower() not in ("b", "m", "q", "n", "no"):
+            import json as _json
+            fdc_ids = [e["fdc_id"] for e in food_entries]
+            amounts = [100.0] * len(fdc_ids)
+            with _db.get_db() as conn:
+                _db.saved_comparison_save(conn, save_name, fdc_ids, amounts)
+            state.console.print(f"  [{state.T['success']}]✓  Saved as '{save_name}'.[/{state.T['success']}]")
 
 
 # ---------------------------------------------------------------------------

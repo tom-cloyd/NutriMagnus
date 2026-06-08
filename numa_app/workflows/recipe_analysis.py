@@ -539,7 +539,18 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                     "for ingredients without USDA amino acid records.)[/dim]",
                     highlight=False,
                 )
-            if has_aa and _usda.get_aa_gaps(augmented_analysis):
+            if not has_aa and analysis_nutrients.get("protein_g", 0) > 0:
+                state.console.print(
+                    f"\n  [{state.T['warning']}]⚑  Insufficient amino acid data to assess protein completeness.[/{state.T['warning']}]",
+                    highlight=False,
+                )
+                state.console.print(
+                    "  [dim]Recipe ingredients lack USDA amino acid records. If this recipe relies "
+                    "mainly on plant proteins, consider pairing with a complementary source "
+                    "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/dim]",
+                    highlight=False,
+                )
+            elif has_aa and _usda.get_aa_gaps(augmented_analysis):
                 if no_servings:
                     # No serving count — skip the basis choice; use analysis_nutrients directly.
                     # Pick a label that reflects what analysis_nutrients actually represents.

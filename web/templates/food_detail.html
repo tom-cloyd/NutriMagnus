@@ -3,20 +3,20 @@
 
 {% block content %}
 <nav aria-label="breadcrumb">
-  <ul>
-    <li><a href="/">Search</a></li>
-    <li>{{ food.name }}</li>
-  </ul>
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods / Search</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ food.name }}</li>
+  </ol>
 </nav>
 
-<hgroup>
+<div class="mb-2">
   <h2>{{ food.name }}</h2>
   <p class="muted">
     {% if food.brand %}{{ food.brand }} &middot; {% endif %}
     {{ food.data_type }}
     {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
   </p>
-</hgroup>
+</div>
 
 {# ── Portion selector ─────────────────────────────────────────────────── #}
 <div class="portion-form">
@@ -28,10 +28,10 @@
     <div class="portion-input-row">
       <input type="number" name="amount" id="amount-input"
              value="{{ amount }}" min="1" max="9999" step="any"
-             aria-label="Amount in grams" class="portion-amount-input">
+             aria-label="Amount in grams" class="form-control portion-amount-input">
       <span class="portion-unit">g</span>
       {% if portions %}
-      <select id="portion-select" class="portion-select" aria-label="Named portions"
+      <select id="portion-select" class="form-select portion-select" aria-label="Named portions"
               onchange="document.getElementById('amount-input').value=this.value; this.selectedIndex=0;">
         <option value="">— or choose a preset —</option>
         {% for p in portions %}
@@ -39,7 +39,7 @@
         {% endfor %}
       </select>
       {% endif %}
-      <button type="submit" class="outline portion-submit"
+      <button type="submit" class="btn btn-outline-secondary portion-submit"
               style="margin-left:1.5rem;padding-left:1.5rem;padding-right:1.5rem">Recalculate nutrients</button>
     </div>
   </form>
@@ -141,13 +141,13 @@
 <details>
   <summary><strong>Anti-nutrient Notes</strong></summary>
   {% for flag in antinutrients %}
-  <article class="antinutrient-card">
+  <div class="antinutrient-card">
     <header><strong>{{ flag.problem }}</strong></header>
     <p>{{ flag.cause }}</p>
     {% if flag.solution %}
     <footer><em>{{ flag.solution_label }}:</em> {{ flag.solution }}</footer>
     {% endif %}
-  </article>
+  </div>
   {% endfor %}
 </details>
 {% endif %}

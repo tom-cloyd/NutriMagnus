@@ -3,25 +3,26 @@
 
 {% block content %}
 <nav aria-label="breadcrumb">
-  <ul>
-    <li><a href="/meals">Meals</a></li>
-    <li>{{ meal.name }}</li>
-  </ul>
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/meals">Meals</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ meal.name }}</li>
+  </ol>
 </nav>
 
-<hgroup>
+<div class="mb-2">
   <h2>{{ meal.name }}</h2>
   <p class="muted">{{ meal.meal_date }}</p>
-</hgroup>
+</div>
 
 {# ── Add food ─────────────────────────────────────────────────────────── #}
 <details {% if q %}open{% endif %}>
   <summary><strong>Add Food</strong></summary>
 
   <form method="get" action="/meal/{{ meal.id }}">
-    <div role="group">
-      <input type="text" name="q" value="{{ q }}" placeholder="Search foods…" autofocus>
-      <button type="submit">Search</button>
+    <div class="input-group mb-3">
+      <input type="text" class="form-control" name="q" value="{{ q }}"
+             placeholder="Search foods…" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
     </div>
   </form>
 
@@ -46,11 +47,11 @@
           <form method="post" action="/meal/{{ meal.id }}/add" class="add-food-form">
             <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
             <input type="hidden" name="food_name" value="{{ food.name }}">
-            <div role="group">
-              <input type="number" name="amount" value="100" min="1" max="9999"
+            <div class="input-group" style="max-width:16rem">
+              <input type="number" class="form-control" name="amount" value="100" min="1" max="9999"
                      aria-label="Amount in grams" style="max-width:6rem">
-              <span class="portion-unit">g</span>
-              <button type="submit">Add to meal</button>
+              <span class="input-group-text">g</span>
+              <button type="submit" class="btn btn-primary">Add to meal</button>
             </div>
           </form>
         </td>
@@ -84,8 +85,8 @@
         <td class="num-col">{{ item.amount | round(1) }}&thinsp;{{ item.unit }}</td>
         <td>
           <form method="post" action="/meal/{{ meal.id }}/remove/{{ item.id }}" style="margin:0">
-            <button type="submit" class="outline secondary" style="padding:0.2rem 0.6rem"
-                    aria-label="Remove">✕</button>
+            <button type="submit" class="btn btn-outline-danger btn-sm"
+                    aria-label="Remove">&#x2715;</button>
           </form>
         </td>
       </tr>
@@ -119,7 +120,7 @@
     <p><strong>Limiting amino acid:</strong> {{ diaas.limiting_label }}</p>
     {% endif %}
     {% if diaas.missing %}
-    <p class="muted"><small>⚠ Missing AA data for: {{ diaas.missing | join(", ") }}</small></p>
+    <p class="muted"><small>&#9888; Missing AA data for: {{ diaas.missing | join(", ") }}</small></p>
     {% endif %}
   </div>
 

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Custom Food Profiles — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Custom Food Profiles</li>
+  </ol>
+</nav>
+
+<h2>Custom Food Profiles</h2>
+<p class="muted">
+  Create and manage your own food data entries.
+  To edit a profile's nutrients, open it via the link and use the portion selector.
+  Full nutrient editing coming soon.
+</p>
+
+{# ── Create form ── #}
+<div class="card mb-4" style="max-width:36rem">
+  <div class="card-body">
+    <h5 class="card-title">Create a new profile</h5>
+    <form method="post" action="/food/custom-profiles/create">
+      <div class="input-group">
+        <input type="text" class="form-control" name="name"
+               placeholder="Food name" required>
+        <button type="submit" class="btn btn-primary">Create profile</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ── List ── #}
+{% if foods %}
+<p class="result-count">{{ foods|length }} custom profile{% if foods|length != 1 %}s{% endif %}</p>
+<table class="table table-sm table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>Name</th>
+      <th>FDC ID</th>
+      <th>Type</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for food in foods %}
+    <tr>
+      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></td>
+      <td class="muted">{{ food.fdc_id }}</td>
+      <td class="muted">{{ food.data_type or "User Drafted" }}</td>
+      <td>
+        <form method="post" action="/food/custom-profiles/delete/{{ food.fdc_id }}" style="display:inline">
+          <button type="submit" class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Delete profile for {{ food.name | replace("'", "\\'") }}?')">
+            Delete
+          </button>
+        </form>
+      </td>
+    </tr>
+    {% if food.notes %}
+    <tr>
+      <td colspan="4" style="padding-top:0; padding-bottom:0.4rem; border-top:none">
+        <div style="padding-left:2.25rem"><strong>Note:</strong> {{ food.notes }}</div>
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No custom profiles yet. Create one above.</p>
+{% endif %}
+{% endblock %}

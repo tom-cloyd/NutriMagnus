@@ -23,7 +23,31 @@
       "Bash(python -m pytest tests/test_cli.py::TestFoodsMenu::test_search_displays_results tests/test_cli.py::TestFoodsMenu::test_search_shows_nutrient_table tests/test_cli.py::TestFoodsMenu::test_search_offers_portion_analysis_accept tests/test_cli.py::TestFoodsMenu::test_search_offers_portion_analysis_decline tests/test_cli.py::TestRecipesMenu::test_view_recipe_shows_nutrients tests/test_usda.py::TestProteinCompleteness::test_complete_protein -v --tb=long)",
       "Bash(python -m pytest tests/test_cli.py::TestFoodsMenu::test_search_displays_results -v --tb=long)",
       "Bash(python -m pytest tests/test_usda.py::TestProteinCompleteness::test_complete_protein -v --tb=long)",
-      "Bash(python -m pytest tests/test_cli.py::TestRecipesMenu::test_view_recipe_shows_nutrients -v --tb=short)"
+      "Bash(python -m pytest tests/test_cli.py::TestRecipesMenu::test_view_recipe_shows_nutrients -v --tb=short)",
+      "Bash(python -m pytest tests/test_cli.py -x --tb=short)",
+      "Bash(python -m pytest tests/test_cli.py --tb=no -q)",
+      "Bash(python -c \"import web.backend\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,'web'\\); import backend\")",
+      "Bash(python web/launcher.py)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8484/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8484/food/search)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8484/food/cache)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8484/food/compare)",
+      "Bash(python -m uvicorn web.backend:app --port 8585)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8585__TRACKED_VAR__)",
+      "Bash(python -m uvicorn web.backend:app --port 8585 --no-access-log)",
+      "Bash(curl -s http://localhost:8585/food/cache)",
+      "Bash(curl -s http://localhost:8585/pantry)",
+      "Bash(curl -s http://localhost:8585/food/compare)",
+      "Bash(curl -s http://localhost:8585/)",
+      "Bash(kill 269632)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8585/food/compare\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8585/food/compare?search=salmon\")",
+      "Bash(python -c \"import db; db.init_db\\(\\); print\\('DB ok'\\)\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,'web'\\); import backend; print\\('backend ok'\\)\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8585/food/compare)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8585/food/compare/load/999)",
+      "Bash(python -c \"import numa_app.workflows.recipe_analysis; import numa_app.workflows.foods; print\\('ok'\\)\")"
     ]
   }
 }

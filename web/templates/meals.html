@@ -7,17 +7,19 @@
 <details open>
   <summary><strong>New Meal</strong></summary>
   <form method="post" action="/meals/create">
-    <div class="grid">
-      <label>
-        Name
-        <input type="text" name="name" placeholder="Breakfast, Lunch…">
-      </label>
-      <label>
-        Date
-        <input type="date" name="meal_date" value="{{ today }}">
-      </label>
+    <div class="row g-3 mb-3">
+      <div class="col">
+        <label class="form-label" for="meal-name">Name</label>
+        <input type="text" class="form-control" id="meal-name" name="name"
+               placeholder="Breakfast, Lunch…">
+      </div>
+      <div class="col">
+        <label class="form-label" for="meal-date">Date</label>
+        <input type="date" class="form-control" id="meal-date" name="meal_date"
+               value="{{ today }}">
+      </div>
     </div>
-    <button type="submit">Create Meal</button>
+    <button type="submit" class="btn btn-primary">Create Meal</button>
   </form>
 </details>
 
@@ -31,8 +33,8 @@
   &nbsp;<a href="/meals">Show recent 9 only</a>
   {% endif %}
 </p>
-<table>
-  <thead>
+<table class="table table-sm table-hover">
+  <thead class="table-light">
     <tr>
       <th>Meal</th>
       <th>Date</th>

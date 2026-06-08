@@ -4,15 +4,15 @@
 {% block content %}
 <h2>Settings</h2>
 
-{% if saved %}
-<p class="status-met" style="font-weight:600">&#10003; Profile saved.</p>
-{% endif %}
-
-{# ── Profile form ─────────────────────────────────────────────────────── #}
+{# ── 1. Profile form ───────────────────────────────────────────────────── #}
 <details open>
-  <summary><strong>Your Profile</strong>
+  <summary data-ak="1"><u class="ak">1</u>. <strong>Your Profile</strong>
     {% if profile %}<span class="muted"> — used to calculate personalised RDA targets</span>{% endif %}
   </summary>
+
+  {% if saved == 'profile' %}
+  <p class="status-met mt-2"><strong>&#10003; Profile saved.</strong></p>
+  {% endif %}
 
   {% if not profile %}
   <p>No profile set up yet. Fill in the form below to enable personalised
@@ -20,74 +20,75 @@
   {% endif %}
 
   <form method="post" action="/settings">
-    <div class="grid">
+    <div class="row g-3 mb-3">
 
-      <label>
-        Age (years)
-        <input type="number" name="age" min="1" max="120"
+      <div class="col">
+        <label class="form-label" for="age">Age (years)</label>
+        <input type="number" class="form-control" id="age" name="age" min="1" max="120"
                value="{{ profile.age if profile else '' }}" required>
-      </label>
+      </div>
 
-      <label>
-        Biological sex
-        <select name="sex">
+      <div class="col">
+        <label class="form-label" for="sex">Biological sex</label>
+        <select class="form-select" id="sex" name="sex">
           {% for s in sex_values %}
           <option value="{{ s }}" {{ 'selected' if profile and profile.sex == s }}>
             {{ s | capitalize }}
           </option>
           {% endfor %}
         </select>
-      </label>
+      </div>
 
     </div>
-    <div class="grid">
+    <div class="row g-3 mb-3">
 
-      <label>
-        Weight
-        <div role="group">
-          <input type="number" name="weight" min="1" max="500" step="0.1"
+      <div class="col">
+        <label class="form-label">Weight</label>
+        <div class="input-group">
+          <input type="number" class="form-control" name="weight" min="1" max="500" step="0.1"
                  value="{{ profile.weight_kg | round(1) if profile and profile.weight_unit == 'kg'
                            else (profile.weight_kg * 2.20462) | round(1) if profile else '' }}"
                  required>
-          <select name="weight_unit" id="weight-unit">
+          <select class="form-select" name="weight_unit" id="weight-unit" style="max-width:5rem">
             <option value="kg" {{ 'selected' if not profile or profile.weight_unit == 'kg' }}>kg</option>
             <option value="lb" {{ 'selected' if profile and profile.weight_unit == 'lb' }}>lb</option>
           </select>
         </div>
-      </label>
+      </div>
 
-      <label>
-        Height
-        <div role="group">
-          {# cm input #}
+      <div class="col">
+        <label class="form-label">Height</label>
+        <div class="input-group">
           <span id="height-cm-group"
                 style="{{ 'display:none' if profile and profile.height_unit == 'imperial' else '' }}">
-            <input type="number" name="height_cm" id="height-cm" min="50" max="280" step="0.1"
+            <input type="number" class="form-control" name="height_cm" id="height-cm"
+                   min="50" max="280" step="0.1"
                    value="{{ profile.height_cm | round(1) if profile else '' }}">
           </span>
-          {# ft/in inputs #}
           <span id="height-imperial-group"
                 style="{{ '' if profile and profile.height_unit == 'imperial' else 'display:none' }}">
-            <input type="number" name="height_ft" id="height-ft" min="1" max="9" placeholder="ft"
+            <input type="number" class="form-control" name="height_ft" id="height-ft"
+                   min="1" max="9" placeholder="ft"
                    value="{{ profile.height_cm | ftin_ft if profile and profile.height_unit == 'imperial' else '' }}"
                    style="max-width:4rem">
-            <input type="number" name="height_in" id="height-in" min="0" max="11" step="0.1" placeholder="in"
+            <input type="number" class="form-control" name="height_in" id="height-in"
+                   min="0" max="11" step="0.1" placeholder="in"
                    value="{{ profile.height_cm | ftin_in if profile and profile.height_unit == 'imperial' else '' }}"
                    style="max-width:4rem">
           </span>
-          <select name="height_unit" id="height-unit"
-                  onchange="toggleHeight(this.value)">
+          <select class="form-select" name="height_unit" id="height-unit"
+                  onchange="toggleHeight(this.value)" style="max-width:6rem">
             <option value="cm"       {{ 'selected' if not profile or profile.height_unit == 'cm' }}>cm</option>
             <option value="imperial" {{ 'selected' if profile and profile.height_unit == 'imperial' }}>ft / in</option>
           </select>
         </div>
-      </label>
+      </div>
 
     </div>
 
-    <label>
-      Activity level
-      <select name="activity_level">
+    <div class="mb-3">
+      <label class="form-label" for="activity-level">Activity level</label>
+      <select class="form-select" id="activity-level" name="activity_level">
         {% for key, label in activity_labels.items() %}
         <option value="{{ key }}"
                 {{ 'selected' if profile and profile.activity_level == key }}>
@@ -95,19 +96,19 @@
         </option>
         {% endfor %}
       </select>
-    </label>
+    </div>
 
-    <button type="submit">Save profile</button>
+    <button type="submit" class="btn btn-primary">Save profile</button>
   </form>
 </details>
 
-{# ── Computed RDA summary ─────────────────────────────────────────────── #}
-{% if rda_rows %}
+{# ── 2. Computed RDA summary ──────────────────────────────────────────── #}
 <details>
-  <summary><strong>Your Computed Daily Targets</strong>
+  <summary data-ak="2"><u class="ak">2</u>. <strong>Your Computed Daily Targets</strong>
     <span class="muted"> — derived from your profile above</span>
   </summary>
-  <p class="muted"><small>
+  {% if rda_rows %}
+  <p class="muted mt-1"><small>
     These targets appear as a <strong>% of daily target</strong> column on food and meal pages.
     <span class="rda-met">Green</span> = at or above target &nbsp;
     <span class="rda-near">Yellow</span> = 75–99% &nbsp;
@@ -134,8 +135,163 @@
       {% endfor %}
     </tbody>
   </table>
+  {% else %}
+  <p class="muted mt-2"><small>Set up your profile above to see your personalised daily targets.</small></p>
+  {% endif %}
 </details>
-{% endif %}
+
+{# ── 3. Dietary preferences ───────────────────────────────────────────── #}
+<details>
+  <summary data-ak="3"><u class="ak">3</u>. <strong>Dietary Preferences</strong>
+    <span class="muted"> — used for protein complement suggestions</span>
+  </summary>
+
+  {% if saved == 'diet' %}
+  <p class="status-met mt-2"><strong>&#10003; Dietary preference saved.</strong></p>
+  {% endif %}
+
+  <form method="post" action="/settings/diet" class="mt-2">
+    {% for key, label in diet_labels.items() %}
+    <div class="form-check">
+      <input class="form-check-input" type="radio" name="diet_pref"
+             id="diet-{{ key }}" value="{{ key }}"
+             {{ 'checked' if diet_pref == key }}>
+      <label class="form-check-label" for="diet-{{ key }}">{{ label }}</label>
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save preference</button>
+  </form>
+</details>
+
+{# ── 4. Keyboard shortcuts ─────────────────────────────────────────────── #}
+<details>
+  <summary data-ak="4"><u class="ak">4</u>. <strong>Keyboard Shortcuts</strong>
+    <span class="muted"> — browser access keys (Firefox)</span>
+  </summary>
+  <div class="row mt-2 g-3">
+    <div class="col-auto">
+      <p class="mb-1"><strong>Navigation</strong> (<kbd>Alt+Shift</kbd>+key):</p>
+      <ul class="mb-0">
+        <li><kbd>F</kbd> — Foods</li>
+        <li><kbd>R</kbd> — Recipes</li>
+        <li><kbd>M</kbd> — Meals &amp; Log</li>
+        <li><kbd>D</kbd> — Daily Summary</li>
+        <li><kbd>S</kbd> — Settings</li>
+        <li><kbd>A</kbd> — Manual</li>
+      </ul>
+    </div>
+    <div class="col-auto">
+      <p class="mb-1"><strong>Settings sections</strong> (<kbd>Alt+Shift</kbd>+key):</p>
+      <ul class="mb-0">
+        <li><kbd>1</kbd> — Your Profile</li>
+        <li><kbd>2</kbd> — Computed Daily Targets</li>
+        <li><kbd>3</kbd> — Dietary Preferences</li>
+        <li><kbd>4</kbd> — Keyboard Shortcuts</li>
+        <li><kbd>5</kbd> — USDA API Key</li>
+        <li><kbd>6</kbd> — Protein Digestibility Overrides</li>
+      </ul>
+    </div>
+  </div>
+  <div class="form-check mt-3">
+    <input class="form-check-input" type="checkbox" id="shortcuts-toggle">
+    <label class="form-check-label" for="shortcuts-toggle">Enable keyboard shortcuts</label>
+  </div>
+  <p class="muted mt-1"><small>Setting is stored in your browser and takes effect immediately.</small></p>
+</details>
+
+{# ── 5. USDA API key ───────────────────────────────────────────────────── #}
+<details>
+  <summary data-ak="5"><u class="ak">5</u>. <strong>USDA API Key</strong>
+    <span class="muted"> — for higher search rate limits</span>
+  </summary>
+
+  {% if saved == 'api_key' %}
+  <p class="status-met mt-2"><strong>&#10003; API key saved.</strong></p>
+  {% endif %}
+
+  <p class="mt-2 muted"><small>Without a key, food searches use <code>DEMO_KEY</code> (30 requests/hour).
+  A free key raises this to 1,000/hour. Register at
+  <a href="https://fdc.nal.usda.gov/api-guide.html" target="_blank" rel="noopener">fdc.nal.usda.gov</a>.</small></p>
+
+  <form method="post" action="/settings/api-key" class="mt-2">
+    <div class="mb-2" style="max-width:420px">
+      <label class="form-label">API key</label>
+      <input type="text" class="form-control font-monospace" name="api_key"
+             value="{{ api_key or '' }}" placeholder="Paste your USDA API key here">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save key</button>
+    {% if api_key %}
+    <button type="submit" name="api_key" value="" class="btn btn-outline-secondary btn-sm ms-1">Clear key</button>
+    {% endif %}
+  </form>
+</details>
+
+{# ── 6. Protein digestibility overrides ───────────────────────────────── #}
+<details>
+  <summary data-ak="6"><u class="ak">6</u>. <strong>Protein Digestibility Overrides</strong>
+    <span class="muted"> — advanced: per-food DIAAS coefficients</span>
+  </summary>
+
+  {% if saved == 'diaas' %}
+  <p class="status-met mt-2"><strong>&#10003; Override saved.</strong></p>
+  {% endif %}
+
+  <p class="mt-2 muted"><small>Set a specific true ileal digestibility coefficient (0.00–1.00) for a food,
+  overriding the value numa uses in meal-level DIAAS calculations.
+  Values should come from published nutrition studies.</small></p>
+
+  {% if diaas_overrides %}
+  <table class="table table-sm table-hover mt-2" style="max-width:600px">
+    <thead class="table-light">
+      <tr>
+        <th>Food name</th>
+        <th class="text-end">Digestibility</th>
+        <th>Notes</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ov in diaas_overrides %}
+      <tr>
+        <td>{{ ov.food_name }}</td>
+        <td class="text-end">{{ "%.2f"|format(ov.digestibility) }}</td>
+        <td class="muted">{{ ov.notes or "—" }}</td>
+        <td>
+          <form method="post" action="/settings/diaas-override/delete" style="margin:0">
+            <input type="hidden" name="food_name" value="{{ ov.food_name }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm"
+                    aria-label="Delete override">&#x2715;</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted mt-2"><small>No overrides set.</small></p>
+  {% endif %}
+
+  <form method="post" action="/settings/diaas-override" class="mt-2" style="max-width:500px">
+    <div class="row g-2 align-items-end">
+      <div class="col">
+        <label class="form-label">Food name (exact)</label>
+        <input type="text" class="form-control form-control-sm" name="food_name"
+               placeholder="e.g. Lentils, cooked">
+      </div>
+      <div class="col-auto">
+        <label class="form-label">Digestibility</label>
+        <input type="number" class="form-control form-control-sm" name="digestibility"
+               min="0" max="1" step="0.01" placeholder="0.00–1.00" style="width:7rem">
+      </div>
+    </div>
+    <div class="mt-2">
+      <label class="form-label">Notes / source (optional)</label>
+      <input type="text" class="form-control form-control-sm" name="notes"
+             placeholder="e.g. FAO 2013 study">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Add / update override</button>
+  </form>
+</details>
 
 <script>
 function toggleHeight(unit) {

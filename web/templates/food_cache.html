@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Food Cache — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Food Cache</li>
+  </ol>
+</nav>
+
+<h2>Food Cache</h2>
+<p class="muted">All foods that have been loaded from USDA or Open Food Facts are stored here.</p>
+
+<form method="get" action="/food/cache" class="mb-3">
+  <div class="input-group" style="max-width:36rem">
+    <input type="text" class="form-control" name="q" value="{{ q or '' }}"
+           placeholder="Filter by name…" autofocus>
+    <button type="submit" class="btn btn-outline-secondary">Filter</button>
+    {% if q %}
+    <a href="/food/cache" class="btn btn-outline-secondary">Clear</a>
+    {% endif %}
+  </div>
+</form>
+
+{% if q %}
+<p class="result-count">
+  {{ foods|length }} result{% if foods|length != 1 %}s{% endif %}
+  matching <strong>{{ q }}</strong>
+</p>
+{% else %}
+<p class="result-count">{{ foods|length }} food{% if foods|length != 1 %}s{% endif %} in cache</p>
+{% endif %}
+
+{% if foods %}
+<table class="table table-sm table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>ID</th>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Brand</th>
+      <th class="text-center">AA data</th>
+      <th class="text-center">GI est.</th>
+      <th class="text-center">DIAAS est.</th>
+      <th class="text-center">Notes</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for food in foods %}
+    <tr>
+      <td class="muted">
+        {% if food.fdc_id < 0 %}OFF
+        {% else %}{{ food.fdc_id }}{% endif %}
+      </td>
+      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></td>
+      <td class="muted">{{ food.data_type or "—" }}</td>
+      <td class="muted">{{ food.brand or "—" }}</td>
+      <td class="text-center">
+        {% if food.has_aa %}
+        <span class="status-met">&#10003;</span>
+        {% else %}
+        <span class="muted">&#8212;</span>
+        {% endif %}
+      </td>
+      <td class="text-center muted">
+        {{ "%.0f"|format(food.gi) if food.gi is not none else "—" }}
+      </td>
+      <td class="text-center muted">
+        {{ "%.2f"|format(food.diaas) if food.diaas is not none else "—" }}
+      </td>
+      <td class="text-center">
+        {% if food.notes %}
+        <span title="{{ food.notes }}">&#10003;</span>
+        {% else %}
+        <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td>
+        <form method="post" action="/food/cache/delete" style="display:inline">
+          <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Delete {{ food.name | replace("'", "\\'") }} from cache?')">
+            Delete
+          </button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No foods in cache{% if q %} matching that filter{% endif %}.</p>
+{% endif %}
+{% endblock %}

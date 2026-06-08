@@ -1,41 +1,13 @@
-/* numa web app — custom styles layered over Pico CSS */
+/* numa web app — custom styles layered over Bootstrap 5 */
 
-/* ── Pico CSS variable overrides — density, color, typography ────────── */
-/*    Goal: dark readable fonts, tight spacing, CLI-like information density */
+/* ── Base typography and spacing ─────────────────────────────────────── */
 
-:root {
-  /* Tighten font and rhythm */
-  --pico-font-size:               17px;
-  --pico-line-height:             1.35;
-  --pico-font-family-sans-serif:  system-ui, -apple-system, sans-serif;
-
-  /* Dark text everywhere — no grays */
-  --pico-color:                   #111;
-  --pico-muted-color:             #333;      /* was ~#777; now dark charcoal */
-  --pico-muted-border-color:      #bbb;
-
-  /* Tighten all spacing (Pico default is 1rem) */
-  --pico-spacing:                 0.6rem;
-  --pico-block-spacing-vertical:  0.6rem;
-  --pico-block-spacing-horizontal:0.75rem;
-  --pico-form-element-spacing-vertical:   0.3rem;
-  --pico-form-element-spacing-horizontal: 0.6rem;
-
-  /* Table cell padding */
-  --pico-table-cell-padding-vertical:   0.25rem;
-  --pico-table-cell-padding-horizontal: 0.3rem;
-
-  /* Darker table row separators */
-  --pico-table-border-color:            #999;
-
-  /* Tighter grid column gaps */
-  --pico-grid-column-gap:               0.5rem;
-
-  /* Headings — tighter */
-  --pico-typography-spacing-vertical: 0.5rem;
+body {
+  font-size: 17px;
+  line-height: 1.35;
+  color: #111;
 }
 
-/* Tighten heading margins globally */
 h1, h2, h3, h4, h5, h6 {
   margin-top: 0.6rem;
   margin-bottom: 0.3rem;
@@ -54,58 +26,47 @@ details > summary {
   list-style: none;
   display: block;
   padding: 0.3rem 0;
-  background: #f0f4f8;        /* very light blue-gray tint instead of gray text */
+  background: #f0f4f8;
   padding-left: 0.5rem;
-  border-left: 3px solid var(--pico-primary);
+  border-left: 3px solid #0d6efd;
   margin-bottom: 0.4rem;
 }
 
 details > summary::before {
   content: "▶ ";
   font-size: 0.75em;
-  color: var(--pico-primary);
+  color: #0d6efd;
 }
 
 details[open] > summary::before {
   content: "▼ ";
 }
 
-/* ── Page-level expand/collapse hint ─────────────────────────────────── */
+/* ── Navbar links ────────────────────────────────────────────────────── */
 
-.expand-hint {
-  font-size: 1em;
-  color: #333;
-  margin-bottom: 0.6rem;
-  margin-top: 0;
+.navbar .nav-link,
+.navbar .nav-link.dropdown-toggle {
+  color: #e6ac00 !important;   /* deep gold / amber */
 }
 
-/* ── Layout ──────────────────────────────────────────────────────────── */
-
-header.container-fluid {
-  border-bottom: 1px solid var(--pico-muted-border-color);
-  margin-bottom: 0.75rem;
-  padding-top: 0.4rem;
-  padding-bottom: 0.4rem;
+.navbar .nav-link:hover,
+.navbar .nav-link:focus,
+.navbar .nav-link.active {
+  color: #ffd84d !important;   /* lighter gold on hover/active */
 }
 
-footer.container-fluid {
-  border-top: 1px solid var(--pico-muted-border-color);
-  margin-top: 1rem;
-  padding: 0.4rem 1rem;
-  font-size: 0.95em;
-  color: #333;
-}
+/* ── Navbar brand ────────────────────────────────────────────────────── */
+
+/* Access key underlines: visible only when shortcuts are enabled */
+.ak { text-decoration: none; }
+.shortcuts-on .ak { text-decoration: underline; }
 
 .site-title {
   text-decoration: none;
-  font-size: 3.3rem;
+  font-size: 1.8rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1;
-}
-
-header nav a {
-  font-size: 2rem;
 }
 
 /* ── Typography helpers ──────────────────────────────────────────────── */
@@ -149,12 +110,10 @@ table {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   background: #eef2f7;
-  /* Same padding as td so headers align exactly with their columns */
   padding-left: 2rem;
   padding-right: 2rem;
 }
 
-/* All cells get the same 2rem horizontal padding so headers match columns */
 .nutrient-table td {
   padding-left: 2rem;
   padding-right: 2rem;
@@ -166,7 +125,6 @@ table {
   padding-left: 3.6rem;
 }
 
-/* Center all columns except the first */
 .nutrient-table td:not(:first-child),
 .nutrient-table th:not(:first-child) {
   text-align: center;
@@ -267,10 +225,6 @@ table {
   border-color: #555 !important;
 }
 
-.portion-submit {
-  /* margin/padding set via inline style on the element to override Pico */
-}
-
 .portion-unit {
   padding: 0 0.2rem;
   color: #333;
@@ -287,10 +241,10 @@ table {
 
 /* ── RDA % column ────────────────────────────────────────────────────── */
 
-.rda-met  { color: #166534; font-weight: 600; }   /* ≥ 100% */
-.rda-near { color: #92400e; }                      /* 75–99% */
-.rda-low  { color: #374151; }                      /* < 75% — dark, not gray */
-.rda-over { color: #991b1b; font-weight: 600; }    /* over limit */
+.rda-met  { color: #166534; font-weight: 600; }
+.rda-near { color: #92400e; }
+.rda-low  { color: #374151; }
+.rda-over { color: #991b1b; font-weight: 600; }
 
 .rda-no-profile {
   border-left: 3px solid #bbb;
@@ -308,17 +262,13 @@ nav[aria-label="breadcrumb"] {
   margin-bottom: 0.4rem;
 }
 
-/* ── hgroup ──────────────────────────────────────────────────────────── */
+/* ── Page title block (replaces hgroup) ──────────────────────────────── */
 
-hgroup {
-  margin-bottom: 0.5rem;
-}
-
-hgroup h2 {
+div.mb-2 h2 {
   margin-bottom: 0.1rem;
 }
 
-hgroup p {
+div.mb-2 p {
   font-size: 1em;
   margin-top: 0;
 }
@@ -327,12 +277,6 @@ hgroup p {
 
 label {
   margin-bottom: 0.4rem;
-}
-
-/* Pico defaults buttons to width:100% inside forms — override to inline */
-button, [type="submit"], [type="button"], [type="reset"] {
-  width: auto;
-  display: inline-block;
 }
 
 /* ── Tables — first column indent, tighter columns, darker row separators */
@@ -361,3 +305,54 @@ td:first-child, th:first-child {
 }
 
 .manual-body table { font-size: 1rem; }
+
+/* ── Navigation dropdowns ─────────────────────────────────────────────── */
+
+.numa-dropdown {
+  min-width: 22rem;
+  padding: 0.25rem 0;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+}
+
+.numa-dropdown .dropdown-item {
+  padding: 0.45rem 1.1rem;
+  white-space: normal;      /* allow long labels to wrap */
+  line-height: 1.3;
+}
+
+.numa-dropdown .dropdown-item strong {
+  font-weight: 700;
+}
+
+/* muted hint text inside dropdown items */
+.dd-hint {
+  display: block;
+  font-size: 0.82rem;
+  color: #6c757d;
+  margin-left: 1.5rem;
+  margin-top: 1px;
+}
+
+/* ── Food comparison table ───────────────────────────────────────────── */
+
+.compare-table {
+  width: auto;          /* don't stretch to full container width */
+  table-layout: auto;   /* browser sizes each column to its content */
+  font-size: 0.92rem;
+}
+
+.compare-nutrient-col {
+  white-space: nowrap;  /* first col: as wide as longest nutrient name */
+}
+
+.compare-val-col {
+  white-space: nowrap;  /* food cols: as wide as the header label */
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-max {
+  font-weight: 700;
+  background: #e8f5e9;
+}

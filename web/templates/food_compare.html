@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Compare Foods — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Compare Foods</li>
+  </ol>
+</nav>
+
+<h2>Compare Foods</h2>
+<p class="muted">Add up to 6 foods to compare their nutrients side by side.</p>
+
+{% if error %}
+<p class="numa-error">{{ error }}</p>
+{% endif %}
+
+{# ── Saved lists panel ── #}
+{% if saved_lists %}
+<details class="mb-3">
+  <summary><strong>Use a saved list</strong>
+    <span class="muted">({{ saved_lists|length }})</span>
+  </summary>
+  <table class="table table-sm table-hover mt-2" style="max-width:52rem">
+    <thead class="table-light">
+      <tr><th>Name</th><th>Foods</th><th>Saved</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for s in saved_lists %}
+      <tr>
+        <td><a href="/food/compare/load/{{ s.id }}">{{ s.name }}</a></td>
+        <td class="muted">{{ s.fdc_ids | fromjson | length }}</td>
+        <td class="muted">{{ s.created_at[:10] }}</td>
+        <td>
+          <form method="post" action="/food/compare/saved/delete" style="display:inline">
+            <input type="hidden" name="cmp_id" value="{{ s.id }}">
+            <input type="hidden" name="ids" value="{{ ids_str }}">
+            <input type="hidden" name="amounts" value="{{ amounts_str }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{# ── Add food search ── #}
+<form method="get" action="/food/compare" class="mb-2">
+  <input type="hidden" name="ids" value="{{ ids_str }}">
+  <input type="hidden" name="amounts" value="{{ amounts_str }}">
+  <div class="input-group" style="max-width:36rem">
+    <input type="text" class="form-control" name="search"
+           value="{{ search }}"
+           placeholder="Search for a food to add…" autofocus>
+    <button type="submit" class="btn btn-primary">Search</button>
+  </div>
+</form>
+
+{# ── Search results — user picks which one to add ── #}
+{% if search_error %}
+<p class="numa-error">{{ search_error }}</p>
+{% endif %}
+{% if search_results %}
+<p class="result-count">
+  {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
+  for <strong>{{ search }}</strong> — click <em>Add</em> to include in comparison
+</p>
+<table class="table table-sm table-hover mb-3" style="max-width:52rem">
+  <thead class="table-light">
+    <tr><th>Food</th><th>Brand</th><th>Type</th><th>Source</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for r in search_results %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td class="muted">{{ r.brand or "—" }}</td>
+      <td class="muted">{{ r.data_type }}</td>
+      <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>
+      <td>
+        <form method="post" action="/food/compare/add" style="display:inline">
+          <input type="hidden" name="fdc_id" value="{{ r.fdc_id }}">
+          <input type="hidden" name="ids" value="{{ ids_str }}">
+          <input type="hidden" name="amounts" value="{{ amounts_str }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% elif search %}
+<p>No results for <strong>{{ search }}</strong>.</p>
+{% endif %}
+
+{# ── Current foods list ── #}
+{% if entries %}
+<form method="post" action="/food/compare/amounts">
+  <input type="hidden" name="ids" value="{{ ids_str }}">
+  <table class="table table-sm table-hover mb-2" style="max-width:52rem">
+    <thead class="table-light">
+      <tr>
+        <th>Food</th>
+        <th>Type</th>
+        <th class="num-col">Amount (g)</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td><a href="/food/{{ e.fdc_id }}">{{ e.name }}</a></td>
+        <td class="muted">{{ e.data_type }}</td>
+        <td class="num-col" style="width:9rem">
+          <input type="number" name="amounts_{{ e.fdc_id }}"
+                 value="{{ e.amount }}" min="1" step="any"
+                 class="form-control form-control-sm" style="max-width:7rem">
+        </td>
+        <td>
+          <form method="post" action="/food/compare/remove" style="display:inline">
+            <input type="hidden" name="remove_id" value="{{ e.fdc_id }}">
+            <input type="hidden" name="ids" value="{{ ids_str }}">
+            <input type="hidden" name="amounts" value="{{ amounts_str }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button type="submit" class="btn btn-outline-secondary btn-sm mb-3">Update amounts</button>
+</form>
+{% endif %}
+
+{# ── Comparison table ── #}
+{% if compare_groups and entries|length >= 2 %}
+<hr>
+<h4>Nutrient comparison</h4>
+<p class="muted">Highest value per row is highlighted. All values scaled to the specified gram amount.</p>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered compare-table">
+  <thead class="table-light">
+    <tr>
+      <th class="compare-nutrient-col">Nutrient</th>
+      {% for e in entries %}
+      <th class="compare-val-col">
+        {{ e.name | truncate(30) }}<br>
+        <span class="muted">{{ e.amount }}g</span>
+      </th>
+      {% endfor %}
+    </tr>
+  </thead>
+  {% for group in compare_groups %}
+  <tbody>
+    <tr class="table-secondary">
+      <td colspan="{{ entries|length + 1 }}"><strong>{{ group.name }}</strong></td>
+    </tr>
+    {% for row in group.rows %}
+    <tr>
+      <td class="compare-nutrient-col">{{ row.label }} <span class="muted">{{ row.unit }}</span></td>
+      {% for cell in row.cells %}
+      <td class="compare-val-col {% if cell.is_max %}compare-max{% endif %}">
+        {{ cell.value if cell.value is not none else "—" }}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+  {% endfor %}
+</table>
+</div>
+{% elif entries|length == 1 %}
+<p class="muted">Add at least one more food to see the comparison table.</p>
+{% endif %}
+
+{# ── Save this comparison ── #}
+{% if entries|length >= 2 %}
+<hr>
+<form method="post" action="/food/compare/save" class="d-flex align-items-center gap-2" style="max-width:36rem">
+  <input type="hidden" name="ids" value="{{ ids_str }}">
+  <input type="hidden" name="amounts" value="{{ amounts_str }}">
+  <label for="save-name" class="text-nowrap mb-0"><strong>Save this list:</strong></label>
+  <input type="text" id="save-name" name="name" class="form-control form-control-sm"
+         placeholder="Give it a name…" style="max-width:18rem">
+  <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Save comparison</button>
+</form>
+{% endif %}
+
+{% endblock %}

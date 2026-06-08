@@ -73,7 +73,7 @@ def _do_recipe_edit(recipe=None) -> None:
             if _mi > 0:
                 _mi -= 1
             continue
-        _val = _raw if _raw else _meta_vals[_key]
+        _val = _raw if (_raw or _typ == "str") else _meta_vals[_key]
         if _typ == "int":
             if _val.isdigit():
                 _meta_vals[_key] = int(_val)

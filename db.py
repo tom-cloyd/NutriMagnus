@@ -225,6 +225,16 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 pass
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_comparisons (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT    NOT NULL,
+                fdc_ids    TEXT    NOT NULL,
+                amounts    TEXT    NOT NULL,
+                created_at TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
@@ -709,6 +719,41 @@ def update_food_nutrients_partial(conn: sqlite3.Connection, fdc_id: int, new_nut
         "UPDATE foods SET nutrients_json = ?, cached_at = datetime('now') WHERE fdc_id = ?",
         (json.dumps(existing), fdc_id),
     )
+
+
+# ---------------------------------------------------------------------------
+# Saved comparisons
+# ---------------------------------------------------------------------------
+
+def saved_comparison_save(
+    conn: sqlite3.Connection,
+    name: str,
+    fdc_ids: list[int],
+    amounts: list[float],
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO saved_comparisons (name, fdc_ids, amounts) VALUES (?, ?, ?)",
+        (name, json.dumps(fdc_ids), json.dumps(amounts)),
+    )
+    return cur.lastrowid
+
+
+def saved_comparison_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT id, name, fdc_ids, amounts, created_at FROM saved_comparisons ORDER BY created_at DESC"
+    ).fetchall()
+
+
+def saved_comparison_get(conn: sqlite3.Connection, cmp_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT id, name, fdc_ids, amounts, created_at FROM saved_comparisons WHERE id = ?",
+        (cmp_id,),
+    ).fetchone()
+
+
+def saved_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
+    cur = conn.execute("DELETE FROM saved_comparisons WHERE id = ?", (cmp_id,))
+    return cur.rowcount > 0
 
 
 def update_cached_food_profile(
