@@ -483,7 +483,7 @@ def _print_recipe_bioavailability(
     total_digestible = 0.0
     for s in ingredient_stats:
         p = s["protein_g"]
-        amount_g = s.get("amount_g")
+        amount_g = s.get("display_g", s.get("amount_g"))
         limiting_aa = s.get("limiting_aa")
 
         # Prefer true ileal digestibility from pooled result; fall back to static DIAAS
@@ -529,7 +529,7 @@ def _print_recipe_bioavailability(
         lim_text = f"  [dim](limiting: {limiting_label})[/dim]" if limiting_label else ""
         color = state.T["success"] if meal_diaas >= 0.90 else (state.T["warning"] if meal_diaas >= 0.70 else state.T["error"])
         state.console.print(
-            f"\n  [{state.T['warning']}]Bioavailable complete protein: {dcp:.1f}g[/{state.T['warning']}]"
+            f"\n  [{state.T['warning']}]Digestible complete protein: {dcp:.1f}g[/{state.T['warning']}]"
             f"  [dim](from {total_protein:.1f}g, meal DIAAS [{color}]{meal_diaas:.2f}[/{color}]{lim_text})[/dim]",
             highlight=False,
         )
@@ -732,16 +732,23 @@ def _print_complement_suggestions(
         pair_verb = "Serve alongside"
 
     def _show_suggestion(s: dict, label: str) -> None:
+        fdc_str = f"  [dim]FDC {s['fdc_id']}[/dim]" if s.get("fdc_id") else "  [dim]curated[/dim]"
         diaas_str = f"  [dim]DIAAS {s['diaas']:.2f}[/dim]" if s.get("diaas") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}] "
-                      f"[bold]{s['name']}[/bold]{diaas_str}")
+                      f"[bold]{s['name']}[/bold]{fdc_str}{diaas_str}")
         vol = _volume_hint(s["grams"], s["name"])
         vol_str = f"  [dim]({vol})[/dim]" if vol else ""
         state.console.print(f"    {add_verb}: [bold]{s['grams']}g[/bold]{vol_str}")
-        # Show AA scores before → after for the most affected gaps
+        # Show AA scores before → after for the most affected gaps.
+        # orig_score is digestibility-adjusted (from get_aa_gaps);
+        # new_scores values are raw — multiply by _digestibility for a fair comparison.
         score_parts = []
         for aa, orig_score, _ in gaps[:3]:
-            new_score = s["new_scores"].get(aa, orig_score)
+            new_raw = s["new_scores"].get(aa)
+            if new_raw is not None and _digestibility > 0:
+                new_score = new_raw * _digestibility
+            else:
+                new_score = orig_score
             label_aa = _aa_label(aa)
             arrow = f"[{state.T['success']}]{new_score:.2f}[/{state.T['success']}]" if new_score >= 1.0 \
                 else f"[{state.T['warning']}]{new_score:.2f}[/{state.T['warning']}]"
@@ -751,12 +758,17 @@ def _print_complement_suggestions(
         raw = s["protein_added"]
         state.console.print(f"    Adds: [bold]{dig:.1f}g[/bold] digestible protein "
                       f"[dim](from {raw:.1f}g raw)[/dim]", highlight=False)
-        if s.get("new_scores"):
-            pooled_diaas = min(1.0, min(s["new_scores"].values()) * _digestibility)
-            total_dig = (base_protein + raw) * pooled_diaas
+        if s.get("new_scores") and gaps and _digestibility > 0:
+            # new_scores are raw (pre-digestibility). To get new_diaas, scale
+            # base_diaas by how much the most-limiting AA raw score changed.
+            # Avoids double-applying digestibility vs. raw scores.
+            old_raw_min = gaps[0][1] / _digestibility
+            new_raw_min = min(s["new_scores"].values())
+            scale = (new_raw_min / old_raw_min) if old_raw_min > 0 else 1.0
+            total_dig = (base_protein + raw) * min(1.0, _digestibility * scale)
         else:
             total_dig = base_digestible + dig
-        state.console.print(f"    Total bioavailable complete protein now = "
+        state.console.print(f"    Total digestible complete protein now = "
                       f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
                       highlight=False)
         if s.get("opens_new_gap"):
@@ -822,9 +834,10 @@ def _print_complement_suggestions(
         )
 
     def _show_diaas_improver(s: dict, label: str) -> None:
+        fdc_str = f"  [dim]FDC {s['fdc_id']}[/dim]" if s.get("fdc_id") else "  [dim]curated[/dim]"
         diaas_str = f"  [dim]DIAAS {s['diaas']:.2f}[/dim]" if s.get("diaas") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}] "
-                      f"[bold]{s['name']}[/bold]{diaas_str}")
+                      f"[bold]{s['name']}[/bold]{fdc_str}{diaas_str}")
         vol = _volume_hint(s["grams"], s["name"])
         vol_str = f"  [dim]({vol})[/dim]" if vol else ""
         state.console.print(f"    {add_verb}: [bold]{s['grams']}g[/bold]{vol_str}")
@@ -846,7 +859,7 @@ def _print_complement_suggestions(
             total_dig = (base_protein + raw) * min(1.0, new_diaas)
         else:
             total_dig = base_digestible + dig
-        state.console.print(f"    Total bioavailable complete protein now = "
+        state.console.print(f"    Total digestible complete protein now = "
                       f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
                       highlight=False)
 

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-06*:1854
+*Updated 2026-06-09*:2255
 
 [TOC]
 
@@ -384,9 +384,9 @@ If you created a supplement entry before this feature was added, open it via **F
 
 ## How NutriMagnus scores meal and recipe protein quality
 
-Single-food analysis and meal-level analysis use different methods. For a single food, NutriMagnus computes a DIAAS score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the FAO's endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
+(This section explains the meal-level method. For background on single-food DIAAS and how amino acid ratios work, see Appendix A.)
 
-This section explains the meal-level method. For background on single-food DIAAS and how amino acid ratios work, see Appendix A.
+Single-food analysis and meal-level analysis use different methods. For a single food, NutriMagnus computes a DIAAS score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the FAO's endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
 
 ### Why meals need their own calculation
 
@@ -794,6 +794,8 @@ It is more meaningful than raw grams of protein because it accounts for:
 - **Completeness:** whether the amino acid profile meets all requirements
 
 A food with 30 g of protein but a DIAAS of 0.70 and several amino acid gaps contributes less usable protein than those numbers suggest. DCP captures that.
+
+DCP is also called "bioavailable complete protein" or "usable protein" in nutrition literature — these terms mean the same thing. NutriMagnus uses DCP throughout.
 
 NutriMagnus shows DCP in the bioavailability section of food and recipe analysis. See also [DIAAS](#diaas--digestible-indispensable-amino-acid-score-diaas) and [Protein Completeness](#protein-completeness-complete).
 

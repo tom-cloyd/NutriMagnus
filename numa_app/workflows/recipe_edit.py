@@ -39,23 +39,24 @@ def _do_recipe_edit(recipe=None) -> None:
     # _meta_complete stays True only if the user steps through every field.
     # On b / Ctrl+C we break early but still fall through to save whatever
     # was already changed before returning.
+    # (label, key, initial_value, type, allow_empty)
     _meta_fields = [
-        ("Name",        "name",        recipe["name"],                "str"),
-        ("Description", "description", recipe["description"] or "",   "str"),
-        ("Servings  [dim](0 = analyze by weight/volume)[/dim]", "servings", str(recipe["servings"]), "int"),
-        ("Serving size  [dim](e.g. 1 cup, 1 slice — Enter to skip)[/dim]", "serving_size", recipe["serving_size"] or "", "str"),
-        ("Complete?  [dim](y/n)[/dim]", "complete", "y" if recipe["complete"] else "n", "bool"),
+        ("Name",        "name",        recipe["name"],                "str",  False),
+        ("Description", "description", recipe["description"] or "",   "str",  True),
+        ("Servings  [dim](0 = analyze by weight/volume)[/dim]", "servings", str(recipe["servings"]), "int", False),
+        ("Serving size  [dim](e.g. 1 cup, 1 slice — Enter to skip)[/dim]", "serving_size", recipe["serving_size"] or "", "str", True),
+        ("Complete?  [dim](y/n)[/dim]", "complete", "y" if recipe["complete"] else "n", "bool", False),
     ]
     _meta_vals: dict = {f[1]: f[2] for f in _meta_fields}
     _meta_complete = True
     _meta_quit = False
     _mi = 0
     while _mi < len(_meta_fields):
-        _label, _key, _, _typ = _meta_fields[_mi]
+        _label, _key, _, _typ, _allow_empty = _meta_fields[_mi]
         _cur = str(_meta_vals[_key])
         try:
             if _cur:
-                _raw = _prompt(_label, default=_cur, prefill=True, free_text=True, two_line=True).strip()
+                _raw = _prompt(_label, default=_cur, prefill=True, free_text=True, two_line=True, allow_empty=_allow_empty).strip()
             else:
                 _raw = _prompt(_label, free_text=True).strip()
         except Cancelled:
@@ -73,7 +74,7 @@ def _do_recipe_edit(recipe=None) -> None:
             if _mi > 0:
                 _mi -= 1
             continue
-        _val = _raw if (_raw or _typ == "str") else _meta_vals[_key]
+        _val = _raw if _raw else _meta_vals[_key]
         if _typ == "int":
             if _val.isdigit():
                 _meta_vals[_key] = int(_val)
@@ -213,7 +214,7 @@ def _do_recipe_edit(recipe=None) -> None:
         elif choice == "1":
             state.console.print()
             try:
-                query = _prompt("Search food or recipe  [dim](name or FDC ID · b=back)[/dim]", free_text=True).strip()
+                query = _prompt("Search food or recipe  [dim](name · FDC ID · barcode · b=back)[/dim]", free_text=True).strip()
             except Cancelled:
                 continue
             ql = query.lower()

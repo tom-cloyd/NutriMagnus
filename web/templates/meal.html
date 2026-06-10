@@ -44,6 +44,18 @@
         </td>
         <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
         <td colspan="2">
+          {% if food._type == "recipe" %}
+          <form method="post" action="/meal/{{ meal.id }}/add-recipe" class="add-food-form">
+            <input type="hidden" name="recipe_id" value="{{ food.recipe_id }}">
+            <input type="hidden" name="recipe_name" value="{{ food.name }}">
+            <div class="input-group" style="max-width:16rem">
+              <input type="number" class="form-control" name="servings" value="1" min="0.1" max="99" step="0.5"
+                     aria-label="Number of servings" style="max-width:6rem">
+              <span class="input-group-text">srv</span>
+              <button type="submit" class="btn btn-primary">Add to meal</button>
+            </div>
+          </form>
+          {% else %}
           <form method="post" action="/meal/{{ meal.id }}/add" class="add-food-form">
             <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
             <input type="hidden" name="food_name" value="{{ food.name }}">
@@ -54,6 +66,7 @@
               <button type="submit" class="btn btn-primary">Add to meal</button>
             </div>
           </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}

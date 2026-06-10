@@ -283,6 +283,29 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         volume_only_warnings: list[str] = []   # ingredients where weight couldn't be derived
         resolved_ing_ids: set[int] = set()     # volume ingredients successfully converted to grams
         for ing in ingredients:
+            if ing["ref_recipe_id"]:
+                from .recipes import _get_recipe_total_nutrients  # lazy — avoids circular import
+                _, _, sub_nutrients = _get_recipe_total_nutrients(ing["ref_recipe_id"])
+                with _db.get_db() as conn:
+                    sub_recipe = _db.recipe_get(conn, ing["ref_recipe_id"])
+                if sub_recipe and sub_nutrients and sub_recipe["servings"] and sub_recipe["servings"] > 0:
+                    scale = ing["amount"] / sub_recipe["servings"]
+                    scaled = {k: v * scale for k, v in sub_nutrients.items()}
+                    combined = _usda.sum_nutrients(combined, scaled)
+                    sub_protein = scaled.get("protein_g", 0.0)
+                    if sub_protein > 0:
+                        ingredient_stats.append({
+                            "name": ing["food_name"],
+                            "fdc_id": None,
+                            "amount_g": 100.0,      # normalization sentinel: DIAAS math = scaled * 100/100
+                            "display_g": None,       # render shows "—" in Serving column
+                            "protein_g": sub_protein,
+                            "nutrients_100g": scaled,   # absolute scaled nutrients treated as per-100g basis
+                            "diaas": None,
+                            "has_aa": _usda.has_amino_acid_data(scaled),
+                            "limiting_aa": None,
+                        })
+                continue
             amount = ing["amount"]
             # amount=0 means no explicit weight was entered — try to derive from the unit string
             if amount == 0.0 and ing["unit"]:
@@ -509,7 +532,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             if ingredient_stats:
                 per_serving_stats = [
                     {**s, "protein_g": s["protein_g"] / servings,
-                     "amount_g": s.get("amount_g", 0.0) / servings}
+                     "amount_g": (s["amount_g"] or 0.0) / servings}
                     for s in ingredient_stats
                 ]
                 # Scale meal_result to per-serving for display
@@ -550,7 +573,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                     "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/dim]",
                     highlight=False,
                 )
-            elif has_aa and _usda.get_aa_gaps(augmented_analysis):
+            elif has_aa and _usda.get_aa_gaps(augmented_analysis, digestibility=eff_diaas if eff_diaas is not None else 1.0):
                 if no_servings:
                     # No serving count — skip the basis choice; use analysis_nutrients directly.
                     # Pick a label that reflects what analysis_nutrients actually represents.

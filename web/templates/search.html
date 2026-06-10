@@ -40,7 +40,13 @@
   <tbody>
     {% for food in results %}
     <tr>
-      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></td>
+      <td>
+        {% if food._type == "recipe" %}
+        <a href="/recipe/{{ food.recipe_id }}">{{ food.name }}</a>
+        {% else %}
+        <a href="/food/{{ food.fdc_id }}">{{ food.name }}</a>
+        {% endif %}
+      </td>
       <td class="muted">{{ food.brand or "—" }}</td>
       <td class="muted">{{ food.data_type }}</td>
       <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>

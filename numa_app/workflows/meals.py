@@ -241,7 +241,7 @@ def _menu_meals() -> bool:
         if page:
             state.console.print("  [dim]  v{id} ········  View or edit a meal  (e.g. v3)[/dim]", highlight=False)
             state.console.print("  [dim]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/dim]", highlight=False)
-            state.console.print("  [dim]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7)[/dim]", highlight=False)
+            state.console.print("  [dim]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/dim]", highlight=False)
         state.console.print("  [dim]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/dim]", highlight=False)
         if has_more:
             state.console.print("  [dim]  mr ···········  Show next 15 older meals[/dim]", highlight=False)
@@ -290,13 +290,25 @@ def _menu_meals() -> bool:
             ids: list[int] = []
             valid = True
             for tok in id_tokens:
-                try:
-                    ids.append(int(tok))
-                except ValueError:
-                    valid = False
-                    break
+                if "-" in tok:
+                    parts = tok.split("-", 1)
+                    try:
+                        lo, hi = int(parts[0]), int(parts[1])
+                        if lo > hi:
+                            valid = False
+                            break
+                        ids.extend(range(lo, hi + 1))
+                    except ValueError:
+                        valid = False
+                        break
+                else:
+                    try:
+                        ids.append(int(tok))
+                    except ValueError:
+                        valid = False
+                        break
             if not valid or not ids:
-                state.console.print(f"[{state.T['warning']}]Enter d{{id}} to delete (e.g. d42  or  d3 5 7) or d{{YYYY-MM-DD}} to jump.[/{state.T['warning']}]")
+                state.console.print(f"[{state.T['warning']}]Enter d{{id}} to delete (e.g. d42  or  d3 5 7  or  d3-7) or d{{YYYY-MM-DD}} to jump.[/{state.T['warning']}]")
                 continue
             if len(ids) == 1:
                 meal = _resolve_meal(str(ids[0]))
@@ -321,11 +333,11 @@ def _meal_add_items(meal_id: int) -> None:
     while True:
         state.console.print()
         try:
-            query = _prompt("Search food or recipe  [dim](name or FDC ID · b=back, m=main, q=quit)[/dim]", free_text=True).strip()
+            query = _prompt("Search food or recipe  [dim](name · FDC ID · barcode · b/d=back, m=main, q=quit)[/dim]", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()
-        if not query or ql == "b":
+        if not query or ql in ("b", "d"):
             break
         if ql == "m":
             raise ReturnToMain()
@@ -572,6 +584,30 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
     return list(items)
 
 
+def _recipe_total_nutrients(recipe_id: int) -> dict[str, float]:
+    """Return summed raw nutrients for all ingredients in a recipe, handling nested recipes."""
+    with _db.get_db() as conn:
+        ings = _db.recipe_get_ingredients(conn, recipe_id)
+    total: dict[str, float] = {}
+    for ing in ings:
+        if ing["ref_recipe_id"]:
+            with _db.get_db() as conn:
+                sub = _db.recipe_get(conn, ing["ref_recipe_id"])
+            sub_servings = sub["servings"] if sub and sub["servings"] and sub["servings"] > 0 else 1
+            sub_total = _recipe_total_nutrients(ing["ref_recipe_id"])
+            portion = ing["amount"] / sub_servings
+            total = _usda.sum_nutrients(total, {k: v * portion for k, v in sub_total.items()})
+        else:
+            with _db.get_db() as conn:
+                cached = _db.get_cached_food(conn, ing["fdc_id"])
+            if cached:
+                scaled = _usda.scale_nutrients(
+                    json.loads(cached["nutrients_json"]), ing["amount"], base_size=100.0
+                )
+                total = _usda.sum_nutrients(total, scaled)
+    return total
+
+
 def _compute_meal_nutrients(meal_id: int) -> dict[str, float] | None:
     """Return combined nutrients for all items in a meal, or None if no data."""
     with _db.get_db() as conn:
@@ -588,20 +624,10 @@ def _compute_meal_nutrients(meal_id: int) -> dict[str, float] | None:
                 combined = _usda.sum_nutrients(combined, scaled)
         elif item["item_type"] == "recipe":
             with _db.get_db() as conn:
-                ings = _db.recipe_get_ingredients(conn, item["recipe_id"])
                 recipe = _db.recipe_get(conn, item["recipe_id"])
-            if recipe and ings:
-                recipe_total: dict[str, float] = {}
-                for ing in ings:
-                    with _db.get_db() as conn:
-                        cached = _db.get_cached_food(conn, ing["fdc_id"])
-                    if cached:
-                        scaled = _usda.scale_nutrients(
-                            json.loads(cached["nutrients_json"]), ing["amount"], base_size=100.0
-                        )
-                        recipe_total = _usda.sum_nutrients(recipe_total, scaled)
-                # Scale by requested servings / total servings
-                portion = item["amount"] / recipe["servings"] if recipe["servings"] > 0 else item["amount"]
+            if recipe:
+                recipe_total = _recipe_total_nutrients(item["recipe_id"])
+                portion = item["amount"] / recipe["servings"] if recipe["servings"] and recipe["servings"] > 0 else item["amount"]
                 scaled_recipe = {k: v * portion for k, v in recipe_total.items()}
                 combined = _usda.sum_nutrients(combined, scaled_recipe)
     return combined if combined else None
@@ -645,6 +671,28 @@ def _compute_meal_ingredient_list(meal_id: int) -> list[dict]:
                     return merged
         return nutrients
 
+    def _expand_ings(recipe_id: int, portion: float) -> list[dict]:
+        with _db.get_db() as conn:
+            ings = _db.recipe_get_ingredients(conn, recipe_id)
+        out: list[dict] = []
+        for ing in ings:
+            if ing["ref_recipe_id"]:
+                with _db.get_db() as conn:
+                    sub = _db.recipe_get(conn, ing["ref_recipe_id"])
+                sub_servings = sub["servings"] if sub and sub["servings"] and sub["servings"] > 0 else 1
+                sub_portion = ing["amount"] / sub_servings * portion
+                out.extend(_expand_ings(ing["ref_recipe_id"], sub_portion))
+            else:
+                nutrients = _best_nutrients(ing["fdc_id"], ing["food_name"])
+                if nutrients is not None:
+                    out.append({
+                        "food_name":      ing["food_name"],
+                        "fdc_id":         ing["fdc_id"],
+                        "nutrients_100g": nutrients,
+                        "grams":          ing["amount"] * portion,
+                    })
+        return out
+
     result: list[dict] = []
     for item in items:
         if item["item_type"] == "food":
@@ -658,19 +706,10 @@ def _compute_meal_ingredient_list(meal_id: int) -> list[dict]:
                 })
         elif item["item_type"] == "recipe":
             with _db.get_db() as conn:
-                ings = _db.recipe_get_ingredients(conn, item["recipe_id"])
                 recipe = _db.recipe_get(conn, item["recipe_id"])
-            if recipe and ings:
-                portion = item["amount"] / recipe["servings"] if recipe["servings"] > 0 else item["amount"]
-                for ing in ings:
-                    nutrients = _best_nutrients(ing["fdc_id"], ing["food_name"])
-                    if nutrients is not None:
-                        result.append({
-                            "food_name":      ing["food_name"],
-                            "fdc_id":         ing["fdc_id"],
-                            "nutrients_100g": nutrients,
-                            "grams":          ing["amount"] * portion,
-                        })
+            if recipe:
+                portion = item["amount"] / recipe["servings"] if recipe["servings"] and recipe["servings"] > 0 else item["amount"]
+                result.extend(_expand_ings(item["recipe_id"], portion))
     return result
 
 

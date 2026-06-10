@@ -47,7 +47,11 @@
       "Bash(python -c \"import sys; sys.path.insert\\(0,'web'\\); import backend; print\\('backend ok'\\)\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8585/food/compare)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8585/food/compare/load/999)",
-      "Bash(python -c \"import numa_app.workflows.recipe_analysis; import numa_app.workflows.foods; print\\('ok'\\)\")"
+      "Bash(python -c \"import numa_app.workflows.recipe_analysis; import numa_app.workflows.foods; print\\('ok'\\)\")",
+      "Bash(python -c \"from numa_app.ui.prompts import _prompt; from numa_app.workflows.recipe_edit import _do_recipe_edit; print\\('ok'\\)\")",
+      "Bash(pytest)",
+      "Bash(sqlite3 numa.db ' *)",
+      "Bash(/home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/.venv/bin/python3 -c ' *)"
     ]
   }
 }

@@ -72,7 +72,7 @@ def _menu_foods() -> bool:
 def _do_food_search() -> None:
     try:
         query = _prompt(
-            "Search food or recipe  [dim](name or FDC ID · b=back · dout <id…>=output data)[/dim]",
+            "Search food or recipe  [dim](name · FDC ID · barcode · b=back · dout <id…>=output data)[/dim]",
             free_text=True,
         ).strip()
     except Cancelled:
@@ -134,7 +134,7 @@ def _do_food_search() -> None:
 def _do_analyze_food_portion() -> None:
     try:
         query = _prompt(
-            "Search food or recipe  [dim](name or FDC ID · b=back)[/dim]",
+            "Search food or recipe  [dim](name · FDC ID · barcode · b=back)[/dim]",
             free_text=True,
         ).strip()
     except Cancelled:
@@ -152,6 +152,39 @@ def _do_analyze_food_portion() -> None:
     food = _search_and_pick_food(initial_query=query, prepend_recipes=matching_recipes or None)
     if food is None:
         return
+
+    if food.get("_type") == "recipe":
+        from .recipes import _get_recipe_total_nutrients, _pick_recipe_portion
+        recipe, _, combined = _get_recipe_total_nutrients(food["id"])
+        if recipe is None or not combined:
+            state.console.print(f"[{state.T['warning']}]Recipe has no analyzable ingredients.[/{state.T['warning']}]")
+            return
+        portion = _pick_recipe_portion(recipe)
+        if portion is None:
+            return
+        servings, label = portion
+        factor = servings / (recipe["servings"] or 1)
+        scaled = {k: v * factor for k, v in combined.items()}
+        food_name = food["name"]
+        state.console.print(
+            "  [dim]Note: for per-ingredient digestibility breakdown (TID table), use Recipes → Browse / analyze recipe.[/dim]",
+            highlight=False,
+        )
+        _print_nutrient_table(scaled, title=food_name, per_label=label)
+        has_aa = _print_protein_completeness(scaled)
+        if has_aa and _usda.get_aa_gaps(scaled):
+            _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True)
+        elif not has_aa and scaled.get("protein_g", 0) > 0:
+            state.console.print(
+                f"\n  [{state.T['warning']}]⚑  Insufficient amino acid data.[/{state.T['warning']}]",
+                highlight=False,
+            )
+        _offer_export(food_name, [
+            {"type": "nutrient_table", "title": food_name, "nutrients": scaled, "per_label": label},
+            {"type": "protein_completeness", "nutrients": scaled},
+        ])
+        return
+
     result = _pick_portion(food)
     if result is None:
         return
@@ -213,9 +246,10 @@ def _do_convert_portion() -> None:
         state.console.print(f"  [dim]Weight: {density:.3f} g/ml[/dim]")
     state.console.print(f"  Enter an amount, for example: 150 (g/gr), 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)")
 
+    prompt_text = "Amount  (b=back, m=main, q=quit)"
     while True:
         try:
-            raw = _prompt("Amount  (b=back, m=main, q=quit)").strip()
+            raw = _prompt(prompt_text).strip()
         except Cancelled:
             return
         if raw.lower() in ("b", ""):
@@ -235,7 +269,27 @@ def _do_convert_portion() -> None:
             continue
 
         grams, label = result
+        if grams is None:
+            vol_display = label
+            state.console.print(f"  [dim]Weight per volume is unknown for this food. Weigh your portion to continue.[/dim]")
+            try:
+                w_raw = _prompt(f"Weight of {vol_display} in grams  (e.g. 140 g · Enter=skip, b=back)", free_text=True).strip()
+            except Cancelled:
+                continue
+            if not w_raw or w_raw.lower() in ("b", "back"):
+                continue
+            if w_raw.lower() == "m":
+                raise ReturnToMain()
+            if w_raw.lower() == "q":
+                raise SystemExit(0)
+            try:
+                grams = float(re.sub(r'\s*(gr?a?m?s?)\s*$', '', w_raw, flags=re.IGNORECASE).strip())
+            except ValueError:
+                state.console.print(f"[{state.T['warning']}]Enter a number (e.g. 140).[/{state.T['warning']}]")
+                continue
+            label = vol_display
         state.console.print(f"\n  [bold]{label}[/bold]  =  [bold]{grams:.1f} g[/bold]\n")
+        prompt_text = "Another amount?  (Enter/b=done, m=main, q=quit)"
 
 
 def _do_analyze_recipe_portion() -> None:

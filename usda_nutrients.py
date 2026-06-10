@@ -151,6 +151,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     # ---- Plant sources ----
     {
         "name": "Lentils, cooked",
+        "fdc_id": 172421,
         "animal": False,
         "diaas": 0.75,
         "nutrients": {
@@ -165,6 +166,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Chickpeas, cooked",
+        "fdc_id": 173756,
         "animal": False,
         "diaas": 0.83,
         "nutrients": {
@@ -179,6 +181,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Black beans, cooked",
+        "fdc_id": 175236,
         "animal": False,
         "diaas": 0.75,
         "nutrients": {
@@ -193,6 +196,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Kidney beans, cooked",
+        "fdc_id": 175200,
         "animal": False,
         "diaas": 0.75,
         "nutrients": {
@@ -207,6 +211,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Tofu, firm",
+        "fdc_id": 172479,
         "animal": False,
         "diaas": 0.84,
         "nutrients": {
@@ -221,6 +226,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Tempeh",
+        "fdc_id": 168190,
         "animal": False,
         "diaas": 0.87,
         "nutrients": {
@@ -235,6 +241,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Edamame, cooked",
+        "fdc_id": 168411,
         "animal": False,
         "diaas": 0.84,
         "nutrients": {
@@ -249,6 +256,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Peas, green, cooked",
+        "fdc_id": 170420,
         "animal": False,
         "diaas": 0.79,
         "nutrients": {
@@ -263,6 +271,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Quinoa, cooked",
+        "fdc_id": 168917,
         "animal": False,
         "diaas": 0.85,
         "nutrients": {
@@ -277,6 +286,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Amaranth, cooked",
+        "fdc_id": 170285,
         "animal": False,
         "diaas": 0.76,
         "nutrients": {
@@ -291,6 +301,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Hemp seeds",
+        "fdc_id": 170148,
         "animal": False,
         "diaas": 0.63,
         "nutrients": {
@@ -305,6 +316,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Sesame seeds",
+        "fdc_id": 12023,
         "animal": False,
         # DIAAS ~0.44: lysine is limiting (34 mg/g vs 45 mg/g reference); digestibility ~0.91
         # Source: USDA SR Legacy FDC 12023 — Seeds, sesame seeds, whole, dried
@@ -320,6 +332,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Brazil nuts",
+        "fdc_id": 12078,
         "animal": False,
         # DIAAS ~0.54: lysine is limiting (34 mg/g vs 45 mg/g reference); digestibility ~0.87
         # Met+Cys/protein ratio ~94 mg/g — highest of any common food.
@@ -336,6 +349,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Pumpkin seeds",
+        "fdc_id": 12014,
         "animal": False,
         "diaas": 0.64,
         "nutrients": {
@@ -350,6 +364,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Sunflower seeds",
+        "fdc_id": 12036,
         "animal": False,
         "diaas": 0.53,
         "nutrients": {
@@ -364,6 +379,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Oats",
+        "fdc_id": 173904,
         "animal": False,
         "diaas": 0.57,
         "nutrients": {
@@ -378,6 +394,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Nutritional yeast",
+        "fdc_id": None,
         "animal": False,
         "diaas": 0.72,
         "nutrients": {
@@ -392,6 +409,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Soy protein isolate",
+        "fdc_id": 174276,
         "animal": False,
         "diaas": 0.97,
         "nutrients": {
@@ -406,6 +424,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Pea protein powder",
+        "fdc_id": None,
         "animal": False,
         "diaas": 0.82,
         "nutrients": {
@@ -422,6 +441,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     # dairy_egg=True: allowed for vegetarians. meat/fish entries have animal=True only.
     {
         "name": "Egg, whole, cooked",
+        "fdc_id": 173424,
         "animal": True,
         "dairy_egg": True,
         "diaas": 1.13,
@@ -437,6 +457,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Cheese, cheddar",
+        "fdc_id": 171241,
         "animal": True,
         "dairy_egg": True,
         "diaas": 1.08,
@@ -452,6 +473,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Greek yogurt, plain",
+        "fdc_id": 170903,
         "animal": True,
         "dairy_egg": True,
         "diaas": 1.14,
@@ -467,6 +489,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Whey protein powder",
+        "fdc_id": 173218,
         "animal": True,
         "dairy_egg": True,
         "diaas": 1.09,
@@ -482,6 +505,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Chicken breast, cooked",
+        "fdc_id": 171477,
         "animal": True,
         "diaas": 1.08,
         "nutrients": {
@@ -496,6 +520,7 @@ _COMPLEMENT_TABLE: list[dict] = [
     },
     {
         "name": "Salmon, cooked",
+        "fdc_id": 175168,
         "animal": True,
         "diaas": 1.00,
         "nutrients": {
@@ -777,6 +802,7 @@ def suggest_complements(
         seen_names: set[str] = set()
         for cand in candidates:
             name = cand["name"]
+            fdc_id = cand.get("fdc_id")
             if name in seen_names:
                 continue
             cand_nutrients = cand.get("nutrients")
@@ -797,13 +823,13 @@ def suggest_complements(
                     break
             if metrics is not None:
                 seen_names.add(name)
-                gap_closers.append({"name": name, **metrics})
+                gap_closers.append({"name": name, "fdc_id": fdc_id, **metrics})
             else:
                 # Try DIAAS-improver (pooled DIAAS formula with per-food digestibilities)
                 imp = _diaas_improver_score(cand_nutrients, name, cand_diaas)
                 if imp is not None:
                     seen_names.add(name)
-                    diaas_improvers.append({"name": name, **imp})
+                    diaas_improvers.append({"name": name, "fdc_id": fdc_id, **imp})
         # Sort gap-closers: primary-gap first, then most gaps closed, then smallest grams.
         gap_closers.sort(key=lambda r: (not r.get("closes_primary"), -r["gaps_closed"], r["grams"]))
         # Sort DIAAS-improvers: best resulting DIAAS first, then smallest grams.
@@ -825,7 +851,7 @@ def suggest_complements(
         return False  # plant_only
 
     general_candidates = [
-        {"name": c["name"], "nutrients": c["nutrients"], "diaas": c["diaas"]}
+        {"name": c["name"], "fdc_id": c.get("fdc_id"), "nutrients": c["nutrients"], "diaas": c["diaas"]}
         for c in _COMPLEMENT_TABLE
         if c["name"].lower() not in pantry_names_lower
         and _diet_allows(c)

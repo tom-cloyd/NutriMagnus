@@ -172,8 +172,24 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
     error = None
 
     if query:
+        ql = query.lower()
+        query_words = ql.split()
         with _db.get_db() as conn:
+            all_recipes = _db.recipe_list(conn)
             cached = _db.search_cached_foods(conn, query)
+        matching_recipes = sorted(
+            [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)],
+            key=lambda r: (-sum(1 for w in query_words if w in r["name"].lower()), r["name"].lower()),
+        )
+        for r in matching_recipes:
+            results.append({
+                "_type":     "recipe",
+                "recipe_id": r["id"],
+                "name":      r["name"],
+                "data_type": "Recipe",
+                "brand":     "",
+                "source":    "local",
+            })
         seen_ids: set[int] = set()
         for row in cached:
             seen_ids.add(row["fdc_id"])
@@ -1022,8 +1038,25 @@ async def meal_view(request: Request, meal_id: int, q: str = ""):
     # Search results for add-food panel
     search_results = []
     if q:
+        # Prepend matching recipes (local DB, instant)
         with _db.get_db() as conn:
+            all_recipes = _db.recipe_list(conn)
             cached = _db.search_cached_foods(conn, q)
+        ql = q.lower()
+        query_words = ql.split()
+        matching_recipes = sorted(
+            [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)],
+            key=lambda r: (-sum(1 for w in query_words if w in r["name"].lower()), r["name"].lower()),
+        )
+        for r in matching_recipes:
+            search_results.append({
+                "_type":    "recipe",
+                "recipe_id": r["id"],
+                "name":     r["name"],
+                "servings": float(r["servings"] or 1),
+                "data_type": "Recipe",
+                "source":   "local",
+            })
         seen: set[int] = set()
         for row in cached:
             seen.add(row["fdc_id"])
@@ -1099,6 +1132,24 @@ async def meal_add_food(
     name = food_name or (cached["name"] if cached else "Unknown food")
     with _db.get_db() as conn:
         _db.meal_add_food(conn, meal_id, fdc_id, name, amount, "g")
+    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+
+
+@app.post("/meal/{meal_id}/add-recipe", response_class=RedirectResponse)
+async def meal_add_recipe_item(
+    meal_id: int,
+    recipe_id: int = Form(...),
+    recipe_name: str = Form(""),
+    servings: float = Form(1.0),
+):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+    if not recipe:
+        return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+    name = recipe_name or recipe["name"]
+    unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
+    with _db.get_db() as conn:
+        _db.meal_add_recipe(conn, meal_id, recipe_id, name, servings, unit=unit)
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 

@@ -495,7 +495,7 @@ def _do_recipe_develop(recipe=None) -> None:
         if choice == "a":
             state.console.print()
             try:
-                query = _prompt("Search food or recipe  [dim](name or FDC ID · b=back)[/dim]", free_text=True).strip()
+                query = _prompt("Search food or recipe  [dim](name · FDC ID · barcode · b=back)[/dim]", free_text=True).strip()
             except Cancelled:
                 continue
             ql = query.lower()
@@ -997,7 +997,7 @@ def _do_recipe_create() -> None:
     while True:
         state.console.print()
         try:
-            query = _prompt("Search food or recipe  [dim](name or FDC ID · Enter/b=done adding)[/dim]", free_text=True).strip()
+            query = _prompt("Search food or recipe  [dim](name · FDC ID · barcode · Enter/b=done adding)[/dim]", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()
