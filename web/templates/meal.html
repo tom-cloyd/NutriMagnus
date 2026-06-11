@@ -9,19 +9,64 @@
   </ol>
 </nav>
 
-<div class="mb-2">
-  <h2>{{ meal.name }}</h2>
-  <p class="muted">{{ meal.meal_date }}</p>
+{# ── Meal header ──────────────────────────────────────────────────────── #}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <h2 class="mb-0">{{ meal.name }}</h2>
+  {% if meal.complete %}
+  <span class="badge bg-success">&#10003; Complete</span>
+  {% else %}
+  <span class="badge bg-secondary">Incomplete</span>
+  {% endif %}
+  <small class="text-muted">{{ meal.meal_date }}</small>
+</div>
+
+{# ── Management actions ───────────────────────────────────────────────── #}
+<div class="d-flex flex-wrap gap-2 mb-3">
+
+  {# Toggle complete #}
+  <form method="post" action="/meal/{{ meal.id }}/complete" style="margin:0">
+    {% if meal.complete %}
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Mark incomplete</button>
+    {% else %}
+    <button type="submit" class="btn btn-sm btn-outline-success">Mark complete</button>
+    {% endif %}
+  </form>
+
+  {# Day analysis (only when other meals exist on this date) #}
+  {% if sibling_meals %}
+  <a href="/meal/{{ meal.id }}/day" class="btn btn-sm btn-outline-primary">
+    Analyze full day ({{ sibling_meals|length + 1 }} meals)
+  </a>
+  {% endif %}
+
+  {# Rename (inline collapsible) #}
+  <details class="d-inline-block">
+    <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Rename</summary>
+    <div class="card card-body mt-1 p-2" style="min-width:18rem;position:absolute;z-index:10">
+      <form method="post" action="/meal/{{ meal.id }}/rename" class="d-flex gap-2">
+        <input type="text" name="name" class="form-control form-control-sm"
+               value="{{ meal.name }}" required style="flex:1">
+        <button type="submit" class="btn btn-sm btn-primary">Save name</button>
+      </form>
+    </div>
+  </details>
+
+  {# Delete #}
+  <form method="post" action="/meal/{{ meal.id }}/delete" style="margin:0"
+        onsubmit="return confirm('Delete meal “{{ meal.name }}”? This cannot be undone.')">
+    <button type="submit" class="btn btn-sm btn-outline-danger">Delete meal</button>
+  </form>
+
 </div>
 
 {# ── Add food ─────────────────────────────────────────────────────────── #}
 <details {% if q %}open{% endif %}>
-  <summary><strong>Add Food</strong></summary>
+  <summary><strong>Add Food or Recipe</strong></summary>
 
   <form method="get" action="/meal/{{ meal.id }}">
-    <div class="input-group mb-3">
+    <div class="input-group mb-3 mt-2">
       <input type="text" class="form-control" name="q" value="{{ q }}"
-             placeholder="Search foods…" autofocus>
+             placeholder="Search foods or recipes…" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
     </div>
   </form>
@@ -30,9 +75,9 @@
   <table class="nutrient-table add-food-table">
     <thead>
       <tr>
-        <th>Food</th>
+        <th>Food / Recipe</th>
         <th>Source</th>
-        <th colspan="2">Amount to add &rarr;</th>
+        <th colspan="2">Amount &rarr; Add</th>
       </tr>
     </thead>
     <tbody>
@@ -49,7 +94,7 @@
             <input type="hidden" name="recipe_id" value="{{ food.recipe_id }}">
             <input type="hidden" name="recipe_name" value="{{ food.name }}">
             <div class="input-group" style="max-width:16rem">
-              <input type="number" class="form-control" name="servings" value="1" min="0.1" max="99" step="0.5"
+              <input type="number" class="form-control" name="servings" value="1" min="0.5" max="99" step="0.5"
                      aria-label="Number of servings" style="max-width:6rem">
               <span class="input-group-text">srv</span>
               <button type="submit" class="btn btn-primary">Add to meal</button>
@@ -59,10 +104,26 @@
           <form method="post" action="/meal/{{ meal.id }}/add" class="add-food-form">
             <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
             <input type="hidden" name="food_name" value="{{ food.name }}">
-            <div class="input-group" style="max-width:16rem">
-              <input type="number" class="form-control" name="amount" value="100" min="1" max="9999"
-                     aria-label="Amount in grams" style="max-width:6rem">
-              <span class="input-group-text">g</span>
+            {% if food.portions %}
+            <div class="mb-1">
+              <select class="form-select form-select-sm" style="max-width:22rem"
+                      onchange="(function(sel){var f=sel.closest('form');f.querySelector('[name=amount]').value=sel.value||'';})(this)">
+                <option value="">— enter grams manually —</option>
+                {% for p in food.portions %}
+                <option value="{{ p.gram_weight | round(1) }}">{{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g)</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+            <div class="input-group" style="max-width:22rem">
+              <input type="number" class="form-control" name="amount" value="100" min="0.01" max="9999" step="any"
+                     aria-label="Amount" style="max-width:6rem">
+              <select class="form-select" name="unit" style="max-width:5rem" aria-label="Unit">
+                <option value="g">g</option>
+                <option value="oz">oz</option>
+                <option value="lb">lb</option>
+                <option value="kg">kg</option>
+              </select>
               <button type="submit" class="btn btn-primary">Add to meal</button>
             </div>
           </form>
@@ -81,9 +142,15 @@
 {% if items %}
 <details open>
   <summary><strong>Items ({{ items|length }})</strong></summary>
-  <table class="nutrient-table">
+  <table class="nutrient-table mt-2">
     <thead>
-      <tr><th>Food</th><th class="num-col">Amount</th><th></th></tr>
+      <tr>
+        <th>Food / Recipe</th>
+        <th class="num-col">Amount</th>
+        <th>Notes</th>
+        <th></th>
+        <th></th>
+      </tr>
     </thead>
     <tbody>
       {% for item in items %}
@@ -91,11 +158,50 @@
         <td>
           {% if item.fdc_id %}
             <a href="/food/{{ item.fdc_id }}?amount={{ item.amount | round(1) }}">{{ item.food_name }}</a>
-          {% else %}
+          {% elif item.recipe_id %}
             {{ item.food_name }} <small class="muted">(recipe)</small>
+          {% else %}
+            {{ item.food_name }}
           {% endif %}
         </td>
-        <td class="num-col">{{ item.amount | round(1) }}&thinsp;{{ item.unit }}</td>
+        <td class="num-col" style="white-space:nowrap">
+          {{ item.amount | round(1) }}&thinsp;{{ item.unit }}
+        </td>
+        <td>
+          {% if item.notes %}<small class="muted">{{ item.notes }}</small>{% endif %}
+        </td>
+        {# Edit form #}
+        <td>
+          <details>
+            <summary class="btn btn-outline-secondary btn-sm" style="list-style:none;cursor:pointer">Edit</summary>
+            <div class="card card-body p-2 mt-1" style="min-width:20rem;position:absolute;z-index:10">
+              <form method="post" action="/meal/{{ meal.id }}/update/{{ item.id }}" class="d-flex flex-column gap-2">
+                <div class="d-flex gap-2 align-items-center">
+                  {% if item.fdc_id %}
+                  <label class="form-label mb-0 text-nowrap">Amount (g)</label>
+                  <input type="number" name="amount" value="{{ item.amount | round(1) }}"
+                         class="form-control form-control-sm" min="0.1" max="99999" step="0.1"
+                         style="width:7rem" required>
+                  {% else %}
+                  <label class="form-label mb-0 text-nowrap">Servings</label>
+                  <input type="number" name="amount" value="{{ item.amount }}"
+                         class="form-control form-control-sm" min="0.5" max="99" step="0.5"
+                         style="width:7rem" required>
+                  {% endif %}
+                </div>
+                {% if item.fdc_id %}
+                <div class="d-flex gap-2 align-items-center">
+                  <label class="form-label mb-0 text-nowrap">Notes</label>
+                  <input type="text" name="notes" value="{{ item.notes }}"
+                         class="form-control form-control-sm" placeholder="optional">
+                </div>
+                {% endif %}
+                <button type="submit" class="btn btn-sm btn-primary align-self-start">Save changes</button>
+              </form>
+            </div>
+          </details>
+        </td>
+        {# Remove #}
         <td>
           <form method="post" action="/meal/{{ meal.id }}/remove/{{ item.id }}" style="margin:0">
             <button type="submit" class="btn btn-outline-danger btn-sm"
@@ -111,58 +217,48 @@
 <p class="muted">No foods added yet. Use the search above.</p>
 {% endif %}
 
-{# ── Meal DIAAS ───────────────────────────────────────────────────────── #}
-{% if diaas %}
-<details open>
-  <summary><strong>Protein Quality (Meal-Level DIAAS)</strong></summary>
-
-  <div class="protein-meta">
-    <p>
-      <strong>DIAAS:</strong>
-      {% if diaas.score is not none %}
-        {{ "%.2f"|format(diaas.score) }}
-      {% else %}
-        N/A
-      {% endif %}
-      &nbsp;&middot;&nbsp;
-      <strong>Total protein:</strong> {{ diaas.total_protein_g }}&thinsp;g
-      &nbsp;&middot;&nbsp;
-      <strong>Digestible complete protein:</strong> {{ diaas.dcp_g }}&thinsp;g
-    </p>
-    {% if diaas.limiting_label %}
-    <p><strong>Limiting amino acid:</strong> {{ diaas.limiting_label }}</p>
-    {% endif %}
-    {% if diaas.missing %}
-    <p class="muted"><small>&#9888; Missing AA data for: {{ diaas.missing | join(", ") }}</small></p>
-    {% endif %}
-  </div>
-
-  {% if diaas.iaa_rows %}
-  <table class="nutrient-table">
-    <thead>
-      <tr><th>Amino Acid</th><th class="num-col">Ratio vs. ref.</th><th>Status</th></tr>
-    </thead>
-    <tbody>
-      {% for aa in diaas.iaa_rows %}
-      <tr>
-        <td>{{ aa.label }}</td>
-        <td class="num-col">{{ "%.3f"|format(aa.ratio) }}</td>
-        <td>
-          {% if aa.met %}<span class="status-met">&#10003; Met</span>
-          {% else %}<span class="status-gap">&#9888; Gap</span>{% endif %}
-        </td>
-      </tr>
+{# ── Merge meals ──────────────────────────────────────────────────────── #}
+{% if sibling_meals %}
+<details>
+  <summary><strong>Merge with other meals on {{ meal.meal_date }}</strong></summary>
+  <div class="mt-2">
+    <form method="post" action="/meal/{{ meal.id }}/merge">
+      <p class="muted mb-2">Select meals to merge (include this meal plus at least one other):</p>
+      <div class="mb-2">
+        <label class="form-check-label d-flex align-items-center gap-2">
+          <input type="checkbox" name="merge_ids" value="{{ meal.id }}" class="form-check-input" checked>
+          <strong>{{ meal.name }}</strong> <small class="muted">(this meal, {{ items|length }} items)</small>
+        </label>
+      </div>
+      {% for sib in sibling_meals %}
+      <div class="mb-2">
+        <label class="form-check-label d-flex align-items-center gap-2">
+          <input type="checkbox" name="merge_ids" value="{{ sib.id }}" class="form-check-input" checked>
+          <a href="/meal/{{ sib.id }}">{{ sib.name }}</a>
+        </label>
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
+      <div class="mb-2 mt-3">
+        <label class="form-label" for="merge-name">Name for merged meal</label>
+        <input type="text" class="form-control" id="merge-name" name="new_name"
+               value="{{ meal.name }}" style="max-width:24rem">
+      </div>
+      <div class="form-check mb-3">
+        <input type="checkbox" class="form-check-input" id="delete-originals"
+               name="delete_originals" value="1" checked>
+        <label class="form-check-label" for="delete-originals">Delete original meals after merging</label>
+      </div>
+      <button type="submit" class="btn btn-warning"
+              onclick="return confirm('Merge selected meals into one?')">Merge meals</button>
+    </form>
+  </div>
 </details>
 {% endif %}
 
-{# ── Total nutrients ──────────────────────────────────────────────────── #}
+{# ── Nutrient analysis ────────────────────────────────────────────────── #}
 {% if nutrient_sections %}
-<details>
-  <summary><strong>Total Nutrients for This Meal</strong></summary>
+<details open>
+  <summary><strong>Nutrient analysis for {{ meal.name }}</strong></summary>
 
   {% if not has_profile %}
   <p class="rda-no-profile">
@@ -200,6 +296,246 @@
     </tbody>
   </table>
   {% endfor %}
+</details>
+{% endif %}
+
+{# ── Meal-Level Complete Protein Analysis ─────────────────────────────── #}
+{% if diaas %}
+<details open>
+  <summary><strong>Meal-Level Complete Protein Analysis</strong>
+    <small class="muted"> — pooled across foods, digestibility-corrected (DIAAS)</small>
+  </summary>
+
+  {# Meal foods: Digestibility analysis #}
+  {% if diaas.ing_rows %}
+  <h5 class="mt-3">Meal foods: Digestibility analysis</h5>
+  <table class="nutrient-table">
+    <thead>
+      <tr>
+        <th>Food</th>
+        <th class="num-col">Protein (g)</th>
+        <th class="num-col">Digestibility</th>
+        <th class="num-col">Digestible (g)</th>
+        <th>AA data</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ing in diaas.ing_rows %}
+      <tr>
+        <td>{{ ing.food_name }}</td>
+        <td class="num-col">{{ ing.protein_g }}</td>
+        <td class="num-col">
+          {{ "%.2f"|format(ing.digestibility) }}
+          {% if ing.src_tag %}<small class="muted"> {{ ing.src_tag }}</small>{% endif %}
+        </td>
+        <td class="num-col">{{ ing.digestible_protein_g }}</td>
+        <td>
+          {% if ing.has_aa %}<span class="status-met">&#10003;</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {# Meal amino acid ratios #}
+  {% if diaas.iaa_rows %}
+  <h5 class="mt-3">Meal amino acid ratios
+    <small class="muted"> — digestible AA supply ÷ FAO reference &nbsp;|&nbsp; DIAAS = lowest ratio</small>
+  </h5>
+  <table class="nutrient-table">
+    <thead>
+      <tr><th>Amino Acid</th><th class="num-col">Ratio</th><th>Status</th><th style="min-width:8rem"></th></tr>
+    </thead>
+    <tbody>
+      {% for aa in diaas.iaa_rows %}
+      <tr{% if aa.is_limiting %} style="font-weight:600"{% endif %}>
+        <td>{{ aa.label }}{% if aa.is_limiting %} <span style="color:#ca8a04">&larr; limiting</span>{% endif %}</td>
+        <td class="num-col">{{ "%.3f"|format(aa.ratio) }}</td>
+        <td>
+          {% if aa.met %}<span class="status-met">&#10003; Met</span>
+          {% else %}<span class="status-gap">&#9888; Gap</span>{% endif %}
+        </td>
+        <td>
+          <div style="width:{{ aa.bar_pct | int }}%; min-width:3px; height:12px; border-radius:2px; background-color:{{ aa.bar_color }};"></div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted mt-1"><small>
+    <span style="color:#166534">&#9632;</span> &ge;1.0 met &nbsp;
+    <span style="color:#7f1d1d">&#9632;</span> 0.80&ndash;0.99 near &nbsp;
+    <span style="color:#dc2626">&#9632;</span> &lt;0.80 gap &nbsp;
+    <span style="color:#ca8a04">&#9632;</span> limiting AA
+  </small></p>
+  {% endif %}
+
+  {# Summary #}
+  <div class="protein-meta mt-3">
+    <p><strong>Composite DIAAS:</strong>
+      {% if diaas.score is not none %}{{ "%.3f"|format(diaas.score) }}{% else %}N/A{% endif %}
+    </p>
+    {% if diaas.dcp_g is not none %}
+    <p>
+      <strong style="color:#dc2626">Digestible complete protein: {{ diaas.dcp_g }}&thinsp;g</strong>
+      {% if diaas.aa_protein_g and diaas.aa_protein_g < diaas.total_protein_g - 0.05 %}
+      <span class="muted">&nbsp;= {{ diaas.aa_protein_g }}&thinsp;g raw (from AA-analyzed foods) &times; {{ "%.3f"|format(diaas.score) }} DIAAS</span>
+      {% else %}
+      <span class="muted">&nbsp;= {{ diaas.total_protein_g }}&thinsp;g raw protein &times; {{ "%.3f"|format(diaas.score) }} DIAAS</span>
+      {% endif %}
+    </p>
+    {% if protein_adequacy %}
+    <p class="muted"><small>This is {{ protein_adequacy.pct | int }}% of daily target: {{ protein_adequacy.target }}&thinsp;g,
+      {% if protein_adequacy.personal %}determined by personal profile (<a href="/settings">see Settings</a>)
+      {% else %}based on standard adult reference (0.8&thinsp;g/kg &times; 70&thinsp;kg){% endif %}
+    </small></p>
+    {% endif %}
+    {% endif %}
+    {% if diaas.phe_tyr_gap %}
+    <p class="muted"><small>&#9888; Phenylalanine+Tyrosine combined: gap present</small></p>
+    {% endif %}
+  </div>
+
+  <p class="muted mt-1"><small>AA data: local cache &nbsp;&middot;&nbsp;
+    <form method="post" action="/meal/{{ meal.id }}/refresh-aa" style="display:inline">
+      <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Refresh from USDA</button>
+    </form>
+  </small></p>
+
+</details>
+{% endif %}
+
+{# ── Missing Amino Acid Profiles ──────────────────────────────────────── #}
+{% if diaas and diaas.missing %}
+<details>
+  <summary><strong>Missing Amino Acid Profiles</strong></summary>
+  <p class="muted mt-2">&#9888; The following foods had no amino acid data and were excluded from the DIAAS calculation:</p>
+  <ul class="list-unstyled ms-2">
+    {% for name in diaas.missing %}
+    <li><small>&#9888; {{ name }}</small></li>
+    {% endfor %}
+  </ul>
+  <p class="muted"><small>This is a problem only if any of these are meaningful protein sources in the meal.
+    Use "Refresh from USDA" above to attempt to fetch missing data.</small></p>
+</details>
+{% endif %}
+
+
+{# ── Protein Complement Suggestions ───────────────────────────────────── #}
+{% if complements and not complements.no_data %}
+<details>
+  <summary><strong>Protein Complement Suggestions</strong></summary>
+  {% if complements.no_gaps %}
+  <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
+  {% else %}
+  <p class="muted mt-2"><small>{{ complements.ranking_note }}</small></p>
+  <p class="mt-1"><strong>Gaps:</strong>
+    {% for gap in complements.gaps %}
+      {{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}
+    {% endfor %}
+  </p>
+
+  {# ── Macro for a single suggestion card ── #}
+  {% macro suggest_card(s, verb) %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1">
+      <strong>{{ s.name }}</strong>
+      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+      {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
+      {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
+    </p>
+    <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+    {% if s.aa_effects %}
+    <p class="mb-1 muted"><small>
+      Effect:
+      {% for e in s.aa_effects %}
+        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </small></p>
+    {% endif %}
+    <p class="mb-1 muted"><small>
+      Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw)
+    </small></p>
+    <p class="mb-0 muted"><small>
+      Total digestible complete protein: <strong>{{ s.total_dig }}&thinsp;g</strong>
+    </small></p>
+    {% if s.opens_new_gap %}
+    <p class="mb-0 rda-near"><small>&#9888; Closes above gap but opens a new one — consider layering with a second complement.</small></p>
+    {% endif %}
+  </div>
+  {% endmacro %}
+
+  {% if complements.pantry_empty %}
+  <p class="muted"><small>(No pantry items saved yet — add protein sources via Foods &rarr; My Pantry.)</small></p>
+  {% elif complements.pantry_no_qualify %}
+  <p class="muted"><small>(Pantry items found but none qualify: their amino acid/protein ratio for the limiting amino acid falls below the FAO reference.)</small></p>
+  {% endif %}
+
+  {% if complements.pantry %}
+  <h5 class="mt-3">From your pantry</h5>
+  {% for s in complements.pantry %}{{ suggest_card(s, "Add to meal") }}{% endfor %}
+  {% endif %}
+
+  {% if complements.general %}
+  <h5 class="mt-3">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h5>
+  {% for s in complements.general %}{{ suggest_card(s, "Add to meal") }}{% endfor %}
+  {% endif %}
+
+  <p class="muted mt-2"><small>{{ complements.exhausted_msg }}</small></p>
+
+  {% if complements.diaas_improvers %}
+  <h5 class="mt-3">DIAAS-boosting options</h5>
+  <p class="muted"><small>
+    {% if complements.have_gap_closers %}
+    These foods can't close a specific AA gap on their own, but raise the meal's overall DIAAS score toward 0.90 via protein pooling.
+    {% else %}
+    No single food can close the specific AA gap at a practical serving size. These options instead raise the meal's overall DIAAS score toward 0.90 by pooling their digestible amino acids with the meal.
+    {% endif %}
+  </small></p>
+  {% for s in complements.diaas_improvers %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1">
+      <strong>{{ s.name }}</strong>
+      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+      {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
+    </p>
+    <p class="mb-1"><strong>Add to meal:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+    {% if s.current_diaas is not none and s.new_diaas is not none %}
+    <p class="mb-1 muted"><small>Meal DIAAS: {{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(s.new_diaas) }}</strong></small></p>
+    {% endif %}
+    <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw)</small></p>
+    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% endif %}{# end no_gaps else #}
+</details>
+{% endif %}
+
+{# ── Glycemic load ────────────────────────────────────────────────────── #}
+{% if gl %}
+<details>
+  <summary><strong>Glycemic load</strong></summary>
+  <div class="protein-meta mt-2">
+    {% if gl.total is not none %}
+    <p>
+      <strong>{{ gl.total }}</strong>
+      <small class="muted">&mdash;
+        {% if gl.total < 10 %}Low
+        {% elif gl.total < 20 %}Medium
+        {% else %}High{% endif %}
+      </small>
+    </p>
+    {% else %}
+    <p class="muted">Not available &mdash; missing GI annotations for:</p>
+    <ul class="list-unstyled ms-2">
+      {% for name in gl.blockers %}<li><small>&#9888; {{ name }}</small></li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
 </details>
 {% endif %}
 

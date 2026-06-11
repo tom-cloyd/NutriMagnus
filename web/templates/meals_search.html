@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Meal History Search — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/meals">Meals</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Search History</li>
+  </ol>
+</nav>
+
+<h2>Search Meal History</h2>
+
+<form method="get" action="/meals/search" class="mb-3">
+  <div class="input-group" style="max-width:32rem">
+    <input type="text" class="form-control" name="q" value="{{ q }}"
+           placeholder="Food or recipe name…" autofocus>
+    <button type="submit" class="btn btn-primary">Search</button>
+    {% if q %}
+    <a href="/meals/search" class="btn btn-outline-secondary">Clear</a>
+    {% endif %}
+  </div>
+</form>
+
+{% if q and not rows %}
+<p class="muted">No meal items match <strong>{{ q }}</strong>. Ingredients inside logged recipes are not searched.</p>
+
+{% elif rows %}
+<p class="muted mb-3">
+  Found <strong>{{ n_items }}</strong> occurrence{{ 's' if n_items != 1 else '' }}
+  across <strong>{{ n_meals }}</strong> meal{{ 's' if n_meals != 1 else '' }}
+  on <strong>{{ n_dates }}</strong> date{{ 's' if n_dates != 1 else '' }}.
+  <small>Ingredients inside logged recipes are not included.</small>
+</p>
+
+<h4>All Occurrences</h4>
+<table class="table table-sm table-hover">
+  <thead class="table-light">
+    <tr>
+      <th>Date</th>
+      <th>Meal</th>
+      <th>Food / Recipe</th>
+      <th class="num-col">Portion</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>{{ r.meal_date }}</td>
+      <td><a href="/meal/{{ r.meal_id }}">{{ r.meal_name }}</a></td>
+      <td>
+        {{ r.food_name }}
+        {% if r.item_type == "recipe" %}<small class="muted"> (recipe)</small>{% endif %}
+      </td>
+      <td class="num-col">
+        {% if r.unit %}{{ r.unit }}
+        {% elif r.amount %}{{ "%.0f"|format(r.amount) }} g
+        {% else %}&mdash;{% endif %}
+      </td>
+      <td><small class="muted">{{ r.notes or "" }}</small></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ── Summary by food ──────────────────────────────────────────────────── #}
+{% set ns = namespace(groups={}) %}
+{% for r in rows %}
+  {# Group by food_name — Jinja2 doesn't support mutable dicts, so build in the table directly #}
+{% endfor %}
+
+<h4 class="mt-4">Summary by Food</h4>
+<table class="table table-sm">
+  <thead class="table-light">
+    <tr>
+      <th>Food / Recipe</th>
+      <th class="num-col">Times used</th>
+      <th class="num-col">Total (g)</th>
+      <th>First seen</th>
+      <th>Last seen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {# Build groups in Jinja2: iterate sorted unique names #}
+    {% set seen_names = [] %}
+    {% for r in rows %}
+      {% if r.food_name not in seen_names %}
+        {% set _ = seen_names.append(r.food_name) %}
+      {% endif %}
+    {% endfor %}
+    {% for name in seen_names %}
+      {% set group = rows | selectattr("food_name", "equalto", name) | list %}
+      {% set is_recipe = group[0].item_type == "recipe" %}
+      {% set dates = group | map(attribute="meal_date") | sort | list %}
+      {% set amounts = group | map(attribute="amount") | select | list %}
+      <tr>
+        <td>
+          {{ name }}
+          {% if is_recipe %}<small class="muted"> (recipe)</small>{% endif %}
+        </td>
+        <td class="num-col">{{ group | length }}</td>
+        <td class="num-col">
+          {% if is_recipe %}&mdash;
+          {% elif amounts %}{{ "%.0f"|format(amounts | sum) }} g
+          {% else %}&mdash;{% endif %}
+        </td>
+        <td>{{ dates | first }}</td>
+        <td>{{ dates | last }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% endblock %}

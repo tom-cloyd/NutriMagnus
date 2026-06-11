@@ -16,19 +16,20 @@ from rich.table import Table
 
 import db as _db
 import usda as _usda
+import profile as _profile
 from .. import state
 from ..services.portions import _normalize_unit_display, _parse_portion_input, _pick_portion
 from ..services.search import _refresh_cache_if_missing_aa
 from ..services.reports import _offer_export
-from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu
+from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, section_title
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import (
     _print_complement_suggestions, _print_nutrient_table,
-    _print_protein_completeness, _print_recipe_bioavailability,
+    _print_protein_adequacy, _print_protein_completeness, _print_recipe_bioavailability,
 )
 from .recipes import (
     _pick_recipe_portion, _compute_recipe_dcp, _compute_recipe_gl,
-    _augment_aa_from_curated,
+    _augment_aa_from_curated, _format_recipe_portion_label,
 )
 
 def _resolve_recipe_dcp_data(
@@ -268,7 +269,9 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         state.console.print(f"\n[{state.T['accent']}]Ingredients:[/{state.T['accent']}]  {ID_KEY}")
         for ing in ingredients:
             note_tag = f"  [dim]({ing['notes']})[/dim]" if ing["notes"] else ""
-            state.console.print(f"  • {_normalize_unit_display(ing['unit'])}  {_id_cell(ing['fdc_id'])}  {ing['food_name']}{note_tag}")
+            amt = (_format_recipe_portion_label(ing["amount"])
+                   if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
+            state.console.print(f"  • {amt}  {_id_cell(ing['fdc_id'])}  {ing['food_name']}{note_tag}")
 
         state.console.print(f"\n[{state.T['accent']}]Procedure:[/{state.T['accent']}]")
         if recipe["instructions"] and recipe["instructions"].strip():
@@ -422,6 +425,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         dcp_label = "per serving" if recipe["servings"] > 1 else "whole recipe"
 
         eff_diaas: float | None = None
+        dcp_amount: float | None = None
 
         # Compute meal-level pooled DIAAS from actual AA data — captures complementarity
         meal_result: dict | None = None
@@ -496,14 +500,108 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                     for note in dcp_notes:
                         state.console.print(f"    [dim]↳ {note}[/dim]")
 
-        # GL calculation — requires GI annotation on every ingredient
+        # Meal-Level Complete Protein Analysis (steps 3+4 in plan)
+        servings = max(1, recipe["servings"])
+        if ingredient_stats:
+            per_serving_stats = [
+                {**s, "protein_g": s["protein_g"] / servings,
+                 "amount_g": (s["amount_g"] or 0.0) / servings}
+                for s in ingredient_stats
+            ]
+            per_serving_meal_result: dict | None = None
+            if meal_result:
+                per_serving_meal_result = {
+                    **meal_result,
+                    "digestible_complete_protein_g": (
+                        (meal_result.get("digestible_complete_protein_g") or 0.0) / servings
+                    ),
+                }
+            augmented_analysis, aa_augmented = _augment_aa_from_curated(
+                analysis_nutrients, per_serving_stats
+            )
+        else:
+            per_serving_stats = []
+            per_serving_meal_result = None
+            augmented_analysis = analysis_nutrients
+            aa_augmented = False
+
+        has_aa = _print_protein_completeness(augmented_analysis)
+        if ingredient_stats:
+            _print_recipe_bioavailability(per_serving_stats, analysis_nutrients, per_serving_meal_result)
+        if aa_augmented:
+            state.console.print(
+                "  [dim](⚑ Amino acid scores above estimated using curated literature data "
+                "for ingredients without USDA amino acid records.)[/dim]",
+                highlight=False,
+            )
+        # Missing Amino Acid Profiles (step 4)
+        if not has_aa and analysis_nutrients.get("protein_g", 0) > 0:
+            state.console.print(
+                f"\n  [{state.T['warning']}]⚑  Insufficient amino acid data to assess protein completeness.[/{state.T['warning']}]",
+                highlight=False,
+            )
+            state.console.print(
+                "  [dim]Recipe ingredients lack USDA amino acid records. If this recipe relies "
+                "mainly on plant proteins, consider pairing with a complementary source "
+                "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/dim]",
+                highlight=False,
+            )
+
+        # Personalized protein adequacy (step 5)
+        profile = _profile.load_profile()
+        _print_protein_adequacy(analysis_nutrients, profile,
+                                context_label=recipe["name"],
+                                dcp_g=dcp_amount)
+
+        # Protein Complement Suggestions (step 6)
+        if has_aa:
+            if no_servings:
+                wt_g = _recipe_weight_to_g(recipe["total_weight"], recipe["total_weight_unit"])
+                vol_ml = _recipe_vol_to_ml(recipe["total_volume"], recipe["total_volume_unit"])
+                if wt_g:
+                    basis_label = "per 100 g"
+                elif vol_ml:
+                    basis_label = "per 100 ml"
+                else:
+                    basis_label = "whole recipe"
+                sugg_nutrients = augmented_analysis
+                _print_complement_suggestions(sugg_nutrients, context="recipe",
+                                              offer_if_covered=True,
+                                              basis_label=basis_label,
+                                              base_diaas=eff_diaas)
+            else:
+                gaps = _usda.get_aa_gaps(augmented_analysis, digestibility=eff_diaas if eff_diaas is not None else 1.0)
+                if servings > 1 and gaps:
+                    state.console.print(
+                        f"\n  Complement suggestions basis:\n"
+                        f"  [dim]1[/dim]  Per serving  [dim](default)[/dim]\n"
+                        f"  [dim]2[/dim]  Whole recipe  ({servings} serving(s))"
+                    )
+                    try:
+                        basis_choice = _prompt("Choice  (Enter=per serving)", choices=["1", "2"], default="1").strip()
+                    except Cancelled:
+                        basis_choice = "1"
+                else:
+                    basis_choice = "1"
+                if basis_choice == "2":
+                    sugg_nutrients, _ = _augment_aa_from_curated(combined, ingredient_stats)
+                    basis_label = f"whole recipe — {servings} serving(s)"
+                else:
+                    sugg_nutrients = augmented_analysis
+                    basis_label = "per serving"
+                _print_complement_suggestions(sugg_nutrients, context="recipe",
+                                              offer_if_covered=True,
+                                              basis_label=basis_label,
+                                              base_diaas=eff_diaas)
+
+        # Glycemic load (step 7)
         gl_whole, gl_blockers = _compute_recipe_gl(recipe["id"])
+        section_title("Glycemic load")
         if gl_blockers:
             with _db.get_db() as conn:
                 _db.recipe_set_gl(conn, recipe["id"], None)
             state.console.print(
-                f"\n  [{state.T['warning']}]Glycemic load: not available"
-                f" — GI annotation missing for:[/{state.T['warning']}]"
+                f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
             )
             for name in gl_blockers:
                 state.console.print(f"    [dim]• {name}[/dim]")
@@ -519,101 +617,11 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                      else state.T["warning"] if gl_per_serving <= 19
                      else state.T["error"])
             state.console.print(
-                f"\n  Glycemic load: [{color}]{gl_per_serving:.1f}[/{color}]"
-                f"  [dim]{dcp_label}[/dim]",
+                f"  [{color}]{gl_per_serving:.1f}[/{color}]  [dim]{dcp_label}[/dim]",
                 highlight=False,
             )
             if save_gl is not None:
                 state.console.print("  [dim]↳ Saved to recipe[/dim]", highlight=False)
-
-        # Full protein analysis — always shown
-        if True:
-            servings = max(1, recipe["servings"])
-            if ingredient_stats:
-                per_serving_stats = [
-                    {**s, "protein_g": s["protein_g"] / servings,
-                     "amount_g": (s["amount_g"] or 0.0) / servings}
-                    for s in ingredient_stats
-                ]
-                # Scale meal_result to per-serving for display
-                per_serving_meal_result: dict | None = None
-                if meal_result:
-                    per_serving_meal_result = {
-                        **meal_result,
-                        "digestible_complete_protein_g": (
-                            (meal_result.get("digestible_complete_protein_g") or 0.0) / servings
-                        ),
-                    }
-                augmented_analysis, aa_augmented = _augment_aa_from_curated(
-                    analysis_nutrients, per_serving_stats
-                )
-            else:
-                per_serving_stats = []
-                per_serving_meal_result = None
-                augmented_analysis = analysis_nutrients
-                aa_augmented = False
-
-            has_aa = _print_protein_completeness(augmented_analysis)
-            if ingredient_stats:
-                _print_recipe_bioavailability(per_serving_stats, analysis_nutrients, per_serving_meal_result)
-            if aa_augmented:
-                state.console.print(
-                    "  [dim](⚑ Amino acid scores above estimated using curated literature data "
-                    "for ingredients without USDA amino acid records.)[/dim]",
-                    highlight=False,
-                )
-            if not has_aa and analysis_nutrients.get("protein_g", 0) > 0:
-                state.console.print(
-                    f"\n  [{state.T['warning']}]⚑  Insufficient amino acid data to assess protein completeness.[/{state.T['warning']}]",
-                    highlight=False,
-                )
-                state.console.print(
-                    "  [dim]Recipe ingredients lack USDA amino acid records. If this recipe relies "
-                    "mainly on plant proteins, consider pairing with a complementary source "
-                    "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/dim]",
-                    highlight=False,
-                )
-            elif has_aa and _usda.get_aa_gaps(augmented_analysis, digestibility=eff_diaas if eff_diaas is not None else 1.0):
-                if no_servings:
-                    # No serving count — skip the basis choice; use analysis_nutrients directly.
-                    # Pick a label that reflects what analysis_nutrients actually represents.
-                    wt_g = _recipe_weight_to_g(recipe["total_weight"], recipe["total_weight_unit"])
-                    vol_ml = _recipe_vol_to_ml(recipe["total_volume"], recipe["total_volume_unit"])
-                    if wt_g:
-                        basis_label = "per 100 g"
-                    elif vol_ml:
-                        basis_label = "per 100 ml"
-                    else:
-                        basis_label = "whole recipe"
-                    sugg_nutrients = augmented_analysis
-                    _print_complement_suggestions(sugg_nutrients, context="recipe",
-                                                  offer_if_covered=True,
-                                                  basis_label=basis_label,
-                                                  base_diaas=eff_diaas)
-                else:
-                    # Default to per-serving; only ask when recipe has multiple servings
-                    if servings > 1:
-                        state.console.print(
-                            f"\n  Complement suggestions basis:\n"
-                            f"  [dim]1[/dim]  Per serving  [dim](default)[/dim]\n"
-                            f"  [dim]2[/dim]  Whole recipe  ({servings} serving(s))"
-                        )
-                        try:
-                            basis_choice = _prompt("Choice  (Enter=per serving)", choices=["1", "2"], default="1").strip()
-                        except Cancelled:
-                            basis_choice = "1"
-                    else:
-                        basis_choice = "1"
-                    if basis_choice == "2":
-                        sugg_nutrients, _ = _augment_aa_from_curated(combined, ingredient_stats)
-                        basis_label = f"whole recipe — {servings} serving(s)"
-                    else:
-                        sugg_nutrients = augmented_analysis
-                        basis_label = "per serving"
-                    _print_complement_suggestions(sugg_nutrients, context="recipe",
-                                                  offer_if_covered=True,
-                                                  basis_label=basis_label,
-                                                  base_diaas=eff_diaas)
 
         if no_servings:
             export_per_label = "whole recipe (no serving count)"

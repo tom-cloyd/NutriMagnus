@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-06-06:1854
+UPDATED: 2026-06-10:2230
 ---
 
 ## Table of Contents
@@ -18,6 +18,7 @@ UPDATED: 2026-06-06:1854
   - [Drafted food profiles](#drafted-food-profiles-user-modified-nutrients)
   - [Searching for a food](#searching-for-a-food)
 - [Architecture](#architecture)
+- [Web Interface](#web-interface)
 - [Data Storage](#data-storage)
 - [Test Suite](#test-suite)
 - [Implementation Phases](#implementation-phases)
@@ -98,6 +99,31 @@ numa/
                                      available(); _ALIASES for topic shortcuts
   user-manual.md                   — Essential instructions, tips, and reference material for
                                      users; plain-text sections keyed by [anchor] for inline display
+  web/                             — Local web interface (FastAPI + Jinja2)
+    backend.py                     — All routes, helpers, and template context builders
+    static/
+      style.css                    — Site-wide custom CSS (Bootstrap 5 base)
+    templates/
+      base.html                    — Shared layout: navbar, Bootstrap CDN links, keyboard-shortcut JS
+      home.html                    — Landing page (rendered from home.md)
+      search.html                  — Food search results (USDA + cache)
+      food_detail.html             — Single food nutrient breakdown with RDA % and protein quality
+      food_analyze_portion.html    — Select food + enter grams → nutrient table
+      food_analyze_recipe_portion.html — Select saved recipe + servings → nutrient table
+      food_convert.html            — Portion ↔ weight conversion (density lookup)
+      food_compare.html            — Side-by-side nutrient comparison (up to 6 foods, save/load)
+      food_cache.html              — Browse/search cached foods; delete from cache
+      food_custom_profiles.html    — List user-drafted food profiles; create/delete
+      food_annotate.html           — Browse foods for GI/DIAAS annotation; edit annotation form
+      pantry.html                  — My Pantry: add/remove foods on hand
+      meals.html                   — Meal list with Complete column, date filter, search link
+      meal.html                    — Meal view/edit: items, inline edit, add food/recipe, manage actions
+      meal_day.html                — Full-day combined nutrient + DIAAS analysis across all meals on a date
+      meals_search.html            — Search all meal history; flat occurrences + summary-by-food tables
+      recipes.html                 — Recipes placeholder (stub)
+      summary.html                 — Daily summary placeholder (stub)
+      settings.html                — User profile, dietary preferences, USDA API key, DIAAS overrides
+      manual.html                  — Rendered user-manual.md
   .venv/                           — Python virtual environment (not committed)
 ```
 
@@ -1370,6 +1396,220 @@ The Met+Cys and Phe+Tyr IAA pairs are handled via `_IAA_PAIRS`: the secondary ke
 `compute_rda(profile)` returns a dict mapping nutrient keys to `(rda_value, unit, rda_type)` tuples where `rda_type` is `"target"` (recommended intake, e.g. calories), `"minimum"` (RDA or Adequate Intake — most nutrients), or `"limit"` (Tolerable Upper Intake Level, e.g. sodium). Calorie target uses Mifflin-St Jeor × activity multiplier. Protein scales with weight and activity (0.8–1.2 g/kg). All other targets follow NIH/IOM Dietary Reference Intakes with sex-specific and age-adjusted values.
 
 Profile is saved to and loaded from `~/.config/numa/profile.json`.
+
+---
+
+## Web Interface
+
+A local FastAPI web app that exposes the same data and analysis as the CLI. All routes are in `web/backend.py`; templates live in `web/templates/`. The app is launched separately from the CLI (see Running the Program). It shares the same SQLite database and config files as the CLI.
+
+### Starting the web app
+
+```bash
+cd web
+uvicorn backend:app --reload      # development (auto-reloads on save)
+uvicorn backend:app               # production-style (no reload)
+```
+
+The app is then available at `http://127.0.0.1:8000`.
+
+### `web/backend.py` — routes and helpers
+
+All FastAPI routes and backend helpers are in this single file. Key patterns:
+
+- **`_nutrient_sections(nutrients, rda)`** — converts a nutrients dict into a list of grouped display rows, each with RDA % and CSS class for colour-coding. Used by food detail, meal analysis, and day analysis.
+- **`_protein_section(food_name, nutrients)`** — builds the protein quality block (DIAAS score, amino acid ratio table) for a single food. Returns `None` if the food has no protein or AA data.
+- **`_meal_totals(meal_id)`** — returns `(items_with_nutrients, total_nutrients_dict, diaas_result)` for a meal. Expands recipe ingredients for DIAAS. Item dicts include `id`, `food_name`, `fdc_id`, `recipe_id`, `amount`, `unit`, `notes`, `has_nuts`.
+- **`_day_analysis(meal_date)`** — aggregates nutrients and ingredients across all meals on a given date; returns `(meals_list, combined_nutrients, diaas_result)`.
+- **`_recipe_nutrients_per_serving(recipe_id, conn)`** — sums ingredient nutrients for one recipe, divides by serving count.
+- **`_load_rda()`** — loads the user profile and returns computed RDA dict, or `None` if no profile exists.
+
+### Route reference
+
+#### Foods
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/food/search` | Food search form |
+| POST | `/food/search` | Food search results (USDA + cache + recipes) |
+| POST | `/search` | Legacy alias for POST `/food/search` |
+| GET | `/food/analyze-portion` | Portion analysis form |
+| POST | `/food/analyze-portion` | Portion analysis results |
+| GET | `/food/analyze-recipe-portion` | Recipe portion analysis form |
+| POST | `/food/analyze-recipe-portion` | Recipe portion analysis results |
+| GET | `/food/convert` | Portion conversion search |
+| GET | `/food/convert/{fdc_id}` | Portion conversion detail for a specific food |
+| GET | `/food/compare` | Food comparison table (query params: `ids=`, `amounts=`, `search=`) |
+| POST | `/food/compare/add` | Add a food to the comparison |
+| POST | `/food/compare/remove` | Remove a food from the comparison |
+| POST | `/food/compare/amounts` | Update gram amounts for compared foods |
+| POST | `/food/compare/save` | Save the current comparison list |
+| GET | `/food/compare/load/{cmp_id}` | Load a saved comparison |
+| POST | `/food/compare/saved/delete` | Delete a saved comparison |
+| GET | `/food/cache` | Browse/search cached foods |
+| POST | `/food/cache/delete` | Remove a food from the cache |
+| GET | `/food/custom-profiles` | List user-drafted food profiles |
+| POST | `/food/custom-profiles/create` | Create a new drafted profile |
+| POST | `/food/custom-profiles/delete/{fdc_id}` | Delete a drafted profile |
+| GET | `/food/annotate` | Browse foods for annotation |
+| GET | `/food/annotate/{fdc_id}` | Edit annotation form |
+| POST | `/food/annotate/{fdc_id}` | Save annotation |
+| GET | `/food/{fdc_id}` | Food detail with nutrient table and protein quality (registered last among `/food/*`) |
+
+#### Pantry
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/pantry` | Pantry list |
+| POST | `/pantry/add` | Add a food to pantry |
+| POST | `/pantry/remove/{pantry_id}` | Remove a food from pantry |
+
+#### Meals
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/meals` | Meal list (query params: `show_all=`, `date=YYYY-MM-DD`) |
+| POST | `/meals/create` | Create a new meal |
+| GET | `/meals/search` | Search meal history by food name (query param: `q=`) |
+| GET | `/meal/{meal_id}` | Meal view/edit (query param: `q=` for food search) |
+| POST | `/meal/{meal_id}/add` | Add a food to a meal |
+| POST | `/meal/{meal_id}/add-recipe` | Add a recipe to a meal |
+| POST | `/meal/{meal_id}/remove/{item_id}` | Remove an item from a meal |
+| POST | `/meal/{meal_id}/rename` | Rename a meal |
+| POST | `/meal/{meal_id}/complete` | Toggle meal complete/incomplete |
+| POST | `/meal/{meal_id}/delete` | Delete a meal |
+| POST | `/meal/{meal_id}/update/{item_id}` | Edit an item's amount and notes |
+| POST | `/meal/{meal_id}/merge` | Merge selected meals on the same date into one |
+| GET | `/meal/{meal_id}/day` | Full-day analysis for all meals on the same date as this meal |
+
+#### Settings, Recipes, Summary
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/settings` | Settings page (profile, diet, API key, DIAAS overrides, RDA table) |
+| POST | `/settings` | Save user profile |
+| POST | `/settings/diet` | Save dietary preference |
+| POST | `/settings/api-key` | Save USDA API key |
+| POST | `/settings/diaas-override` | Add/update a DIAAS digestibility override |
+| POST | `/settings/diaas-override/delete` | Delete a DIAAS override |
+| GET | `/recipes` | Recipes stub page (not yet implemented) |
+| GET | `/summary` | Daily summary stub page (not yet implemented) |
+| GET | `/manual` | Rendered user-manual.md |
+| GET | `/` | Home page |
+
+### Template reference
+
+#### `base.html`
+
+Shared layout wrapper. Includes Bootstrap 5 CDN, `/static/style.css`, the top navbar with dropdown menus, a footer, and the keyboard-shortcut JS. All other templates extend this.
+
+The navbar marks the active section by comparing `request.url.path` to each nav link's prefix. Foods items are in a dropdown; Recipes, Meals, Daily Summary, Settings, and Manual are top-level links.
+
+#### `home.html`
+
+Renders the content of `home.md` (project root) as HTML. The markdown file is rendered once at startup and cached in `web/home_body.cache`; the cache is invalidated if `home.md` is newer.
+
+#### `search.html`
+
+Food search results. Shows a results table with food name, data type, brand, and source badge (cache / usda / local). Each row links to `/food/{fdc_id}`. Used for both the Foods → Search page and as a reusable search partial.
+
+#### `food_detail.html`
+
+Displays full nutrient data for one food, scaled to the requested gram amount (`?amount=N`). Shows:
+
+- Food name, data type, brand, serving size
+- Portion picker (USDA named portions, if any)
+- Nutrient table grouped by Macronutrients, Omega Fatty Acids, Minerals, Vitamins, Phytonutrients, Amino Acids — each row with value, unit, and RDA % (colour-coded if profile exists)
+- Protein quality section (DIAAS score + AA ratio table) if amino acid data is present
+- Antinutrient flags if applicable
+
+#### `food_analyze_portion.html`
+
+Two-phase page: search form → results table → pick a food → enter gram amount → full nutrient table. Reuses the same search logic as `search.html`.
+
+#### `food_analyze_recipe_portion.html`
+
+Dropdown of all saved recipes + servings input → scaled nutrient table. Shows protein quality section if recipe has AA data.
+
+#### `food_convert.html`
+
+Portion ↔ weight conversion. Phase 1: search for a food. Phase 2: shows the food's USDA named portions, gram weights, and the computed density (g/mL) for volume conversion. Highlights the closest USDA portion to an entered gram amount.
+
+#### `food_compare.html`
+
+Side-by-side nutrient comparison. Up to 6 foods; amounts are independently adjustable in grams. Highest value per nutrient row is highlighted. Saved comparison lists can be named, saved, loaded, and deleted. Food search is inline on the same page.
+
+#### `food_cache.html`
+
+Browsable/searchable table of all cached foods. Columns: FDC ID, name, data type, brand, AA data flag, GI annotation, DIAAS annotation, notes. Each row links to `/food/{fdc_id}` and `/food/annotate/{fdc_id}`. Supports deletion.
+
+#### `food_custom_profiles.html`
+
+Lists all user-drafted food profiles (data type = "User Drafted"). Provides a create-by-name form and per-row delete. Creating a profile immediately redirects to `/food/{fdc_id}` for nutrient editing.
+
+#### `food_annotate.html`
+
+Two-mode template. In list mode: browsable/searchable table of cached foods showing existing GI and DIAAS annotations. In edit mode (`editing=True`): form for entering GI estimate (0–100), DIAAS digestibility (0–1), and prep context note, with "no prompt" checkboxes to suppress future annotation prompts.
+
+#### `pantry.html`
+
+Table of pantry items with food name, FDC ID link (if available), and notes. Add-by-name form at top. Per-row remove button.
+
+#### `meals.html`
+
+Meal list with:
+- New Meal form (name + date)
+- Date filter form (`?date=YYYY-MM-DD`) + "Search meal history" link
+- Table columns: Meal name (links to `/meal/{id}`), Date, Done (✓ / ·), Items count
+- Show-all / show-recent-9 toggle when more than 9 meals exist
+
+#### `meal.html`
+
+Full meal view and edit page. Sections (all collapsible with `<details>`):
+
+- **Header**: meal name, complete/incomplete badge, date
+- **Management bar**: Mark complete/incomplete toggle, Analyze full day button (shown when other meals exist on the same date), Rename (inline collapsible form), Delete (with JS confirmation)
+- **Add Food or Recipe**: food search form + results table; foods add by gram weight, recipes add by serving count
+- **Items**: table with food name link, amount, notes, per-item Edit (inline collapsible form for amount + notes) and Remove buttons
+- **Merge meals**: shown when other meals exist on the same date; checkboxes to select which meals to merge, name input, delete-originals option
+- **Protein Quality (DIAAS)**: meal-level DIAAS score, total protein, digestible complete protein, limiting amino acid, per-AA ratio table
+- **Total Nutrients**: grouped nutrient table with RDA % colour-coded by target type
+
+#### `meal_day.html`
+
+Full-day analysis for all meals on a single date. Reached via the "Analyze full day" button on `meal.html`. Shows:
+
+- List of all meals on the date (with links back to each meal)
+- Combined DIAAS (pooled across all meals)
+- Combined nutrient table with RDA % (using full-day totals as the denominator)
+
+#### `meals_search.html`
+
+Meal history search. Query param `q=` searches food names across all logged meal items (recipes are matched by name; ingredients inside recipes are not searched). Shows:
+
+- **All Occurrences** table: date, meal (link), food name, portion, notes
+- **Summary by Food** table: unique food names with times used, total grams consumed, first/last date seen
+
+#### `recipes.html`
+
+Placeholder stub. Recipes are not yet implemented in the web interface.
+
+#### `summary.html`
+
+Placeholder stub. Daily summary is not yet implemented in the web interface.
+
+#### `settings.html`
+
+Three forms on one page:
+
+- **User profile**: age, sex, weight (kg or lb), height (cm or ft+in), activity level → computes and displays the RDA table
+- **Dietary preferences**: radio buttons (all animal foods / vegetarian / plant-based only)
+- **USDA API key**: text input with show/hide toggle
+- **DIAAS digestibility overrides**: table of existing overrides with delete buttons; add-new form (food name, digestibility 0–1, optional notes)
+
+#### `manual.html`
+
+Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`, `fenced_code`, and `tables` extensions. Provides a scrollable, linked view of the full user manual.
 
 ---
 

@@ -243,7 +243,7 @@ def _print_protein_adequacy(
         intake_label = "Protein here"
     pct = (protein_intake / protein_target * 100.0) if protein_target > 0 else 0.0
     title = f"Personalized protein adequacy — {context_label}" if context_label else "Personalized protein adequacy"
-    state.console.print(f"\n  [{state.T['hi']}]{title}[/{state.T['hi']}]", highlight=False)
+    section_title(title)
     state.console.print(
         f"  [dim]Profile-adjusted protein target: {protein_target:.1f} g/day"
         f"  ({_profile.ACTIVITY_LABELS.get(profile.activity_level, profile.activity_level)})[/dim]",
@@ -256,7 +256,10 @@ def _print_protein_adequacy(
     )
 
 
-def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | None]:
+def _print_meal_diaas(
+    ingredient_list: list[dict],
+    profile: "_profile.UserProfile | None" = None,
+) -> tuple[list[str], float | None]:
     """
     Print meal-level DIAAS analysis for a list of ingredients.
 
@@ -264,6 +267,8 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
         "food_name":      str
         "nutrients_100g": dict[str, float]
         "grams":          float
+
+    profile: when provided, prints a compact adequacy line right after the DCP line.
 
     Returns (missing_aa_names, dcp_g):
         missing_aa_names: food names excluded due to missing AA data; empty = analysis complete.
@@ -287,8 +292,8 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
             )
         return result["missing_aa_names"], None
 
-    section_title("Meal-Level DIAAS Complete Protein Analysis",
-                  "digestibility-corrected, pooled across foods")
+    section_title("Meal-Level Complete Protein Analysis",
+                  "pooled across foods, digestibility-corrected (DIAAS)")
 
     # Per-food digestibility table
     table_title("MEAL FOODS: DIGESTIBILITY ANALYSIS")
@@ -395,15 +400,13 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
     eff_pct = min(diaas_val, 1.0) * 100
 
     state.console.print(
-        f"\n  Composite DIAAS: [{color}]{diaas_val:.3f}[/{color}]"
-        f"  [dim](utilization efficiency: {eff_pct:.0f}%)[/dim]",
+        f"\n  Composite DIAAS: [{color}]{diaas_val:.3f}[/{color}]",
         highlight=False,
     )
     if dcp is not None:
         aa_p = result.get("aa_protein_g", total_p)
         if aa_p < total_p - 0.05:
-            suffix = (f"= {aa_p:.1f}g raw (AA-analyzed foods) × {diaas_val:.3f} DIAAS"
-                      f"  ·  {total_p:.1f}g = raw protein all foods")
+            suffix = f"= {aa_p:.1f}g raw (from AA-analyzed foods) × {diaas_val:.3f} DIAAS"
         else:
             suffix = f"= {total_p:.1f}g raw protein × {diaas_val:.3f} DIAAS"
         state.console.print(
@@ -411,6 +414,19 @@ def _print_meal_diaas(ingredient_list: list[dict]) -> tuple[list[str], float | N
             f"  [dim]{suffix}[/dim]",
             highlight=False,
         )
+        if profile:
+            protein_target = _profile.compute_rda(profile).get("protein_g", (0.0,))[0]
+            source_note = "determined by personal profile (see Settings)"
+        else:
+            protein_target = 56.0  # 0.8 g/kg × 70 kg reference adult
+            source_note = "based on standard adult reference (0.8 g/kg × 70 kg)"
+        if protein_target > 0:
+            pct = dcp / protein_target * 100.0
+            state.console.print(
+                f"  [dim]This is {pct:.0f}% of daily target: {protein_target:.1f} g,"
+                f" {source_note}[/dim]",
+                highlight=False,
+            )
 
     if result["missing_aa_names"]:
         n_missing = len(result["missing_aa_names"])
@@ -662,7 +678,7 @@ def _print_complement_suggestions(
 
     gaps = _usda.get_aa_gaps(base_nutrients, digestibility=_digestibility)
     if not gaps:
-        state.console.print(f"\n  [{state.T['hi']}]Protein Complement Suggestions[/{state.T['hi']}]")
+        section_title("Protein Complement Suggestions")
         state.console.print("  [dim]No complement suggestions are needed.[/dim]")
         return
 
@@ -698,9 +714,7 @@ def _print_complement_suggestions(
     # Determine whether pantry adequately covers all gaps
     pantry_covers = bool(pantry_suggs and pantry_suggs[0].get("new_complete", False))
 
-    basis_tag = f"  [dim]— {basis_label}[/dim]" if basis_label else ""
-    state.console.print(f"\n  [{state.T['hi']}]Protein complement suggestions[/{state.T['hi']}]{basis_tag}",
-                        highlight=False)
+    section_title("Protein Complement Suggestions", basis_label or "")
     state.console.print("  [dim]Ranked by the smallest practical amount needed to close the main amino acid gap.[/dim]")
     gap_labels = ", ".join(
         _aa_label(aa) + f" ({score:.2f})"

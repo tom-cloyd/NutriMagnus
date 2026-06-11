@@ -84,9 +84,16 @@ def _nice_fraction(val: float) -> str:
     return f"{val:g}"
 
 
+_WEIGHT_SUFFIX_RE = re.compile(
+    r'^(.+?)\s*\((\d[\d.]*)\s*(gr|g|oz|lbs?|kg)\)\s*$',
+    re.IGNORECASE,
+)
+
+
 def _normalize_unit_display(label: str) -> str:
     """Normalize stored labels: convert decimal volume measures to compound units,
-    and replace other bare decimal fractions with nice fraction strings."""
+    replace bare decimal fractions with nice fraction strings, and ensure weight
+    is shown before volume when both are present."""
     _ML_PER = {"c": 236.588, "T": 14.787, "t": 4.929}
 
     def _replace_vol(m: re.Match) -> str:
@@ -100,7 +107,12 @@ def _normalize_unit_display(label: str) -> str:
     # First pass: replace decimal+unit combos (e.g. "1.56147 c") with compound labels
     result = re.sub(r'(\d+\.\d+)\s*(c|T|t)\b', _replace_vol, label)
     # Second pass: replace any remaining bare decimals with nice fractions
-    return re.sub(r'\d+\.\d+', _replace_bare, result)
+    result = re.sub(r'\d+\.\d+', _replace_bare, result)
+    # Third pass: reorder legacy "volume (weight)" labels to "weight (volume)"
+    m = _WEIGHT_SUFFIX_RE.match(result)
+    if m:
+        result = f"{m.group(2)} {m.group(3)} ({m.group(1).strip()})"
+    return result
 
 
 def _volume_label(ml: float) -> str:
@@ -258,19 +270,19 @@ def _parse_portion_input(
                 w_remaining = after_vol[w_consumed:]
                 if not w_remaining:
                     # plain number after volume → treat as grams
-                    return w_number, f"{vol_display} ({w_number:g} gr)"
+                    return w_number, f"{w_number:g} gr ({vol_display})"
                 w_unit = w_remaining[0]
                 w_factor = _UNIT_TO_GRAMS.get(w_unit.lower())
                 if w_factor is not None:
                     grams = w_number * w_factor
-                    return grams, f"{vol_display} ({w_number:g} {w_unit})"
+                    return grams, f"{w_number:g} {w_unit} ({vol_display})"
 
         # No explicit weight — calculate via density if known
         density = _usda.get_density_g_per_ml(food_name, portions)
         if density is None:
             return None, vol_display
         grams = number * ml_per_unit * density
-        return grams, f"{vol_display} ({grams:.4g} gr)"
+        return grams, f"{grams:.4g} gr ({vol_display})"
 
     return None
 
@@ -389,7 +401,7 @@ def _pick_portion(
                 w_stripped = re.sub(r'\s*(gr?a?m?s?)\s*$', '', w_raw, flags=re.IGNORECASE).strip()
                 try:
                     grams = float(w_stripped)
-                    label = f"{vol_display} ({grams:.4g} gr)"
+                    label = f"{grams:.4g} gr ({vol_display})"
                     break
                 except ValueError:
                     state.console.print(f"  [{state.T['warning']}]Enter a number (e.g. 14.7 or 14.7 g).[/{state.T['warning']}]")
@@ -404,7 +416,7 @@ def _pick_portion(
         if (current_label and "(weight not known)" in current_label
                 and grams > 0 and not _label_has_volume(label)):
             vol_prefix = current_label.replace(" (weight not known)", "").strip()
-            label = f"{vol_prefix} ({grams:.4g} gr)"
+            label = f"{grams:.4g} gr ({vol_prefix})"
 
         scaled = _usda.scale_nutrients(food["nutrients"], grams, base_size=100.0)
         return grams, label, scaled

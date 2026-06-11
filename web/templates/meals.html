@@ -2,11 +2,11 @@
 {% block title %}Meals — numa{% endblock %}
 
 {% block content %}
-<h2>Meals</h2>
+<h2>Meals &amp; Log</h2>
 
 <details open>
   <summary><strong>New Meal</strong></summary>
-  <form method="post" action="/meals/create">
+  <form method="post" action="/meals/create" class="mt-2">
     <div class="row g-3 mb-3">
       <div class="col">
         <label class="form-label" for="meal-name">Name</label>
@@ -23,14 +23,32 @@
   </form>
 </details>
 
+{# ── Filters / search ─────────────────────────────────────────────────── #}
+<div class="d-flex flex-wrap gap-3 mt-3 mb-2 align-items-end">
+  <form method="get" action="/meals" class="d-flex gap-2 align-items-end">
+    <div>
+      <label class="form-label mb-1" for="date-filter">Show meals on or before</label>
+      <input type="date" class="form-control form-control-sm" id="date-filter"
+             name="date" value="{{ date_filter }}">
+    </div>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
+    {% if date_filter %}
+    <a href="/meals" class="btn btn-sm btn-outline-secondary">Clear</a>
+    {% endif %}
+  </form>
+  <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
+</div>
+
+{# ── Meal list ────────────────────────────────────────────────────────── #}
 {% if meals %}
-<p style="font-size:0.85em">
+<p style="font-size:0.85em" class="mb-1">
   Showing {{ meals|length }} of {{ total }} meal{% if total != 1 %}s{% endif %}
+  {% if date_filter %}<span class="muted"> on or before {{ date_filter }}</span>{% endif %}
   {% if hidden > 0 %}
   — <strong>{{ hidden }} not shown</strong>
-  &nbsp;<a href="/meals?show_all=1">Show all {{ total }} meals</a>
+  &nbsp;<a href="/meals?show_all=1{% if date_filter %}&date={{ date_filter }}{% endif %}">Show all {{ total }}</a>
   {% elif show_all and total > 9 %}
-  &nbsp;<a href="/meals">Show recent 9 only</a>
+  &nbsp;<a href="/meals{% if date_filter %}?date={{ date_filter }}{% endif %}">Show recent 9 only</a>
   {% endif %}
 </p>
 <table class="table table-sm table-hover">
@@ -38,6 +56,7 @@
     <tr>
       <th>Meal</th>
       <th>Date</th>
+      <th class="text-center">Done</th>
       <th class="num-col">Items</th>
     </tr>
   </thead>
@@ -46,12 +65,21 @@
     <tr>
       <td><a href="/meal/{{ meal.id }}">{{ meal.name }}</a></td>
       <td>{{ meal.meal_date }}</td>
+      <td class="text-center">
+        {% if meal.complete %}
+        <span class="text-success" title="Complete">&#10003;</span>
+        {% else %}
+        <span class="text-muted">&middot;</span>
+        {% endif %}
+      </td>
       <td class="num-col">{{ meal.item_count }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 {% else %}
-<p>No meals yet. Create one above.</p>
+<p class="muted mt-2">
+  {% if date_filter %}No meals on or before {{ date_filter }}.{% else %}No meals yet. Create one above.{% endif %}
+</p>
 {% endif %}
 {% endblock %}

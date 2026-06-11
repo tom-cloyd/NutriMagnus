@@ -177,7 +177,9 @@ def _do_recipe_edit(recipe=None) -> None:
                 tbl.add_column("Note", min_width=20)
             for i, ing in enumerate(ingredients, 1):
                 id_cell = "[dim]recipe[/dim]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
-                row = [str(i), _normalize_unit_display(ing["unit"]), id_cell, dot_cell(ing["food_name"], _RFOOD_W)]
+                amt = (_format_recipe_portion_label(ing["amount"])
+                       if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
+                row = [str(i), amt, id_cell, dot_cell(ing["food_name"], _RFOOD_W)]
                 if has_notes:
                     row.append(ing["notes"] or "")
                 tbl.add_row(*row)

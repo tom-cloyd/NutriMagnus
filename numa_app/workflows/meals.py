@@ -574,7 +574,11 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
                 fdots = "·" * (_MITEM_W - len(fname) - 1)
                 name_cell = f"{fname} [dim]{fdots}[/dim]"
             else:
-                amount_label = _normalize_unit_display(it["unit"])
+                unit = it["unit"] or "g"
+                if unit == "g":
+                    amount_label = f"{it['amount']:g} g"
+                else:
+                    amount_label = _normalize_unit_display(unit)
                 fdc_str = str(it['fdc_id'])
                 visible_len = len(fdc_str) + 2 + len(it['food_name'])
                 fdots = "·" * max(0, _MITEM_W - visible_len - 1)
@@ -633,7 +637,7 @@ def _compute_meal_nutrients(meal_id: int) -> dict[str, float] | None:
     return combined if combined else None
 
 
-def _compute_meal_ingredient_list(meal_id: int) -> list[dict]:
+def _compute_meal_ingredient_list(meal_id: int, force_refresh: bool = False) -> list[dict]:
     """
     Return per-ingredient data for a meal, suitable for meal-level DIAAS calculation.
 
@@ -643,13 +647,18 @@ def _compute_meal_ingredient_list(meal_id: int) -> list[dict]:
         "grams":          float              — actual grams consumed
 
     Recipe items are expanded into their constituent ingredients (scaled by serving portion).
+    By default uses cache-only (no API calls). Pass force_refresh=True to fetch AA data
+    from USDA for any foods that are missing it.
     """
     with _db.get_db() as conn:
         items = _db.meal_get_items(conn, meal_id)
 
     def _best_nutrients(fdc_id: int, food_name: str) -> dict[str, float] | None:
         """Return the best available nutrient dict for a food, with AA data if possible."""
-        refreshed = _refresh_cache_if_missing_aa(fdc_id)
+        if force_refresh:
+            refreshed = _refresh_cache_if_missing_aa(fdc_id)
+        else:
+            refreshed = None
         with _db.get_db() as conn:
             cached = _db.get_cached_food(conn, fdc_id)
         if cached is None:
@@ -757,6 +766,7 @@ def _compute_meal_gl(meal_id: int) -> tuple[float, list[str]]:
 
 def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
     """Analyze a single meal: nutrients, DIAAS, protein adequacy, complement suggestions."""
+    _print_meal_items(meal_id, meal_name)
     nutrients = _compute_meal_nutrients(meal_id)
     if nutrients is None:
         state.console.print("[dim]No nutrient data found for this meal. "
@@ -775,12 +785,11 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
             daily_nutrients = _usda.sum_nutrients(*daily_parts)
         rda = _profile.compute_rda(profile)
 
-    _print_nutrient_table(nutrients, title=f"{meal_name} — {meal_date}",
+    _print_nutrient_table(nutrients, title=f"Nutrient analysis for {meal_name}",
                           daily_nutrients=daily_nutrients, rda=rda)
-    state.console.print()
-    with state.console.status("[bold]Fetching amino acid data…[/bold]", spinner="dots"):
-        ing_list = _compute_meal_ingredient_list(meal_id)
-    missing_aa, _dcp_g = _print_meal_diaas(ing_list)
+
+    ing_list = _compute_meal_ingredient_list(meal_id)
+    missing_aa, _dcp_g = _print_meal_diaas(ing_list, profile=profile)
     if missing_aa:
         _fix_meal_aa_profiles(meal_id, missing_aa)
     aa_nutrients = _usda.sum_nutrients(*[
@@ -788,17 +797,14 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
         for ing in ing_list
         if _usda.has_amino_acid_data(ing["nutrients_100g"])
     ]) if ing_list else {}
-    if profile:
-        _print_protein_adequacy(nutrients, profile,
-                                context_label=f"{meal_name} ({meal_date})", dcp_g=_dcp_g)
     if aa_nutrients:
         _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True)
 
     gl_total, gl_blockers = _compute_meal_gl(meal_id)
+    section_title("Glycemic load")
     if gl_blockers:
         state.console.print(
-            f"\n  [{state.T['warning']}]Glycemic load: not available"
-            f" — GI annotation missing for:[/{state.T['warning']}]"
+            f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
         )
         for name in gl_blockers:
             state.console.print(f"    [dim]• {name}[/dim]")
@@ -810,10 +816,35 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                  else state.T["warning"] if gl_total <= 19
                  else state.T["error"])
         state.console.print(
-            f"\n  Glycemic load: [{color}]{gl_total:.1f}[/{color}]"
-            f"  [dim]whole meal[/dim]",
+            f"  [{color}]{gl_total:.1f}[/{color}]  [dim]whole meal[/dim]",
             highlight=False,
         )
+
+    # AA data source note + optional USDA refresh (always offered)
+    if ing_list:
+        note = "AA data: local cache"
+        if missing_aa:
+            note += f"  ({len(missing_aa)} food(s) missing AA data)"
+        state.console.print(f"\n  [dim]{note}[/dim]")
+        try:
+            fetch_ans = _prompt(
+                "Refresh AA data from USDA?",
+                choices=["y", "n"], default="n",
+            )
+        except Cancelled:
+            fetch_ans = "n"
+        if fetch_ans == "y":
+            name_to_fdc: dict[str, int] = {
+                ing["food_name"]: ing["fdc_id"] for ing in ing_list if "fdc_id" in ing
+            }
+            targets = set(missing_aa) if missing_aa else set(name_to_fdc)
+            with state.console.status("[bold]Fetching AA data from USDA…[/bold]", spinner="dots"):
+                for food_name, fdc_id in name_to_fdc.items():
+                    if food_name in targets:
+                        _refresh_cache_if_missing_aa(fdc_id)
+            state.console.print(
+                "  [dim]AA data updated in cache — re-run analysis to see the full picture.[/dim]"
+            )
 
 
 def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
@@ -1115,26 +1146,23 @@ def _analyze_day(meals: list, meal_date: str) -> None:
     combined: dict[str, float] = {}
     all_ings: list[dict] = []
     state.console.print()
-    with state.console.status("[bold]Fetching amino acid data…[/bold]", spinner="dots"):
-        for m in meals:
-            n = _compute_meal_nutrients(m["id"])
-            if n:
-                combined = _usda.sum_nutrients(combined, n)
-            all_ings.extend(_compute_meal_ingredient_list(m["id"]))
+    for m in meals:
+        n = _compute_meal_nutrients(m["id"])
+        if n:
+            combined = _usda.sum_nutrients(combined, n)
+        all_ings.extend(_compute_meal_ingredient_list(m["id"]))
     if not combined:
         state.console.print("[dim]No nutrient data found.[/dim]")
         return
     title = f"All meals — {meal_date}"
-    _print_nutrient_table(combined, title=title)
-    _missing_aa, _dcp_g = _print_meal_diaas(all_ings)
+    _print_nutrient_table(combined, title=f"Nutrient analysis for {title}")
+    profile = _profile.load_profile()
+    _missing_aa, _dcp_g = _print_meal_diaas(all_ings, profile=profile)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
         for ing in all_ings
         if _usda.has_amino_acid_data(ing["nutrients_100g"])
     ]) if all_ings else {}
-    profile = _profile.load_profile()
-    if profile:
-        _print_protein_adequacy(combined, profile, context_label=title, dcp_g=_dcp_g)
     if aa_nutrients:
         _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True)
     gl_total_day = 0.0
@@ -1144,10 +1172,10 @@ def _analyze_day(meals: list, meal_date: str) -> None:
         if not bl:
             gl_total_day += gl
         gl_blockers_day.extend(bl)
+    section_title("Glycemic load")
     if gl_blockers_day:
         state.console.print(
-            f"\n  [{state.T['warning']}]Glycemic load: not available"
-            f" — GI annotation missing for:[/{state.T['warning']}]"
+            f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
         )
         seen: set[str] = set()
         for name in gl_blockers_day:
@@ -1162,10 +1190,10 @@ def _analyze_day(meals: list, meal_date: str) -> None:
                  else state.T["warning"] if gl_total_day <= 19
                  else state.T["error"])
         state.console.print(
-            f"\n  Glycemic load: [{color}]{gl_total_day:.1f}[/{color}]"
-            f"  [dim]all meals — {meal_date}[/dim]",
+            f"  [{color}]{gl_total_day:.1f}[/{color}]  [dim]all meals — {meal_date}[/dim]",
             highlight=False,
         )
+    state.console.print("\n  [dim]AA data: local cache[/dim]")
     _offer_export(title, [
         {"type": "nutrient_table", "title": title, "nutrients": combined},
         {"type": "protein_completeness", "nutrients": combined},

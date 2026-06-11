@@ -369,8 +369,10 @@ def _do_recipe_display(recipe=None) -> None:
                 id_part = "[dim]recipe[/dim]"
             else:
                 id_part = _id_cell(ing["fdc_id"])
+            amt = (_format_recipe_portion_label(ing["amount"])
+                   if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
             state.console.print(
-                f"  • {_normalize_unit_display(ing['unit'])}  {id_part}  {ing['food_name']}{note_tag}"
+                f"  • {amt}  {id_part}  {ing['food_name']}{note_tag}"
             )
     else:
         state.console.print("\n  [dim]No ingredients yet.[/dim]")
@@ -470,7 +472,9 @@ def _do_recipe_develop(recipe=None) -> None:
             tbl.add_column("Food",   min_width=_W, max_width=_W, no_wrap=True)
             for i, ing in enumerate(ingredients, 1):
                 id_cell = "[dim]recipe[/dim]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
-                tbl.add_row(str(i), _normalize_unit_display(ing["unit"]), id_cell, ing["food_name"][:_W])
+                amt = (_format_recipe_portion_label(ing["amount"])
+                       if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
+                tbl.add_row(str(i), amt, id_cell, ing["food_name"][:_W])
             state.console.print(tbl)
         else:
             state.console.print("[dim]No ingredients yet.[/dim]")
@@ -1069,7 +1073,9 @@ def _do_recipe_create() -> None:
         tbl.add_column("Food",   min_width=_W, max_width=_W, no_wrap=True)
         for i, ing in enumerate(cur_ings, 1):
             id_c = "[dim]recipe[/dim]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
-            tbl.add_row(str(i), _normalize_unit_display(ing["unit"]), id_c, ing["food_name"][:_W])
+            amt = (_format_recipe_portion_label(ing["amount"])
+                   if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
+            tbl.add_row(str(i), amt, id_c, ing["food_name"][:_W])
         state.console.print(tbl)
 
         try:

@@ -1,30 +1,46 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-09*:2255
+*Updated 2026-06-10*:2230
 
 [TOC]
 
-## The problem that NutriMagnus (NuMa) addresses
+## NutriMagnus addresses a very specific problem
 
-Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the readily modifiable design that I have wanted. So, with the development of NutriMagnus, both problems are addressed.
+It is now well established that the crucial factors affecting physical and mental health are diet, sleep, exercise, social engagement, stress management, and avoidance of injurious and risky substances. Their relationships are complex and interacting. Relative to diet, research supports an emphasis on a "plant-predominant eating pattern". [^1]
 
-Plant-based proteins are far less ecologically damaging to produce than animal protein, and also much less likely to acquire agricultural chemical accumulations, which are then ingested along with the nutrients they contain. They also do not involve the industrialized abuse of vast numbers of animals who live only long enough to produce edible protein and then are treated like a mere object to be processed as we might a fallen tree. 
+There are multiple good reasons to focus on eating foods derived from plants rather than animals. Plant-based proteins are far less ecologically damaging to produce than animal protein and also much less likely to acquire agricultural chemical accumulations, which are then ingested along with the nutrients they contain. They also do not involve the industrialized abuse of vast numbers of animals who live only long enough to produce edible protein and then are treated like a mere object to be processed as we might a fallen tree. 
 
-But, almost all plant proteins come to us with a built-in problem: inadequate protein analysis. 
+Plant proteins are usually more affordable and easier to ship and store for long periods. Most of the world, and most of humanity through human history, eats and has eaten a plant-predominant diet, so this is simply not a novel idea.
 
-There are 9 protein building blocks (amino acids) which human bodies cannot make and must therefore ingest. Additionally, they must be ingested in specific proportions. When a food, or meal, or diet lacks or is insufficient in one or more of these "essential" amino acids this has a limiting effect on the utilization of the other 8. This is the "incomplete protein" problem which almost all plant proteins present.
+But almost all plant proteins come to us with a built-in problem: incomplete amino acid composition. When you read on your jar of peanut butter (an excellent protein source) that 2 tablespoons contain 7 grams of protein (a bit more than that in a large egg), what it doesn't tell you is that only a bit less than 4 grams is actually digestible by human bodies, and of that only a little over 2 grams is complete protein - the kind found in an egg or a piece of chicken meat, and the kind we need.
 
-Consider someone building a brick wall. Suppose they order a bag of cement and 500 bricks. It is likely that they will run out of cement before they run out of bricks. This is the limitation problem that is inherent in plant-based diets. While the needed amino acids do not need to all be present in a single food, or recipe, or meal, they do need to be present in approximately any given 24-hour period, if the amino acid limitation problem is to be avoided. So, one way or another one needs to tend to the issue of what is missing and where are you to find it so you can add it to your diet in time.
+There are 9 protein building blocks (amino acids) that human bodies cannot make and must therefore ingest. Additionally, they must be ingested in specific proportions. When a food, or meal, or diet lacks or is insufficient in one or more of these "essential" amino acids this has a limiting effect on the utilization of the other 8. This is the "incomplete protein" problem that almost all plant proteins present.
 
-The simple fact is that few people know which foods have missing essential amino acids (EEAs), or which have the needed excess EAAs which would make them a good complement to eat in the same 24-hour period.
+Consider someone building a brick wall. Suppose they order a bag of cement and 500 bricks. It is likely that they will run out of cement before they run out of bricks. This is the limitation problem that is inherent in plant-based diets. While the needed amino acids do not need to all be present in a single food, or recipe, or meal, they do need to be present in approximately any given 24-hour period if the amino acid limitation problem is to be avoided. So, one way or another, one needs to tend to the issue of what is missing and where to find replacements to add it to one's diet in time.
 
-There are two other related dietary protein problems to be addressed:
+The simple fact is that few people know which foods have missing essential amino acids (EAAs) or which have the needed excess EAAs which would make them a good complement to eat with other foods lacking enough of those EAAS in the same 24-hour period.
 
-* Protein in a food, however balanced or not, does no good if our bodies do not access it. Different protein sources in plant-based diets are metabolized in differing degrees of efficiency. This is **bioavailable protein** problem.
+Beyond the problem of ingesting the right mix of amino acids, there are two other related dietary protein problems to be addressed:
 
-* Age, sex, and activity level differences in protein needs do exist and they are not minor. Older people and active people, for example, require substantially more protein than do younger people, for several reasons. Almost all common discussions of dietary protein fail to address this problem, and in any case a mere discussion doesn't tell one what to eat and how much.
+* Protein in a food, however balanced or not, does no good if our bodies do not access it. Different protein sources in plant-based diets are metabolized in differing degrees of efficiency. This is the **bioavailable protein** problem.
+
+* Age, sex, and activity level differences in protein needs do exist and they are not minor. Older people, active people, and those with chronic diseases, for example, require substantially more protein than do younger healthy people, for several reasons. Almost all common discussions of dietary protein fail to address this problem, and in any case a mere discussion doesn't tell one what to eat and how much.
+
+## Why this matters
+
+In very brief summary, as we age, we tend to lose muscle mass, utilize dietary protein less efficiently, and simply eat less. These factors compound to create a perfect storm of vulnerability to general ill-health and the often dire consequences of falls. And these issues affect women more than men. Put simply - getting enough of the right sort of protein matters far more than most people realize. A good diet is utterly necessary, but not by itself sufficient. It must be complemented with adequate resistance exercise.
+
+There is very little discussion of the problem in the mass media. So, it is up to use as individuals to self-educate and then make carefully considered decisions about our diet. But this is almost impossible to do without serious technical help, as the nutritional factors involved go well beyond simple arithmetic or the naively simple view offered to us by the first major statements about plant protein complementarity in the very early '70s.
+
+## NutriMagnus is the missing helper
 
 These are technical problems that are beyond the ability of ordinary people to solve well. An easy-to-use, freely available computer program will go far toward solving this problem. This is what this project is about.
+
+Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the reach features and readily modifiable design that I have wanted. The NutriMagnus program addresses both problems in detail. It also suggests complementary foods that can be combined with a food or recipe or meal to create complete proteins in one's diet.
+
+NutriMagnus has been under intense development and is still being developed. Testing is well along, but not complete. Validation of the computations it offers is likewise well along but not complete. I am using it now for daily diet planning and its usefulness has exceeded my expectations. At the same time, I continue to see and resolve bugs - now mostly in the interface a user sees.
+
+Very recently, a Windows version of the program has been developed. It will soon be available for download and user trials. 
 
 ## What a user can do with NutriMagnus - brief overview
 
@@ -1306,3 +1322,6 @@ at different points in the codebase. Both are within normal rounding variance
 across FAO publications. The gap-closer tier's values are the older set;
 the DIAAS-booster tier uses the authoritative FAO 2013 adult reference pattern.
 
+## Note
+
+[^1]: Lippman, D., Stump, M., Veazey, E., Guimarães, S. T., Rosenfeld, R., Kelly, J. H., Ornish, D., & Katz, D. L. (2024). Foundations of Lifestyle Medicine and its Evolution. *Mayo Clinic Proceedings: Innovations, Quality & Outcomes, 8(1)*, 97–111. https://doi.org/10.1016/j.mayocpiqo.2023.11.004

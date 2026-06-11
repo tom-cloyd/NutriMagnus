@@ -51,7 +51,14 @@
       "Bash(python -c \"from numa_app.ui.prompts import _prompt; from numa_app.workflows.recipe_edit import _do_recipe_edit; print\\('ok'\\)\")",
       "Bash(pytest)",
       "Bash(sqlite3 numa.db ' *)",
-      "Bash(/home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/.venv/bin/python3 -c ' *)"
+      "Bash(/home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/.venv/bin/python3 -c ' *)",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,'web'\\); import importlib.util; spec=importlib.util.spec_from_file_location\\('backend','web/backend.py'\\); mod=importlib.util.module_from_spec\\(spec\\); spec.loader.exec_module\\(mod\\); print\\('OK'\\)\")",
+      "Bash(pkill -f \"uvicorn\")",
+      "Bash(python -m uvicorn web.backend:app --reload --port 8000)",
+      "Bash(python -m uvicorn web.backend:app --port 8000 --reload)",
+      "Bash(pkill -f uvicorn)",
+      "Bash(kill 399595)",
+      "Bash(kill 419259)"
     ]
   }
 }
