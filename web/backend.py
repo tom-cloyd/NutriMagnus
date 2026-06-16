@@ -99,7 +99,14 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
 ]
 
 
-def _nutrient_sections(nutrients: dict, rda: dict | None = None) -> list[dict]:
+def _rda_css(pct: float, rda_type: str) -> str:
+    if rda_type == "limit":
+        return "rda-over" if pct > 100 else "rda-met"
+    return "rda-met" if pct >= 100 else ("rda-near" if pct >= 75 else "rda-low")
+
+
+def _nutrient_sections(nutrients: dict, rda: dict | None = None,
+                       daily_nutrients: dict | None = None) -> list[dict]:
     sections = []
     for group_name, keys in _NUTRIENT_GROUPS:
         rows = []
@@ -108,22 +115,25 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None) -> list[dict]:
             if not val:
                 continue
             label, unit = _usda.nutrient_label(key)
-            pct = rda_type = rda_css = None
+            pct = rda_type = rda_css_val = None
+            day_pct = day_rda_css = None
             if rda and key in rda:
                 rda_val, _rda_unit, rda_type = rda[key]
                 if rda_val and rda_val > 0:
                     pct = round(val / rda_val * 100, 0)
-                    if rda_type == "limit":
-                        rda_css = "rda-over" if pct > 100 else "rda-met"
-                    else:
-                        rda_css = "rda-met" if pct >= 100 else ("rda-near" if pct >= 75 else "rda-low")
+                    rda_css_val = _rda_css(pct, rda_type)
+                    if daily_nutrients is not None:
+                        day_pct = round(daily_nutrients.get(key, 0.0) / rda_val * 100, 0)
+                        day_rda_css = _rda_css(day_pct, rda_type)
             rows.append({
-                "label":    label,
-                "value":    round(val, 3),
-                "unit":     unit,
-                "pct":      pct,
-                "rda_type": rda_type,
-                "rda_css":  rda_css,
+                "label":       label,
+                "value":       round(val, 3),
+                "unit":        unit,
+                "pct":         pct,
+                "rda_type":    rda_type,
+                "rda_css":     rda_css_val,
+                "day_pct":     day_pct,
+                "day_rda_css": day_rda_css,
             })
         if rows:
             sections.append({"name": group_name, "rows": rows})
@@ -1517,13 +1527,30 @@ async def meal_view(request: Request, meal_id: int, q: str = ""):
             pass
 
     rda = _load_rda()
+
+    # Compute daily totals (this meal + siblings) for the day total % column
+    daily_nutrients: dict | None = None
+    if rda and total_nutrients:
+        day_parts = [total_nutrients]
+        for sib in sibling_meals:
+            _, sib_nuts, _ = _meal_totals(sib["id"])
+            if sib_nuts:
+                day_parts.append(sib_nuts)
+        if len(day_parts) > 1:
+            daily_nutrients = {}
+            for p in day_parts:
+                for k, v in p.items():
+                    daily_nutrients[k] = daily_nutrients.get(k, 0.0) + v
+        else:
+            daily_nutrients = total_nutrients
+
     diaas_display = _build_diaas_display(diaas_result)
     aa_nutrients   = _meal_aa_nutrients(meal_id)
     gl_total, gl_blockers = _compute_gl(meal_id)
     return templates.TemplateResponse(request, "meal.html", {
         "meal":                dict(meal),
         "items":               items,
-        "nutrient_sections":   _nutrient_sections(total_nutrients, rda) if total_nutrients else [],
+        "nutrient_sections":   _nutrient_sections(total_nutrients, rda, daily_nutrients) if total_nutrients else [],
         "diaas":               diaas_display,
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":         _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None),
@@ -1532,6 +1559,7 @@ async def meal_view(request: Request, meal_id: int, q: str = ""):
         "search_results":      search_results,
         "today":               datetime.date.today().isoformat(),
         "has_profile":         rda is not None,
+        "has_day_pct":         daily_nutrients is not None,
         "sibling_meals":       sibling_meals,
     })
 
@@ -1600,11 +1628,17 @@ async def meal_remove_item(meal_id: int, item_id: int):
 
 
 @app.post("/meal/{meal_id}/rename", response_class=RedirectResponse)
-async def meal_rename_post(meal_id: int, name: str = Form(...)):
+async def meal_rename_post(meal_id: int, name: str = Form(...), meal_date: str = Form(...)):
     name = name.strip()
-    if name:
-        with _db.get_db() as conn:
+    meal_date = meal_date.strip()
+    with _db.get_db() as conn:
+        if name:
             _db.meal_rename(conn, meal_id, name)
+        try:
+            datetime.datetime.strptime(meal_date, "%Y-%m-%d")
+            _db.meal_set_date(conn, meal_id, meal_date)
+        except ValueError:
+            pass
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
@@ -1902,8 +1936,250 @@ async def settings_diaas_override_delete(food_name: str = Form(...)):
 
 
 @app.get("/recipes", response_class=HTMLResponse)
-async def recipes(request: Request):
-    return templates.TemplateResponse(request, "recipes.html", {})
+async def recipes_list(request: Request, q: str = ""):
+    with _db.get_db() as conn:
+        all_recipes = [dict(r) for r in _db.recipe_list(conn)]
+    if q:
+        ql = q.lower()
+        words = ql.split()
+        all_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in words)]
+    return templates.TemplateResponse(request, "recipes.html", {
+        "recipes": all_recipes,
+        "q": q,
+    })
+
+
+@app.get("/recipe/new", response_class=HTMLResponse)
+async def recipe_new_get(request: Request):
+    return templates.TemplateResponse(request, "recipe_new.html", {})
+
+
+@app.post("/recipe/new", response_class=RedirectResponse)
+async def recipe_new_post(
+    name: str = Form(...),
+    description: str = Form(""),
+    servings: int = Form(4),
+    total_weight: str = Form(""),
+    total_weight_unit: str = Form("g"),
+):
+    name = name.strip()
+    if not name:
+        return RedirectResponse("/recipe/new", status_code=303)
+    tw = float(total_weight) if total_weight.strip() else None
+    with _db.get_db() as conn:
+        rid = _db.recipe_create(
+            conn, name=name, description=description.strip(),
+            servings=servings, instructions="",
+            total_weight=tw,
+            total_weight_unit=total_weight_unit if tw else None,
+        )
+    return RedirectResponse(f"/recipe/{rid}/edit", status_code=303)
+
+
+@app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
+async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+        _db.recipe_touch(conn, recipe_id)
+        ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
+        per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
+        recipe_servings = float(recipe["servings"] or 1)
+
+        diaas_ingredients = []
+        for ing in ingredients:
+            if not ing["fdc_id"] or ing["ref_recipe_id"]:
+                continue
+            cached = _db.get_cached_food(conn, ing["fdc_id"])
+            if not cached or not cached["nutrients_json"]:
+                continue
+            diaas_ingredients.append({
+                "food_name":      ing["food_name"],
+                "nutrients_100g": json.loads(cached["nutrients_json"]),
+                "grams":          float(ing["amount"]) / recipe_servings * servings,
+                "fdc_id":         ing["fdc_id"],
+            })
+
+        diaas_result = None
+        if diaas_ingredients:
+            try:
+                diaas_result = _diaas.meal_level_diaas(diaas_ingredients, conn)
+            except Exception:
+                pass
+
+    scaled = {k: v * servings for k, v in per_serving.items()}
+    rda = _load_rda()
+    diaas_display = _build_diaas_display(diaas_result)
+    return templates.TemplateResponse(request, "recipe_detail.html", {
+        "recipe":            dict(recipe),
+        "ingredients":       ingredients,
+        "servings":          servings,
+        "nutrient_sections": _nutrient_sections(scaled, rda) if scaled else [],
+        "diaas":             diaas_display,
+        "protein_adequacy":  _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
+        "complements":       _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None),
+        "gl":                _recipe_gl_web(recipe_id, recipe_servings, servings),
+        "has_profile":       rda is not None,
+    })
+
+
+@app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
+async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = ""):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+        ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
+
+    search_results = []
+    if q:
+        with _db.get_db() as conn:
+            cached = _db.search_cached_foods(conn, q)
+        seen: set[int] = set()
+        for row in cached:
+            seen.add(row["fdc_id"])
+            portions = json.loads(row["portions_json"]) if row["portions_json"] else []
+            search_results.append({
+                "fdc_id":    row["fdc_id"],
+                "name":      row["name"],
+                "data_type": row["data_type"],
+                "source":    "cache",
+                "portions":  portions,
+            })
+        try:
+            for food in _usda.search_foods(q):
+                fid = food.get("fdcId")
+                if fid and fid not in seen:
+                    seen.add(fid)
+                    search_results.append({
+                        "fdc_id":    fid,
+                        "name":      food.get("description", ""),
+                        "data_type": food.get("dataType", ""),
+                        "source":    "usda",
+                        "portions":  [],
+                    })
+        except Exception:
+            pass
+
+    return templates.TemplateResponse(request, "recipe_edit.html", {
+        "recipe":         dict(recipe),
+        "ingredients":    ingredients,
+        "q":              q,
+        "search_results": search_results,
+        "saved":          saved,
+    })
+
+
+@app.post("/recipe/{recipe_id}/edit", response_class=RedirectResponse)
+async def recipe_edit_post(
+    recipe_id: int,
+    name: str = Form(...),
+    description: str = Form(""),
+    servings: int = Form(1),
+    total_weight: str = Form(""),
+    total_weight_unit: str = Form("g"),
+    instructions: str = Form(""),
+    complete: str = Form(""),
+):
+    tw = float(total_weight) if total_weight.strip() else None
+    with _db.get_db() as conn:
+        _db.recipe_update(
+            conn, recipe_id,
+            name=name.strip(), description=description.strip(),
+            servings=max(1, servings), instructions=instructions.strip(),
+            total_weight=tw, total_weight_unit=total_weight_unit if tw else None,
+            complete=bool(complete),
+        )
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?saved=1", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/delete", response_class=RedirectResponse)
+async def recipe_delete_post(recipe_id: int):
+    with _db.get_db() as conn:
+        _db.recipe_delete(conn, recipe_id)
+    return RedirectResponse("/recipes", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/copy", response_class=RedirectResponse)
+async def recipe_copy_post(recipe_id: int):
+    with _db.get_db() as conn:
+        src = _db.recipe_get(conn, recipe_id)
+        if not src:
+            return RedirectResponse("/recipes", status_code=303)
+        new_id = _db.recipe_create(
+            conn,
+            name=f"Copy of {src['name']}",
+            description=src["description"] or "",
+            servings=src["servings"],
+            instructions=src["instructions"] or "",
+            total_weight=src["total_weight"],
+            total_weight_unit=src["total_weight_unit"],
+        )
+        for ing in _db.recipe_get_ingredients(conn, recipe_id):
+            _db.recipe_add_ingredient(
+                conn, new_id, ing["fdc_id"], ing["food_name"],
+                ing["amount"], ing["unit"], ing["notes"],
+                ref_recipe_id=ing["ref_recipe_id"],
+            )
+    return RedirectResponse(f"/recipe/{new_id}/edit", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/ingredient/add", response_class=RedirectResponse)
+async def recipe_ingredient_add(
+    recipe_id: int,
+    fdc_id: int = Form(...),
+    food_name: str = Form(""),
+    amount: float = Form(100.0),
+    unit: str = Form("g"),
+    notes: str = Form(""),
+):
+    grams = round(amount * _UNIT_TO_GRAMS.get(unit, 1.0), 2)
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        try:
+            detail = _usda.get_food_detail(fdc_id)
+            with _db.get_db() as conn:
+                _db.cache_food(conn, fdc_id=detail["fdcId"], name=detail["name"],
+                               data_type=detail.get("dataType", ""),
+                               brand=detail.get("brand"),
+                               serving_size=detail.get("servingSize"),
+                               serving_unit=detail.get("servingUnit"),
+                               nutrients=detail.get("nutrients", {}),
+                               portions=detail.get("portions", []))
+            food_name = food_name or detail["name"]
+        except Exception:
+            return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+
+    name = food_name or (cached["name"] if cached else "Unknown food")
+    with _db.get_db() as conn:
+        _db.recipe_add_ingredient(conn, recipe_id, fdc_id, name, grams, "g",
+                                   notes.strip() or None)
+    return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/ingredient/{ing_id}/remove", response_class=RedirectResponse)
+async def recipe_ingredient_remove(recipe_id: int, ing_id: int):
+    with _db.get_db() as conn:
+        _db.recipe_remove_ingredient(conn, ing_id)
+    return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/ingredient/{ing_id}/edit", response_class=RedirectResponse)
+async def recipe_ingredient_edit(
+    recipe_id: int,
+    ing_id: int,
+    amount: float = Form(...),
+    unit: str = Form("g"),
+    food_name: str = Form(...),
+    notes: str = Form(""),
+):
+    grams = round(amount * _UNIT_TO_GRAMS.get(unit, 1.0), 2)
+    with _db.get_db() as conn:
+        _db.recipe_update_ingredient(conn, ing_id, grams, "g",
+                                      food_name.strip(), notes.strip() or None)
+    return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
 
 
 @app.get("/summary", response_class=HTMLResponse)

@@ -29,17 +29,17 @@ def _run_menu() -> None:
         state.console.print(f"[{state.T['accent']}]NutriMagnus Menu[/{state.T['accent']}]")
         state.console.print(Rule(), width=_W)
         state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] [bold]Foods[/bold]")
-        state.console.print("     [dim]search · analyze · compare · annotate · pantry · cache · custom profiles[/dim]")
+        state.console.print("     [grey62]search · analyze · compare · annotate · pantry · cache · custom profiles[/grey62]")
         state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] [bold]Recipes[/bold]")
-        state.console.print("     [dim]create · browse/manage · develop (add/remove ingredients with nutritional feedback)[/dim]")
+        state.console.print("     [grey62]create · browse/manage · develop (add/remove ingredients with nutritional feedback)[/grey62]")
         state.console.print(f"  [{state.T['accent']}]3.[/{state.T['accent']}] [bold]Meals & Log[/bold]")
-        state.console.print("     [dim]log meal · view/edit by date · analyze · delete[/dim]")
+        state.console.print("     [grey62]log meal · view/edit by date · analyze · delete[/grey62]")
         state.console.print(f"  [{state.T['accent']}]4.[/{state.T['accent']}] [bold]Daily Summary[/bold]")
-        state.console.print("     [dim]today · by date · recent days[/dim]")
-        state.console.print(f"  [dim]5.[/dim] [bold]Settings[/bold]  [dim](theme · user profile · dietary preferences · API key · DB path)[/dim]")
-        state.console.print("  [dim]q.[/dim] Quit")
+        state.console.print("     [grey62]today · by date · recent days[/grey62]")
+        state.console.print(f"  [grey62]5.[/grey62] [bold]Settings[/bold]  [grey62](theme · user profile · dietary preferences · API key · DB path)[/grey62]")
+        state.console.print("  [grey62]q.[/grey62] Quit")
         state.console.print()
-        state.console.print("  [dim]Ctrl+C at any prompt — cancel and go back[/dim]")
+        state.console.print("  [grey62]Ctrl+C at any prompt — cancel and go back[/grey62]")
         state.console.print()
         try:
             choice = _prompt("Choice").strip().lower()
@@ -107,7 +107,7 @@ def print_startup_banner() -> None:
     state.console.print()
     state.console.print(Rule(style="green"), width=_W)
     state.console.print(Rule(style="green"), width=_W)
-    state.console.print('[bold green]NutriMagnus[/bold green] [dim]("nutrition wizard")[/dim]')
+    state.console.print('[bold green]NutriMagnus[/bold green] [grey62]("nutrition wizard")[/grey62]')
     from version import VERSION
     state.console.print(f"Nutritional Analysis for individuals and families - version {VERSION}", highlight=False)
     if p:
@@ -121,9 +121,9 @@ def print_startup_banner() -> None:
         profile_label = "not set -- configure under Settings -> User profile"
 
     state.console.print()
-    state.console.print(f"[dim]Color theme: {state._current_theme_name}  ({source}) -- change via Settings[/dim]")
-    state.console.print(f"[dim]Dietary preferences: {diet_label} -- change via Settings[/dim]")
-    state.console.print(f"[dim]User profile: {profile_label}[/dim]", highlight=False)
+    state.console.print(f"[grey62]Color theme: {state._current_theme_name}  ({source}) -- change via Settings[/grey62]")
+    state.console.print(f"[grey62]Dietary preferences: {diet_label} -- change via Settings[/grey62]")
+    state.console.print(f"[grey62]User profile: {profile_label}[/grey62]", highlight=False)
 
 
 def run_app(*, theme: str | None = None, api_key: str | None = None) -> None:

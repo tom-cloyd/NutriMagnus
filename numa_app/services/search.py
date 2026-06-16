@@ -76,7 +76,7 @@ def _ensure_api_key() -> bool:
     state.console.print()
     state.console.print(f"  [{state.T['accent']}]1.[/{state.T['accent']}] Enter my API key now")
     state.console.print(f"  [{state.T['accent']}]2.[/{state.T['accent']}] Use DEMO_KEY for now (rate-limited)")
-    state.console.print(f"  [dim]b.[/dim] Cancel")
+    state.console.print(f"  [grey62]b.[/grey62] Cancel")
     state.console.print()
     try:
         choice = _prompt("Choice").strip()
@@ -93,7 +93,7 @@ def _ensure_api_key() -> bool:
             return True
         return False
     elif choice == "2":
-        state.console.print("[dim]Using DEMO_KEY.[/dim]")
+        state.console.print("[grey62]Using DEMO_KEY.[/grey62]")
         return True
     return False
 
@@ -172,9 +172,9 @@ def _suggest_foundation_search(food: dict) -> dict | None:
     # Simplify the food name: take words before the first comma
     suggested = food.get("name", "").split(",")[0].strip().lower()
     state.console.print(
-        "\n[dim]Foundation Foods is USDA's most complete dataset and usually "
+        "\n[grey62]Foundation Foods is USDA's most complete dataset and usually "
         "includes amino acid data. (Open Food Facts products are excluded here "
-        "as they do not contain amino acid profiles.)[/dim]"
+        "as they do not contain amino acid profiles.)[/grey62]"
     )
     try:
         go = _prompt(
@@ -242,7 +242,7 @@ def _fetch_food_from_result(result: dict) -> dict | None:
             )
         return detail
 
-    state.console.print("[dim]Fetching details...[/dim]")
+    state.console.print("[grey62]Fetching details...[/grey62]")
     try:
         detail = _usda.get_food_detail(fdc_id)
     except _usda.USDAError as e:
@@ -283,6 +283,99 @@ def _merge_preserved_aa(existing_row, new_nutrients: dict) -> dict:
     return new_nutrients
 
 
+def _lookup_barcode_confirmed(bc_digits: str) -> "dict | None":
+    """Cache/OFF barcode lookup with user confirmation. Returns food detail or None if not found/declined.
+
+    Raises Cancelled on Ctrl+C during the confirmation prompt.
+    """
+    state.console.print(f"[grey62]Barcode {bc_digits} — checking cache…[/grey62]")
+    bc_fdc_id = _off.off_id(bc_digits)
+    with _db.get_db() as conn:
+        bc_cached = _db.get_cached_food(conn, bc_fdc_id)
+
+    if bc_cached:
+        pj = bc_cached["portions_json"]
+        detail: dict | None = {
+            "fdcId":            bc_cached["fdc_id"],
+            "name":             bc_cached["name"],
+            "dataType":         bc_cached["data_type"],
+            "brand":            bc_cached["brand"],
+            "servingSize":      bc_cached["serving_size"],
+            "servingUnit":      bc_cached["serving_unit"],
+            "householdServing": None,
+            "nutrients":        json.loads(bc_cached["nutrients_json"]),
+            "portions":         json.loads(pj) if pj else [],
+            "_from_off":        True,
+        }
+    else:
+        state.console.print(f"[grey62]Looking up barcode in Open Food Facts…[/grey62]")
+        detail = _off.lookup_by_barcode(bc_digits)
+
+    if detail is None:
+        state.console.print(
+            f"[{state.T['warning']}]Barcode {bc_digits} not found in Open Food Facts.[/{state.T['warning']}]"
+        )
+        state.console.print("[grey62]Try searching by product name instead.[/grey62]")
+        return None
+
+    state.console.print()
+    src = (f"[{state.T['success']}]★ (already in your cache)[/{state.T['success']}]"
+           if bc_cached else "Open Food Facts")
+    state.console.print(f"  [{state.T['hi']}]Barcode {bc_digits}[/{state.T['hi']}]  —  {src}")
+    state.console.print(f"  Product: [bold]{detail['name']}[/bold]")
+    if detail.get("brand"):
+        state.console.print(f"  Brand:   {detail['brand']}")
+    state.console.print()
+    ans = _prompt("Use this product?", choices=["y", "n"], default="y")
+    if ans != "y":
+        state.console.print("[grey62]Declined — type a product name or #N to continue.[/grey62]")
+        return None
+
+    if not bc_cached:
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn, detail["fdcId"], detail["name"], detail["dataType"],
+                detail["brand"], detail["servingSize"], detail["servingUnit"],
+                detail["nutrients"], detail.get("portions"),
+            )
+    return detail
+
+
+def _parse_hash_pick(raw: str, n: int) -> list[int] | None:
+    """Parse a pick expression into a list of 0-based indices (preserving order, no duplicates).
+
+    Accepts: #N · #N-M · #N,M,... · mixed (#4-7,2,9 or #1,3-5,8)
+    raw must start with '#'. Returns None if any token is invalid or out of range 1–n.
+    """
+    s = raw.lstrip("#").strip()
+    if not s:
+        return None
+    indices: list[int] = []
+    for token in s.split(","):
+        token = token.strip()
+        if "-" in token:
+            parts = token.split("-", 1)
+            try:
+                lo, hi = int(parts[0].strip()), int(parts[1].strip())
+            except ValueError:
+                return None
+            if lo < 1 or hi > n or lo > hi:
+                return None
+            for zb in range(lo - 1, hi):
+                if zb not in indices:
+                    indices.append(zb)
+        else:
+            if not token.isdigit():
+                return None
+            idx = int(token)
+            if idx < 1 or idx > n:
+                return None
+            zb = idx - 1
+            if zb not in indices:
+                indices.append(zb)
+    return indices if indices else None
+
+
 def _search_and_pick_food(
     data_types: list[str] | None = None,
     initial_query: str | None = None,
@@ -290,10 +383,12 @@ def _search_and_pick_food(
     allow_research: bool = True,
     prepend_recipes: list[dict] | None = None,
     result_out: list | None = None,
-) -> dict | None:
+    multi_select: bool = False,
+) -> "dict | None | list[dict]":
     """
-    Interactive food search: prompts for a query, shows results, user picks one.
+    Interactive food search: prompts for a query, shows results, user picks one (or more).
     Returns the full food detail dict (from USDA/OFF or cache), or None if cancelled.
+    When multi_select=True, returns a list[dict] (possibly empty) instead of dict|None.
     data_types restricts the USDA dataset search (default: Foundation, SR Legacy, Branded).
     Open Food Facts is included automatically in unrestricted (default) searches.
     initial_query pre-fills the search term without prompting.
@@ -333,15 +428,15 @@ def _search_and_pick_food(
         last = lines[-1]
         pad = _SRCH_W - len(last) - 1
         if pad > 0:
-            lines[-1] = f"{last} [dim]{'·' * pad}[/dim]"
+            lines[-1] = f"{last} [grey62]{'·' * pad}[/grey62]"
         return "\n".join(lines)
 
     def _brand_cell(brand: str) -> str:
         if not brand:
-            return f"[dim]{'·' * _BRAND_W}[/dim]"
+            return f"[grey62]{'·' * _BRAND_W}[/grey62]"
         t = brand[: _BRAND_W - 1]
         pad = _BRAND_W - len(t) - 1
-        return f"{t} [dim]{'·' * pad}[/dim]" if pad > 0 else t
+        return f"{t} [grey62]{'·' * pad}[/grey62]" if pad > 0 else t
 
     def _type_cell(food: dict) -> str:
         dtype = food.get("dataType", "")
@@ -357,10 +452,10 @@ def _search_and_pick_food(
         if has_gi and has_diaas:
             return f"[{s}]GI DI[/{s}]"
         if has_gi:
-            return f"[{s}]GI[/{s}][dim] ··[/dim]"
+            return f"[{s}]GI[/{s}][grey62] ··[/grey62]"
         if has_diaas:
-            return f"[dim]·· [/dim][{s}]DI[/{s}]"
-        return "[dim]·····[/dim]"
+            return f"[grey62]·· [/grey62][{s}]DI[/{s}]"
+        return "[grey62]·····[/grey62]"
 
     def _gi_cell(food: dict) -> str:
         ann = food.get("_annotation")
@@ -378,7 +473,7 @@ def _search_and_pick_food(
         if query is None:
             _instant_recipes_offered = True  # suppress stale recipe list on re-search
             try:
-                raw = _prompt("Search food  [dim](name · FDC ID · 12/13-digit barcode · 'a ' for full USDA search)[/dim]").strip()
+                raw = _prompt("Search food  [grey62](name · FDC ID · 12/13-digit barcode · 'a ' for full USDA search)[/grey62]").strip()
             except Cancelled:
                 return None
             q_lower = raw.lower()
@@ -400,63 +495,14 @@ def _search_and_pick_food(
         # Spaces and hyphens are stripped first so "0 12345 67890 1" also works.
         _bc_digits = re.sub(r'[\s\-]', '', query)
         if _bc_digits.isdigit() and len(_bc_digits) in (12, 13):
-            state.console.print(f"[dim]Barcode {_bc_digits} — checking cache…[/dim]")
-            _bc_fdc_id = _off.off_id(_bc_digits)
-            with _db.get_db() as _bc_conn:
-                _bc_cached = _db.get_cached_food(_bc_conn, _bc_fdc_id)
-
-            if _bc_cached:
-                _bc_pj = _bc_cached["portions_json"]
-                _bc_detail: dict | None = {
-                    "fdcId":            _bc_cached["fdc_id"],
-                    "name":             _bc_cached["name"],
-                    "dataType":         _bc_cached["data_type"],
-                    "brand":            _bc_cached["brand"],
-                    "servingSize":      _bc_cached["serving_size"],
-                    "servingUnit":      _bc_cached["serving_unit"],
-                    "householdServing": None,
-                    "nutrients":        json.loads(_bc_cached["nutrients_json"]),
-                    "portions":         json.loads(_bc_pj) if _bc_pj else [],
-                    "_from_off":        True,
-                }
-            else:
-                state.console.print(f"[dim]Looking up barcode in Open Food Facts…[/dim]")
-                _bc_detail = _off.lookup_by_barcode(_bc_digits)
-
-            if _bc_detail is None:
-                state.console.print(
-                    f"[{state.T['warning']}]Barcode {_bc_digits} not found in Open Food Facts.[/{state.T['warning']}]"
-                )
-                state.console.print("[dim]Try searching by product name instead.[/dim]")
-                query = None
-                continue
-
-            state.console.print()
-            _bc_src = f"[{state.T['success']}]★ (already in your cache)[/{state.T['success']}]" \
-                      if _bc_cached else "Open Food Facts"
-            state.console.print(f"  [{state.T['hi']}]Barcode {_bc_digits}[/{state.T['hi']}]  —  {_bc_src}")
-            state.console.print(f"  Product: [bold]{_bc_detail['name']}[/bold]")
-            if _bc_detail.get("brand"):
-                state.console.print(f"  Brand:   {_bc_detail['brand']}")
-            state.console.print()
             try:
-                _bc_ans = _prompt("Use this product?", choices=["y", "n"], default="y")
+                _bc_detail = _lookup_barcode_confirmed(_bc_digits)
             except Cancelled:
-                return None
-            if _bc_ans != "y":
-                state.console.print("[dim]Cancelled — type the product name to search instead.[/dim]")
-                query = None
-                continue
-
-            if not _bc_cached:
-                with _db.get_db() as conn:
-                    _db.cache_food(
-                        conn,
-                        _bc_detail["fdcId"], _bc_detail["name"], _bc_detail["dataType"],
-                        _bc_detail["brand"], _bc_detail["servingSize"], _bc_detail["servingUnit"],
-                        _bc_detail["nutrients"], _bc_detail.get("portions"),
-                    )
-            return _bc_detail
+                return [] if multi_select else None
+            if _bc_detail is not None:
+                return [_bc_detail] if multi_select else _bc_detail
+            query = None
+            continue
 
         # Pre-search cache before the recipe prompt so cached foods and recipes
         # can be shown together in one combined prompt instead of two separate steps.
@@ -465,7 +511,7 @@ def _search_and_pick_food(
         _api_words = [w for w in clean_query.split() if w not in _PREP_WORDS]
         api_query = " ".join(_api_words) if _api_words else clean_query
 
-        state.console.print("[dim]Searching local cache...[/dim]")
+        state.console.print("[grey62]Searching local cache...[/grey62]")
         cache_results = _search_cached_foods_by_name(clean_query)
         cache_fdcids = {r.get("fdcId") for r in cache_results if r.get("fdcId")}
 
@@ -484,21 +530,21 @@ def _search_and_pick_food(
             state.console.print()
             state.console.print(f"  [{state.T['hi']}]Your recipes:[/{state.T['hi']}]")
             for _ri, _rr in enumerate(prepend_recipes, 1):
-                _dcp_hint = "  [dim]DCP ✓[/dim]" if _rr["dcp_g"] is not None else ""
+                _dcp_hint = "  [grey62]DCP ✓[/grey62]" if _rr["dcp_g"] is not None else ""
                 state.console.print(
                     f"    [{state.T['accent']}]R{_ri}.[/{state.T['accent']}]"
                     f" {_rr['name']}{_dcp_hint}",
                     highlight=False,
                 )
             state.console.print(
-                "  [dim]DCP ✓ = digestible complete protein score computed for this recipe[/dim]",
+                "  [grey62]DCP ✓ = digestible complete protein score computed for this recipe[/grey62]",
                 highlight=False,
             )
             state.console.print()
             try:
                 _rpick = _prompt(
                     "R# to use a recipe, or press Enter to search foods"
-                    "  [dim](b=back, m=main, q=quit)[/dim]"
+                    "  [grey62](b=back, m=main, q=quit)[/grey62]"
                 ).strip()
             except Cancelled:
                 return None
@@ -618,14 +664,14 @@ def _search_and_pick_food(
                     state.console.print()
                     state.console.print(f"  [{state.T['hi']}]Your recipes:[/{state.T['hi']}]")
                     for _ri, _rr in enumerate(_cache_recipes, 1):
-                        _dcp_hint = f"  [dim]DCP ✓[/dim]" if _rr["dcp_g"] is not None else ""
+                        _dcp_hint = f"  [grey62]DCP ✓[/grey62]" if _rr["dcp_g"] is not None else ""
                         state.console.print(
                             f"    [{state.T['accent']}]R{_ri}.[/{state.T['accent']}]"
                             f" {_rr['name']}{_dcp_hint}",
                             highlight=False,
                         )
                     state.console.print(
-                        "  [dim]DCP ✓ = digestible complete protein score computed for this recipe[/dim]",
+                        "  [grey62]DCP ✓ = digestible complete protein score computed for this recipe[/grey62]",
                         highlight=False,
                     )
 
@@ -636,7 +682,7 @@ def _search_and_pick_food(
                 try:
                     cache_raw = _prompt(
                         f"Pick # for cached food{_recipe_hint}, Enter for full USDA results, n to skip"
-                        f"  [dim]({_hint(_c_slash_max)})[/dim]",
+                        f"  [grey62]({_hint(_c_slash_max)})[/grey62]",
                         slash_max=_c_slash_max,
                     ).strip()
                 except Cancelled:
@@ -652,8 +698,8 @@ def _search_and_pick_food(
                         continue
                     return None
 
-                # /N quick-select: strip the leading "/" to get the numeric pick
-                if cache_raw.startswith("/") and cache_raw[1:].isdigit():
+                # #N quick-select: strip the leading "#" to get the numeric pick
+                if cache_raw.startswith("#") and cache_raw[1:].isdigit():
                     cache_raw = cache_raw[1:]
 
                 _cache_raw_up = cache_raw.upper()
@@ -680,7 +726,7 @@ def _search_and_pick_food(
                             _cn = json.loads(_cc["nutrients_json"])
                             _cpj = _cc["portions_json"]
                             if _cn and _cpj is not None and _cpj != "null":
-                                return {
+                                _cd = {
                                     "fdcId":            _cc["fdc_id"],
                                     "name":             _cc["name"],
                                     "dataType":         _cc["data_type"],
@@ -691,8 +737,10 @@ def _search_and_pick_food(
                                     "nutrients":        _cn,
                                     "portions":         json.loads(_cc["portions_json"]),
                                 }
+                                return [_cd] if multi_select else _cd
                         # Incomplete cache entry (missing portions) — refetch from USDA
-                        return _fetch_food_from_result(_complete_cache[_cidx])
+                        _fd = _fetch_food_from_result(_complete_cache[_cidx])
+                        return [_fd] if multi_select else _fd
 
             # Wait for background search (may already be done)
             if not _bg_done.is_set():
@@ -704,7 +752,7 @@ def _search_and_pick_food(
                     _lbl = "USDA + Open Food Facts"
                 else:
                     _lbl = "USDA"
-                state.console.print(f"[dim]Searching {_lbl}...[/dim]")
+                state.console.print(f"[grey62]Searching {_lbl}...[/grey62]")
                 _bg_done.wait()
 
             if _bg_exc and not _bg_results:
@@ -717,7 +765,7 @@ def _search_and_pick_food(
                 else:
                     state.console.print(
                         f"[{state.T['error']}]{_be}[/{state.T['error']}]\n"
-                        f"[dim]No results available. Try a different search term or check your connection.[/dim]"
+                        f"[grey62]No results available. Try a different search term or check your connection.[/grey62]"
                     )
                     if allow_research:
                         query = None
@@ -738,7 +786,7 @@ def _search_and_pick_food(
                 label = "USDA + Open Food Facts"
             else:
                 label = "USDA"
-            state.console.print(f"[dim]Searching {label}...[/dim]")
+            state.console.print(f"[grey62]Searching {label}...[/grey62]")
             state.console.print()
             try:
                 api_results = _usda.search_foods(api_query, data_types=data_types)
@@ -760,7 +808,7 @@ def _search_and_pick_food(
                 else:
                     state.console.print(
                         f"[{state.T['error']}]{e}[/{state.T['error']}]\n"
-                        f"[dim]No cached results for this query. Try a different search term or check your connection.[/dim]"
+                        f"[grey62]No cached results for this query. Try a different search term or check your connection.[/grey62]"
                     )
                     if allow_research:
                         query = None
@@ -771,7 +819,7 @@ def _search_and_pick_food(
                     off_results = _off.search_foods(api_query, page_size=6)
                 except Exception:
                     off_results = []
-                    state.console.print("[dim]Open Food Facts unavailable; skipping.[/dim]")
+                    state.console.print("[grey62]Open Food Facts unavailable; skipping.[/grey62]")
                 existing_names = {r.get("description", "").lower() for r in api_results}
                 for r in off_results:
                     if r["description"].lower() not in existing_names:
@@ -888,7 +936,7 @@ def _search_and_pick_food(
         for i, r in enumerate(recipe_rows, 1):
             aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
                        if r["dcp_g"] is not None
-                       else "[dim]—[/dim]")
+                       else "[grey62]—[/grey62]")
             row = [f"R{i}", aa_cell, "", "", "", "", _srch_cell(r["name"]), "Recipe", _brand_cell("")]
             tbl.add_row(*row)
 
@@ -954,31 +1002,31 @@ def _search_and_pick_food(
         _cached_count = sum(1 for f in results if f.get("_from_cache"))
         if _cached_count:
             state.console.print(
-                f"  [dim][{state.T['success']}]★[/{state.T['success']}] in Type column = already in your local cache (instant — no network fetch)[/dim]",
+                f"  [grey62][{state.T['success']}]★[/{state.T['success']}] in Type column = already in your local cache (instant — no network fetch)[/grey62]",
                 highlight=False,
             )
         state.console.print(
-            "  [dim]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/dim]",
+            "  [grey62]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/grey62]",
             highlight=False,
         )
         state.console.print()
         state.console.print(
-            f"  [dim]AA column: [{state.T['success']}]✓[/{state.T['success']}] confirmed · "
+            f"  [grey62]AA column: [{state.T['success']}]✓[/{state.T['success']}] confirmed · "
             f"[{state.T['success']}]~✓[/{state.T['success']}] likely (not yet fetched) · "
-            f"[{state.T['error']}]✗[/{state.T['error']}] none[/dim]  "
-            f"  [dim]GI / DIAAS: your saved estimates[/dim]",
+            f"[{state.T['error']}]✗[/{state.T['error']}] none[/grey62]  "
+            f"  [grey62]GI / DIAAS: your saved estimates[/grey62]",
             highlight=False,
         )
         if likely_count > 0:
             state.console.print(
-                f"  [dim]  → [bold]~✓[/bold] items are not yet in your cache. "
-                f"Enter the item number to fetch and cache it.[/dim]",
+                f"  [grey62]  → [bold]~✓[/bold] items are not yet in your cache. "
+                f"Enter the item number to fetch and cache it.[/grey62]",
                 highlight=False,
             )
         if likely_count == 0 and show_aa_status:
             state.console.print(
                 f"  [{state.T['warning']}]No options with amino acid data found.[/{state.T['warning']}] "
-                "[dim]Try searching for a generic equivalent — add 'raw', 'cooked', or 'usda' to your query.[/dim]",
+                "[grey62]Try searching for a generic equivalent — add 'raw', 'cooked', or 'usda' to your query.[/grey62]",
                 highlight=False,
             )
 
@@ -1000,22 +1048,69 @@ def _search_and_pick_food(
                 "(e.g. 'pinto beans cooked').",
                 width=_W, initial_indent="  ", subsequent_indent="  ",
             )
-            state.console.print(f"[dim]{_msg}[/dim]", highlight=False)
+            state.console.print(f"[grey62]{_msg}[/grey62]", highlight=False)
 
         help_footer()
 
         _r_slash_max = min(9, len(results))
-        _r_hint = f"  [dim]({_hint(_r_slash_max)})[/dim]"
-        pick_hint = ("  R#/# or id:FDCID, Enter to skip / b=back, m=main, q=quit" + _r_hint
-                     if recipe_rows else
-                     "  Pick number, id:FDCID, or Enter to skip / b=back, m=main, q=quit" + _r_hint)
+        if multi_select:
+            _pick_hint_text = (
+                f"  Pick foods  [grey62](#N · #N–M · #N,M,... · mixed (#4-7,9) (1–{len(results)}) · barcode"
+                f" · Enter to skip / b=back, m=main, q=quit)[/grey62]"
+            )
+        else:
+            _r_hint = f"  [grey62]({_hint(_r_slash_max)})[/grey62]"
+            _pick_hint_text = ("  R#/# or id:FDCID, Enter to skip / b=back, m=main, q=quit" + _r_hint
+                               if recipe_rows else
+                               "  Pick #number, id:FDCID, or Enter to skip / b=back, m=main, q=quit" + _r_hint)
+
+        def _fetch_by_index(idx: int) -> "dict | None":
+            """Fetch and cache the result at 0-based idx from the current results list."""
+            res = results[idx]
+            _fdc = res["fdcId"]
+            _sname = res.get("description", "")
+            with _db.get_db() as conn:
+                _cached = _db.get_cached_food(conn, _fdc)
+            if _cached:
+                _nu = json.loads(_cached["nutrients_json"])
+                _pj = _cached["portions_json"]
+                return {"fdcId": _cached["fdc_id"], "name": _cached["name"],
+                        "dataType": _cached["data_type"], "brand": _cached["brand"],
+                        "servingSize": _cached["serving_size"], "servingUnit": _cached["serving_unit"],
+                        "nutrients": _nu,
+                        "portions": json.loads(_pj) if _pj and _pj != "null" else []}
+            if res.get("_from_off"):
+                _det = _off.get_food_detail(res)
+                with _db.get_db() as conn:
+                    _db.cache_food(conn, _det["fdcId"], _det["name"], _det["dataType"], _det["brand"],
+                                   _det["servingSize"], _det["servingUnit"], _det["nutrients"], _det.get("portions"))
+                return _det
+            state.console.print(f"  [grey62]Fetching {_sname or _fdc}...[/grey62]")
+            try:
+                _det = _usda.get_food_detail(_fdc)
+                with _db.get_db() as conn:
+                    _ex = _db.get_cached_food(conn, _det["fdcId"])
+                    if not (_ex and _ex["user_drafted"]):
+                        _nu = _merge_preserved_aa(_ex, _det["nutrients"])
+                        _db.cache_food(conn, _det["fdcId"], _det["name"], _det["dataType"], _det["brand"],
+                                       _det["servingSize"], _det["servingUnit"], _nu, _det.get("portions"),
+                                       notes=_ex["notes"] if _ex else None,
+                                       curator_notes=_ex["curator_notes"] if _ex else None)
+                        _det = {**_det, "nutrients": _nu}
+                return _det
+            except Exception as e:
+                state.console.print(f"  [{state.T['warning']}]Could not fetch #{idx + 1}: {e}[/{state.T['warning']}]")
+                return None
 
         # Inner loop: re-prompt on bad pick without re-running the search.
         while True:
             try:
-                raw = _prompt(pick_hint, slash_max=_r_slash_max).strip()
+                if multi_select:
+                    raw = _prompt(_pick_hint_text, free_text=True).strip()
+                else:
+                    raw = _prompt(_pick_hint_text, slash_max=_r_slash_max).strip()
             except Cancelled:
-                return None
+                return [] if multi_select else None
             if raw.lower() == "m":
                 raise ReturnToMain()
             if raw.lower() == "q":
@@ -1024,10 +1119,38 @@ def _search_and_pick_food(
                 if allow_research:
                     query = None
                     break  # → outer loop re-prompts for query
-                return None
+                return [] if multi_select else None
 
-            # /N quick-select: strip the leading "/" to get the numeric pick
-            if raw.startswith("/") and raw[1:].isdigit():
+            # Multi-select: #N, #N-M, #N,M,... or a barcode
+            if multi_select:
+                # Barcode: 12 or 13 digits (spaces/hyphens stripped)
+                _bc_raw = re.sub(r'[\s\-]', '', raw)
+                if _bc_raw.isdigit() and len(_bc_raw) in (12, 13):
+                    try:
+                        _bc_food = _lookup_barcode_confirmed(_bc_raw)
+                    except Cancelled:
+                        return []
+                    if _bc_food is not None:
+                        return [_bc_food]
+                    continue  # not found or declined; re-prompt pick
+
+                pick_str = raw if raw.startswith("#") else (f"#{raw}" if raw.isdigit() else None)
+                if pick_str is not None:
+                    indices = _parse_hash_pick(pick_str, len(results))
+                    if indices is None:
+                        state.console.print(
+                            f"  [{state.T['warning']}]Use #N · #N–M · #N,M,... · or mixed like #4-7,9 — numbers 1–{len(results)}[/{state.T['warning']}]"
+                        )
+                        continue
+                    picked = [d for d in (_fetch_by_index(i) for i in indices) if d is not None]
+                    return picked
+                state.console.print(
+                    f"  [{state.T['warning']}]Enter #N · #N–M · #N,M,... · mixed (#4-7,9) · or a barcode — or Enter to skip[/{state.T['warning']}]"
+                )
+                continue
+
+            # #N quick-select: strip the leading "#" to get the numeric pick
+            if raw.startswith("#") and raw[1:].isdigit():
                 raw = raw[1:]
 
             # Recipe pick: R1, R2, …
@@ -1113,20 +1236,20 @@ def _search_and_pick_food(
                 return detail
 
             # USDA: fetch full detail from API
-            state.console.print("[dim]Fetching details...[/dim]")
+            state.console.print("[grey62]Fetching details...[/grey62]")
             try:
                 detail = _usda.get_food_detail(fdc_id)
             except _usda.USDAError as e:
                 state.console.print(
                     f"[{state.T['error']}]API error: {e}[/{state.T['error']}]\n"
-                    f"[dim]  (The USDA search index sometimes lists FDC IDs that no longer exist.\n"
-                    f"   Try a different result, or use id:FDCID with a known-good ID.)[/dim]"
+                    f"[grey62]  (The USDA search index sometimes lists FDC IDs that no longer exist.\n"
+                    f"   Try a different result, or use id:FDCID with a known-good ID.)[/grey62]"
                 )
                 continue
             except (TimeoutError, OSError) as e:
                 state.console.print(
                     f"[{state.T['error']}]Network error fetching food details: {e}[/{state.T['error']}]\n"
-                    f"[dim]  Check your connection and try again.[/dim]"
+                    f"[grey62]  Check your connection and try again.[/grey62]"
                 )
                 continue
 
@@ -1142,9 +1265,9 @@ def _search_and_pick_food(
                         f"\n  [{state.T['warning']}]⚠  USDA returned a different food than selected:[/{state.T['warning']}]\n"
                         f"  Selected:  {selected_name}\n"
                         f"  Returned:  {detail['name']}\n"
-                        f"  [dim]This is a known USDA API issue. Try searching again or use id:FDCID.[/dim]"
+                        f"  [grey62]This is a known USDA API issue. Try searching again or use id:FDCID.[/grey62]"
                     )
-                    confirm = _ask_yes_no_quit("Use it anyway?  [dim](y=yes · n=no · q=quit)[/dim]", default="n")
+                    confirm = _ask_yes_no_quit("Use it anyway?  [grey62](y=yes · n=no · q=quit)[/grey62]", default="n")
                     if confirm == "q":
                         raise SystemExit(0)
                     if confirm != "y":

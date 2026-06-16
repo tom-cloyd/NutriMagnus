@@ -308,14 +308,14 @@ def _pick_portion(
     brand_str = f" ({brand})" if brand else ""
     state.console.print(f"\n  Food: [{state.T['hi']}]{food['name']}{brand_str}[/{state.T['hi']}]")
 
-    state.console.print("  [dim]Enter an amount, for example: 150 g, 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)[/dim]")
+    state.console.print("  [grey62]Enter an amount, for example: 150 g, 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)[/grey62]")
     if portions:
-        state.console.print("  [dim]USDA portions (use pN or NUMBER pN):[/dim]")
+        state.console.print("  [grey62]USDA portions (use pN or NUMBER pN):[/grey62]")
         for i, p in enumerate(portions, 1):
-            state.console.print(f"    [dim]p{i}[/dim]  {p['description']} [{p['gram_weight']:.4g}g]")
-        state.console.print("  [dim]  e.g. 'p1' for one portion, '2 p1' for two[/dim]")
+            state.console.print(f"    [grey62]p{i}[/grey62]  {p['description']} [{p['gram_weight']:.4g}g]")
+        state.console.print("  [grey62]  e.g. 'p1' for one portion, '2 p1' for two[/grey62]")
     else:
-        state.console.print("  [dim]A bare number will be treated as grams (you'll confirm). Add a unit for other measures.[/dim]")
+        state.console.print("  [grey62]A bare number will be treated as grams (you'll confirm). Add a unit for other measures.[/grey62]")
     if current:
         state.console.print(
             f"  Current: [{state.T['default_hint']}]{current}[/{state.T['default_hint']}]"
@@ -366,7 +366,7 @@ def _pick_portion(
                 continue
             if portions:
                 state.console.print(
-                    f"  [dim]Use 'pN' to pick a USDA portion, e.g. '{raw} p1' for {raw} × {portions[0]['description']}.[/dim]"
+                    f"  [grey62]Use 'pN' to pick a USDA portion, e.g. '{raw} p1' for {raw} × {portions[0]['description']}.[/grey62]"
                 )
             try:
                 confirm = _prompt(
@@ -382,8 +382,8 @@ def _pick_portion(
         if grams is None:
             # Volume recognized but density (weight) unknown — ask for weight
             vol_display = label
-            state.console.print(f"  [dim]Weight per volume is unknown for this food. "
-                          f"Enter grams to calculate nutrition, or press Enter to skip.[/dim]")
+            state.console.print(f"  [grey62]Weight per volume is unknown for this food. "
+                          f"Enter grams to calculate nutrition, or press Enter to skip.[/grey62]")
             while True:
                 try:
                     w_raw = _prompt(f"Weight of {vol_display} in grams  (Enter=skip)", free_text=True).strip()

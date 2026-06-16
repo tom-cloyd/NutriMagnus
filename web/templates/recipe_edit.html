@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ recipe.name }} — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item"><a href="/recipe/{{ recipe.id }}">{{ recipe.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Edit</li>
+  </ol>
+</nav>
+
+<h2>Edit Recipe</h2>
+
+{% if saved %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  Recipe saved.
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{# ── Metadata form ────────────────────────────────────────────────────── #}
+<details open>
+  <summary><strong>Recipe details</strong></summary>
+  <form method="post" action="/recipe/{{ recipe.id }}/edit" class="mt-3" style="max-width:36rem">
+    <div class="mb-3">
+      <label class="form-label" for="name">Recipe name <span class="text-danger">*</span></label>
+      <input type="text" class="form-control" id="name" name="name"
+             value="{{ recipe.name }}" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="description">Description</label>
+      <input type="text" class="form-control" id="description" name="description"
+             value="{{ recipe.description or '' }}">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="servings">Number of servings</label>
+      <input type="number" class="form-control" id="servings" name="servings"
+             value="{{ recipe.servings }}" min="1" max="999" style="max-width:8rem">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Total yield weight <small class="text-muted">(optional)</small></label>
+      <div class="input-group" style="max-width:16rem">
+        <input type="number" class="form-control" name="total_weight"
+               value="{{ recipe.total_weight or '' }}" min="0" step="any">
+        <select class="form-select" name="total_weight_unit" style="max-width:5rem">
+          {% for u in ["g","oz","lb","kg"] %}
+          <option value="{{ u }}" {% if recipe.total_weight_unit == u %}selected{% endif %}>{{ u }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label" for="instructions">Instructions <small class="text-muted">(optional)</small></label>
+      <textarea class="form-control" id="instructions" name="instructions"
+                rows="5">{{ recipe.instructions or '' }}</textarea>
+    </div>
+
+    <div class="mb-3 form-check">
+      <input type="checkbox" class="form-check-input" id="complete" name="complete" value="1"
+             {% if recipe.complete %}checked{% endif %}>
+      <label class="form-check-label" for="complete">Mark recipe as complete</label>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-primary">Save recipe details</button>
+      <a href="/recipe/{{ recipe.id }}" class="btn btn-outline-secondary">View recipe</a>
+    </div>
+  </form>
+</details>
+
+{# ── Ingredients ──────────────────────────────────────────────────────── #}
+<details open>
+  <summary><strong>Ingredients ({{ ingredients|length }})</strong></summary>
+
+  {% if ingredients %}
+  <table class="nutrient-table mt-2">
+    <thead>
+      <tr>
+        <th class="num-col">#</th>
+        <th class="num-col">Amount</th>
+        <th>Food</th>
+        <th>Notes</th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ing in ingredients %}
+      <tr>
+        <td class="num-col muted">{{ loop.index }}</td>
+        <td class="num-col" style="white-space:nowrap">
+          {% if ing.ref_recipe_id %}
+            {{ ing.amount | round(2) | string | replace(".0", "") }} srv
+          {% else %}
+            {{ ing.amount | round(1) }}&thinsp;g
+          {% endif %}
+        </td>
+        <td>{{ ing.food_name }}
+          {% if ing.ref_recipe_id %}<small class="muted"> (recipe)</small>{% endif %}
+        </td>
+        <td><small class="muted">{{ ing.notes or "" }}</small></td>
+
+        {# Edit inline #}
+        <td>
+          <details>
+            <summary class="btn btn-outline-secondary btn-sm" style="list-style:none;cursor:pointer">Edit</summary>
+            <div class="card card-body p-2 mt-1" style="min-width:22rem;position:absolute;z-index:10">
+              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/edit"
+                    class="d-flex flex-column gap-2">
+                <div class="d-flex gap-2 align-items-center">
+                  <label class="form-label mb-0 text-nowrap">Amount</label>
+                  <input type="number" name="amount" value="{{ ing.amount | round(2) }}"
+                         class="form-control form-control-sm" min="0.01" max="99999" step="0.01"
+                         style="width:7rem" required>
+                  <select name="unit" class="form-select form-select-sm" style="width:5rem">
+                    <option value="g" selected>g</option>
+                  </select>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                  <label class="form-label mb-0 text-nowrap">Name</label>
+                  <input type="text" name="food_name" value="{{ ing.food_name }}"
+                         class="form-control form-control-sm" required>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                  <label class="form-label mb-0 text-nowrap">Notes</label>
+                  <input type="text" name="notes" value="{{ ing.notes or '' }}"
+                         class="form-control form-control-sm" placeholder="optional">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary align-self-start">Save changes</button>
+              </form>
+            </div>
+          </details>
+        </td>
+
+        {# Remove #}
+        <td>
+          <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/remove"
+                style="margin:0">
+            <button type="submit" class="btn btn-outline-danger btn-sm"
+                    aria-label="Remove">&#x2715;</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted mt-2">No ingredients yet. Use the search below to add them.</p>
+  {% endif %}
+</details>
+
+{# ── Add ingredient ───────────────────────────────────────────────────── #}
+<details {% if q %}open{% endif %}>
+  <summary><strong>Add Ingredient</strong></summary>
+
+  <form method="get" action="/recipe/{{ recipe.id }}/edit">
+    <div class="input-group mb-3 mt-2" style="max-width:28rem">
+      <input type="text" class="form-control" name="q" value="{{ q }}"
+             placeholder="Search foods…" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+  </form>
+
+  {% if search_results %}
+  <table class="nutrient-table add-food-table">
+    <thead>
+      <tr>
+        <th>Food</th>
+        <th>Source</th>
+        <th colspan="2">Amount &rarr; Add</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for food in search_results %}
+      <tr>
+        <td>
+          {{ food.name }}
+          <br><small class="muted">{{ food.data_type }}</small>
+        </td>
+        <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+        <td colspan="2">
+          <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add" class="add-food-form">
+            <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+            <input type="hidden" name="food_name" value="{{ food.name }}">
+            {% if food.portions %}
+            <div class="mb-1">
+              <select class="form-select form-select-sm" style="max-width:22rem"
+                      onchange="(function(sel){var f=sel.closest('form');f.querySelector('[name=amount]').value=sel.value||'';})(this)">
+                <option value="">— enter grams manually —</option>
+                {% for p in food.portions %}
+                <option value="{{ p.gram_weight | round(1) }}">{{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g)</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+            <div class="input-group" style="max-width:22rem">
+              <input type="number" class="form-control" name="amount" value="100"
+                     min="0.01" max="9999" step="any" style="max-width:6rem">
+              <select class="form-select" name="unit" style="max-width:5rem">
+                <option value="g">g</option>
+                <option value="oz">oz</option>
+                <option value="lb">lb</option>
+                <option value="kg">kg</option>
+              </select>
+              <button type="submit" class="btn btn-primary">Add to recipe</button>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif q %}
+  <p>No results for <strong>{{ q }}</strong>.</p>
+  {% endif %}
+</details>
+
+{% endblock %}

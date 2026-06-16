@@ -70,8 +70,8 @@ def _resolve_recipe_dcp_data(
         else:
             state.console.print("    • No amino acid profile available in USDA data for these ingredients.")
     state.console.print(
-        f"  [dim]If any flagged ingredient is not a significant protein source "
-        f"(e.g. spices, oil, salt), its missing data can safely be ignored.[/dim]"
+        f"  [grey62]If any flagged ingredient is not a significant protein source "
+        f"(e.g. spices, oil, salt), its missing data can safely be ignored.[/grey62]"
     )
 
     # Build numbered options dynamically, preserving the action key internally
@@ -124,15 +124,15 @@ def _resolve_recipe_dcp_data(
                     continue
                 state.console.print(
                     f"\n  Replacing: [{state.T['accent']}]{ing['food_name']}[/{state.T['accent']}]\n"
-                    "  [dim]Search for a Foundation Foods replacement:[/dim]"
+                    "  [grey62]Search for a Foundation Foods replacement:[/grey62]"
                 )
                 food = _search_and_pick_food(data_types=["Foundation", "SR Legacy"], show_aa_status=True, allow_research=True)
                 if food is None:
-                    state.console.print("  [dim]Skipped.[/dim]")
+                    state.console.print("  [grey62]Skipped.[/grey62]")
                     continue
                 result = _pick_portion(food)
                 if result is None:
-                    state.console.print("  [dim]Skipped.[/dim]")
+                    state.console.print("  [grey62]Skipped.[/grey62]")
                     continue
                 grams, label, _ = result
                 with _db.get_db() as conn:
@@ -155,7 +155,7 @@ def _resolve_recipe_dcp_data(
             for ing in zero_weight:
                 vol_display = _normalize_unit_display(ing["unit"]).replace(" (weight not known)", "")
                 state.console.print(f"\n  [{state.T['accent']}]{ing['food_name']}[/{state.T['accent']}]"
-                              f"  [dim]({vol_display})[/dim]")
+                              f"  [grey62]({vol_display})[/grey62]")
                 try:
                     w_raw = _prompt("Weight in grams  (Enter=skip, b=back)", free_text=True).strip()
                 except Cancelled:
@@ -245,7 +245,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         ingredients = _db.recipe_get_ingredients(conn, rid)
 
     if not ingredients:
-        state.console.print("[dim]This recipe has no ingredients.[/dim]")
+        state.console.print("[grey62]This recipe has no ingredients.[/grey62]")
         return
 
     while True:
@@ -255,9 +255,9 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             ingredients = _db.recipe_get_ingredients(conn, rid)
 
         srv_tag = (
-            "[dim]whole recipe[/dim]"
+            "[grey62]whole recipe[/grey62]"
             if recipe["servings"] == 0
-            else f"[dim]{recipe['servings']} serving(s)[/dim]"
+            else f"[grey62]{recipe['servings']} serving(s)[/grey62]"
         )
         state.console.print(
             f"\n[{state.T['accent']}]{recipe['name']}[/{state.T['accent']}]  {srv_tag}"
@@ -268,7 +268,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         # Ingredient list with amounts — shown before DCP prompts so user can see the recipe
         state.console.print(f"\n[{state.T['accent']}]Ingredients:[/{state.T['accent']}]  {ID_KEY}")
         for ing in ingredients:
-            note_tag = f"  [dim]({ing['notes']})[/dim]" if ing["notes"] else ""
+            note_tag = f"  [grey62]({ing['notes']})[/grey62]" if ing["notes"] else ""
             amt = (_format_recipe_portion_label(ing["amount"])
                    if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
             state.console.print(f"  • {amt}  {_id_cell(ing['fdc_id'])}  {ing['food_name']}{note_tag}")
@@ -277,7 +277,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         if recipe["instructions"] and recipe["instructions"].strip():
             state.console.print(f"  {recipe['instructions']}")
         else:
-            state.console.print("  [dim](none given)[/dim]")
+            state.console.print("  [grey62](none given)[/grey62]")
         state.console.rule()
 
         # Build combined nutrients and per-ingredient protein+DIAAS (silent — before display)
@@ -362,7 +362,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 f"— they are excluded from the analysis:[/{state.T['warning']}]"
             )
             for w in volume_only_warnings:
-                state.console.print(f"    [dim]• {w}[/dim]")
+                state.console.print(f"    [grey62]• {w}[/grey62]")
 
         # Resolve missing DCP data before displaying tables so totals reflect any user input
         dcp_skip = False
@@ -447,7 +447,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         if dcp_skip:
             with _db.get_db() as conn:
                 _db.recipe_set_dcp(conn, recipe["id"], None)
-            state.console.print("\n  [dim]Digestible complete protein: skipped.[/dim]")
+            state.console.print("\n  [grey62]Digestible complete protein: skipped.[/grey62]")
         else:
             if ingredient_stats:
                 if meal_result and meal_result.get("diaas") is not None:
@@ -472,33 +472,33 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 approx_tag = f"  [{state.T['warning']}]⚠ approximate[/{state.T['warning']}]" if dcp_approximate else ""
                 if was_missing and not dcp_approximate and not no_servings:
                     state.console.print(
-                        f"\n  [{state.T['success']}]✓[/{state.T['success']}]  [dim]Recipe data now complete"
-                        f" — DCP can be calculated.[/dim]"
+                        f"\n  [{state.T['success']}]✓[/{state.T['success']}]  [grey62]Recipe data now complete"
+                        f" — DCP can be calculated.[/grey62]"
                     )
                 state.console.print(
                     f"\n  [bold][{color}]Digestible complete protein: {dcp_amount:.1f}g[/{color}][/bold]"
-                    f"  [dim]{dcp_label}[/dim]{approx_tag}",
+                    f"  [grey62]{dcp_label}[/grey62]{approx_tag}",
                     highlight=False,
                 )
                 if dcp_approximate:
                     if dcp_notes:
                         for note in dcp_notes:
-                            state.console.print(f"    [dim]↳ {note}[/dim]")
+                            state.console.print(f"    [grey62]↳ {note}[/grey62]")
                 elif not no_servings:
                     state.console.print(
-                        f"  [dim]↳ Saved to recipe · computed {now_utc}[/dim]",
+                        f"  [grey62]↳ Saved to recipe · computed {now_utc}[/grey62]",
                         highlight=False,
                     )
             else:
                 with _db.get_db() as conn:
                     _db.recipe_set_dcp(conn, recipe["id"], None)
                 state.console.print(
-                    "\n  [dim]Digestible complete protein: not available "
-                    "(no amino acid data for these ingredients)[/dim]"
+                    "\n  [grey62]Digestible complete protein: not available "
+                    "(no amino acid data for these ingredients)[/grey62]"
                 )
                 if dcp_notes:
                     for note in dcp_notes:
-                        state.console.print(f"    [dim]↳ {note}[/dim]")
+                        state.console.print(f"    [grey62]↳ {note}[/grey62]")
 
         # Meal-Level Complete Protein Analysis (steps 3+4 in plan)
         servings = max(1, recipe["servings"])
@@ -530,8 +530,8 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             _print_recipe_bioavailability(per_serving_stats, analysis_nutrients, per_serving_meal_result)
         if aa_augmented:
             state.console.print(
-                "  [dim](⚑ Amino acid scores above estimated using curated literature data "
-                "for ingredients without USDA amino acid records.)[/dim]",
+                "  [grey62](⚑ Amino acid scores above estimated using curated literature data "
+                "for ingredients without USDA amino acid records.)[/grey62]",
                 highlight=False,
             )
         # Missing Amino Acid Profiles (step 4)
@@ -541,9 +541,9 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 highlight=False,
             )
             state.console.print(
-                "  [dim]Recipe ingredients lack USDA amino acid records. If this recipe relies "
+                "  [grey62]Recipe ingredients lack USDA amino acid records. If this recipe relies "
                 "mainly on plant proteins, consider pairing with a complementary source "
-                "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/dim]",
+                "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/grey62]",
                 highlight=False,
             )
 
@@ -574,8 +574,8 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 if servings > 1 and gaps:
                     state.console.print(
                         f"\n  Complement suggestions basis:\n"
-                        f"  [dim]1[/dim]  Per serving  [dim](default)[/dim]\n"
-                        f"  [dim]2[/dim]  Whole recipe  ({servings} serving(s))"
+                        f"  [grey62]1[/grey62]  Per serving  [grey62](default)[/grey62]\n"
+                        f"  [grey62]2[/grey62]  Whole recipe  ({servings} serving(s))"
                     )
                     try:
                         basis_choice = _prompt("Choice  (Enter=per serving)", choices=["1", "2"], default="1").strip()
@@ -604,9 +604,9 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
             )
             for name in gl_blockers:
-                state.console.print(f"    [dim]• {name}[/dim]")
+                state.console.print(f"    [grey62]• {name}[/grey62]")
             state.console.print(
-                "  [dim]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/dim]"
+                "  [grey62]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/grey62]"
             )
         else:
             save_gl = None if no_servings else gl_whole
@@ -617,11 +617,11 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                      else state.T["warning"] if gl_per_serving <= 19
                      else state.T["error"])
             state.console.print(
-                f"  [{color}]{gl_per_serving:.1f}[/{color}]  [dim]{dcp_label}[/dim]",
+                f"  [{color}]{gl_per_serving:.1f}[/{color}]  [grey62]{dcp_label}[/grey62]",
                 highlight=False,
             )
             if save_gl is not None:
-                state.console.print("  [dim]↳ Saved to recipe[/dim]", highlight=False)
+                state.console.print("  [grey62]↳ Saved to recipe[/grey62]", highlight=False)
 
         if no_servings:
             export_per_label = "whole recipe (no serving count)"

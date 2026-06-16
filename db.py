@@ -641,6 +641,10 @@ def meal_rename(conn: sqlite3.Connection, meal_id: int, new_name: str) -> None:
     conn.execute("UPDATE meals SET name = ? WHERE id = ?", (new_name, meal_id))
 
 
+def meal_set_date(conn: sqlite3.Connection, meal_id: int, new_date: str) -> None:
+    conn.execute("UPDATE meals SET meal_date = ? WHERE id = ?", (new_date, meal_id))
+
+
 def meal_copy_items(conn: sqlite3.Connection, from_meal_id: int, to_meal_id: int) -> int:
     """Copy all items from one meal to another. Returns count of items copied."""
     cur = conn.execute("""
@@ -754,6 +758,14 @@ def saved_comparison_get(conn: sqlite3.Connection, cmp_id: int) -> sqlite3.Row |
 def saved_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
     cur = conn.execute("DELETE FROM saved_comparisons WHERE id = ?", (cmp_id,))
     return cur.rowcount > 0
+
+
+def update_food_portions(conn: sqlite3.Connection, fdc_id: int, portions: list[dict]) -> None:
+    """Patch only the portions_json column for a cached food."""
+    conn.execute(
+        "UPDATE foods SET portions_json=? WHERE fdc_id=?",
+        (json.dumps(portions), fdc_id),
+    )
 
 
 def update_cached_food_profile(

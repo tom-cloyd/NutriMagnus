@@ -72,13 +72,13 @@ def _ask_animal_foods_pref() -> None:
     state.console.print(
         f"\n  [{state.T['hi']}]One quick question before we begin[/{state.T['hi']}]\n"
         f"\n  Which foods should protein complement suggestions include?\n"
-        f"\n  [{state.T['accent']}]1[/{state.T['accent']}] — All animal foods  [dim](meat, fish, dairy, eggs)[/dim]"
-        f"\n  [{state.T['accent']}]2[/{state.T['accent']}] — Vegetarian  [dim](dairy + eggs only)[/dim]"
+        f"\n  [{state.T['accent']}]1[/{state.T['accent']}] — All animal foods  [grey62](meat, fish, dairy, eggs)[/grey62]"
+        f"\n  [{state.T['accent']}]2[/{state.T['accent']}] — Vegetarian  [grey62](dairy + eggs only)[/grey62]"
         f"\n  [{state.T['accent']}]3[/{state.T['accent']}] — Plant-based only\n"
-        f"\n  [dim]This can be changed later under Settings → Dietary preferences.[/dim]"
+        f"\n  [grey62]This can be changed later under Settings → Dietary preferences.[/grey62]"
     )
     try:
-        ans = _prompt("Choice  [dim](1/2/3)[/dim]", default="1").strip()
+        ans = _prompt("Choice  [grey62](1/2/3)[/grey62]", default="1").strip()
     except Cancelled:
         ans = "1"
     pref = {"1": "all", "2": "vegetarian", "3": "plant_only"}.get(ans, "all")

@@ -137,8 +137,8 @@ def show(ref: str) -> bool:
     if entry is None:
         known = ", ".join(f"?{a}" for a in available())
         state.console.print(
-            f"\n  [dim]No help entry for '[bold]{ref}[/bold]'.[/dim]"
-            f"\n  [dim]Available topics: {known}[/dim]"
+            f"\n  [grey62]No help entry for '[bold]{ref}[/bold]'.[/grey62]"
+            f"\n  [grey62]Available topics: {known}[/grey62]"
         )
         return False
 

@@ -18,15 +18,15 @@ def _prompt_gi_value(
       (None, 1)      — never ask again
     Raises Cancelled on b, ReturnToMain on m, SystemExit on q.
     """
-    current_hint = f" [dim](current: {current:.0f})[/dim]" if current is not None else ""
+    current_hint = f" [grey62](current: {current:.0f})[/grey62]" if current is not None else ""
     state.console.print(
-        f"\n  [dim]Glycemic index: how quickly this food raises blood sugar.[/dim]\n"
-        f"  [dim]Scale 0–100  (glucose = 100).  Low < 55 · medium 55–69 · high ≥ 70.[/dim]"
+        f"\n  [grey62]Glycemic index: how quickly this food raises blood sugar.[/grey62]\n"
+        f"  [grey62]Scale 0–100  (glucose = 100).  Low < 55 · medium 55–69 · high ≥ 70.[/grey62]"
     )
     while True:
         raw = _prompt(
             f"GI for [bold]{food_name}[/bold]{current_hint}"
-            f"  [dim](0–100, Enter/s=skip, x=never ask, b=back)[/dim]"
+            f"  [grey62](0–100, Enter/s=skip, x=never ask, b=back)[/grey62]"
         ).strip().lower()
         if raw == "b":
             raise Cancelled
@@ -53,15 +53,15 @@ def _prompt_diaas_value(
     food_name: str, current: float | None
 ) -> tuple[float | None, int | None]:
     """Same pattern as _prompt_gi_value but for DIAAS (0.0–1.5+)."""
-    current_hint = f" [dim](current: {current:.2f})[/dim]" if current is not None else ""
+    current_hint = f" [grey62](current: {current:.2f})[/grey62]" if current is not None else ""
     state.console.print(
-        f"\n  [dim]DIAAS: Digestible Indispensable Amino Acid Score — protein quality.[/dim]\n"
-        f"  [dim]Scale 0–1.0+  (1.0 = complete).  Whole grains typically 0.4–0.6.[/dim]"
+        f"\n  [grey62]DIAAS: Digestible Indispensable Amino Acid Score — protein quality.[/grey62]\n"
+        f"  [grey62]Scale 0–1.0+  (1.0 = complete).  Whole grains typically 0.4–0.6.[/grey62]"
     )
     while True:
         raw = _prompt(
             f"DIAAS for [bold]{food_name}[/bold]{current_hint}"
-            f"  [dim](0.0–1.5, Enter/s=skip, x=never ask, b=back)[/dim]"
+            f"  [grey62](0.0–1.5, Enter/s=skip, x=never ask, b=back)[/grey62]"
         ).strip().lower()
         if raw == "b":
             raise Cancelled
@@ -97,12 +97,12 @@ def _show_annotation_status(
         if display is not None:
             return f"[{s}]{label}: {display}[/{s}]"
         if no_prompt:
-            return f"[dim]{label}: — (prompts off)[/dim]"
-        return f"[dim]{label}: not set[/dim]"
+            return f"[grey62]{label}: — (prompts off)[/grey62]"
+        return f"[grey62]{label}: not set[/grey62]"
 
     gi_str    = _field("GI",    f"{gi:.0f}"    if gi    is not None else None, gi_no_prompt)
     diaas_str = _field("DIAAS", f"{diaas:.2f}" if diaas is not None else None, diaas_no_prompt)
-    prep_str  = f"[dim]Prep: {prep}[/dim]" if prep else "[dim]Prep: not set[/dim]"
+    prep_str  = f"[grey62]Prep: {prep}[/grey62]" if prep else "[grey62]Prep: not set[/grey62]"
     state.console.print(f"  {gi_str}   {diaas_str}   {prep_str}\n")
 
 
@@ -122,7 +122,7 @@ def annotate_food_interactive(fdc_id: int, food_name: str) -> None:
         _show_annotation_status(gi, gi_nop, diaas, diaas_nop, prep)
 
         def _val_hint(val, fmt) -> str:
-            return f"  [dim](currently: {fmt(val)})[/dim]" if val is not None else ""
+            return f"  [grey62](currently: {fmt(val)})[/grey62]" if val is not None else ""
 
         options: list[tuple[str, str]] = [
             ("1", f"Set GI estimate{_val_hint(gi, lambda v: f'{v:.0f}')}"),
@@ -131,7 +131,7 @@ def annotate_food_interactive(fdc_id: int, food_name: str) -> None:
             ("b", "Done / back"),
         ]
         if gi_nop or diaas_nop:
-            options.append(("r", "Re-enable prompts  [dim](clear 'never ask' flags)[/dim]"))
+            options.append(("r", "Re-enable prompts  [grey62](clear 'never ask' flags)[/grey62]"))
         if ann is not None:
             options.append(("c", "Clear all annotations for this food"))
 
@@ -157,7 +157,7 @@ def annotate_food_interactive(fdc_id: int, food_name: str) -> None:
             if val is not None:
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  GI set to {val:.0f}.")
             elif no_prompt:
-                state.console.print("  [dim]Will not prompt for GI for this food again.[/dim]")
+                state.console.print("  [grey62]Will not prompt for GI for this food again.[/grey62]")
 
         elif action == "2":
             try:
@@ -169,12 +169,12 @@ def annotate_food_interactive(fdc_id: int, food_name: str) -> None:
             if val is not None:
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  DIAAS set to {val:.2f}.")
             elif no_prompt:
-                state.console.print("  [dim]Will not prompt for DIAAS for this food again.[/dim]")
+                state.console.print("  [grey62]Will not prompt for DIAAS for this food again.[/grey62]")
 
         elif action == "3":
             try:
                 raw = _prompt(
-                    f"Prep context for [bold]{food_name}[/bold]  [dim](Enter/b=back)[/dim]",
+                    f"Prep context for [bold]{food_name}[/bold]  [grey62](Enter/b=back)[/grey62]",
                     default=prep or "", prefill=bool(prep),
                 ).strip()
             except Cancelled:
@@ -197,7 +197,7 @@ def annotate_food_interactive(fdc_id: int, food_name: str) -> None:
         elif action == "c":
             try:
                 confirm = _prompt(
-                    f"Clear all annotations for [bold]{food_name}[/bold]?  [dim](y/N)[/dim]",
+                    f"Clear all annotations for [bold]{food_name}[/bold]?  [grey62](y/N)[/grey62]",
                     choices=["y", "n"], default="n",
                 )
             except Cancelled:
@@ -220,14 +220,14 @@ def maybe_prompt_gi(fdc_id: int, food_name: str) -> float | None:
     if ann is not None and ann["gi_no_prompt"]:
         return None
 
-    state.console.print(f"\n  [dim]No GI estimate on file for [bold]{food_name}[/bold].[/dim]")
+    state.console.print(f"\n  [grey62]No GI estimate on file for [bold]{food_name}[/bold].[/grey62]")
     val, no_prompt = _prompt_gi_value(food_name, None)
     with _db.get_db() as conn:
         _db.upsert_food_annotation(conn, fdc_id, gi_estimate=val, gi_no_prompt=no_prompt)
     if val is not None:
         state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  GI {val:.0f} saved.")
     elif no_prompt:
-        state.console.print("  [dim]GI prompts disabled for this food.[/dim]")
+        state.console.print("  [grey62]GI prompts disabled for this food.[/grey62]")
     return val
 
 
@@ -242,12 +242,12 @@ def maybe_prompt_diaas(fdc_id: int, food_name: str) -> float | None:
     if ann is not None and ann["diaas_no_prompt"]:
         return None
 
-    state.console.print(f"\n  [dim]No DIAAS estimate on file for [bold]{food_name}[/bold].[/dim]")
+    state.console.print(f"\n  [grey62]No DIAAS estimate on file for [bold]{food_name}[/bold].[/grey62]")
     val, no_prompt = _prompt_diaas_value(food_name, None)
     with _db.get_db() as conn:
         _db.upsert_food_annotation(conn, fdc_id, diaas_estimate=val, diaas_no_prompt=no_prompt)
     if val is not None:
         state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  DIAAS {val:.2f} saved.")
     elif no_prompt:
-        state.console.print("  [dim]DIAAS prompts disabled for this food.[/dim]")
+        state.console.print("  [grey62]DIAAS prompts disabled for this food.[/grey62]")
     return val

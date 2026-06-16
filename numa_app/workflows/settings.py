@@ -23,9 +23,9 @@ def _do_diaas_overrides() -> None:
     """Manage per-food protein digestibility overrides for DIAAS calculation."""
     table_title("PROTEIN DIGESTIBILITY OVERRIDES")
     state.console.print(
-        "  [dim]Set a specific true ileal digestibility coefficient (0.0–1.0) for a food,\n"
+        "  [grey62]Set a specific true ileal digestibility coefficient (0.0–1.0) for a food,\n"
         "  overriding the curated or estimated value numa uses in meal-level DIAAS\n"
-        "  calculations. Values should come from published nutrition studies.[/dim]",
+        "  calculations. Values should come from published nutrition studies.[/grey62]",
         highlight=False,
     )
     while True:
@@ -42,19 +42,19 @@ def _do_diaas_overrides() -> None:
                 fname = r["food_name"][:_OV_W - 1]
                 fdots = "·" * (_OV_W - len(fname) - 1)
                 tbl.add_row(
-                    f"{fname} [dim]{fdots}[/dim]",
+                    f"{fname} [grey62]{fdots}[/grey62]",
                     f"{r['digestibility']:.2f}",
                     r["notes"] or "",
                 )
             state.console.print(tbl, highlight=False)
         else:
-            state.console.print("  [dim](No overrides set.)[/dim]")
+            state.console.print("  [grey62](No overrides set.)[/grey62]")
 
         state.console.print(
             f"\n  [{state.T['accent']}]a.[/{state.T['accent']}] Add / update override"
             f"  [{state.T['accent']}]d.[/{state.T['accent']}] Delete override"
-            f"  [dim]b.[/dim] Back"
-            f"  [dim]m.[/dim] Return to main menu"
+            f"  [grey62]b.[/grey62] Back"
+            f"  [grey62]m.[/grey62] Return to main menu"
         )
         try:
             act = _prompt("Action").strip().lower()
@@ -70,7 +70,7 @@ def _do_diaas_overrides() -> None:
                 continue
             # Show what numa would use without an override
             dig, src = _diaas.get_digestibility(food_name)
-            state.console.print(f"  [dim]Current value: {dig:.2f}  ({src})[/dim]")
+            state.console.print(f"  [grey62]Current value: {dig:.2f}  ({src})[/grey62]")
             try:
                 raw = _prompt("Digestibility (0.00–1.00)").strip()
             except Cancelled:
@@ -125,11 +125,11 @@ def _do_user_profile() -> None:
             f"  Age {current.age}  ·  {current.sex}"
             f"  ·  {w_str}  ·  {h_str}"
             f"  ·  {_profile.ACTIVITY_LABELS.get(current.activity_level, current.activity_level)}"
-            f"\n  [dim]Press Enter at any prompt to keep the current value.[/dim]",
+            f"\n  [grey62]Press Enter at any prompt to keep the current value.[/grey62]",
             highlight=False,
         )
     else:
-        state.console.print(f"\n  [dim]No profile set. Enter your details to get personalized RDA targets.[/dim]")
+        state.console.print(f"\n  [grey62]No profile set. Enter your details to get personalized RDA targets.[/grey62]")
 
     state.console.print()
     try:
@@ -158,7 +158,7 @@ def _do_user_profile() -> None:
                     "male": "male", "female": "female", "other": "other"}
         while True:
             default_sex = current.sex[0] if current else ""
-            raw = _prompt("Sex  [dim](m / f / o)[/dim]", default=default_sex).strip().lower()
+            raw = _prompt("Sex  [grey62](m / f / o)[/grey62]", default=default_sex).strip().lower()
             if not raw and current:
                 sex = current.sex
                 break
@@ -175,7 +175,7 @@ def _do_user_profile() -> None:
             default_w = ""
         while True:
             raw = _prompt(
-                "Weight  [dim](kg or lb, e.g. 80 kg  or  176 lbs)[/dim]",
+                "Weight  [grey62](kg or lb, e.g. 80 kg  or  176 lbs)[/grey62]",
                 default=default_w,
             ).strip()
             if not raw and current:
@@ -198,7 +198,7 @@ def _do_user_profile() -> None:
             default_h = ""
         while True:
             raw = _prompt(
-                "Height  [dim](cm or ft+in, e.g. 178 cm  or  5'10\")[/dim]",
+                "Height  [grey62](cm or ft+in, e.g. 178 cm  or  5'10\")[/grey62]",
                 default=default_h,
             ).strip()
             if not raw and current:
@@ -219,7 +219,7 @@ def _do_user_profile() -> None:
             state.console.print(f"  [{state.T['accent']}]{i}[/{state.T['accent']}]  {label}")
         while True:
             default_act = str(_act_keys.index(current.activity_level) + 1) if current else ""
-            raw = _prompt(f"Activity level  [dim](1–{len(_act_keys)})[/dim]",
+            raw = _prompt(f"Activity level  [grey62](1–{len(_act_keys)})[/grey62]",
                           default=default_act).strip()
             if not raw and current:
                 activity_level = current.activity_level
@@ -234,7 +234,7 @@ def _do_user_profile() -> None:
             state.console.print(f"[{state.T['warning']}]Enter a number 1–{len(_act_keys)}.[/{state.T['warning']}]")
 
     except Cancelled:
-        state.console.print("[dim]Cancelled — profile unchanged.[/dim]")
+        state.console.print("[grey62]Cancelled — profile unchanged.[/grey62]")
         return
 
     new_profile = _profile.UserProfile(
@@ -259,7 +259,7 @@ def _do_view_goals() -> None:
     profile = _profile.load_profile()
     if not profile:
         state.console.print(
-            "\n  [dim]No profile set. Go to Settings → User profile to set your details.[/dim]"
+            "\n  [grey62]No profile set. Go to Settings → User profile to set your details.[/grey62]"
         )
         return
     _print_rda_targets(profile)
@@ -270,13 +270,13 @@ def _do_dietary_prefs() -> None:
     current_label = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
     state.console.print(f"\n  Current setting: [bold]{current_label}[/bold]")
     state.console.print(
-        f"\n  [{state.T['accent']}]1[/{state.T['accent']}] — All animal foods  [dim](meat, fish, dairy, eggs)[/dim]"
-        f"\n  [{state.T['accent']}]2[/{state.T['accent']}] — Vegetarian  [dim](dairy + eggs only)[/dim]"
+        f"\n  [{state.T['accent']}]1[/{state.T['accent']}] — All animal foods  [grey62](meat, fish, dairy, eggs)[/grey62]"
+        f"\n  [{state.T['accent']}]2[/{state.T['accent']}] — Vegetarian  [grey62](dairy + eggs only)[/grey62]"
         f"\n  [{state.T['accent']}]3[/{state.T['accent']}] — Plant-based only"
-        f"\n  [dim]Enter — keep current[/dim]"
+        f"\n  [grey62]Enter — keep current[/grey62]"
     )
     try:
-        ans = _prompt("Change to?  [dim](1 / 2 / 3 / Enter)[/dim]", default="").strip()
+        ans = _prompt("Change to?  [grey62](1 / 2 / 3 / Enter)[/grey62]", default="").strip()
     except Cancelled:
         return
     pref = {"1": "all", "2": "vegetarian", "3": "plant_only"}.get(ans)
@@ -296,13 +296,13 @@ def _get_editor_command() -> str:
 def _do_editor_command() -> None:
     current = str(getattr(state, "_editor_command", "") or "").strip()
     state.console.print(
-        f"\n  [dim]The editor command is used when editing long text fields.\n"
+        f"\n  [grey62]The editor command is used when editing long text fields.\n"
         f"  If unset, the system default ($VISUAL / $EDITOR) is used.\n"
-        f"  Use '-' to clear back to system default.[/dim]\n"
+        f"  Use '-' to clear back to system default.[/grey62]\n"
     )
     try:
         new_val = _prompt(
-            "Editor command  [dim](e.g. nano, vim, code --wait — Enter to keep, '-' to clear)[/dim]",
+            "Editor command  [grey62](e.g. nano, vim, code --wait — Enter to keep, '-' to clear)[/grey62]",
             default=current
         ).strip()
     except Cancelled:
@@ -318,7 +318,7 @@ def _do_editor_command() -> None:
 def _do_launch_display_setting() -> None:
     current = "y" if bool(getattr(state, "_display_program_settings", False)) else "n"
     try:
-        raw = _prompt("Display program settings at program launch?  [dim](y|n)[/dim]", choices=["y", "n"], default=current)
+        raw = _prompt("Display program settings at program launch?  [grey62](y|n)[/grey62]", choices=["y", "n"], default=current)
     except Cancelled:
         return
     setattr(state, "_display_program_settings", raw == "y")
@@ -331,7 +331,7 @@ def _menu_advanced_settings() -> None:
         key_status = f"{_key[:8]}...{_key[-4:]}" if _key else "[bold yellow]not set[/bold yellow]"
         _show_menu("Advanced settings", [
             ("1", "Protein digestibility overrides  (for DIAAS calculation)"),
-            ("2", f"USDA API key  ({key_status})  [dim]· s = show full[/dim]"),
+            ("2", f"USDA API key  ({key_status})  [grey62]· s = show full[/grey62]"),
             ("3", f"Storage location: {_db.get_db_path()}"),
             ("b", "Back to previous menu"),
             ("m", "Return to main menu"),
@@ -379,14 +379,14 @@ def _menu_settings() -> bool:
             ("4", f"Dietary preferences  (current setting: {diet_status})"),
             ("5", f"Editor command  (current setting: {editor_status})"),
             ("6", f"Display program settings at launch  (current setting: {launch_status})"),
-            ("7", "Advanced settings  [dim](API key, storage, protein overrides)[/dim]"),
+            ("7", "Advanced settings  [grey62](API key, storage, protein overrides)[/grey62]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
         try:
             choice = _prompt("Choice").strip().lower()
         except Cancelled:
-            state.console.print("[dim]Cancelled.[/dim]")
+            state.console.print("[grey62]Cancelled.[/grey62]")
             return True
 
         if choice == "1":
@@ -413,21 +413,21 @@ def _menu_settings() -> bool:
 def _do_set_api_key() -> None:
     current = _usda.get_api_key()
     if current:
-        state.console.print(f"  Current key: [dim]{current[:8]}...{current[-4:]}[/dim]")
+        state.console.print(f"  Current key: [grey62]{current[:8]}...{current[-4:]}[/grey62]")
     while True:
         try:
-            key = _prompt("New API key  [dim](Enter = keep · s = show full key)[/dim]", default="").strip()
+            key = _prompt("New API key  [grey62](Enter = keep · s = show full key)[/grey62]", default="").strip()
         except Cancelled:
             return
         if key.lower() == "s":
             if current:
                 state.console.print(f"  Full key: [bold]{current}[/bold]")
             else:
-                state.console.print("  [dim](No API key set.)[/dim]")
+                state.console.print("  [grey62](No API key set.)[/grey62]")
             continue
         if key:
             _usda.set_api_key(key)
             state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] API key saved.")
         else:
-            state.console.print("[dim]Unchanged.[/dim]")
+            state.console.print("[grey62]Unchanged.[/grey62]")
         return

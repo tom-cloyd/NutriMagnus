@@ -34,7 +34,10 @@ def _load_input_history() -> None:
     if _HISTORY_FILE.exists():
         try:
             entries = _HISTORY_FILE.read_text().splitlines()
-            _input_history.extend(e for e in entries if e)
+            # Skip single-char entries — they are navigation keys (b/m/q/y/n), never
+            # useful to recall, and pollute history so up-arrow retrieves them instead
+            # of real search terms.
+            _input_history.extend(e for e in entries if len(e) > 1)
             if len(_input_history) > 1000:
                 del _input_history[:-1000]
         except OSError:
@@ -42,8 +45,8 @@ def _load_input_history() -> None:
 
 
 def _append_input_history(entry: str) -> None:
-    if not entry:
-        return
+    if len(entry) <= 1:
+        return  # single-char nav keys (b/m/q/y/n) are not worth recalling
     if _input_history and _input_history[-1] == entry:
         return  # skip consecutive duplicates
     _input_history.append(entry)
@@ -90,13 +93,13 @@ def _show_help(ref: str) -> None:
         import manual as _manual
         _manual.show(ref)
     except Exception:
-        state.console.print(f"  [dim]Help not available.[/dim]")
+        state.console.print(f"  [grey62]Help not available.[/grey62]")
 
 
 def _hint(n: int) -> str:
     """Quick-select hint for a numbered result list of n items (n should be ≤ 9)."""
     if n > 1:
-        return f"/1–{n} to pick · Enter to choose · Esc=cancel"
+        return f"#1–{n} to pick · Enter to choose · Esc=cancel"
     return "Enter to select · Esc=cancel"
 
 
@@ -104,7 +107,7 @@ def _prompt(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[str] 
     """Unified input primitive. choices=list enables single-keypress mode (only listed chars accepted).
     free_text=True uses readline so arrow-keys/editing work. prefill=True pre-populates with default.
     two_line=True (requires prefill=True) prints the label on its own line and the editable value below.
-    slash_max=N enables /1–N quick-select in the free-text loop (type / then a digit to pick instantly).
+    slash_max=N enables #1–N quick-select in the free-text loop (type # then a digit to pick instantly).
     allow_empty=True lets a prefill prompt return "" when the user clears the field entirely.
     Raises Cancelled on Ctrl+C / Escape. Never use bare input() — always use this.
     In interactive (tty) mode, any input starting with ? performs a manual lookup and re-prompts."""
@@ -130,13 +133,6 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
             raise Cancelled
 
     if prefill and default is not _NO_DEFAULT and default not in ("", None) and not choices:
-        if two_line:
-            state.console.print(f"  {prompt_text}:", highlight=False)
-            # No separate indent print — input() owns the indent so readline
-            # knows the prompt length and keeps cursor arithmetic correct.
-        else:
-            state.console.print(f"{prompt_text}: ", end="", highlight=False)
-        sys.stdout.flush()
         _prefill_text = str(default)
 
         def _hook() -> None:
@@ -144,11 +140,20 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
             readline.redisplay()
 
         readline.set_pre_input_hook(_hook)
-        _input_prompt = "  " if two_line else ""
+        if two_line:
+            state.console.print(f"  {prompt_text}:", highlight=False)
+            _input_prompt = "  "
+        else:
+            # Pass the prompt directly to input() so readline knows the exact
+            # column position — pre-printing then calling input("") lets backspace
+            # erase the label once the prefilled text is cleared.
+            import re as _re
+            _input_prompt = _re.sub(r'\[/?[^\]]*\]', '', str(prompt_text)) + ": "
         try:
             result = input(_input_prompt)
         except (KeyboardInterrupt, EOFError):
-            state.console.print()
+            sys.stdout.write("\n")
+            sys.stdout.flush()
             raise Cancelled
         finally:
             readline.set_pre_input_hook(None)
@@ -254,8 +259,8 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                     sys.stdout.write("\b \b")
                     sys.stdout.flush()
                 continue
-            if ch == "/" and slash_max > 0:
-                sys.stdout.write("/")
+            if ch == "#" and slash_max > 0:
+                sys.stdout.write("#")
                 sys.stdout.flush()
                 try:
                     ch2 = sys.stdin.read(1)
@@ -266,7 +271,7 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                     state.console.print()
                     raise Cancelled
                 if ch2 == "\x1b":
-                    # Restore: erase the "/" and drain any trailing escape bytes
+                    # Restore: erase the "#" and drain any trailing escape bytes
                     sys.stdout.write("\b \b")
                     sys.stdout.flush()
                     _read_escape_seq()
@@ -275,9 +280,9 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                     sys.stdout.write(ch2)
                     sys.stdout.flush()
                     state.console.print()
-                    return f"/{ch2}"
-                # Not a valid quick-pick: keep "/" in buf and handle ch2 normally
-                buf.append("/")
+                    return f"#{ch2}"
+                # Not a valid quick-pick: keep "#" in buf and handle ch2 normally
+                buf.append("#")
                 if ch2 in ("\r", "\n"):
                     state.console.print()
                     break

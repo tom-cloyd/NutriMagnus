@@ -1,8 +1,8 @@
-# NutriMagnus — Nutritional Analysis Program documentataion
+# NutriMagnus — Nutritional Analysis Program documentation
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-06-10:2230
+UPDATED: 2026-06-12:2230
 ---
 
 ## Table of Contents
@@ -274,9 +274,9 @@ Lists saved recipes and allows the user to select one by ID. After choosing a po
 
 Search for a food, then enter either a volume (e.g. `1 cup`) or a weight (e.g. `200 g`). The program returns the equivalent in the other unit using USDA portion data or estimated density. No nutritional analysis is performed; this is a measurement conversion tool for recipe development.
 
-**5. Compare foods (side-by-side nutrient table, up to 4)**
+**5. Compare foods (side-by-side nutrient table, up to 8)**
 
-Select two to four foods (by search or cache pick, each with its own portion choice) and view them in a side-by-side nutrient table. The header lists each food's name and FDC ID. Columns cover all nutrient groups; rows with no data in any column are suppressed. Useful for choosing between protein sources, evaluating substitutions, or comparing branded variants.
+Select two to eight foods (by search or cache pick, each with its own portion choice) and view them in a side-by-side nutrient table. The header lists each food's name and FDC ID. Columns cover all nutrient groups; rows with no data in any column are suppressed. Useful for choosing between protein sources, evaluating substitutions, or comparing branded variants.
 
 **6. Food Cache (view, edit, delete foods you have looked up)**
 

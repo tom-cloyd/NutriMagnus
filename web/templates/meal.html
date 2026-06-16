@@ -39,14 +39,22 @@
   </a>
   {% endif %}
 
-  {# Rename (inline collapsible) #}
+  {# Rename / change date (inline collapsible) #}
   <details class="d-inline-block">
-    <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Rename</summary>
-    <div class="card card-body mt-1 p-2" style="min-width:18rem;position:absolute;z-index:10">
-      <form method="post" action="/meal/{{ meal.id }}/rename" class="d-flex gap-2">
-        <input type="text" name="name" class="form-control form-control-sm"
-               value="{{ meal.name }}" required style="flex:1">
-        <button type="submit" class="btn btn-sm btn-primary">Save name</button>
+    <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Rename / change date</summary>
+    <div class="card card-body mt-1 p-2" style="min-width:22rem;position:absolute;z-index:10">
+      <form method="post" action="/meal/{{ meal.id }}/rename">
+        <div class="mb-2">
+          <label class="form-label form-label-sm mb-1">Meal name</label>
+          <input type="text" name="name" class="form-control form-control-sm"
+                 value="{{ meal.name }}" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label form-label-sm mb-1">Date</label>
+          <input type="date" name="meal_date" class="form-control form-control-sm"
+                 value="{{ meal.meal_date }}" required>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Save changes</button>
       </form>
     </div>
   </details>
@@ -275,7 +283,8 @@
         <th>Nutrient</th>
         <th class="num-col">Total</th>
         <th>Unit</th>
-        {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
+        {% if has_profile %}<th class="num-col">meal %</th>{% endif %}
+        {% if has_day_pct %}<th class="num-col">day total %</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -291,11 +300,24 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
+        {% if has_day_pct %}
+        <td class="num-col">
+          {% if row.day_pct is not none %}
+          <span class="{{ row.day_rda_css }}">{{ row.day_pct | int }}%</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% endfor %}
+  {% if has_profile %}
+  <p class="muted mt-2"><small>
+    <strong>meal %</strong> = this meal &divide; daily goal &nbsp;&middot;&nbsp;
+    <strong>day total %</strong> = all meals logged today &divide; daily goal
+  </small></p>
+  {% endif %}
 </details>
 {% endif %}
 

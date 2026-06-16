@@ -69,4 +69,4 @@ def _change_theme() -> None:
         state.set_theme(actual, state.THEMES[actual])
         state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Theme set to [bold]{selected}[/bold].")
     else:
-        state.console.print("[dim]Theme unchanged.[/dim]")
+        state.console.print("[grey62]Theme unchanged.[/grey62]")

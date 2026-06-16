@@ -58,7 +58,9 @@
       "Bash(python -m uvicorn web.backend:app --port 8000 --reload)",
       "Bash(pkill -f uvicorn)",
       "Bash(kill 399595)",
-      "Bash(kill 419259)"
+      "Bash(kill 419259)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -s -o /dev/null -w * http://localhost:*)"
     ]
   }
 }

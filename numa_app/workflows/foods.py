@@ -11,9 +11,9 @@ from .. import state
 import db as _db
 import usda as _usda
 from ..services.portions import _pick_portion, _parse_portion_input
-from ..services.search import _search_and_pick_food, _suggest_foundation_search, _fetch_food_from_result
+from ..services.search import _search_and_pick_food, _suggest_foundation_search, _fetch_food_from_result, _parse_hash_pick
 from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options, dot_cell, table_title, table_footer, help_footer
-from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
+from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _ask_float, _prompt
 from ..ui.render import _print_bioavailability, _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness
 from ..services.annotations import annotate_food_interactive
 from ..services.reports import _offer_export
@@ -29,7 +29,7 @@ def _menu_foods() -> bool:
             ("2", "Analyze a food portion"),
             ("3", "Analyze a saved recipe portion"),
             ("4", "Convert a portion <==> weight  (volume/weight, no analysis)"),
-            ("5", "Compare foods  (side-by-side nutrient table, up to 4)"),
+            ("5", "Compare foods  (side-by-side nutrient table, up to 8)"),
             ("6", "Food Cache  (foods you have looked up: view, manage, get additional information)"),
             ("7", "My pantry  (foods you have on hand)"),
             ("8", "Custom food profiles  (create and edit your own food data)"),
@@ -40,7 +40,7 @@ def _menu_foods() -> bool:
         try:
             choice = _prompt("Choice").strip().lower()
         except Cancelled:
-            state.console.print("[dim]Cancelled.[/dim]")
+            state.console.print("[grey62]Cancelled.[/grey62]")
             return True
 
         if choice == "1":
@@ -72,7 +72,7 @@ def _menu_foods() -> bool:
 def _do_food_search() -> None:
     try:
         query = _prompt(
-            "Search food or recipe  [dim](name · FDC ID · barcode · b=back · dout <id…>=output data)[/dim]",
+            "Search food or recipe  [grey62](name · FDC ID · barcode · b=back · dout <id…>=output data)[/grey62]",
             free_text=True,
         ).strip()
     except Cancelled:
@@ -112,7 +112,7 @@ def _do_food_search() -> None:
                                       base_food_name=aa_food["name"])
 
     try:
-        ans = _prompt("Analyze a portion of this food?  [dim](y/N)[/dim]",
+        ans = _prompt("Analyze a portion of this food?  [grey62](y/N)[/grey62]",
                       choices=["y", "n"], default="n")
     except Cancelled:
         return
@@ -134,7 +134,7 @@ def _do_food_search() -> None:
 def _do_analyze_food_portion() -> None:
     try:
         query = _prompt(
-            "Search food or recipe  [dim](name · FDC ID · barcode · b=back)[/dim]",
+            "Search food or recipe  [grey62](name · FDC ID · barcode · b=back)[/grey62]",
             free_text=True,
         ).strip()
     except Cancelled:
@@ -167,7 +167,7 @@ def _do_analyze_food_portion() -> None:
         scaled = {k: v * factor for k, v in combined.items()}
         food_name = food["name"]
         state.console.print(
-            "  [dim]Note: for per-ingredient digestibility breakdown (TID table), use Recipes → Browse / analyze recipe.[/dim]",
+            "  [grey62]Note: for per-ingredient digestibility breakdown (TID table), use Recipes → Browse / analyze recipe.[/grey62]",
             highlight=False,
         )
         _print_nutrient_table(scaled, title=food_name, per_label=label)
@@ -243,7 +243,7 @@ def _do_convert_portion() -> None:
 
     state.console.print(f"\n  Food: [bold]{food_name}[/bold]")
     if density is not None:
-        state.console.print(f"  [dim]Weight: {density:.3f} g/ml[/dim]")
+        state.console.print(f"  [grey62]Weight: {density:.3f} g/ml[/grey62]")
     state.console.print(f"  Enter an amount, for example: 150 (g/gr), 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)")
 
     prompt_text = "Amount  (b=back, m=main, q=quit)"
@@ -271,7 +271,7 @@ def _do_convert_portion() -> None:
         grams, label = result
         if grams is None:
             vol_display = label
-            state.console.print(f"  [dim]Weight per volume is unknown for this food. Weigh your portion to continue.[/dim]")
+            state.console.print(f"  [grey62]Weight per volume is unknown for this food. Weigh your portion to continue.[/grey62]")
             try:
                 w_raw = _prompt(f"Weight of {vol_display} in grams  (e.g. 140 g · Enter=skip, b=back)", free_text=True).strip()
             except Cancelled:
@@ -337,9 +337,9 @@ def _do_analyze_recipe_portion() -> None:
             highlight=False,
         )
         state.console.print(
-            "  [dim]Recipe ingredients lack USDA amino acid records. If this recipe relies "
+            "  [grey62]Recipe ingredients lack USDA amino acid records. If this recipe relies "
             "mainly on plant proteins, consider pairing with a complementary source "
-            "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/dim]",
+            "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/grey62]",
             highlight=False,
         )
 
@@ -415,7 +415,7 @@ def _print_food_comparison(entries: list[dict]) -> None:
             cells = []
             for v in vals:
                 if v <= 0:
-                    cells.append("[dim]—[/dim]")
+                    cells.append("[grey62]—[/grey62]")
                 elif v == max_val:
                     cells.append(f"[{state.T['success']}]{v:.2f}[/{state.T['success']}]")
                 else:
@@ -426,7 +426,7 @@ def _print_food_comparison(entries: list[dict]) -> None:
     state.console.print(tbl)
     table_footer(
         f"  [{state.T['success']}]Highlighted[/{state.T['success']}]"
-        f" [dim]= highest in row   —  = no data for this food[/dim]"
+        f" [grey62]= highest in row   —  = no data for this food[/grey62]"
     )
 
 
@@ -445,8 +445,8 @@ def _do_compare_foods() -> None:
         for i, s in enumerate(saved, 1):
             import json as _json
             n_foods = len(_json.loads(s["fdc_ids"]))
-            state.console.print(f"    [{state.T['accent']}]{i}.[/{state.T['accent']}]  {s['name']}  [dim]({n_foods} foods · {s['created_at'][:10]})[/dim]")
-        state.console.print(f"  [dim]Type a number to load a saved list, or press Enter to start fresh.[/dim]")
+            state.console.print(f"    [{state.T['accent']}]{i}.[/{state.T['accent']}]  {s['name']}  [grey62]({n_foods} foods · {s['created_at'][:10]})[/grey62]")
+        state.console.print(f"  [grey62]Type a number to load a saved list, or press Enter to start fresh.[/grey62]")
         try:
             raw_s = _prompt("  Load saved list").strip()
         except Cancelled:
@@ -479,6 +479,31 @@ def _do_compare_foods() -> None:
             else:
                 state.console.print(f"  [{state.T['warning']}]No saved list #{raw_s}.[/{state.T['warning']}]")
 
+    def _add_food_to_entries(food: dict) -> bool:
+        """Prompt for portion and append to entries. Returns True if added."""
+        if food.get("_type") == "recipe":
+            from .recipes import _get_recipe_total_nutrients, _pick_recipe_portion
+            recipe, _, combined = _get_recipe_total_nutrients(food["id"])
+            if recipe is None or not combined:
+                state.console.print(
+                    f"  [{state.T['warning']}]Recipe has no analyzable ingredients.[/{state.T['warning']}]"
+                )
+                return False
+            portion = _pick_recipe_portion(recipe)
+            if portion is None:
+                return False
+            servings, label = portion
+            factor = servings / (recipe["servings"] or 1)
+            scaled = {k: v * factor for k, v in combined.items()}
+            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled, "fdc_id": None})
+        else:
+            result = _pick_portion(food)
+            if result is None:
+                return False
+            grams, label, scaled = result
+            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled, "fdc_id": food.get("fdcId")})
+        return True
+
     while len(entries) < MAX:
         n = len(entries)
         state.console.print()
@@ -488,12 +513,14 @@ def _do_compare_foods() -> None:
             )
         else:
             names = "  ·  ".join(e["name"] for e in entries)
-            state.console.print(f"  [dim]Added: {names}[/dim]")
+            state.console.print(f"  [grey62]Added: {names}[/grey62]")
 
+        remaining = MAX - n
         if n >= 1 and last_results:
-            hint = "  [dim](# to re-pick from last results · new query to search again · Enter to compare)[/dim]"
+            _repick_hint = f"#N · #N–M · #N,M,... · mixed (#4-7,9) (1–{len(last_results)})"
+            hint = f"  [grey62](re-pick from last results: {_repick_hint} · new query to search again · Enter to compare)[/grey62]"
         elif n >= 2:
-            hint = "  [dim](Enter to compare)[/dim]"
+            hint = "  [grey62](Enter to compare)[/grey62]"
         else:
             hint = ""
         try:
@@ -513,20 +540,24 @@ def _do_compare_foods() -> None:
         if rl == "q":
             raise SystemExit(0)
 
-        # Re-pick by number from the last search results (no new API call)
-        if last_results and raw.isdigit():
-            idx = int(raw) - 1
-            if 0 <= idx < len(last_results):
-                food: dict | None = _fetch_food_from_result(last_results[idx])
-                if food is None:
-                    state.console.print(f"[{state.T['warning']}]Could not load that food.[/{state.T['warning']}]")
-                    continue
-            else:
+        # Re-pick by number(s) from the last search results (no new API call)
+        if last_results and (raw.isdigit() or raw.startswith("#")):
+            pick_str = raw if raw.startswith("#") else f"#{raw}"
+            indices = _parse_hash_pick(pick_str, len(last_results))
+            if indices is None:
                 state.console.print(
-                    f"[{state.T['warning']}]Number out of range — "
-                    f"last search had {len(last_results)} results.[/{state.T['warning']}]"
+                    f"  [{state.T['warning']}]Use #N, #N–M, #N,M,... or mixed — numbers 1–{len(last_results)}[/{state.T['warning']}]"
                 )
                 continue
+            for idx in indices:
+                if len(entries) >= MAX:
+                    state.console.print(f"  [grey62](Comparison limit of {MAX} reached — stopping here.)[/grey62]")
+                    break
+                food = _fetch_food_from_result(last_results[idx])
+                if food is None:
+                    state.console.print(f"  [{state.T['warning']}]Could not load #{idx + 1}.[/{state.T['warning']}]")
+                    continue
+                _add_food_to_entries(food)
         else:
             # New search — result_out keeps the displayed list for future re-picks
             with _db.get_db() as conn:
@@ -536,33 +567,15 @@ def _do_compare_foods() -> None:
                 [r for r in all_recipes if any(w in r["name"].lower() for w in words)],
                 key=lambda r: (-sum(1 for w in words if w in r["name"].lower()), r["name"].lower()),
             )
-            food = _search_and_pick_food(
-                initial_query=raw, prepend_recipes=matching or None, result_out=last_results
+            foods = _search_and_pick_food(
+                initial_query=raw, prepend_recipes=matching or None,
+                result_out=last_results, multi_select=True,
             )
-            if food is None:
-                continue
-
-        if food.get("_type") == "recipe":
-            from .recipes import _get_recipe_total_nutrients, _pick_recipe_portion
-            recipe, _, combined = _get_recipe_total_nutrients(food["id"])
-            if recipe is None or not combined:
-                state.console.print(
-                    f"[{state.T['warning']}]Recipe has no analyzable ingredients.[/{state.T['warning']}]"
-                )
-                continue
-            portion = _pick_recipe_portion(recipe)
-            if portion is None:
-                continue
-            servings, label = portion
-            factor = servings / (recipe["servings"] or 1)
-            scaled = {k: v * factor for k, v in combined.items()}
-            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled, "fdc_id": None})
-        else:
-            result = _pick_portion(food)
-            if result is None:
-                continue
-            grams, label, scaled = result
-            entries.append({"name": food["name"], "label": f"{food['name']} ({label})", "nutrients": scaled, "fdc_id": food.get("fdcId")})
+            for food in (foods or []):
+                if len(entries) >= MAX:
+                    state.console.print(f"  [grey62](Comparison limit of {MAX} reached — stopping here.)[/grey62]")
+                    break
+                _add_food_to_entries(food)
 
     if len(entries) < 2:
         if entries:
@@ -578,7 +591,7 @@ def _do_compare_foods() -> None:
     if food_entries:
         try:
             save_name = _prompt(
-                "Save this food list?  [dim](Enter a name to save · Enter/b=skip)[/dim]",
+                "Save this food list?  [grey62](Enter a name to save · Enter/b=skip)[/grey62]",
                 free_text=True,
             ).strip()
         except Cancelled:
@@ -695,7 +708,7 @@ def _claude_parse_response(text: str) -> tuple[list[dict], str | None]:
 
     if not blocks:
         # Fallback: bare JSON objects — brace-match to find each top-level { }
-        state.console.print("  [dim]No fenced JSON blocks found — scanning for bare JSON objects…[/dim]")
+        state.console.print("  [grey62]No fenced JSON blocks found — scanning for bare JSON objects…[/grey62]")
         i = 0
         while i < len(text):
             if text[i] != "{":
@@ -783,7 +796,7 @@ def _claude_validate_block(block: dict, idx: int) -> dict | None:
 
     if stripped:
         state.console.print(
-            f"  [dim]Block {idx} ({name!r}): stripped unrecognised keys: {', '.join(stripped)}[/dim]"
+            f"  [grey62]Block {idx} ({name!r}): stripped unrecognised keys: {', '.join(stripped)}[/grey62]"
         )
 
     return {
@@ -935,15 +948,15 @@ def _do_claude_fetch(foods: list, rest: str) -> None:
             state.console.print(f"    [{tag}]  {name}")
         state.console.print()
         state.console.print(
-            "  [dim]Tip: use /filter to narrow the list first, then type i to "
-            "fetch only the foods you want.[/dim]"
+            "  [grey62]Tip: use /filter to narrow the list first, then type i to "
+            "fetch only the foods you want.[/grey62]"
         )
         try:
             ans = _prompt("  Generate prompt for all of these?", choices=["y", "n"], default="n")
         except Cancelled:
             return
         if ans != "y":
-            state.console.print("  [dim]Cancelled — use i# or iFDCID,FDCID to select specific foods.[/dim]")
+            state.console.print("  [grey62]Cancelled — use i# or iFDCID,FDCID to select specific foods.[/grey62]")
             return
         selected = candidates
 
@@ -962,12 +975,12 @@ def _do_claude_fetch(foods: list, rest: str) -> None:
     state.console.print("    [bold]2.[/bold]  Go to [bold]claude.ai[/bold] — open a [bold]new chat[/bold] (not an existing one),")
     state.console.print("           paste the prompt, and send.")
     state.console.print("    [bold]3.[/bold]  When Claude finishes, copy its reply.")
-    state.console.print("           [dim]All foods should appear in one response. If Claude splits across[/dim]")
-    state.console.print("           [dim]multiple replies, copy each one and paste them together.[/dim]")
+    state.console.print("           [grey62]All foods should appear in one response. If Claude splits across[/grey62]")
+    state.console.print("           [grey62]multiple replies, copy each one and paste them together.[/grey62]")
     state.console.print("           Paste into a text editor and save as:")
     state.console.print(f"           [bold]{_CLAUDE_RESPONSE_FILE}[/bold]")
     state.console.print("    [bold]4.[/bold]  Return here and type [bold]r[/bold] to import the data.")
-    state.console.print(f"  [dim]Type ?fetch for full instructions.[/dim]")
+    state.console.print(f"  [grey62]Type ?fetch for full instructions.[/grey62]")
     state.console.print()
 
 
@@ -998,7 +1011,7 @@ def _do_claude_import() -> None:
     if curator_text:
         state.console.print(
             f"\n  [{state.T['hi']}]Curator notes found[/{state.T['hi']}]"
-            f" [dim](will be stored with each imported food — view with n#)[/dim]"
+            f" [grey62](will be stored with each imported food — view with n#)[/grey62]"
         )
 
     if not valid:
@@ -1023,7 +1036,7 @@ def _do_claude_import() -> None:
             f"{aa_n}/11",
         )
     from ..ui.common import table_title
-    table_title("FOODS TO IMPORT", f"[dim]{len(valid)} food(s) from Claude response[/dim]")
+    table_title("FOODS TO IMPORT", f"[grey62]{len(valid)} food(s) from Claude response[/grey62]")
     state.console.print(tbl)
     state.console.print()
 
@@ -1032,7 +1045,7 @@ def _do_claude_import() -> None:
     except Cancelled:
         return
     if ans != "y":
-        state.console.print("  [dim]Import cancelled.[/dim]")
+        state.console.print("  [grey62]Import cancelled.[/grey62]")
         return
 
     with _db.get_db() as conn:
@@ -1063,7 +1076,7 @@ def _do_annotate_food() -> None:
         with _db.get_db() as conn:
             all_foods = _db.list_cached_foods(conn)
         if not all_foods:
-            state.console.print("[dim]No foods cached yet — search for a food first.[/dim]")
+            state.console.print("[grey62]No foods cached yet — search for a food first.[/grey62]")
             return
 
         foods = (
@@ -1083,14 +1096,14 @@ def _do_annotate_food() -> None:
 
         from ..ui.common import table_title, table_footer
         title_note = (
-            f"[dim]{len(foods)} match · /text to filter[/dim]"
+            f"[grey62]{len(foods)} match · /text to filter[/grey62]"
             if filter_text else
-            f"[dim]{len(all_foods)} foods · /text to filter[/dim]"
+            f"[grey62]{len(all_foods)} foods · /text to filter[/grey62]"
         )
         table_title("ANNOTATE CACHED FOOD", title_note)
         state.console.print(tbl)
         table_footer(
-            "  [dim]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/dim]",
+            "  [grey62]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/grey62]",
         )
 
         try:
@@ -1119,6 +1132,101 @@ def _do_annotate_food() -> None:
         annotate_food_interactive(row["fdc_id"], row["name"])
 
 
+def _do_edit_portions(fdc_id: int, food_name: str) -> None:
+    """Interactively add or remove custom portions for a cached food."""
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        state.console.print(f"[{state.T['error']}]Food not found in cache.[/{state.T['error']}]")
+        return
+
+    portions = json.loads(cached["portions_json"] or "[]") or []
+
+    while True:
+        state.console.print(f"\n  [{state.T['hi']}]Portions — {food_name}[/{state.T['hi']}]")
+        if portions:
+            for i, p in enumerate(portions, 1):
+                state.console.print(f"    [{state.T['accent']}]{i}[/{state.T['accent']}]  {p['description']}  [grey62]{p['gram_weight']:.4g}g[/grey62]")
+        else:
+            state.console.print("    [grey62]No portions defined.[/grey62]")
+
+        try:
+            choice = _prompt_with_options(
+                "Edit portions",
+                [
+                    ("c", "Add cup weight — enables cup / tbsp / tsp measures"),
+                    ("p", "Add piece weight — e.g. 1 slice, 1 clove, 1 tablet"),
+                    ("x", "Add custom portion"),
+                    ("r", "Remove a portion  (e.g. r2)"),
+                    ("d", "Done"),
+                ],
+                default="d",
+            )
+        except Cancelled:
+            return
+        if choice == "d":
+            return
+
+        if choice == "c":
+            g = _ask_float(f"Grams per 1 cup of {food_name}")
+            if g and g > 0:
+                portions.append({"description": "1 cup", "gram_weight": round(g, 1)})
+                with _db.get_db() as conn:
+                    _db.update_food_portions(conn, fdc_id, portions)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved.")
+
+        elif choice == "p":
+            try:
+                unit = _prompt(
+                    "Unit name (e.g. piece, slice, clove, tablet)",
+                    default="piece", free_text=True,
+                ).strip() or "piece"
+            except Cancelled:
+                continue
+            g = _ask_float(f"Grams per 1 {unit} of {food_name}")
+            if g and g > 0:
+                portions.append({"description": f"1 {unit}", "gram_weight": round(g, 1)})
+                with _db.get_db() as conn:
+                    _db.update_food_portions(conn, fdc_id, portions)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved.")
+
+        elif choice == "x":
+            try:
+                desc = _prompt("Portion description (e.g. '1 tbsp', '2 oz bar')", free_text=True).strip()
+            except Cancelled:
+                continue
+            if not desc:
+                continue
+            g = _ask_float(f"Grams for '{desc}'")
+            if g and g > 0:
+                portions.append({"description": desc, "gram_weight": round(g, 1)})
+                with _db.get_db() as conn:
+                    _db.update_food_portions(conn, fdc_id, portions)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved.")
+
+        elif choice.startswith("r"):
+            idx_str = choice[1:].strip()
+            if not idx_str:
+                try:
+                    idx_str = _prompt("Remove portion number").strip()
+                except Cancelled:
+                    continue
+            try:
+                idx = int(idx_str) - 1
+                if idx < 0 or idx >= len(portions):
+                    raise ValueError
+            except ValueError:
+                state.console.print(f"[{state.T['warning']}]Enter a valid portion number.[/{state.T['warning']}]")
+                continue
+            removed = portions.pop(idx)
+            with _db.get_db() as conn:
+                _db.update_food_portions(conn, fdc_id, portions)
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {removed['description']}.")
+
+        else:
+            state.console.print(f"[{state.T['warning']}]Unrecognized — use c, p, x, r, or b.[/{state.T['warning']}]")
+
+
 def _do_list_cached_foods() -> None:
     filter_text: str | None = None
     show_table = True
@@ -1126,7 +1234,7 @@ def _do_list_cached_foods() -> None:
         with _db.get_db() as conn:
             all_foods = _db.list_cached_foods(conn)
         if not all_foods:
-            state.console.print("[dim]No foods cached yet.[/dim]")
+            state.console.print("[grey62]No foods cached yet.[/grey62]")
             return
 
         if filter_text:
@@ -1175,42 +1283,43 @@ def _do_list_cached_foods() -> None:
 
             if filter_text:
                 table_title("CACHED FOODS",
-                            f"[dim]{len(foods)} match for '[bold]{filter_text}[/bold]' "
-                            f"({len(all_foods)} total) — enter / to clear filter[/dim]")
+                            f"[grey62]{len(foods)} match for '[bold]{filter_text}[/bold]' "
+                            f"({len(all_foods)} total) — enter / to clear filter[/grey62]")
             else:
                 table_title("CACHED FOODS",
-                            f"[dim]{len(all_foods)} foods — enter /text to filter by name[/dim]")
+                            f"[grey62]{len(all_foods)} foods — enter /text to filter by name[/grey62]")
 
             state.console.print(tbl)
             table_footer(
-                f"  [dim]C = source/confidence note  ·  N = curator notes  ·  {ID_KEY}[/dim]"
+                f"  [grey62]C = source/confidence note  ·  N = curator notes  ·  {ID_KEY}[/grey62]"
             )
             help_footer("cached", "fetch")
 
             state.console.print()
             state.console.print(f"  [{state.T['hi']}]Options:[/{state.T['hi']}]")
-            state.console.print( "    [bold]v[/bold]    View nutrients only          [dim](e.g. v3)[/dim]")
-            state.console.print( "    [bold]n[/bold]    View nutrients + all notes   [dim](e.g. n3 — nutrients, source, curator)[/dim]")
-            state.console.print( "    [bold]c[/bold]    Confidence/source note only  [dim](e.g. c3)[/dim]")
-            state.console.print( "    [bold]a[/bold]    Analyze portion              [dim](e.g. a3)[/dim]")
-            state.console.print( "    [bold]e[/bold]    Edit food data               [dim](e.g. e3)[/dim]")
-            state.console.print( "    [bold]d[/bold]    Delete from cache            [dim](e.g. d3  d1,4,7)[/dim]", highlight=False)
-            state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [dim](i alone = list foods missing AA data · i3  i1,4,7  iFDCID,FDCID · ?fetch)[/dim]", highlight=False)
-            state.console.print( "    [bold]r[/bold]    Read Claude response         [dim](import ~/claude_response.txt)[/dim]")
-            state.console.print( "    [bold]l[/bold]    List  [dim](re-display this table)[/dim]")
-            state.console.print( "    [dim]/ to filter  ·  Enter=re-list  ·  b=back  m=main  q=quit[/dim]")
+            state.console.print( "    [bold]v[/bold]    View nutrients only          [grey62](e.g. v3)[/grey62]")
+            state.console.print( "    [bold]n[/bold]    View nutrients + all notes   [grey62](e.g. n3 — nutrients, source, curator)[/grey62]")
+            state.console.print( "    [bold]c[/bold]    Confidence/source note only  [grey62](e.g. c3)[/grey62]")
+            state.console.print( "    [bold]a[/bold]    Analyze portion              [grey62](e.g. a3)[/grey62]")
+            state.console.print( "    [bold]e[/bold]    Edit food data               [grey62](e.g. e3)[/grey62]")
+            state.console.print( "    [bold]p[/bold]    Edit portions                [grey62](e.g. p3 — add cup/piece/custom weights)[/grey62]")
+            state.console.print( "    [bold]d[/bold]    Delete from cache            [grey62](e.g. d3  d1,4,7)[/grey62]", highlight=False)
+            state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [grey62](i alone = list foods missing AA data · i3  i1,4,7  iFDCID,FDCID · ?fetch)[/grey62]", highlight=False)
+            state.console.print( "    [bold]r[/bold]    Read Claude response         [grey62](import ~/claude_response.txt)[/grey62]")
+            state.console.print( "    [bold]l[/bold]    List  [grey62](re-display this table)[/grey62]")
+            state.console.print( "    / to filter  ·  Enter=re-list  ·  b=back  m=main  q=quit", highlight=False)
             show_table = False
         else:
             if filter_text:
                 state.console.print(
-                    f"\n  [dim]Cache — {len(foods)} of {len(all_foods)} foods"
+                    f"\n  [grey62]Cache — {len(foods)} of {len(all_foods)} foods"
                     f" · filter: '{filter_text}'"
-                    f" · v# c# n# a# e# d# i# r · l=list · /filter · b=back[/dim]"
+                    f" · v# c# n# a# e# p# d# i# r · l=list · /filter · b=back[/grey62]"
                 )
             else:
                 state.console.print(
-                    f"\n  [dim]Cache — {len(all_foods)} foods"
-                    f" · v# c# n# a# e# d# i# r · l=list · /filter · b=back[/dim]"
+                    f"\n  [grey62]Cache — {len(all_foods)} foods"
+                    f" · v# c# n# a# e# p# d# i# r · l=list · /filter · b=back[/grey62]"
                 )
 
         try:
@@ -1255,12 +1364,12 @@ def _do_list_cached_foods() -> None:
             to_delete = [foods[i] for i in indices]
             if len(to_delete) == 1:
                 confirm_msg = (f"Delete [bold]{to_delete[0]['name']}[/bold] from cache?  "
-                               f"[dim]Recipes using it will need to re-fetch.  (y/N)[/dim]")
+                               f"[grey62]Recipes using it will need to re-fetch.  (y/N)[/grey62]")
             else:
                 preview = "\n".join(f"  · {f['name']}" for f in to_delete[:5])
                 if len(to_delete) > 5:
                     preview += f"\n  · … and {len(to_delete) - 5} more"
-                confirm_msg = (f"Delete {len(to_delete)} foods from cache?  [dim](y/N)[/dim]\n"
+                confirm_msg = (f"Delete {len(to_delete)} foods from cache?  [grey62](y/N)[/grey62]\n"
                                + preview)
             try:
                 confirm = _prompt(confirm_msg, default="n").strip().lower()
@@ -1291,6 +1400,18 @@ def _do_list_cached_foods() -> None:
             show_table = True
             continue
 
+        if cmd == "p" and rest:
+            try:
+                idx = int(rest) - 1
+                if idx < 0 or idx >= len(foods):
+                    raise ValueError
+            except ValueError:
+                state.console.print(f"[{state.T['warning']}]Enter a list number after p (e.g. p3).[/{state.T['warning']}]")
+                continue
+            row = foods[idx]
+            _do_edit_portions(row["fdc_id"], row["name"])
+            continue
+
         if cmd in ("v", "c", "a", "e", "n") and rest:
             try:
                 idx = int(rest) - 1
@@ -1315,7 +1436,7 @@ def _do_list_cached_foods() -> None:
                     state.console.print(f"  {cached['notes']}")
                     state.console.print()
                 else:
-                    state.console.print("  [dim]No confidence note for this food.[/dim]")
+                    state.console.print("  [grey62]No confidence note for this food.[/grey62]")
                 continue
 
             if cmd == "n":
@@ -1330,7 +1451,7 @@ def _do_list_cached_foods() -> None:
                     state.console.print(f"  {cached['notes']}")
                     state.console.print()
                 else:
-                    state.console.print("  [dim]No source/confidence note for this food.[/dim]")
+                    state.console.print("  [grey62]No source/confidence note for this food.[/grey62]")
                 cn = cached["curator_notes"] if "curator_notes" in cached.keys() else None
                 if cn:
                     state.console.print(
@@ -1341,7 +1462,7 @@ def _do_list_cached_foods() -> None:
                         state.console.print(f"  {line}")
                     state.console.print()
                 else:
-                    state.console.print("  [dim]No curator notes for this food.[/dim]")
+                    state.console.print("  [grey62]No curator notes for this food.[/grey62]")
                 continue
 
             food = {
@@ -1374,6 +1495,6 @@ def _do_list_cached_foods() -> None:
                     pass
             continue
 
-        state.console.print(f"[{state.T['warning']}]Unrecognized command. Use v#, c#, n#, a#, e#, d#, i#, r, or l — or / to filter.[/{state.T['warning']}]")
+        state.console.print(f"[{state.T['warning']}]Unrecognized command. Use v#, c#, n#, a#, e#, p#, d#, i#, r, or l — or / to filter.[/{state.T['warning']}]")
 
 

@@ -17,13 +17,13 @@ from .prompts import Cancelled
 _OFF_ID_THRESHOLD = -1_000_000_000
 
 # One-line key shown near any table or list that displays food IDs.
-ID_KEY = "[dim](ID key: number = USDA FDC · OFF = Open Food Facts · usr = user-drafted)[/dim]"
+ID_KEY = "[grey62](ID key: number = USDA FDC · OFF = Open Food Facts · usr = user-drafted)[/grey62]"
 
 
 def dot_cell(text: str, width: int) -> str:
     """Truncate *text* to *width* chars and pad the remainder with dim dot leaders."""
     t = text[:width - 1]
-    return f"{t} [dim]{'·' * (width - len(t) - 1)}[/dim]"
+    return f"{t} [grey62]{'·' * (width - len(t) - 1)}[/grey62]"
 
 
 def table_title(title: str, subtitle: str = "") -> None:
@@ -38,7 +38,7 @@ def table_title(title: str, subtitle: str = "") -> None:
 def section_title(title: str, subtitle: str = "") -> None:
     """Blank line + full-width accent title + rule — for top-level output sections.
     *subtitle* is plain text; it is wrapped in dim automatically."""
-    sub = f"  [dim]{subtitle}[/dim]" if subtitle else ""
+    sub = f"  [grey62]{subtitle}[/grey62]" if subtitle else ""
     _W = min(100, state.console.width)
     state.console.print()
     state.console.print(f"[{state.T['accent']}]{title}[/{state.T['accent']}]{sub}", highlight=False)
@@ -81,10 +81,10 @@ def _id_cell(fdc_id: int | None) -> str:
     if fdc_id is None:
         return ""
     if fdc_id > 0:
-        return f"[dim]{fdc_id}[/dim]"
+        return f"[grey62]{fdc_id}[/grey62]"
     if fdc_id <= _OFF_ID_THRESHOLD:
-        return "[dim]OFF[/dim]"
-    return "[dim]usr[/dim]"
+        return "[grey62]OFF[/grey62]"
+    return "[grey62]usr[/grey62]"
 
 
 def _show_menu(title: str, items: list[tuple[str, str]]) -> None:
@@ -96,7 +96,7 @@ def _show_menu(title: str, items: list[tuple[str, str]]) -> None:
         if key.isdigit():
             state.console.print(f"  [{state.T['accent']}]{key}.[/{state.T['accent']}] {label}", highlight=False)
         else:
-            state.console.print(f"  [dim]{key}.[/dim] {label}", highlight=False)
+            state.console.print(f"  [grey62]{key}.[/grey62] {label}", highlight=False)
     state.console.print()
 
 
@@ -109,7 +109,7 @@ def _safe_call(fn: Callable[..., Any], *args: Any) -> None:
         if e.code == 0:
             raise
     except Cancelled:
-        state.console.print("[dim]Cancelled.[/dim]")
+        state.console.print("[grey62]Cancelled.[/grey62]")
 
 def _open_in_editor(text: str = "") -> str:
     """

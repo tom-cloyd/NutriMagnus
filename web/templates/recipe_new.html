@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}New Recipe — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item active" aria-current="page">New recipe</li>
+  </ol>
+</nav>
+
+<h2>New Recipe</h2>
+
+<form method="post" action="/recipe/new" style="max-width:36rem">
+  <div class="mb-3">
+    <label class="form-label" for="name">Recipe name <span class="text-danger">*</span></label>
+    <input type="text" class="form-control" id="name" name="name" required autofocus>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label" for="description">Description</label>
+    <input type="text" class="form-control" id="description" name="description"
+           placeholder="e.g. quick weeknight dinner">
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label" for="servings">Number of servings</label>
+    <input type="number" class="form-control" id="servings" name="servings"
+           value="4" min="1" max="999" style="max-width:8rem">
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Total yield weight <small class="text-muted">(optional)</small></label>
+    <div class="input-group" style="max-width:16rem">
+      <input type="number" class="form-control" name="total_weight" min="0" step="any"
+             placeholder="e.g. 800">
+      <select class="form-select" name="total_weight_unit" style="max-width:5rem">
+        <option value="g">g</option>
+        <option value="oz">oz</option>
+        <option value="lb">lb</option>
+        <option value="kg">kg</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary">Create recipe &amp; add ingredients</button>
+    <a href="/recipes" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -26,7 +26,7 @@ def _menu_summary() -> bool:
         try:
             choice = _prompt("Choice").strip().lower()
         except Cancelled:
-            state.console.print("[dim]Cancelled.[/dim]")
+            state.console.print("[grey62]Cancelled.[/grey62]")
             return True
 
         if choice == "1":
@@ -52,7 +52,7 @@ def _do_daily_summary(meal_date: str) -> None:
     with _db.get_db() as conn:
         meals = _db.meal_list_by_date(conn, meal_date)
     if not meals:
-        state.console.print(f"[dim]No meals logged for {meal_date}.[/dim]")
+        state.console.print(f"[grey62]No meals logged for {meal_date}.[/grey62]")
         return
     combined: dict[str, float] = {}
     all_ings: list[dict] = []
@@ -64,7 +64,7 @@ def _do_daily_summary(meal_date: str) -> None:
                 combined = _usda.sum_nutrients(combined, n)
             all_ings.extend(_compute_meal_ingredient_list(meal["id"]))
     if not combined:
-        state.console.print("[dim]No nutrient data found for this day.[/dim]")
+        state.console.print("[grey62]No nutrient data found for this day.[/grey62]")
         return
     meal_names = ", ".join(m["name"] for m in meals)
     _print_nutrient_table(combined, title=f"Daily Total — {meal_date}",
@@ -86,7 +86,7 @@ def _do_daily_summary(meal_date: str) -> None:
     if user_profile:
         try:
             ans = _prompt(
-                f"\nCompare to your personalized RDA targets?  [{state.T['accent']}]y[/{state.T['accent']}]/[dim]N[/dim]",
+                f"\nCompare to your personalized RDA targets?  [{state.T['accent']}]y[/{state.T['accent']}]/[grey62]N[/grey62]",
                 choices=["y", "n"], default="n",
             )
         except Cancelled:
@@ -95,8 +95,8 @@ def _do_daily_summary(meal_date: str) -> None:
             _print_rda_comparison(combined, user_profile)
     else:
         state.console.print(
-            f"\n  [dim]Tip: set a user profile under Settings → User profile"
-            f" to compare your intake against personalized RDA targets.[/dim]"
+            f"\n  [grey62]Tip: set a user profile under Settings → User profile"
+            f" to compare your intake against personalized RDA targets.[/grey62]"
         )
 
 
@@ -104,7 +104,7 @@ def _do_list_recent_days() -> None:
     with _db.get_db() as conn:
         rows = _db.meal_list_dates(conn, limit=30)
     if not rows:
-        state.console.print("[dim]No meals logged yet.[/dim]")
+        state.console.print("[grey62]No meals logged yet.[/grey62]")
         return
     state.console.print(f"\n[{state.T['accent']}]Recent days with meals[/{state.T['accent']}]")
     state.console.rule()

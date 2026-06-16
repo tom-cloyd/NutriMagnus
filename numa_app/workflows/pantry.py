@@ -9,7 +9,7 @@ import usda as _usda
 from rich.table import Table
 from .. import state
 from ..services.search import _search_and_pick_food, _suggest_foundation_search
-from ..ui.prompts import Cancelled, ReturnToMain, _prompt
+from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float
 from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY, dot_cell, section_title, table_footer
 
 def _load_pantry_candidates() -> list[dict]:
@@ -44,7 +44,7 @@ def _do_pantry_menu() -> None:
             rows = _db.pantry_list(conn)
         section_title("My Pantry — protein sources on hand")
         if not rows:
-            state.console.print("  [dim](empty — no foods added yet)[/dim]")
+            state.console.print("  [grey62](empty — no foods added yet)[/grey62]")
         else:
             _FOOD_W = 47
             tbl = Table(show_header=True, header_style=state.T["accent_plain"],
@@ -57,12 +57,12 @@ def _do_pantry_menu() -> None:
             for row in rows:
                 fdc_id = row["fdc_id"]
                 if fdc_id is None:
-                    aa_cell = "[dim]—[/dim]"
+                    aa_cell = "[grey62]—[/grey62]"
                 else:
                     with _db.get_db() as conn:
                         cached = _db.get_cached_food(conn, fdc_id)
                     if cached is None:
-                        aa_cell = "[dim]?[/dim]"
+                        aa_cell = "[grey62]?[/grey62]"
                     else:
                         nutrients = json.loads(cached["nutrients_json"])
                         if _usda.has_amino_acid_data(nutrients):
@@ -74,21 +74,21 @@ def _do_pantry_menu() -> None:
             state.console.print(tbl)
             table_footer(
                 f"  {ID_KEY}",
-                f"  [dim]AA: [{state.T['success']}]✓[/{state.T['success']}] amino acid data in cache  "
+                f"  [grey62]AA: [{state.T['success']}]✓[/{state.T['success']}] amino acid data in cache  "
                 f"[{state.T['error']}]✗[/{state.T['error']}] none — research needed  "
-                f"[dim]—[/dim] name-only entry (add via USDA search)[/dim]",
+                f"[grey62]—[/grey62] name-only entry (add via USDA search)[/grey62]",
             )
             state.console.rule(style="grey50")
         state.console.print()
         state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Add a food")
         state.console.print(f"  [{state.T['accent']}]r.[/{state.T['accent']}] Remove a food")
-        state.console.print(f"  [{state.T['accent']}]c.[/{state.T['accent']}] Go to Food Cache  [dim](edit nutrients there)[/dim]")
-        state.console.print(f"  [dim]b.[/dim] Back to Foods menu")
-        state.console.print(f"  [dim]m.[/dim] Return to main menu")
+        state.console.print(f"  [{state.T['accent']}]c.[/{state.T['accent']}] Go to Food Cache  [grey62](edit nutrients there)[/grey62]")
+        state.console.print(f"  [grey62]b.[/grey62] Back to Foods menu")
+        state.console.print(f"  [grey62]m.[/grey62] Return to main menu")
         state.console.print()
         state.console.print(
-            f"  [dim]To edit or obtain nutrient data for any food, use the Food Cache (option c).\n"
-            f"  All pantry foods may be managed there.[/dim]"
+            f"  [grey62]To edit or obtain nutrient data for any food, use the Food Cache (option c).\n"
+            f"  All pantry foods may be managed there.[/grey62]"
         )
         state.console.print()
         try:
@@ -113,6 +113,53 @@ def _do_pantry_menu() -> None:
             state.console.print(f"[{state.T['warning']}]Please enter a valid option (a / e / r / b / m / q).[/{state.T['warning']}]")
 
 
+def _offer_custom_portions(fdc_id: int, food_name: str, existing_portions: list[dict]) -> None:
+    """Offer to add cup-weight and/or piece-weight portions to a food that has no USDA portion data."""
+    state.console.print(
+        f"\n  [grey62]{food_name} has no USDA portion data.[/grey62]"
+        "  Add a custom portion to enable volume or count measures?"
+    )
+    try:
+        choice = _prompt_with_options(
+            "Add portion data",
+            [
+                ("1", "Cup weight — enables 'cup', 'tbsp', 'tsp' measures"),
+                ("2", "Piece weight — enables '1 piece', '2 slices', etc."),
+                ("3", "Both"),
+                ("b", "Skip"),
+            ],
+            default="b",
+        )
+    except Cancelled:
+        return
+    if choice == "b":
+        return
+
+    new_portions = list(existing_portions)
+
+    if choice in ("1", "3"):
+        g = _ask_float(f"Grams per 1 cup of {food_name}")
+        if g is not None and g > 0:
+            new_portions.append({"description": "1 cup", "gram_weight": round(g, 1)})
+
+    if choice in ("2", "3"):
+        try:
+            unit_name = _prompt(
+                "Unit name (e.g. piece, slice, clove, tablet)",
+                default="piece", free_text=True,
+            ).strip() or "piece"
+        except Cancelled:
+            return
+        g = _ask_float(f"Grams per 1 {unit_name} of {food_name}")
+        if g is not None and g > 0:
+            new_portions.append({"description": f"1 {unit_name}", "gram_weight": round(g, 1)})
+
+    if len(new_portions) > len(existing_portions):
+        with _db.get_db() as conn:
+            _db.update_food_portions(conn, fdc_id, new_portions)
+        state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Custom portion saved.")
+
+
 def _do_pantry_add() -> None:
     """Add a food to the pantry, optionally via USDA search for full AA data."""
     state.console.print("\n  Add via USDA search for best results (gives full amino acid data),")
@@ -130,34 +177,43 @@ def _do_pantry_add() -> None:
         return
 
     if method == "1":
-        food = _search_and_pick_food(show_aa_status=True)
-        if food is None:
+        foods = _search_and_pick_food(show_aa_status=True, multi_select=True)
+        if not foods:
             return
-        if not _usda.has_amino_acid_data(food.get("nutrients") or {}):
-            data_type = food.get("dataType", "")
-            if data_type == "Branded":
-                state.console.print(
-                    f"\n  [{state.T['warning']}]Branded foods rarely include amino acid data in USDA.\n"
-                    f"  A generic (Foundation or SR Legacy) equivalent will have complete data.[/{state.T['warning']}]"
-                )
-            else:
-                state.console.print(
-                    f"\n  [{state.T['warning']}]This food has no amino acid data.[/{state.T['warning']}]"
-                )
-            alt = _suggest_foundation_search(food)
-            if alt is not None:
-                food = alt
-        food_name = food["name"]
-        fdc_id = food["fdcId"]
-        try:
-            notes = _prompt("Notes (optional)", default="").strip()
-        except Cancelled:
-            return
-        with _db.get_db() as conn:
-            _db.pantry_add(conn, food_name, fdc_id=fdc_id, notes=notes or None)
-        has_aa = _usda.has_amino_acid_data(food.get("nutrients") or {})
-        aa_note = "" if has_aa else f"  [{state.T['warning']}](no AA data)[/{state.T['warning']}]"
-        state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food_name}{aa_note}")
+        multi = len(foods) > 1
+        for food in foods:
+            if not _usda.has_amino_acid_data(food.get("nutrients") or {}):
+                data_type = food.get("dataType", "")
+                if data_type == "Branded":
+                    state.console.print(
+                        f"\n  [{state.T['warning']}]{food['name']}: branded foods rarely include "
+                        f"amino acid data. A Foundation or SR Legacy equivalent will have complete data.[/{state.T['warning']}]"
+                    )
+                else:
+                    state.console.print(
+                        f"\n  [{state.T['warning']}]{food['name']}: no amino acid data.[/{state.T['warning']}]"
+                    )
+                if not multi:
+                    alt = _suggest_foundation_search(food)
+                    if alt is not None:
+                        food = alt
+            food_name = food["name"]
+            fdc_id = food["fdcId"]
+            notes = None
+            if not multi:
+                try:
+                    notes = _prompt("Notes (optional)", default="").strip() or None
+                except Cancelled:
+                    return
+            with _db.get_db() as conn:
+                _db.pantry_add(conn, food_name, fdc_id=fdc_id, notes=notes)
+            has_aa = _usda.has_amino_acid_data(food.get("nutrients") or {})
+            aa_note = "" if has_aa else f"  [{state.T['warning']}](no AA data)[/{state.T['warning']}]"
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food_name}{aa_note}")
+            if not multi and not food.get("portions"):
+                _offer_custom_portions(fdc_id, food_name, [])
+        if multi:
+            state.console.print(f"  [grey62](Notes can be added per food via the Food Cache)[/grey62]")
     else:
         try:
             food_name = _prompt("Food name").strip()
@@ -172,7 +228,7 @@ def _do_pantry_add() -> None:
         with _db.get_db() as conn:
             _db.pantry_add(conn, food_name, notes=notes or None)
         state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food_name} "
-                      f"[dim](name only — no USDA amino acid data)[/dim]")
+                      f"[grey62](name only — no USDA amino acid data)[/grey62]")
 
 
 def _do_pantry_remove() -> None:

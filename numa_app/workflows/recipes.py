@@ -43,7 +43,7 @@ _RNAME_W = 34
 
 def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> None:
     page = recipes[offset : offset + _RECIPE_PAGE]
-    subtitle = f"[dim]{label}[/dim]" if label else ""
+    subtitle = f"[grey62]{label}[/grey62]" if label else ""
     table_title("RECIPES", subtitle)
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("ID",       justify="right", min_width=4)
@@ -53,16 +53,16 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
     tbl.add_column("Complete", justify="center", min_width=8)
     tbl.add_column("Created",  min_width=12)
     for r in page:
-        dcp_str = f"{r['dcp_g'] / r['servings']:.1f}g" if r["dcp_g"] is not None and r["servings"] > 0 else "[dim]—[/dim]"
-        complete_str = "[green]✓[/green]" if r["complete"] else "[dim]—[/dim]"
+        dcp_str = f"{r['dcp_g'] / r['servings']:.1f}g" if r["dcp_g"] is not None and r["servings"] > 0 else "[grey62]—[/grey62]"
+        complete_str = "[green]✓[/green]" if r["complete"] else "[grey62]—[/grey62]"
         rname = r["name"][:_RNAME_W - 1]
         rdots = "·" * (_RNAME_W - len(rname) - 1)
-        tbl.add_row(str(r["id"]), f"{rname} [dim]{rdots}[/dim]", str(r["servings"]), dcp_str, complete_str, r["created_at"])
+        tbl.add_row(str(r["id"]), f"{rname} [grey62]{rdots}[/grey62]", str(r["servings"]), dcp_str, complete_str, r["created_at"])
     state.console.print(tbl)
     if not label:
-        state.console.print(f"  [dim]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/dim]")
-    table_footer("  [dim]Complete ✓ = recipe is marked finished (all ingredients entered)[/dim]",
-                 "  [dim]DCP/srv  = digestible complete protein per serving (requires analysis)[/dim]")
+        state.console.print(f"  [grey62]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/grey62]")
+    table_footer("  [grey62]Complete ✓ = recipe is marked finished (all ingredients entered)[/grey62]",
+                 "  [grey62]DCP/srv  = digestible complete protein per serving (requires analysis)[/grey62]")
     help_footer()
 
 
@@ -74,11 +74,11 @@ def _pick_recipe() -> dict | None:
     with _db.get_db() as conn:
         all_recipes = _db.recipe_list(conn)
     if not all_recipes:
-        state.console.print("[dim]No recipes saved yet.[/dim]")
+        state.console.print("[grey62]No recipes saved yet.[/grey62]")
         return None
 
     try:
-        query = _prompt("Search recipes  [dim](Enter to list all, b=back, m=main, q=quit)[/dim]", default="", free_text=True).strip()
+        query = _prompt("Search recipes  [grey62](Enter to list all, b=back, m=main, q=quit)[/grey62]", default="", free_text=True).strip()
     except Cancelled:
         return None
     lowered = query.lower()
@@ -108,7 +108,7 @@ def _pick_recipe() -> dict | None:
             hints.append("prev=back")
         hints.append("b=cancel")
         try:
-            raw = _prompt(f"Recipe ID  [dim]({', '.join(hints)})[/dim]").strip().lower()
+            raw = _prompt(f"Recipe ID  [grey62]({', '.join(hints)})[/grey62]").strip().lower()
         except Cancelled:
             return None
         if raw in ("b", ""):
@@ -306,7 +306,7 @@ def _pick_recipe_portion(recipe: object) -> tuple[float, str] | None:
     while True:
         try:
             raw = _prompt(
-                "Recipe portion in servings  [dim](examples: 1, 1/2, 1.5 · Enter/b=back, m=main, q=quit)[/dim]",
+                "Recipe portion in servings  [grey62](examples: 1, 1/2, 1.5 · Enter/b=back, m=main, q=quit)[/grey62]",
                 default="1",
             ).strip()
         except Cancelled:
@@ -337,7 +337,7 @@ def _do_recipe_display(recipe=None) -> None:
     with _db.get_db() as conn:
         ingredients = _db.recipe_get_ingredients(conn, recipe["id"])
 
-    complete_tag = f"[{state.T['success']}]✓ complete[/{state.T['success']}]" if recipe["complete"] else "[dim]incomplete[/dim]"
+    complete_tag = f"[{state.T['success']}]✓ complete[/{state.T['success']}]" if recipe["complete"] else "[grey62]incomplete[/grey62]"
     state.console.print(
         f"\n  [{state.T['accent']}]{recipe['name']}[/{state.T['accent']}]  "
         f"[{state.T['accent']}]{recipe['servings']} serving(s)[/{state.T['accent']}]  {complete_tag}",
@@ -359,14 +359,14 @@ def _do_recipe_display(recipe=None) -> None:
     if wt:
         parts.append(f"Weight: {wt}")
     if parts:
-        state.console.print(f"  [dim]{' · '.join(parts)}[/dim]", highlight=False)
+        state.console.print(f"  [grey62]{' · '.join(parts)}[/grey62]", highlight=False)
 
     if ingredients:
         state.console.print(f"\n  [{state.T['accent']}]Ingredients:[/{state.T['accent']}]  {ID_KEY}")
         for ing in ingredients:
-            note_tag = f"  [dim]({ing['notes']})[/dim]" if ing["notes"] else ""
+            note_tag = f"  [grey62]({ing['notes']})[/grey62]" if ing["notes"] else ""
             if ing["ref_recipe_id"]:
-                id_part = "[dim]recipe[/dim]"
+                id_part = "[grey62]recipe[/grey62]"
             else:
                 id_part = _id_cell(ing["fdc_id"])
             amt = (_format_recipe_portion_label(ing["amount"])
@@ -375,7 +375,7 @@ def _do_recipe_display(recipe=None) -> None:
                 f"  • {amt}  {id_part}  {ing['food_name']}{note_tag}"
             )
     else:
-        state.console.print("\n  [dim]No ingredients yet.[/dim]")
+        state.console.print("\n  [grey62]No ingredients yet.[/grey62]")
 
     state.console.print(f"\n  [{state.T['accent']}]Procedure:[/{state.T['accent']}]")
     _W = min(100, state.console.width)
@@ -387,7 +387,7 @@ def _do_recipe_display(recipe=None) -> None:
                 markup=False, highlight=False,
             )
     else:
-        state.console.print("  [dim](none given)[/dim]")
+        state.console.print("  [grey62](none given)[/grey62]")
 
     state.console.print(Rule(), width=_W)
 
@@ -415,6 +415,10 @@ def _do_copy_recipe(recipe=None) -> None:
         return
     if not new_name or new_name.lower() == "b":
         return
+    if new_name.lower() == "m":
+        raise ReturnToMain()
+    if new_name.lower() == "q":
+        raise SystemExit(0)
 
     with _db.get_db() as conn:
         ingredients = _db.recipe_get_ingredients(conn, recipe["id"])
@@ -471,13 +475,13 @@ def _do_recipe_develop(recipe=None) -> None:
             tbl.add_column("ID",     justify="right", min_width=7)
             tbl.add_column("Food",   min_width=_W, max_width=_W, no_wrap=True)
             for i, ing in enumerate(ingredients, 1):
-                id_cell = "[dim]recipe[/dim]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
+                id_cell = "[grey62]recipe[/grey62]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
                 amt = (_format_recipe_portion_label(ing["amount"])
                        if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
                 tbl.add_row(str(i), amt, id_cell, ing["food_name"][:_W])
             state.console.print(tbl)
         else:
-            state.console.print("[dim]No ingredients yet.[/dim]")
+            state.console.print("[grey62]No ingredients yet.[/grey62]")
 
         _show_menu("Develop", [
             ("a", "Add ingredient"),
@@ -499,7 +503,7 @@ def _do_recipe_develop(recipe=None) -> None:
         if choice == "a":
             state.console.print()
             try:
-                query = _prompt("Search food or recipe  [dim](name · FDC ID · barcode · b=back)[/dim]", free_text=True).strip()
+                query = _prompt("Search food or recipe  [grey62](name · FDC ID · barcode · b=back)[/grey62]", free_text=True).strip()
             except Cancelled:
                 continue
             ql = query.lower()
@@ -524,7 +528,7 @@ def _do_recipe_develop(recipe=None) -> None:
             if food.get("_type") == "recipe":
                 sub_rid, sub_name = food["id"], food["name"]
                 try:
-                    raw_srv = _prompt("Servings of this recipe  [dim](e.g. 1, 0.5, 2 — b=back)[/dim]", default="1").strip()
+                    raw_srv = _prompt("Servings of this recipe  [grey62](e.g. 1, 0.5, 2 — b=back)[/grey62]", default="1").strip()
                 except Cancelled:
                     continue
                 if not raw_srv or raw_srv.lower() == "b":
@@ -534,7 +538,7 @@ def _do_recipe_develop(recipe=None) -> None:
                     state.console.print(f"[{state.T['warning']}]Enter a positive number.[/{state.T['warning']}]")
                     continue
                 try:
-                    notes = _prompt("Note  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
+                    notes = _prompt("Note  [grey62](optional, Enter to skip)[/grey62]", default="", free_text=True).strip() or None
                 except Cancelled:
                     notes = None
                 with _db.get_db() as conn:
@@ -546,7 +550,7 @@ def _do_recipe_develop(recipe=None) -> None:
                     continue
                 grams, label, _ = result
                 try:
-                    notes = _prompt("Note  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
+                    notes = _prompt("Note  [grey62](optional, Enter to skip)[/grey62]", default="", free_text=True).strip() or None
                 except Cancelled:
                     notes = None
                 with _db.get_db() as conn:
@@ -609,7 +613,7 @@ def _do_recipe_develop(recipe=None) -> None:
             stored = "".join(c for c in (recipe["instructions"] or "") if c.isprintable())
             state.console.print(
                 f"\n  [{state.T['accent']}]Procedure[/{state.T['accent']}]"
-                "  [dim]— an editor will open. Save and close it to continue.[/dim]"
+                "  [grey62]— an editor will open. Save and close it to continue.[/grey62]"
             )
             instructions = _open_in_editor(stored)
             with _db.get_db() as conn:
@@ -630,7 +634,7 @@ def _do_recipe_browse() -> None:
         with _db.get_db() as conn:
             all_recipes = _db.recipe_list(conn)
         if not all_recipes:
-            state.console.print("[dim]No recipes saved yet.[/dim]")
+            state.console.print("[grey62]No recipes saved yet.[/grey62]")
             return
 
         total = len(all_recipes)
@@ -679,8 +683,8 @@ def _do_recipe_browse() -> None:
             nav_parts.append("p=prev")
         nav_parts.append("b=done")
         nav = "  ".join(nav_parts)
-        state.console.print(f"  [dim]Actions: v=view/edit  a=analyze  d=delete  c=copy  ·  x=develop new recipe  ·  {nav}[/dim]", highlight=False)
-        state.console.print(f"  [dim](Enter action + ID, e.g. v3)[/dim]", highlight=False)
+        state.console.print(f"  [grey62]Actions: v=view/edit  a=analyze  d=delete  c=copy  ·  x=develop new recipe  ·  {nav}[/grey62]", highlight=False)
+        state.console.print(f"  [grey62](Enter action + ID, e.g. v3)[/grey62]", highlight=False)
 
         try:
             raw = _prompt("").strip().lower()
@@ -701,7 +705,7 @@ def _do_recipe_browse() -> None:
             continue
         if raw == "s":
             try:
-                q = _prompt("Search  [dim](words in recipe name)[/dim]", free_text=True).strip()
+                q = _prompt("Search  [grey62](words in recipe name)[/grey62]", free_text=True).strip()
             except Cancelled:
                 continue
             ql = q.lower()
@@ -748,7 +752,7 @@ def _do_recipe_browse() -> None:
 
 
 def _do_recipe_search() -> None:
-    """Filter recipes by typing text; /N selects from the current filtered list."""
+    """Filter recipes by typing text; #N selects from the current filtered list."""
     from .recipe_analysis import _do_recipe_view
 
     filter_text: str | None = None
@@ -757,7 +761,7 @@ def _do_recipe_search() -> None:
         with _db.get_db() as conn:
             all_recipes = _db.recipe_list(conn)
         if not all_recipes:
-            state.console.print("[dim]No recipes saved yet.[/dim]")
+            state.console.print("[grey62]No recipes saved yet.[/grey62]")
             return
 
         if filter_text:
@@ -775,7 +779,7 @@ def _do_recipe_search() -> None:
         else:
             label = f"{len(all_recipes)} recipes · most recent first"
 
-        table_title("SEARCH RECIPES", f"[dim]{label}[/dim]")
+        table_title("SEARCH RECIPES", f"[grey62]{label}[/grey62]")
 
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         tbl.add_column("#",        justify="right",  min_width=3)
@@ -789,7 +793,7 @@ def _do_recipe_search() -> None:
             rdots = "·" * (_RNAME_W - len(rname) - 1)
             tbl.add_row(
                 str(i), str(r["id"]),
-                f"{rname} [dim]{rdots}[/dim]",
+                f"{rname} [grey62]{rdots}[/grey62]",
                 str(r["servings"]),
                 (r["created_at"] or "")[:10],
             )
@@ -803,7 +807,7 @@ def _do_recipe_search() -> None:
         slash_n = min(9, len(matches))
         try:
             raw = _prompt(
-                "  [dim]Type to filter · /N to pick · b=back · m=main · q=quit[/dim]",
+                "  [grey62]Type to filter · #N to pick · b=back · m=main · q=quit[/grey62]",
                 free_text=True,
                 slash_max=slash_n,
             ).strip()
@@ -820,7 +824,7 @@ def _do_recipe_search() -> None:
         if rl == "q":
             raise SystemExit(0)
 
-        if raw.startswith("/") and raw[1:].isdigit():
+        if raw.startswith("#") and raw[1:].isdigit():
             idx = int(raw[1:]) - 1
             if matches and 0 <= idx < len(matches):
                 rid = matches[idx]["id"]
@@ -830,7 +834,7 @@ def _do_recipe_search() -> None:
                     _recipe_search_action(recipe)
             else:
                 state.console.print(
-                    f"  [{state.T['warning']}]Pick /1–/{len(matches)}.[/{state.T['warning']}]"
+                    f"  [{state.T['warning']}]Pick #1–#{len(matches)}.[/{state.T['warning']}]"
                 )
             continue
 
@@ -844,10 +848,10 @@ def _recipe_search_action(recipe: dict) -> None:
     name = recipe["name"]
     state.console.print(
         f"\n  [{state.T['hi']}]{name}[/{state.T['hi']}]  "
-        "[dim]v=view/edit · a=analyze · d=delete · c=copy[/dim]"
+        "[grey62]v=view/edit · a=analyze · d=delete · c=copy[/grey62]"
     )
     try:
-        act = _prompt("Action  [dim](Enter/b=back)[/dim]").strip().lower()
+        act = _prompt("Action  [grey62](Enter/b=back)[/grey62]").strip().lower()
     except Cancelled:
         return
     if not act or act == "b":
@@ -878,7 +882,7 @@ def _do_recipe_analyze_portion() -> None:
     saved_at = recipe["saved_analysis_at"]
     if saved_at:
         date_str = saved_at[:10]
-        state.console.print(f"\n  [dim]Saved analysis from {date_str}.[/dim]")
+        state.console.print(f"\n  [grey62]Saved analysis from {date_str}.[/grey62]")
         try:
             choice = _prompt(
                 "s=show saved  r=redo  b=back",
@@ -894,7 +898,7 @@ def _do_recipe_analyze_portion() -> None:
                 state.console.print()
                 state.console.print(text, markup=False, highlight=False)
             else:
-                state.console.print("  [dim]No saved text found.[/dim]")
+                state.console.print("  [grey62]No saved text found.[/grey62]")
             return
         # choice == "r": fall through to fresh analysis
 
@@ -907,16 +911,16 @@ def _menu_recipes() -> bool:
         _show_menu("Recipes", [
             ("1", "Create new recipe"),
             ("2", "Browse / view, edit, copy, delete recipes"),
-            ("3", "Develop a recipe  [dim](add/remove ingredients with nutritional feedback)[/dim]"),
-            ("4", "Analyze a recipe portion  [dim](saves analysis with date)[/dim]"),
-            ("5", "Search recipes  [dim](filter by name · /N to pick)[/dim]"),
+            ("3", "Develop a recipe  [grey62](add/remove ingredients with nutritional feedback)[/grey62]"),
+            ("4", "Analyze a recipe portion  [grey62](saves analysis with date)[/grey62]"),
+            ("5", "Search recipes  [grey62](filter by name · #N to pick)[/grey62]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
         try:
             choice = _prompt("Choice").strip().lower()
         except Cancelled:
-            state.console.print("[dim]Cancelled.[/dim]")
+            state.console.print("[grey62]Cancelled.[/grey62]")
             return True
 
         if choice == "1":
@@ -953,19 +957,19 @@ def _do_recipe_create() -> None:
         description = ""
 
     try:
-        raw_servings = _prompt("Number of servings  [dim](0 = analyze by weight/volume)[/dim]", default="0", free_text=True).strip()
+        raw_servings = _prompt("Number of servings  [grey62](0 = analyze by weight/volume)[/grey62]", default="0", free_text=True).strip()
         servings = int(raw_servings) if raw_servings.isdigit() else 0
     except Cancelled:
         servings = 0
 
     try:
-        serving_size = _prompt("Serving size  [dim](e.g. 1 cup, 1 slice — Enter to skip)[/dim]", default="", free_text=True).strip() or None
+        serving_size = _prompt("Serving size  [grey62](e.g. 1 cup, 1 slice — Enter to skip)[/grey62]", default="", free_text=True).strip() or None
     except Cancelled:
         serving_size = None
 
     try:
         raw_vol = _prompt(
-            "Total volume  [dim](e.g. 4 cups, 500 ml — Enter to skip)[/dim]",
+            "Total volume  [grey62](e.g. 4 cups, 500 ml — Enter to skip)[/grey62]",
             default="", free_text=True,
         ).strip()
         total_volume, total_volume_unit = _parse_measure(raw_vol)
@@ -974,7 +978,7 @@ def _do_recipe_create() -> None:
 
     try:
         raw_wt = _prompt(
-            "Total weight  [dim](e.g. 800 g, 1.5 lb — Enter to skip)[/dim]",
+            "Total weight  [grey62](e.g. 800 g, 1.5 lb — Enter to skip)[/grey62]",
             default="", free_text=True,
         ).strip()
         total_weight, total_weight_unit = _parse_measure(raw_wt)
@@ -1001,7 +1005,7 @@ def _do_recipe_create() -> None:
     while True:
         state.console.print()
         try:
-            query = _prompt("Search food or recipe  [dim](name · FDC ID · barcode · Enter/b=done adding)[/dim]", free_text=True).strip()
+            query = _prompt("Search food or recipe  [grey62](name · FDC ID · barcode · Enter/b=done adding)[/grey62]", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()
@@ -1031,7 +1035,7 @@ def _do_recipe_create() -> None:
             sub_name = food["name"]
             try:
                 raw_srv = _prompt(
-                    "Servings of this recipe  [dim](e.g. 1, 0.5, 2 — b=back)[/dim]",
+                    "Servings of this recipe  [grey62](e.g. 1, 0.5, 2 — b=back)[/grey62]",
                     default="1",
                 ).strip()
             except Cancelled:
@@ -1043,7 +1047,7 @@ def _do_recipe_create() -> None:
                 state.console.print(f"[{state.T['warning']}]Enter a positive number.[/{state.T['warning']}]")
                 continue
             try:
-                notes = _prompt("Note  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
+                notes = _prompt("Note  [grey62](optional, Enter to skip)[/grey62]", default="", free_text=True).strip() or None
             except Cancelled:
                 notes = None
             with _db.get_db() as conn:
@@ -1055,7 +1059,7 @@ def _do_recipe_create() -> None:
                 continue
             grams, label, _ = result
             try:
-                notes = _prompt("Note for this ingredient  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
+                notes = _prompt("Note for this ingredient  [grey62](optional, Enter to skip)[/grey62]", default="", free_text=True).strip() or None
             except Cancelled:
                 notes = None
             with _db.get_db() as conn:
@@ -1072,7 +1076,7 @@ def _do_recipe_create() -> None:
         tbl.add_column("ID",     justify="right", min_width=7)
         tbl.add_column("Food",   min_width=_W, max_width=_W, no_wrap=True)
         for i, ing in enumerate(cur_ings, 1):
-            id_c = "[dim]recipe[/dim]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
+            id_c = "[grey62]recipe[/grey62]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
             amt = (_format_recipe_portion_label(ing["amount"])
                    if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
             tbl.add_row(str(i), amt, id_c, ing["food_name"][:_W])
@@ -1089,9 +1093,9 @@ def _do_recipe_create() -> None:
 
     state.console.print(
         f"\n  [{state.T['accent']}]Procedure[/{state.T['accent']}]"
-        "  [dim]— an editor will open. Save and close it to continue.[/dim]"
+        "  [grey62]— an editor will open. Save and close it to continue.[/grey62]"
     )
-    state.console.print("  [dim]Press Enter to open the editor, or b to skip.[/dim]")
+    state.console.print("  [grey62]Press Enter to open the editor, or b to skip.[/grey62]")
     try:
         go = _prompt("").strip().lower()
         instructions = "" if go == "b" else _open_in_editor("").strip()
@@ -1109,11 +1113,11 @@ def _do_recipe_list() -> None:
     with _db.get_db() as conn:
         all_recipes = _db.recipe_list(conn)
     if not all_recipes:
-        state.console.print("[dim]No recipes saved yet.[/dim]")
+        state.console.print("[grey62]No recipes saved yet.[/grey62]")
         return
 
     try:
-        query = _prompt("Search  [dim](Enter to list all, b=back)[/dim]", default="", free_text=True).strip()
+        query = _prompt("Search  [grey62](Enter to list all, b=back)[/grey62]", default="", free_text=True).strip()
     except Cancelled:
         return
     lowered = query.lower()
@@ -1145,7 +1149,7 @@ def _do_recipe_list() -> None:
             hints.append("prev=back")
         hints.append("b=done")
         try:
-            raw = _prompt(f"  [dim]({', '.join(hints)})[/dim]").strip().lower()
+            raw = _prompt(f"  [grey62]({', '.join(hints)})[/grey62]").strip().lower()
         except Cancelled:
             return
         if raw in ("b", "", "q", "m"):
@@ -1178,4 +1182,4 @@ def _do_recipe_delete(recipe=None) -> None:
             _db.recipe_delete(conn, rid)
         state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Deleted.")
     else:
-        state.console.print("[dim]Cancelled.[/dim]")
+        state.console.print("[grey62]Cancelled.[/grey62]")

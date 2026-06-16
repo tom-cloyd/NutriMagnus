@@ -2,6 +2,57 @@
 {% block title %}Recipes — numa{% endblock %}
 
 {% block content %}
-<h2>Recipes</h2>
-<p class="muted">Coming soon.</p>
+<div class="d-flex align-items-center gap-3 mb-3">
+  <h2 class="mb-0">Recipes</h2>
+  <a href="/recipe/new" class="btn btn-primary btn-sm">+ New recipe</a>
+</div>
+
+<form method="get" action="/recipes" class="mb-3">
+  <div class="input-group" style="max-width:28rem">
+    <input type="text" class="form-control" name="q" value="{{ q }}"
+           placeholder="Filter by name…" autofocus>
+    <button type="submit" class="btn btn-outline-secondary">Filter</button>
+    {% if q %}<a href="/recipes" class="btn btn-outline-secondary">Clear</a>{% endif %}
+  </div>
+</form>
+
+{% if not recipes %}
+  {% if q %}
+  <p class="muted">No recipes match <strong>{{ q }}</strong>.</p>
+  {% else %}
+  <p class="muted">No recipes yet. <a href="/recipe/new">Create your first recipe.</a></p>
+  {% endif %}
+{% else %}
+<table class="table table-sm table-hover">
+  <thead class="table-light">
+    <tr>
+      <th style="width:3rem">ID</th>
+      <th>Name</th>
+      <th>Description</th>
+      <th style="width:6rem;text-align:right">Servings</th>
+      <th style="width:7rem;text-align:right">DCP/srv (g)</th>
+      <th style="width:6rem;text-align:center">Complete</th>
+      <th style="width:7rem">Created</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in recipes %}
+    <tr>
+      <td class="muted">{{ r.id }}</td>
+      <td><a href="/recipe/{{ r.id }}">{{ r.name }}</a></td>
+      <td class="muted"><small>{{ r.description or "—" }}</small></td>
+      <td style="text-align:right">{{ r.servings }}</td>
+      <td style="text-align:right">
+        {% if r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      <td style="text-align:center">
+        {% if r.complete %}<span class="status-met">&#10003;</span>{% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      <td class="muted"><small>{{ r.created_at[:10] if r.created_at else "—" }}</small></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="muted mt-2"><small>{{ recipes|length }} recipe{% if recipes|length != 1 %}s{% endif %}{% if q %} matching "{{ q }}"{% endif %}</small></p>
+{% endif %}
 {% endblock %}

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-10*:2230
+*Updated 2026-06-13*:2245
 
 [TOC]
 
@@ -44,9 +44,15 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 ## What a user can do with NutriMagnus - brief overview
 
-(To be developed)
+The five items on the main menu correspond to the five major things you can do with the program:
 
-For more detailed information on what can be done with the program, look at the [Output samples](#outputSamples) section.
+- **Foods** — Search the USDA and Open Food Facts databases; analyze the nutrients in a specific portion of any food or recipe; compare up to eight foods side-by-side; manage your personal Food Cache, Pantry, and custom food profiles; annotate foods with glycemic index and DIAAS estimates.
+- **Recipes** — Create and save recipes with ingredients and instructions; browse, copy, and delete saved recipes; develop a recipe iteratively with nutritional feedback after each ingredient change; analyze a recipe portion for full nutrient data, protein quality, and complement suggestions.
+- **Meals & Log** — Record what you eat by date; add foods and recipes to meals; analyze individual meals or the combined total for a full day; search your entire meal history for any food.
+- **Daily Summary** — View combined nutrient totals for today or any past date; compare your intake against personalized RDA targets; list recent days with meals.
+- **Settings** — Set your color theme, personal profile (age, sex, weight, height, activity level), dietary preferences, editor command, and advanced options including your USDA API key and protein digestibility overrides.
+
+Detailed how-to guides for each menu area follow later in this manual. For output samples and screenshots, see the [Output samples](#outputSamples) section.
 
 ## Can you trust NuMa? 
 
@@ -54,14 +60,15 @@ NuMa has an extensive validation process, and you should know just a little abou
 
 Still, as the saying goes, all programs have bugs, and this is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all fixes benefit everyone who uses the program.
 
-## Installation
+## *Installation
 
 ### Windows
 
+(to be completed)
 
 ### Linux
 
-
+(to be completed)
 
 ## Menu navigation
 
@@ -81,9 +88,9 @@ These conventions apply at every prompt throughout the program — menus, search
 
 ---
 
-## Output samples { #outputSamples}
+## *Output samples { #outputSamples}
 
-(Incomplete and under development...)
+(Incomplete and outdated; to be updated very soon...)
 
 ### Launching the program from the command line => main menu displayed
 
@@ -215,13 +222,387 @@ In the output you will see a program 'bug' - The **Procedure** is not wrapped ar
 
 (Additional output samples are coming...)
 
-## Usage tips
+## *Usage tips
 
 (under development)
 
 * **Input history:** At any free-text prompt (food or recipe name, search term, amount, note, etc.) you can press the **up arrow** to recall what you typed previously. Press up again to go further back, and **down arrow** to move forward again. If you started typing before pressing up, your partial input is saved and restored when you press down back to the current position. History persists across sessions (saved to `~/.numa_history`), holds up to 1000 entries, and skips consecutive duplicates.
 
 * **Enter food portions:** if at all possible, enter weights, not volume measures. A cup of flour can vary greatly depending upon how much air is stirred into it. A cup of spinach is even harder to pin down. Even nuts can be a problem. But weights are far less likely to vary, and so are much more reliable.
+
+* **Exporting results:** at the end of most analysis screens (food portion, recipe analysis, meal analysis) you are offered the option to save the output as a plain-text (`.txt`), Markdown (`.md`), or HTML (`.html`) file. The file is saved to a folder of your choice. This is the easiest way to keep a record of an analysis or share it with someone else.
+
+---
+
+## Using the Foods menu
+
+The Foods menu (main menu option **1**) has nine sub-options. Most start with a food search — type any part of a food name, an FDC ID number, or a 12-digit barcode.
+
+### Search food databases (Foods → 1)
+
+Searches USDA FoodData Central and Open Food Facts. Your local Food Cache is checked first; any cached match appears instantly at the top of the results list with no network call. Select a food to see its complete nutrient table (per 100 g), protein completeness analysis, and DIAAS bioavailability data. If amino acid gaps are present, complement suggestions are shown automatically.
+
+After the per-100g display, you are asked whether to analyze a specific portion. Answer **y** to open the portion picker.
+
+### Analyze a food portion (Foods → 2)
+
+Works like Foods → 1 but goes directly to portion analysis after you select a food — no separate confirmation is needed. After you choose a serving size, NutriMagnus shows the full nutrient table scaled to that portion, together with protein completeness, bioavailability data, and complement suggestions if any amino acids fall short.
+
+Saved recipes are included in the search results. When you pick a recipe, you enter a number of servings instead of a weight, and the recipe's nutrients are scaled accordingly.
+
+A brief note at the end of a recipe analysis explains that the per-ingredient TID (digestibility) breakdown is available under Recipes → Browse — this shortcut shows combined totals only.
+
+At the end of every analysis, you are offered the option to export the results as a text, Markdown, or HTML file.
+
+### Analyze a saved recipe portion (Foods → 3)
+
+A shortcut for quick recipe analysis. Shows the list of your saved recipes; enter a recipe ID and a number of servings. The output is the scaled nutrient table for that portion, protein completeness, and complement suggestions — without the per-ingredient detail of the full recipe analysis in the Recipes menu.
+
+### Convert a portion ↔ weight (Foods → 4)
+
+Converts any volume or weight measure to grams without running a full nutritional analysis. Useful when a recipe or label gives you a volume and you need the weight to log it accurately.
+
+Search for a food, then type an amount. A few examples:
+
+    150        →  grams
+    3 oz       →  ounces
+    1/4 c      →  cups
+    2 T        →  tablespoons
+
+The space between number and unit is always optional: `2T`, `0.25c`, `150g`, and `3oz` work exactly like their spaced equivalents. For the full list of recognized units and input formats, see [Appendix F](#appendix-f-portion-input-formats-portion-formats).
+
+NutriMagnus looks up the food's density and returns the gram equivalent. If no density data is available for that food and measure, it asks you to weigh your portion and enter the result manually.
+
+You can convert multiple amounts for the same food in a row — the prompt repeats until you press Enter or `b`.
+
+### Compare foods side-by-side (Foods → 5)
+
+Select up to eight foods (or recipe portions) and NutriMagnus displays them in a single side-by-side table. All nutrient groups are shown — macronutrients, minerals, vitamins, phytonutrients, and amino acids — with the highest value in each row highlighted in green.
+
+**Adding foods to the comparison:**
+
+1. At each "Food N — search" prompt, type a food name, FDC ID, or barcode as usual.
+2. After selecting a food, choose a portion. That portion's nutrients appear as one column in the table.
+3. Once you have added at least two foods, press Enter (or `b`) to display the table. You can add up to eight.
+
+**Re-picking without a new search:** after the first food is added, if the next food you want was already in the last search results, just type its row number — no second network call is made.
+
+**Saved comparison lists:** after the table is shown, you can save the food list under a name. Saved lists appear at the start of the next comparison session so you can reload them without re-searching. Useful for groups you compare regularly (e.g. different protein powder brands, or candidate legumes for a new recipe).
+
+### Food Cache (Foods → 6)
+
+Described in detail under [Food data — where it comes from and how it is stored](#food-data--where-it-comes-from-and-how-it-is-stored) and the `?cached` help topic. This is the primary place to view, edit, and delete stored foods, and to run the Claude AI amino acid fetch workflow (`i` / `r` commands).
+
+### My Pantry (Foods → 7)
+
+Described under [Food data — where it comes from and how it is stored](#food-data--where-it-comes-from-and-how-it-is-stored). Commands inside the Pantry menu:
+
+| Key | Action |
+|---|---|
+| `a` | Add a food to your pantry (search USDA or enter name only) |
+| `r` | Remove a food from your pantry |
+| `c` | Jump to the Food Cache to edit nutrients for a pantry food |
+
+### Custom food profiles (Foods → 8)
+
+Described under [Entering custom foods and dietary supplements](#entering-custom-foods-and-dietary-supplements).
+
+### Annotate a food (Foods → 9)
+
+Opens your Food Cache list and lets you pick a food to annotate. Annotations add information that the USDA database does not include:
+
+- **Glycemic index (GI)** — how quickly the food raises blood sugar (scale 0–100).
+- **DIAAS estimate** — a protein quality score for packaged foods that lack amino acid data in USDA.
+- **Preparation note** — a short reminder such as "boiled 20 min" or "soaked overnight".
+
+Type `/text` at the list prompt to filter by food name before picking. Once saved, annotations appear in the nutrient table and analysis output wherever that food is used.
+
+---
+
+## Using the Recipes menu
+
+The Recipes menu (main menu option **2**) manages everything related to recipes — creating them, editing them, analyzing their nutritional content, and developing them iteratively with nutritional feedback.
+
+### Create a new recipe (Recipes → 1)
+
+You are prompted for the recipe header, then its ingredients, and finally its procedure (cooking instructions).
+
+**Header prompts:**
+
+| Prompt | Notes |
+|---|---|
+| Name | Required. Appears in all search results and meal logs. |
+| Description | Optional. A one-line note about the dish. |
+| Number of servings | Enter **0** to analyze the recipe by total weight or volume rather than by serving count. |
+| Serving size | Optional label, e.g. "1 cup" or "1 slice". |
+| Total volume | Optional, e.g. `4 cups` or `500 ml`. Used to compute per-100ml figures when servings = 0. |
+| Total weight | Optional, e.g. `800 g` or `1.5 lb`. Used to compute per-100g figures when servings = 0. |
+| Mark as complete? | Whether the ingredient list is finished. Shown in the recipe list table. |
+
+**Ingredient loop:** after the header is saved, you enter ingredients one by one. At each "Search food or recipe" prompt, type a food name, FDC ID, or barcode. Other saved recipes are also searchable and can be nested as ingredients — NutriMagnus scales their nutrients automatically from their serving counts.
+
+For each ingredient:
+1. Choose a portion (weight, volume, or a USDA standard portion listed for that food — see [Appendix F](#appendix-f-portion-input-formats-portion-formats) for all accepted formats).
+2. Add an optional note (e.g. "drained", "cooked", "raw"). Press Enter to skip.
+
+The current ingredient list is printed after each addition. When you are done, press Enter or `b`.
+
+**Procedure:** a text editor opens for cooking instructions. Press `b` to skip and save immediately. The editor used is set under Settings → 5 (Editor command); if not set, the system default (`$VISUAL` / `$EDITOR`) is used.
+
+### Browse, view, edit, copy, and delete recipes (Recipes → 2)
+
+Displays all your recipes sorted by most recently accessed. The table shows:
+
+| Column | Meaning |
+|---|---|
+| ID | Recipe number — use this in commands |
+| Name | Recipe name |
+| Servings | Number of servings (0 = analyze by weight/volume) |
+| DCP/srv | Digestible complete protein per serving (requires at least one analysis) |
+| Complete | ✓ if the recipe is marked finished |
+| Created | Date first saved |
+
+**Commands** — type the action letter immediately followed by the recipe ID (e.g. `v3`, `a 14`):
+
+| Command | Action |
+|---|---|
+| `v{id}` | View the recipe text (name, ingredients, procedure) and optionally open the edit flow |
+| `a{id}` | Run the full nutrition analysis (nutrient table, DCP, TID breakdown, complements, glycemic load) |
+| `d{id}` | Delete the recipe after confirmation |
+| `c{id}` | Copy the recipe — you are asked for a new name |
+| `x` | Create a new recipe (same as Recipes → 1) |
+| `s` | Search / filter recipes by typing words in the recipe name |
+| `r` | Return to the most-recently-accessed view (after a search) |
+| `n` / `p` | Next / previous page when there are more than 20 recipes |
+| `b` / Enter | Done — back to the Recipes menu |
+
+**Viewing and editing a recipe (`v{id}`):** the full recipe text is shown — name, description, volume/weight, ingredients with amounts and ID numbers, and the procedure. At the end, type `e` to open the edit flow or `b` / Enter to return to the browse list.
+
+The edit flow lets you update any header field (name, description, servings, serving size, volume, weight, complete flag) and manage the ingredient list: add, edit, remove, or reorder ingredients. When done with the ingredient list, you can proceed to edit the procedure in the text editor or press `b` to skip.
+
+### Develop a recipe (Recipes → 3)
+
+Use this when you want to refine a recipe's ingredient list with nutritional feedback at each step. After each ingredient is added or removed, NutriMagnus asks whether you want a fresh analysis — answer **y** and the full nutrient table and DCP calculation appear immediately so you can make informed ingredient decisions.
+
+Add ingredients the same way as in Create (food name, FDC ID, barcode, or another recipe). Remove an ingredient by typing its row number. When you are satisfied with the ingredient list, press `d` to proceed to the procedure editor.
+
+### Analyze a recipe portion (Recipes → 4)
+
+Select a recipe, then enter a number of servings. NutriMagnus shows a full nutritional analysis:
+
+- Total recipe nutrients and per-serving nutrients (or per-100g / per-cup when servings = 0)
+- Digestible complete protein (DCP) per serving, saved to the recipe for the recipe list
+- Protein completeness table and per-ingredient digestibility breakdown (TID table)
+- Complement suggestions if amino acid gaps are present
+- Glycemic load (if GI annotations are set for all ingredients)
+
+**Saved analysis:** after the analysis runs, a plain-text snapshot is saved to the recipe. The next time you select the same recipe here, you are offered the choice to view the saved snapshot (`s`) or re-run a fresh analysis (`r`).
+
+**Handling missing data:** if some ingredients are missing amino acid data or have no recorded weight (volume-only entries), an options menu appears:
+
+| Option | Action |
+|---|---|
+| Fix | Replace affected ingredients by searching USDA Foundation Foods — results show an AA column (✓ / ✗) so you can pick an entry with complete data |
+| Provide missing data | Enter gram weights for volume-only ingredients on the spot |
+| Calculate anyway | Run the analysis with the available data; the DCP result is flagged as approximate |
+| Skip DCP | Proceed with the nutrient analysis only, without a DCP figure |
+
+### Search recipes (Recipes → 5)
+
+Filters your recipe list as you type. Each character you enter narrows the list to recipes whose names contain the text typed so far. To pick a recipe from the filtered list, type `/1`, `/2`, and so on (using the row number shown in the filtered view). After picking, choose an action: `v` view, `a` analyze, `d` delete, `c` copy.
+
+---
+
+## Using the Meals & Log menu
+
+The Meals & Log screen (main menu option **3**) is where you record what you eat each day. It shows a list of your recent meals — date, name, item count, and a completion checkmark — 15 at a time.
+
+### Commands on the meal list
+
+| Command | Action |
+|---|---|
+| `n` | Create a new meal (prompts for date and name) |
+| `v{id}` | Open a meal to view, add to, or edit (e.g. `v5`) |
+| `a{id}` | Analyze a meal, or optionally all meals on the same date |
+| `d{id}` | Delete one meal (e.g. `d5`) |
+| `d{id} {id} {id}` | Delete multiple meals by space-separated IDs (e.g. `d3 5 7`) |
+| `d{id}-{id}` | Delete a range of meal IDs (e.g. `d3-7`) |
+| `s` | Search your entire meal history for a food by name |
+| `mr` | Load the next 15 older meals |
+| `d{YYYY-MM-DD}` | Jump to meals on or before a specific date (e.g. `d2025-06-01`) |
+| `b` / Enter | Back to main menu |
+
+### Creating a meal
+
+Type `n`. You are asked for:
+
+1. **Date** — defaults to today. Press Enter to accept, or type a date in `YYYY-MM-DD` format.
+2. **Meal name** — e.g. "Breakfast", "Lunch", "Evening smoothie". Defaults to "Meal".
+
+After the meal is created you are taken immediately into the meal action loop (below) where you can start adding items.
+
+### The meal action loop
+
+Opening a meal with `v{id}` (or just after creating one) shows the current items and this menu:
+
+| Option | Action |
+|---|---|
+| **1** | Add items |
+| **2** | Edit an item |
+| **3** | Remove an item |
+| **4** | Analyze this meal |
+| **5** | Delete this meal |
+| **6** | Mark complete / Mark incomplete |
+| **7** | Rename this meal |
+| **8** | Merge with meal(s) on the same date *(shown only when other meals exist on that date)* |
+| `b` | Back to the meal list |
+
+### Adding items to a meal
+
+Choose **1**. At the "Search food or recipe" prompt, type a food name, FDC ID, or barcode. Saved recipes are included in the results automatically.
+
+**Adding a food:** after picking the food, choose a portion (weight, volume, or a USDA standard portion — see [Appendix F](#appendix-f-portion-input-formats-portion-formats) for all accepted formats). You are then offered an optional note field — a short label like "with skin" or "boiled". Press Enter to skip.
+
+**Adding a recipe:** enter the number of servings you are logging (e.g. `1`, `0.5`, `1 1/2`). You can also enter a gram weight followed by `g` (e.g. `290 g`) — NutriMagnus calculates the equivalent serving count from the recipe's recorded total weight. If the recipe has no total weight on record, you are asked to supply it.
+
+The updated item list is shown after each addition. Add as many items as needed; press Enter or `b` to finish.
+
+### Editing and removing meal items
+
+**Edit (option 2):** the item list is displayed and you enter the item ID you want to change. For food items:
+
+| Sub-option | Action |
+|---|---|
+| `f` | Change the food (search for a different food by name) |
+| `a` | Change the amount (re-enter the portion) |
+| `n` | Edit the note |
+| `d` / Enter | Save changes and return |
+
+For recipe items, you can update the number of servings.
+
+**Remove (option 3):** enter the item ID to remove it immediately.
+
+### Analyzing a meal
+
+Choose **4** from the meal action loop, or type `a{id}` from the main meal list. If there are multiple meals on the same date, you are asked whether to analyze just the selected meal or combine all meals from that date.
+
+The analysis shows:
+
+- Full nutrient table. If you have a user profile set, a "% of today's total" column shows how this meal contributes to your daily intake.
+- Meal-level pooled DIAAS and digestible complete protein (see [How NutriMagnus scores meal and recipe protein quality](#how-nutrimagnus-scores-meal-and-recipe-protein-quality) for the method).
+- Complement suggestions if amino acid gaps are present.
+- Glycemic load for the meal (if GI annotations are set for all foods).
+
+**Missing amino acid data:** if the meal includes foods without amino acid profiles that appear to be meaningful protein sources, NutriMagnus tells you how many are affected and which are inside logged recipes (fix those by editing the recipe) versus standalone meal items (those can be replaced on the spot via a focused Foundation Foods search). You can also skip the fix entirely — the analysis still runs using whichever foods do have AA data.
+
+**Refreshing AA data:** at the end of the analysis you are offered the option to go online and fetch the latest amino acid data from USDA for any foods that were missing it. The data is saved to your cache, and the next analysis of the same meal will be faster and more complete.
+
+### Marking a meal complete
+
+Choose **6** (Mark complete). This puts a ✓ in the Complete column on the meal list as a personal flag that you have finished logging this meal. It has no effect on analysis or logging — it is informational only and can be toggled at any time.
+
+### Merging meals
+
+If you logged the same eating occasion as two or more separate meals and want to consolidate them, open any of them and choose **8**. You are shown all meals on the same date. Enter specific IDs (space-separated) or type `all` to merge everything on that date. After the merged meal is created, you are asked whether to delete the originals.
+
+### Searching meal history
+
+Type `s` from the meal list. Enter a food name (partial matches work). Results can be viewed as:
+
+| View | Shows |
+|---|---|
+| Flat list | Every logged occurrence — date, meal name, food name, portion, note |
+| Summary | Totals per food name — number of times logged, total grams, first and last date |
+| Both | Flat list followed by summary |
+
+Note: this search finds foods and recipes logged directly as meal items. Ingredients inside a logged recipe are not included in the search.
+
+---
+
+## Using the Daily Summary menu
+
+The Daily Summary menu (main menu option **4**) aggregates all meals on a given day into one nutrient report.
+
+| Option | Action |
+|---|---|
+| **1** | Today's summary |
+| **2** | Summary for a specific date — enter `YYYY-MM-DD` at the prompt |
+| **3** | List the 30 most recent dates that have meals logged |
+
+The summary shows, in order:
+
+- Combined nutrient table for all meals on the date
+- Pooled meal-level DIAAS and digestible complete protein (spanning all meals on the day)
+- Protein adequacy assessment if a user profile is set
+- Complement suggestions for any amino acid gaps in the day's total protein
+
+**RDA comparison:** if a user profile is set (Settings → 2), you are asked at the end whether to compare your intake against your personalized daily targets. Answer **y** for a color-coded breakdown: green = at or above the goal, yellow = close, red = significantly short or over the limit. This comparison uses the same targets shown under Settings → 3 (View daily nutrient targets).
+
+If no profile is set, the nutrient totals still appear — you just won't see personalized targets. A brief tip at the bottom suggests setting up a profile.
+
+---
+
+## Using the Settings menu
+
+The Settings menu (main menu option **5**) has seven options. The current value of each setting is shown next to its menu item.
+
+### Color theme (Settings → 1)
+
+Switches the display between available color themes (dark, light, etc.). The new theme takes effect immediately and is saved for future sessions. You can also change the theme from the command line with `/config` (see `?help` for the full list of slash commands).
+
+### User profile (Settings → 2)
+
+Enter your personal details so NutriMagnus can compute daily calorie and nutrient targets specific to you:
+
+| Prompt | Format |
+|---|---|
+| Age | Whole years, e.g. `65` |
+| Sex | `m` (male), `f` (female), or `o` (other / prefer not to say) |
+| Weight | With unit — e.g. `80 kg` or `176 lbs` |
+| Height | As cm (`178 cm`) or feet-and-inches (`5'10"`) |
+| Activity level | 1 = sedentary through 5 = very active (a numbered list is shown) |
+
+Press Enter at any prompt to keep the current value. After saving, NutriMagnus immediately shows your estimated calorie target and minimum protein requirement.
+
+Your profile drives the personalized columns and comparisons that appear in meal, recipe, and daily-summary analyses. See `?goals` for the exact formulas used. See `?rda` for background on where the reference values come from.
+
+### View daily nutrient targets (Settings → 3)
+
+Displays the full table of personalized nutrient targets derived from your profile — calories, protein, carbohydrates, fiber, all minerals, and all vitamins. Each entry shows the goal type (minimum, target, or upper limit) and the computed value. Requires a profile to be set (Settings → 2).
+
+### Dietary preferences (Settings → 4)
+
+Controls which protein sources appear in complement suggestions and food search results throughout the program. See `?diet` for the full explanation, including an important note about how this setting filters search results.
+
+| Choice | Complement suggestions and food searches include |
+|---|---|
+| 1 | All animal foods — meat, fish, dairy, eggs |
+| 2 | Vegetarian — dairy and eggs only |
+| 3 | Plant-based only |
+
+### Editor command (Settings → 5)
+
+Sets the text editor that opens when you edit the Procedure field of a recipe (in Create, Develop, or Browse → edit). If not set, NutriMagnus uses the system default — the program named in your `$VISUAL` or `$EDITOR` environment variable.
+
+Enter any command your shell can run, for example `nano`, `vim`, or `code --wait` (VS Code in wait mode). To clear back to the system default, type `-`.
+
+### Display settings at program launch (Settings → 6)
+
+When enabled, NutriMagnus prints the current color theme, dietary preference, and user profile at the top of the screen each time it starts. This provides a quick confirmation of your active configuration without having to open Settings. Turn it off if you find it clutters the opening screen.
+
+### Advanced settings (Settings → 7)
+
+Contains three sub-options.
+
+**1 — Protein digestibility overrides:** lets you set a custom true ileal digestibility coefficient (a number from 0.00 to 1.00) for any specific food, overriding the default value NutriMagnus uses in meal-level DIAAS calculations. This is for cases where you have found a published study with a measured value for a food you eat regularly.
+
+Enter the food name exactly as it appears in your cache (the match is case-insensitive). NutriMagnus shows you the value it would use without an override. Enter your coefficient and an optional source note. Existing overrides are listed in a table; use `d` to delete one.
+
+**2 — USDA API key:** enter your personal FoodData Central API key. Type `s` to display the currently stored key. A personal key gives you a much higher search rate limit than the shared DEMO_KEY fallback. Getting a free key takes about a minute — instructions are in the [Food data](#food-data--where-it-comes-from-and-how-it-is-stored) section.
+
+**3 — Storage location:** displays the full path to your NutriMagnus database file (`numa.db`). This is read-only; the path is set automatically when the program first runs and cannot be changed here.
+
+---
 
 ## Food data — where it comes from and how it is stored
 
@@ -400,7 +781,7 @@ If you created a supplement entry before this feature was added, open it via **F
 
 ## How NutriMagnus scores meal and recipe protein quality
 
-(This section explains the meal-level method. For background on single-food DIAAS and how amino acid ratios work, see Appendix A.)
+(This section explains the meal-level method. For background on single-food DIAAS and how amino acid ratios work, see [Appendix A](#appendix-a-raw-protein-protein-quality-and-protein-digestibility).)
 
 Single-food analysis and meal-level analysis use different methods. For a single food, NutriMagnus computes a DIAAS score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the FAO's endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
 
@@ -854,7 +1235,16 @@ The FAO 2013 pattern replaced an older 1991 standard and is the current internat
 
 An amino acid gap means one or more essential amino acids are below the FAO 2013 reference level after digestibility adjustment. The gap is expressed as a score: 0.70 means the food supplies 70% of what is needed for that amino acid.
 
-Gaps are sorted from most-limiting to least. A small gap (score 0.90–0.95) is near-adequate and may not be worth correcting on its own. A large gap (below 0.70) in a food that forms a major part of your diet is worth addressing with a complement food.
+Gaps are sorted from most-limiting to least:
+
+    Score     Status                                    Complement suggestion?
+    --------  ----------------------------------------  ----------------------
+    >= 1.0    Meets FAO reference -- complete           No
+    0.95-0.99 Near-adequate -- practical gap too small  No (NutriMagnus floor)
+    0.70-0.94 Gap present                               Yes
+    < 0.70    Significant gap -- high priority          Yes
+
+NutriMagnus generates complement suggestions only for scores below 0.95, not below the FAO floor of 1.0. A gap of 0.98 would suggest "add 1 g" -- not useful. The 0.95 floor filters those out.
 
 - **Methionine** is the most commonly limiting amino acid in plant-based diets.
 - **Lysine** is the most commonly limiting in grain-heavy diets.
@@ -899,7 +1289,7 @@ A food can have a high GI but a low GL if the serving contains little actual car
 
 NutriMagnus displays GL in the nutrient summary alongside GI when carbohydrate data is available. Like GI, it is shown for reference and does not affect protein quality calculations.
 
-For a discussion of how GL compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix A: GL and Blood Glucose Comparison](#appendix-a-gl-and-blood-glucose-comparison).
+For a discussion of how GL compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix B: GL and Blood Glucose Comparison](#appendix-b-glycemic-load-gl-and-blood-glucose-comparison).
 
 
 ### Recommended Dietary Allowances [rda]
@@ -965,6 +1355,26 @@ those rows.
 
 Type ?rda for a general overview of where these values come from.
 
+## *Troubleshooting - what to do if you have a problem
+
+(Under development)
+
+### The program crashes unexpectedly
+
+
+### You don't understand how to respond to a prompt
+
+
+### You know what you want to do but can't see how to do it
+
+
+### How to contact help
+
+Do not be reluctant in any way to do this. When you're having a problem the cause most like is NOT you! So, contacting us gives us essential information needed to make things better for you and also for every other user. We very much want to hear from you if you have a problem.
+
+1. Text Tom at 435-272-3332. Plainly state that you are having a problem with the program. A brief statement of the problem is all I need. With your phone number I can call you back and get complete details of what I need to know to resolve your problem. I will generally call you back immediately. If a better time is available, let me know.
+
+2. For non-urgent problems - which generally are improvements you'd like to see - you can also email me. Provide screenshots, if you think that would help. ALWAYS TEXT ME IF YOU SEND AN EMAIL, as I do not check my email daily, and yours easily can get lost in the 100s I get every day.
 
 ## Glossary [glossary]
 
@@ -978,7 +1388,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **Bioavailable protein**  —  Protein the body can actually absorb and use, accounting for both digestibility and amino acid completeness. More meaningful than the raw protein figure on a nutrition label.
 
-**CGM**  —  Continuous Glucose Monitoring. A wearable device that measures blood glucose every few minutes. Discussed in Appendix B as the most accurate way to track individual glycemic response.
+**CGM**  —  Continuous Glucose Monitoring. A wearable device that measures blood glucose every few minutes. Discussed in [Appendix B](#appendix-b-glycemic-load-gl-and-blood-glucose-comparison) as the most accurate way to track individual glycemic response.
 
 **CLI**  —  Command-Line Interface. A text-based program you operate by typing commands and reading text output. NutriMagnus currently runs as a CLI; a graphical interface (GUI) is planned for a future phase.
 
@@ -1032,7 +1442,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **RDA**  —  Recommended Dietary Allowance. The average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group. See ?rda.
 
-**SPI**  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See Appendix E.
+**SPI**  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See [Appendix E](#appendix-e-why-some-foods-appear-only-in-diaas-boosting-suggestions-comp-appendix).
 
 **TID** —  
 
@@ -1321,6 +1731,87 @@ The small differences (1-3 mg/g) reflect different published FAO tables used
 at different points in the codebase. Both are within normal rounding variance
 across FAO publications. The gap-closer tier's values are the older set;
 the DIAAS-booster tier uses the authoritative FAO 2013 adult reference pattern.
+
+## Appendix F: Portion Input Formats [portion-formats]
+
+Every prompt that asks for a portion amount — in Foods, Recipes, Meals, and the Convert tool — accepts the same input formats.
+
+NUMBERS
+
+Plain decimals, fractions, and mixed numbers are all accepted:
+
+    150        plain number
+    0.5        decimal
+    1/4        fraction
+    1 1/2      mixed number (whole + fraction, separated by a space)
+
+WEIGHT UNITS
+
+    g  gr  gram  grams          grams  (1 g = 1 g)
+    oz  ounce  ounces           ounces  (1 oz = 28.35 g)
+    lb  lbs  pound  pounds      pounds  (1 lb = 453.6 g)
+    kg  kilogram  kilograms     kilograms  (1 kg = 1000 g)
+
+VOLUME UNITS
+
+NutriMagnus converts volume to grams via the food's recorded density.
+If density is unknown for a food, it asks you to supply the weight manually.
+
+    c  cup  cups                cups  (1 c = 236.6 ml)
+    T  tbsp  tablespoon  tablespoons    tablespoons  (1 T = 14.8 ml)
+    t  tsp  teaspoon  teaspoons     teaspoons  (1 t = 4.9 ml)
+    ml  milliliter  milliliters  cc   milliliters
+    floz                         fluid ounces  (1 floz = 29.6 ml)
+    l  liter  liters             liters  (1 l = 1000 ml)
+
+Note: T (uppercase) means tablespoon; t (lowercase) means teaspoon.
+These two are case-sensitive. All other units are case-insensitive.
+
+PIECE / COUNT UNITS
+
+    pc  pcs  piece  pieces  each  ea  count  ct  item  items
+
+Piece entries record a count but no gram weight. The program will ask
+you to confirm or supply a weight if it needs one for nutrient scaling.
+Unlike weight and volume units, piece units require a space: "2 pc",
+not "2pc".
+
+USDA STANDARD PORTIONS
+
+Many USDA foods include pre-defined portion sizes (e.g. "1 medium egg",
+"1 cup sliced"). These are listed at the portion prompt and can be
+selected by number:
+
+    p1         select USDA portion #1
+    p2         select USDA portion #2
+    1.5 p1     one-and-a-half times USDA portion #1
+
+OMITTING THE SPACE
+
+For all weight and volume units, the space between the number and unit
+is optional. These pairs are identical:
+
+    2 T    =   2T
+    0.25 c =   0.25c
+    150 g  =   150g
+    3 oz   =   3oz
+    1/4 c  =   1/4c
+
+(Piece units — pc, each, etc. — always require a space.)
+
+VOLUME WITH EXPLICIT WEIGHT
+
+When you know both the volume measure and the exact gram weight, you can
+supply both on one line. NutriMagnus records the weight and labels the
+entry with the volume for readability:
+
+    2 T 30g         →  30 g  (labeled "30 g (2 T)")
+    1/4 c 60 g      →  60 g  (labeled "60 g (1/4 c)")
+
+BARE NUMBER
+
+A bare number with no unit is assumed to be grams, but NutriMagnus
+always asks for confirmation before storing it.
 
 ## Note
 

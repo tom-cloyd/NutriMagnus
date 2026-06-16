@@ -4,7 +4,7 @@ Docs: README-numa-documentation.md, Menu Structure: "3. Meals & Log"
 """
 import json
 import re
-from datetime import date
+from datetime import date, datetime
 
 from rich.table import Table
 
@@ -70,15 +70,15 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
         )
     standalone_names = "\n".join(f"    · {it['food_name']}" for it in affected)
     state.console.print(
-        f"  [dim]Standalone meal ingredients missing AA data:[/dim]\n"
+        f"  [grey62]Standalone meal ingredients missing AA data:[/grey62]\n"
         + standalone_names,
         highlight=False,
     )
     state.console.print(
-        f"  [dim]Some of these may be minor ingredients (fruit, garnishes, etc.) with\n"
+        f"  [grey62]Some of these may be minor ingredients (fruit, garnishes, etc.) with\n"
         f"  negligible protein — those can safely be ignored here. Only proceed if\n"
         f"  one or more of them are meaningful protein sources in your meal.\n"
-        f"  If none are, enter [bold]n[/bold].[/dim]",
+        f"  If none are, enter [bold]n[/bold].[/grey62]",
         highlight=False,
     )
     try:
@@ -94,19 +94,19 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
         return False
 
     state.console.print(
-        f"\n  [dim]For each ingredient, you can search for a replacement with AA data.\n"
+        f"\n  [grey62]For each ingredient, you can search for a replacement with AA data.\n"
         f"  In the search results, [bold]SR Legacy[/bold] or [bold]Foundation[/bold] entries"
         f" typically include full amino acid profiles — check the AA column.\n"
-        f"  Press Enter to skip an ingredient.[/dim]"
+        f"  Press Enter to skip an ingredient.[/grey62]"
     )
 
     replaced_any = False
     for item in affected:
-        state.console.print(f"\n  [dim]Next food missing AA data:[/dim]"
+        state.console.print(f"\n  [grey62]Next food missing AA data:[/grey62]"
                       f"  [{state.T['accent']}]{item['food_name']}[/{state.T['accent']}]"
-                      f"  [dim]({_normalize_unit_display(item['unit'])})[/dim]")
+                      f"  [grey62]({_normalize_unit_display(item['unit'])})[/grey62]")
         suggested = _simplify_food_query(item["food_name"].split(",")[0].strip())
-        state.console.print(f"  [dim]Searching SR Legacy + Foundation for: '{suggested}'[/dim]")
+        state.console.print(f"  [grey62]Searching SR Legacy + Foundation for: '{suggested}'[/grey62]")
         food = _search_and_pick_food(
             data_types=["Foundation", "SR Legacy"],
             initial_query=suggested,
@@ -114,7 +114,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
             allow_research=False,
         )
         if food is None:
-            state.console.print("  [dim]Skipped.[/dim]")
+            state.console.print("  [grey62]Skipped.[/grey62]")
             continue
 
         has_aa = _usda.has_amino_acid_data(food["nutrients"])
@@ -124,7 +124,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
                 f"(Type: {food.get('dataType', '?')}). Replace anyway?[/{state.T['warning']}]"
             )
             try:
-                confirm = _prompt("Replace anyway?  [dim](n = skip to next food)[/dim]", choices=["y", "n"], default="n")
+                confirm = _prompt("Replace anyway?  [grey62](n = skip to next food)[/grey62]", choices=["y", "n"], default="n")
             except Cancelled:
                 confirm = "n"
             if confirm != "y":
@@ -132,10 +132,10 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
 
         grams, label = None, None
         if item["amount"] and item["amount"] > 0 and item["unit"] and item["unit"] != "—":
-            state.console.print(f"  [dim]Original amount: [bold]{_normalize_unit_display(item['unit'])}[/bold]"
-                          f"  ({item['amount']:.0f} g)[/dim]")
+            state.console.print(f"  [grey62]Original amount: [bold]{_normalize_unit_display(item['unit'])}[/bold]"
+                          f"  ({item['amount']:.0f} g)[/grey62]")
             try:
-                keep = _prompt("Keep this amount for the replacement?  [dim](Y/n)[/dim]",
+                keep = _prompt("Keep this amount for the replacement?  [grey62](Y/n)[/grey62]",
                                choices=["y", "n"], default="y")
             except Cancelled:
                 keep = "y"
@@ -145,7 +145,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
         if grams is None:
             result = _pick_portion(food)
             if result is None:
-                state.console.print("  [dim]Skipped.[/dim]")
+                state.console.print("  [grey62]Skipped.[/grey62]")
                 continue
             grams, label, _ = result
 
@@ -160,8 +160,8 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
 
     if replaced_any:
         state.console.print(
-            f"\n  [{state.T['success']}]✓[/{state.T['success']}]  [dim]Ingredients updated."
-            f" Re-analyze this meal to see the updated DIAAS results.[/dim]"
+            f"\n  [{state.T['success']}]✓[/{state.T['success']}]  [grey62]Ingredients updated."
+            f" Re-analyze this meal to see the updated DIAAS results.[/grey62]"
         )
     return replaced_any
 
@@ -199,7 +199,7 @@ def _menu_meals() -> bool:
 
         title = "Meals & Log"
         if before_date:
-            title += f"  [dim]— from {before_date}[/dim]"
+            title += f"  [grey62]— from {before_date}[/grey62]"
         section_title(title)
 
         _W_NAME = 28
@@ -212,7 +212,7 @@ def _menu_meals() -> bool:
             tbl.add_column("Items", justify="right", min_width=5)
             for m in page:
                 done_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
-                             if m["complete"] else "[dim]·[/dim]")
+                             if m["complete"] else "[grey62]·[/grey62]")
                 tbl.add_row(
                     str(m["id"]),
                     m["meal_date"],
@@ -222,36 +222,36 @@ def _menu_meals() -> bool:
                 )
             state.console.print(tbl)
         elif offset == 0 and before_date is None:
-            state.console.print("  [dim]No meals logged yet.[/dim]")
+            state.console.print("  [grey62]No meals logged yet.[/grey62]")
         else:
             state.console.print(
-                "  [dim]No" + (" more" if offset > 0 else "")
-                + " meals" + (f" before {before_date}" if before_date else "") + ".[/dim]"
+                "  [grey62]No" + (" more" if offset > 0 else "")
+                + " meals" + (f" before {before_date}" if before_date else "") + ".[/grey62]"
             )
 
         if page:
             more_count = total_count - offset - len(page)
             state.console.print(
-                f"  [dim]({len(page)} shown — {more_count} more to show)[/dim]",
+                f"  [grey62]({len(page)} shown — {more_count} more to show)[/grey62]",
                 highlight=False,
             )
         state.console.print()
         state.console.print(f"  [{state.T['accent']}]Commands:[/{state.T['accent']}]", highlight=False)
-        state.console.print("  [dim]  n ············  New meal (prompts for date and name)[/dim]", highlight=False)
+        state.console.print("  [grey62]  n ············  New meal (prompts for date and name)[/grey62]", highlight=False)
         if page:
-            state.console.print("  [dim]  v{id} ········  View or edit a meal  (e.g. v3)[/dim]", highlight=False)
-            state.console.print("  [dim]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/dim]", highlight=False)
-            state.console.print("  [dim]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/dim]", highlight=False)
-        state.console.print("  [dim]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/dim]", highlight=False)
+            state.console.print("  [grey62]  v{id} ········  View or edit a meal  (e.g. v3)[/grey62]", highlight=False)
+            state.console.print("  [grey62]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/grey62]", highlight=False)
+            state.console.print("  [grey62]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/grey62]", highlight=False)
+        state.console.print("  [grey62]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/grey62]", highlight=False)
         if has_more:
-            state.console.print("  [dim]  mr ···········  Show next 15 older meals[/dim]", highlight=False)
-        state.console.print("  [dim]  d{YYYY-MM-DD}   Jump to meals on or before a date  (e.g. d2025-03-15)[/dim]", highlight=False)
-        state.console.print("  [dim]  b / m / q ····  Back · Main menu · Quit[/dim]", highlight=False)
+            state.console.print("  [grey62]  mr ···········  Show next 15 older meals[/grey62]", highlight=False)
+        state.console.print("  [grey62]  d{YYYY-MM-DD}   Jump to meals on or before a date  (e.g. d2025-03-15)[/grey62]", highlight=False)
+        state.console.print("  [grey62]  b / m / q ····  Back · Main menu · Quit[/grey62]", highlight=False)
 
         try:
             raw = _prompt("Command").strip()
         except Cancelled:
-            state.console.print("[dim]Cancelled.[/dim]")
+            state.console.print("[grey62]Cancelled.[/grey62]")
             return True
 
         rl = raw.lower()
@@ -329,11 +329,11 @@ def _meal_add_items(meal_id: int) -> None:
         meal_row = _db.meal_get(conn, meal_id)
     meal_name = meal_row["name"] if meal_row else ""
     _print_meal_items(meal_id, meal_name)
-    state.console.print(f"\n  Add new items  [dim](Enter/b=back, m=main, q=quit)[/dim]", highlight=False)
+    state.console.print(f"\n  Add new items  [grey62](Enter/b=back, m=main, q=quit)[/grey62]", highlight=False)
     while True:
         state.console.print()
         try:
-            query = _prompt("Search food or recipe  [dim](name · FDC ID · barcode · b/d=back, m=main, q=quit)[/dim]", free_text=True).strip()
+            query = _prompt("Search food or recipe  [grey62](name · FDC ID · barcode · b/d=back, m=main, q=quit)[/grey62]", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()
@@ -366,7 +366,7 @@ def _meal_add_items(meal_id: int) -> None:
             rname            = result["name"]
             r_total_weight = result.get("total_weight") or None
             r_total_servings = result["servings"] or 1
-            srv_hint = "[dim](servings e.g. 1, 1/2, 1.5  ·  or weight e.g. 290 g · b=back, m=main, q=quit)[/dim]"
+            srv_hint = "[grey62](servings e.g. 1, 1/2, 1.5  ·  or weight e.g. 290 g · b=back, m=main, q=quit)[/grey62]"
             servings = None
             portion_label = None
             while True:
@@ -394,10 +394,10 @@ def _meal_add_items(meal_id: int) -> None:
                     total_wt = r_total_weight
                     if not total_wt or total_wt <= 0:
                         # Recipe has no stored total weight — ask inline
-                        state.console.print(f"  [dim]Recipe '{rname}' has no total weight on record.[/dim]")
+                        state.console.print(f"  [grey62]Recipe '{rname}' has no total weight on record.[/grey62]")
                         try:
                             raw_tw = _prompt(
-                                "Total weight of the full recipe  [dim](e.g. 800 g — b=skip)[/dim]",
+                                "Total weight of the full recipe  [grey62](e.g. 800 g — b=skip)[/grey62]",
                                 free_text=True,
                             ).strip()
                         except Cancelled:
@@ -436,7 +436,7 @@ def _meal_add_items(meal_id: int) -> None:
                 continue
             grams, label, _ = portion
             try:
-                notes = _prompt("Note for this item  [dim](optional, Enter to skip)[/dim]", default="", free_text=True).strip() or None
+                notes = _prompt("Note for this item  [grey62](optional, Enter to skip)[/grey62]", default="", free_text=True).strip() or None
             except Cancelled:
                 notes = None
             with _db.get_db() as conn:
@@ -517,7 +517,7 @@ def _do_meal_delete_by_id(meal_id: int) -> None:
             _db.meal_delete(conn, meal_id)
         state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Deleted.")
     else:
-        state.console.print("[dim]Cancelled.[/dim]")
+        state.console.print("[grey62]Cancelled.[/grey62]")
 
 
 def _do_meal_delete_multiple(meal_ids: list[int]) -> None:
@@ -531,9 +531,9 @@ def _do_meal_delete_multiple(meal_ids: list[int]) -> None:
             meals.append(m)
     if not meals:
         return
-    state.console.print(f"  [dim]About to delete {len(meals)} meal(s):[/dim]")
+    state.console.print(f"  [grey62]About to delete {len(meals)} meal(s):[/grey62]")
     for m in meals:
-        state.console.print(f"    [dim]· {m['id']}  {m['meal_date']}  {m['name']}[/dim]", highlight=False)
+        state.console.print(f"    [grey62]· {m['id']}  {m['meal_date']}  {m['name']}[/grey62]", highlight=False)
     try:
         confirm = _prompt(
             f"Delete {len(meals)} meal(s)?",
@@ -547,7 +547,7 @@ def _do_meal_delete_multiple(meal_ids: list[int]) -> None:
                 _db.meal_delete(conn, m["id"])
         state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Deleted {len(meals)} meal(s).")
     else:
-        state.console.print("[dim]Cancelled.[/dim]")
+        state.console.print("[grey62]Cancelled.[/grey62]")
 
 
 def _print_meal_items(meal_id: int, meal_name: str) -> list:
@@ -556,9 +556,9 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
         meal_row = _db.meal_get(conn, meal_id)
         items    = _db.meal_get_items(conn, meal_id)
     date_prefix = f"{meal_row['meal_date']}  ·  " if meal_row else ""
-    section_title(f"{date_prefix}{meal_name}  [dim](ID {meal_id})[/dim]")
+    section_title(f"{date_prefix}{meal_name}  [grey62](ID {meal_id})[/grey62]")
     if not items:
-        state.console.print("    [dim]No items logged.[/dim]")
+        state.console.print("    [grey62]No items logged.[/grey62]")
     else:
         _MITEM_W = 38
         tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None,
@@ -572,7 +572,7 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
                 amount_label = unit if unit and unit != "servings" else _format_recipe_portion_label(float(it["amount"]))
                 fname = it["food_name"][:_MITEM_W - 1]
                 fdots = "·" * (_MITEM_W - len(fname) - 1)
-                name_cell = f"{fname} [dim]{fdots}[/dim]"
+                name_cell = f"{fname} [grey62]{fdots}[/grey62]"
             else:
                 unit = it["unit"] or "g"
                 if unit == "g":
@@ -582,7 +582,7 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
                 fdc_str = str(it['fdc_id'])
                 visible_len = len(fdc_str) + 2 + len(it['food_name'])
                 fdots = "·" * max(0, _MITEM_W - visible_len - 1)
-                name_cell = f"[dim]{fdc_str}[/dim]  {it['food_name']} [dim]{fdots}[/dim]"
+                name_cell = f"[grey62]{fdc_str}[/grey62]  {it['food_name']} [grey62]{fdots}[/grey62]"
             tbl.add_row(str(it["id"]), amount_label, name_cell)
         state.console.print(tbl)
     return list(items)
@@ -769,17 +769,17 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
     _print_meal_items(meal_id, meal_name)
     nutrients = _compute_meal_nutrients(meal_id)
     if nutrients is None:
-        state.console.print("[dim]No nutrient data found for this meal. "
-                      "Ensure all ingredients are in the cache.[/dim]")
+        state.console.print("[grey62]No nutrient data found for this meal. "
+                      "Ensure all ingredients are in the cache.[/grey62]")
         return
 
     # Compute today's running total and RDA for the % today column
     profile = _profile.load_profile()
     daily_nutrients: dict[str, float] | None = None
     rda = None
+    with _db.get_db() as conn:
+        today_meals = _db.meal_list_by_date(conn, meal_date)
     if profile:
-        with _db.get_db() as conn:
-            today_meals = _db.meal_list_by_date(conn, meal_date)
         daily_parts = [n for m in today_meals if (n := _compute_meal_nutrients(m["id"]))]
         if daily_parts:
             daily_nutrients = _usda.sum_nutrients(*daily_parts)
@@ -792,6 +792,8 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
     missing_aa, _dcp_g = _print_meal_diaas(ing_list, profile=profile)
     if missing_aa:
         _fix_meal_aa_profiles(meal_id, missing_aa)
+
+    # Meal-level complement suggestions and glycemic load
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
         for ing in ing_list
@@ -807,25 +809,68 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
             f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
         )
         for name in gl_blockers:
-            state.console.print(f"    [dim]• {name}[/dim]")
+            state.console.print(f"    [grey62]• {name}[/grey62]")
         state.console.print(
-            "  [dim]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/dim]"
+            "  [grey62]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/grey62]"
         )
     else:
         color = (state.T["success"] if gl_total <= 10
                  else state.T["warning"] if gl_total <= 19
                  else state.T["error"])
         state.console.print(
-            f"  [{color}]{gl_total:.1f}[/{color}]  [dim]whole meal[/dim]",
+            f"  [{color}]{gl_total:.1f}[/{color}]  [grey62]this meal[/grey62]",
             highlight=False,
         )
+
+    # Day-level analysis (only when there are multiple meals today)
+    if len(today_meals) > 1:
+        all_day_ings: list[dict] = []
+        for m in today_meals:
+            all_day_ings.extend(_compute_meal_ingredient_list(m["id"]))
+        _print_meal_diaas(all_day_ings, profile=profile, title="Day-Level Complete Protein Analysis")
+        day_aa_nutrients = _usda.sum_nutrients(*[
+            _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
+            for ing in all_day_ings
+            if _usda.has_amino_acid_data(ing["nutrients_100g"])
+        ]) if all_day_ings else {}
+        if day_aa_nutrients:
+            _print_complement_suggestions(day_aa_nutrients, context="daily", basis_label="all meals today", silent_if_complete=True)
+
+        gl_total_day = 0.0
+        gl_blockers_day: list[str] = []
+        for m in today_meals:
+            gl, bl = _compute_meal_gl(m["id"])
+            if not bl:
+                gl_total_day += gl
+            gl_blockers_day.extend(bl)
+        section_title("Glycemic load — all meals today")
+        if gl_blockers_day:
+            state.console.print(
+                f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
+            )
+            seen: set[str] = set()
+            for name in gl_blockers_day:
+                if name not in seen:
+                    state.console.print(f"    [grey62]• {name}[/grey62]")
+                    seen.add(name)
+            state.console.print(
+                "  [grey62]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/grey62]"
+            )
+        else:
+            color = (state.T["success"] if gl_total_day <= 10
+                     else state.T["warning"] if gl_total_day <= 19
+                     else state.T["error"])
+            state.console.print(
+                f"  [{color}]{gl_total_day:.1f}[/{color}]  [grey62]all meals — {meal_date}[/grey62]",
+                highlight=False,
+            )
 
     # AA data source note + optional USDA refresh (always offered)
     if ing_list:
         note = "AA data: local cache"
         if missing_aa:
             note += f"  ({len(missing_aa)} food(s) missing AA data)"
-        state.console.print(f"\n  [dim]{note}[/dim]")
+        state.console.print(f"\n  [grey62]{note}[/grey62]")
         try:
             fetch_ans = _prompt(
                 "Refresh AA data from USDA?",
@@ -843,7 +888,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                     if food_name in targets:
                         _refresh_cache_if_missing_aa(fdc_id)
             state.console.print(
-                "  [dim]AA data updated in cache — re-run analysis to see the full picture.[/dim]"
+                "  [grey62]AA data updated in cache — re-run analysis to see the full picture.[/grey62]"
             )
 
 
@@ -868,7 +913,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
             ("4", "Analyze this meal"),
             ("5", "Delete this meal"),
             ("6", "Mark complete" if not is_complete else "Mark incomplete"),
-            ("7", "Rename this meal"),
+            ("7", "Edit meal name or date"),
         ]
         if siblings:
             menu_items.append(("8", "Merge with meal(s) on same date"))
@@ -877,7 +922,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ]
-        status_label = "[green]✓ complete[/green]" if is_complete else "[dim][?] incomplete[/dim]"
+        status_label = "[green]✓ complete[/green]" if is_complete else "[grey62][?] incomplete[/grey62]"
         _show_menu(f"Actions — {meal_name}  {status_label}", menu_items)
         try:
             choice = _prompt("Choice").strip().lower()
@@ -937,12 +982,12 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
                     amt_display = (f"{_normalize_unit_display(cur_unit)}  ({cur_amount:.0f} g)"
                                    if cur_amount and cur_amount > 0 and cur_unit and cur_unit != "—"
                                    else "—")
-                    notes_display = f"  [dim]Note: {cur_notes}[/dim]" if cur_notes else ""
-                    state.console.print(f"\n  [dim]Editing:[/dim] [bold]{cur_name}[/bold]  {amt_display}{notes_display}")
+                    notes_display = f"  [grey62]Note: {cur_notes}[/grey62]" if cur_notes else ""
+                    state.console.print(f"\n  [grey62]Editing:[/grey62] [bold]{cur_name}[/bold]  {amt_display}{notes_display}")
                     state.console.print(f"  [{state.T['accent']}]f.[/{state.T['accent']}] Change food (search by new name)")
                     state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Change amount")
                     state.console.print(f"  [{state.T['accent']}]n.[/{state.T['accent']}] Edit note")
-                    state.console.print(f"  [dim]d / done  — save and exit[/dim]")
+                    state.console.print(f"  [grey62]d / done  — save and exit[/grey62]")
                     try:
                         sub = _prompt("Choice").strip().lower()
                     except Cancelled:
@@ -953,7 +998,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
                         raise SystemExit(0)
                     if sub == "n":
                         try:
-                            new_notes = _prompt("Note  [dim](Enter to clear)[/dim]", default=cur_notes, free_text=True).strip()
+                            new_notes = _prompt("Note  [grey62](Enter to clear)[/grey62]", default=cur_notes, free_text=True).strip()
                         except Cancelled:
                             continue
                         cur_notes = new_notes
@@ -973,7 +1018,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
                         cur_fdc_id = new_food["fdcId"]
                         cur_name   = new_food["name"]
                         changed = True
-                        state.console.print(f"  [dim]Food set to: {cur_name}[/dim]")
+                        state.console.print(f"  [grey62]Food set to: {cur_name}[/grey62]")
                     elif sub == "a":
                         with _db.get_db() as conn:
                             cached = _db.get_cached_food(conn, cur_fdc_id)
@@ -1039,7 +1084,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
 
         elif choice == "5":
             try:
-                confirm = _prompt(f"Delete '{meal_name}'?  [dim](y/n)[/dim]", choices=["y", "n"], default="n")
+                confirm = _prompt(f"Delete '{meal_name}'?  [grey62](y/n)[/grey62]", choices=["y", "n"], default="n")
             except Cancelled:
                 continue
             if confirm != "y":
@@ -1057,25 +1102,56 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Marked {label}.")
 
         elif choice == "7":
+            # --- name ---
             try:
-                new_name = _prompt("New meal name", default=meal_name, prefill=True, free_text=True).strip()
+                new_name = _prompt("Meal name  [grey62](b=back, m=main, q=quit)[/grey62]", default=meal_name, prefill=True, free_text=True, two_line=True).strip()
             except Cancelled:
                 continue
-            if not new_name or new_name == meal_name:
+            if not new_name or new_name.lower() == "b":
+                continue
+            if new_name.lower() == "m":
+                raise ReturnToMain()
+            if new_name.lower() == "q":
+                raise SystemExit(0)
+            # --- date ---
+            new_date: str | None = None
+            while True:
+                try:
+                    raw_date = _prompt("Meal date  [grey62](YYYY-MM-DD, b=cancel, m=main, q=quit)[/grey62]", default=meal_date, prefill=True, two_line=True).strip()
+                except Cancelled:
+                    raw_date = "b"
+                if not raw_date or raw_date.lower() == "b":
+                    new_date = None
+                    break
+                if raw_date.lower() == "m":
+                    raise ReturnToMain()
+                if raw_date.lower() == "q":
+                    raise SystemExit(0)
+                try:
+                    datetime.strptime(raw_date, "%Y-%m-%d")
+                    new_date = raw_date
+                    break
+                except ValueError:
+                    state.console.print(f"  [{state.T['warning']}]Use YYYY-MM-DD format (e.g. 2026-01-15).[/{state.T['warning']}]")
+            if new_date is None:
                 continue
             with _db.get_db() as conn:
-                _db.meal_rename(conn, meal_id, new_name)
+                if new_name != meal_name:
+                    _db.meal_rename(conn, meal_id, new_name)
+                if new_date != meal_date:
+                    _db.meal_set_date(conn, meal_id, new_date)
             meal_name = new_name
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Renamed to: {meal_name}")
+            meal_date = new_date
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved: {meal_name} [grey62]{meal_date}[/grey62]")
 
         elif choice == "8" and siblings:
             with _db.get_db() as conn:
                 all_on_date = _db.meal_list_by_date(conn, meal_date)
             ids_str = "  ".join(f"{m['id']}={m['name']}" for m in all_on_date)
-            state.console.print(f"  [dim]Meals on {meal_date}: {ids_str}[/dim]")
+            state.console.print(f"  [grey62]Meals on {meal_date}: {ids_str}[/grey62]")
             try:
                 raw_ids = _prompt(
-                    "Meal IDs to merge  [dim](space-separated, or 'all', b=back, m=main)[/dim]",
+                    "Meal IDs to merge  [grey62](space-separated, or 'all', b=back, m=main)[/grey62]",
                     default="all",
                 ).strip().lower()
             except Cancelled:
@@ -1110,23 +1186,30 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
                     continue
             default_name = selected[0]["name"]
             try:
-                new_name = _prompt("Name for merged meal", default=default_name, prefill=True).strip() or default_name
+                new_name = _prompt("Name for merged meal  [grey62](b=back, m=main, q=quit)[/grey62]", default=default_name, prefill=True, two_line=True).strip()
             except Cancelled:
                 continue
+            if not new_name or new_name.lower() == "b":
+                continue
+            if new_name.lower() == "m":
+                raise ReturnToMain()
+            if new_name.lower() == "q":
+                raise SystemExit(0)
+            new_name = new_name or default_name
             with _db.get_db() as conn:
                 new_mid = _db.meal_create(conn, new_name, meal_date)
                 total_items = sum(_db.meal_copy_items(conn, m["id"], new_mid) for m in selected)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Created '{new_name}' "
                           f"(ID {new_mid}) with {total_items} item(s).")
             try:
-                del_orig = _prompt("Delete original meals?  [dim](y/n)[/dim]", choices=["y", "n"], default="y")
+                del_orig = _prompt("Delete original meals?  [grey62](y/n)[/grey62]", choices=["y", "n"], default="y")
             except Cancelled:
                 del_orig = "n"
             if del_orig == "y":
                 with _db.get_db() as conn:
                     for m in selected:
                         _db.meal_delete(conn, m["id"])
-                state.console.print(f"  [dim]Deleted {len(selected)} original meal(s).[/dim]")
+                state.console.print(f"  [grey62]Deleted {len(selected)} original meal(s).[/grey62]")
             if del_orig == "y" and any(m["id"] == meal_id for m in selected):
                 return False
             _print_meal_items(new_mid, new_name)
@@ -1152,7 +1235,7 @@ def _analyze_day(meals: list, meal_date: str) -> None:
             combined = _usda.sum_nutrients(combined, n)
         all_ings.extend(_compute_meal_ingredient_list(m["id"]))
     if not combined:
-        state.console.print("[dim]No nutrient data found.[/dim]")
+        state.console.print("[grey62]No nutrient data found.[/grey62]")
         return
     title = f"All meals — {meal_date}"
     _print_nutrient_table(combined, title=f"Nutrient analysis for {title}")
@@ -1180,20 +1263,20 @@ def _analyze_day(meals: list, meal_date: str) -> None:
         seen: set[str] = set()
         for name in gl_blockers_day:
             if name not in seen:
-                state.console.print(f"    [dim]• {name}[/dim]")
+                state.console.print(f"    [grey62]• {name}[/grey62]")
                 seen.add(name)
         state.console.print(
-            "  [dim]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/dim]"
+            "  [grey62]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/grey62]"
         )
     else:
         color = (state.T["success"] if gl_total_day <= 10
                  else state.T["warning"] if gl_total_day <= 19
                  else state.T["error"])
         state.console.print(
-            f"  [{color}]{gl_total_day:.1f}[/{color}]  [dim]all meals — {meal_date}[/dim]",
+            f"  [{color}]{gl_total_day:.1f}[/{color}]  [grey62]all meals — {meal_date}[/grey62]",
             highlight=False,
         )
-    state.console.print("\n  [dim]AA data: local cache[/dim]")
+    state.console.print("\n  [grey62]AA data: local cache[/grey62]")
     _offer_export(title, [
         {"type": "nutrient_table", "title": title, "nutrients": combined},
         {"type": "protein_completeness", "nutrients": combined},
@@ -1208,7 +1291,7 @@ def _print_meal_history_flat(rows: list, query: str) -> None:
     _W_MEAL = 18
     _W_FOOD = 32
     _W_NOTE = 16
-    table_title("MEAL HISTORY — OCCURRENCES", f"[dim]search: '{query}'[/dim]")
+    table_title("MEAL HISTORY — OCCURRENCES", f"[grey62]search: '{query}'[/grey62]")
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("Date",    min_width=10, no_wrap=True)
     tbl.add_column("Meal",    min_width=_W_MEAL, max_width=_W_MEAL, no_wrap=True)
@@ -1217,9 +1300,9 @@ def _print_meal_history_flat(rows: list, query: str) -> None:
     tbl.add_column("Notes",   min_width=_W_NOTE, max_width=_W_NOTE, no_wrap=True)
     for r in rows:
         is_recipe = r["item_type"] == "recipe"
-        portion   = r["unit"] if r["unit"] else (f"{r['amount']:.0f} g" if r["amount"] else "[dim]—[/dim]")
+        portion   = r["unit"] if r["unit"] else (f"{r['amount']:.0f} g" if r["amount"] else "[grey62]—[/grey62]")
         notes     = r["notes"] or ""
-        name_cell = (f"{r['food_name']} [dim](recipe)[/dim]" if is_recipe else r["food_name"])
+        name_cell = (f"{r['food_name']} [grey62](recipe)[/grey62]" if is_recipe else r["food_name"])
         tbl.add_row(r["meal_date"], r["meal_name"], name_cell, portion, notes)
     state.console.print(tbl)
 
@@ -1248,11 +1331,11 @@ def _print_meal_history_summary(rows: list) -> None:
         is_recipe  = items[0]["item_type"] == "recipe"
         dates      = sorted(r["meal_date"] for r in items)
         if is_recipe:
-            total_str  = "[dim]—[/dim]"
-            name_cell  = f"{food_name} [dim](recipe)[/dim]"
+            total_str  = "[grey62]—[/grey62]"
+            name_cell  = f"{food_name} [grey62](recipe)[/grey62]"
         else:
             total_g   = sum(r["amount"] for r in items if r["amount"])
-            total_str = f"[{s}]{total_g:.0f} g[/{s}]" if total_g else "[dim]—[/dim]"
+            total_str = f"[{s}]{total_g:.0f} g[/{s}]" if total_g else "[grey62]—[/grey62]"
             name_cell = food_name
         tbl.add_row(name_cell, str(len(items)), total_str, dates[0], dates[-1])
     state.console.print(tbl)
@@ -1277,7 +1360,7 @@ def _do_meal_food_search() -> None:
     if not rows:
         state.console.print(
             f"[{state.T['warning']}]No meal items match '{query}'.[/{state.T['warning']}]\n"
-            f"[dim]Note: ingredients inside logged recipes are not searched — only foods and recipes logged directly.[/dim]"
+            f"[grey62]Note: ingredients inside logged recipes are not searched — only foods and recipes logged directly.[/grey62]"
         )
         return
 
@@ -1285,10 +1368,10 @@ def _do_meal_food_search() -> None:
     n_meals = len({r["meal_id"] for r in rows})
     n_dates = len({r["meal_date"] for r in rows})
     state.console.print(
-        f"\n  [dim]Found [bold]{n_items}[/bold] occurrence{'s' if n_items != 1 else ''} "
+        f"\n  [grey62]Found [bold]{n_items}[/bold] occurrence{'s' if n_items != 1 else ''} "
         f"across [bold]{n_meals}[/bold] meal{'s' if n_meals != 1 else ''} "
-        f"on [bold]{n_dates}[/bold] date{'s' if n_dates != 1 else ''}.[/dim]"
-        f"\n  [dim]Ingredients inside logged recipes are not included.[/dim]\n"
+        f"on [bold]{n_dates}[/bold] date{'s' if n_dates != 1 else ''}.[/grey62]"
+        f"\n  [grey62]Ingredients inside logged recipes are not included.[/grey62]\n"
     )
 
     try:
