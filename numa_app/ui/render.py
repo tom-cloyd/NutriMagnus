@@ -7,6 +7,7 @@ import json
 from rich.table import Table
 from rich.panel import Panel
 from rich.rule import Rule
+from rich.padding import Padding
 from rich.console import Group
 from rich.text import Text
 
@@ -239,6 +240,8 @@ def _print_protein_adequacy(
     dcp_g: when provided (from DIAAS analysis), used as the effective protein intake
            figure instead of the raw total protein from nutrients.
     """
+    if profile is None:
+        return
     protein_target = _profile.compute_rda(profile).get("protein_g", (0.0, "g", "minimum"))[0]
     if protein_target <= 0:
         return
@@ -305,7 +308,7 @@ def _print_meal_diaas(
                   "pooled across foods, digestibility-corrected (DIAAS)")
 
     # Per-food digestibility table
-    table_title("MEAL FOODS: DIGESTIBILITY ANALYSIS")
+    table_title("MEAL FOODS: PROTEIN DIGESTIBILITY ANALYSIS")
     state.console.print(
         f"  [grey62]Digestibility color key:[/grey62]  "
         f"[{state.T['success']}]≥0.90 good[/{state.T['success']}]  "
@@ -317,15 +320,22 @@ def _print_meal_diaas(
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("ID",        justify="right", min_width=7)
     tbl.add_column("Food",      min_width=_FOOD_COL_W, max_width=_FOOD_COL_W, no_wrap=True)
+    tbl.add_column("Food tot. gr.", justify="right", min_width=12)
     tbl.add_column("Protein",         justify="right", min_width=8)
     tbl.add_column("Digestibility",   justify="right", min_width=14)
     tbl.add_column("Digestible prot", justify="right", min_width=15)
     tbl.add_column("AA",              justify="center", min_width=3)
 
+    total_grams = 0.0
+    total_protein = 0.0
+    total_dig_p = 0.0
     for ing in result["ingredients"]:
         p = ing["protein_g"]
         d = ing["digestibility"]
-        dig_p = p * d if ing["has_aa_data"] else p  # if no AA data, digestibility still applies to protein
+        dig_p = p * d  # digestibility applies regardless of whether AA data is present
+        total_grams   += ing["grams"]
+        total_protein += p
+        total_dig_p   += dig_p
         source_tag = ""
         src = ing["dig_source"]
         if "user override" in src:
@@ -340,6 +350,7 @@ def _print_meal_diaas(
         tbl.add_row(
             _id_cell(ing.get("fdc_id")),
             food_cell,
+            f"{ing['grams']:.1f}g",
             f"{p:.1f}g",
             f"[{color}]{d:.2f}[/{color}]{source_tag}",
             f"{dig_p:.1f}g",
@@ -348,13 +359,30 @@ def _print_meal_diaas(
     state.console.print()
     state.console.print(tbl, highlight=False)
 
-    total_dig_p = sum(
-        ing["protein_g"] * ing["digestibility"] if ing["has_aa_data"] else ing["protein_g"]
-        for ing in result["ingredients"]
+    # Totals row: dim rule + aligned totals table
+    state.console.print(Rule(style="grey62 dim"), highlight=False)
+    totals_tbl = Table(show_header=False, box=None, padding=(0, 1))
+    totals_tbl.add_column(justify="right", min_width=7)
+    totals_tbl.add_column(min_width=_FOOD_COL_W, max_width=_FOOD_COL_W, no_wrap=True)
+    totals_tbl.add_column(justify="right", min_width=12)
+    totals_tbl.add_column(justify="right", min_width=8)
+    totals_tbl.add_column(justify="right", min_width=14)
+    totals_tbl.add_column(justify="right", min_width=15)
+    totals_tbl.add_column(justify="center", min_width=3)
+    totals_tbl.add_row(
+        "", "[grey62]TOTAL[/grey62]",
+        f"[grey62]{total_grams:.1f}g[/grey62]",
+        f"[grey62]{total_protein:.1f}g[/grey62]",
+        "",
+        f"[grey62]{total_dig_p:.1f}g[/grey62]",
+        "",
     )
+    state.console.print(Padding(totals_tbl, (0, 0, 0, 1)), highlight=False)
+
+    state.console.print()
     state.console.print(
-        f"  [grey62]Total digestible protein (per-food protein × digestibility, before DIAAS cap): "
-        f"[bold]{total_dig_p:.1f}g[/bold][/grey62]",
+        f"  [grey62]Total digestible protein of [bold]{total_dig_p:.1f}g[/bold]"
+        f" = per-food protein × digestibility, before limiting-amino-acid scoring[/grey62]",
         highlight=False,
     )
 
@@ -409,7 +437,7 @@ def _print_meal_diaas(
     eff_pct = min(diaas_val, 1.0) * 100
 
     state.console.print(
-        f"\n  Composite DIAAS: [{color}]{diaas_val:.3f}[/{color}]",
+        f"\n  Composite meal-level DIAAS: [{color}]{diaas_val:.3f}[/{color}]",
         highlight=False,
     )
     if dcp is not None:
@@ -417,7 +445,7 @@ def _print_meal_diaas(
         if aa_p < total_p - 0.05:
             suffix = f"= {aa_p:.1f}g raw (from AA-analyzed foods) × {diaas_val:.3f} DIAAS"
         else:
-            suffix = f"= {total_p:.1f}g raw protein × {diaas_val:.3f} DIAAS"
+            suffix = f"= {aa_p:.1f}g raw protein × {diaas_val:.3f} DIAAS"
         if profile:
             protein_target = _profile.compute_rda(profile).get("protein_g", (0.0,))[0]
             source_note = "determined by personal profile (see Settings)"

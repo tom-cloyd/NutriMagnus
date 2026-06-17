@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-13*:2245
+*Updated 2026-06-17*:1130
 
 [TOC]
 
@@ -958,20 +958,21 @@ At any prompt in NutriMagnus, type `?` followed by a topic name to display an ex
 
 Available topics:
 
-  ?aa        Essential amino acids
-  ?cached    Food Cache column guide
-  ?comp      Protein complement food suggestions
-  ?complete  What makes a protein "complete"
-  ?dcp       Digestible Complete Protein
-  ?diaas     Digestible Indispensable Amino Acid Score
-  ?diet      Dietary preferences setting
-  ?fao       FAO 2013 amino acid reference standard
-  ?gap       Amino acid gaps and how they are scored
-  ?gi        Glycemic index
-  ?gl        Glycemic load
-  ?glossary  Abbreviations and key terms
-  ?goals     How daily nutrient goals are calculated
-  ?rda       Recommended Dietary Allowances
+  ?aa          Essential amino acids
+  ?aa-scoring  How limiting-amino-acid scoring works (the DIAAS step)
+  ?cached      Food Cache column guide
+  ?comp        Protein complement food suggestions
+  ?complete    What makes a protein "complete"
+  ?dcp         Digestible Complete Protein
+  ?diaas       Digestible Indispensable Amino Acid Score
+  ?diet        Dietary preferences setting
+  ?fao         FAO 2013 amino acid reference standard
+  ?gap         Amino acid gaps and how they are scored
+  ?gi          Glycemic index
+  ?gl          Glycemic load
+  ?glossary    Abbreviations and key terms
+  ?goals       How daily nutrient goals are calculated
+  ?rda         Recommended Dietary Allowances
 
 Aliases also work: ?suggest, ?dietary, ?completeness, ?digestible, etc.
 
@@ -1204,6 +1205,29 @@ DIAAS measures how well your body can actually use the protein in a food. A scor
 Animal proteins typically score 1.0 or above. Most plant proteins score below 1.0, though some (pea protein, soy) come close. Digestibility matters because some protein in food is never absorbed — it passes through unchanged or is broken down by gut bacteria rather than used by your body.
 
 NutriMagnus uses DIAAS to calculate digestible complete protein (DCP), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#digestible-complete-protein-dcp-dcp).
+
+
+### Limiting-Amino-Acid Scoring [aa-scoring]
+
+Protein quality analysis involves two separate adjustments. The Protein Digestibility table shows the result after the first adjustment only. The phrase "before limiting-amino-acid scoring" on that table means the second adjustment has not yet been applied.
+
+Step 1 — Digestibility adjustment (shown in the table):
+
+    Digestible protein (g) = food protein (g) × digestibility coefficient
+
+This accounts for how much protein actually reaches your bloodstream. A food with 20 g of protein and a digestibility of 0.85 delivers 17 g of digestible protein. This is what the "Digestible prot" column shows.
+
+Step 2 — Limiting-amino-acid scoring (the DIAAS step):
+
+    Digestible complete protein (g) = digestible protein (g) × min(DIAAS, 1.0)
+
+Even if all the protein is absorbed, it cannot all be incorporated into tissue unless every essential amino acid is present in sufficient proportion. The amino acid in shortest supply — the limiting amino acid — sets a ceiling. DIAAS is the ratio of that limiting amino acid to the FAO reference level. If DIAAS is 0.80, only 80% of the digestible protein can be fully used; the rest is broken down and excreted.
+
+The "Total digestible protein" line below the table is the sum after step 1 only. The DCP figure reported in the meal summary is the result after both steps.
+
+Note: DIAAS itself is not capped — a high-quality food can score above 1.0, meaning it has surplus amino acids relative to the reference. The min(DIAAS, 1.0) applies only when computing DCP, because having excess amino acids does not allow you to absorb more total protein than you consumed.
+
+See also ?diaas, ?dcp, ?gap.
 
 
 ### Dietary Preferences [diet]

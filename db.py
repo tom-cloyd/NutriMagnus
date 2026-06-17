@@ -235,6 +235,12 @@ def init_db() -> None:
             )
         """)
 
+        for _col in ("bcp_g REAL", "bcp_computed_at TEXT", "day_pct_goal REAL"):
+            try:
+                conn.execute(f"ALTER TABLE meals ADD COLUMN {_col}")
+            except sqlite3.OperationalError:
+                pass
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
@@ -643,6 +649,20 @@ def meal_rename(conn: sqlite3.Connection, meal_id: int, new_name: str) -> None:
 
 def meal_set_date(conn: sqlite3.Connection, meal_id: int, new_date: str) -> None:
     conn.execute("UPDATE meals SET meal_date = ? WHERE id = ?", (new_date, meal_id))
+
+
+def meal_set_bcp(conn: sqlite3.Connection, meal_id: int, bcp_g: float | None) -> None:
+    conn.execute(
+        "UPDATE meals SET bcp_g=?, bcp_computed_at=datetime('now') WHERE id=?",
+        (bcp_g, meal_id),
+    )
+
+
+def meal_set_day_pct_goal(conn: sqlite3.Connection, meal_id: int, pct: float | None) -> None:
+    conn.execute(
+        "UPDATE meals SET day_pct_goal=? WHERE id=?",
+        (pct, meal_id),
+    )
 
 
 def meal_copy_items(conn: sqlite3.Connection, from_meal_id: int, to_meal_id: int) -> int:

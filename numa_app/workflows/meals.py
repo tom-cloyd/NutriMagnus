@@ -6,6 +6,8 @@ import json
 import re
 from datetime import date, datetime
 
+import diaas as _diaas
+
 from rich.table import Table
 
 import db as _db
@@ -183,6 +185,16 @@ def _resolve_meal(raw_id: str):
 _MEALS_PAGE = 15
 
 
+def _compute_meal_bcp(meal_id: int) -> float | None:
+    """Return digestible complete protein (g) for a meal, or None if unavailable."""
+    ing_list = _compute_meal_ingredient_list(meal_id)
+    if not ing_list:
+        return None
+    with _db.get_db() as conn:
+        result = _diaas.meal_level_diaas(ing_list, conn)
+    return result.get("digestible_complete_protein_g")
+
+
 def _menu_meals() -> bool:
     """Meals & Log inline list. Returns True to go back, False to quit."""
     offset = 0
@@ -197,30 +209,90 @@ def _menu_meals() -> bool:
         has_more = len(meals) > _MEALS_PAGE
         page = meals[:_MEALS_PAGE]
 
+        # Compute day BCP totals from whatever is stored in DB for each date in view.
+        dates_in_page = {m["meal_date"] for m in page}
+        day_bcp: dict[str, float | None] = {}
+        for _d in dates_in_page:
+            with _db.get_db() as conn:
+                date_rows = _db.meal_list_by_date(conn, _d)
+            day_vals = [
+                r["bcp_g"] for r in date_rows
+                if r["complete"] and r["bcp_g"] is not None
+            ]
+            day_bcp[_d] = sum(day_vals) if day_vals else None
+
+        # Load profile protein target once per render — used in title and p handler.
+        _profile_obj = _profile.load_profile()
+        protein_target: float | None = None
+        if _profile_obj:
+            _t = _profile.compute_rda(_profile_obj).get("protein_g", (0.0,))[0]
+            protein_target = _t if _t > 0 else None
+
         title = "Meals & Log"
         if before_date:
             title += f"  [grey62]— from {before_date}[/grey62]"
+        if protein_target:
+            title += f"  [grey62]— daily BCP goal = {protein_target:.0f} grams[/grey62]"
         section_title(title)
 
-        _W_NAME = 28
+        _W_NAME = 24
         if page:
             tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-            tbl.add_column("ID",    justify="right", min_width=4)
-            tbl.add_column("Date",  min_width=10)
+            tbl.add_column("ID",       justify="right",  min_width=4)
+            tbl.add_column("Date",     min_width=10)
             tbl.add_column("Complete", justify="center", min_width=8)
-            tbl.add_column("Meal",  min_width=_W_NAME, max_width=_W_NAME, no_wrap=True)
-            tbl.add_column("Items", justify="right", min_width=5)
+            tbl.add_column("Meal",     min_width=_W_NAME, max_width=_W_NAME, no_wrap=True)
+            tbl.add_column("Items",    justify="right",  min_width=5)
+            tbl.add_column("Meal BCP",     justify="right",  min_width=8)
+            tbl.add_column("Day BCP",      justify="right",  min_width=7)
+            tbl.add_column("% profile goal", justify="left",  min_width=13)
+            s = state.T["success"]
+            dates_seen: set[str] = set()
             for m in page:
-                done_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
-                             if m["complete"] else "[grey62]·[/grey62]")
+                done_cell = (f"[{s}]✓[/{s}]" if m["complete"] else "[grey62]·[/grey62]")
+                bcp_g = m["bcp_g"]
+                if bcp_g is not None:
+                    meal_bcp_cell = f"[{s}]{bcp_g:.1f} g[/{s}]"
+                elif m["bcp_computed_at"] is not None:
+                    meal_bcp_cell = "[grey62]n/a[/grey62]"
+                else:
+                    meal_bcp_cell = "[grey62]—[/grey62]"
+                d = m["meal_date"]
+                if d not in dates_seen:
+                    dv = day_bcp.get(d)
+                    day_bcp_cell = (f"[{s}]{dv:.1f} g[/{s}]" if dv is not None
+                                    else "[grey62]—[/grey62]")
+                    pct = m["day_pct_goal"]
+                    # Leading plain-text spaces position the value so its right edge
+                    # falls under the 'e' in "profile" (col header = 14 chars; field = 9).
+                    if pct is None:
+                        goal_cell = " " * 8 + "[grey62]—[/grey62]"
+                    else:
+                        pct_color = (s if pct >= 100 else
+                                     state.T["warning"] if pct >= 70 else
+                                     state.T["error"])
+                        val_str = f"{pct:.0f}%"
+                        goal_cell = " " * (9 - len(val_str)) + f"[{pct_color}]{val_str}[/{pct_color}]"
+                    dates_seen.add(d)
+                else:
+                    day_bcp_cell = ""
+                    goal_cell = ""
                 tbl.add_row(
                     str(m["id"]),
                     m["meal_date"],
                     done_cell,
                     dot_cell(m["name"], _W_NAME),
                     str(m["item_count"]),
+                    meal_bcp_cell,
+                    day_bcp_cell,
+                    goal_cell,
                 )
             state.console.print(tbl)
+            state.console.print(
+                "  [grey62]BCP = bioavailable (digestible) complete protein"
+                "  ·  values are saved; press p to (re)compute[/grey62]",
+                highlight=False,
+            )
         elif offset == 0 and before_date is None:
             state.console.print("  [grey62]No meals logged yet.[/grey62]")
         else:
@@ -243,6 +315,8 @@ def _menu_meals() -> bool:
             state.console.print("  [grey62]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/grey62]", highlight=False)
             state.console.print("  [grey62]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/grey62]", highlight=False)
         state.console.print("  [grey62]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/grey62]", highlight=False)
+        if page and any(m["complete"] for m in page):
+            state.console.print("  [grey62]  p ············  Compute BCP for all complete meals shown[/grey62]", highlight=False)
         if has_more:
             state.console.print("  [grey62]  mr ···········  Show next 15 older meals[/grey62]", highlight=False)
         state.console.print("  [grey62]  d{YYYY-MM-DD}   Jump to meals on or before a date  (e.g. d2025-03-15)[/grey62]", highlight=False)
@@ -266,6 +340,42 @@ def _menu_meals() -> bool:
             continue
         if rl == "s":
             _safe_call(_do_meal_food_search)
+            continue
+        if rl == "p":
+            complete_page = [m for m in page if m["complete"]]
+            if not complete_page:
+                state.console.print("  [grey62]No complete meals shown.[/grey62]")
+                continue
+            # Also compute BCP for any other complete meals on the same dates,
+            # so that Day BCP reflects the full day even for off-page meals.
+            to_compute: list = list(complete_page)
+            seen_ids = {m["id"] for m in complete_page}
+            for _d in dates_in_page:
+                with _db.get_db() as conn:
+                    for dm in _db.meal_list_by_date(conn, _d):
+                        if dm["complete"] and dm["id"] not in seen_ids:
+                            to_compute.append(dm)
+                            seen_ids.add(dm["id"])
+            with state.console.status("[bold]Computing BCP…[/bold]", spinner="dots"):
+                for m in to_compute:
+                    bcp = _compute_meal_bcp(m["id"])
+                    with _db.get_db() as conn:
+                        _db.meal_set_bcp(conn, m["id"], bcp)
+            # Compute day totals and % of profile protein goal, then persist.
+            for _d in dates_in_page:
+                with _db.get_db() as conn:
+                    date_meals = _db.meal_list_by_date(conn, _d)
+                day_vals = [
+                    dm["bcp_g"] for dm in date_meals
+                    if dm["complete"] and dm["bcp_g"] is not None
+                ]
+                day_total = sum(day_vals) if day_vals else None
+                pct = (day_total / protein_target * 100.0
+                       if day_total is not None and protein_target else None)
+                for dm in date_meals:
+                    if dm["complete"]:
+                        with _db.get_db() as conn:
+                            _db.meal_set_day_pct_goal(conn, dm["id"], pct)
             continue
         if rl == "mr" and has_more:
             offset += _MEALS_PAGE

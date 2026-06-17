@@ -219,7 +219,7 @@ def meal_level_diaas(
     Returns a dict with:
         "diaas":                        float | None   — composite score (may exceed 1.0; not capped)
         "total_protein_g":              float
-        "digestible_complete_protein_g":float | None   — total_protein × min(diaas, 1.0)
+        "digestible_complete_protein_g":float | None   — aa_protein_g × min(diaas, 1.0)
         "limiting_iaa":                 str | None     — IAA key of limiting amino acid
         "limiting_label":               str | None     — human-readable name of limiting IAA
         "iaa_ratios":                   dict[str, float]   — IAA key → ratio vs. FAO reference

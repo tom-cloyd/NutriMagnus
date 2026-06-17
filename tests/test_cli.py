@@ -483,7 +483,8 @@ class TestMealsMenu:
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
 
         # a1=analyze meal ID 1; only 1 meal on that date so no scope prompt
-        result = runner.invoke(input="3\na1\nb\nq\n")
+        # n = decline "Refresh AA data from USDA?" prompt at end of analysis
+        result = runner.invoke(input="3\na1\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
 
@@ -498,6 +499,184 @@ class TestMealsMenu:
 
         with _db.get_db() as conn:
             assert _db.meal_list_by_date(conn, "2025-03-15") == []
+
+    # ------------------------------------------------------------------
+    # BCP columns and p-command
+    # ------------------------------------------------------------------
+
+    def test_meal_set_bcp_stores_value(self, db_conn):
+        """meal_set_bcp writes bcp_g and bcp_computed_at; meal_get returns them."""
+        with _db.get_db() as conn:
+            mid = _db.meal_create(conn, "Test", "2025-04-01")
+        _db.meal_set_bcp(db_conn, mid, 24.5)
+        db_conn.commit()
+        row = _db.meal_get(db_conn, mid)
+        assert row["bcp_g"] == pytest.approx(24.5)
+        assert row["bcp_computed_at"] is not None
+
+    def test_meal_set_bcp_null_stores_null(self, db_conn):
+        """meal_set_bcp with None marks computed_at but leaves bcp_g NULL (no AA data)."""
+        with _db.get_db() as conn:
+            mid = _db.meal_create(conn, "Test", "2025-04-01")
+        _db.meal_set_bcp(db_conn, mid, None)
+        db_conn.commit()
+        row = _db.meal_get(db_conn, mid)
+        assert row["bcp_g"] is None
+        assert row["bcp_computed_at"] is not None
+
+    def test_compute_meal_bcp_returns_float_for_food_with_aa(self, runner, monkeypatch, cached_food):
+        """_compute_meal_bcp returns a positive float when meal has AA-complete food."""
+        from numa_app.workflows.meals import _compute_meal_bcp
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        with _db.get_db() as conn:
+            mid = _db.meal_list_by_date(conn, "2025-03-15")[0]["id"]
+        bcp = _compute_meal_bcp(mid)
+        assert bcp is not None
+        assert bcp > 0.0
+
+    def test_bcp_columns_shown_in_table(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Meal BCP and Day BCP column headers always appear in the meals list."""
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="3\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Meal BCP" in result.output
+        assert "Day BCP" in result.output
+
+    def test_bcp_footer_explains_abbreviation(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Footer below the table explains what BCP means and that p recomputes."""
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="3\nb\nq\n")
+        assert "bioavailable" in result.output
+        assert "digestible" in result.output
+
+    def _setup_complete_meal(self, runner, monkeypatch, date="2025-03-15", name="Lunch"):
+        """Helper: create a meal with 100 g chicken and mark it complete."""
+        _mock_api(monkeypatch)
+        # n=new → date → name → 1=add items → search → pick → 100g → note → d=done → 6=mark complete → b=back
+        runner.invoke(
+            input=f"3\nn\n{date}\n{name}\n1\nchicken\n1\n100 g\n\nd\n6\nb\nq\n"
+        )
+
+    def test_p_command_computes_bcp_for_complete_meal(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Pressing p computes BCP and it appears in the table output."""
+        self._setup_complete_meal(runner, monkeypatch)
+        # p=compute BCP → table re-renders with value → b=back → q=quit
+        result = runner.invoke(input="3\np\nb\nq\n")
+        assert result.exit_code == 0
+        # BCP value should appear as "XX.X g" in the output
+        assert " g" in result.output
+        # Stored in DB
+        with _db.get_db() as conn:
+            row = _db.meal_list_by_date(conn, "2025-03-15")[0]
+        assert row["bcp_g"] is not None
+        assert row["bcp_g"] > 0.0
+
+    def test_p_command_no_complete_meals_shows_message(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Pressing p when no meals are complete shows an informative message."""
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="3\np\nb\nq\n")
+        assert result.exit_code == 0
+        assert "No complete meals" in result.output
+
+    def test_bcp_persists_across_sessions(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """BCP computed via p is stored in the DB and shown in subsequent sessions."""
+        self._setup_complete_meal(runner, monkeypatch)
+        runner.invoke(input="3\np\nb\nq\n")  # compute and store
+        # Fresh session: visit meals list without pressing p
+        result = runner.invoke(input="3\nb\nq\n")
+        assert result.exit_code == 0
+        # A numeric BCP value (not just "—") should appear
+        with _db.get_db() as conn:
+            row = _db.meal_list_by_date(conn, "2025-03-15")[0]
+        stored = row["bcp_g"]
+        assert stored is not None
+        assert f"{stored:.1f} g" in result.output
+
+    def test_day_bcp_sums_complete_meals_on_same_date(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Day BCP = sum of BCP for all complete meals on the date, shown only on the topmost row."""
+        self._setup_complete_meal(runner, monkeypatch, name="Breakfast")
+        runner.invoke(
+            input="3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n100 g\n\nd\n6\nb\nq\n"
+        )
+        runner.invoke(input="3\np\nb\nq\n")  # compute BCPs
+        with _db.get_db() as conn:
+            meals = _db.meal_list_by_date(conn, "2025-03-15")
+        bcps = [m["bcp_g"] for m in meals if m["bcp_g"] is not None]
+        assert len(bcps) == 2
+        expected_day = sum(bcps)
+        expected_str = f"{expected_day:.1f} g"
+        result = runner.invoke(input="3\nb\nq\n")
+        assert result.output.count(expected_str) == 1  # appears exactly once (topmost row)
+
+    def test_pct_goal_column_header_always_shown(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """'% profile goal' column header appears in the meals table regardless of profile."""
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="3\nb\nq\n")
+        assert "% profile goal" in result.output
+
+    def test_pct_goal_dash_without_profile(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Without a profile the % goal cell stays '—' after p is pressed."""
+        self._setup_complete_meal(runner, monkeypatch)
+        runner.invoke(input="3\np\nb\nq\n")
+        with _db.get_db() as conn:
+            row = _db.meal_list_by_date(conn, "2025-03-15")[0]
+        assert row["day_pct_goal"] is None
+
+    def test_pct_goal_computed_with_profile(
+        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+    ):
+        """With a profile set, p stores a positive day_pct_goal and renders it in the table."""
+        monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
+        # Set up profile: age=35, sex=m, weight=80 kg, height=178 cm, activity=3
+        runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
+        self._setup_complete_meal(runner, monkeypatch)
+        runner.invoke(input="3\np\nb\nq\n")
+        with _db.get_db() as conn:
+            row = _db.meal_list_by_date(conn, "2025-03-15")[0]
+        assert row["day_pct_goal"] is not None
+        assert row["day_pct_goal"] > 0.0
+        # Value shows in the table; title shows the goal in grams
+        result = runner.invoke(input="3\nb\nq\n")
+        assert f"{row['day_pct_goal']:.0f}%" in result.output
+        assert "daily BCP goal" in result.output
+        assert "grams" in result.output
+
+    def test_pct_goal_shown_only_on_topmost_row(
+        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+    ):
+        """% goal appears exactly once per date — on the topmost row only."""
+        monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
+        runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
+        self._setup_complete_meal(runner, monkeypatch, name="Breakfast")
+        runner.invoke(
+            input="3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n100 g\n\nd\n6\nb\nq\n"
+        )
+        runner.invoke(input="3\np\nb\nq\n")
+        with _db.get_db() as conn:
+            row = _db.meal_list_by_date(conn, "2025-03-15")[0]
+        pct_str = f"{row['day_pct_goal']:.0f}%"
+        result = runner.invoke(input="3\nb\nq\n")
+        assert result.output.count(pct_str) == 1
+
+    def test_pct_goal_persists_across_sessions(
+        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+    ):
+        """day_pct_goal stored by p is visible in a later session without re-running p."""
+        monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
+        runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
+        self._setup_complete_meal(runner, monkeypatch)
+        runner.invoke(input="3\np\nb\nq\n")
+        with _db.get_db() as conn:
+            row = _db.meal_list_by_date(conn, "2025-03-15")[0]
+        stored_pct = row["day_pct_goal"]
+        assert stored_pct is not None
+        result = runner.invoke(input="3\nb\nq\n")
+        assert f"{stored_pct:.0f}%" in result.output
 
 
 # ---------------------------------------------------------------------------
