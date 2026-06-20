@@ -2023,7 +2023,7 @@ async def settings_diaas_override_delete(food_name: str = Form(...)):
 @app.get("/recipes", response_class=HTMLResponse)
 async def recipes_list(request: Request, q: str = ""):
     with _db.get_db() as conn:
-        all_recipes = [dict(r) for r in _db.recipe_list(conn)]
+        all_recipes = [dict(r) for r in _db.recipe_list_recent(conn, limit=200)]
     if q:
         ql = q.lower()
         words = ql.split()
