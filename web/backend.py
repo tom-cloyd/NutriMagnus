@@ -1407,22 +1407,107 @@ def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None]:
 # Meal routes
 # ---------------------------------------------------------------------------
 
+def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
+    """Compute DIAAS-based BCP for a meal and persist it. Returns dcp_g or None."""
+    _, _, diaas_result = _meal_totals(meal_id)
+    diaas = _build_diaas_display(diaas_result)
+    bcp_g = diaas["dcp_g"] if diaas else None
+    with _db.get_db() as conn:
+        _db.meal_set_bcp(conn, meal_id, bcp_g)
+    return bcp_g
+
+
+def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | None) -> dict:
+    """Build template context for the meals list, including day BCP aggregates."""
+    meals = [dict(m) for m in meals_rows]
+    hidden = max(0, total - len(meals))
+
+    # Build day BCP totals from persisted bcp_g (complete meals only)
+    dates_in_page = {m["meal_date"] for m in meals}
+    day_bcp: dict[str, float | None] = {}
+    for d in dates_in_page:
+        with _db.get_db() as conn:
+            date_rows = _db.meal_list_by_date(conn, d)
+        vals = [r["bcp_g"] for r in date_rows if r["complete"] and r["bcp_g"] is not None]
+        day_bcp[d] = round(sum(vals), 1) if vals else None
+
+    # Profile protein target for % goal column
+    rda = _load_rda()
+    protein_target: float | None = None
+    if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
+        protein_target = rda["protein_g"][0]
+
+    # Tag each meal with first-of-date flag so template can place Day BCP correctly
+    seen_dates: set[str] = set()
+    for m in meals:
+        d = m["meal_date"]
+        m["first_of_date"] = d not in seen_dates
+        seen_dates.add(d)
+        m["day_bcp"] = day_bcp.get(d)
+        if protein_target and day_bcp.get(d) is not None:
+            m["day_pct"] = round(day_bcp[d] / protein_target * 100, 0)  # type: ignore[operator]
+        else:
+            m["day_pct"] = None
+
+    return {
+        "meals":          meals,
+        "total":          total,
+        "hidden":         hidden,
+        "show_all":       show_all,
+        "today":          datetime.date.today().isoformat(),
+        "date_filter":    before_date or "",
+        "protein_target": protein_target,
+    }
+
+
 @app.get("/meals", response_class=HTMLResponse)
 async def meals_list(request: Request, show_all: bool = False, date: str = ""):
     before_date = date.strip() or None
     limit = 1000 if show_all else 9
     with _db.get_db() as conn:
-        meals = _db.meal_list_recent(conn, limit=limit, before_date=before_date)
+        meals_rows = _db.meal_list_recent(conn, limit=limit, before_date=before_date)
         total = _db.meal_count_recent(conn, before_date=before_date)
-    hidden = max(0, total - len(meals))
-    return templates.TemplateResponse(request, "meals.html", {
-        "meals":       meals,
-        "total":       total,
-        "hidden":      hidden,
-        "show_all":    show_all,
-        "today":       datetime.date.today().isoformat(),
-        "date_filter": before_date or "",
-    })
+    return templates.TemplateResponse(request, "meals.html",
+                                      _meals_list_ctx(meals_rows, show_all, total, before_date))
+
+
+@app.post("/meals/compute-bcp", response_class=RedirectResponse)
+async def meals_compute_bcp(redirect_to: str = Form("/meals")):
+    """Recompute and persist BCP for all complete meals that lack a stored value."""
+    with _db.get_db() as conn:
+        all_meals = _db.meal_list_recent(conn, limit=10000)
+    rda = _load_rda()
+    protein_target: float | None = None
+    if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
+        protein_target = rda["protein_g"][0]
+
+    for meal in all_meals:
+        if not meal["complete"]:
+            continue
+        _compute_and_store_meal_bcp(meal["id"])
+
+    # Now persist day_pct_goal for every complete meal
+    if protein_target:
+        with _db.get_db() as conn:
+            all_meals2 = _db.meal_list_recent(conn, limit=10000)
+        dates_seen: set[str] = set()
+        for meal in all_meals2:
+            if not meal["complete"] or meal["meal_date"] in dates_seen:
+                continue
+            dates_seen.add(meal["meal_date"])
+            with _db.get_db() as conn:
+                date_rows = _db.meal_list_by_date(conn, meal["meal_date"])
+            vals = [r["bcp_g"] for r in date_rows if r["complete"] and r["bcp_g"] is not None]
+            if not vals:
+                continue
+            day_bcp_g = sum(vals)
+            pct = round(day_bcp_g / protein_target * 100, 1)
+            for dr in date_rows:
+                if dr["complete"]:
+                    with _db.get_db() as conn:
+                        _db.meal_set_day_pct_goal(conn, dr["id"], pct)
+
+    return RedirectResponse(redirect_to, status_code=303)
 
 
 @app.post("/meals/create", response_class=RedirectResponse)
@@ -1799,7 +1884,7 @@ async def meal_day_view(request: Request, meal_id: int):
     # Attach items list to each meal dict
     with _db.get_db() as conn:
         for m in meals:
-            m["items"] = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
+            m["meal_items"] = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
 
     diaas_display = _build_diaas_display(diaas_result)
 
@@ -2183,8 +2268,97 @@ async def recipe_ingredient_edit(
 
 
 @app.get("/summary", response_class=HTMLResponse)
-async def summary(request: Request):
-    return templates.TemplateResponse(request, "summary.html", {})
+async def summary_index(request: Request):
+    """Summary landing: recent-days table + date picker."""
+    with _db.get_db() as conn:
+        rows = _db.meal_dates_with_bcp(conn, limit=30)
+
+    rda = _load_rda()
+    protein_target: float | None = None
+    if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
+        protein_target = rda["protein_g"][0]
+
+    day_rows = []
+    for r in rows:
+        bcp = r["day_bcp"]
+        pct = round(bcp / protein_target * 100, 0) if (bcp is not None and protein_target) else None
+        day_rows.append({
+            "meal_date":     r["meal_date"],
+            "day_bcp":       round(bcp, 1) if bcp is not None else None,
+            "pct_goal":      pct,
+            "complete_count": r["complete_count"],
+        })
+
+    return templates.TemplateResponse(request, "summary.html", {
+        "day_rows":       day_rows,
+        "protein_target": protein_target,
+        "today":          datetime.date.today().isoformat(),
+        "date_detail":    None,
+    })
+
+
+@app.get("/summary/{meal_date}", response_class=HTMLResponse)
+async def summary_date(request: Request, meal_date: str):
+    """Full-day nutrient + DIAAS analysis for a specific date."""
+    meals, combined_nutrients, diaas_result = _day_analysis(meal_date)
+    if not meals:
+        return RedirectResponse("/summary", status_code=303)
+
+    with _db.get_db() as conn:
+        for m in meals:
+            m["meal_items"] = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
+
+    diaas_display = _build_diaas_display(diaas_result)
+
+    aa_nutrients: dict = {}
+    for m in meals:
+        for k, v in _meal_aa_nutrients(m["id"]).items():
+            aa_nutrients[k] = aa_nutrients.get(k, 0.0) + v
+
+    gl_total_sum = 0.0
+    all_gl_blockers: list[str] = []
+    any_gl_none = False
+    for m in meals:
+        gl_val, gl_blockers = _compute_gl(m["id"])
+        if gl_val is None:
+            any_gl_none = True
+        else:
+            gl_total_sum += gl_val
+        all_gl_blockers.extend(gl_blockers)
+    gl_total = None if any_gl_none else round(gl_total_sum, 1)
+
+    rda = _load_rda()
+
+    # Recent days for sidebar
+    with _db.get_db() as conn:
+        rows = _db.meal_dates_with_bcp(conn, limit=14)
+    protein_target: float | None = None
+    if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
+        protein_target = rda["protein_g"][0]
+    day_rows = []
+    for r in rows:
+        bcp = r["day_bcp"]
+        pct = round(bcp / protein_target * 100, 0) if (bcp is not None and protein_target) else None
+        day_rows.append({
+            "meal_date":      r["meal_date"],
+            "day_bcp":        round(bcp, 1) if bcp is not None else None,
+            "pct_goal":       pct,
+            "complete_count": r["complete_count"],
+        })
+
+    return templates.TemplateResponse(request, "summary.html", {
+        "day_rows":          day_rows,
+        "protein_target":    protein_target,
+        "today":             datetime.date.today().isoformat(),
+        "date_detail":       meal_date,
+        "meals":             meals,
+        "nutrient_sections": _nutrient_sections(combined_nutrients, rda) if combined_nutrients else [],
+        "diaas":             diaas_display,
+        "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
+        "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None),
+        "gl":                {"total": gl_total, "blockers": all_gl_blockers},
+        "has_profile":       rda is not None,
+    })
 
 
 @app.get("/manual", response_class=HTMLResponse)

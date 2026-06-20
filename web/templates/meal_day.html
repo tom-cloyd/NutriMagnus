@@ -21,9 +21,9 @@
       <a href="/meal/{{ m.id }}"><strong>{{ m.name }}</strong></a>
       {% if m.complete %}<span class="text-success ms-1" title="Complete">&#10003;</span>{% endif %}
     </div>
-    {% if m.items %}
+    {% if m.meal_items %}
     <ul class="list-unstyled ms-3 mb-0">
-      {% for it in m.items %}
+      {% for it in m.meal_items %}
       <li class="muted" style="font-size:0.9em">
         {{ it.food_name }}
         &mdash;

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-19*:1656
+*Updated 2026-06-19*:1911
 
 [TOC]
 
