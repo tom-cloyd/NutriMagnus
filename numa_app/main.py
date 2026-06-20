@@ -19,9 +19,12 @@ from .workflows.summary import _menu_summary
 
 _load_theme()
 
+_first_menu_visit = True
+
 
 def _run_menu() -> None:
     """Top-level menu loop."""
+    global _first_menu_visit
     while True:
         diet_label = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
         state.console.print()
@@ -40,6 +43,15 @@ def _run_menu() -> None:
         state.console.print("  [grey62]q.[/grey62] Quit")
         state.console.print()
         state.console.print("  [grey62]Ctrl+C at any prompt — cancel and go back[/grey62]")
+        if _first_menu_visit:
+            state.console.print()
+            state.console.print("  [grey62]Built-in help: type [bold]?help[/bold] at any prompt to list all available topics.[/grey62]")
+            state.console.print("  [grey62]Wherever it is relevant, a tip appears below the output — e.g.[/grey62]")
+            state.console.print("  [grey62]  \"At any prompt, type ?diaas or ?dcp for help with these topics.\"[/grey62]")
+            state.console.print("  [grey62]Type that ?topic at the next prompt to read the explanation inline.[/grey62]")
+            _first_menu_visit = False
+        else:
+            state.console.print("  [grey62]?help at any prompt  — show available help topics[/grey62]")
         state.console.print()
         try:
             choice = _prompt("Choice").strip().lower()

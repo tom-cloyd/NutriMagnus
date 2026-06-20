@@ -17,7 +17,7 @@ from .. import state
 from ..services.portions import _normalize_unit_display, _pick_portion
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
-from ..ui.common import _prompt_with_options, _safe_call, _show_menu, dot_cell, table_title, section_title
+from ..ui.common import _prompt_with_options, _safe_call, _show_menu, dot_cell, table_title, section_title, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_date, _ask_int, _prompt
 from ..ui.render import _print_complement_suggestions, _print_meal_diaas, _print_nutrient_table, _print_protein_adequacy
 from .recipes import _do_recipe_list, _format_recipe_portion_label, _parse_serving_amount
@@ -83,6 +83,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
         f"  If none are, enter [bold]n[/bold].[/grey62]",
         highlight=False,
     )
+    help_footer("missing-aa")
     try:
         go = _prompt(
             f"Fetch missing AA profiles for these {len(affected)} ingredient(s)?",
@@ -293,6 +294,7 @@ def _menu_meals() -> bool:
                 "  ·  values are saved; press p to (re)compute[/grey62]",
                 highlight=False,
             )
+            help_footer("meals-list")
         elif offset == 0 and before_date is None:
             state.console.print("  [grey62]No meals logged yet.[/grey62]")
         else:
@@ -695,6 +697,7 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
                 name_cell = f"[grey62]{fdc_str}[/grey62]  {it['food_name']} [grey62]{fdots}[/grey62]"
             tbl.add_row(str(it["id"]), amount_label, name_cell)
         state.console.print(tbl)
+        help_footer("meal-detail")
     return list(items)
 
 
@@ -931,6 +934,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
             f"  [{color}]{gl_total:.1f}[/{color}]  [grey62]this meal[/grey62]",
             highlight=False,
         )
+    help_footer("glycemic")
 
     # Day-level analysis (only when there are multiple meals today)
     if len(today_meals) > 1:
@@ -974,6 +978,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                 f"  [{color}]{gl_total_day:.1f}[/{color}]  [grey62]all meals — {meal_date}[/grey62]",
                 highlight=False,
             )
+        help_footer("glycemic")
 
     # AA data source note + optional USDA refresh (always offered)
     if ing_list:
@@ -1386,6 +1391,7 @@ def _analyze_day(meals: list, meal_date: str) -> None:
             f"  [{color}]{gl_total_day:.1f}[/{color}]  [grey62]all meals — {meal_date}[/grey62]",
             highlight=False,
         )
+    help_footer("glycemic")
     state.console.print("\n  [grey62]AA data: local cache[/grey62]")
     _offer_export(title, [
         {"type": "nutrient_table", "title": title, "nutrients": combined},
@@ -1415,6 +1421,7 @@ def _print_meal_history_flat(rows: list, query: str) -> None:
         name_cell = (f"{r['food_name']} [grey62](recipe)[/grey62]" if is_recipe else r["food_name"])
         tbl.add_row(r["meal_date"], r["meal_name"], name_cell, portion, notes)
     state.console.print(tbl)
+    help_footer("meal-history")
 
 
 def _print_meal_history_summary(rows: list) -> None:
@@ -1449,6 +1456,7 @@ def _print_meal_history_summary(rows: list) -> None:
             name_cell = food_name
         tbl.add_row(name_cell, str(len(items)), total_str, dates[0], dates[-1])
     state.console.print(tbl)
+    help_footer("meal-history")
 
 
 def _do_meal_food_search() -> None:

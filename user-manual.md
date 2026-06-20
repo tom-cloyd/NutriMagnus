@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-17*:1130
+*Updated 2026-06-19*:1656
 
 [TOC]
 
@@ -26,7 +26,7 @@ Beyond the problem of ingesting the right mix of amino acids, there are two othe
 
 * Age, sex, and activity level differences in protein needs do exist and they are not minor. Older people, active people, and those with chronic diseases, for example, require substantially more protein than do younger healthy people, for several reasons. Almost all common discussions of dietary protein fail to address this problem, and in any case a mere discussion doesn't tell one what to eat and how much.
 
-## Why this matters
+## Why this problem deserves your attention
 
 In very brief summary, as we age, we tend to lose muscle mass, utilize dietary protein less efficiently, and simply eat less. These factors compound to create a perfect storm of vulnerability to general ill-health and the often dire consequences of falls. And these issues affect women more than men. Put simply - getting enough of the right sort of protein matters far more than most people realize. A good diet is utterly necessary, but not by itself sufficient. It must be complemented with adequate resistance exercise.
 
@@ -234,6 +234,1014 @@ In the output you will see a program 'bug' - The **Procedure** is not wrapped ar
 
 ---
 
+## The NutriMagnus help system
+
+NutriMagnus displays a help footer at the bottom of tables and analysis
+output whenever additional context is available. It looks like this:
+
+> At any prompt, type `?diaas` or `?dcp` for help with these columns.
+
+Type the indicated command at the next prompt and the relevant section of
+this manual will be displayed inline. You can also type `?help` at any
+prompt to see the full list of available topics.
+
+
+### Using the "?{topic}" Help System [help]
+
+At any prompt in NutriMagnus, type `?` followed by a topic name to display an explanation. Wherever help is available, a line at the bottom of the table or output lists the relevant topic names — for example, "Type `?diaas` or `?dcp` for help with these columns." Type the corresponding `?topic` at the next prompt to display the explanation.
+
+Available topics:
+
+  ?aa               Essential amino acids
+  ?aa-scoring       Limiting-amino-acid DIAAS scoring method
+  ?annotate         Annotate food picker table columns
+  ?bioavailability  Bioavailability/DIAAS table columns
+  ?cached           Food Cache column guide
+  ?comp             Protein complement food suggestions
+  ?complete         What makes a protein "complete"
+  ?dcp              Digestible Complete Protein
+  ?dcp-overrides    Protein Digestibility Overrides table
+  ?diaas            Digestible Indispensable Amino Acid Score
+  ?diet             Dietary preferences setting
+  ?drafted-foods    Drafted Food Profiles list columns
+  ?fao              FAO 2013 amino acid reference standard
+  ?fetch            Fetching missing data with Claude AI
+  ?food-cache       Food Cache quick-pick and browser (same as ?cached)
+  ?food-comparison  Food Comparison table columns
+  ?food-import      Foods to Import review table columns
+  ?food-search      USDA food search results columns
+  ?gap              Amino acid gaps and how they are scored
+  ?gi               Glycemic index background
+  ?gl               Glycemic load concept and formula
+  ?glossary         Abbreviations and key terms
+  ?glycemic         Glycemic load output columns
+  ?goals            How daily nutrient goals are calculated
+  ?iaa-ratios       Meal amino acid ratios table columns
+  ?meal-detail      Meal items table columns
+  ?meal-diaas       Meal Protein Digestibility Analysis columns
+  ?meal-history     Meal History search result tables
+  ?meals-list       Meals & Log list columns
+  ?missing-aa       Missing amino acid profile warnings
+  ?nutrients        Nutrient analysis table columns and groups
+  ?pantry           My Pantry table columns
+  ?protein-quality  Single-food amino acid ratios table columns
+  ?rda              Daily Intake vs. Recommended Values table
+  ?recipe-ingredients  Recipe ingredient list columns
+  ?recipes          Recipes list table columns
+
+Aliases also work: ?suggest, ?dietary, ?completeness, ?digestible,
+?food-cache, and others.
+
+**Type ?help at any time to show this list again.**
+
+
+### Food Cache — Column Guide [cached]
+
+The CACHED FOODS list shows every food you have stored locally. Columns:
+
+    #       Row number. Use with a command letter to act on that food
+            (see Commands below).
+
+    AA      Amino acid data status.
+              ✓  Amino acid data is present in your cache for this food.
+              ✗  No amino acid data — common for branded and packaged foods.
+
+    GI      Your saved glycemic index estimate for this food, if any.
+            GI reflects how quickly a food raises blood glucose (scale 0-100).
+            Add or update via e# (Edit food data). Type ?gi for a full explanation.
+
+    DIAAS   Your saved DIAAS estimate for this food, if any.
+            DIAAS (Digestible Indispensable Amino Acid Score) rates protein
+            quality: 1.00 = complete, lower = a limiting amino acid is present.
+            Add or update via e# (Edit food data). Type ?diaas for details.
+
+    C       Confidence / source note indicator.
+              ✓  A source or confidence note is saved for this food.
+              —  No note.
+            View the full note with c# (see Commands below).
+
+    N       Curator notes indicator.
+              ✓  Curator notes are saved for this food (typically added by the
+                 Claude data-fetch workflow).
+              —  No curator notes.
+            View with n# (see Commands below).
+
+    ID#     Database identifier.
+            A plain number = USDA FoodData Central FDC ID.
+            "OFF"          = Open Food Facts (community-contributed data).
+            "usr"          = User-drafted (created or edited by hand).
+
+    NAME    Food name as stored in your cache.
+
+    TYPE    Data source within USDA FoodData Central, or OFF for Open Food Facts.
+              Foundation     — USDA-analyzed reference foods; highest accuracy.
+              SR Legacy      — Standard Reference database (pre-2019).
+              Survey (FNDDS) — Foods as eaten, used in national dietary surveys.
+              Branded        — Manufacturer-submitted data for packaged products.
+              OFF            — Open Food Facts (community-contributed).
+              User Drafted   — Created or edited by hand in NutriMagnus.
+
+    BRAND   Brand owner, for Branded and OFF foods.
+
+Commands (type the letter followed by the row number, e.g. v3, e12):
+
+    v#      View nutrients for that food (per 100g).
+    n#      Combined view — nutrients + protein completeness + all notes
+            (confidence note and curator notes). Use this when you want to
+            see everything about a food in one screen.
+    c#      View the confidence/source note only.
+    a#      Analyze a portion — choose serving size, then see scaled nutrients.
+    e#      Edit food data — name, serving, nutrients, note, GI/DIAAS annotation.
+    d#      Delete from cache (also d#,# or d# # # for multiple rows).
+    i#      Fetch missing data from Claude — generates a prompt you paste into
+            claude.ai (free). Also i#,# for multiple rows. Type i alone to
+            select every food in the current list that is missing AA data (✗).
+    r       Read Claude's response — import the data saved in ~/claude_response.txt.
+    /text   Filter list by name or brand. Enter / alone to clear the filter.
+    Enter   Re-display the full food list (clears any in-progress filter view).
+
+To refresh a corrupt or outdated cache entry: delete it with d#,
+then search for the food again — it will be re-fetched automatically.
+
+Type ?fetch for step-by-step instructions on the i/r fetch workflow.
+
+
+### Fetching Missing Nutritional Data from Claude [fetch]
+
+Some foods in your cache are missing amino acid data (shown as ✗ in the AA
+column). You can fill this gap using Claude at claude.ai — no paid subscription
+required. The workflow has four steps.
+
+Step 1 — Generate the prompt.
+
+    In the Food Cache list, type i followed by the row numbers of the foods
+    you want data for:
+
+        i30          (one food — row 30)
+        i30,67       (two foods — rows 30 and 67)
+        i            (all foods in the current list that show ✗)
+
+    NutriMagnus writes a prompt to ~/claude_prompt.txt and tells you its
+    full path. (`~` in that file pathname indicates that the file belong
+    in the root of your computer's user account file system.)
+
+Step 2 — Send the prompt to Claude.
+
+    IMPORTANT: Start a brand-new chat at claude.ai for each request.
+    Do NOT reuse a previous chat window. This ensures the copy step
+    below captures only Claude's one response, nothing else.
+
+    Open ~/claude_prompt.txt (any text editor) and copy its entire contents.
+    Go to claude.ai in your browser (a free account is sufficient).
+    Open a new chat, paste the text, and press Enter or click Send.
+
+Step 3 — Save Claude's response.
+
+    When Claude finishes responding, copy ONLY Claude's reply — not the
+    whole page, not your original prompt. The safest method:
+
+        a. Click at the very beginning of Claude's response text.
+        b. Scroll to the absolute end of that response.
+        c. Shift-click at the end to select everything Claude wrote.
+        d. Copy (Ctrl+C or Cmd+C).
+
+    Avoid using the copy button at the bottom of the chat window — that
+    button copies the entire conversation history, not just Claude's reply.
+
+    Open a plain-text editor (TextEdit, gedit, Notepad, etc.), paste, and
+    save the file as:
+
+        ~/claude_response.txt
+
+    NutriMagnus handles both fenced (```json ...) and bare JSON formats.
+    Any explanatory notes Claude adds after the data are saved automatically
+    as curator notes (viewable with n# in the cache list).
+
+Step 4 — Import the data.
+
+    Return to NutriMagnus, go to Foods → Food Cache, and type r.
+    NutriMagnus reads ~/claude_response.txt, shows you a review table
+    (food name, calories, protein, and how many of the 11 amino acids
+    were found), and asks for confirmation before writing anything.
+
+    After a successful import the cache list refreshes automatically.
+    Foods that gained amino acid data will change from ✗ to ✓.
+    Note: some foods (e.g. FNDDS survey records) structurally lack amino
+    acid data in their source database — for those, ✗ is correct even
+    after a successful import of macros and minerals.
+
+Notes:
+- Per-food source and confidence notes are saved in the Confidence Note
+  field (view with c#). Curator notes that apply to the whole batch are
+  saved with every food in that import (view with n#).
+- You can re-run the workflow at any time to update a food's data or add
+  curator notes that were missed; the import safely overwrites the entry.
+- To add curator notes to foods imported in a previous session: paste
+  both the original JSON response and the notes text into
+  ~/claude_response.txt and run r again — it is safe to re-import.
+- If ~/claude_response.txt already exists from a prior session, overwrite
+  it completely before saving a new response.
+
+
+### Essential Amino Acids [aa]
+
+Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day:
+
+> Histidine, Isoleucine, Leucine, Lysine, Methionine, Phenylalanine, Threonine, Tryptophan, Valine
+
+Two others — Cystine and Tyrosine — can be made from Methionine and Phenylalanine respectively. NutriMagnus evaluates Met+Cys and Phe+Tyr as combined pairs when scoring protein quality, following FAO 2013 guidelines.
+
+See [Protein Completeness](#protein-completeness-complete) and [Amino Acid Gaps](#amino-acid-gaps-gap) for how completeness is scored and what a gap means.
+
+
+### Protein Complement Suggestions [comp]
+
+When amino acid gaps are detected, NutriMagnus suggests foods that can improve the protein quality of the base food or meal. Two separate tiers are shown, and they use different methods:
+
+TIER 1 — GAP CLOSERS
+
+These foods can mathematically close a specific amino acid gap with a practical amount (up to 500 g). A gap closer has a high enough ratio of the limiting amino acid to protein that adding it to the base food brings that amino acid's score to 1.0 (the FAO reference floor).
+
+Each suggestion shows:
+  - Grams to add
+  - Which gaps it closes, with scores before and after
+  - Digestible protein added
+  - Total bioavailable complete protein — the base food protein plus the complement protein, multiplied by the combined (pooled) DIAAS of the pair. This is higher than just adding each food's individually-digestible protein, because the complement's amino acids improve the usability of the base food's protein too.
+
+TIER 2 — DIAAS-BOOSTING OPTIONS
+
+Sometimes the digestibility of the base food is low enough that no practical amount of any single food can "close the gap" mathematically. This happens when the food's raw amino acid ratios are already near the FAO reference — the gaps are digestibility-driven rather than composition-driven. Adding even a very good complement raises the pool's digestible amino acids but can't fully overcome the base food's own digestibility penalty via the gap-closer formula.
+
+For those situations, DIAAS-boosting options are shown instead. These foods raise the combined meal DIAAS score toward 0.90 by contributing digestible amino acids that pool with the base food's amino acids. The calculation uses each food's own true ileal digestibility (not just the DIAAS score), so a high-digestibility food like soy protein isolate (95%) contributes disproportionately more digestible amino acids than its raw content alone would suggest.
+
+Each DIAAS-boosting suggestion shows:
+  - Grams to add
+  - Meal DIAAS before and after adding that amount
+
+WHICH TIER IS RIGHT FOR YOU?
+
+If gap closers are available, they are the most targeted choice: they fix a specific deficiency and fully complete the amino acid profile.
+
+If only DIAAS-boosting options are shown, the underlying problem is that the base food is not highly digestible. Adding a well-digested, amino-acid-rich food improves the overall protein quality of the meal even without closing any single gap definitively. This is nutritionally meaningful — a meal DIAAS of 0.90 means 90% of the protein is both complete and digestible.
+
+You do not need to eat complement foods at the same meal — meeting daily totals is sufficient for healthy adults. See also ?diaas and ?gap for background.
+
+Data sources: your pantry (Foods → My Pantry) is checked first; a built-in table of about 30 common protein sources is used otherwise, filtered by your dietary preferences (see ?diet).
+
+
+### Protein Completeness [complete]
+
+A protein is "complete" when it supplies all nine essential amino acids at or above the FAO 2013 reference amounts, adjusted for digestibility. Essential amino acids cannot be made by the body — they must come from food.
+
+Most animal proteins are complete. Most plant proteins are not, but combining plant foods across a day can produce a complete profile — see [Protein Complement Suggestions](#protein-complement-suggestions-comp).
+
+The score shown in completeness tables is the ratio of each amino acid to the FAO reference level. A score of **1.0 or above** for all nine means the protein is complete. The most-limiting amino acid (the one with the lowest score) is identified as the bottleneck.
+
+
+### Digestible Complete Protein (DCP) [dcp]
+
+DCP — digestible complete protein — is the grams of protein in a food or meal that are both digestible (absorbed by the body) and complete (supply all essential amino acids at or above reference levels).
+
+It is more meaningful than raw grams of protein because it accounts for:
+
+- **Digestibility:** how much protein is actually absorbed (from DIAAS)
+- **Completeness:** whether the amino acid profile meets all requirements
+
+A food with 30 g of protein but a DIAAS of 0.70 and several amino acid gaps contributes less usable protein than those numbers suggest. DCP captures that.
+
+DCP is also called "bioavailable complete protein" or "usable protein" in nutrition literature — these terms mean the same thing. NutriMagnus uses DCP throughout.
+
+NutriMagnus shows DCP in the bioavailability section of food and recipe analysis. See also [DIAAS](#diaas--digestible-indispensable-amino-acid-score-diaas) and [Protein Completeness](#protein-completeness-complete).
+
+
+### DIAAS — Digestible Indispensable Amino Acid Score [diaas]
+
+DIAAS measures how well your body can actually use the protein in a food. A score of **1.0** means the protein fully meets the FAO 2013 amino acid reference standard after accounting for digestibility. Scores above 1.0 are excellent; below 1.0 means one or more amino acids fall short.
+
+Animal proteins typically score 1.0 or above. Most plant proteins score below 1.0, though some (pea protein, soy) come close. Digestibility matters because some protein in food is never absorbed — it passes through unchanged or is broken down by gut bacteria rather than used by your body.
+
+NutriMagnus uses DIAAS to calculate digestible complete protein (DCP), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#digestible-complete-protein-dcp-dcp).
+
+
+### Limiting-Amino-Acid Scoring [aa-scoring]
+
+Protein quality analysis involves two separate adjustments. The Protein Digestibility table shows the result after the first adjustment only. The phrase "before limiting-amino-acid scoring" on that table means the second adjustment has not yet been applied.
+
+Step 1 — Digestibility adjustment (shown in the table):
+
+    Digestible protein (g) = food protein (g) × digestibility coefficient
+
+This accounts for how much protein actually reaches your bloodstream. A food with 20 g of protein and a digestibility of 0.85 delivers 17 g of digestible protein. This is what the "Digestible prot" column shows.
+
+Step 2 — Limiting-amino-acid scoring (the DIAAS step):
+
+    Digestible complete protein (g) = digestible protein (g) × min(DIAAS, 1.0)
+
+Even if all the protein is absorbed, it cannot all be incorporated into tissue unless every essential amino acid is present in sufficient proportion. The amino acid in shortest supply — the limiting amino acid — sets a ceiling. DIAAS is the ratio of that limiting amino acid to the FAO reference level. If DIAAS is 0.80, only 80% of the digestible protein can be fully used; the rest is broken down and excreted.
+
+The "Total digestible protein" line below the table is the sum after step 1 only. The DCP figure reported in the meal summary is the result after both steps.
+
+Note: DIAAS itself is not capped — a high-quality food can score above 1.0, meaning it has surplus amino acids relative to the reference. The min(DIAAS, 1.0) applies only when computing DCP, because having excess amino acids does not allow you to absorb more total protein than you consumed.
+
+See also ?diaas, ?dcp, ?gap.
+
+
+### Dietary Preferences [diet]
+
+This setting controls which protein sources appear in complement suggestions.
+Change it under **Settings → Dietary preferences** (option 3 in the Settings menu).
+
+| Option | Setting | Includes |
+|---|---|---|
+| 1 | All animal foods | meat, fish, dairy, and eggs |
+| 2 | Vegetarian | dairy and eggs only (no meat or fish) |
+| 3 | Plant-based only | plant sources only |
+
+The setting is saved between sessions and applies to both the interactive complement display and any exported reports.
+
+**Important — this setting also filters food search results.** If your preference is set to "plant-based only" or "vegetarian", foods outside that category will not appear anywhere in NutriMagnus — not in food searches, not in search results within recipes or meals, and not in any lookup by name or FDC ID. If you search for a food and get no results, check whether your dietary preference setting is silently excluding it. To look up any food regardless of category, temporarily switch to "All animal foods" under Settings, do your search, then switch back.
+
+
+### FAO 2013 Reference Standard [fao]
+
+The FAO (Food and Agriculture Organization of the United Nations) published a reference amino acid scoring pattern in 2013 that defines the minimum amounts of each essential amino acid per gram of protein needed to meet adult human requirements.
+
+NutriMagnus uses this pattern as the benchmark for all protein quality scoring: completeness, gaps, and complement calculations. A score of **1.0** for an amino acid means the food exactly meets the FAO reference for that amino acid; above 1.0 exceeds it; below 1.0 falls short.
+
+The FAO 2013 pattern replaced an older 1991 standard and is the current international reference for protein quality assessment.
+
+
+### Amino Acid Gaps [gap]
+
+An amino acid gap means one or more essential amino acids are below the FAO 2013 reference level after digestibility adjustment. The gap is expressed as a score: 0.70 means the food supplies 70% of what is needed for that amino acid.
+
+Gaps are sorted from most-limiting to least:
+
+    Score     Status                                    Complement suggestion?
+    --------  ----------------------------------------  ----------------------
+    >= 1.0    Meets FAO reference -- complete           No
+    0.95-0.99 Near-adequate -- practical gap too small  No (NutriMagnus floor)
+    0.70-0.94 Gap present                               Yes
+    < 0.70    Significant gap -- high priority          Yes
+
+NutriMagnus generates complement suggestions only for scores below 0.95, not below the FAO floor of 1.0. A gap of 0.98 would suggest "add 1 g" -- not useful. The 0.95 floor filters those out.
+
+- **Methionine** is the most commonly limiting amino acid in plant-based diets.
+- **Lysine** is the most commonly limiting in grain-heavy diets.
+
+See [Protein Complement Suggestions](#protein-complement-suggestions-comp) for how NutriMagnus suggests foods to close gaps.
+
+
+### Glycemic Index [gi]
+
+The glycemic index (GI) measures how quickly a carbohydrate-containing food raises blood glucose compared to pure glucose (GI = 100). Low-GI foods (55 or below) produce a slower, more gradual rise; high-GI foods (70 and above) cause a faster spike.
+
+GI is shown in the nutrient summary when data is available. It is most useful for comparing foods within the same category — for example, choosing between types of bread or rice. Keep in mind that GI describes a food eaten alone; combining foods in a meal (especially adding fat, protein, or fiber) physiologically blunts the blood glucose response to the carbohydrates present, by slowing gastric emptying and glucose absorption. However, this effect is not fully captured by glycemic load (GL) — see [Glycemic Load](#glycemic-load-gl) for why.
+
+NutriMagnus displays GI for reference only and does not use it in protein quality calculations.
+
+
+### Glycemic Load [gl]
+
+Glycemic load (GL) improves on the glycemic index by accounting for both the quality and the quantity of carbohydrate in a serving. The formula is:
+
+```
+GL = (GI × grams of available carbohydrate) / 100
+```
+
+For a meal combining multiple foods, the total GL is the sum of the GL calculated separately for each component:
+
+```
+Meal GL = GL(food 1) + GL(food 2) + GL(food 3) + ...
+```
+
+Adding more carbohydrate-containing foods will always increase the meal total. The reason combining foods physiologically blunts the blood glucose response — as noted in the GI section — is not reflected in this calculation. Protein, fat, and fiber slow gastric emptying and glucose absorption, reducing the actual blood glucose rise; but because GL is calculated from fixed GI values measured for each food in isolation, it has no way to represent that interaction. GL is therefore a reliable tool for comparing meals of broadly similar macronutrient composition, but becomes less accurate when meals differ significantly in their fat or protein content.
+
+A food can have a high GI but a low GL if the serving contains little actual carbohydrate — watermelon is the classic example. Conversely, a moderate-GI food eaten in a large portion can produce a high GL. For this reason GL is generally a better guide to real-world blood glucose impact than GI alone.
+
+**GL is interpreted on a per-meal or per-food basis:**
+
+| GL Range | Classification |
+|---|---|
+| 10 or below | Low |
+| 11–19 | Medium |
+| 20 or above | High |
+
+NutriMagnus displays GL in the nutrient summary alongside GI when carbohydrate data is available. Like GI, it is shown for reference and does not affect protein quality calculations.
+
+For a discussion of how GL compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix B: GL and Blood Glucose Comparison](#appendix-b-glycemic-load-gl-and-blood-glucose-comparison).
+
+
+### Recommended Dietary Allowances [rda]
+
+RDA values in NutriMagnus come from the Dietary Reference Intakes (DRI) published by the U.S. National Academies of Sciences. They represent the average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group.
+
+When you set a user profile (Settings → User profile), NutriMagnus uses your age, sex, weight, height, and activity level to estimate personalized targets. The calorie estimate uses the Mifflin-St Jeor equation with an activity multiplier. The protein target uses 0.8 g per kg body weight as a baseline minimum.
+
+The comparison table ("Daily Intake vs. Recommended Values") shows how your
+logged meals for today compare to your targets.
+
+Columns:
+    Nutrient    Name of the nutrient.
+    Intake      How much you consumed today from all logged meals.
+    Target      Your personalized daily goal for this nutrient.
+    % of RDA    Intake / Target x 100. Color coded:
+                  Green   At or above the minimum (or within the limit for
+                          capped nutrients like sodium).
+                  Yellow  Getting close but not yet there.
+                  Red     Significantly short, or over the limit.
+    Status      A color bar showing the same information visually.
+
+Nutrients without an established Dietary Reference Intake (phytonutrients,
+amino acids) are shown without a Target or % of RDA -- those rows show
+only the Intake amount.
+
+Type ?goals for a full explanation of how each goal is calculated.
+
+
+### Daily Nutrient Goals [goals]
+
+NutriMagnus calculates personalized daily nutrient goals from your user profile (Settings → User profile). Each goal is one of three types:
+
+    Minimum  — RDA or Adequate Intake (AI): the daily amount needed to
+               meet the requirements of most healthy adults.
+    Target   — an estimated ideal intake (currently applies to calories).
+    Limit    — Tolerable Upper Intake Level: the maximum safe daily
+               amount (currently applies to sodium only).
+
+HOW EACH GOAL IS CALCULATED
+
+Calories (target)
+    Mifflin-St Jeor equation for Basal Metabolic Rate, multiplied by an
+    activity factor based on your activity level setting:
+
+        Sedentary (desk job, little exercise)           x 1.2
+        Lightly active (light exercise 1-3 days/week)   x 1.375
+        Moderately active (3-5 days/week)               x 1.55
+        Active (hard exercise 6-7 days/week)            x 1.725
+        Very active (physical job or twice-daily)       x 1.9
+
+Protein (minimum)
+    Scaled to body weight and activity level:
+
+        Sedentary or lightly active   0.8 g per kg body weight
+        Moderately active             1.0 g per kg body weight
+        Active or very active         1.2 g per kg body weight
+
+Carbohydrates (minimum)
+    130 g/day — the brain's minimum glucose requirement (fixed for all).
+
+Fiber (minimum)
+    Age- and sex-dependent Adequate Intake:
+
+        Men under 50: 38 g/day     Men 50+: 30 g/day
+        Women under 50: 25 g/day   Women 50+: 21 g/day
+
+Sodium (limit)
+    2300 mg/day — standard Tolerable Upper Intake Level (fixed for all).
+
+Minerals and vitamins
+    All use age- and sex-specific values from the Dietary Reference
+    Intakes published by the U.S. National Academies of Sciences.
+    Values vary by age group and sex; the most common adjustments are
+    calcium (increases after age 50-70), iron (higher for premenopausal
+    women), vitamin D (increases at age 70), and B6 (increases after 50).
+
+Nutrients without established DRIs (phytonutrients, amino acids) have no
+goal shown. The "% today" column and "Daily goal" column are blank for
+those rows.
+
+Type ?rda for a general overview of where these values come from.
+
+### Nutrient Analysis Table [nutrients]
+
+Shows the nutritional content of a food, recipe, or meal portion, grouped
+by category (Macronutrients, Minerals, Vitamins, Phytonutrients).
+
+Columns:
+    Nutrient     Name of the nutrient.
+    Amount       Value for the portion you entered.
+    Unit         kcal for calories; g for macronutrients (protein, fat,
+                 carbs, fiber, omega fatty acids); mg or mcg for minerals
+                 and vitamins.
+
+When analyzing a meal within a full-day context, three additional columns
+appear:
+
+    meal %       This meal's contribution to your daily goal, in percent.
+    day total %  All meals logged today as a percentage of your daily goal.
+    Daily goal   Your personalized nutrient target for the day.
+
+Color coding (meal % and day total % columns):
+    Green    At or above the daily minimum, or within the upper limit for
+             capped nutrients (sodium).
+    Yellow   Getting close but not there yet.
+    Red      Significantly short of the minimum, or over the limit.
+
+Phytonutrients (carotenoids, choline, isoflavones, etc.) appear only when
+USDA data for that food includes those values -- many foods have none.
+Amino acids are not in this table; see the Protein Quality section below it.
+
+Type ?goals to see how your daily goals are calculated.
+Type ?rda to see the Daily Intake vs. Recommended Values table.
+
+
+### Protein Quality Table [protein-quality]
+
+Shows how a food's amino acid profile compares to the FAO 2013 reference
+pattern. Appears below the nutrient table when amino acid data is available.
+
+The header line tells you whether the protein is Complete (all nine
+essential amino acids at or above the FAO reference) or Incomplete (at
+least one is limiting), and which amino acid is most limiting.
+
+Columns:
+    Amino Acid   Name, using FAO pair notation where applicable
+                 (Met+Cys, Phe+Tyr).
+    Raw ratio    Milligrams of this amino acid per gram of protein, divided
+                 by the FAO reference value. 1.0 = exactly meets the
+                 reference. Below 1.0 = limiting. Above 1.0 = surplus.
+    Adj.         Raw ratio multiplied by the food's DIAAS digestibility
+                 coefficient. Appears only when a DIAAS value is saved.
+                 The bar chart and completeness classification use this
+                 adjusted value when it is available.
+    Bar          Visual indicator: each full block represents 0.10, capped
+                 at 2.0 (20 blocks).
+
+Color: Green = at or above 1.0 (after adjustment if Adj. is present).
+Yellow = below 1.0.
+
+Type ?diaas for the DIAAS concept. Type ?gap to understand what "limiting"
+means. Type ?fao for the FAO reference values used for each amino acid.
+
+
+### Meal Protein Digestibility Analysis [meal-diaas]
+
+Step 1 of the meal DIAAS calculation. Shows how much protein from each
+ingredient actually reaches your bloodstream -- before the limiting amino
+acid penalty is applied.
+
+Columns:
+    ID              USDA FDC ID, OFF, or usr. Type ?glossary for ID types.
+    Food            Ingredient name.
+    Food tot. gr.   Total grams of this ingredient in the meal (across all
+                    items that reference it).
+    Protein         Raw (crude) protein from this ingredient, in grams.
+    Digestibility   True ileal digestibility coefficient (0.00-1.00): the
+                    fraction of protein absorbed by the small intestine.
+    Digestible prot Protein x Digestibility. What your body absorbs from
+                    this ingredient, before the amino acid step.
+    AA              Amino acid data: checkmark = present, X = not available.
+                    Ingredients without AA data are excluded from DIAAS.
+
+Color coding for Digestibility:
+    Green   0.90 or above (high: eggs, dairy, soy isolate, fish).
+    Yellow  0.80-0.89 (moderate: most whole legumes, whole grains).
+    Red     Below 0.80 (lower: some seeds, raw legumes, high-fiber foods).
+
+Suffixes in the Digestibility column:
+    ~est    Estimated from food category average; no measured value for
+            this specific food.
+    up-arrow user    You set a custom value (Settings -> Advanced ->
+            Digestibility overrides). Type ?dcp-overrides.
+
+The totals row sums ingredient weight, crude protein, and digestible
+protein across all ingredients.
+
+Note: the "Total digestible protein" here is step 1 of a two-step method.
+Step 2 (the DIAAS limiting-amino-acid penalty) reduces it further.
+Type ?aa-scoring for the full step-by-step method.
+Type ?diaas for background on DIAAS and true ileal digestibility.
+
+
+### Meal Amino Acid Ratios Table [iaa-ratios]
+
+Step 2 of the meal DIAAS calculation. Shows the pooled amino acid supply
+across the whole meal, expressed as a ratio vs. the FAO 2013 reference.
+
+Columns:
+    Amino Acid   Essential amino acid (FAO pair notation for Met+Cys and
+                 Phe+Tyr).
+    Ratio        Pooled digestible grams of this AA from all ingredients,
+                 divided by (FAO reference value x total meal protein).
+                 1.0 = exactly meets the reference. Below 1.0 = shortfall.
+                 Above 1.0 = surplus.
+    Bar          Visual indicator; each block = 0.10, capped at 2.0.
+
+The amino acid with the lowest ratio is the limiting amino acid, marked
+"LIMITING". The meal DIAAS score equals that lowest ratio (capped at 1.0).
+
+Color coding:
+    Green    1.0 or above.
+    Yellow   0.80-0.99.
+    Red      Below 0.80.
+
+The panel below this table shows the final Digestible Complete Protein
+figure: total meal protein x the DIAAS score.
+
+Type ?diaas for the DIAAS concept. Type ?aa-scoring for the step-by-step
+two-stage calculation method. Type ?dcp for Digestible Complete Protein.
+
+
+### Bioavailability Table [bioavailability]
+
+This section appears in two forms depending on context.
+
+SINGLE FOOD (labeled BIOAVAILABILITY)
+
+Shown when viewing a food with a saved DIAAS estimate. Displays:
+    - Protein digestibility score (literature DIAAS, 0.00-1.50 scale).
+    - A bar proportional to the score.
+    - Digestible protein in grams from this portion.
+    - Digestible complete protein (when amino acid data is also present).
+    - Antinutrient notes when applicable (phytates, oxalates, tannins).
+      Each note names the compound and lists preparation steps that reduce
+      its effect (soaking, cooking, fermentation, etc.).
+
+RECIPE PER SERVING (labeled BIOAVAILABILITY -- PER SERVING)
+
+Per-ingredient table in recipe analysis. Columns:
+    ID              FDC ID, OFF, or usr.
+    Ingredient      Name.
+    Serving         Grams of this ingredient in one recipe serving.
+    Crude protein   Raw protein from this ingredient (g per serving).
+    Digestibility   True ileal digestibility coefficient (0.00-1.00).
+    Limiting IAA    Most-limiting amino acid for this ingredient, or
+                    "-- (complete)" if none.
+    Digestible      Crude protein x Digestibility (g).
+
+Color for Digestibility: Green 0.90+, Yellow 0.70-0.89, Red below 0.70.
+
+A summary panel below the table shows total digestible protein and the
+pooled DIAAS score for one recipe serving.
+
+Type ?diaas for DIAAS background. Type ?dcp for Digestible Complete
+Protein. Type ?comp for complement food suggestions.
+
+
+### Meals and Log List [meals-list]
+
+The main Meals & Log screen lists your recent meals, 15 at a time.
+
+Columns:
+    ID              Meal ID. Use with commands: v3 view, a3 analyze,
+                    d3 delete.
+    Date            Date of the meal (YYYY-MM-DD).
+    Complete        Checkmark when you have marked the meal finished
+                    (option 6 in the meal action loop).
+    Meal            Name you gave the meal (e.g. Breakfast, Lunch).
+    Items           Number of foods and recipes logged in this meal.
+    Meal BCP        Bioavailable complete protein for this meal alone (g).
+    Day BCP         Sum of BCP for all complete meals on this date. Shown
+                    on the topmost row for each date only.
+    % profile goal  Day BCP as a percentage of your daily protein target.
+                    Shown on the topmost row for each date only.
+
+BCP values start as -- and are computed on demand.
+
+    --    BCP not yet computed. Press p to compute for all complete meals
+          currently shown (results are saved permanently).
+    n/a   BCP was computed but no amino acid data was available for any
+          ingredient.
+
+% profile goal requires a user profile (Settings -> User profile). Blank
+if no profile is set.
+
+Commands: n=new  v{id}=view/edit  a{id}=analyze  d{id}=delete
+  s=search history  p=compute BCP  mr=next 15 older  ml=15 newer
+  d{YYYY-MM-DD}=jump to date
+
+Type ?dcp for a full explanation of digestible complete protein.
+Type ?goals to see how your daily protein target is calculated.
+
+
+### Meal Items Table [meal-detail]
+
+Shows the foods and recipes logged in a single meal.
+
+Columns:
+    ID        Item ID. Use this number with options 2 (Edit) and 3 (Remove)
+              in the meal action loop.
+    Amount    Portion recorded: grams for foods, or serving count for
+              recipes. Volume unit labels are shown where applicable.
+    Food /    Name of the food or recipe. Food items show the USDA FDC ID
+    Recipe    before the name. Recipe items show "(recipe)" after the name.
+
+To add, edit, or remove items, use options 1, 2, and 3 in the meal
+action loop, opened with v{id} from the meal list.
+
+
+### Glycemic Load Output [glycemic]
+
+Shows the estimated glycemic load (GL) for a meal or recipe.
+
+The number displayed is the total GL. Color coding:
+    Green   10 or below (low glycemic impact).
+    Yellow  11-19 (medium).
+    Red     20 or above (high).
+
+When the output reads "Not available -- GI annotation missing for: ...",
+one or more foods lack a GI value. GL cannot be computed without GI data
+for every ingredient. To fix this, annotate the listed foods:
+  Foods -> 9 Annotate a food, or Food Cache e# to edit.
+
+GL = (GI x grams of available carbohydrate) / 100 per ingredient,
+summed across all ingredients in the meal.
+
+GL is shown for reference only and does not affect protein quality scores.
+Type ?gl for a full explanation of glycemic load and its limitations.
+Type ?gi for background on the glycemic index.
+
+
+### Meal History Tables [meal-history]
+
+These tables appear when you search your meal history with s from the
+Meals & Log list. Results can be shown as Flat (every occurrence),
+Summary (totals per food), or Both.
+
+MEAL HISTORY -- OCCURRENCES
+Every time a food or recipe appeared in any logged meal.
+
+    Date        Date of the meal.
+    Meal        Name of the meal.
+    Food/Recipe Name of the food or recipe. Recipe items show "(recipe)".
+    Portion     Amount logged: grams for foods, serving count for recipes.
+    Notes       Your note for that item, if any.
+
+MEAL HISTORY -- SUMMARY
+Totals per food across all matching meals.
+
+    Food/Recipe Name of the food or recipe.
+    Times       Number of times this food has been logged.
+    Total       Total grams logged (-- for recipes, which are measured in
+                servings rather than grams).
+    First       Date of the earliest logged occurrence.
+    Last        Date of the most recent logged occurrence.
+
+Note: only foods and recipes logged directly as meal items appear here.
+Ingredients inside a logged recipe are not individually searchable.
+
+
+### Missing Amino Acid Profiles [missing-aa]
+
+When a meal contains ingredients without amino acid data, NutriMagnus
+cannot include them in the pooled DIAAS calculation. This section lists
+the affected ingredients and describes your options.
+
+NutriMagnus distinguishes two cases:
+
+Standalone meal ingredients: foods logged directly in the meal.
+    These can often be replaced on the spot. NutriMagnus can search for
+    a USDA Foundation or SR Legacy substitute with amino acid data.
+
+Inside a recipe: ingredients that are part of a recipe you logged.
+    These must be fixed by editing that recipe (Recipes -> browse -> edit)
+    and replacing the problematic ingredient there.
+
+Safe to ignore when the affected food contributes negligible protein
+(garnish, spice, small amount of fruit).
+Matters when the food is a significant protein source in your meal.
+
+The DIAAS calculation runs on whichever ingredients do have AA data.
+The result is flagged as an estimate, and the DCP figure reflects only
+the protein from data-complete ingredients.
+
+Type ?meal-diaas to see the digestibility table. Type ?diaas for DIAAS
+background.
+
+
+### Recipes List Table [recipes]
+
+Shows all your saved recipes. Displayed when you open Recipes -> Browse
+or Recipes -> Search, and after any recipe action.
+
+Columns:
+    ID          Recipe ID. Use with commands: a{id} analyze, v{id}
+                view/edit, d{id} delete, c{id} copy.
+    Name        Recipe name.
+    Servings    Number of servings. 0 means the recipe is analyzed by
+                total weight or volume rather than a serving count.
+    DCP/srv     Digestible complete protein per serving (g). Requires at
+                least one full analysis run (a{id}). Shown as -- if not
+                yet computed or if no AA data was available.
+    Complete    Checkmark if you have marked the recipe finished.
+    Created     Date the recipe was first saved.
+
+Commands: a{id}=analyze  v{id}=view/edit  d{id}=delete  c{id}=copy
+  x=new recipe  /text=filter by name  r=clear filter
+  n/p=next/prev page
+
+Type ?dcp for a full explanation of digestible complete protein.
+
+
+### Recipe Ingredient List [recipe-ingredients]
+
+Shows the current ingredients in a recipe during create, develop, or edit.
+Refreshes after each change so you can see the current state.
+
+Columns:
+    #       Row number. Use with Remove (option 3) and Reorder (option 4)
+            in the ingredient edit menu.
+    Amount  Portion entered: e.g. "175g", "1 T", "2 servings".
+    ID      Database identifier for this ingredient.
+              A number = USDA FDC ID.
+              OFF      = Open Food Facts.
+              usr      = User-drafted custom food.
+              recipe   = This ingredient is itself a saved recipe (nested).
+    Food    Ingredient name.
+
+Nested recipes (ID = recipe) have their nutrients scaled automatically
+from their recorded serving count and total weight.
+
+
+### USDA Food Search Results [food-search]
+
+Listed after a food search. Combines matches from USDA FoodData Central,
+Open Food Facts, and your local Food Cache.
+
+Columns:
+    AA      Amino acid data status.
+              checkmark    Confirmed in your local cache.
+              ~checkmark   Likely available (Foundation/SR Legacy not yet
+                           fetched); confirmed on selection.
+              X            No amino acid data.
+    GI      Your saved glycemic index estimate, if any. Type ?gi.
+    DIAAS   Your saved DIAAS estimate, if any. Type ?diaas.
+    CONF.   Checkmark if a confidence/source note is saved. View with c#
+            in the Food Cache.
+    ID#     USDA FDC ID, OFF (Open Food Facts), or usr (user-drafted).
+    Name    Food name.
+    Type    USDA data category or OFF.
+              Foundation     Highest accuracy; most likely to have AA data.
+              SR Legacy      Standard Reference; also likely to have AA data.
+              Survey (FNDDS) Foods as eaten; AA data less common.
+              Branded        Manufacturer data; AA data rare.
+              OFF            Open Food Facts (community data).
+              star in Type   Already in your local cache (instant, no
+                             network call needed).
+    Brand   Brand name for Branded and OFF entries.
+
+To select: type the row number. If the food is not yet in your cache,
+NutriMagnus fetches and saves it automatically.
+
+Type ?cached for the Food Cache column guide.
+Type ?fetch to learn how to get missing amino acid data via Claude AI.
+
+
+### Food Comparison Table [food-comparison]
+
+Shows up to eight foods or recipe portions side-by-side, with all nutrient
+groups in one table. All values are per the portion you entered for each
+food, not per 100 g.
+
+The foods and portions you chose are listed above the table as Food 1,
+Food 2, etc.
+
+Nutrient groups: Macronutrients, Minerals, Vitamins, Phytonutrients,
+Amino Acids. Groups appear only when at least one food has data for that
+category.
+
+    Green   The highest value in that row across all foods.
+    --      No data for this nutrient in this food.
+
+Rows where every food shows -- are hidden automatically.
+
+To run a comparison: Foods -> Compare foods side-by-side.
+You can save the food list under a name for quick reuse in future sessions.
+Previously saved lists are offered at the start of the comparison flow.
+
+
+### Annotate Food Picker Table [annotate]
+
+Appears when you choose Foods -> Annotate a food. Pick a food from your
+cache to annotate.
+
+Columns:
+    #       Row number. Type the number to select that food.
+    Name    Food name.
+    Type    USDA data category or OFF. Type ?food-search for type meanings.
+
+Type /text to filter by food name (e.g. /tofu shows only tofu entries).
+Type / alone to clear the filter.
+
+After selecting a food, you can add or update:
+    GI      Glycemic index (0-100). Type ?gi.
+    DIAAS   Your protein quality estimate (0.00-1.50). Useful for packaged
+            foods that lack amino acid data in USDA. Type ?diaas.
+    Prep    A short preparation note (e.g. "boiled 20 min", "raw").
+
+Annotations appear wherever that food is used: Food Cache list, food and
+recipe analysis, and meal analysis.
+
+
+### Foods to Import Review Table [food-import]
+
+Appears when you run r (Read Claude response) from the Food Cache to
+import data from ~/claude_response.txt. Shows a preview so you can
+review before confirming the write.
+
+Columns:
+    Name        Food name from the Claude response.
+    FDC ID      USDA FDC ID if one was provided.
+    Calories    Calorie value from the response (per 100 g).
+    Protein     Protein value (g per 100 g).
+    AA count    How many of the 11 tracked amino acids were found
+                (e.g. 9/11 means 9 out of 11 were present).
+
+Review each row for plausibility. If a value looks wrong, press n to
+cancel, correct ~/claude_response.txt, and re-run r.
+
+After confirming, each food is written to your cache. Foods that gain
+amino acid data change from X to checkmark in the AA column of the
+Food Cache. Any notes Claude added are saved as curator notes (view
+with c# in the Food Cache).
+
+For the full import workflow, type ?fetch.
+
+
+### Drafted Food Profiles List [drafted-foods]
+
+Shows the custom food profiles you have created by hand -- products from
+a label, research table entries, or supplements not in USDA or Open Food
+Facts.
+
+Columns:
+    #       Row number. Use to select a profile for viewing or editing.
+    Name    Food name as you entered it.
+    Note    Your optional source or description note.
+
+Drafted foods are stored in your Food Cache and appear in all food
+searches alongside USDA and Open Food Facts entries. In ID columns
+throughout the program, drafted foods are shown as "usr".
+
+To edit nutrient data: Foods -> Food Cache, find the food, and use e#.
+Editing is done in the Food Cache, not in this list.
+
+To create a new custom profile: Foods -> Drafted Food Profiles -> Create.
+Type ?fetch for an alternative way to get missing data (e.g. amino acid
+data from Claude AI for foods not in USDA).
+
+
+### My Pantry Table [pantry]
+
+Shows the protein sources you have flagged as currently on hand. The
+Pantry drives the complement advisor -- when NutriMagnus suggests foods
+to fill an amino acid gap, it checks your pantry first and shows matching
+foods in a "From your pantry" tier.
+
+Columns:
+    #       Row number.
+    ID      USDA FDC ID, OFF, or usr. -- for name-only entries.
+    AA      Amino acid data status.
+              checkmark  AA data in your cache. This food can be used in
+                         complement suggestions.
+              X          No AA data. Add data via the Food Cache (option c).
+              --         Name-only entry: no USDA link, no nutrient data.
+                         Search for this food via Foods to add it properly.
+    Food    Food name.
+    Notes   Your optional note for this pantry entry.
+
+Only pantry foods with AA data (checkmark) appear in complement
+suggestions. Name-only entries (--) and those without AA data (X)
+may still appear if their name matches a built-in complement table entry.
+
+Commands:
+    a   Add a food (USDA search or name-only).
+    r   Remove a food from the pantry.
+    c   Open the Food Cache to edit nutrients for a pantry food.
+
+Type ?comp for how complement suggestions use your pantry.
+
+
+### Protein Digestibility Overrides [dcp-overrides]
+
+Shows your custom true ileal digestibility coefficients. These values
+override the defaults NutriMagnus uses in meal-level DIAAS calculations.
+
+Columns:
+    Food name       Name of the food this override applies to (matched
+                    case-insensitively against meal ingredients).
+    Digestibility   Your custom coefficient (0.00-1.00). The fraction of
+                    protein absorbed by the small intestine.
+    Notes           Your source note (e.g. "Smith 2020 Table 3").
+
+When an override is active for a meal ingredient, the Digestibility column
+in the Meal Protein Digestibility table shows the value with an
+"up-arrow user" suffix, distinguishing it from estimated or literature
+defaults.
+
+Use overrides when you have found a published measured value for a food
+you eat regularly and it differs meaningfully from NutriMagnus's default.
+Values should come from primary literature (ileal digestibility studies),
+not from product labels or general nutrition sources.
+
+Commands:
+    a   Add or update an override (enter food name, then coefficient).
+    d   Delete an override.
+
+Type ?meal-diaas to see where this value appears in the analysis output.
+Type ?diaas for background on true ileal digestibility.
+
 ## Using the Foods menu
 
 The Foods menu (main menu option **1**) has nine sub-options. Most start with a food search — type any part of a food name, an FDC ID number, or a 12-digit barcode.
@@ -371,8 +1379,8 @@ Displays all your recipes sorted by most recently accessed. The table shows:
 | `d{id}` | Delete the recipe after confirmation |
 | `c{id}` | Copy the recipe — you are asked for a new name |
 | `x` | Create a new recipe (same as Recipes → 1) |
-| `s` | Search / filter recipes by typing words in the recipe name |
-| `r` | Return to the most-recently-accessed view (after a search) |
+| `/text` | Filter all your recipes to those whose names contain `text` — e.g. `/soup` searches every saved recipe and shows only matches. Type `/` alone to clear the filter. |
+| `r` | Return to the most-recently-accessed view (clears any active filter) |
 | `n` / `p` | Next / previous page when there are more than 20 recipes |
 | `b` / Enter | Done — back to the Recipes menu |
 
@@ -415,7 +1423,20 @@ Filters your recipe list as you type. Each character you enter narrows the list 
 
 ## Using the Meals & Log menu
 
-The Meals & Log screen (main menu option **3**) is where you record what you eat each day. It shows a list of your recent meals — date, name, item count, and a completion checkmark — 15 at a time.
+The Meals & Log screen (main menu option **3**) is where you record what you eat each day. It shows a list of your recent meals — 15 at a time — with these columns:
+
+| Column | Meaning |
+|---|---|
+| ID | Meal ID used in commands below |
+| Date | Date of the meal |
+| Complete | ✓ when you have marked the meal finished |
+| Meal | Meal name |
+| Items | Number of logged food/recipe items |
+| Meal BCP | Bioavailable (digestible) complete protein for this meal (g) |
+| Day BCP | Sum of BCP across all complete meals on the same date (shown on topmost row for each date) |
+| % profile goal | Day BCP as a percentage of your daily protein target from your user profile (shown on topmost row for each date) |
+
+BCP values start as `—` and are computed on demand with the `p` command (see below). Once computed they are saved permanently and shown every time you open the list. If you have a user profile set, the screen title shows your daily BCP protein goal in grams.
 
 ### Commands on the meal list
 
@@ -428,6 +1449,7 @@ The Meals & Log screen (main menu option **3**) is where you record what you eat
 | `d{id} {id} {id}` | Delete multiple meals by space-separated IDs (e.g. `d3 5 7`) |
 | `d{id}-{id}` | Delete a range of meal IDs (e.g. `d3-7`) |
 | `s` | Search your entire meal history for a food by name |
+| `p` | Compute BCP for all complete meals currently shown (and any other complete meals on the same dates, so Day BCP reflects the full day). Results are saved to the database and can be recomputed at any time by pressing `p` again. |
 | `mr` | Load the next 15 older meals |
 | `d{YYYY-MM-DD}` | Jump to meals on or before a specific date (e.g. `d2025-06-01`) |
 | `b` / Enter | Back to main menu |
@@ -499,7 +1521,7 @@ The analysis shows:
 
 ### Marking a meal complete
 
-Choose **6** (Mark complete). This puts a ✓ in the Complete column on the meal list as a personal flag that you have finished logging this meal. It has no effect on analysis or logging — it is informational only and can be toggled at any time.
+Choose **6** (Mark complete). This puts a ✓ in the Complete column on the meal list as a personal flag that you have finished logging this meal. It can be toggled at any time. Meals must be marked complete before BCP is computed for them — the `p` command on the meal list skips incomplete meals.
 
 ### Merging meals
 
@@ -939,445 +1961,6 @@ Development is focusing at present on coding and validating core features in a c
 ### Phase 3 — Possible further development
 
 - Machine learning components for dietary recommendations
-
-## The NutriMagnus help system
-
-NutriMagnus displays a help footer at the bottom of tables and analysis
-output whenever additional context is available. It looks like this:
-
-> At any prompt, type `?diaas` or `?dcp` for help with these columns.
-
-Type the indicated command at the next prompt and the relevant section of
-this manual will be displayed inline. You can also type `?help` at any
-prompt to see the full list of available topics.
-
-
-### Using the "?{topic}" Help System [help]
-
-At any prompt in NutriMagnus, type `?` followed by a topic name to display an explanation. Wherever help is available, a line at the bottom of the table or output lists the relevant topic names — for example, "Type `?diaas` or `?dcp` for help with these columns." Type the corresponding `?topic` at the next prompt to display the explanation.
-
-Available topics:
-
-  ?aa          Essential amino acids
-  ?aa-scoring  How limiting-amino-acid scoring works (the DIAAS step)
-  ?cached      Food Cache column guide
-  ?comp        Protein complement food suggestions
-  ?complete    What makes a protein "complete"
-  ?dcp         Digestible Complete Protein
-  ?diaas       Digestible Indispensable Amino Acid Score
-  ?diet        Dietary preferences setting
-  ?fao         FAO 2013 amino acid reference standard
-  ?gap         Amino acid gaps and how they are scored
-  ?gi          Glycemic index
-  ?gl          Glycemic load
-  ?glossary    Abbreviations and key terms
-  ?goals       How daily nutrient goals are calculated
-  ?rda         Recommended Dietary Allowances
-
-Aliases also work: ?suggest, ?dietary, ?completeness, ?digestible, etc.
-
-**Type ?help at any time to show this list again.**
-
-
-### Food Cache — Column Guide [cached]
-
-The CACHED FOODS list shows every food you have stored locally. Columns:
-
-    #       Row number. Use with a command letter to act on that food
-            (see Commands below).
-
-    AA      Amino acid data status.
-              ✓  Amino acid data is present in your cache for this food.
-              ✗  No amino acid data — common for branded and packaged foods.
-
-    GI      Your saved glycemic index estimate for this food, if any.
-            GI reflects how quickly a food raises blood glucose (scale 0-100).
-            Add or update via e# (Edit food data). Type ?gi for a full explanation.
-
-    DIAAS   Your saved DIAAS estimate for this food, if any.
-            DIAAS (Digestible Indispensable Amino Acid Score) rates protein
-            quality: 1.00 = complete, lower = a limiting amino acid is present.
-            Add or update via e# (Edit food data). Type ?diaas for details.
-
-    C       Confidence / source note indicator.
-              ✓  A source or confidence note is saved for this food.
-              —  No note.
-            View the full note with c# (see Commands below).
-
-    N       Curator notes indicator.
-              ✓  Curator notes are saved for this food (typically added by the
-                 Claude data-fetch workflow).
-              —  No curator notes.
-            View with n# (see Commands below).
-
-    ID#     Database identifier.
-            A plain number = USDA FoodData Central FDC ID.
-            "OFF"          = Open Food Facts (community-contributed data).
-            "usr"          = User-drafted (created or edited by hand).
-
-    NAME    Food name as stored in your cache.
-
-    TYPE    Data source within USDA FoodData Central, or OFF for Open Food Facts.
-              Foundation     — USDA-analyzed reference foods; highest accuracy.
-              SR Legacy      — Standard Reference database (pre-2019).
-              Survey (FNDDS) — Foods as eaten, used in national dietary surveys.
-              Branded        — Manufacturer-submitted data for packaged products.
-              OFF            — Open Food Facts (community-contributed).
-              User Drafted   — Created or edited by hand in NutriMagnus.
-
-    BRAND   Brand owner, for Branded and OFF foods.
-
-Commands (type the letter followed by the row number, e.g. v3, e12):
-
-    v#      View nutrients for that food (per 100g).
-    n#      Combined view — nutrients + protein completeness + all notes
-            (confidence note and curator notes). Use this when you want to
-            see everything about a food in one screen.
-    c#      View the confidence/source note only.
-    a#      Analyze a portion — choose serving size, then see scaled nutrients.
-    e#      Edit food data — name, serving, nutrients, note, GI/DIAAS annotation.
-    d#      Delete from cache (also d#,# or d# # # for multiple rows).
-    i#      Fetch missing data from Claude — generates a prompt you paste into
-            claude.ai (free). Also i#,# for multiple rows. Type i alone to
-            select every food in the current list that is missing AA data (✗).
-    r       Read Claude's response — import the data saved in ~/claude_response.txt.
-    /text   Filter list by name or brand. Enter / alone to clear the filter.
-    Enter   Re-display the full food list (clears any in-progress filter view).
-
-To refresh a corrupt or outdated cache entry: delete it with d#,
-then search for the food again — it will be re-fetched automatically.
-
-Type ?fetch for step-by-step instructions on the i/r fetch workflow.
-
-
-### Fetching Missing Nutritional Data from Claude [fetch]
-
-Some foods in your cache are missing amino acid data (shown as ✗ in the AA
-column). You can fill this gap using Claude at claude.ai — no paid subscription
-required. The workflow has four steps.
-
-Step 1 — Generate the prompt.
-
-    In the Food Cache list, type i followed by the row numbers of the foods
-    you want data for:
-
-        i30          (one food — row 30)
-        i30,67       (two foods — rows 30 and 67)
-        i            (all foods in the current list that show ✗)
-
-    NutriMagnus writes a prompt to ~/claude_prompt.txt and tells you its
-    full path. (`~` in that file pathname indicates that the file belong
-    in the root of your computer's user account file system.)
-
-Step 2 — Send the prompt to Claude.
-
-    IMPORTANT: Start a brand-new chat at claude.ai for each request.
-    Do NOT reuse a previous chat window. This ensures the copy step
-    below captures only Claude's one response, nothing else.
-
-    Open ~/claude_prompt.txt (any text editor) and copy its entire contents.
-    Go to claude.ai in your browser (a free account is sufficient).
-    Open a new chat, paste the text, and press Enter or click Send.
-
-Step 3 — Save Claude's response.
-
-    When Claude finishes responding, copy ONLY Claude's reply — not the
-    whole page, not your original prompt. The safest method:
-
-        a. Click at the very beginning of Claude's response text.
-        b. Scroll to the absolute end of that response.
-        c. Shift-click at the end to select everything Claude wrote.
-        d. Copy (Ctrl+C or Cmd+C).
-
-    Avoid using the copy button at the bottom of the chat window — that
-    button copies the entire conversation history, not just Claude's reply.
-
-    Open a plain-text editor (TextEdit, gedit, Notepad, etc.), paste, and
-    save the file as:
-
-        ~/claude_response.txt
-
-    NutriMagnus handles both fenced (```json ...) and bare JSON formats.
-    Any explanatory notes Claude adds after the data are saved automatically
-    as curator notes (viewable with n# in the cache list).
-
-Step 4 — Import the data.
-
-    Return to NutriMagnus, go to Foods → Food Cache, and type r.
-    NutriMagnus reads ~/claude_response.txt, shows you a review table
-    (food name, calories, protein, and how many of the 11 amino acids
-    were found), and asks for confirmation before writing anything.
-
-    After a successful import the cache list refreshes automatically.
-    Foods that gained amino acid data will change from ✗ to ✓.
-    Note: some foods (e.g. FNDDS survey records) structurally lack amino
-    acid data in their source database — for those, ✗ is correct even
-    after a successful import of macros and minerals.
-
-Notes:
-- Per-food source and confidence notes are saved in the Confidence Note
-  field (view with c#). Curator notes that apply to the whole batch are
-  saved with every food in that import (view with n#).
-- You can re-run the workflow at any time to update a food's data or add
-  curator notes that were missed; the import safely overwrites the entry.
-- To add curator notes to foods imported in a previous session: paste
-  both the original JSON response and the notes text into
-  ~/claude_response.txt and run r again — it is safe to re-import.
-- If ~/claude_response.txt already exists from a prior session, overwrite
-  it completely before saving a new response.
-
-
-### Essential Amino Acids [aa]
-
-Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day:
-
-> Histidine, Isoleucine, Leucine, Lysine, Methionine, Phenylalanine, Threonine, Tryptophan, Valine
-
-Two others — Cystine and Tyrosine — can be made from Methionine and Phenylalanine respectively. NutriMagnus evaluates Met+Cys and Phe+Tyr as combined pairs when scoring protein quality, following FAO 2013 guidelines.
-
-See [Protein Completeness](#protein-completeness-complete) and [Amino Acid Gaps](#amino-acid-gaps-gap) for how completeness is scored and what a gap means.
-
-
-### Protein Complement Suggestions [comp]
-
-When amino acid gaps are detected, NutriMagnus suggests foods that can improve the protein quality of the base food or meal. Two separate tiers are shown, and they use different methods:
-
-TIER 1 — GAP CLOSERS
-
-These foods can mathematically close a specific amino acid gap with a practical amount (up to 500 g). A gap closer has a high enough ratio of the limiting amino acid to protein that adding it to the base food brings that amino acid's score to 1.0 (the FAO reference floor).
-
-Each suggestion shows:
-  - Grams to add
-  - Which gaps it closes, with scores before and after
-  - Digestible protein added
-  - Total bioavailable complete protein — the base food protein plus the complement protein, multiplied by the combined (pooled) DIAAS of the pair. This is higher than just adding each food's individually-digestible protein, because the complement's amino acids improve the usability of the base food's protein too.
-
-TIER 2 — DIAAS-BOOSTING OPTIONS
-
-Sometimes the digestibility of the base food is low enough that no practical amount of any single food can "close the gap" mathematically. This happens when the food's raw amino acid ratios are already near the FAO reference — the gaps are digestibility-driven rather than composition-driven. Adding even a very good complement raises the pool's digestible amino acids but can't fully overcome the base food's own digestibility penalty via the gap-closer formula.
-
-For those situations, DIAAS-boosting options are shown instead. These foods raise the combined meal DIAAS score toward 0.90 by contributing digestible amino acids that pool with the base food's amino acids. The calculation uses each food's own true ileal digestibility (not just the DIAAS score), so a high-digestibility food like soy protein isolate (95%) contributes disproportionately more digestible amino acids than its raw content alone would suggest.
-
-Each DIAAS-boosting suggestion shows:
-  - Grams to add
-  - Meal DIAAS before and after adding that amount
-
-WHICH TIER IS RIGHT FOR YOU?
-
-If gap closers are available, they are the most targeted choice: they fix a specific deficiency and fully complete the amino acid profile.
-
-If only DIAAS-boosting options are shown, the underlying problem is that the base food is not highly digestible. Adding a well-digested, amino-acid-rich food improves the overall protein quality of the meal even without closing any single gap definitively. This is nutritionally meaningful — a meal DIAAS of 0.90 means 90% of the protein is both complete and digestible.
-
-You do not need to eat complement foods at the same meal — meeting daily totals is sufficient for healthy adults. See also ?diaas and ?gap for background.
-
-Data sources: your pantry (Foods → My Pantry) is checked first; a built-in table of about 30 common protein sources is used otherwise, filtered by your dietary preferences (see ?diet).
-
-
-### Protein Completeness [complete]
-
-A protein is "complete" when it supplies all nine essential amino acids at or above the FAO 2013 reference amounts, adjusted for digestibility. Essential amino acids cannot be made by the body — they must come from food.
-
-Most animal proteins are complete. Most plant proteins are not, but combining plant foods across a day can produce a complete profile — see [Protein Complement Suggestions](#protein-complement-suggestions-comp).
-
-The score shown in completeness tables is the ratio of each amino acid to the FAO reference level. A score of **1.0 or above** for all nine means the protein is complete. The most-limiting amino acid (the one with the lowest score) is identified as the bottleneck.
-
-
-### Digestible Complete Protein (DCP) [dcp]
-
-DCP — digestible complete protein — is the grams of protein in a food or meal that are both digestible (absorbed by the body) and complete (supply all essential amino acids at or above reference levels).
-
-It is more meaningful than raw grams of protein because it accounts for:
-
-- **Digestibility:** how much protein is actually absorbed (from DIAAS)
-- **Completeness:** whether the amino acid profile meets all requirements
-
-A food with 30 g of protein but a DIAAS of 0.70 and several amino acid gaps contributes less usable protein than those numbers suggest. DCP captures that.
-
-DCP is also called "bioavailable complete protein" or "usable protein" in nutrition literature — these terms mean the same thing. NutriMagnus uses DCP throughout.
-
-NutriMagnus shows DCP in the bioavailability section of food and recipe analysis. See also [DIAAS](#diaas--digestible-indispensable-amino-acid-score-diaas) and [Protein Completeness](#protein-completeness-complete).
-
-
-### DIAAS — Digestible Indispensable Amino Acid Score [diaas]
-
-DIAAS measures how well your body can actually use the protein in a food. A score of **1.0** means the protein fully meets the FAO 2013 amino acid reference standard after accounting for digestibility. Scores above 1.0 are excellent; below 1.0 means one or more amino acids fall short.
-
-Animal proteins typically score 1.0 or above. Most plant proteins score below 1.0, though some (pea protein, soy) come close. Digestibility matters because some protein in food is never absorbed — it passes through unchanged or is broken down by gut bacteria rather than used by your body.
-
-NutriMagnus uses DIAAS to calculate digestible complete protein (DCP), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#digestible-complete-protein-dcp-dcp).
-
-
-### Limiting-Amino-Acid Scoring [aa-scoring]
-
-Protein quality analysis involves two separate adjustments. The Protein Digestibility table shows the result after the first adjustment only. The phrase "before limiting-amino-acid scoring" on that table means the second adjustment has not yet been applied.
-
-Step 1 — Digestibility adjustment (shown in the table):
-
-    Digestible protein (g) = food protein (g) × digestibility coefficient
-
-This accounts for how much protein actually reaches your bloodstream. A food with 20 g of protein and a digestibility of 0.85 delivers 17 g of digestible protein. This is what the "Digestible prot" column shows.
-
-Step 2 — Limiting-amino-acid scoring (the DIAAS step):
-
-    Digestible complete protein (g) = digestible protein (g) × min(DIAAS, 1.0)
-
-Even if all the protein is absorbed, it cannot all be incorporated into tissue unless every essential amino acid is present in sufficient proportion. The amino acid in shortest supply — the limiting amino acid — sets a ceiling. DIAAS is the ratio of that limiting amino acid to the FAO reference level. If DIAAS is 0.80, only 80% of the digestible protein can be fully used; the rest is broken down and excreted.
-
-The "Total digestible protein" line below the table is the sum after step 1 only. The DCP figure reported in the meal summary is the result after both steps.
-
-Note: DIAAS itself is not capped — a high-quality food can score above 1.0, meaning it has surplus amino acids relative to the reference. The min(DIAAS, 1.0) applies only when computing DCP, because having excess amino acids does not allow you to absorb more total protein than you consumed.
-
-See also ?diaas, ?dcp, ?gap.
-
-
-### Dietary Preferences [diet]
-
-This setting controls which protein sources appear in complement suggestions.
-Change it under **Settings → Dietary preferences** (option 3 in the Settings menu).
-
-| Option | Setting | Includes |
-|---|---|---|
-| 1 | All animal foods | meat, fish, dairy, and eggs |
-| 2 | Vegetarian | dairy and eggs only (no meat or fish) |
-| 3 | Plant-based only | plant sources only |
-
-The setting is saved between sessions and applies to both the interactive complement display and any exported reports.
-
-**Important — this setting also filters food search results.** If your preference is set to "plant-based only" or "vegetarian", foods outside that category will not appear anywhere in NutriMagnus — not in food searches, not in search results within recipes or meals, and not in any lookup by name or FDC ID. If you search for a food and get no results, check whether your dietary preference setting is silently excluding it. To look up any food regardless of category, temporarily switch to "All animal foods" under Settings, do your search, then switch back.
-
-
-### FAO 2013 Reference Standard [fao]
-
-The FAO (Food and Agriculture Organization of the United Nations) published a reference amino acid scoring pattern in 2013 that defines the minimum amounts of each essential amino acid per gram of protein needed to meet adult human requirements.
-
-NutriMagnus uses this pattern as the benchmark for all protein quality scoring: completeness, gaps, and complement calculations. A score of **1.0** for an amino acid means the food exactly meets the FAO reference for that amino acid; above 1.0 exceeds it; below 1.0 falls short.
-
-The FAO 2013 pattern replaced an older 1991 standard and is the current international reference for protein quality assessment.
-
-
-### Amino Acid Gaps [gap]
-
-An amino acid gap means one or more essential amino acids are below the FAO 2013 reference level after digestibility adjustment. The gap is expressed as a score: 0.70 means the food supplies 70% of what is needed for that amino acid.
-
-Gaps are sorted from most-limiting to least:
-
-    Score     Status                                    Complement suggestion?
-    --------  ----------------------------------------  ----------------------
-    >= 1.0    Meets FAO reference -- complete           No
-    0.95-0.99 Near-adequate -- practical gap too small  No (NutriMagnus floor)
-    0.70-0.94 Gap present                               Yes
-    < 0.70    Significant gap -- high priority          Yes
-
-NutriMagnus generates complement suggestions only for scores below 0.95, not below the FAO floor of 1.0. A gap of 0.98 would suggest "add 1 g" -- not useful. The 0.95 floor filters those out.
-
-- **Methionine** is the most commonly limiting amino acid in plant-based diets.
-- **Lysine** is the most commonly limiting in grain-heavy diets.
-
-See [Protein Complement Suggestions](#protein-complement-suggestions-comp) for how NutriMagnus suggests foods to close gaps.
-
-
-### Glycemic Index [gi]
-
-The glycemic index (GI) measures how quickly a carbohydrate-containing food raises blood glucose compared to pure glucose (GI = 100). Low-GI foods (55 or below) produce a slower, more gradual rise; high-GI foods (70 and above) cause a faster spike.
-
-GI is shown in the nutrient summary when data is available. It is most useful for comparing foods within the same category — for example, choosing between types of bread or rice. Keep in mind that GI describes a food eaten alone; combining foods in a meal (especially adding fat, protein, or fiber) physiologically blunts the blood glucose response to the carbohydrates present, by slowing gastric emptying and glucose absorption. However, this effect is not fully captured by glycemic load (GL) — see [Glycemic Load](#glycemic-load-gl) for why.
-
-NutriMagnus displays GI for reference only and does not use it in protein quality calculations.
-
-
-### Glycemic Load [gl]
-
-Glycemic load (GL) improves on the glycemic index by accounting for both the quality and the quantity of carbohydrate in a serving. The formula is:
-
-```
-GL = (GI × grams of available carbohydrate) / 100
-```
-
-For a meal combining multiple foods, the total GL is the sum of the GL calculated separately for each component:
-
-```
-Meal GL = GL(food 1) + GL(food 2) + GL(food 3) + ...
-```
-
-Adding more carbohydrate-containing foods will always increase the meal total. The reason combining foods physiologically blunts the blood glucose response — as noted in the GI section — is not reflected in this calculation. Protein, fat, and fiber slow gastric emptying and glucose absorption, reducing the actual blood glucose rise; but because GL is calculated from fixed GI values measured for each food in isolation, it has no way to represent that interaction. GL is therefore a reliable tool for comparing meals of broadly similar macronutrient composition, but becomes less accurate when meals differ significantly in their fat or protein content.
-
-A food can have a high GI but a low GL if the serving contains little actual carbohydrate — watermelon is the classic example. Conversely, a moderate-GI food eaten in a large portion can produce a high GL. For this reason GL is generally a better guide to real-world blood glucose impact than GI alone.
-
-**GL is interpreted on a per-meal or per-food basis:**
-
-| GL Range | Classification |
-|---|---|
-| 10 or below | Low |
-| 11–19 | Medium |
-| 20 or above | High |
-
-NutriMagnus displays GL in the nutrient summary alongside GI when carbohydrate data is available. Like GI, it is shown for reference and does not affect protein quality calculations.
-
-For a discussion of how GL compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix B: GL and Blood Glucose Comparison](#appendix-b-glycemic-load-gl-and-blood-glucose-comparison).
-
-
-### Recommended Dietary Allowances [rda]
-
-RDA values in NutriMagnus come from the Dietary Reference Intakes (DRI) published by the U.S. National Academies of Sciences. They represent the average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group.
-
-When you set a user profile (**Settings → User profile**), NutriMagnus uses your age, sex, weight, height, and activity level to estimate personalized targets. The calorie estimate uses the Mifflin-St Jeor equation with an activity multiplier. The protein target uses 0.8 g per kg body weight as a baseline minimum.
-
-RDA values appear in the comparison table shown after nutrient analysis.
-
-
-### Daily Nutrient Goals [goals]
-
-NutriMagnus calculates personalized daily nutrient goals from your user profile (Settings → User profile). Each goal is one of three types:
-
-    Minimum  — RDA or Adequate Intake (AI): the daily amount needed to
-               meet the requirements of most healthy adults.
-    Target   — an estimated ideal intake (currently applies to calories).
-    Limit    — Tolerable Upper Intake Level: the maximum safe daily
-               amount (currently applies to sodium only).
-
-HOW EACH GOAL IS CALCULATED
-
-Calories (target)
-    Mifflin-St Jeor equation for Basal Metabolic Rate, multiplied by an
-    activity factor based on your activity level setting:
-
-        Sedentary (desk job, little exercise)           x 1.2
-        Lightly active (light exercise 1-3 days/week)   x 1.375
-        Moderately active (3-5 days/week)               x 1.55
-        Active (hard exercise 6-7 days/week)            x 1.725
-        Very active (physical job or twice-daily)       x 1.9
-
-Protein (minimum)
-    Scaled to body weight and activity level:
-
-        Sedentary or lightly active   0.8 g per kg body weight
-        Moderately active             1.0 g per kg body weight
-        Active or very active         1.2 g per kg body weight
-
-Carbohydrates (minimum)
-    130 g/day — the brain's minimum glucose requirement (fixed for all).
-
-Fiber (minimum)
-    Age- and sex-dependent Adequate Intake:
-
-        Men under 50: 38 g/day     Men 50+: 30 g/day
-        Women under 50: 25 g/day   Women 50+: 21 g/day
-
-Sodium (limit)
-    2300 mg/day — standard Tolerable Upper Intake Level (fixed for all).
-
-Minerals and vitamins
-    All use age- and sex-specific values from the Dietary Reference
-    Intakes published by the U.S. National Academies of Sciences.
-    Values vary by age group and sex; the most common adjustments are
-    calcium (increases after age 50-70), iron (higher for premenopausal
-    women), vitamin D (increases at age 70), and B6 (increases after 50).
-
-Nutrients without established DRIs (phytonutrients, amino acids) have no
-goal shown. The "% today" column and "Daily goal" column are blank for
-those rows.
-
-Type ?rda for a general overview of where these values come from.
 
 ## *Troubleshooting - what to do if you have a problem
 

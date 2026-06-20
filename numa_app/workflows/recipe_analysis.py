@@ -21,7 +21,7 @@ from .. import state
 from ..services.portions import _normalize_unit_display, _parse_portion_input, _pick_portion
 from ..services.search import _refresh_cache_if_missing_aa
 from ..services.reports import _offer_export
-from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, section_title
+from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, section_title, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import (
     _print_complement_suggestions, _print_nutrient_table,
@@ -425,6 +425,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         dcp_label = "per serving" if recipe["servings"] > 1 else "whole recipe"
 
         eff_diaas: float | None = None
+        pooled_tid: float | None = None   # weighted-average true ileal digestibility for complement sizing
         dcp_amount: float | None = None
 
         # Compute meal-level pooled DIAAS from actual AA data — captures complementarity
@@ -453,6 +454,16 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 if meal_result and meal_result.get("diaas") is not None:
                     eff_diaas = meal_result["diaas"]
                     dcp_amount = (meal_result.get("digestible_complete_protein_g") or 0.0) / effective_servings
+                    # Compute pooled TID (weighted avg digestibility) — DIAAS != TID and must
+                    # not be used as digestibility in complement sizing (inflates R by 1/DIAAS,
+                    # causing 5-10× oversized suggestions when DIAAS is low due to AA imbalance).
+                    aa_ings = [
+                        i for i in (meal_result.get("ingredients") or [])
+                        if i.get("has_aa_data") and i.get("protein_g", 0) > 0
+                    ]
+                    _aa_protein_sum = sum(i["protein_g"] for i in aa_ings)
+                    if _aa_protein_sum > 0:
+                        pooled_tid = sum(i["protein_g"] * i["digestibility"] for i in aa_ings) / _aa_protein_sum
                 else:
                     # Fall back to per-ingredient weighted average when AA data is unavailable
                     total_digestible = sum(
@@ -568,9 +579,9 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 _print_complement_suggestions(sugg_nutrients, context="recipe",
                                               offer_if_covered=True,
                                               basis_label=basis_label,
-                                              base_diaas=eff_diaas)
+                                              base_diaas=pooled_tid)
             else:
-                gaps = _usda.get_aa_gaps(augmented_analysis, digestibility=eff_diaas if eff_diaas is not None else 1.0)
+                gaps = _usda.get_aa_gaps(augmented_analysis, digestibility=pooled_tid if pooled_tid is not None else 1.0)
                 if servings > 1 and gaps:
                     state.console.print(
                         f"\n  Complement suggestions basis:\n"
@@ -592,7 +603,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 _print_complement_suggestions(sugg_nutrients, context="recipe",
                                               offer_if_covered=True,
                                               basis_label=basis_label,
-                                              base_diaas=eff_diaas)
+                                              base_diaas=pooled_tid)
 
         # Glycemic load (step 7)
         gl_whole, gl_blockers = _compute_recipe_gl(recipe["id"])
@@ -622,6 +633,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             )
             if save_gl is not None:
                 state.console.print("  [grey62]↳ Saved to recipe[/grey62]", highlight=False)
+        help_footer("glycemic")
 
         if no_servings:
             export_per_label = "whole recipe (no serving count)"
@@ -655,7 +667,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             export_sections.append({
                 "type": "complement_suggestions",
                 "nutrients": augmented_analysis,
-                "base_diaas": eff_diaas,
+                "base_diaas": pooled_tid,
             })
         _offer_export(recipe["name"], export_sections)
 

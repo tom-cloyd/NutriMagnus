@@ -98,6 +98,8 @@ def _show_menu(title: str, items: list[tuple[str, str]]) -> None:
         else:
             state.console.print(f"  [grey62]{key}.[/grey62] {label}", highlight=False)
     state.console.print()
+    state.console.print("  [grey62]?help at any prompt — show available help topics[/grey62]")
+    state.console.print()
 
 
 def _safe_call(fn: Callable[..., Any], *args: Any) -> None:

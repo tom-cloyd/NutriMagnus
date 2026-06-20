@@ -63,7 +63,7 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
         state.console.print(f"  [grey62]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/grey62]")
     table_footer("  [grey62]Complete ✓ = recipe is marked finished (all ingredients entered)[/grey62]",
                  "  [grey62]DCP/srv  = digestible complete protein per serving (requires analysis)[/grey62]")
-    help_footer()
+    help_footer("recipes")
 
 
 def _pick_recipe() -> dict | None:
@@ -480,6 +480,7 @@ def _do_recipe_develop(recipe=None) -> None:
                        if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
                 tbl.add_row(str(i), amt, id_cell, ing["food_name"][:_W])
             state.console.print(tbl)
+            help_footer("recipe-ingredients")
         else:
             state.console.print("[grey62]No ingredients yet.[/grey62]")
 
@@ -674,7 +675,7 @@ def _do_recipe_browse() -> None:
 
         _show_recipe_page(display, offset, label=page_label)
 
-        nav_parts = ["s=search"]
+        nav_parts = ["/ to filter"]
         if search_query:
             nav_parts.append("r=recent")
         if has_next:
@@ -682,7 +683,7 @@ def _do_recipe_browse() -> None:
         if has_prev:
             nav_parts.append("p=prev")
         nav_parts.append("b=done")
-        nav = "  ".join(nav_parts)
+        nav = "  ·  ".join(nav_parts)
         state.console.print(f"  [grey62]Actions: v=view/edit  a=analyze  d=delete  c=copy  ·  x=develop new recipe  ·  {nav}[/grey62]", highlight=False)
         state.console.print(f"  [grey62](Enter action + ID, e.g. v3)[/grey62]", highlight=False)
 
@@ -703,15 +704,9 @@ def _do_recipe_browse() -> None:
         if raw == "p" and has_prev:
             offset = max(0, offset - _RECIPE_PAGE)
             continue
-        if raw == "s":
-            try:
-                q = _prompt("Search  [grey62](words in recipe name)[/grey62]", free_text=True).strip()
-            except Cancelled:
-                continue
-            ql = q.lower()
-            if q and ql not in ("b", "q", "m"):
-                search_query = q
-                offset = 0
+        if raw.startswith("/"):
+            search_query = raw[1:].strip() or None
+            offset = 0
             continue
         if raw == "r":
             search_query = None
@@ -798,6 +793,7 @@ def _do_recipe_search() -> None:
                 (r["created_at"] or "")[:10],
             )
         state.console.print(tbl, highlight=False)
+        help_footer("recipes")
 
         if not matches and filter_text:
             state.console.print(
@@ -1081,6 +1077,7 @@ def _do_recipe_create() -> None:
                    if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
             tbl.add_row(str(i), amt, id_c, ing["food_name"][:_W])
         state.console.print(tbl)
+        help_footer("recipe-ingredients")
 
         try:
             cont = _prompt("Add another ingredient?", choices=["y", "n", "q"], default="y")

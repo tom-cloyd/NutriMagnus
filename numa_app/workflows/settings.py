@@ -15,7 +15,7 @@ from ..config import prefs as prefs_config
 from ..config.prefs import _save_prefs, _DIET_LABELS
 from ..config import theme as theme_config
 from ..config.theme import _change_theme
-from ..ui.common import _safe_call, _show_menu, table_title, table_footer
+from ..ui.common import _safe_call, _show_menu, table_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 from ..ui.render import _print_rda_targets
 
@@ -47,6 +47,7 @@ def _do_diaas_overrides() -> None:
                     r["notes"] or "",
                 )
             state.console.print(tbl, highlight=False)
+            help_footer("dcp-overrides")
         else:
             state.console.print("  [grey62](No overrides set.)[/grey62]")
 

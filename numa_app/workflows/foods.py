@@ -94,6 +94,12 @@ def _do_food_search() -> None:
     food = _search_and_pick_food(initial_query=query, prepend_recipes=matching_recipes or None)
     if food is None:
         return
+
+    if food.get("_type") == "recipe":
+        from .recipe_analysis import _do_recipe_view
+        _do_recipe_view(food)
+        return
+
     _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
     has_aa = _print_protein_completeness(food["nutrients"], food_name=food["name"])
     _print_bioavailability(food["name"], food["nutrients"])
@@ -428,6 +434,7 @@ def _print_food_comparison(entries: list[dict]) -> None:
         f"  [{state.T['success']}]Highlighted[/{state.T['success']}]"
         f" [grey62]= highest in row   —  = no data for this food[/grey62]"
     )
+    help_footer("food-comparison")
 
 
 def _do_compare_foods() -> None:
@@ -1038,6 +1045,7 @@ def _do_claude_import() -> None:
     from ..ui.common import table_title
     table_title("FOODS TO IMPORT", f"[grey62]{len(valid)} food(s) from Claude response[/grey62]")
     state.console.print(tbl)
+    help_footer("food-import")
     state.console.print()
 
     try:
@@ -1105,6 +1113,7 @@ def _do_annotate_food() -> None:
         table_footer(
             "  [grey62]Type column: Foundation · SR Legacy · Survey (FNDDS) · Branded = USDA FoodData Central datasets  ·  OFF = Open Food Facts[/grey62]",
         )
+        help_footer("annotate")
 
         try:
             raw = _prompt("Pick number  (/filter, Enter/b=back, m=main, q=quit)").strip()
@@ -1227,6 +1236,50 @@ def _do_edit_portions(fdc_id: int, food_name: str) -> None:
             state.console.print(f"[{state.T['warning']}]Unrecognized — use c, p, x, r, or b.[/{state.T['warning']}]")
 
 
+def _do_refresh_usda_nutrients(fdc_id: int, cached) -> None:
+    """Re-fetch nutrient data from USDA for a cached food, preserving custom portions/notes/name."""
+    if fdc_id < 0:
+        state.console.print(
+            f"[{state.T['warning']}]This is an Open Food Facts entry — USDA refresh not available.[/{state.T['warning']}]"
+        )
+        return
+    food_name = cached["name"]
+    try:
+        confirm = _prompt(
+            f"Replace nutrients for [bold]{food_name}[/bold] with fresh USDA data?  "
+            f"[grey62]Custom name, portions, and notes are preserved.  (y/N)[/grey62]",
+            default="n",
+        ).strip().lower()
+    except Cancelled:
+        return
+    if confirm != "y":
+        return
+    with state.console.status("[bold]Fetching from USDA…[/bold]", spinner="dots"):
+        food = _usda.get_food_detail(fdc_id)
+    if not food or not food.get("nutrients"):
+        state.console.print(
+            f"[{state.T['error']}]USDA returned no data for FDC {fdc_id}.[/{state.T['error']}]"
+        )
+        return
+    existing_portions = json.loads(cached["portions_json"] or "[]") or []
+    with _db.get_db() as conn:
+        _db.update_cached_food_profile(
+            conn, fdc_id,
+            name=food_name,
+            nutrients=food["nutrients"],
+            data_type=food.get("dataType") or cached["data_type"],
+            brand=cached["brand"],
+            serving_size=food.get("servingSize") or cached["serving_size"],
+            serving_unit=food.get("servingUnit") or cached["serving_unit"],
+            portions=existing_portions,
+            notes=cached["notes"],
+            user_drafted=False,
+        )
+    state.console.print(
+        f"  [{state.T['success']}]✓[/{state.T['success']}]  Nutrients refreshed from USDA for [bold]{food_name}[/bold]."
+    )
+
+
 def _do_list_cached_foods() -> None:
     filter_text: str | None = None
     show_table = True
@@ -1293,7 +1346,7 @@ def _do_list_cached_foods() -> None:
             table_footer(
                 f"  [grey62]C = source/confidence note  ·  N = curator notes  ·  {ID_KEY}[/grey62]"
             )
-            help_footer("cached", "fetch")
+            help_footer("food-cache")
 
             state.console.print()
             state.console.print(f"  [{state.T['hi']}]Options:[/{state.T['hi']}]")
@@ -1302,6 +1355,7 @@ def _do_list_cached_foods() -> None:
             state.console.print( "    [bold]c[/bold]    Confidence/source note only  [grey62](e.g. c3)[/grey62]")
             state.console.print( "    [bold]a[/bold]    Analyze portion              [grey62](e.g. a3)[/grey62]")
             state.console.print( "    [bold]e[/bold]    Edit food data               [grey62](e.g. e3)[/grey62]")
+            state.console.print( "    [bold]f[/bold]    Refresh nutrients from USDA  [grey62](e.g. f3 — re-fetch nutrients, keeps your portions/notes)[/grey62]")
             state.console.print( "    [bold]p[/bold]    Edit portions                [grey62](e.g. p3 — add cup/piece/custom weights)[/grey62]")
             state.console.print( "    [bold]d[/bold]    Delete from cache            [grey62](e.g. d3  d1,4,7)[/grey62]", highlight=False)
             state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [grey62](i alone = list foods missing AA data · i3  i1,4,7  iFDCID,FDCID · ?fetch)[/grey62]", highlight=False)
@@ -1314,12 +1368,12 @@ def _do_list_cached_foods() -> None:
                 state.console.print(
                     f"\n  [grey62]Cache — {len(foods)} of {len(all_foods)} foods"
                     f" · filter: '{filter_text}'"
-                    f" · v# c# n# a# e# p# d# i# r · l=list · /filter · b=back[/grey62]"
+                    f" · v# c# n# a# e# f# p# d# i# r · l=list · /filter · b=back[/grey62]"
                 )
             else:
                 state.console.print(
                     f"\n  [grey62]Cache — {len(all_foods)} foods"
-                    f" · v# c# n# a# e# p# d# i# r · l=list · /filter · b=back[/grey62]"
+                    f" · v# c# n# a# e# f# p# d# i# r · l=list · /filter · b=back[/grey62]"
                 )
 
         try:
@@ -1398,6 +1452,22 @@ def _do_list_cached_foods() -> None:
         if cmd == "r":
             _do_claude_import()
             show_table = True
+            continue
+
+        if cmd == "f" and rest:
+            try:
+                idx = int(rest) - 1
+                if idx < 0 or idx >= len(foods):
+                    raise ValueError
+            except ValueError:
+                state.console.print(f"[{state.T['warning']}]Enter a list number after f (e.g. f3).[/{state.T['warning']}]")
+                continue
+            row = foods[idx]
+            with _db.get_db() as conn:
+                cached = _db.get_cached_food(conn, row["fdc_id"])
+            if cached:
+                _do_refresh_usda_nutrients(row["fdc_id"], cached)
+                show_table = True
             continue
 
         if cmd == "p" and rest:
@@ -1493,8 +1563,9 @@ def _do_list_cached_foods() -> None:
                     annotate_food_interactive(row["fdc_id"], cached["name"])
                 except Cancelled:
                     pass
+                show_table = True
             continue
 
-        state.console.print(f"[{state.T['warning']}]Unrecognized command. Use v#, c#, n#, a#, e#, p#, d#, i#, r, or l — or / to filter.[/{state.T['warning']}]")
+        state.console.print(f"[{state.T['warning']}]Unrecognized command. Use v#, c#, n#, a#, e#, f#, p#, d#, i#, r, or l — or / to filter.[/{state.T['warning']}]")
 
 

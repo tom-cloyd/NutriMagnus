@@ -14,7 +14,7 @@ import db as _db
 import usda as _usda
 from .. import state
 from ..services.search import _search_and_pick_food
-from ..ui.common import _id_cell, ID_KEY, _prompt_with_options, _show_menu, dot_cell, table_title, table_footer
+from ..ui.common import _id_cell, ID_KEY, _prompt_with_options, _show_menu, dot_cell, table_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
 
@@ -27,13 +27,15 @@ def _edit_portions(portions: list) -> list:
     else:
         state.console.print("  [grey62]  None on file.[/grey62]")
 
+    first = True
     while True:
         state.console.print()
+        if first:
+            prompt_label = "Portion description  [grey62](e.g. '2 tablespoons', '1 cup' · Enter alone = done · r#=remove entry)[/grey62]"
+        else:
+            prompt_label = "Additional portion description (optional)  [grey62](Enter alone = done · r#=remove entry)[/grey62]"
         try:
-            desc = _prompt(
-                "Portion description  [grey62](e.g. '2 tablespoons', '1 cup' · Enter alone = done · r#=remove entry)[/grey62]",
-                free_text=True,
-            ).strip()
+            desc = _prompt(prompt_label, free_text=True).strip()
         except Cancelled:
             break
 
@@ -55,6 +57,7 @@ def _edit_portions(portions: list) -> list:
                     state.console.print(f"    {i}.  {p['description']}  —  {p['gram_weight']:.1f} g")
             else:
                 state.console.print(f"  [{state.T['warning']}]No portion #{idx}.[/{state.T['warning']}]")
+            first = False
             continue
 
         while True:
@@ -68,6 +71,7 @@ def _edit_portions(portions: list) -> list:
                 gw = float(gw_raw)
                 portions = portions + [{"description": desc, "gram_weight": gw}]
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  Added: {desc} = {gw:.1f} g")
+                first = False
                 break
             except ValueError:
                 state.console.print(f"  [{state.T['warning']}]Enter a number.[/{state.T['warning']}]")
@@ -447,6 +451,7 @@ def _list_drafted_foods() -> list:
     for i, r in enumerate(rows, 1):
         tbl.add_row(str(i), dot_cell(r["name"], _NAME_W), r["notes"] or "")
     state.console.print(tbl)
+    help_footer("drafted-foods")
     return list(rows)
 
 
@@ -470,7 +475,7 @@ def _prompt_nutrients(existing: dict | None = None, unit_label: str = "100g") ->
             f"Vitamins A, D, and E may be entered in IU (e.g. [bold]400 IU[/bold]). "
             f"Press Enter to keep the current value, or Ctrl+C / [bold]b[/bold] to stop.[/grey62]"
         )
-    nutrients: dict = {}
+    nutrients: dict = dict(existing) if existing else {}
 
     def _prompt_field(key: str, label: str, unit: str, precision: str = ".4g") -> bool:
         """Prompt for one field. Returns False if user bailed (Ctrl+C or b)."""
@@ -681,6 +686,7 @@ def _do_copy_cached_food() -> None:
     table_title("Food cache")
     state.console.print(tbl)
     table_footer(f"  {ID_KEY}")
+    help_footer("food-cache")
 
     pick = _ask_int("Pick #")
     if pick is None:

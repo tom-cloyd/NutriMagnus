@@ -17,7 +17,7 @@ from ..services.portions import (
     _UNIT_TO_GRAMS, _VOLUME_TO_ML,
 )
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
-from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, dot_cell, table_title, table_footer
+from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, dot_cell, table_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
 from .recipes import _parse_measure, _compute_recipe_dcp, _compute_recipe_gl, _format_recipe_portion_label, _parse_serving_amount
@@ -187,6 +187,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 tbl.add_row(*row)
             state.console.print(tbl)
             table_footer(f"  {ID_KEY}")
+            help_footer("recipe-ingredients")
         else:
             state.console.print("[grey62]No ingredients yet.[/grey62]")
 
@@ -389,6 +390,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 for i, ing in enumerate(ingredients, 1):
                     tbl2.add_row(str(i), _normalize_unit_display(ing["unit"]), ing["food_name"])
                 state.console.print(tbl2)
+                help_footer("recipe-ingredients")
                 try:
                     raw_idx = _prompt("Ingredient # to remove  [grey62](d=done)[/grey62]", free_text=True).strip().lower()
                 except Cancelled:

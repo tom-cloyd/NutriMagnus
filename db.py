@@ -532,6 +532,27 @@ def meal_list_dates(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.R
     ).fetchall()
 
 
+def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.Row]:
+    """Return recent meal dates with aggregated BCP data.
+
+    Columns: meal_date, day_bcp (NULL if no complete meals have bcp_g computed),
+    complete_count (number of complete meals that day).
+    """
+    return conn.execute(
+        """
+        SELECT
+            meal_date,
+            SUM(CASE WHEN complete = 1 AND bcp_g IS NOT NULL THEN bcp_g END) AS day_bcp,
+            COUNT(CASE WHEN complete = 1 THEN 1 END) AS complete_count
+        FROM meals
+        GROUP BY meal_date
+        ORDER BY meal_date DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+
+
 def meal_list_recent(
     conn: sqlite3.Connection,
     limit: int = 9,

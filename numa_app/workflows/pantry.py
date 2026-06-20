@@ -10,7 +10,7 @@ from rich.table import Table
 from .. import state
 from ..services.search import _search_and_pick_food, _suggest_foundation_search
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float
-from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY, dot_cell, section_title, table_footer
+from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY, dot_cell, section_title, table_footer, help_footer
 
 def _load_pantry_candidates() -> list[dict]:
     """
@@ -78,6 +78,7 @@ def _do_pantry_menu() -> None:
                 f"[{state.T['error']}]✗[/{state.T['error']}] none — research needed  "
                 f"[grey62]—[/grey62] name-only entry (add via USDA search)[/grey62]",
             )
+            help_footer("pantry")
             state.console.rule(style="grey50")
         state.console.print()
         state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Add a food")

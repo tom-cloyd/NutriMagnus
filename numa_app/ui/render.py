@@ -150,7 +150,7 @@ def _print_nutrient_table(
         state.console.print()
         state.console.print("  [grey62]meal % = this meal ÷ daily goal[/grey62]")
         state.console.print("  [grey62]day total % = all meals logged today ÷ daily goal[/grey62]")
-        help_footer("goals")
+    help_footer("nutrients")
 
 
 def _print_protein_completeness(
@@ -224,7 +224,7 @@ def _print_protein_completeness(
     if partial_data_note:
         footer.append(f"  [grey62]{partial_data_note}[/grey62]")
     table_footer(*footer)
-    help_footer()
+    help_footer("protein-quality")
     return True
 
 
@@ -502,7 +502,7 @@ def _print_meal_diaas(
         for _src in result["estimate_sources"]:
             state.console.print(f"  [grey62]    • {_src}[/grey62]", highlight=False)
 
-    help_footer()
+    help_footer("meal-diaas", "iaa-ratios")
     return result["missing_aa_names"], result.get("digestible_complete_protein_g")
 
 def _print_recipe_bioavailability(
@@ -605,7 +605,7 @@ def _print_recipe_bioavailability(
             f"  [grey62](from {total_protein:.1f}g, eff. digestibility [{color}]{eff:.2f}[/{color}])[/grey62]",
             highlight=False,
         )
-    help_footer()
+    help_footer("bioavailability")
 
 
 def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
@@ -653,7 +653,7 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
                       f"{flag['problem']} — {flag['cause']}")
         for label, sol in flag["solutions"]:
             state.console.print(f"    [grey62]* {label}: {sol}[/grey62]")
-    help_footer()
+    help_footer("bioavailability")
 
 def _volume_hint(grams: float, food_name: str) -> str | None:
     """Return a human-readable volume equivalent for *grams* of *food_name*, or None."""
@@ -1140,4 +1140,4 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
 
     state.console.print(tbl, highlight=False)
     table_footer("  [grey62]Target = RDA or Adequate Intake  ·  Limit = Tolerable Upper Intake Level[/grey62]")
-    help_footer()
+    help_footer("rda")

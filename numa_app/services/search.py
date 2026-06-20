@@ -658,6 +658,7 @@ def _search_and_pick_food(
                 state.console.print()
                 table_title("Food cache")
                 state.console.print(_ctbl)
+                help_footer("food-cache")
 
                 _cache_recipes = prepend_recipes or []
                 if _cache_recipes:
@@ -1050,7 +1051,7 @@ def _search_and_pick_food(
             )
             state.console.print(f"[grey62]{_msg}[/grey62]", highlight=False)
 
-        help_footer()
+        help_footer("food-search")
 
         _r_slash_max = min(9, len(results))
         if multi_select:

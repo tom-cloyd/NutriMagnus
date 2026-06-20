@@ -212,6 +212,10 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                     return ch_low
                 # Invalid character: ignore silently.
         finally:
+            # Flush any stale input bytes (e.g. Ctrl+C echo, key-repeat) that
+            # arrived during single-keypress mode so they don't leak into the
+            # next prompt and cause phantom rapid-looping.
+            termios.tcflush(fd, termios.TCIFLUSH)
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
     buf: list[str] = []
