@@ -13,8 +13,8 @@ import db as _db
 import usda as _usda
 from .. import state
 from ..services.portions import (
-    _normalize_unit_display, _parse_portion_input, _pick_portion,
-    _UNIT_TO_GRAMS, _VOLUME_TO_ML,
+    _normalize_unit_display, _ing_amount_display, _parse_portion_input, _pick_portion,
+    _try_resolve_unknown_weight, _UNIT_TO_GRAMS, _VOLUME_TO_ML,
 )
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
 from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, dot_cell, table_title, table_footer, help_footer
@@ -41,11 +41,11 @@ def _do_recipe_edit(recipe=None) -> None:
     # was already changed before returning.
     # (label, key, initial_value, type, allow_empty)
     _meta_fields = [
-        ("Name",        "name",        recipe["name"],                "str",  False),
-        ("Description", "description", recipe["description"] or "",   "str",  True),
-        ("Servings  [grey62](0 = analyze by weight/volume)[/grey62]", "servings", str(recipe["servings"]), "int", False),
-        ("Serving size  [grey62](e.g. 1 cup, 1 slice — Enter to skip)[/grey62]", "serving_size", recipe["serving_size"] or "", "str", True),
-        ("Complete?  [grey62](y/n)[/grey62]", "complete", "y" if recipe["complete"] else "n", "bool", False),
+        ("[underline]Name[/underline]",        "name",        recipe["name"],                "str",  False),
+        ("[underline]Description[/underline]", "description", recipe["description"] or "",   "str",  True),
+        ("[underline]Servings[/underline]  [grey62](0 = analyze by weight/volume)[/grey62]", "servings", str(recipe["servings"]), "int", False),
+        ("[underline]Serving size[/underline]  [grey62](e.g. 1 cup, 1 slice — Enter to skip)[/grey62]", "serving_size", recipe["serving_size"] or "", "str", True),
+        ("[underline]Complete?[/underline]  [grey62](y/n)[/grey62]", "complete", "y" if recipe["complete"] else "n", "bool", False),
     ]
     _meta_vals: dict = {f[1]: f[2] for f in _meta_fields}
     _meta_complete = True
@@ -58,7 +58,7 @@ def _do_recipe_edit(recipe=None) -> None:
             if _cur:
                 _raw = _prompt(_label, default=_cur, prefill=True, free_text=True, two_line=True, allow_empty=_allow_empty).strip()
             else:
-                _raw = _prompt(_label, free_text=True).strip()
+                _raw = _prompt(_label, free_text=True, two_line=True).strip()
         except Cancelled:
             _meta_complete = False
             state.console.print("  [grey62]Cancelled.[/grey62]")
@@ -110,13 +110,13 @@ def _do_recipe_edit(recipe=None) -> None:
         cur_wt_str  = _fmt_measure(recipe["total_weight"],  recipe["total_weight_unit"])
         try:
             raw_vol = _prompt(
-                "Total volume  [grey62](e.g. 4 cups, 500 ml — Enter to skip)[/grey62]",
-                default=cur_vol_str, free_text=True,
+                "[underline]Total volume[/underline]  [grey62](e.g. 4 cups, 500 ml — Enter to skip)[/grey62]",
+                default=cur_vol_str, prefill=bool(cur_vol_str), free_text=True, two_line=True,
             ).strip()
             total_volume, total_volume_unit = _parse_measure(raw_vol)
             raw_wt = _prompt(
-                "Total weight  [grey62](e.g. 800 g, 1.5 lb — Enter to skip)[/grey62]",
-                default=cur_wt_str, free_text=True,
+                "[underline]Total weight[/underline]  [grey62](e.g. 800 g, 1.5 lb — Enter to skip)[/grey62]",
+                default=cur_wt_str, prefill=bool(cur_wt_str), free_text=True, two_line=True,
             ).strip()
             total_weight, total_weight_unit = _parse_measure(raw_wt)
         except Cancelled:
@@ -156,7 +156,47 @@ def _do_recipe_edit(recipe=None) -> None:
             raise SystemExit(0)
         return
 
-    # Show and manage ingredients
+    # Resolve any 'weight not known' ingredient labels using current cache data.
+    with _db.get_db() as conn:
+        for _ing in _db.recipe_get_ingredients(conn, rid):
+            if _ing["fdc_id"] and not _ing["ref_recipe_id"]:
+                _try_resolve_unknown_weight(conn, _ing)
+
+    # Warn if stored weight differs from computed ingredient sum.
+    with _db.get_db() as conn:
+        _recipe_now = _db.recipe_get(conn, rid)
+        _cw = _db.recipe_compute_weight(conn, rid)
+    if _recipe_now and _recipe_now["total_weight"] and _cw is not None:
+        _computed_g, _cw_complete = _cw
+        _incomplete_note = "  [grey62](some weights unknown — lower bound)[/grey62]" if not _cw_complete else ""
+        if abs(_computed_g - _recipe_now["total_weight"]) > 1.0:
+            state.console.print(
+                f"\n  [{state.T['warning']}]⚠  Weight mismatch:[/{state.T['warning']}]"
+                f"  stored {_recipe_now['total_weight']:g} g"
+                f"  vs  computed {_computed_g:.1f} g from ingredients.{_incomplete_note}"
+                f"\n  [grey62](This is normal for cooked recipes where liquids are absorbed.)[/grey62]",
+                highlight=False,
+            )
+            if _cw_complete:
+                try:
+                    _wt_choice = _prompt("Replace stored weight with computed sum?", choices=["y", "n"], default="n")
+                except Cancelled:
+                    _wt_choice = "n"
+                if _wt_choice == "y":
+                    with _db.get_db() as conn:
+                        _db.recipe_update(
+                            conn, rid,
+                            _recipe_now["name"], _recipe_now["description"] or "",
+                            _recipe_now["servings"], _recipe_now["instructions"] or "",
+                            _recipe_now["total_volume"], _recipe_now["total_volume_unit"],
+                            round(_computed_g, 1), "g",
+                            _recipe_now["serving_size"], bool(_recipe_now["complete"]),
+                        )
+                    state.console.print(
+                        f"  [{state.T['success']}]✓[/{state.T['success']}] Total weight updated to {_computed_g:.1f} g.",
+                        highlight=False,
+                    )
+
     # done=True means proceed to instructions; False means back/cancel
     ingredients_done = False
     ingredients_changed = False
@@ -179,8 +219,8 @@ def _do_recipe_edit(recipe=None) -> None:
                 tbl.add_column("Note", min_width=20)
             for i, ing in enumerate(ingredients, 1):
                 id_cell = "[grey62]recipe[/grey62]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
-                amt = (_format_recipe_portion_label(ing["amount"])
-                       if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
+                amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
+                       if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
                 row = [str(i), amt, id_cell, dot_cell(ing["food_name"], _RFOOD_W)]
                 if has_notes:
                     row.append(ing["notes"] or "")
@@ -247,6 +287,8 @@ def _do_recipe_edit(recipe=None) -> None:
             if food.get("_type") == "recipe":
                 sub_rid  = food["id"]
                 sub_name = food["name"]
+                with _db.get_db() as conn:
+                    _db.recipe_auto_weight(conn, sub_rid)
                 try:
                     raw_srv = _prompt(
                         "Servings of this recipe  [grey62](e.g. 1, 0.5, 2 — b=back)[/grey62]",
@@ -267,6 +309,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 label = _format_recipe_portion_label(servings)
                 with _db.get_db() as conn:
                     _db.recipe_add_ingredient(conn, rid, 0, sub_name, servings, "servings", notes, ref_recipe_id=sub_rid)
+                    _db.recipe_auto_weight(conn, rid)
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added recipe: {sub_name}  {label}")
                 ingredients_changed = True
             else:
@@ -280,6 +323,7 @@ def _do_recipe_edit(recipe=None) -> None:
                     notes = None
                 with _db.get_db() as conn:
                     _db.recipe_add_ingredient(conn, rid, food["fdcId"], food["name"], grams, label, notes)
+                    _db.recipe_auto_weight(conn, rid)
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
                 ingredients_changed = True
         elif choice == "2":
@@ -310,6 +354,7 @@ def _do_recipe_edit(recipe=None) -> None:
                     notes_new = ing["notes"]
                 with _db.get_db() as conn:
                     _db.recipe_update_ingredient(conn, ing["id"], servings, "servings", ing["food_name"], notes_new)
+                    _db.recipe_auto_weight(conn, rid)
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Updated to {_format_recipe_portion_label(servings)}.")
                 ingredients_changed = True
                 continue
@@ -370,6 +415,7 @@ def _do_recipe_edit(recipe=None) -> None:
             with _db.get_db() as conn:
                 _db.recipe_update_ingredient(conn, ing["id"], grams, label, food_name_new,
                                              notes_new or None)
+                _db.recipe_auto_weight(conn, rid)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Updated: {food_name_new}  {label}")
             ingredients_changed = True
         elif choice == "3":
@@ -388,7 +434,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 tbl2.add_column("Amount", min_width=14)
                 tbl2.add_column("Food", min_width=_RFOOD_W2, max_width=_RFOOD_W2, no_wrap=True)
                 for i, ing in enumerate(ingredients, 1):
-                    tbl2.add_row(str(i), _normalize_unit_display(ing["unit"]), ing["food_name"])
+                    tbl2.add_row(str(i), _ing_amount_display(ing["unit"], ing["amount"]), ing["food_name"])
                 state.console.print(tbl2)
                 help_footer("recipe-ingredients")
                 try:
@@ -412,6 +458,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 ing = ingredients[idx - 1]
                 with _db.get_db() as conn:
                     _db.recipe_remove_ingredient(conn, ing["id"])
+                    _db.recipe_auto_weight(conn, rid)
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {ing['food_name']}")
                 ingredients_changed = True
         elif choice == "4":
@@ -443,6 +490,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 for ing in reordered:
                     _db.recipe_add_ingredient(conn, rid, ing["fdc_id"], ing["food_name"],
                                               ing["amount"], ing["unit"], ing["notes"])
+                _db.recipe_auto_weight(conn, rid)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Ingredients reordered.")
             ingredients_changed = True
         else:

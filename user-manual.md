@@ -1,8 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-19*:1911
-
-[TOC]
+*Updated 2026-06-21*:0034
 
 ## NutriMagnus addresses a very specific problem
 
@@ -10,7 +8,7 @@ It is now well established that the crucial factors affecting physical and menta
 
 There are multiple good reasons to focus on eating foods derived from plants rather than animals. Plant-based proteins are far less ecologically damaging to produce than animal protein and also much less likely to acquire agricultural chemical accumulations, which are then ingested along with the nutrients they contain. They also do not involve the industrialized abuse of vast numbers of animals who live only long enough to produce edible protein and then are treated like a mere object to be processed as we might a fallen tree. 
 
-Plant proteins are usually more affordable and easier to ship and store for long periods. Most of the world, and most of humanity through human history, eats and has eaten a plant-predominant diet, so this is simply not a novel idea.
+Plant proteins are usually more affordable and easier to ship and store for long periods. Most of the world, and most of humanity throughout human history, eats and has eaten a plant-predominant diet, so this is simply not a novel idea.
 
 But almost all plant proteins come to us with a built-in problem: incomplete amino acid composition. When you read on your jar of peanut butter (an excellent protein source) that 2 tablespoons contain 7 grams of protein (a bit more than that in a large egg), what it doesn't tell you is that only a bit less than 4 grams is actually digestible by human bodies, and of that only a little over 2 grams is complete protein - the kind found in an egg or a piece of chicken meat, and the kind we need.
 
@@ -252,44 +250,46 @@ At any prompt in NutriMagnus, type `?` followed by a topic name to display an ex
 
 Available topics:
 
-  ?aa               Essential amino acids
-  ?aa-scoring       Limiting-amino-acid DIAAS scoring method
-  ?annotate         Annotate food picker table columns
-  ?bioavailability  Bioavailability/DIAAS table columns
-  ?cached           Food Cache column guide
-  ?comp             Protein complement food suggestions
-  ?complete         What makes a protein "complete"
-  ?dcp              Digestible Complete Protein
-  ?dcp-overrides    Protein Digestibility Overrides table
-  ?diaas            Digestible Indispensable Amino Acid Score
-  ?diet             Dietary preferences setting
-  ?drafted-foods    Drafted Food Profiles list columns
-  ?fao              FAO 2013 amino acid reference standard
-  ?fetch            Fetching missing data with Claude AI
-  ?food-cache       Food Cache quick-pick and browser (same as ?cached)
-  ?food-comparison  Food Comparison table columns
-  ?food-import      Foods to Import review table columns
-  ?food-search      USDA food search results columns
-  ?gap              Amino acid gaps and how they are scored
-  ?gi               Glycemic index background
-  ?gl               Glycemic load concept and formula
-  ?glossary         Abbreviations and key terms
-  ?glycemic         Glycemic load output columns
-  ?goals            How daily nutrient goals are calculated
-  ?iaa-ratios       Meal amino acid ratios table columns
-  ?meal-detail      Meal items table columns
-  ?meal-diaas       Meal Protein Digestibility Analysis columns
-  ?meal-history     Meal History search result tables
-  ?meals-list       Meals & Log list columns
-  ?missing-aa       Missing amino acid profile warnings
-  ?nutrients        Nutrient analysis table columns and groups
-  ?pantry           My Pantry table columns
-  ?protein-quality  Single-food amino acid ratios table columns
-  ?rda              Daily Intake vs. Recommended Values table
-  ?recipe-ingredients  Recipe ingredient list columns
-  ?recipes          Recipes list table columns
+    ?aa               Essential amino acids (EAA)
+    ?aa-scoring       Limiting-amino-acid DIAAS scoring method
+    ?eaa              Essential amino acids (alias for ?aa)
+    ?annotate         Annotate food picker table columns
+    ?bioavailability  Bioavailability/DIAAS table columns
+    ?cached           Food Cache column guide
+    ?comp             Protein complement food suggestions
+    ?complete         What makes a protein "complete"
+    ?dcp              Digestible Complete Protein
+    ?dcp-overrides    Protein Digestibility Overrides table
+    ?diaas            Digestible Indispensable Amino Acid Score
+    ?diet             Dietary preferences setting
+    ?drafted-foods    Drafted Food Profiles list columns
+    ?fao              FAO 2013 amino acid reference requirement
+    ?frr              FAO 2013 reference requirement (alias for ?fao)
+    ?fetch            Fetching missing data with Claude AI
+    ?food-cache       Food Cache quick-pick and browser (same as ?cached)
+    ?food-comparison  Food Comparison table columns
+    ?food-import      Foods to Import review table columns
+    ?food-search      USDA food search results columns
+    ?gap              Amino acid gaps and how they are scored
+    ?gi               Glycemic index background
+    ?gl               Glycemic load concept and formula
+    ?glossary         Abbreviations and key terms
+    ?glycemic         Glycemic load output columns
+    ?goals            How daily nutrient goals are calculated
+    ?iaa-ratios       Meal amino acid ratios table columns
+    ?meal-detail      Meal items table columns
+    ?meal-diaas       Meal Protein Digestibility Analysis columns
+    ?meal-history     Meal History search result tables
+    ?meals-list       Meals & Log list columns
+    ?missing-aa       Missing amino acid profile warnings
+    ?nutrients        Nutrient analysis table columns and groups
+    ?pantry           My Pantry table columns
+    ?protein-quality  Single-food amino acid ratios table columns
+    ?rda              Daily Intake vs. Recommended Values table
+    ?recipe-ingredients  Recipe ingredient list columns
+    ?recipes          Recipes list table columns
 
-Aliases also work: ?suggest, ?dietary, ?completeness, ?digestible,
+Aliases also work: ?eaa, ?frr, ?suggest, ?dietary, ?completeness, ?digestible,
 ?food-cache, and others.
 
 **Type ?help at any time to show this list again.**
@@ -442,6 +442,9 @@ Notes:
 - If ~/claude_response.txt already exists from a prior session, overwrite
   it completely before saving a new response.
 
+For full context and annotated examples, see 'Getting missing amino acid data'
+in the user manual (HTML version: #food-cache-fetch-workflow).
+
 
 ### Essential Amino Acids [aa]
 
@@ -451,7 +454,7 @@ Amino acids are the building blocks of protein. Nine of them are "essential", fo
 
 Two others — Cystine and Tyrosine — can be made from Methionine and Phenylalanine respectively. NutriMagnus evaluates Met+Cys and Phe+Tyr as combined pairs when scoring protein quality, following FAO 2013 guidelines.
 
-See [Protein Completeness](#protein-completeness-complete) and [Amino Acid Gaps](#amino-acid-gaps-gap) for how completeness is scored and what a gap means.
+See [Protein Completeness](#complete) and [Amino Acid Gaps](#gap) for how completeness is scored and what a gap means.
 
 
 ### Protein Complement Suggestions [comp]
@@ -468,6 +471,10 @@ Each suggestion shows:
   - Digestible protein added
   - Total bioavailable complete protein — the base food protein plus the complement protein, multiplied by the combined (pooled) DIAAS of the pair. This is higher than just adding each food's individually-digestible protein, because the complement's amino acids improve the usability of the base food's protein too.
 
+RANKING
+
+Options are ranked by the smallest practical amount needed, with one refinement: an option that fully completes the amino acid profile is moved to the front — but only if its serving size is 50 g or less. An option requiring 90 g to achieve completeness will not outrank a 7 g option that merely closes the primary gap. This prevents a food with a barely-adequate amino acid ratio (just above the FAO reference) from dominating the list simply because adding large quantities of it eventually fixes every gap.
+
 TIER 2 — DIAAS-BOOSTING OPTIONS
 
 Sometimes the digestibility of the base food is low enough that no practical amount of any single food can "close the gap" mathematically. This happens when the food's raw amino acid ratios are already near the FAO reference — the gaps are digestibility-driven rather than composition-driven. Adding even a very good complement raises the pool's digestible amino acids but can't fully overcome the base food's own digestibility penalty via the gap-closer formula.
@@ -478,11 +485,27 @@ Each DIAAS-boosting suggestion shows:
   - Grams to add
   - Meal DIAAS before and after adding that amount
 
+TIER 3 — TWO-FOOD COMBINATIONS
+
+When a single food can close the primary gap but in doing so dilutes another borderline amino acid, a two-food combination is offered. The logic follows a gap-cascade:
+
+  Food A closes the primary (most-limiting) gap. It may open a smaller secondary gap by diluting a borderline amino acid that was already close to the threshold.
+
+  Food B is chosen specifically to close whatever gap Food A left behind, without opening further gaps.
+
+Together the pair clears all amino acid gaps. Both the CLI and web output show the individual gram amounts for each food, the cumulative amino acid effects, and whether the combination achieves "closes all gaps" status.
+
+Three combinations are shown initially. The app offers to show more if available.
+
+Combinations are ranked by total weight (lighter is ranked first), with combinations that close all gaps ranked above those that do not.
+
 WHICH TIER IS RIGHT FOR YOU?
 
-If gap closers are available, they are the most targeted choice: they fix a specific deficiency and fully complete the amino acid profile.
+If single-food gap closers (Tier 1) are available, they are the most targeted choice: they fix a specific deficiency with a single food.
 
-If only DIAAS-boosting options are shown, the underlying problem is that the base food is not highly digestible. Adding a well-digested, amino-acid-rich food improves the overall protein quality of the meal even without closing any single gap definitively. This is nutritionally meaningful — a meal DIAAS of 0.90 means 90% of the protein is both complete and digestible.
+If single-food options open a secondary gap, Tier 3 two-food combinations show how to close everything in one practical step.
+
+If only DIAAS-boosting options are shown (Tier 2), the underlying problem is that the base food is not highly digestible. Adding a well-digested, amino-acid-rich food improves the overall protein quality of the meal even without closing any single gap definitively. This is nutritionally meaningful — a meal DIAAS of 0.90 means 90% of the protein is both complete and digestible.
 
 You do not need to eat complement foods at the same meal — meeting daily totals is sufficient for healthy adults. See also ?diaas and ?gap for background.
 
@@ -493,7 +516,7 @@ Data sources: your pantry (Foods → My Pantry) is checked first; a built-in tab
 
 A protein is "complete" when it supplies all nine essential amino acids at or above the FAO 2013 reference amounts, adjusted for digestibility. Essential amino acids cannot be made by the body — they must come from food.
 
-Most animal proteins are complete. Most plant proteins are not, but combining plant foods across a day can produce a complete profile — see [Protein Complement Suggestions](#protein-complement-suggestions-comp).
+Most animal proteins are complete. Most plant proteins are not, but combining plant foods across a day can produce a complete profile — see [Protein Complement Suggestions](#comp).
 
 The score shown in completeness tables is the ratio of each amino acid to the FAO reference level. A score of **1.0 or above** for all nine means the protein is complete. The most-limiting amino acid (the one with the lowest score) is identified as the bottleneck.
 
@@ -511,7 +534,7 @@ A food with 30 g of protein but a DIAAS of 0.70 and several amino acid gaps cont
 
 DCP is also called "bioavailable complete protein" or "usable protein" in nutrition literature — these terms mean the same thing. NutriMagnus uses DCP throughout.
 
-NutriMagnus shows DCP in the bioavailability section of food and recipe analysis. See also [DIAAS](#diaas--digestible-indispensable-amino-acid-score-diaas) and [Protein Completeness](#protein-completeness-complete).
+NutriMagnus shows DCP in the bioavailability section of food and recipe analysis. See also [DIAAS](#diaas) and [Protein Completeness](#complete).
 
 
 ### DIAAS — Digestible Indispensable Amino Acid Score [diaas]
@@ -520,7 +543,7 @@ DIAAS measures how well your body can actually use the protein in a food. A scor
 
 Animal proteins typically score 1.0 or above. Most plant proteins score below 1.0, though some (pea protein, soy) come close. Digestibility matters because some protein in food is never absorbed — it passes through unchanged or is broken down by gut bacteria rather than used by your body.
 
-NutriMagnus uses DIAAS to calculate digestible complete protein (DCP), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#digestible-complete-protein-dcp-dcp).
+NutriMagnus uses DIAAS to calculate digestible complete protein (DCP), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#dcp).
 
 
 ### Limiting-Amino-Acid Scoring [aa-scoring]
@@ -589,14 +612,14 @@ NutriMagnus generates complement suggestions only for scores below 0.95, not bel
 - **Methionine** is the most commonly limiting amino acid in plant-based diets.
 - **Lysine** is the most commonly limiting in grain-heavy diets.
 
-See [Protein Complement Suggestions](#protein-complement-suggestions-comp) for how NutriMagnus suggests foods to close gaps.
+See [Protein Complement Suggestions](#comp) for how NutriMagnus suggests foods to close gaps.
 
 
 ### Glycemic Index [gi]
 
 The glycemic index (GI) measures how quickly a carbohydrate-containing food raises blood glucose compared to pure glucose (GI = 100). Low-GI foods (55 or below) produce a slower, more gradual rise; high-GI foods (70 and above) cause a faster spike.
 
-GI is shown in the nutrient summary when data is available. It is most useful for comparing foods within the same category — for example, choosing between types of bread or rice. Keep in mind that GI describes a food eaten alone; combining foods in a meal (especially adding fat, protein, or fiber) physiologically blunts the blood glucose response to the carbohydrates present, by slowing gastric emptying and glucose absorption. However, this effect is not fully captured by glycemic load (GL) — see [Glycemic Load](#glycemic-load-gl) for why.
+GI is shown in the nutrient summary when data is available. It is most useful for comparing foods within the same category — for example, choosing between types of bread or rice. Keep in mind that GI describes a food eaten alone; combining foods in a meal (especially adding fat, protein, or fiber) physiologically blunts the blood glucose response to the carbohydrates present, by slowing gastric emptying and glucose absorption. However, this effect is not fully captured by glycemic load (GL) — see [Glycemic Load](#gl) for why.
 
 NutriMagnus displays GI for reference only and does not use it in protein quality calculations.
 
@@ -629,7 +652,7 @@ A food can have a high GI but a low GL if the serving contains little actual car
 
 NutriMagnus displays GL in the nutrient summary alongside GI when carbohydrate data is available. Like GI, it is shown for reference and does not affect protein quality calculations.
 
-For a discussion of how GL compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix B: GL and Blood Glucose Comparison](#appendix-b-glycemic-load-gl-and-blood-glucose-comparison).
+For a discussion of how GL compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix B: GL and Blood Glucose Comparison](#appendix-b).
 
 
 ### Recommended Dietary Allowances [rda]
@@ -1277,7 +1300,7 @@ Search for a food, then type an amount. A few examples:
     1/4 c      →  cups
     2 T        →  tablespoons
 
-The space between number and unit is always optional: `2T`, `0.25c`, `150g`, and `3oz` work exactly like their spaced equivalents. For the full list of recognized units and input formats, see [Appendix F](#appendix-f-portion-input-formats-portion-formats).
+The space between number and unit is always optional: `2T`, `0.25c`, `150g`, and `3oz` work exactly like their spaced equivalents. For the full list of recognized units and input formats, see [Appendix F](#portion-formats).
 
 NutriMagnus looks up the food's density and returns the gram equivalent. If no density data is available for that food and measure, it asks you to weigh your portion and enter the result manually.
 
@@ -1299,11 +1322,11 @@ Select up to eight foods (or recipe portions) and NutriMagnus displays them in a
 
 ### Food Cache (Foods → 6)
 
-Described in detail under [Food data — where it comes from and how it is stored](#food-data--where-it-comes-from-and-how-it-is-stored) and the `?cached` help topic. This is the primary place to view, edit, and delete stored foods, and to run the Claude AI amino acid fetch workflow (`i` / `r` commands).
+Described in detail under [Food data — where it comes from and how it is stored](#food-data) and the `?cached` help topic. This is the primary place to view, edit, and delete stored foods, and to run the Claude AI amino acid fetch workflow (`i` / `r` commands).
 
 ### My Pantry (Foods → 7)
 
-Described under [Food data — where it comes from and how it is stored](#food-data--where-it-comes-from-and-how-it-is-stored). Commands inside the Pantry menu:
+Described under [Food data — where it comes from and how it is stored](#food-data). Commands inside the Pantry menu:
 
 | Key | Action |
 |---|---|
@@ -1313,7 +1336,7 @@ Described under [Food data — where it comes from and how it is stored](#food-d
 
 ### Custom food profiles (Foods → 8)
 
-Described under [Entering custom foods and dietary supplements](#entering-custom-foods-and-dietary-supplements).
+Described under [Entering custom foods and dietary supplements](#custom-foods).
 
 ### Annotate a food (Foods → 9)
 
@@ -1350,7 +1373,7 @@ You are prompted for the recipe header, then its ingredients, and finally its pr
 **Ingredient loop:** after the header is saved, you enter ingredients one by one. At each "Search food or recipe" prompt, type a food name, FDC ID, or barcode. Other saved recipes are also searchable and can be nested as ingredients — NutriMagnus scales their nutrients automatically from their serving counts.
 
 For each ingredient:
-1. Choose a portion (weight, volume, or a USDA standard portion listed for that food — see [Appendix F](#appendix-f-portion-input-formats-portion-formats) for all accepted formats).
+1. Choose a portion (weight, volume, or a USDA standard portion listed for that food — see [Appendix F](#portion-formats) for all accepted formats).
 2. Add an optional note (e.g. "drained", "cooked", "raw"). Press Enter to skip.
 
 The current ingredient list is printed after each addition. When you are done, press Enter or `b`.
@@ -1483,7 +1506,7 @@ Opening a meal with `v{id}` (or just after creating one) shows the current items
 
 Choose **1**. At the "Search food or recipe" prompt, type a food name, FDC ID, or barcode. Saved recipes are included in the results automatically.
 
-**Adding a food:** after picking the food, choose a portion (weight, volume, or a USDA standard portion — see [Appendix F](#appendix-f-portion-input-formats-portion-formats) for all accepted formats). You are then offered an optional note field — a short label like "with skin" or "boiled". Press Enter to skip.
+**Adding a food:** after picking the food, choose a portion (weight, volume, or a USDA standard portion — see [Appendix F](#portion-formats) for all accepted formats). You are then offered an optional note field — a short label like "with skin" or "boiled". Press Enter to skip.
 
 **Adding a recipe:** enter the number of servings you are logging (e.g. `1`, `0.5`, `1 1/2`). You can also enter a gram weight followed by `g` (e.g. `290 g`) — NutriMagnus calculates the equivalent serving count from the recipe's recorded total weight. If the recipe has no total weight on record, you are asked to supply it.
 
@@ -1511,7 +1534,7 @@ Choose **4** from the meal action loop, or type `a{id}` from the main meal list.
 The analysis shows:
 
 - Full nutrient table. If you have a user profile set, a "% of today's total" column shows how this meal contributes to your daily intake.
-- Meal-level pooled DIAAS and digestible complete protein (see [How NutriMagnus scores meal and recipe protein quality](#how-nutrimagnus-scores-meal-and-recipe-protein-quality) for the method).
+- Meal-level pooled DIAAS and digestible complete protein (see [How NutriMagnus scores meal and recipe protein quality](#protein-scoring) for the method).
 - Complement suggestions if amino acid gaps are present.
 - Glycemic load for the meal (if GI annotations are set for all foods).
 
@@ -1620,13 +1643,13 @@ Contains three sub-options.
 
 Enter the food name exactly as it appears in your cache (the match is case-insensitive). NutriMagnus shows you the value it would use without an override. Enter your coefficient and an optional source note. Existing overrides are listed in a table; use `d` to delete one.
 
-**2 — USDA API key:** enter your personal FoodData Central API key. Type `s` to display the currently stored key. A personal key gives you a much higher search rate limit than the shared DEMO_KEY fallback. Getting a free key takes about a minute — instructions are in the [Food data](#food-data--where-it-comes-from-and-how-it-is-stored) section.
+**2 — USDA API key:** enter your personal FoodData Central API key. Type `s` to display the currently stored key. A personal key gives you a much higher search rate limit than the shared DEMO_KEY fallback. Getting a free key takes about a minute — instructions are in the [Food data](#food-data) section.
 
 **3 — Storage location:** displays the full path to your NutriMagnus database file (`numa.db`). This is read-only; the path is set automatically when the program first runs and cannot be changed here.
 
 ---
 
-## Food data — where it comes from and how it is stored
+## Food data — where it comes from and how it is stored [food-data]
 
 **Two large online tables** are NutriMagnus's primary sources of food information:
 
@@ -1690,7 +1713,7 @@ Many foods in the USDA database — particularly branded products and older SR L
 
 ### Method 1 — Ask Claude AI (the interactive workflow)
 
-This is the built-in route, available directly inside NutriMagnus. It takes about two minutes per batch of foods and requires only a free claude.ai account.
+This is the built-in route, available directly inside NutriMagnus. It takes about two minutes per batch of foods and requires only a free claude.ai account. For a compact in-program reminder of these steps, type `?fetch` from the Food Cache screen.
 
 **Where to find it:** Foods → 5. View cached / saved foods. The `i` and `r` commands appear in the option list below the food table.
 
@@ -1761,7 +1784,7 @@ Use the Claude workflow for exploratory or one-off data gathering where interact
 
 ---
 
-## Entering custom foods and dietary supplements
+## Entering custom foods and dietary supplements [custom-foods]
 
 ### Custom (drafted) food profiles
 
@@ -1801,9 +1824,9 @@ When you later log "1 tablet" in a meal, those exact amounts are added to your n
 
 If you created a supplement entry before this feature was added, open it via **Foods → 7. Drafted Food Profiles → 3. Edit**. At the start of the edit session, the program asks "Is this a supplement?" — answer yes, confirm the unit name, and the existing nutrient values are preserved. The supplement portion is added automatically so the entry works correctly going forward.
 
-## How NutriMagnus scores meal and recipe protein quality
+## How NutriMagnus scores meal and recipe protein quality [protein-scoring]
 
-(This section explains the meal-level method. For background on single-food DIAAS and how amino acid ratios work, see [Appendix A](#appendix-a-raw-protein-protein-quality-and-protein-digestibility).)
+(This section explains the meal-level method. For background on single-food DIAAS and how amino acid ratios work, see [Appendix A](#appendix-a).)
 
 Single-food analysis and meal-level analysis use different methods. For a single food, NutriMagnus computes a DIAAS score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the FAO's endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
 
@@ -1995,7 +2018,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **Bioavailable protein**  —  Protein the body can actually absorb and use, accounting for both digestibility and amino acid completeness. More meaningful than the raw protein figure on a nutrition label.
 
-**CGM**  —  Continuous Glucose Monitoring. A wearable device that measures blood glucose every few minutes. Discussed in [Appendix B](#appendix-b-glycemic-load-gl-and-blood-glucose-comparison) as the most accurate way to track individual glycemic response.
+**CGM**  —  Continuous Glucose Monitoring. A wearable device that measures blood glucose every few minutes. Discussed in [Appendix B](#appendix-b) as the most accurate way to track individual glycemic response.
 
 **CLI**  —  Command-Line Interface. A text-based program you operate by typing commands and reading text output. NutriMagnus currently runs as a CLI; a graphical interface (GUI) is planned for a future phase.
 
@@ -2049,7 +2072,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **RDA**  —  Recommended Dietary Allowance. The average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group. See ?rda.
 
-**SPI**  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See [Appendix E](#appendix-e-why-some-foods-appear-only-in-diaas-boosting-suggestions-comp-appendix).
+**SPI**  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See [Appendix E](#comp-appendix).
 
 **TID** —  
 
@@ -2058,7 +2081,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 **usr**  —  User-drafted. Appears in ingredient ID columns to indicate a food whose nutrient profile you created or edited by hand, rather than one retrieved from USDA or Open Food Facts.
 
 
-## Appendix A: Raw protein, protein quality, and protein digestibility
+## Appendix A: Raw protein, protein quality, and protein digestibility [appendix-a]
 
 ### The core problems with protein
 
@@ -2193,7 +2216,7 @@ Think of it like fuel efficiency: a car that gets 50 miles per gallon is efficie
 
 The DIAAS table characterizes the quality of each gram. Hitting your daily protein target is about counting how many grams you eat.
 
-## Appendix B: Glycemic load (GL) and Blood Glucose Comparison
+## Appendix B: Glycemic load (GL) and Blood Glucose Comparison [appendix-b]
 
 Glycemic load is a useful approximation, but no single formula-derived figure
 reliably predicts an individual's blood glucose response to a mixed meal. Three

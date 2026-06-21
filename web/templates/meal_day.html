@@ -203,6 +203,33 @@
 
   <p class="muted mt-2"><small>{{ complements.exhausted_msg }}</small></p>
 
+  {% if complements.pairs %}
+  <h5 class="mt-3">Two-food combinations</h5>
+  <p class="muted"><small>Food A closes the primary gap (but opens a new one); food B closes what A left behind. Together they achieve a complete amino acid profile.</small></p>
+  {% for p in complements.pairs %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1"><strong>{{ p.foods[0].name }}</strong> + <strong>{{ p.foods[1].name }}</strong>
+      {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
+    </p>
+    {% for f in p.foods %}
+    <p class="mb-1 ms-2"><strong>Add to meal: {{ f.grams }}&thinsp;g {{ f.name }}</strong>
+      {% if f.fdc_id %}<small class="muted"> FDC {{ f.fdc_id }}</small>{% endif %}
+      {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
+    </p>
+    {% endfor %}
+    {% if p.aa_effects %}
+    <p class="mb-1 muted"><small>Effect:
+      {% for e in p.aa_effects %}
+        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </small></p>
+    {% endif %}
+    <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw)</small></p>
+    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
+  </div>
+  {% endfor %}
+  {% endif %}
+
   {% if complements.diaas_improvers %}
   <h5 class="mt-3">DIAAS-boosting options</h5>
   <p class="muted"><small>

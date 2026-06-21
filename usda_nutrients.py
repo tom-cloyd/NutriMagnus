@@ -563,6 +563,96 @@ def get_complement_nutrients(food_name: str) -> Nutrients | None:
     return entry["nutrients"] if entry else None
 
 
+def _score_one_complement(
+    base_nutrients: Nutrients,
+    base_gaps: list,
+    base_digestibility: float,
+    cand_nutrients: Nutrients,
+    cand_diaas: float | None,
+    target_aa: str,
+) -> dict | None:
+    """
+    Compute suggestion metrics for one candidate food targeting a specific AA gap
+    in base_nutrients.  Returns None if the candidate cannot close that gap.
+
+    Solves for grams X: (base_aa + alpha*X) / (base_protein + beta*X) = R
+    where alpha = cand_aa/100, beta = cand_protein/100, R = digestibility-adjusted
+    reference ratio.  Valid only when alpha > R*beta (candidate AA/protein ratio
+    exceeds the reference).
+
+    Extracted from the _score_candidate closure inside suggest_complements so that
+    _build_pairs can re-use the same formula with a different base (post-first-food).
+    """
+    if target_aa in _AA_PAIRS:
+        pair_key = _AA_PAIRS[target_aa]
+        alpha = (cand_nutrients.get(target_aa, 0.0) + cand_nutrients.get(pair_key, 0.0)) / 100.0
+    else:
+        alpha = cand_nutrients.get(target_aa, 0.0) / 100.0
+    beta = cand_nutrients.get("protein_g", 0.0) / 100.0
+    R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0 / max(base_digestibility, 0.01)
+    denom = alpha - R * beta
+    if denom <= 0:
+        return None
+    if target_aa in _AA_PAIRS:
+        base_aa = base_nutrients.get(target_aa, 0.0) + base_nutrients.get(_AA_PAIRS[target_aa], 0.0)
+    else:
+        base_aa = base_nutrients.get(target_aa, 0.0)
+    base_protein = base_nutrients.get("protein_g", 0.0)
+    grams = (R * base_protein - base_aa) / denom
+    if grams <= 0 or grams > 500:
+        return None
+    added = scale_nutrients(cand_nutrients, grams)
+    combined = sum_nutrients(base_nutrients, added)
+    new_pc = protein_completeness(combined, digestibility=base_digestibility)
+    new_gaps = get_aa_gaps(combined, digestibility=base_digestibility)
+    gaps_closed = len(base_gaps) - len(new_gaps)
+    target_still_gapped = any(aa == target_aa for aa, _, _ in new_gaps)
+    if target_still_gapped:
+        return None
+    original_gap_set = {aa for aa, _, _ in base_gaps}
+    new_gap_set = {aa for aa, _, _ in new_gaps}
+    opens_new_gap = bool(new_gap_set - original_gap_set)
+    closes_primary = (target_aa == base_gaps[0][0]) if base_gaps else False
+    protein_added = cand_nutrients.get("protein_g", 0) * grams / 100
+    dig_added = protein_added * (cand_diaas if cand_diaas is not None else 1.0)
+    # Predicted DIAAS for the combined pool using per-source digestibility.
+    # base_nutrients scaled by base_digestibility; complement scaled by its own DIAAS.
+    # This is more accurate than applying base_digestibility uniformly to the combined
+    # raw pool, which overestimates DCP when adding a high-DIAAS complement.
+    comp_dig = cand_diaas if cand_diaas is not None else 1.0
+    total_raw_protein = combined.get("protein_g", 0)
+    predicted_diaas: float | None = None
+    if total_raw_protein > 0:
+        dig_scores: dict[str, float] = {}
+        for aa_key in ESSENTIAL_AMINO_ACIDS:
+            pair_key = _AA_PAIRS.get(aa_key)
+            base_aa = base_nutrients.get(aa_key, 0.0)
+            comp_aa = cand_nutrients.get(aa_key, 0.0) * grams / 100
+            if pair_key:
+                base_aa += base_nutrients.get(pair_key, 0.0)
+                comp_aa += cand_nutrients.get(pair_key, 0.0) * grams / 100
+            if base_aa <= 0 and comp_aa <= 0:
+                continue
+            ref_g = AA_REFERENCE_MG_PER_G_PROTEIN[aa_key] / 1000.0 * total_raw_protein
+            if ref_g > 0:
+                dig_scores[aa_key] = (base_aa * base_digestibility + comp_aa * comp_dig) / ref_g
+        if dig_scores:
+            predicted_diaas = min(dig_scores.values())
+    return {
+        "grams":                    round(grams),
+        "new_scores":               new_pc.get("scores", {}),
+        "new_complete":             new_pc.get("complete", False),
+        "gaps_closed":              gaps_closed,
+        "opens_new_gap":            opens_new_gap,
+        "closes_primary":           closes_primary,
+        "remaining_gaps":           len(new_gaps),
+        "protein_added":            protein_added,
+        "digestible_protein_added": dig_added,
+        "diaas":                    cand_diaas,
+        "predicted_diaas":          predicted_diaas,
+    }
+
+
 def suggest_complements(
     base_nutrients: Nutrients,
     pantry_candidates: list[dict],
@@ -592,7 +682,7 @@ def suggest_complements(
     """
     gaps = get_aa_gaps(base_nutrients, digestibility=base_digestibility)
     if not gaps:
-        return {"pantry": [], "general": [], "diaas_improvers": []}
+        return {"pantry": [], "general": [], "pairs": [], "diaas_improvers": []}
 
     primary_aa, _primary_score, primary_deficit_g = gaps[0]
 
@@ -607,75 +697,11 @@ def suggest_complements(
 
     def _score_candidate(nutrients_100g: dict, diaas: float | None,
                          target_aa: str) -> dict | None:
-        """
-        Compute suggestion metrics for one candidate targeting a specific AA gap.
-        Returns None if the candidate cannot improve that gap.
-
-        Solving for grams X that brings target AA score to exactly 1.0:
-            (base_aa + alpha*X) / (base_protein + beta*X) = R
-        where alpha = cand_aa/100, beta = cand_protein/100, R = reference ratio.
-        Rearranging: X = (R*base_protein - base_aa) / (alpha - R*beta)
-        This is valid only when alpha > R*beta (candidate AA/protein > reference).
-        """
-        # Use combined AA values for paired AAs (Met+Cys, Phe+Tyr) per FAO 2013.
-        if target_aa in _AA_PAIRS:
-            pair_key = _AA_PAIRS[target_aa]
-            alpha = (nutrients_100g.get(target_aa, 0.0) + nutrients_100g.get(pair_key, 0.0)) / 100.0
-        else:
-            alpha = nutrients_100g.get(target_aa, 0.0) / 100.0   # g AA per g food
-        beta = nutrients_100g.get("protein_g", 0.0) / 100.0  # g protein per g food
-        # Use digestibility-adjusted reference so that the sizing is consistent
-        # with get_aa_gaps(), which uses the same adjustment to detect gaps.
-        # Without this, a food whose raw ratio meets the reference but whose
-        # digestibility-adjusted score is below 1.0 would compute grams ≈ 0
-        # and no complement would qualify.
-        R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0 / max(base_digestibility, 0.01)
-        denom = alpha - R * beta
-        if denom <= 0:
-            # Candidate's AA/protein ratio is below the (digestibility-adjusted)
-            # reference — adding it won't close the gap (may worsen it).
-            return None
-        if target_aa in _AA_PAIRS:
-            base_aa = base_nutrients.get(target_aa, 0.0) + base_nutrients.get(_AA_PAIRS[target_aa], 0.0)
-        else:
-            base_aa = base_nutrients.get(target_aa, 0.0)
-        base_protein = base_nutrients.get("protein_g", 0.0)
-        grams = (R * base_protein - base_aa) / denom
-        # Cap at 500g: excludes mathematically valid but wholly impractical suggestions.
-        if grams <= 0 or grams > 500:
-            return None
-        added = scale_nutrients(nutrients_100g, grams)
-        combined = sum_nutrients(base_nutrients, added)
-        new_pc = protein_completeness(combined, digestibility=base_digestibility)
-        new_gaps = get_aa_gaps(combined, digestibility=base_digestibility)
-        gaps_closed = len(gaps) - len(new_gaps)
-        # Require that the targeted AA gap is actually closed.
-        # We allow suggestions where a different gap opens, since the user can
-        # layer complements — but the targeted AA must improve.
-        target_still_gapped = any(aa == target_aa for aa, _, _ in new_gaps)
-        if target_still_gapped:
-            return None
-        # Detect when this complement closes the target gap but opens a gap in
-        # a different AA that was not previously limiting (e.g. Brazil nuts
-        # close Met+Cys but dilute lysine enough to open a new gap there).
-        original_gap_set = {aa for aa, _, _ in gaps}
-        new_gap_set = {aa for aa, _, _ in new_gaps}
-        opens_new_gap = bool(new_gap_set - original_gap_set)
-        closes_primary = (target_aa == gaps[0][0])
-        protein_added = nutrients_100g.get("protein_g", 0) * grams / 100
-        dig_added = protein_added * (diaas if diaas is not None else 1.0)
-        return {
-            "grams":                    round(grams),
-            "new_scores":               new_pc.get("scores", {}),
-            "new_complete":             new_pc.get("complete", False),
-            "gaps_closed":              gaps_closed,
-            "opens_new_gap":            opens_new_gap,
-            "closes_primary":           closes_primary,
-            "remaining_gaps":           len(new_gaps),
-            "protein_added":            protein_added,
-            "digestible_protein_added": dig_added,
-            "diaas":                    diaas,
-        }
+        """Delegate to the module-level helper using this closure's base context."""
+        return _score_one_complement(
+            base_nutrients, gaps, base_digestibility,
+            nutrients_100g, diaas, target_aa,
+        )
 
     def _diaas_improver_score(
         comp_nutrients: dict,
@@ -866,9 +892,135 @@ def suggest_complements(
     ]
     all_diaas_improvers.sort(key=lambda r: (-r["new_diaas"], r["grams"]))
 
+    # --- Gap-cascade pairs ---------------------------------------------------
+    # All candidates (pantry first for preference, then general) deduplicated by name.
+    all_candidate_names: set[str] = set()
+    all_candidates_ordered: list[dict] = []
+    for c in pantry_candidates:
+        if c["name"] not in all_candidate_names:
+            # Resolve nutrients + diaas the same way _build_suggestions does.
+            cand_n = c.get("nutrients")
+            cand_d = c.get("diaas") or get_diaas(c["name"])
+            if cand_n is None:
+                entry = _find_complement_by_name(c["name"])
+                if entry:
+                    cand_n = entry["nutrients"]
+                    cand_d = cand_d or entry["diaas"]
+            if cand_n is not None:
+                all_candidate_names.add(c["name"])
+                all_candidates_ordered.append({
+                    "name": c["name"], "fdc_id": c.get("fdc_id"),
+                    "nutrients": cand_n, "diaas": cand_d,
+                })
+    for c in general_candidates:
+        if c["name"] not in all_candidate_names and c.get("nutrients"):
+            all_candidate_names.add(c["name"])
+            all_candidates_ordered.append(c)
+
+    def _build_pairs() -> list[dict]:
+        """
+        Gap-cascade pairs: food A closes the primary gap but opens a new one;
+        food B closes what A left behind.  Both foods together achieve a complete
+        amino acid profile.  Each unique unordered pair (A, B) is tested once.
+        """
+        pairs: list[dict] = []
+        seen_pair_keys: set[frozenset] = set()
+
+        for cand_a in all_candidates_ordered:
+            a_name = cand_a["name"]
+            a_nutrients = cand_a["nutrients"]
+            a_diaas = cand_a["diaas"]
+            a_fdc_id = cand_a.get("fdc_id")
+
+            # Score A against the original primary gap.
+            primary_aa = gaps[0][0]
+            a_m = _score_one_complement(
+                base_nutrients, gaps, base_digestibility,
+                a_nutrients, a_diaas, primary_aa,
+            )
+            if a_m is None:
+                continue
+            # Skip A if it alone achieves completeness — it's already a strong
+            # single-food suggestion and pairing adds no value.
+            if not a_m["opens_new_gap"]:
+                continue
+
+            combined_after_a: Nutrients = sum_nutrients(
+                base_nutrients, scale_nutrients(a_nutrients, a_m["grams"])
+            )
+            gaps_after_a: list = get_aa_gaps(combined_after_a, digestibility=base_digestibility)
+            if not gaps_after_a:
+                continue
+
+            for cand_b in all_candidates_ordered:
+                b_name = cand_b["name"]
+                if b_name == a_name:
+                    continue
+                pair_key: frozenset = frozenset([a_name, b_name])
+                if pair_key in seen_pair_keys:
+                    continue
+                seen_pair_keys.add(pair_key)
+
+                b_nutrients = cand_b["nutrients"]
+                b_diaas = cand_b["diaas"]
+                b_fdc_id = cand_b.get("fdc_id")
+
+                b_target_aa = gaps_after_a[0][0]
+                b_m = _score_one_complement(
+                    combined_after_a, gaps_after_a, base_digestibility,
+                    b_nutrients, b_diaas, b_target_aa,
+                )
+                if b_m is None:
+                    continue
+                # Only accept B if it closes all remaining gaps without opening new ones.
+                if b_m["remaining_gaps"] > 0 or b_m["opens_new_gap"]:
+                    continue
+
+                total_grams = a_m["grams"] + b_m["grams"]
+                if total_grams > 600:
+                    continue
+
+                a_prot = a_nutrients.get("protein_g", 0) * a_m["grams"] / 100
+                b_prot = b_nutrients.get("protein_g", 0) * b_m["grams"] / 100
+                a_dig  = a_prot * (a_diaas if a_diaas is not None else 1.0)
+                b_dig  = b_prot * (b_diaas if b_diaas is not None else 1.0)
+
+                pairs.append({
+                    "foods": [
+                        {"name": a_name, "fdc_id": a_fdc_id, "diaas": a_diaas,
+                         "grams": a_m["grams"],
+                         "protein_added": round(a_prot, 1),
+                         "dig_added":     round(a_dig,  1)},
+                        {"name": b_name, "fdc_id": b_fdc_id, "diaas": b_diaas,
+                         "grams": b_m["grams"],
+                         "protein_added": round(b_prot, 1),
+                         "dig_added":     round(b_dig,  1)},
+                    ],
+                    "total_grams":         total_grams,
+                    # gaps_closed: all AAs at score ≥ 0.95 (the gap threshold).
+                    # Stronger than new_complete (which requires ≥ 1.0) but the
+                    # practically meaningful result for multi-food combinations.
+                    "gaps_closed":         b_m["remaining_gaps"] == 0,
+                    "new_complete":        b_m["new_complete"],
+                    "new_scores":          b_m["new_scores"],
+                    "predicted_diaas":     b_m.get("predicted_diaas"),
+                    "total_protein_added": round(a_prot + b_prot, 1),
+                    "total_dig_added":     round(a_dig  + b_dig,  1),
+                })
+
+        # Sort: smallest total grams first; gap-closure bonus only when ≤50 g total.
+        pairs.sort(key=lambda p: (
+            0.0 if (p["gaps_closed"] and p["total_grams"] <= 50) else 1.0,
+            p["total_grams"],
+        ))
+        return pairs
+
+    complement_pairs = _build_pairs()
+
     return {
-        "pantry": pantry_gap_closers,
-        "general": general_gap_closers,
+        "pantry":          pantry_gap_closers,
+        "general":         general_gap_closers,
+        "pairs":           complement_pairs,
         "diaas_improvers": all_diaas_improvers,
     }
 

@@ -2,11 +2,12 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-06-19:1911
+UPDATED: 2026-06-21:0034
 ---
 
 ## Table of Contents
 
+- [Preliminary](#preliminary)
 - [Overview](#overview)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
@@ -23,6 +24,20 @@ UPDATED: 2026-06-19:1911
 - [Test Suite](#test-suite)
 - [Implementation Phases](#implementation-phases)
 - [Appendix — Understanding Protein Quality: The FAO Reference Values and DIAAS](#appendix---understanding-protein-quality-the-fao-reference-values-and-diaas)
+
+---
+
+## Preliminary
+
+* **To launch the CLI version**
+  * Linux: `numa`  (symlink at `~/.local/bin/numa` → `numa.py` is on PATH)
+  * Windows: `python numa.py`
+
+* **To launch the web version**
+  * From the `web/` directory:
+  * Linux / Windows: `uvicorn backend:app --reload`
+  * Then open `http://localhost:8000` in a browser.
+  * Use `uvicorn backend:app` (no `--reload`) for a stable session without auto-restart.
 
 ---
 
@@ -944,7 +959,12 @@ Each suggestion shows:
 - **Name** and DIAAS digestibility score
 - **Grams to add** — the minimum amount that brings the most limiting amino acid to exactly 1.0 (the FAO reference requirement level)
 - **Effect** — before → after scores for the top-gap amino acids (green = meets reference, yellow = improved but still below)
-- **Digestible protein added** and updated **total bioavailable complete protein** — computed as `(base protein + complement protein) × combined pooled DIAAS`, capped at 1.0. This is higher than summing each food's individually-weighted digestible protein because the complement's amino acids improve the utilisation of the base food's protein.
+- **Digestible protein added** — the complement's raw protein × its own DIAAS score.
+- **Total digestible complete protein** — computed as `(base_protein + complement_protein) × min(1.0, base_digestibility × new_pool_raw_min)`, where `new_pool_raw_min` is the minimum raw AA score (vs. FAO reference) across all essential amino acids in the combined pool, and `base_digestibility` is the base meal/recipe's DIAAS. This reflects the pooled-DIAAS approach used by `diaas.py`: all ingredients contribute their amino acids to a single pool, and the pool's limiting AA determines how much of the total protein counts as "complete."
+
+  A complement that fixes the primary gap but dilutes a different amino acid will show a modest total — the pooled DIAAS drops because the new limiting AA is weaker than what the base alone achieved. This is correct and expected: a low-quality complement (e.g. DIAAS 0.45) may add only a small net DCP gain even though it technically closes the target gap.
+
+  For DIAAS-improver suggestions the formula is different: `(base_protein + raw) × min(1.0, new_diaas)` where `new_diaas` is supplied directly from the pooled re-calculation in `suggest_complements`.
 
 **Why score 1.0?** The score is a ratio against the FAO 2013 reference pattern (mg of amino acid per g of protein that humans require). A score of 1.0 means the combined profile exactly meets requirements — it is the floor, not an aspirational target. Suggesting a complement that only reaches 0.85 would mean the gap remains open.
 

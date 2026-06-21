@@ -477,6 +477,9 @@ def _meal_add_items(meal_id: int) -> None:
             rid              = result["id"]
             rname            = result["name"]
             r_total_weight = result.get("total_weight") or None
+            if not r_total_weight:
+                with _db.get_db() as conn:
+                    r_total_weight = _db.recipe_auto_weight(conn, rid)
             r_total_servings = result["servings"] or 1
             srv_hint = "[grey62](servings e.g. 1, 1/2, 1.5  ·  or weight e.g. 290 g · b=back, m=main, q=quit)[/grey62]"
             servings = None

@@ -28,6 +28,7 @@ _ALIASES: dict[str, str] = {
     "import":               "fetch",
     "amino-acid":           "aa",
     "amino-acids":          "aa",
+    "eaa":                  "aa",
     "essential-amino-acids": "aa",
     "amino-acid-gap":       "gap",
     "amino-acid-gaps":      "gap",
@@ -86,6 +87,10 @@ _ALIASES: dict[str, str] = {
     "custom-foods":         "drafted-foods",
     "overrides":            "dcp-overrides",
     "digestibility-overrides": "dcp-overrides",
+    "frr":                  "fao",
+    "fao-reference":        "fao",
+    "reference-requirement": "fao",
+    "fao-2013":             "fao",
 }
 
 

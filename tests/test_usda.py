@@ -630,6 +630,227 @@ class TestSuggestComplements:
 
 
 # ---------------------------------------------------------------------------
+# _score_one_complement  (module-level helper, tested directly)
+# ---------------------------------------------------------------------------
+
+from usda_nutrients import _score_one_complement, get_aa_gaps
+
+class TestScoreOneComplement:
+    # Base with Met+Cys gap only (score ~0.70)
+    _BASE = {
+        "protein_g":          20.0,
+        "aa_tryptophan_g":    0.20,
+        "aa_threonine_g":     0.60,
+        "aa_isoleucine_g":    0.80,
+        "aa_leucine_g":       1.40,
+        "aa_lysine_g":        1.00,   # ref=48 mg/g → need 0.96g → score 1.04 ✓
+        "aa_methionine_g":    0.200,  # Met+Cys score ~0.70 (primary gap)
+        "aa_cystine_g":       0.108,
+        "aa_phenylalanine_g": 0.90,
+        "aa_valine_g":        0.90,
+        "aa_histidine_g":     0.40,
+    }
+    # Brazil nuts: Met+Cys ratio ~94 mg/g protein — well above 22 mg/g reference
+    _BRAZIL = {
+        "protein_g":        14.32,
+        "aa_methionine_g":  1.008, "aa_cystine_g": 0.342,
+        "aa_lysine_g":      0.492,
+        "aa_tryptophan_g":  0.141, "aa_threonine_g":   0.362,
+        "aa_isoleucine_g":  0.516, "aa_leucine_g":     1.155,
+        "aa_phenylalanine_g": 0.630, "aa_valine_g":    0.756,
+        "aa_histidine_g":   0.235,
+    }
+    # Soy protein isolate: Met+Cys ratio ~23 mg/g — just barely above reference
+    _SOY = {
+        "protein_g":        86.04,
+        "aa_methionine_g":  1.145, "aa_cystine_g": 0.833,
+        "aa_lysine_g":      5.379,
+        "aa_tryptophan_g":  1.143, "aa_threonine_g":  3.579,
+        "aa_isoleucine_g":  4.382, "aa_leucine_g":    7.133,
+        "aa_phenylalanine_g": 4.870, "aa_valine_g":   4.487,
+        "aa_histidine_g":   2.425,
+    }
+    # All-rice "food": met+cys ratio ~20 mg/g — below 22 mg/g reference
+    _LOW_MET_CYS = {
+        "protein_g":        7.0,
+        "aa_methionine_g":  0.088, "aa_cystine_g": 0.048,  # combined 1.94 g/100g but ratio < ref
+        "aa_lysine_g":      0.210,
+        "aa_tryptophan_g":  0.077, "aa_threonine_g":  0.256,
+        "aa_isoleucine_g":  0.307, "aa_leucine_g":    0.588,
+        "aa_phenylalanine_g": 0.371, "aa_valine_g":   0.438,
+        "aa_histidine_g":   0.142,
+    }
+
+    def test_brazil_closes_met_cys_gap(self):
+        gaps = get_aa_gaps(self._BASE)
+        primary_aa = "aa_methionine_g"
+        result = _score_one_complement(self._BASE, gaps, 1.0, self._BRAZIL, 0.54, primary_aa)
+        assert result is not None
+        assert result["grams"] > 0
+        assert result["new_scores"].get(primary_aa, 0) >= 1.0
+
+    def test_below_reference_returns_none(self):
+        # Rice-like food has Met+Cys/protein below the FAO reference — cannot close gap.
+        gaps = get_aa_gaps(self._BASE)
+        result = _score_one_complement(
+            self._BASE, gaps, 1.0, self._LOW_MET_CYS, None, "aa_methionine_g"
+        )
+        assert result is None
+
+    def test_returns_required_keys(self):
+        gaps = get_aa_gaps(self._BASE)
+        result = _score_one_complement(self._BASE, gaps, 1.0, self._BRAZIL, 0.54, "aa_methionine_g")
+        assert result is not None
+        for key in ("grams", "new_scores", "new_complete", "gaps_closed",
+                    "opens_new_gap", "closes_primary", "remaining_gaps",
+                    "protein_added", "digestible_protein_added", "diaas"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_no_private_fields_leaked(self):
+        # Brazil nuts have a high Met+Cys ratio — reliably non-None for this gap.
+        gaps = get_aa_gaps(self._BASE)
+        result = _score_one_complement(self._BASE, gaps, 1.0, self._BRAZIL, 0.54, "aa_methionine_g")
+        assert result is not None
+        assert "_combined_nutrients" not in result
+        assert "_new_gaps" not in result
+
+    def test_brazil_opens_new_gap_when_lysine_borderline(self):
+        # Lysine FAO reference = 48 mg/g (not 45). With 20g protein, threshold is 0.95*0.96 = 0.912g.
+        # Use 0.924g → score 0.9625 (above threshold but vulnerable to dilution by Brazil nuts).
+        base = dict(self._BASE)
+        base["aa_lysine_g"] = 0.924  # score ~0.9625 — above 0.95 threshold, but borderline
+        gaps = get_aa_gaps(base)
+        assert not any(aa == "aa_lysine_g" for aa, _, _ in gaps), "lysine should not be a gap initially"
+        result = _score_one_complement(base, gaps, 1.0, self._BRAZIL, 0.54, "aa_methionine_g")
+        assert result is not None
+        assert result["opens_new_gap"] is True
+
+    def test_brazil_no_new_gap_with_sufficient_lysine(self):
+        # _BASE has lysine=1.00g with 20g protein → score 1.04, well above threshold.
+        # Adding ~15g Brazil nuts adds a small amount of lysine; the combined score
+        # stays above 0.95, so opens_new_gap should be False.
+        gaps = get_aa_gaps(self._BASE)
+        result = _score_one_complement(self._BASE, gaps, 1.0, self._BRAZIL, 0.54, "aa_methionine_g")
+        assert result is not None
+        assert result["opens_new_gap"] is False
+
+
+# ---------------------------------------------------------------------------
+# suggest_complements — gap-cascade pairs
+# ---------------------------------------------------------------------------
+
+# Nutrients with Met+Cys gap (primary) and lysine just above threshold.
+# Adding Brazil nuts closes Met+Cys but dilutes lysine below 0.95 → opens lysine gap.
+# A lysine-rich legume then closes the lysine gap → valid pair.
+_PAIR_CASCADE_NUTRIENTS = {
+    # Met+Cys primary gap; lysine borderline — Brazil nuts close Met+Cys but open
+    # a lysine gap, requiring a lysine-rich legume as the second food in a pair.
+    # Lysine ref = 48 mg/g; threshold at score 0.95 = 0.912g with 20g protein.
+    # 0.924g → score 0.9625 (above threshold but diluted below 0.95 by ~15g Brazil nuts).
+    "protein_g":          20.0,
+    "aa_tryptophan_g":    0.20,
+    "aa_threonine_g":     0.60,
+    "aa_isoleucine_g":    0.80,
+    "aa_leucine_g":       1.40,
+    "aa_lysine_g":        0.924,    # score ~0.9625 — above threshold, vulnerable to dilution
+    "aa_methionine_g":    0.200,    # Met+Cys score ~0.70 — primary gap
+    "aa_cystine_g":       0.108,
+    "aa_phenylalanine_g": 0.90,
+    "aa_valine_g":        0.90,
+    "aa_histidine_g":     0.40,
+}
+
+class TestComplementPairs:
+    def test_pairs_key_always_present(self):
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [])
+        assert "pairs" in result
+
+    def test_complete_nutrients_no_pairs(self):
+        result = _usda.suggest_complements(_COMPLETE_NUTRIENTS, [])
+        assert result["pairs"] == []
+
+    def test_cascade_scenario_produces_pairs(self):
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        assert len(result["pairs"]) > 0, "Expected at least one two-food pair from cascade scenario"
+
+    def test_pair_has_exactly_two_foods(self):
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        for pair in result["pairs"]:
+            assert len(pair["foods"]) == 2
+
+    def test_pair_has_required_keys(self):
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        assert result["pairs"], "Need at least one pair to test structure"
+        p = result["pairs"][0]
+        for key in ("foods", "total_grams", "new_complete",
+                    "new_scores", "total_protein_added", "total_dig_added"):
+            assert key in p, f"Missing pair key: {key}"
+
+    def test_pair_food_has_required_keys(self):
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        assert result["pairs"]
+        for f in result["pairs"][0]["foods"]:
+            for key in ("name", "grams", "protein_added", "dig_added"):
+                assert key in f, f"Missing food key: {key}"
+
+    def test_pair_closes_all_gaps(self):
+        # Every pair must bring all AAs to score ≥ 0.95 (no remaining gaps).
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        for pair in result["pairs"]:
+            assert pair["gaps_closed"] is True, (
+                f"Pair {pair['foods'][0]['name']} + {pair['foods'][1]['name']} "
+                f"should close all gaps (score ≥ 0.95 on every AA)"
+            )
+
+    def test_pair_total_grams_matches_sum(self):
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        for pair in result["pairs"]:
+            expected = pair["foods"][0]["grams"] + pair["foods"][1]["grams"]
+            assert pair["total_grams"] == expected
+
+    def test_pairs_sorted_ascending_by_total_grams(self):
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        pairs = result["pairs"]
+        if len(pairs) >= 2:
+            total_grams = [p["total_grams"] for p in pairs]
+            assert total_grams == sorted(total_grams), f"Pairs not sorted: {total_grams}"
+
+    def test_pair_foods_are_different(self):
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        for pair in result["pairs"]:
+            assert pair["foods"][0]["name"] != pair["foods"][1]["name"]
+
+    def test_no_duplicate_pairs(self):
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        seen: set[frozenset] = set()
+        for pair in result["pairs"]:
+            key = frozenset(f["name"] for f in pair["foods"])
+            assert key not in seen, f"Duplicate pair: {key}"
+            seen.add(key)
+
+    def test_first_food_opens_new_gap(self):
+        # Verify the invariant that food A (the first leg of every cascade pair)
+        # opens a new gap when added alone to the base.
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
+        gaps_before = set(aa for aa, _, _ in _usda.get_aa_gaps(_PAIR_CASCADE_NUTRIENTS))
+        for pair in result["pairs"]:
+            a_name = pair["foods"][0]["name"]
+            a_grams = pair["foods"][0]["grams"]
+            # Resolve A's nutrients via the complement table
+            comp_n = _usda.get_complement_nutrients(a_name)
+            if comp_n is None:
+                continue  # pantry food without nutrients — skip structural check
+            from usda_nutrients import scale_nutrients, sum_nutrients
+            after_a = sum_nutrients(_PAIR_CASCADE_NUTRIENTS, scale_nutrients(comp_n, a_grams))
+            gaps_after_a = set(aa for aa, _, _ in _usda.get_aa_gaps(after_a))
+            new_gaps_opened = gaps_after_a - gaps_before
+            assert new_gaps_opened, (
+                f"First food '{a_name}' should open a new gap but didn't. "
+                f"Gaps before: {gaps_before}, after: {gaps_after_a}"
+            )
+
+
+# ---------------------------------------------------------------------------
 # get_density_g_per_ml
 # ---------------------------------------------------------------------------
 

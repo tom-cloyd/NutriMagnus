@@ -41,6 +41,27 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _maybe_rebuild_manual() -> None:
+    """Silently regenerate user-manual.html if the markdown source is newer."""
+    root = pathlib.Path(__file__).parent
+    md   = root / "user-manual.md"
+    html = root / "user-manual.html"
+    if not md.exists():
+        return
+    if html.exists() and html.stat().st_mtime >= md.stat().st_mtime:
+        return
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_manual", root / "scripts" / "build_manual.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod.main()
+    except Exception:
+        pass  # never block startup over a docs rebuild
+
+
 def _run_export_json(fdc_ids: list[int], output: str | None) -> None:
     import db as _db
 
@@ -82,5 +103,6 @@ if __name__ == "__main__":
     if args.export_json:
         _run_export_json(args.export_json, args.output)
         sys.exit(0)
+    _maybe_rebuild_manual()
     run_app(theme=args.theme, api_key=args.api_key)
     

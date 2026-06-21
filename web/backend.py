@@ -1175,8 +1175,9 @@ def _complement_suggestions(aa_nutrients: dict, diaas_score: float | None) -> di
         }
 
     sort_key = lambda s: (0 if s.get("new_complete") else 1, float(s.get("grams") or 999))
-    pantry_suggs    = sorted(suggestions.get("pantry",          []), key=sort_key)[:3]
-    general_suggs   = sorted(suggestions.get("general",         []), key=sort_key)[:6]
+    pantry_suggs    = sorted(suggestions.get("pantry",  []), key=sort_key)[:3]
+    general_suggs   = sorted(suggestions.get("general", []), key=sort_key)[:6]
+    pair_suggs      = suggestions.get("pairs", [])[:6]
     diaas_improvers = suggestions.get("diaas_improvers", [])[:5]
 
     gap_rows = [{"label": _usda.nutrient_label(k)[0], "score": round(v, 3)} for k, v, _ in gaps[:4]]
@@ -1187,14 +1188,58 @@ def _complement_suggestions(aa_nutrients: dict, diaas_score: float | None) -> di
     exhausted_prefix = "All options that qualify are shown above — no others meet the criteria." \
         if n_shown > 0 else "No qualifying options found in the database."
 
+    def _fmt_pair(p: dict) -> dict:
+        foods_out = []
+        for f in p.get("foods", []):
+            foods_out.append({
+                "name":           f.get("name", ""),
+                "fdc_id":         f.get("fdc_id"),
+                "diaas":          round(f["diaas"], 2) if f.get("diaas") else None,
+                "grams":          f.get("grams"),
+                "protein_added":  f.get("protein_added", 0),
+                "dig_added":      f.get("dig_added", 0),
+            })
+        # Estimate total digestible complete protein using the same scale trick as singles.
+        new_scores = p.get("new_scores", {})
+        total_raw  = base_protein + float(p.get("total_protein_added") or 0)
+        if new_scores and gaps:
+            old_raw_min = gaps[0][1]  # digestibility=1.0 in meal context
+            new_raw_min = min(new_scores.values())
+            scale = (new_raw_min / old_raw_min) if old_raw_min > 0 else 1.0
+            total_dig_complete = round(total_raw * min(1.0, scale), 1)
+        else:
+            total_dig_complete = round(base_digestible + float(p.get("total_dig_added") or 0), 1)
+        # AA effects across the full pair (before → final after)
+        pair_effects = []
+        for aa, orig_score, _ in gaps[:3]:
+            new_raw = new_scores.get(aa)
+            new_score = new_raw if new_raw is not None else orig_score
+            pair_effects.append({
+                "label":  _usda.nutrient_label(aa)[0],
+                "before": round(orig_score, 2),
+                "after":  round(new_score, 2),
+                "met":    new_score >= 1.0,
+            })
+        return {
+            "foods":               foods_out,
+            "total_grams":         p.get("total_grams"),
+            "gaps_closed":         p.get("gaps_closed", False),
+            "new_complete":        p.get("new_complete", False),
+            "total_protein_added": p.get("total_protein_added", 0),
+            "total_dig_added":     p.get("total_dig_added", 0),
+            "total_dig_complete":  total_dig_complete,
+            "aa_effects":          pair_effects,
+        }
+
     return {
         "no_gaps":           False,
         "gaps":              gap_rows,
-        "ranking_note":      "Ranked by the smallest practical amount needed to close the main amino acid gap.",
+        "ranking_note":      "Ranked by grams needed (smallest first). Exception: an option that fully completes the amino acid profile is promoted to the top — but only if its serving is 50 g or less.",
         "pantry_empty":      not pantry,
         "pantry_no_qualify": bool(pantry) and not pantry_suggs,
         "pantry":            [_fmt(s) for s in pantry_suggs],
         "general":           [_fmt(s) for s in general_suggs],
+        "pairs":             [_fmt_pair(p) for p in pair_suggs],
         "diaas_improvers":   [_fmt_improver(s) for s in diaas_improvers],
         "have_gap_closers":  bool(pantry_suggs or general_suggs),
         "exhausted_msg":     (

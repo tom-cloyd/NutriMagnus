@@ -168,7 +168,11 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
             f"(Press enter to keep [{state.T['default_hint']}]{default}[/{state.T['default_hint']}])"
         )
     hint = (" " + " ".join(hint_parts)) if hint_parts else ""
-    state.console.print(f"{prompt_text}{hint}: ", end="", highlight=False)
+    if two_line:
+        state.console.print(f"  {prompt_text}{hint}:", highlight=False)
+        sys.stdout.write("  ")
+    else:
+        state.console.print(f"{prompt_text}{hint}: ", end="", highlight=False)
     sys.stdout.flush()
 
     fd = sys.stdin.fileno()

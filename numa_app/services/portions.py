@@ -115,6 +115,55 @@ def _normalize_unit_display(label: str) -> str:
     return result
 
 
+_HAS_WEIGHT_RE = re.compile(r'\b\d[\d.]*\s*(gr|g|oz|lbs?|kg)\b', re.IGNORECASE)
+
+
+def _ing_amount_display(unit_label: str | None, grams: float | None) -> str:
+    """Return a display string for an ingredient amount.
+
+    Normalizes the stored unit label, then appends the gram weight in
+    parentheses when the label is volume-only and grams are known.
+    """
+    label = _normalize_unit_display(unit_label or "")
+    if grams and grams > 0 and not _HAS_WEIGHT_RE.search(label):
+        label = f"{label} ({grams:.4g} g)"
+    return label
+
+
+def _try_resolve_unknown_weight(conn, ing) -> tuple[float, str] | None:
+    """If an ingredient's stored label contains '(weight not known)', try to
+    resolve the gram weight using the food's current cached portion data.
+
+    Returns (new_grams, new_label) and updates the DB record if resolved,
+    or None if resolution is not possible or not needed.
+    """
+    import json as _json
+    import db as _db
+
+    unit_label = ing["unit"] or ""
+    if "(weight not known)" not in unit_label or not ing["fdc_id"]:
+        return None
+
+    vol_part = unit_label.replace("(weight not known)", "").strip()
+    cached = _db.get_cached_food(conn, ing["fdc_id"])
+    if not cached or not cached["portions_json"]:
+        return None
+
+    pj = cached["portions_json"]
+    portions = _json.loads(pj) if pj and pj != "null" else []
+    if not portions:
+        return None
+
+    result = _parse_portion_input(vol_part, portions, food_name=cached["name"])
+    if result is None or result[0] is None:
+        return None
+
+    new_grams, new_label = result
+    _db.recipe_update_ingredient(conn, ing["id"], new_grams, new_label,
+                                 ing["food_name"], ing["notes"])
+    return new_grams, new_label
+
+
 def _volume_label(ml: float) -> str:
     """Return a human-friendly volume string, using compound units where helpful.
 

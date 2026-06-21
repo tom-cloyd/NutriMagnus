@@ -448,6 +448,75 @@ def recipe_get_ingredients(conn: sqlite3.Connection, recipe_id: int) -> list[sql
     ).fetchall()
 
 
+def recipe_auto_weight(conn: sqlite3.Connection, recipe_id: int) -> float | None:
+    """Compute and store total_weight from ingredient gram amounts if not already set.
+
+    Direct food ingredients contribute their stored gram amount.  Sub-recipe
+    ingredients contribute (sub_recipe.total_weight / sub_recipe.servings) × amount.
+    Returns the computed weight if stored, None if already set or data is incomplete.
+    """
+    row = conn.execute(
+        "SELECT total_weight, servings FROM recipes WHERE id = ?", (recipe_id,)
+    ).fetchone()
+    if not row or row["total_weight"]:
+        return None
+    ingredients = recipe_get_ingredients(conn, recipe_id)
+    if not ingredients:
+        return None
+    total = 0.0
+    for ing in ingredients:
+        if ing["ref_recipe_id"]:
+            sub = conn.execute(
+                "SELECT total_weight, servings FROM recipes WHERE id = ?",
+                (ing["ref_recipe_id"],),
+            ).fetchone()
+            if not sub or not sub["total_weight"] or not sub["servings"]:
+                return None
+            total += (sub["total_weight"] / sub["servings"]) * ing["amount"]
+        else:
+            if not ing["amount"] or ing["amount"] <= 0:
+                return None
+            total += ing["amount"]
+    if total <= 0:
+        return None
+    conn.execute(
+        "UPDATE recipes SET total_weight = ?, total_weight_unit = 'g' WHERE id = ?",
+        (round(total, 1), recipe_id),
+    )
+    return total
+
+
+def recipe_compute_weight(conn: sqlite3.Connection,
+                          recipe_id: int) -> tuple[float, bool] | None:
+    """Return (computed_grams, is_complete) for a recipe's ingredient sum.
+
+    is_complete is False when any ingredient has unknown/zero weight or a
+    sub-recipe lacks weight data — the returned value is then a lower bound.
+    Returns None only when there are no ingredients at all.
+    """
+    ingredients = recipe_get_ingredients(conn, recipe_id)
+    if not ingredients:
+        return None
+    total = 0.0
+    complete = True
+    for ing in ingredients:
+        if ing["ref_recipe_id"]:
+            sub = conn.execute(
+                "SELECT total_weight, servings FROM recipes WHERE id = ?",
+                (ing["ref_recipe_id"],),
+            ).fetchone()
+            if not sub or not sub["total_weight"] or not sub["servings"]:
+                complete = False
+            else:
+                total += (sub["total_weight"] / sub["servings"]) * ing["amount"]
+        else:
+            if not ing["amount"] or ing["amount"] <= 0:
+                complete = False
+            else:
+                total += ing["amount"]
+    return (total, complete)
+
+
 def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
                   description: str, servings: int, instructions: str,
                   total_volume: float | None = None,
