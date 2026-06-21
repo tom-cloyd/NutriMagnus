@@ -31,7 +31,14 @@
       "Bash(python -m pytest tests/test_cli.py::TestFoodsMenu::test_search_shows_nutrient_table tests/test_cli.py::TestFoodsMenu::test_list_cached_foods_shows_entry -v)",
       "Bash(python -m pytest tests/ -q --deselect tests/test_cli.py::TestFoodsMenu::test_search_displays_results --deselect tests/test_cli.py::TestFoodsMenu::test_search_shows_nutrient_table)",
       "Bash(python -c \"from numa_app.workflows.foods import _do_compare_foods; from numa_app.services.search import _fetch_food_from_result, _search_and_pick_food; print\\('OK'\\)\")",
-      "Bash(python -c \"import numa_app.workflows.pantry; import numa_app.workflows.drafted_foods; print\\('OK'\\)\")"
+      "Bash(python -c \"import numa_app.workflows.pantry; import numa_app.workflows.drafted_foods; print\\('OK'\\)\")",
+      "Bash(curl -s \"http://127.0.0.1:8765/meal/52/day\")",
+      "Bash(curl -s \"http://127.0.0.1:8765/manual\")",
+      "Bash(git commit -m ' *)",
+      "Bash(curl -s \"http://127.0.0.1:8765/recipes\")",
+      "Bash(python -c \"from numa_app.ui import prompts; print\\('OK'\\)\")",
+      "Bash(python -c \"from numa_app.workflows import recipe_edit, recipe_analysis; print\\('OK'\\)\")",
+      "Bash(python -c \"from numa_app.workflows import recipes, recipe_edit; print\\('OK'\\)\")"
     ]
   }
 }
