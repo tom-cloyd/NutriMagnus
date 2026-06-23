@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-06-21:0206
+UPDATED: 2026-06-22:2223
 ---
 
 ## Table of Contents
@@ -89,6 +89,7 @@ numa/
     services/
       __init__.py
       annotations.py               — annotate_food_interactive(), maybe_prompt_gi/diaas(); food annotation UI
+      oxalate_link.py              — maybe_show_oxalate(fdc_id, food_name): check/display/prompt oxalate link
       portions.py                  — _pick_portion(), _parse_portion_input()
       reports.py                   — export rendering support
       search.py                    — _search_and_pick_food(), _suggest_foundation_search()
@@ -107,6 +108,14 @@ numa/
                                      available(); _ALIASES for topic shortcuts
   user-manual.md                   — Essential instructions, tips, and reference material for
                                      users; plain-text sections keyed by [anchor] for inline display
+  oxalate.py                       — Read-only access to oxalate.db: get_oxalate_db(), search_similar(),
+                                     get_by_id(), format_oxalate(), category_label()
+  oxalate_source_data.py           — Harvard T.H. Chan School of Public Health oxalate table compiled
+                                     as Python dicts (433 foods, Nov 2023); SOURCE_URL, SOURCE_DATE
+  build_oxalate_db.py              — One-time script: reads oxalate_source_data.py and creates oxalate.db
+                                     Run: python build_oxalate_db.py
+  oxalate.db                       — Static SQLite reference database (tables: oxalate_foods, source_info)
+                                     Committed to repo; rebuilt by build_oxalate_db.py
   web/                             — Local web interface (FastAPI + Jinja2)
     backend.py                     — All routes, helpers, and template context builders
     static/
@@ -958,6 +967,88 @@ The Met+Cys and Phe+Tyr IAA pairs are handled via `_IAA_PAIRS`: the secondary ke
 `compute_rda(profile)` returns a dict mapping nutrient keys to `(rda_value, unit, rda_type)` tuples where `rda_type` is `"target"` (recommended intake, e.g. calories), `"minimum"` (RDA or Adequate Intake — most nutrients), or `"limit"` (Tolerable Upper Intake Level, e.g. sodium). Calorie target uses Mifflin-St Jeor × activity multiplier. Protein scales with weight and activity (0.8–1.2 g/kg). All other targets follow NIH/IOM Dietary Reference Intakes with sex-specific and age-adjusted values.
 
 Profile is saved to and loaded from `~/.config/numa/profile.json`.
+
+The `use_oxalate_data: bool = False` field enables Harvard oxalate data lookup (see below). It is opt-in and defaults to False for all new and existing profiles.
+
+---
+
+## Oxalate Data
+
+### Architecture: two-database design
+
+Oxalate reference data is kept separate from the user's `numa.db` because it is static, read-only, and belongs to a third party (Harvard T.H. Chan School of Public Health).
+
+```
+oxalate_source_data.py   — 433 foods as Python dicts; the authoritative source
+build_oxalate_db.py      — reads source_data, writes oxalate.db (run once)
+oxalate.db               — read-only SQLite file committed to the repo
+oxalate.py               — context manager + search/fetch helpers
+numa.db (oxalate_links)  — user-specific table: which food maps to which oxalate record
+```
+
+### Data source
+
+Harvard T.H. Chan School of Public Health, Oxalate Table (November 2023)
+Credit: Dr. John Knight, University of Alabama School of Medicine
+URL: https://hsph.harvard.edu/wp-content/uploads/2024/07/OXALATE-TABLE-1.xlsx
+Retrieved: 2026-06-22
+
+### oxalate.db schema
+
+```sql
+CREATE TABLE oxalate_foods (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    food_group              TEXT NOT NULL,
+    food_name               TEXT NOT NULL,
+    serving_size            TEXT,
+    oxalate_mg_per_serving  REAL,
+    oxalate_mg_per_100g     REAL,    -- NULL when serving is volumetric (cup, piece, etc.)
+    category                TEXT,    -- "very high" | "high" | "moderate" | "low" | "negligible"
+    directly_measured       INTEGER DEFAULT 0,
+    source_note             TEXT
+);
+CREATE TABLE source_info (key TEXT PRIMARY KEY, value TEXT);
+```
+
+Per-100g values are computed during build for oz-based servings (1 oz = 28.3495 g). Volumetric servings (cups, tablespoons, pieces) cannot be converted without density data; those rows have `oxalate_mg_per_100g = NULL`.
+
+Category thresholds (per 100g when available, per serving otherwise):
+
+- very high: ≥ 300 mg/100g  (or ≥ 100 mg/serving)
+- high:      ≥ 100 mg/100g  (or ≥  26 mg/serving)
+- moderate:  ≥  25 mg/100g  (or ≥  10 mg/serving)
+- low:       ≥   5 mg/100g  (or ≥   2 mg/serving)
+- negligible: < 5 mg/100g
+
+### numa.db: oxalate_links table
+
+User-confirmed links between cached foods and oxalate records:
+
+```sql
+CREATE TABLE IF NOT EXISTS oxalate_links (
+    fdc_id          INTEGER PRIMARY KEY REFERENCES foods(fdc_id) ON DELETE CASCADE,
+    oxalate_food_id INTEGER,      -- oxalate.db row id; NULL when no_match=1
+    user_confirmed  INTEGER DEFAULT 0,
+    confirmed_at    TEXT,
+    no_match        INTEGER DEFAULT 0   -- 1 = user confirmed no record applies
+);
+```
+
+### oxalate.py
+
+- `get_oxalate_db()` — context manager returning a read-only sqlite3.Connection
+- `is_available()` — returns True if oxalate.db exists (safe to call at startup)
+- `search_similar(conn, food_name, top_n=5)` — difflib.SequenceMatcher ranking against a broad candidate pool
+- `get_by_id(conn, id)` — fetch one row
+- `format_oxalate(row)` — compact display string, e.g. "72.0 mg / 1 oz  [high]"
+
+### Rebuilding oxalate.db
+
+```bash
+python build_oxalate_db.py
+```
+
+The script deletes and recreates `oxalate.db` from scratch. Run this after editing `oxalate_source_data.py`. The generated file is committed to git so end users never need to run the script.
 
 ---
 
