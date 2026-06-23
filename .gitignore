@@ -27,6 +27,10 @@ claude_response.txt
 numa_gen_prompt.py
 numa_import_claude.py
 
+# --- Generated / cached output ---
+user-manual.html
+web/home_body.cache
+
 # --- The "Large Artifacts" ---
 # Exclude large data or model weights for local LLMs
 data/
