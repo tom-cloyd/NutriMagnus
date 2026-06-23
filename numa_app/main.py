@@ -2,6 +2,12 @@
 main.py — top-level orchestration: initialize_app(), print_startup_banner(), _run_menu(), run_app().
 Docs: README-numa-documentation.md, Architecture: "numa_app/main.py — startup and top-level menu"
 """
+import socket
+import subprocess
+import sys
+import webbrowser
+from pathlib import Path
+
 import db as _db
 import profile as _profile
 import usda as _usda
@@ -16,6 +22,71 @@ from .workflows.meals import _menu_meals
 from .workflows.settings import _menu_settings
 from .workflows.recipes import _menu_recipes
 from .workflows.summary import _menu_summary
+
+_PROJECT_ROOT = Path(__file__).parent.parent
+_WEB_URL = "http://127.0.0.1:8000"
+_web_proc: "subprocess.Popen[bytes] | None" = None
+_manual_opened = False
+
+
+def _web_is_running() -> bool:
+    if _web_proc is not None and _web_proc.poll() is None:
+        return True
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("127.0.0.1", 8000)) == 0
+
+
+def _launch_web() -> None:
+    global _web_proc
+    if _web_is_running():
+        state.console.print(f"[{state.T['warning']}]Restarting web server…[/{state.T['warning']}]")
+        if _web_proc is not None:
+            _web_proc.terminate()
+            _web_proc.wait()
+        else:
+            subprocess.run(["fuser", "-k", "8000/tcp"], capture_output=True)
+        import time
+        time.sleep(0.8)
+    _web_proc = subprocess.Popen(
+        [sys.executable, str(_PROJECT_ROOT / "web" / "launcher.py")],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Web version launching at {_WEB_URL} — browser tab will open shortly.")
+
+
+def rebuild_manual_if_stale() -> None:
+    """Silently regenerate user-manual.html if the markdown source is newer."""
+    md   = _PROJECT_ROOT / "user-manual.md"
+    html = _PROJECT_ROOT / "user-manual.html"
+    if not md.exists():
+        return
+    if html.exists() and html.stat().st_mtime >= md.stat().st_mtime:
+        return
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_manual", _PROJECT_ROOT / "scripts" / "build_manual.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod.main()
+    except Exception:
+        pass
+
+
+def _open_manual() -> None:
+    global _manual_opened
+    rebuild_manual_if_stale()
+    manual = _PROJECT_ROOT / "user-manual.html"
+    if not manual.exists():
+        state.console.print(f"[{state.T['error']}]User manual not found: {manual}[/{state.T['error']}]")
+        return
+    webbrowser.open(manual.as_uri())
+    _manual_opened = True
+    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] User Manual opened in your default browser.")
+
 
 _load_theme()
 
@@ -40,9 +111,14 @@ def _run_menu() -> None:
         state.console.print(f"  [{state.T['accent']}]4.[/{state.T['accent']}] [bold]Daily Summary[/bold]")
         state.console.print("     [grey62]today · by date · recent days[/grey62]")
         state.console.print(f"  [grey62]5.[/grey62] [bold]Settings[/bold]  [grey62](theme · user profile · dietary preferences · API key · DB path)[/grey62]")
+        if _web_is_running():
+            state.console.print(f"  [{state.T['success']}]w.[/{state.T['success']}] Web version  [grey62](running at {_WEB_URL} — opens new tab)[/grey62]")
+        else:
+            state.console.print("  [grey62]w.[/grey62] Launch web version")
+        state.console.print("  [grey62]m.[/grey62] Open User Manual in browser")
         state.console.print("  [grey62]q.[/grey62] Quit")
         state.console.print()
-        state.console.print("  [grey62]Ctrl+C at any prompt — cancel and go back[/grey62]")
+        state.console.print("  [grey62]Ctrl+C at any prompt — cancel and go back up menu tree[/grey62]")
         if _first_menu_visit:
             state.console.print()
             state.console.print("  [grey62]Built-in help: type [bold]?help[/bold] at any prompt to list all available topics.[/grey62]")
@@ -74,6 +150,10 @@ def _run_menu() -> None:
             elif choice == "5":
                 if not _menu_settings():
                     break
+            elif choice == "w":
+                _launch_web()
+            elif choice == "m":
+                _open_manual()
             elif choice == "q":
                 break
             else:
@@ -124,18 +204,19 @@ def print_startup_banner() -> None:
     state.console.print(f"Nutritional Analysis for individuals and families - version {VERSION}", highlight=False)
     if p:
         profile_label = (
+            f"[bold]{p.name}[/bold] — "
             f"age {p.age}, {p.sex},"
             f" {_profile.format_weight(p.weight_kg, p.weight_unit)},"
             f" {_profile.format_height(p.height_cm, p.height_unit)},"
             f" {_profile.ACTIVITY_LABELS.get(p.activity_level, p.activity_level)}"
         )
     else:
-        profile_label = "not set -- configure under Settings -> User profile"
+        profile_label = "not set -- configure under Settings -> Manage profiles"
 
     state.console.print()
     state.console.print(f"[grey62]Color theme: {state._current_theme_name}  ({source}) -- change via Settings[/grey62]")
     state.console.print(f"[grey62]Dietary preferences: {diet_label} -- change via Settings[/grey62]")
-    state.console.print(f"[grey62]User profile: {profile_label}[/grey62]", highlight=False)
+    state.console.print(f"[grey62]Active profile: {profile_label}[/grey62]", highlight=False)
 
 
 def run_app(*, theme: str | None = None, api_key: str | None = None) -> None:
@@ -147,4 +228,10 @@ def run_app(*, theme: str | None = None, api_key: str | None = None) -> None:
         _run_menu()
     except SystemExit:
         pass
+    state.console.print()
+    state.console.print("[grey62]NutriMagnus ending…[/grey62]")
+    if _web_is_running():
+        state.console.print("[grey62]Web version runs until its tab is closed.[/grey62]")
+    if _manual_opened:
+        state.console.print("[grey62]User Manual remains in browser window until its tab is closed.[/grey62]")
     state.console.print("\n[bold]Happy eating![/bold]\n")

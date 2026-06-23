@@ -22,47 +22,45 @@ def _find_existing_reports(report_title: str) -> list[pathlib.Path]:
 
 
 def _offer_export(report_title: str, sections: list[dict]) -> None:
-    """Check for existing reports, auto-save, and offer an additional export copy."""
+    """Auto-save a markdown report, show its path, then offer additional export formats."""
+    # Always auto-save first so the user always has a copy and always sees where it went.
+    auto_name = _export.default_filename(report_title, "md")
+    auto_path = _AUTO_SAVE_DIR / auto_name
+    _export.write_report(auto_path, _export.build_report(report_title, sections, "md", diet_pref=state._diet_pref))
+    state.console.print(
+        f"\n  [grey62]Report saved →[/grey62] [thistle1]{auto_path.resolve()}[/thistle1]"
+    )
+
     existing = _find_existing_reports(report_title)
-    if existing:
-        state.console.print("\n  [grey62]Previous reports:[/grey62]")
-        state.console.print(f"  [thistle1]{_AUTO_SAVE_DIR.resolve()}[/thistle1]")
-        for i, p in enumerate(existing, 1):
+    prior = [p for p in existing if p != auto_path]
+    if prior:
+        state.console.print(f"  [grey62]Earlier reports for this item:[/grey62]")
+        for i, p in enumerate(prior, 1):
             state.console.print(f"  [grey62]  {i}. [/grey62][thistle1]{p.name}[/thistle1]")
         try:
             ans = _prompt_with_options(
                 "Report option",
                 [
-                    ("1-N", "View selected report"),
-                    ("new", "Save a new report"),
-                    ("Enter", "Skip and return"),
+                    ("1-N", "View a previous report"),
+                    ("Enter", "Skip"),
                 ],
                 default="",
             )
         except Cancelled:
-            return
+            ans = ""
         if ans.isdigit():
             idx = int(ans) - 1
-            if 0 <= idx < len(existing):
+            if 0 <= idx < len(prior):
                 state.console.print()
-                state.console.print(Markdown(existing[idx].read_text(encoding="utf-8")))
-            return
-        if ans != "new":
-            return
-
-    # Auto-save
-    auto_name = _export.default_filename(report_title, "md")
-    auto_path = _AUTO_SAVE_DIR / auto_name
-    _export.write_report(auto_path, _export.build_report(report_title, sections, "md", diet_pref=state._diet_pref))
-    state.console.print(f"  [grey62]Report auto-saved →[/grey62] [thistle1]{auto_path.resolve()}[/thistle1]")
+                state.console.print(Markdown(prior[idx].read_text(encoding="utf-8")))
 
     try:
         ans = _prompt_with_options(
             "Export option",
             [
-                ("txt", "Export as plain text"),
-                ("md", "Export as markdown"),
-                ("html", "Export as HTML"),
+                ("txt", "Export a copy as plain text"),
+                ("md",  "Export a copy as markdown"),
+                ("html","Export a copy as HTML"),
                 ("Enter", "Skip"),
             ],
             default="",
@@ -84,4 +82,6 @@ def _offer_export(report_title: str, sections: list[dict]) -> None:
     path = _USER_EXPORT_DIR / pathlib.Path(fname).name
     content = _export.build_report(report_title, sections, ans, diet_pref=state._diet_pref)
     _export.write_report(path, content)
-    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved: {path.resolve()}")
+    state.console.print(
+        f"  [{state.T['success']}]✓[/{state.T['success']}] Saved: [thistle1]{path.resolve()}[/thistle1]"
+    )

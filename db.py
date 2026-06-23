@@ -241,6 +241,16 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 pass
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS oxalate_links (
+                fdc_id          INTEGER PRIMARY KEY REFERENCES foods(fdc_id) ON DELETE CASCADE,
+                oxalate_food_id INTEGER,
+                user_confirmed  INTEGER DEFAULT 0,
+                confirmed_at    TEXT,
+                no_match        INTEGER DEFAULT 0
+            )
+        """)
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
@@ -901,4 +911,40 @@ def update_cached_food_profile(
             json.dumps(nutrients), json.dumps(portions or []),
             1 if user_drafted else 0, notes or None, fdc_id,
         ),
-    )    
+    )
+
+
+# ---------------------------------------------------------------------------
+# Oxalate links
+# ---------------------------------------------------------------------------
+
+def oxalate_link_get(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None:
+    """Return the oxalate_links row for fdc_id, or None if not yet linked."""
+    return conn.execute(
+        "SELECT * FROM oxalate_links WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()
+
+
+def oxalate_link_save(
+    conn: sqlite3.Connection,
+    fdc_id: int,
+    *,
+    oxalate_food_id: int | None,
+    no_match: bool,
+) -> None:
+    """Upsert an oxalate link for fdc_id.
+    Set no_match=True when the user confirmed no oxalate record applies.
+    Set oxalate_food_id to the matching oxalate.db row id when confirmed.
+    """
+    conn.execute(
+        """INSERT INTO oxalate_links
+               (fdc_id, oxalate_food_id, user_confirmed, confirmed_at, no_match)
+           VALUES (?, ?, 1, datetime('now'), ?)
+           ON CONFLICT(fdc_id) DO UPDATE SET
+               oxalate_food_id = excluded.oxalate_food_id,
+               user_confirmed  = 1,
+               confirmed_at    = excluded.confirmed_at,
+               no_match        = excluded.no_match
+        """,
+        (fdc_id, oxalate_food_id, 1 if no_match else 0),
+    )

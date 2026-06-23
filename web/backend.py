@@ -21,7 +21,7 @@ import profile as _profile
 import usda as _usda
 
 _WEB_DIR    = Path(__file__).parent
-_MANUAL     = _WEB_DIR.parent / "user-manual.md"
+_MANUAL     = _WEB_DIR.parent / "user-manual.html"
 _HOME_MD    = _WEB_DIR.parent / "home.md"
 _PREFS_FILE = Path.home() / ".local" / "share" / "numa" / "prefs.json"
 
@@ -2408,6 +2408,8 @@ async def summary_date(request: Request, meal_date: str):
 
 @app.get("/manual", response_class=HTMLResponse)
 async def manual(request: Request):
-    text = _MANUAL.read_text(encoding="utf-8") if _MANUAL.exists() else "*(manual not found)*"
-    body = _md.markdown(text, extensions=["toc", "fenced_code", "tables"])
-    return templates.TemplateResponse(request, "manual.html", {"body": body})
+    from numa_app.main import rebuild_manual_if_stale
+    rebuild_manual_if_stale()
+    if not _MANUAL.exists():
+        return HTMLResponse("<p>User manual not found. Run <code>make manual</code> to generate it.</p>", status_code=404)
+    return HTMLResponse(_MANUAL.read_text(encoding="utf-8"))

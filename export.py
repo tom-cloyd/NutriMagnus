@@ -569,48 +569,204 @@ def _render_complement_suggestions_html(nutrients: dict[str, float],
 
 
 # ---------------------------------------------------------------------------
+# Section renderers — recipe card (ingredients + procedure)
+# ---------------------------------------------------------------------------
+
+def _recipe_card_lines_intro(title: str, description: str, servings: int,
+                              serving_size: str) -> list[str]:
+    """Shared intro lines for all recipe card formats — returns (title, desc, servings) strings."""
+    parts = []
+    if description:
+        parts.append(description)
+    srv_str = ""
+    if servings:
+        srv_str = f"Servings: {servings}"
+        if serving_size:
+            srv_str += f"  ({serving_size} per serving)"
+    return parts, srv_str
+
+
+def _render_recipe_card_txt(title: str, description: str, servings: int,
+                             serving_size: str, items: list[dict],
+                             procedure: str) -> str:
+    lines = [title.upper(), "=" * min(len(title), 60)]
+    if description:
+        lines.append(description)
+    if servings:
+        srv = f"Servings: {servings}"
+        if serving_size:
+            srv += f"  ({serving_size} per serving)"
+        lines.append(srv)
+    lines += ["", "INGREDIENTS", "-" * 12]
+    for item in items:
+        note = f"  ({item['notes']})" if item.get("notes") else ""
+        lines.append(f"  • {item['amount_display']}  {item['food_name']}{note}")
+    lines += ["", "PROCEDURE", "-" * 9]
+    lines.append(procedure.strip() if procedure and procedure.strip() else "(none given)")
+    return "\n".join(lines)
+
+
+def _render_recipe_card_md(title: str, description: str, servings: int,
+                            serving_size: str, items: list[dict],
+                            procedure: str) -> str:
+    lines = [f"# {title}"]
+    if description:
+        lines.append(f"*{description}*")
+    if servings:
+        srv = f"**Servings:** {servings}"
+        if serving_size:
+            srv += f"  *({serving_size} per serving)*"
+        lines.append(srv)
+    lines += ["", "## Ingredients", ""]
+    for item in items:
+        note = f"  *({item['notes']})*" if item.get("notes") else ""
+        lines.append(f"- {item['amount_display']}  {item['food_name']}{note}")
+    lines += ["", "## Procedure", ""]
+    lines.append(procedure.strip() if procedure and procedure.strip() else "*(none given)*")
+    return "\n".join(lines)
+
+
+def _render_recipe_card_html(title: str, description: str, servings: int,
+                              serving_size: str, items: list[dict],
+                              procedure: str) -> str:
+    lines = [f"<h1>{title}</h1>"]
+    if description:
+        lines.append(f"<p><em>{description}</em></p>")
+    if servings:
+        srv = f"<strong>Servings:</strong> {servings}"
+        if serving_size:
+            srv += f"  <em>({serving_size} per serving)</em>"
+        lines.append(f"<p>{srv}</p>")
+    lines.append("<h2>Ingredients</h2><ul>")
+    for item in items:
+        note = f" <em>({item['notes']})</em>" if item.get("notes") else ""
+        lines.append(f"  <li>{item['amount_display']}  {item['food_name']}{note}</li>")
+    lines.append("</ul>")
+    lines.append("<h2>Procedure</h2>")
+    proc = procedure.strip() if procedure and procedure.strip() else None
+    lines.append(f"<p>{proc}</p>" if proc else "<p><em>(none given)</em></p>")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Section renderers — recipe nutrition brief (macros + DCP per serving)
+# ---------------------------------------------------------------------------
+
+_MACRO_KEYS = [
+    "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
+    "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+]
+
+
+def _render_recipe_nutrition_brief_txt(nutrients: dict[str, float],
+                                        dcp_g: float | None,
+                                        servings_label: str) -> str:
+    heading = f"NUTRITION — {servings_label.upper()}"
+    lines = [heading, "=" * min(len(heading), 60)]
+    for k in _MACRO_KEYS:
+        if k in nutrients:
+            label, unit = _usda.nutrient_label(k)
+            lines.append(f"  {label:<26} {nutrients[k]:.2f}  {unit}")
+    if dcp_g is not None:
+        lines.append(f"  {'Digestible complete protein':<26} {dcp_g:.1f}  g")
+    else:
+        lines.append("  Digestible complete protein:  not computed — run analysis first")
+    return "\n".join(lines)
+
+
+def _render_recipe_nutrition_brief_md(nutrients: dict[str, float],
+                                       dcp_g: float | None,
+                                       servings_label: str) -> str:
+    lines = [f"## Nutrition — {servings_label}", ""]
+    rows = []
+    for k in _MACRO_KEYS:
+        if k in nutrients:
+            label, unit = _usda.nutrient_label(k)
+            rows.append((label, f"{nutrients[k]:.2f}", unit))
+    if dcp_g is not None:
+        rows.append(("Digestible complete protein", f"{dcp_g:.1f}", "g"))
+    else:
+        rows.append(("Digestible complete protein", "—", "run analysis first"))
+    lines.append(_md_table(("Nutrient", "Amount", "Unit"), rows))
+    return "\n".join(lines)
+
+
+def _render_recipe_nutrition_brief_html(nutrients: dict[str, float],
+                                         dcp_g: float | None,
+                                         servings_label: str) -> str:
+    rows = []
+    for k in _MACRO_KEYS:
+        if k in nutrients:
+            label, unit = _usda.nutrient_label(k)
+            rows.append((label, f"{nutrients[k]:.2f}", unit))
+    if dcp_g is not None:
+        rows.append(("Digestible complete protein", f"{dcp_g:.1f}", "g"))
+    else:
+        rows.append(("Digestible complete protein", "—", "run analysis first"))
+    return (
+        f"<h2>Nutrition — {servings_label}</h2>\n"
+        + _html_table(("Nutrient", "Amount", "Unit"), rows)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Top-level: build_report / write_report
 # ---------------------------------------------------------------------------
 
 _RENDERERS = {
     "txt": {
-        "nutrient_table":          lambda s: _render_nutrient_table_txt(
-                                       s["title"], s["nutrients"], s.get("per_label", "")),
-        "protein_completeness":    lambda s: _render_protein_completeness_txt(s["nutrients"]),
-        "bioavailability":         lambda s: _render_bioavailability_txt(
-                                       s["food_name"], s["nutrients"]),
-        "ingredient_list":         lambda s: _render_ingredient_list_txt(
-                                       s["title"], s["items"]),
-        "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_txt(
-                                       s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
-        "complement_suggestions":  lambda s: _render_complement_suggestions_txt(
-                                       s["nutrients"], s.get("base_diaas")),
+        "nutrient_table":              lambda s: _render_nutrient_table_txt(
+                                           s["title"], s["nutrients"], s.get("per_label", "")),
+        "protein_completeness":        lambda s: _render_protein_completeness_txt(s["nutrients"]),
+        "bioavailability":             lambda s: _render_bioavailability_txt(
+                                           s["food_name"], s["nutrients"]),
+        "ingredient_list":             lambda s: _render_ingredient_list_txt(
+                                           s["title"], s["items"]),
+        "recipe_bioavailability":      lambda s: _render_recipe_bioavailability_txt(
+                                           s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
+        "complement_suggestions":      lambda s: _render_complement_suggestions_txt(
+                                           s["nutrients"], s.get("base_diaas")),
+        "recipe_card":                 lambda s: _render_recipe_card_txt(
+                                           s["title"], s.get("description", ""), s.get("servings", 0),
+                                           s.get("serving_size", ""), s["items"], s.get("procedure", "")),
+        "recipe_nutrition_brief":      lambda s: _render_recipe_nutrition_brief_txt(
+                                           s["nutrients"], s.get("dcp_g"), s.get("servings_label", "per serving")),
     },
     "md": {
-        "nutrient_table":          lambda s: _render_nutrient_table_md(
-                                       s["title"], s["nutrients"], s.get("per_label", "")),
-        "protein_completeness":    lambda s: _render_protein_completeness_md(s["nutrients"]),
-        "bioavailability":         lambda s: _render_bioavailability_md(
-                                       s["food_name"], s["nutrients"]),
-        "ingredient_list":         lambda s: _render_ingredient_list_md(
-                                       s["title"], s["items"]),
-        "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_md(
-                                       s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
-        "complement_suggestions":  lambda s: _render_complement_suggestions_md(
-                                       s["nutrients"], s.get("base_diaas")),
+        "nutrient_table":              lambda s: _render_nutrient_table_md(
+                                           s["title"], s["nutrients"], s.get("per_label", "")),
+        "protein_completeness":        lambda s: _render_protein_completeness_md(s["nutrients"]),
+        "bioavailability":             lambda s: _render_bioavailability_md(
+                                           s["food_name"], s["nutrients"]),
+        "ingredient_list":             lambda s: _render_ingredient_list_md(
+                                           s["title"], s["items"]),
+        "recipe_bioavailability":      lambda s: _render_recipe_bioavailability_md(
+                                           s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
+        "complement_suggestions":      lambda s: _render_complement_suggestions_md(
+                                           s["nutrients"], s.get("base_diaas")),
+        "recipe_card":                 lambda s: _render_recipe_card_md(
+                                           s["title"], s.get("description", ""), s.get("servings", 0),
+                                           s.get("serving_size", ""), s["items"], s.get("procedure", "")),
+        "recipe_nutrition_brief":      lambda s: _render_recipe_nutrition_brief_md(
+                                           s["nutrients"], s.get("dcp_g"), s.get("servings_label", "per serving")),
     },
     "html": {
-        "nutrient_table":          lambda s: _render_nutrient_table_html(
-                                       s["title"], s["nutrients"], s.get("per_label", "")),
-        "protein_completeness":    lambda s: _render_protein_completeness_html(s["nutrients"]),
-        "bioavailability":         lambda s: _render_bioavailability_html(
-                                       s["food_name"], s["nutrients"]),
-        "ingredient_list":         lambda s: _render_ingredient_list_html(
-                                       s["title"], s["items"]),
-        "recipe_bioavailability":  lambda s: _render_recipe_bioavailability_html(
-                                       s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
-        "complement_suggestions":  lambda s: _render_complement_suggestions_html(
-                                       s["nutrients"], s.get("base_diaas")),
+        "nutrient_table":              lambda s: _render_nutrient_table_html(
+                                           s["title"], s["nutrients"], s.get("per_label", "")),
+        "protein_completeness":        lambda s: _render_protein_completeness_html(s["nutrients"]),
+        "bioavailability":             lambda s: _render_bioavailability_html(
+                                           s["food_name"], s["nutrients"]),
+        "ingredient_list":             lambda s: _render_ingredient_list_html(
+                                           s["title"], s["items"]),
+        "recipe_bioavailability":      lambda s: _render_recipe_bioavailability_html(
+                                           s["ingredient_stats"], s["total_protein"], s.get("meal_result")),
+        "complement_suggestions":      lambda s: _render_complement_suggestions_html(
+                                           s["nutrients"], s.get("base_diaas")),
+        "recipe_card":                 lambda s: _render_recipe_card_html(
+                                           s["title"], s.get("description", ""), s.get("servings", 0),
+                                           s.get("serving_size", ""), s["items"], s.get("procedure", "")),
+        "recipe_nutrition_brief":      lambda s: _render_recipe_nutrition_brief_html(
+                                           s["nutrients"], s.get("dcp_g"), s.get("servings_label", "per serving")),
     },
 }
 

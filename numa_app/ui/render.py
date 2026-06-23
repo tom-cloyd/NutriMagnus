@@ -313,7 +313,7 @@ def _print_meal_diaas(
         f"  [grey62]Digestibility color key:[/grey62]  "
         f"[{state.T['success']}]≥0.90 good[/{state.T['success']}]  "
         f"[{state.T['warning']}]0.80–0.89 fair[/{state.T['warning']}]  "
-        f"[{state.T['error']}]<0.80 poor[/{state.T['error']}]  ·  {ID_KEY}",
+        f"[{state.T['error']}]<0.80 poor[/{state.T['error']}]  ·  {ID_KEY}  ·  [grey62]zero-protein foods omitted[/grey62]",
         highlight=False,
     )
     _FOOD_COL_W = 48
@@ -329,7 +329,7 @@ def _print_meal_diaas(
     total_grams = 0.0
     total_protein = 0.0
     total_dig_p = 0.0
-    for ing in result["ingredients"]:
+    for ing in sorted((i for i in result["ingredients"] if i["protein_g"] >= 0.1), key=lambda x: x["food_name"].lower()):
         p = ing["protein_g"]
         d = ing["digestibility"]
         dig_p = p * d  # digestibility applies regardless of whether AA data is present
@@ -433,36 +433,39 @@ def _print_meal_diaas(
     total_p = result["total_protein_g"]
     _print_dcp_adequacy_section(result, {"protein_g": total_p}, profile)
 
+    protein_by_name = {
+        ing["food_name"]: ing.get("protein_g", 0.0)
+        for ing in result.get("ingredients", [])
+    }
+
     if result["missing_aa_names"]:
-        n_missing = len(result["missing_aa_names"])
-        state.console.print(
-            f"\n  [{state.T['warning']}]⚠  DIAAS figure above may be unreliable.[/{state.T['warning']}] "
-            f"{n_missing} ingredient{'s' if n_missing != 1 else ''} in the analysis have no amino acid profile\n"
-            f"  in the USDA database and were excluded from the calculation:",
-            highlight=False,
-        )
-        # Build protein lookup from ingredient results for context
-        protein_by_name = {
-            ing["food_name"]: ing.get("protein_g", 0.0)
-            for ing in result.get("ingredients", [])
-        }
-        for name in result["missing_aa_names"]:
-            protein = protein_by_name.get(name, 0.0)
-            protein_str = f"  [grey62]({protein:.1f}g protein)[/grey62]" if protein > 0 else "  [grey62](trace protein)[/grey62]"
-            state.console.print(f"    • {name}{protein_str}")
-        food_word = "this food" if n_missing == 1 else "any of these foods"
-        state.console.print(
-            f"  [grey62]This is a problem only if significant protein exists in {food_word}.[/grey62]",
-            highlight=False,
-        )
+        with_protein = [n for n in result["missing_aa_names"] if protein_by_name.get(n, 0.0) >= 0.1]
+        if with_protein:
+            n_missing = len(with_protein)
+            state.console.print(
+                f"\n  [{state.T['warning']}]⚠  DIAAS figure above may be unreliable.[/{state.T['warning']}] "
+                f"{n_missing} ingredient{'s' if n_missing != 1 else ''} with protein have no amino acid profile\n"
+                f"  in the USDA database and were excluded from the calculation:",
+                highlight=False,
+            )
+            for name in with_protein:
+                protein = protein_by_name[name]
+                state.console.print(f"    • {name}  [grey62]({protein:.1f}g protein)[/grey62]")
+            food_word = "this food" if n_missing == 1 else "any of these foods"
+            state.console.print(
+                f"  [grey62]This is a problem only if significant protein exists in {food_word}.[/grey62]",
+                highlight=False,
+            )
 
     if result["estimate_sources"]:
-        state.console.print(
-            "\n  [grey62]  Digestibility estimated (literature average) for:[/grey62]",
-            highlight=False,
-        )
-        for _src in result["estimate_sources"]:
-            state.console.print(f"  [grey62]    • {_src}[/grey62]", highlight=False)
+        est_with_protein = [s for s in result["estimate_sources"] if protein_by_name.get(s, 0.0) >= 0.1]
+        if est_with_protein:
+            state.console.print(
+                "\n  [grey62]  Digestibility estimated (literature average) for:[/grey62]",
+                highlight=False,
+            )
+            for _src in est_with_protein:
+                state.console.print(f"  [grey62]    • {_src}[/grey62]", highlight=False)
 
     help_footer("meal-diaas", "iaa-ratios")
     return result["missing_aa_names"], result.get("digestible_complete_protein_g")
@@ -1108,8 +1111,9 @@ def _print_dcp_adequacy_section(
             state.console.print(f"  [grey62]↳ {note}[/grey62]", highlight=False)
 
     if meal_result.get("missing_aa_names"):
+        n = len(meal_result["missing_aa_names"])
         state.console.print(
-            f"  [grey62](⚑ missing AA data: {', '.join(meal_result['missing_aa_names'])})[/grey62]",
+            f"  [grey62](⚑ {n} ingredient{'s' if n != 1 else ''} missing AA data — see analysis below)[/grey62]",
             highlight=False,
         )
 

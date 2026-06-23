@@ -620,6 +620,55 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 state.console.print("  [grey62]↳ Saved to recipe[/grey62]", highlight=False)
         help_footer("glycemic")
 
+        # Oxalate step — only if profile has use_oxalate_data=True
+        from ..services.oxalate_link import maybe_show_oxalate
+        import oxalate as _ox
+        if profile and profile.use_oxalate_data and _ox.is_available():
+            section_title("Oxalate")
+            state.console.print(
+                "  [grey62]Linking recipe ingredients to oxalate reference data...[/grey62]",
+                highlight=False,
+            )
+            for s in ingredient_stats:
+                if s.get("fdc_id") is not None:
+                    maybe_show_oxalate(s["fdc_id"], s["name"])
+            # Summarize confirmed oxalate totals for the recipe
+            total_ox_mg: float = 0.0
+            confirmed_count: int = 0
+            with _db.get_db() as conn:
+                for s in ingredient_stats:
+                    if s.get("fdc_id") is None:
+                        continue
+                    link = _db.oxalate_link_get(conn, s["fdc_id"])
+                    if not link or link["no_match"] or not link["oxalate_food_id"]:
+                        continue
+                    try:
+                        with _ox.get_oxalate_db() as ox_conn:
+                            ox_row = _ox.get_by_id(ox_conn, link["oxalate_food_id"])
+                        if ox_row and ox_row["oxalate_mg_per_100g"] is not None:
+                            amount_g = s.get("amount_g", 0.0) or 0.0
+                            if amount_g > 0:
+                                total_ox_mg += ox_row["oxalate_mg_per_100g"] * amount_g / 100.0
+                                confirmed_count += 1
+                    except FileNotFoundError:
+                        pass
+            if confirmed_count > 0:
+                ox_per_serving = total_ox_mg / effective_servings if effective_servings > 0 else total_ox_mg
+                state.console.print(
+                    f"\n  [bold]Estimated oxalate — total recipe:[/bold]  {total_ox_mg:.0f} mg",
+                    highlight=False,
+                )
+                if recipe["servings"] and recipe["servings"] > 1:
+                    state.console.print(
+                        f"  [bold]Per serving:[/bold]  {ox_per_serving:.0f} mg  "
+                        f"[grey62]({confirmed_count} ingredient(s) with per-100g data)[/grey62]",
+                        highlight=False,
+                    )
+                state.console.print(
+                    "  [grey62]Note: ingredients with only volumetric oxalate data are excluded from this total.[/grey62]",
+                    highlight=False,
+                )
+
         if no_servings:
             export_per_label = "whole recipe (no serving count)"
             export_analysis_title = "Per 100 g" if _recipe_weight_to_g(

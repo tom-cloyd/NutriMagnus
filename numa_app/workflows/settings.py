@@ -113,24 +113,25 @@ def _do_diaas_overrides() -> None:
             state.console.print(f"[{state.T['warning']}]Enter a, d, b, or m.[/{state.T['warning']}]")
 
 
-def _do_user_profile() -> None:
-    """Interactive flow to set or update the user profile."""
-    current = _profile.load_profile()
+def _do_user_profile(profile_name: str | None = None) -> None:
+    """Interactive flow to create or edit a named profile.
+    profile_name=None edits the active profile; pass a name to edit a specific one."""
+    current = _profile.load_profile(profile_name)
     _act_keys = list(_profile.ACTIVITY_LEVELS.keys())
 
     if current:
         w_str = _profile.format_weight(current.weight_kg, current.weight_unit)
         h_str = _profile.format_height(current.height_cm, current.height_unit)
         state.console.print(
-            f"\n  [{state.T['hi']}]Current profile:[/{state.T['hi']}]"
-            f"  Age {current.age}  ·  {current.sex}"
+            f"\n  [{state.T['hi']}]Editing profile:[/{state.T['hi']}]  [bold]{current.name}[/bold]"
+            f"  ·  Age {current.age}  ·  {current.sex}"
             f"  ·  {w_str}  ·  {h_str}"
             f"  ·  {_profile.ACTIVITY_LABELS.get(current.activity_level, current.activity_level)}"
             f"\n  [grey62]Press Enter at any prompt to keep the current value.[/grey62]",
             highlight=False,
         )
     else:
-        state.console.print(f"\n  [grey62]No profile set. Enter your details to get personalized RDA targets.[/grey62]")
+        state.console.print(f"\n  [grey62]Creating new profile. Enter your details to get personalized RDA targets.[/grey62]")
 
     state.console.print()
     try:
@@ -238,10 +239,12 @@ def _do_user_profile() -> None:
         state.console.print("[grey62]Cancelled — profile unchanged.[/grey62]")
         return
 
+    saved_name = (current.name if current else None) or profile_name or _profile.get_active_profile_name()
     new_profile = _profile.UserProfile(
         age=age, sex=sex, weight_kg=weight_kg,
         height_cm=height_cm, activity_level=activity_level,
         weight_unit=weight_unit, height_unit=height_unit,
+        name=saved_name,
     )
     _profile.save_profile(new_profile)
     rda = _profile.compute_rda(new_profile)
@@ -253,6 +256,173 @@ def _do_user_profile() -> None:
         f"  ·  Protein minimum: [{state.T['hi']}]{prot} g[/{state.T['hi']}]",
         highlight=False,
     )
+
+
+def _profile_summary(p: "_profile.UserProfile") -> str:
+    return (
+        f"age {p.age}, {p.sex},"
+        f" {_profile.format_weight(p.weight_kg, p.weight_unit)},"
+        f" {_profile.format_height(p.height_cm, p.height_unit)},"
+        f" {_profile.ACTIVITY_LABELS.get(p.activity_level, p.activity_level)}"
+    )
+
+
+def _do_manage_profiles() -> None:
+    """Profile management: list, switch, create, edit, rename, delete."""
+    _NW = 24
+    while True:
+        names = _profile.list_profiles()
+        active = _profile.get_active_profile_name()
+
+        table_title("PROFILES")
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("#",       justify="right", min_width=3)
+        tbl.add_column("Active",  justify="center", min_width=6)
+        tbl.add_column("Name",    min_width=_NW)
+        tbl.add_column("Summary", min_width=40)
+
+        profiles: list[tuple[str, "_profile.UserProfile | None"]] = []
+        for nm in names:
+            p = _profile.load_profile(nm)
+            profiles.append((nm, p))
+            mark = f"[{state.T['success']}]✓[/{state.T['success']}]" if nm == active else ""
+            summary = _profile_summary(p) if p else "[grey62]unreadable[/grey62]"
+            tbl.add_row(str(len(profiles)), mark, nm, summary)
+
+        state.console.print(tbl)
+        if not names:
+            state.console.print("  [grey62]No profiles yet. Enter 'n' to create one.[/grey62]")
+
+        state.console.print()
+        state.console.print(f"  [{state.T['hi']}]Options:[/{state.T['hi']}]")
+        state.console.print( "    [bold]s[/bold]#   Switch active profile         [grey62](e.g. s2)[/grey62]")
+        state.console.print( "    [bold]n[/bold]    New profile")
+        state.console.print( "    [bold]e[/bold]#   Edit profile                  [grey62](e.g. e1)[/grey62]")
+        state.console.print( "    [bold]r[/bold]#   Rename profile                [grey62](e.g. r2)[/grey62]")
+        state.console.print( "    [bold]d[/bold]#   Delete profile                [grey62](e.g. d3)[/grey62]")
+        state.console.print( "    [grey62]Enter=refresh  b=back  m=main  q=quit[/grey62]")
+
+        try:
+            raw = _prompt("  Command", free_text=True).strip().lower()
+        except Cancelled:
+            return
+
+        if not raw or raw == "l":
+            continue
+        if raw in ("b", "q", "m"):
+            if raw == "m":
+                raise ReturnToMain()
+            if raw == "q":
+                raise SystemExit(0)
+            return
+
+        cmd = raw[0]
+        rest = raw[1:].strip()
+
+        def _parse_idx(s: str) -> int | None:
+            try:
+                i = int(s) - 1
+                return i if 0 <= i < len(profiles) else None
+            except ValueError:
+                return None
+
+        if cmd == "s" and rest:
+            idx = _parse_idx(rest)
+            if idx is None:
+                state.console.print(f"[{state.T['warning']}]Enter a list number after s (e.g. s2).[/{state.T['warning']}]")
+                continue
+            nm = profiles[idx][0]
+            _profile.set_active_profile_name(nm)
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  Active profile set to [bold]{nm}[/bold].")
+
+        elif cmd == "n":
+            try:
+                new_name = _prompt("  New profile name", free_text=True).strip()
+            except Cancelled:
+                continue
+            if not new_name:
+                continue
+            if new_name in names:
+                state.console.print(f"[{state.T['warning']}]A profile named '{new_name}' already exists.[/{state.T['warning']}]")
+                continue
+            # Build a blank profile with just the name pre-set, then open editor
+            blank = _profile.UserProfile(
+                age=30, sex="other", weight_kg=70.0, height_cm=170.0,
+                activity_level="moderate", name=new_name,
+            )
+            _profile.save_profile(blank)
+            _do_user_profile(new_name)
+            if not names:  # first profile — make it active automatically
+                _profile.set_active_profile_name(new_name)
+            else:
+                try:
+                    ans = _prompt(
+                        f"  Make [bold]{new_name}[/bold] the active profile?  [grey62](Y/n)[/grey62]",
+                        default="y",
+                    ).strip().lower()
+                except Cancelled:
+                    ans = "n"
+                if ans != "n":
+                    _profile.set_active_profile_name(new_name)
+
+        elif cmd == "e" and rest:
+            idx = _parse_idx(rest)
+            if idx is None:
+                state.console.print(f"[{state.T['warning']}]Enter a list number after e (e.g. e1).[/{state.T['warning']}]")
+                continue
+            _do_user_profile(profiles[idx][0])
+
+        elif cmd == "r" and rest:
+            idx = _parse_idx(rest)
+            if idx is None:
+                state.console.print(f"[{state.T['warning']}]Enter a list number after r (e.g. r1).[/{state.T['warning']}]")
+                continue
+            old_nm = profiles[idx][0]
+            try:
+                new_nm = _prompt(f"  Rename '{old_nm}' to", free_text=True).strip()
+            except Cancelled:
+                continue
+            if not new_nm or new_nm == old_nm:
+                continue
+            if new_nm in names:
+                state.console.print(f"[{state.T['warning']}]A profile named '{new_nm}' already exists.[/{state.T['warning']}]")
+                continue
+            if _profile.rename_profile(old_nm, new_nm):
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  Renamed '{old_nm}' → '{new_nm}'.")
+            else:
+                state.console.print(f"[{state.T['error']}]Rename failed.[/{state.T['error']}]")
+
+        elif cmd == "d" and rest:
+            idx = _parse_idx(rest)
+            if idx is None:
+                state.console.print(f"[{state.T['warning']}]Enter a list number after d (e.g. d2).[/{state.T['warning']}]")
+                continue
+            nm = profiles[idx][0]
+            if len(names) <= 1:
+                state.console.print(f"[{state.T['warning']}]Cannot delete the only profile.[/{state.T['warning']}]")
+                continue
+            try:
+                confirm = _prompt(
+                    f"  Delete profile [bold]{nm}[/bold]? This cannot be undone.  [grey62](y/N)[/grey62]",
+                    default="n",
+                ).strip().lower()
+            except Cancelled:
+                continue
+            if confirm != "y":
+                continue
+            _profile.delete_profile(nm)
+            if active == nm:
+                remaining = [n for n in names if n != nm]
+                _profile.set_active_profile_name(remaining[0])
+                state.console.print(
+                    f"  [{state.T['success']}]✓[/{state.T['success']}]  Deleted '{nm}'."
+                    f"  Active profile switched to [bold]{remaining[0]}[/bold]."
+                )
+            else:
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  Deleted '{nm}'.")
+
+        else:
+            state.console.print(f"[{state.T['warning']}]Unrecognized command. Use s#, n, e#, r#, d#, or b.[/{state.T['warning']}]")
 
 
 def _do_view_goals() -> None:
@@ -316,6 +486,44 @@ def _do_editor_command() -> None:
     state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Editor command saved: {label}.")
 
 
+def _do_oxalate_data_setting() -> None:
+    """Toggle Harvard oxalate data lookup on/off for the active profile."""
+    import oxalate as _ox
+    prof = _profile.load_profile()
+    if not prof:
+        state.console.print(
+            "\n  [grey62]No active profile. Create a profile first (Settings → Manage profiles).[/grey62]"
+        )
+        return
+    current = prof.use_oxalate_data
+    status = "enabled" if current else "disabled"
+    avail = _ox.is_available()
+    avail_note = "" if avail else "  [bold yellow](oxalate.db not found — run build_oxalate_db.py)[/bold yellow]"
+    state.console.print(
+        f"\n  Current setting: [bold]{status}[/bold]{avail_note}\n"
+        f"  [grey62]When enabled, numa will look up oxalate content for foods you view or\n"
+        f"  use in recipes, using the Harvard School of Public Health oxalate table.\n"
+        f"  You will be asked to confirm or reject each match the first time a food\n"
+        f"  appears; confirmed links are saved and not repeated.[/grey62]",
+        highlight=False,
+    )
+    try:
+        raw = _prompt(
+            f"{'Disable' if current else 'Enable'} oxalate data?  [grey62](y/n)[/grey62]",
+            choices=["y", "n"],
+            default="n",
+        ).strip().lower()
+    except Cancelled:
+        return
+    if raw != "y":
+        return
+    import dataclasses
+    new_prof = dataclasses.replace(prof, use_oxalate_data=not current)
+    _profile.save_profile(new_prof)
+    new_status = "enabled" if new_prof.use_oxalate_data else "disabled"
+    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Oxalate data {new_status}.")
+
+
 def _do_launch_display_setting() -> None:
     current = "y" if bool(getattr(state, "_display_program_settings", False)) else "n"
     try:
@@ -364,23 +572,27 @@ def _menu_settings() -> bool:
         p = _profile.load_profile()
         if p:
             profile_status = (
+                f"[bold]{p.name}[/bold] — "
                 f"age {p.age}, {p.sex},"
                 f" {_profile.format_weight(p.weight_kg, p.weight_unit)},"
                 f" {_profile.format_height(p.height_cm, p.height_unit)}"
             )
+            oxalate_status = "on" if p.use_oxalate_data else "off"
         else:
             profile_status = "[bold yellow]not set[/bold yellow]"
+            oxalate_status = "off"
         editor_status = _get_editor_command()
         launch_status = "yes" if bool(getattr(state, "_display_program_settings", False)) else "no"
 
         _show_menu("Settings", [
             ("1", f"Color theme  (current setting: {state._current_theme_name})"),
-            ("2", f"User profile  (current setting: {profile_status})"),
+            ("2", f"Manage profiles  (active: {profile_status})"),
             ("3", "View daily nutrient targets"),
             ("4", f"Dietary preferences  (current setting: {diet_status})"),
-            ("5", f"Editor command  (current setting: {editor_status})"),
-            ("6", f"Display program settings at launch  (current setting: {launch_status})"),
-            ("7", "Advanced settings  [grey62](API key, storage, protein overrides)[/grey62]"),
+            ("5", f"Oxalate data  (Harvard reference table, current setting: {oxalate_status})"),
+            ("6", f"Editor command  (current setting: {editor_status})"),
+            ("7", f"Display program settings at launch  (current setting: {launch_status})"),
+            ("8", "Advanced settings  [grey62](API key, storage, protein overrides)[/grey62]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -393,16 +605,18 @@ def _menu_settings() -> bool:
         if choice == "1":
             _safe_call(_change_theme)
         elif choice == "2":
-            _safe_call(_do_user_profile)
+            _safe_call(_do_manage_profiles)
         elif choice == "3":
             _safe_call(_do_view_goals)
         elif choice == "4":
             _safe_call(_do_dietary_prefs)
         elif choice == "5":
-            _safe_call(_do_editor_command)
+            _safe_call(_do_oxalate_data_setting)
         elif choice == "6":
-            _safe_call(_do_launch_display_setting)
+            _safe_call(_do_editor_command)
         elif choice == "7":
+            _safe_call(_do_launch_display_setting)
+        elif choice == "8":
             _safe_call(_menu_advanced_settings)
         elif choice == "m":
             return True

@@ -22,7 +22,7 @@ from ..ui.prompts import Cancelled, ReturnToMain, _ask_date, _ask_int, _prompt
 from ..ui.render import _print_complement_suggestions, _print_meal_diaas, _print_nutrient_table, _print_protein_adequacy
 from .recipes import _do_recipe_list, _format_recipe_portion_label, _parse_serving_amount
 
-def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
+def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str], protein_by_name: dict[str, float] | None = None) -> bool:
     """
     For each meal food item lacking AA data, offer a search-and-replace flow.
     The search results show Type (SR Legacy / Foundation / Branded) so the user
@@ -32,17 +32,18 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
     with _db.get_db() as conn:
         items = _db.meal_get_items(conn, meal_id)
 
+    pbn = protein_by_name or {}
     missing_lower = {n.lower() for n in missing_names}
-    affected = [it for it in items
-                if it["item_type"] == "food" and it["food_name"].lower() in missing_lower]
+    all_affected = [it for it in items
+                    if it["item_type"] == "food" and it["food_name"].lower() in missing_lower]
+    affected = [it for it in all_affected if pbn.get(it["food_name"], 0.0) >= 0.1] if pbn else all_affected
     if not affected:
         return False
 
-    total_missing = len(missing_names)
     section_title("Missing Amino Acid Profiles")
 
-    # Identify which recipes contain the missing ingredients
-    recipe_missing_lower = missing_lower - {a["food_name"].lower() for a in affected}
+    # Identify which recipes contain the missing ingredients (with protein only)
+    recipe_missing_lower = missing_lower - {a["food_name"].lower() for a in all_affected}
     recipe_aa_gaps: dict[str, list[str]] = {}
     if recipe_missing_lower:
         for rit in (it for it in items if it["item_type"] == "recipe"):
@@ -52,7 +53,8 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
             if not recipe or not ings:
                 continue
             missing_in = [ing["food_name"] for ing in ings
-                          if ing["food_name"].lower() in recipe_missing_lower]
+                          if ing["food_name"].lower() in recipe_missing_lower
+                          and (not pbn or pbn.get(ing["food_name"], 0.0) >= 0.1)]
             if missing_in:
                 recipe_aa_gaps[recipe["name"]] = missing_in
 
@@ -74,13 +76,6 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str]) -> bool:
     state.console.print(
         f"  [grey62]Standalone meal ingredients missing AA data:[/grey62]\n"
         + standalone_names,
-        highlight=False,
-    )
-    state.console.print(
-        f"  [grey62]Some of these may be minor ingredients (fruit, garnishes, etc.) with\n"
-        f"  negligible protein — those can safely be ignored here. Only proceed if\n"
-        f"  one or more of them are meaningful protein sources in your meal.\n"
-        f"  If none are, enter [bold]n[/bold].[/grey62]",
         highlight=False,
     )
     help_footer("missing-aa")
@@ -194,6 +189,20 @@ def _compute_meal_bcp(meal_id: int) -> float | None:
     with _db.get_db() as conn:
         result = _diaas.meal_level_diaas(ing_list, conn)
     return result.get("digestible_complete_protein_g")
+
+
+def _print_meal_protein_summary(meal_id: int) -> None:
+    """Print a one-line raw protein / DCP summary for use during meal editing."""
+    nutrients = _compute_meal_nutrients(meal_id)
+    if nutrients is None:
+        return
+    raw_prot = nutrients.get("protein_g", 0.0)
+    dcp = _compute_meal_bcp(meal_id)
+    dcp_str = f"{dcp:.1f} g" if dcp is not None else "[grey62]— (AA data missing)[/grey62]"
+    state.console.print(
+        f"  [grey62]Protein:[/grey62]  raw {raw_prot:.1f} g  "
+        f"[grey62]·[/grey62]  complete (DCP) {dcp_str}"
+    )
 
 
 def _menu_meals() -> bool:
@@ -313,7 +322,7 @@ def _menu_meals() -> bool:
         state.console.print(f"  [{state.T['accent']}]Commands:[/{state.T['accent']}]", highlight=False)
         state.console.print("  [grey62]  n ············  New meal (prompts for date and name)[/grey62]", highlight=False)
         if page:
-            state.console.print("  [grey62]  v{id} ········  View or edit a meal  (e.g. v3)[/grey62]", highlight=False)
+            state.console.print("  [grey62]  v{id} / e{id}  View or edit a meal  (e.g. v3 or e3)[/grey62]", highlight=False)
             state.console.print("  [grey62]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/grey62]", highlight=False)
             state.console.print("  [grey62]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/grey62]", highlight=False)
         state.console.print("  [grey62]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/grey62]", highlight=False)
@@ -382,12 +391,12 @@ def _menu_meals() -> bool:
         if rl == "mr" and has_more:
             offset += _MEALS_PAGE
             continue
-        if len(rl) >= 2 and rl[0] in ("v", "a"):
+        if len(rl) >= 2 and rl[0] in ("v", "e", "a"):
             meal = _resolve_meal(raw[1:])
             if meal is None:
-                state.console.print(f"[{state.T['warning']}]Unknown meal ID — use v{{id}} or a{{id}} (e.g. v42).[/{state.T['warning']}]")
+                state.console.print(f"[{state.T['warning']}]Unknown meal ID — use v{{id}}, e{{id}}, or a{{id}} (e.g. v42).[/{state.T['warning']}]")
                 continue
-            if rl[0] == "v":
+            if rl[0] in ("v", "e"):
                 _safe_call(_open_meal_view, meal["id"])
             else:
                 _safe_call(_open_meal_analyze, meal["id"])
@@ -441,6 +450,7 @@ def _meal_add_items(meal_id: int) -> None:
         meal_row = _db.meal_get(conn, meal_id)
     meal_name = meal_row["name"] if meal_row else ""
     _print_meal_items(meal_id, meal_name)
+    _print_meal_protein_summary(meal_id)
     state.console.print(f"\n  Add new items  [grey62](Enter/b=back, m=main, q=quit)[/grey62]", highlight=False)
     while True:
         state.console.print()
@@ -543,6 +553,7 @@ def _meal_add_items(meal_id: int) -> None:
                 _db.meal_add_recipe(conn, meal_id, rid, rname, servings, unit=portion_label)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {rname}  {portion_label}")
             _print_meal_items(meal_id, meal_name)
+            _print_meal_protein_summary(meal_id)
 
         else:
             food = result
@@ -558,6 +569,7 @@ def _meal_add_items(meal_id: int) -> None:
                 _db.meal_add_food(conn, meal_id, food["fdcId"], food["name"], grams, label, notes)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
             _print_meal_items(meal_id, meal_name)
+            _print_meal_protein_summary(meal_id)
 
 
 def _do_new_meal(default_date: str | None = None) -> None:
@@ -907,7 +919,11 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
     ing_list = _compute_meal_ingredient_list(meal_id)
     missing_aa, _dcp_g = _print_meal_diaas(ing_list, profile=profile)
     if missing_aa:
-        _fix_meal_aa_profiles(meal_id, missing_aa)
+        pbn = {
+            ing["food_name"]: ing["nutrients_100g"].get("protein_g", 0.0) * ing["grams"] / 100.0
+            for ing in ing_list
+        }
+        _fix_meal_aa_profiles(meal_id, missing_aa, protein_by_name=pbn)
 
     # Meal-level complement suggestions and glycemic load
     aa_nutrients = _usda.sum_nutrients(*[

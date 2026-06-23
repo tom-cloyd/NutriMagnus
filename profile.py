@@ -1,7 +1,10 @@
 """
 profile.py — User profile and personalized RDA computation for numa.
 
-Profile is stored in ~/.config/numa/profile.json.
+Profiles are stored in ~/.config/numa/profiles/{name}.json.
+The active profile name is recorded in ~/.config/numa/active_profile.txt.
+Legacy single-profile installs (profile.json) are migrated automatically to
+profiles/Default.json on first run.
 RDA targets follow the 2020-2025 USDA Dietary Guidelines and NIH/Institute
 of Medicine Dietary Reference Intakes (DRIs).
 Docs: README-numa-documentation.md, Architecture: "profile.py — User profile and RDA"
@@ -15,7 +18,10 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Optional
 
-_PROFILE_FILE = pathlib.Path.home() / ".config" / "numa" / "profile.json"
+_CONFIG_DIR      = pathlib.Path.home() / ".config" / "numa"
+_LEGACY_FILE     = _CONFIG_DIR / "profile.json"
+_PROFILES_DIR    = _CONFIG_DIR / "profiles"
+_ACTIVE_NAME_FILE = _CONFIG_DIR / "active_profile.txt"
 
 # Activity level keys → Mifflin-St Jeor multipliers
 ACTIVITY_LEVELS: dict[str, float] = {
@@ -46,6 +52,8 @@ class UserProfile:
     activity_level: str  # key from ACTIVITY_LEVELS
     weight_unit: str = "kg"        # "kg" or "lb" — controls display
     height_unit: str = "cm"        # "cm" or "imperial" — controls display
+    name: str = "Default"          # profile display name; also used as filename stem
+    use_oxalate_data: bool = False  # enable Harvard oxalate data lookup for foods
 
 
 # ---------------------------------------------------------------------------
@@ -175,37 +183,110 @@ def parse_height(text: str) -> tuple[Optional[float], str]:
 
 
 # ---------------------------------------------------------------------------
-# Profile I/O
+# Profile I/O — multi-profile support
 # ---------------------------------------------------------------------------
 
-def get_profile_file() -> pathlib.Path:
-    return _PROFILE_FILE
+def _migrate_legacy() -> None:
+    """One-time migration: move old profile.json → profiles/Default.json."""
+    if not _LEGACY_FILE.exists():
+        return
+    _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    dest = _PROFILES_DIR / "Default.json"
+    if not dest.exists():
+        try:
+            data = json.loads(_LEGACY_FILE.read_text())
+            data.setdefault("name", "Default")
+            dest.write_text(json.dumps(data, indent=2) + "\n")
+        except Exception:
+            return
+    _LEGACY_FILE.rename(_LEGACY_FILE.parent / "profile.json.bak")
 
 
-def load_profile() -> Optional[UserProfile]:
-    """Load user profile from config file. Returns None if not set or invalid."""
-    if not _PROFILE_FILE.exists():
+def list_profiles() -> list[str]:
+    """Return sorted list of profile names (stems of *.json files in profiles dir)."""
+    _migrate_legacy()
+    if not _PROFILES_DIR.exists():
+        return []
+    return sorted(p.stem for p in _PROFILES_DIR.glob("*.json"))
+
+
+def get_active_profile_name() -> str:
+    """Return the active profile name, falling back to first available or 'Default'."""
+    _migrate_legacy()
+    if _ACTIVE_NAME_FILE.exists():
+        name = _ACTIVE_NAME_FILE.read_text().strip()
+        if name and (_PROFILES_DIR / f"{name}.json").exists():
+            return name
+    names = list_profiles()
+    return names[0] if names else "Default"
+
+
+def set_active_profile_name(name: str) -> None:
+    _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    _ACTIVE_NAME_FILE.write_text(name + "\n")
+
+
+def load_profile(name: str | None = None) -> Optional[UserProfile]:
+    """Load a named profile (or the active profile if name is None).
+    Returns None if no profiles exist or the named profile is not found."""
+    _migrate_legacy()
+    if name is None:
+        name = get_active_profile_name()
+    path = _PROFILES_DIR / f"{name}.json"
+    if not path.exists():
         return None
     try:
-        data = json.loads(_PROFILE_FILE.read_text())
+        data = json.loads(path.read_text())
         return UserProfile(
             age=int(data["age"]),
             sex=str(data["sex"]),
             weight_kg=float(data["weight_kg"]),
             height_cm=float(data["height_cm"]),
             activity_level=str(data["activity_level"]),
-            # Backward-compatible defaults for profiles saved before unit fields existed
             weight_unit=str(data.get("weight_unit", "kg")),
             height_unit=str(data.get("height_unit", "cm")),
+            name=str(data.get("name", name)),
+            use_oxalate_data=bool(data.get("use_oxalate_data", False)),
         )
     except (KeyError, ValueError, json.JSONDecodeError):
         return None
 
 
 def save_profile(profile: UserProfile) -> None:
-    """Save user profile to config file."""
-    _PROFILE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _PROFILE_FILE.write_text(json.dumps(asdict(profile), indent=2) + "\n")
+    """Save profile to profiles/{profile.name}.json and update active pointer."""
+    _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    path = _PROFILES_DIR / f"{profile.name}.json"
+    path.write_text(json.dumps(asdict(profile), indent=2) + "\n")
+
+
+def delete_profile(name: str) -> bool:
+    """Delete a profile by name. Returns True if it existed."""
+    path = _PROFILES_DIR / f"{name}.json"
+    if path.exists():
+        path.unlink()
+        return True
+    return False
+
+
+def rename_profile(old_name: str, new_name: str) -> bool:
+    """Rename a profile file and update the active pointer if needed.
+    Returns False if old_name doesn't exist or new_name is already taken."""
+    old_path = _PROFILES_DIR / f"{old_name}.json"
+    new_path = _PROFILES_DIR / f"{new_name}.json"
+    if not old_path.exists() or new_path.exists():
+        return False
+    data = json.loads(old_path.read_text())
+    data["name"] = new_name
+    new_path.write_text(json.dumps(data, indent=2) + "\n")
+    old_path.unlink()
+    if get_active_profile_name() == old_name:
+        set_active_profile_name(new_name)
+    return True
+
+
+# Keep for any callers that used the old single-file path
+def get_profile_file() -> pathlib.Path:
+    return _PROFILES_DIR / f"{get_active_profile_name()}.json"
 
 
 # ---------------------------------------------------------------------------

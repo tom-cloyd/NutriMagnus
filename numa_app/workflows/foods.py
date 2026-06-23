@@ -117,6 +117,9 @@ def _do_food_search() -> None:
                                       offer_if_covered=False,
                                       base_food_name=aa_food["name"])
 
+    from ..services.oxalate_link import maybe_show_oxalate
+    maybe_show_oxalate(food["fdcId"], food["name"])
+
     try:
         ans = _prompt("Analyze a portion of this food?  [grey62](y/N)[/grey62]",
                       choices=["y", "n"], default="n")
@@ -1236,24 +1239,126 @@ def _do_edit_portions(fdc_id: int, food_name: str) -> None:
             state.console.print(f"[{state.T['warning']}]Unrecognized — use c, p, x, r, or b.[/{state.T['warning']}]")
 
 
+_NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
+    ("Macros", [
+        "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
+        "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+        "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg",
+    ]),
+    ("Minerals", [
+        "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
+        "potassium_mg", "sodium_mg", "zinc_mg",
+    ]),
+    ("Vitamins", [
+        "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+        "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
+        "b6_mg", "folate_mcg", "b12_mcg", "choline_mg",
+    ]),
+    ("Phytonutrients", [
+        "beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
+        "lutein_zeaxanthin_mcg", "beta_sitosterol_mg", "isoflavones_mg",
+    ]),
+    ("Amino acids", [
+        "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
+        "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
+        "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g",
+    ]),
+]
+
+
+def _pick_nutrients_from_usda(
+    usda_nutrients: dict,
+    cached_nutrients: dict,
+    nutrient_label: dict[str, tuple[str, str]],
+    *,
+    strategy: str | None = None,
+) -> dict:
+    """
+    Interactive nutrient selection for the USDA refresh flow.
+    Returns a merged nutrient dict (cached base + selected USDA values).
+    nutrient_label maps key → (label, unit).
+    strategy: pre-chosen 'a'/'g'/'i'/'n'; if None, prompts the user.
+    """
+    if strategy is None:
+        try:
+            ans = _prompt(
+                "  Replace nutrients?  [grey62]a=all  g=by group  i=individual  n=keep cached[/grey62]",
+                choices=["a", "g", "i", "n"], default="n",
+            ).strip().lower()
+        except Cancelled:
+            return cached_nutrients
+    else:
+        ans = strategy
+
+    if ans == "a":
+        return {**cached_nutrients, **usda_nutrients}
+    if ans == "n":
+        return cached_nutrients
+
+    result = dict(cached_nutrients)
+
+    def _pick_individual(keys: list[str]) -> None:
+        for key in keys:
+            if key not in usda_nutrients:
+                continue
+            usda_val = usda_nutrients[key]
+            cached_val = cached_nutrients.get(key)
+            label, unit = nutrient_label.get(key, (key, ""))
+            cached_str = f"{cached_val:g} {unit}" if cached_val is not None else "—"
+            try:
+                inc = _prompt(
+                    f"    {label}: cached={cached_str}  USDA={usda_val:g} {unit}  use USDA?  [grey62](Y/n)[/grey62]",
+                    default="y",
+                ).strip().lower()
+            except Cancelled:
+                return
+            if inc != "n":
+                result[key] = usda_val
+
+    if ans == "g":
+        for group_name, keys in _NUTRIENT_GROUPS:
+            usda_in_group = [k for k in keys if k in usda_nutrients]
+            if not usda_in_group:
+                continue
+            state.console.print(f"  [bold]{group_name}[/bold]  [grey62]({len(usda_in_group)} nutrients from USDA)[/grey62]")
+            try:
+                g_ans = _prompt(
+                    f"    Replace {group_name}?  [grey62]a=all  i=individual  n=skip[/grey62]",
+                    choices=["a", "i", "n"], default="n",
+                ).strip().lower()
+            except Cancelled:
+                return result
+            if g_ans == "a":
+                for key in usda_in_group:
+                    result[key] = usda_nutrients[key]
+            elif g_ans == "i":
+                _pick_individual(usda_in_group)
+    else:  # i
+        for _, keys in _NUTRIENT_GROUPS:
+            _pick_individual(keys)
+
+    return result
+
+
 def _do_refresh_usda_nutrients(fdc_id: int, cached) -> None:
-    """Re-fetch nutrient data from USDA for a cached food, preserving custom portions/notes/name."""
+    """Re-fetch nutrient data from USDA for a cached food, with per-field preserve/replace choice."""
     if fdc_id < 0:
         state.console.print(
             f"[{state.T['warning']}]This is an Open Food Facts entry — USDA refresh not available.[/{state.T['warning']}]"
         )
         return
-    food_name = cached["name"]
+    cached_name = cached["name"]
     try:
-        confirm = _prompt(
-            f"Replace nutrients for [bold]{food_name}[/bold] with fresh USDA data?  "
-            f"[grey62]Custom name, portions, and notes are preserved.  (y/N)[/grey62]",
-            default="n",
+        strategy = _prompt(
+            f"Refresh [bold]{cached_name}[/bold] nutrients from USDA — how?  "
+            "[grey62]a=replace all  g=by group  i=individual  n=cancel[/grey62]",
+            choices=["a", "g", "i", "n"], default="n",
         ).strip().lower()
     except Cancelled:
         return
-    if confirm != "y":
+    if strategy == "n":
         return
+
     with state.console.status("[bold]Fetching from USDA…[/bold]", spinner="dots"):
         food = _usda.get_food_detail(fdc_id)
     if not food or not food.get("nutrients"):
@@ -1261,18 +1366,98 @@ def _do_refresh_usda_nutrients(fdc_id: int, cached) -> None:
             f"[{state.T['error']}]USDA returned no data for FDC {fdc_id}.[/{state.T['error']}]"
         )
         return
+
     existing_portions = json.loads(cached["portions_json"] or "[]") or []
+    usda_portions = food.get("portions") or []
+
+    # --- name ---
+    usda_name = food.get("name") or cached_name
+    if usda_name and usda_name != cached_name:
+        state.console.print(
+            f"  [grey62]Cached name:[/grey62]  {cached_name}\n"
+            f"  [grey62]USDA name:  [/grey62]  {usda_name}"
+        )
+        try:
+            ans = _prompt("  Use USDA name?  [grey62](y/N)[/grey62]", default="n").strip().lower()
+        except Cancelled:
+            return
+        food_name = usda_name if ans == "y" else cached_name
+    else:
+        food_name = cached_name
+
+    # --- portions ---
+    if usda_portions:
+        usda_desc = ", ".join(f"{p['description']} ({p['gram_weight']:g} g)" for p in usda_portions)
+        if existing_portions:
+            state.console.print("  [grey62]Cached portions:[/grey62]")
+            for p in existing_portions:
+                state.console.print(f"    {p['description']} ({p['gram_weight']:g} g)")
+            state.console.print("  [grey62]USDA portions:[/grey62]")
+            for i, p in enumerate(usda_portions, 1):
+                state.console.print(f"    {i}. {p['description']} ({p['gram_weight']:g} g)")
+            try:
+                ans = _prompt(
+                    "  Replace cached portions?  [grey62]a=all  i=individual  n=keep cached[/grey62]",
+                    choices=["a", "i", "n"], default="n",
+                ).strip().lower()
+            except Cancelled:
+                return
+            if ans == "a":
+                portions = usda_portions
+            elif ans == "i":
+                portions = []
+                for p in usda_portions:
+                    try:
+                        inc = _prompt(
+                            f"  Include '{p['description']}' ({p['gram_weight']:g} g)?  [grey62](Y/n)[/grey62]",
+                            default="y",
+                        ).strip().lower()
+                    except Cancelled:
+                        return
+                    if inc != "n":
+                        portions.append(p)
+                if not portions:
+                    portions = existing_portions
+            else:
+                portions = existing_portions
+        else:
+            state.console.print(f"  [grey62]USDA portions:[/grey62]  {usda_desc}")
+            try:
+                ans = _prompt("  Store USDA portions?  [grey62](Y/n)[/grey62]", default="y").strip().lower()
+            except Cancelled:
+                return
+            portions = usda_portions if ans != "n" else []
+    else:
+        portions = existing_portions
+
+    # --- nutrients ---
+    from usda_api import NUTRIENT_MAP as _NM
+    nutrient_label = {key: (label, unit) for _, (key, label, unit) in _NM.items()}
+    cached_nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
+    nutrients = _pick_nutrients_from_usda(food["nutrients"], cached_nutrients, nutrient_label, strategy=strategy)
+
+    # --- notes ---
+    cached_notes = cached["notes"] or ""
+    if cached_notes:
+        try:
+            ans = _prompt("  Keep existing notes?  [grey62](Y/n)[/grey62]", default="y").strip().lower()
+        except Cancelled:
+            return
+        notes = cached_notes if ans != "n" else ""
+    else:
+        notes = ""
+
     with _db.get_db() as conn:
         _db.update_cached_food_profile(
             conn, fdc_id,
             name=food_name,
-            nutrients=food["nutrients"],
+            nutrients=nutrients,
             data_type=food.get("dataType") or cached["data_type"],
             brand=cached["brand"],
             serving_size=food.get("servingSize") or cached["serving_size"],
             serving_unit=food.get("servingUnit") or cached["serving_unit"],
-            portions=existing_portions,
-            notes=cached["notes"],
+            portions=portions,
+            notes=notes,
             user_drafted=False,
         )
     state.console.print(
@@ -1283,6 +1468,7 @@ def _do_refresh_usda_nutrients(fdc_id: int, cached) -> None:
 def _do_list_cached_foods() -> None:
     filter_text: str | None = None
     show_table = True
+    _pending_refresh: tuple | None = None  # (fdc_id, cached_row) — set before redraw so table shows first
     while True:
         with _db.get_db() as conn:
             all_foods = _db.list_cached_foods(conn)
@@ -1363,6 +1549,12 @@ def _do_list_cached_foods() -> None:
             state.console.print( "    [bold]l[/bold]    List  [grey62](re-display this table)[/grey62]")
             state.console.print( "    / to filter  ·  Enter=re-list  ·  b=back  m=main  q=quit", highlight=False)
             show_table = False
+            if _pending_refresh:
+                fdc_id_pend, cached_pend = _pending_refresh
+                _pending_refresh = None
+                _do_refresh_usda_nutrients(fdc_id_pend, cached_pend)
+                show_table = True
+                continue
         else:
             if filter_text:
                 state.console.print(
@@ -1466,7 +1658,7 @@ def _do_list_cached_foods() -> None:
             with _db.get_db() as conn:
                 cached = _db.get_cached_food(conn, row["fdc_id"])
             if cached:
-                _do_refresh_usda_nutrients(row["fdc_id"], cached)
+                _pending_refresh = (row["fdc_id"], cached)
                 show_table = True
             continue
 
@@ -1507,6 +1699,7 @@ def _do_list_cached_foods() -> None:
                     state.console.print()
                 else:
                     state.console.print("  [grey62]No confidence note for this food.[/grey62]")
+                show_table = True
                 continue
 
             if cmd == "n":
@@ -1533,6 +1726,7 @@ def _do_list_cached_foods() -> None:
                     state.console.print()
                 else:
                     state.console.print("  [grey62]No curator notes for this food.[/grey62]")
+                show_table = True
                 continue
 
             food = {
@@ -1544,12 +1738,13 @@ def _do_list_cached_foods() -> None:
                 "servingUnit":      cached["serving_unit"],
                 "householdServing": None,
                 "nutrients":        json.loads(cached["nutrients_json"]),
-                "portions":         json.loads(cached["portions_json"]),
+                "portions":         json.loads(cached["portions_json"]) if cached["portions_json"] and cached["portions_json"] != "null" else [],
             }
 
             if cmd == "v":
                 _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g")
                 _print_protein_completeness(food["nutrients"], food_name=food["name"])
+                show_table = True
             elif cmd == "a":
                 result = _pick_portion(food)
                 if result is None:
@@ -1557,6 +1752,7 @@ def _do_list_cached_foods() -> None:
                 grams, label, scaled = result
                 _print_nutrient_table(scaled, title=food["name"], per_label=label)
                 _print_protein_completeness(scaled, food_name=food["name"])
+                show_table = True
             elif cmd == "e":
                 _do_edit_cached_food(row["fdc_id"], cached)
                 try:

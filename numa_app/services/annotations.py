@@ -206,7 +206,10 @@ def annotate_food_interactive(fdc_id: int, food_name: str) -> None:
                 with _db.get_db() as conn:
                     conn.execute("DELETE FROM food_annotations WHERE fdc_id = ?", (fdc_id,))
                 state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}]  Annotations cleared.")
-                return
+
+        else:
+            valid = ", ".join(k for k, _ in options)
+            state.console.print(f"  [{state.T['warning']}]Unrecognized choice '{action}'. Enter one of: {valid}[/{state.T['warning']}]")
 
 
 def maybe_prompt_gi(fdc_id: int, food_name: str) -> float | None:

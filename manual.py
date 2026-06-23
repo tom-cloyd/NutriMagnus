@@ -91,6 +91,14 @@ _ALIASES: dict[str, str] = {
     "fao-reference":        "fao",
     "reference-requirement": "fao",
     "fao-2013":             "fao",
+    "oxalates":             "oxalate",
+    "antinutrient":         "antinutrients",
+    "phytate":              "antinutrients",
+    "phytates":             "antinutrients",
+    "lectin":               "antinutrients",
+    "lectins":              "antinutrients",
+    "tannin":               "antinutrients",
+    "tannins":              "antinutrients",
 }
 
 

@@ -1262,6 +1262,11 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("vital wheat gluten",),                                   0.51),  # 121 g/cup
     (("flour",),                                                0.53),
     (("cocoa",),                                                0.47),
+    # Dried fruits
+    (("raisin",),                                                  0.63),  # 149 g/cup; King Arthur Baking weight chart
+    (("dried cranberr", "craisin"),                                0.48),  # 114 g/cup; King Arthur Baking weight chart
+    (("dried apricot",),                                           0.54),  # 128 g/cup diced; King Arthur Baking weight chart
+    (("date",),                                                    0.74),  # 175 g/cup whole pitted; Sweet2Eat baking reference
     # Grains / seeds
     (("rolled oat", "old-fashioned oat", "quick oat"),          0.36),
     (("oat",),                                                  0.36),

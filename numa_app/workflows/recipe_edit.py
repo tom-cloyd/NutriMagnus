@@ -5,6 +5,7 @@ Contains _do_recipe_edit (menu option 4 "Edit recipe").  Called from recipes.py.
 Docs: README-numa-documentation.md, Architecture: "numa_app/workflows/recipe_edit.py — edit recipe workflow"
 """
 import json
+import re
 from datetime import datetime, timezone
 
 from rich.table import Table
@@ -20,7 +21,8 @@ from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_foo
 from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, dot_cell, table_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
-from .recipes import _parse_measure, _compute_recipe_dcp, _compute_recipe_gl, _format_recipe_portion_label, _parse_serving_amount
+from ..services.reports import _offer_export
+from .recipes import _parse_measure, _compute_recipe_dcp, _compute_recipe_gl, _compute_recipe_protein_summary, _format_recipe_portion_label, _parse_serving_amount
 
 def _do_recipe_edit(recipe=None) -> None:
     if recipe is None:
@@ -227,6 +229,12 @@ def _do_recipe_edit(recipe=None) -> None:
                 tbl.add_row(*row)
             state.console.print(tbl)
             table_footer(f"  {ID_KEY}")
+            _raw_prot, _dcp = _compute_recipe_protein_summary(rid)
+            _dcp_str = f"{_dcp:.1f} g" if _dcp is not None else "[grey62]— (AA data missing)[/grey62]"
+            state.console.print(
+                f"  [grey62]Protein:[/grey62]  raw {_raw_prot:.1f} g  "
+                f"[grey62]·[/grey62]  complete (DCP) {_dcp_str}"
+            )
             help_footer("recipe-ingredients")
         else:
             state.console.print("[grey62]No ingredients yet.[/grey62]")
@@ -236,6 +244,8 @@ def _do_recipe_edit(recipe=None) -> None:
             ("2", "Edit ingredient  [grey62](name, amount, etc. — not ingredient ID)[/grey62]"),
             ("3", "Remove ingredient"),
             ("4", "Reorder ingredients"),
+            ("a", "Analyze recipe"),
+            ("x", "Export recipe  [grey62](ingredients + procedure, optional nutrition)[/grey62]"),
             ("d", "Done — proceed to Procedure"),
             ("b", "Back — skip Procedure"),
             ("m", "Return to main menu  [grey62](skips Procedure)[/grey62]"),
@@ -493,6 +503,75 @@ def _do_recipe_edit(recipe=None) -> None:
                 _db.recipe_auto_weight(conn, rid)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Ingredients reordered.")
             ingredients_changed = True
+        elif choice == "a":
+            with _db.get_db() as conn:
+                _recipe_for_view = _db.recipe_get(conn, rid)
+            if _recipe_for_view:
+                from .recipe_analysis import _do_recipe_view
+                _safe_call(_do_recipe_view, _recipe_for_view)
+        elif choice == "x":
+            with _db.get_db() as conn:
+                _rx = _db.recipe_get(conn, rid)
+                _ings_x = _db.recipe_get_ingredients(conn, rid)
+            if not _rx:
+                continue
+            # Build ingredient display items
+            _export_items = []
+            for _ing in _ings_x:
+                _amt = (_format_recipe_portion_label(_ing["amount"], _ing["ref_recipe_id"])
+                        if _ing["ref_recipe_id"] else _ing_amount_display(_ing["unit"], _ing["amount"]))
+                _export_items.append({
+                    "food_name": _ing["food_name"],
+                    "amount_display": _amt,
+                    "notes": _ing["notes"] or "",
+                })
+            # Ask whether to include nutrition summary
+            try:
+                _inc_nut = _prompt(
+                    "Include per-serving nutrition summary?",
+                    choices=["y", "n"], default="y",
+                )
+            except Cancelled:
+                continue
+            _nutrition_nutrients: dict | None = None
+            _dcp_g: float | None = _rx["dcp_g"]
+            if _inc_nut == "y":
+                _srv_count = max(1, _rx["servings"] or 1)
+                _combined: dict[str, float] = {}
+                with _db.get_db() as conn:
+                    for _ing in _ings_x:
+                        if _ing["ref_recipe_id"] or not _ing["fdc_id"] or not _ing["amount"]:
+                            continue
+                        _cached = _db.get_cached_food(conn, _ing["fdc_id"])
+                        if _cached and _cached["nutrients_json"]:
+                            _nuts = json.loads(_cached["nutrients_json"])
+                            _scaled = _usda.scale_nutrients(_nuts, _ing["amount"], base_size=100.0)
+                            _combined = _usda.sum_nutrients(_combined, _scaled)
+                if _combined:
+                    _nutrition_nutrients = {k: v / _srv_count for k, v in _combined.items()}
+            _servings_label = (
+                f"per serving (of {_rx['servings']})" if (_rx["servings"] or 0) > 1
+                else "whole recipe"
+            )
+            _export_sections: list[dict] = [
+                {
+                    "type": "recipe_card",
+                    "title": _rx["name"],
+                    "description": _rx["description"] or "",
+                    "servings": _rx["servings"] or 0,
+                    "serving_size": _rx["serving_size"] or "",
+                    "items": _export_items,
+                    "procedure": _rx["instructions"] or "",
+                },
+            ]
+            if _nutrition_nutrients is not None:
+                _export_sections.append({
+                    "type": "recipe_nutrition_brief",
+                    "nutrients": _nutrition_nutrients,
+                    "dcp_g": _dcp_g,
+                    "servings_label": _servings_label,
+                })
+            _offer_export(_rx["name"], _export_sections)
         else:
             state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
 

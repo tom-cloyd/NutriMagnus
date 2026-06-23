@@ -53,7 +53,7 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
     tbl.add_column("Complete", justify="center", min_width=8)
     tbl.add_column("Created",  min_width=12)
     for r in page:
-        dcp_str = f"{r['dcp_g'] / r['servings']:.1f}g" if r["dcp_g"] is not None and r["servings"] > 0 else "[grey62]—[/grey62]"
+        dcp_str = f"{r['dcp_g']:.1f}g" if r["dcp_g"] is not None else "[grey62]—[/grey62]"
         complete_str = "[green]✓[/green]" if r["complete"] else "[grey62]—[/grey62]"
         rname = r["name"][:_RNAME_W - 1]
         rdots = "·" * (_RNAME_W - len(rname) - 1)
@@ -62,7 +62,7 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
     if not label:
         state.console.print(f"  [grey62]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/grey62]")
     table_footer("  [grey62]Complete ✓ = recipe is marked finished (all ingredients entered)[/grey62]",
-                 "  [grey62]DCP/srv  = digestible complete protein per serving (requires analysis)[/grey62]")
+                 "  [grey62]DCP/srv  = digestible complete protein per serving  ·  — = not yet analyzed[/grey62]")
     help_footer("recipes")
 
 
@@ -175,6 +175,54 @@ def _compute_recipe_dcp(rid: int) -> float | None:
     if not has_protein:
         return None
     return total_digestible
+
+
+def _compute_recipe_protein_summary(rid: int) -> tuple[float, float | None]:
+    """Return (raw_protein_g, dcp_g) for an entire recipe, including nested sub-recipes.
+    raw_protein_g is 0.0 if no ingredient data is cached.
+    dcp_g is None when AA profile data is unavailable for any ingredient with protein."""
+    with _db.get_db() as conn:
+        ingredients = _db.recipe_get_ingredients(conn, rid)
+
+    raw_protein = 0.0
+    total_digestible = 0.0
+    has_protein = False
+    dcp_available = True
+
+    for ing in ingredients:
+        if ing["ref_recipe_id"]:
+            sub_raw, sub_dcp = _compute_recipe_protein_summary(ing["ref_recipe_id"])
+            with _db.get_db() as conn:
+                sub_recipe = _db.recipe_get(conn, ing["ref_recipe_id"])
+            if sub_recipe and sub_recipe["servings"] > 0:
+                portion = ing["amount"] / sub_recipe["servings"]
+                raw_protein += sub_raw * portion
+                if sub_dcp is not None:
+                    has_protein = True
+                    total_digestible += sub_dcp * portion
+                else:
+                    dcp_available = False
+            continue
+        _refresh_cache_if_missing_aa(ing["fdc_id"])
+        with _db.get_db() as conn:
+            cached = _db.get_cached_food(conn, ing["fdc_id"])
+        if not cached:
+            continue
+        scaled = _usda.scale_nutrients(
+            json.loads(cached["nutrients_json"]), ing["amount"], base_size=100.0
+        )
+        p = scaled.get("protein_g", 0.0)
+        raw_protein += p
+        if p > 0:
+            has_protein = True
+            diaas = _usda.get_diaas(ing["food_name"])
+            if diaas is not None:
+                total_digestible += p * diaas
+            else:
+                dcp_available = False
+
+    dcp_g = total_digestible if (has_protein and dcp_available) else None
+    return (raw_protein, dcp_g)
 
 
 def _compute_recipe_gl(rid: int) -> tuple[float, list[str]]:
@@ -405,11 +453,62 @@ def _do_recipe_display(recipe=None) -> None:
     state.console.print(Rule(), width=_W)
 
     try:
-        choice = _prompt("e=edit  b/Enter=done", choices=["e", "b", ""], default="").strip().lower()
+        choice = _prompt("e=edit  x=export  b/Enter=done", choices=["e", "x", "b", ""], default="").strip().lower()
     except Cancelled:
         return
     if choice == "e":
         _do_recipe_edit(recipe)
+    elif choice == "x":
+        try:
+            inc_nut = _prompt("Include per-serving nutrition summary?", choices=["y", "n"], default="y")
+        except Cancelled:
+            inc_nut = "n"
+        nutrition_nutrients: dict | None = None
+        dcp_g: float | None = recipe["dcp_g"]
+        if inc_nut == "y":
+            srv_count = max(1, recipe["servings"] or 1)
+            combined: dict[str, float] = {}
+            with _db.get_db() as conn:
+                for ing in ingredients:
+                    if ing["ref_recipe_id"] or not ing["fdc_id"] or not ing["amount"]:
+                        continue
+                    cached = _db.get_cached_food(conn, ing["fdc_id"])
+                    if cached and cached["nutrients_json"]:
+                        nuts = json.loads(cached["nutrients_json"])
+                        scaled = _usda.scale_nutrients(nuts, ing["amount"], base_size=100.0)
+                        combined = _usda.sum_nutrients(combined, scaled)
+            if combined:
+                nutrition_nutrients = {k: v / srv_count for k, v in combined.items()}
+        export_items = [
+            {
+                "food_name": ing["food_name"],
+                "amount_display": (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
+                                   if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"])),
+                "notes": ing["notes"] or "",
+            }
+            for ing in ingredients
+        ]
+        servings_label = (f"per serving (of {recipe['servings']})" if (recipe["servings"] or 0) > 1
+                          else "whole recipe")
+        export_sections: list[dict] = [
+            {
+                "type": "recipe_card",
+                "title": recipe["name"],
+                "description": recipe["description"] or "",
+                "servings": recipe["servings"] or 0,
+                "serving_size": recipe["serving_size"] or "",
+                "items": export_items,
+                "procedure": recipe["instructions"] or "",
+            },
+        ]
+        if nutrition_nutrients is not None:
+            export_sections.append({
+                "type": "recipe_nutrition_brief",
+                "nutrients": nutrition_nutrients,
+                "dcp_g": dcp_g,
+                "servings_label": servings_label,
+            })
+        _offer_export(recipe["name"], export_sections)
 
 
 def _do_copy_recipe(recipe=None) -> None:
