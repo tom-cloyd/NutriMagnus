@@ -65,6 +65,56 @@ def _load_pantry_candidates() -> list[dict]:
         })
     return candidates
 
+def _load_recipe_candidates() -> list[dict]:
+    """Return recipes with cached per-100g nutrients usable for complement suggestions.
+
+    Always safe: returns [] if recipe data is unavailable.
+    """
+    try:
+        with _db.get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, name, servings, dcp_g, total_weight, total_weight_unit, nutrients_json"
+                " FROM recipes WHERE nutrients_json IS NOT NULL"
+            ).fetchall()
+    except Exception:
+        return []
+
+    candidates: list[dict] = []
+    for row in rows:
+        try:
+            nutrients = json.loads(row["nutrients_json"])
+        except Exception:
+            continue
+        if not nutrients:
+            continue
+
+        # Compute serving weight in grams for the servings hint
+        servings = row["servings"] or 1
+        try:
+            total_weight = float(row["total_weight"]) if row["total_weight"] else None
+        except Exception:
+            total_weight = None
+        serving_weight_g = (total_weight / servings) if total_weight else None
+
+        # Derive effective DIAAS from stored dcp_g / protein_per_serving
+        diaas_val: float | None = None
+        dcp_g = row["dcp_g"]
+        if dcp_g and serving_weight_g and nutrients.get("protein_g", 0) > 0:
+            protein_per_serving = nutrients["protein_g"] * serving_weight_g / 100
+            if protein_per_serving > 0:
+                diaas_val = min(1.0, dcp_g / protein_per_serving)
+
+        candidates.append({
+            "name": row["name"],
+            "fdc_id": None,
+            "recipe_id": row["id"],
+            "nutrients": nutrients,
+            "diaas": diaas_val,
+            "serving_weight_g": serving_weight_g,
+        })
+    return candidates
+
+
 def _print_nutrient_table(
     nutrients: dict[str, float],
     title: str = "Nutrients",
@@ -691,8 +741,13 @@ def _print_complement_suggestions(
         pantry = _load_pantry_candidates()
     except Exception:
         pantry = []
+    try:
+        recipe_candidates = _load_recipe_candidates()
+    except Exception:
+        recipe_candidates = []
+    pantry_and_recipes = pantry + recipe_candidates
     suggestions = _usda.suggest_complements(
-        base_nutrients, pantry, diet_pref=state._diet_pref,
+        base_nutrients, pantry_and_recipes, diet_pref=state._diet_pref,
         base_digestibility=_digestibility,
         base_food_name=base_food_name,
     )
@@ -725,6 +780,13 @@ def _print_complement_suggestions(
     pantry_covers = bool(pantry_suggs and pantry_suggs[0].get("new_complete", False))
 
     section_title("Protein Complement Suggestions", basis_label or "")
+    _sources: list[str] = []
+    if pantry:
+        _sources.append(f"{len(pantry)} pantry item{'s' if len(pantry) != 1 else ''}")
+    if recipe_candidates:
+        _sources.append(f"{len(recipe_candidates)} analyzed recipe{'s' if len(recipe_candidates) != 1 else ''}")
+    _sources.append("built-in list of ~30 common protein sources")
+    state.console.print(f"  [grey62]Considered: {', '.join(_sources)}.[/grey62]")
     state.console.print("  [grey62]Ranked by grams needed (smallest first). Exception: an option that fully completes the amino acid profile is promoted to the top — but only if its serving is 50 g or less.[/grey62]")
     gap_labels = ", ".join(
         _aa_label(aa) + f" ({score:.2f})"
@@ -736,7 +798,7 @@ def _print_complement_suggestions(
         state.console.print(
             "  [grey62](No pantry items saved yet — add protein sources via Foods → My Pantry.)[/grey62]"
         )
-    elif not pantry_suggs:
+    if pantry and not pantry_suggs:
         state.console.print(
             "  [grey62](Pantry items found but none qualify: their amino acid/protein ratio "
             "for the limiting amino acid falls below the FAO reference.)[/grey62]"
@@ -755,13 +817,29 @@ def _print_complement_suggestions(
         add_verb = "Add to meal"
         pair_verb = "Serve alongside"
 
+    def _source_str(s: dict) -> str:
+        if s.get("recipe_id"):
+            return f"  [grey62]Recipe #{s['recipe_id']}[/grey62]"
+        if s.get("fdc_id"):
+            return f"  [grey62]FDC {s['fdc_id']}[/grey62]"
+        return "  [grey62]curated[/grey62]"
+
+    def _serving_hint(grams: float, serving_weight_g: float | None) -> str:
+        if not serving_weight_g or serving_weight_g <= 0:
+            return ""
+        count = grams / serving_weight_g
+        unit = "serving" if abs(count - 1.0) < 0.05 else "servings"
+        return f"{count:.1f} {unit}"
+
     def _show_suggestion(s: dict, label: str) -> None:
-        fdc_str = f"  [grey62]FDC {s['fdc_id']}[/grey62]" if s.get("fdc_id") else "  [grey62]curated[/grey62]"
         diaas_str = f"  [grey62]DIAAS {s['diaas']:.2f}[/grey62]" if s.get("diaas") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}] "
-                      f"[bold]{s['name']}[/bold]{fdc_str}{diaas_str}")
-        vol = _volume_hint(s["grams"], s["name"])
-        vol_str = f"  [grey62]({vol})[/grey62]" if vol else ""
+                      f"[bold]{s['name']}[/bold]{_source_str(s)}{diaas_str}")
+        if s.get("recipe_id"):
+            hint = _serving_hint(s["grams"], s.get("serving_weight_g"))
+        else:
+            hint = _volume_hint(s["grams"], s["name"])
+        vol_str = f"  [grey62]({hint})[/grey62]" if hint else ""
         state.console.print(f"    {add_verb}: [bold]{s['grams']}g[/bold]{vol_str}")
         # Show AA scores before → after for the most affected gaps.
         # orig_score is digestibility-adjusted (from get_aa_gaps);
@@ -832,12 +910,14 @@ def _print_complement_suggestions(
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}]  "
                       f"[bold]{foods[0]['name']}[/bold]  +  [bold]{foods[1]['name']}[/bold]{closed_str}")
         for f in foods:
-            fdc_str = f"  [grey62]FDC {f['fdc_id']}[/grey62]" if f.get("fdc_id") else ""
             diaas_str = f"  [grey62]DIAAS {f['diaas']:.2f}[/grey62]" if f.get("diaas") else ""
-            vol = _volume_hint(f["grams"], f["name"])
-            vol_str = f"  [grey62]({vol})[/grey62]" if vol else ""
+            if f.get("recipe_id"):
+                hint = _serving_hint(f["grams"], f.get("serving_weight_g"))
+            else:
+                hint = _volume_hint(f["grams"], f["name"])
+            vol_str = f"  [grey62]({hint})[/grey62]" if hint else ""
             state.console.print(f"    {add_verb}: [bold]{f['grams']}g[/bold]{vol_str}  "
-                          f"[bold]{f['name']}[/bold]{fdc_str}{diaas_str}")
+                          f"[bold]{f['name']}[/bold]{_source_str(f)}{diaas_str}")
         # Show AA scores before → after for the top gaps.
         score_parts = []
         for aa, orig_score, _ in gaps[:3]:

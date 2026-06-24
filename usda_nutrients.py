@@ -829,6 +829,8 @@ def suggest_complements(
         for cand in candidates:
             name = cand["name"]
             fdc_id = cand.get("fdc_id")
+            recipe_id = cand.get("recipe_id")
+            serving_weight_g = cand.get("serving_weight_g")
             if name in seen_names:
                 continue
             cand_nutrients = cand.get("nutrients")
@@ -847,15 +849,16 @@ def suggest_complements(
                 metrics = _score_candidate(cand_nutrients, cand_diaas, target_aa)
                 if metrics is not None:
                     break
+            extra = {"recipe_id": recipe_id, "serving_weight_g": serving_weight_g}
             if metrics is not None:
                 seen_names.add(name)
-                gap_closers.append({"name": name, "fdc_id": fdc_id, **metrics})
+                gap_closers.append({"name": name, "fdc_id": fdc_id, **extra, **metrics})
             else:
                 # Try DIAAS-improver (pooled DIAAS formula with per-food digestibilities)
                 imp = _diaas_improver_score(cand_nutrients, name, cand_diaas)
                 if imp is not None:
                     seen_names.add(name)
-                    diaas_improvers.append({"name": name, "fdc_id": fdc_id, **imp})
+                    diaas_improvers.append({"name": name, "fdc_id": fdc_id, **extra, **imp})
         # Sort gap-closers: primary-gap first, then most gaps closed, then smallest grams.
         gap_closers.sort(key=lambda r: (not r.get("closes_primary"), -r["gaps_closed"], r["grams"]))
         # Sort DIAAS-improvers: best resulting DIAAS first, then smallest grams.
@@ -910,6 +913,8 @@ def suggest_complements(
                 all_candidate_names.add(c["name"])
                 all_candidates_ordered.append({
                     "name": c["name"], "fdc_id": c.get("fdc_id"),
+                    "recipe_id": c.get("recipe_id"),
+                    "serving_weight_g": c.get("serving_weight_g"),
                     "nutrients": cand_n, "diaas": cand_d,
                 })
     for c in general_candidates:
@@ -931,6 +936,8 @@ def suggest_complements(
             a_nutrients = cand_a["nutrients"]
             a_diaas = cand_a["diaas"]
             a_fdc_id = cand_a.get("fdc_id")
+            a_recipe_id = cand_a.get("recipe_id")
+            a_serving_wt = cand_a.get("serving_weight_g")
 
             # Score A against the original primary gap.
             primary_aa = gaps[0][0]
@@ -964,6 +971,8 @@ def suggest_complements(
                 b_nutrients = cand_b["nutrients"]
                 b_diaas = cand_b["diaas"]
                 b_fdc_id = cand_b.get("fdc_id")
+                b_recipe_id = cand_b.get("recipe_id")
+                b_serving_wt = cand_b.get("serving_weight_g")
 
                 b_target_aa = gaps_after_a[0][0]
                 b_m = _score_one_complement(
@@ -987,11 +996,13 @@ def suggest_complements(
 
                 pairs.append({
                     "foods": [
-                        {"name": a_name, "fdc_id": a_fdc_id, "diaas": a_diaas,
+                        {"name": a_name, "fdc_id": a_fdc_id, "recipe_id": a_recipe_id,
+                         "serving_weight_g": a_serving_wt, "diaas": a_diaas,
                          "grams": a_m["grams"],
                          "protein_added": round(a_prot, 1),
                          "dig_added":     round(a_dig,  1)},
-                        {"name": b_name, "fdc_id": b_fdc_id, "diaas": b_diaas,
+                        {"name": b_name, "fdc_id": b_fdc_id, "recipe_id": b_recipe_id,
+                         "serving_weight_g": b_serving_wt, "diaas": b_diaas,
                          "grams": b_m["grams"],
                          "protein_added": round(b_prot, 1),
                          "dig_added":     round(b_dig,  1)},

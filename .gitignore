@@ -31,6 +31,11 @@ numa_import_claude.py
 user-manual.html
 web/home_body.cache
 
+# --- PyInstaller build artifacts ---
+build/
+dist/
+*.spec
+
 # --- The "Large Artifacts" ---
 # Exclude large data or model weights for local LLMs
 data/

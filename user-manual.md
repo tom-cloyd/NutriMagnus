@@ -1,8 +1,10 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-23:0100* / Reading 1 hour, 33 minutes
+*Updated 2026-06-23:1032* / Reading 1 hour, 46 minutes
 
-**NutriMagnus** is an open-source program for use by individuals wanting to know specifics about the nutritional value of their diet. It give a very thorough analysis of nutrition, and focuses particularly on protein.
+**NutriMagnus** is an open-source program for use by individuals wanting to know specifics about the nutritional value of their diet. It gives a very thorough analysis of nutrition, and focuses particularly on protein.
+
+**This manual is a work-in-progress.** It is modified virtually every day, as is the program itself. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. The manual also has not yet been given a careful editing; it is an advanced first draft.
 
 ---
 
@@ -20,7 +22,7 @@ The five items on the main menu correspond to the five major things you can do w
 - **Daily Summary** — View combined nutrient totals for today or any past date; compare your intake against personalized RDA targets; list recent days with meals.
 - **Settings** — Set your color theme, personal profile (age, sex, weight, height, activity level), dietary preferences, editor command, and advanced options including your USDA API key and protein digestibility overrides.
 
-Detailed how-to guides for each menu area follow later in this manual. For output samples and screenshots, see the [Output samples](#outputSamples) section.
+Detailed how-to guides for each menu area follow later in this manual. For output samples and screenshots, see the [Output samples](#outputSamples) section. If you prefer to learn by example before reading explanations, skip ahead to [Sample Workflows](#sample-workflows) at the end of this introduction — three annotated walkthroughs show the program in action from start to finish.
 
 ### NutriMagnus addresses a very specific problem
 
@@ -36,7 +38,7 @@ There are 9 protein building blocks (amino acids) that human bodies cannot make 
 
 Consider someone building a brick wall. Suppose they order a bag of cement and 500 bricks. It is likely that they will run out of cement before they run out of bricks. This is the limitation problem that is inherent in plant-based diets. While the needed amino acids do not need to all be present in a single food, or recipe, or meal, they do need to be present in approximately any given 24-hour period if the amino acid limitation problem is to be avoided. So, one way or another, one needs to tend to the issue of what is missing and where to find replacements to add it to one's diet in time.
 
-**Managing intake of plant-based proteins is tricky.** The simple fact is that few people know which foods have missing essential amino acids (EAAs) or which have the needed excess EAAs which would make them a good complement to eat with other foods lacking enough of those EAAS in the same 24-hour period.
+**NutriMagnus handles gracefully the tricky problem of managing plant-based proteins.** Few people know which foods have missing essential amino acids (EAAs) or which have the needed excess EAAs which would make them a good complement to eat with other foods lacking enough of those EAAS in the same 24-hour period.
 
 Beyond the problem of ingesting the right mix of amino acids, there are two other related dietary protein problems to be addressed:
 
@@ -44,7 +46,7 @@ Beyond the problem of ingesting the right mix of amino acids, there are two othe
 
 * Age, sex, and activity level differences in protein needs do exist and they are not minor. Older people, active people, and those with chronic diseases, for example, require substantially more protein than do younger healthy people, for several reasons. Almost all common discussions of dietary protein fail to address this problem, and in any case a mere discussion doesn't tell one what to eat and how much.
 
-### Why this problem deserves your attention
+### This protein-management problem is critical for older people and the chronically ill, and especially so for women
 
 In very brief summary, as we age, we tend to lose muscle mass, utilize dietary protein less efficiently, and simply eat less. These factors compound to create a perfect storm of vulnerability to general ill-health and the often dire consequences of falls. And these issues affect women more than men. Put simply - getting enough of the right sort of protein matters far more than most people realize. A good diet is utterly necessary, but not by itself sufficient. It must be complemented with adequate resistance exercise.
 
@@ -60,11 +62,91 @@ NutriMagnus has been under intense development and is still being developed. Tes
 
 Very recently, a Windows version of the program has been developed. It will soon be available for download and user trials. 
 
-### Can you trust NuMa?
+### Why you trust NutriMagnus
 
-NuMa has an extensive validation process, and you should know just a little about it. As of this writing (2026-06-03), there are 327 formal test that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should. A very small number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**NuMa draws on multiple data sources, and tells you which ones it used.** Nutrient data comes primarily from USDA FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, NuMa also draws on data you have built up yourself: foods saved to your Pantry, and recipes you have analyzed. For protein complement suggestions specifically, a built-in list of about 30 common protein sources fills in as a fallback when your own data doesn't cover a gap. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
-Still, as the saying goes, all programs have bugs, and this is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all fixes benefit everyone who uses the program.
+**NuMa has an extensive formal code test process.** As of this writing (2026-06-23), there are 359 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should. A very small number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+
+**Appendix I has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in NuMa and compare the result.
+
+**Problems may appear anyway.** As is well understood by professional programmers, all programs have bugs. This is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all fixes benefit everyone who uses the program.
+
+**How to report suspected errors or problem with the program:** (to be developed)
+
+---
+
+### Sample Workflows {#sample-workflows}
+
+**Three examples showing NutriMagnus in action, end to end.** Each workflow is self-contained. You do not need to read Part 2 (nutrition concepts) or Part 3 (reference) first — terms are briefly explained in place. The three examples are chosen to show progressively richer use of the program's data sources.
+
+---
+
+#### Workflow 1 — Looking up a single food and finding its protein gaps
+
+**What this shows:** how to search for a food, read its nutrient profile, and get automatic complement suggestions drawn from the built-in protein source list.
+
+**Step 1 — Open the Foods menu.** From the main menu, press `1` or type `foods`. You will see a submenu with options for searching, analyzing, comparing, and managing foods.
+
+**Step 2 — Search for a food.** Select option `1` (Search / analyze a food). Type `brown rice cooked` at the search prompt. NuMa queries USDA FoodData Central and returns a ranked list of matches. Select the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
+
+**Step 3 — Choose a portion.** After selecting the food, NuMa prompts for a serving size. Standard portion options are listed (e.g., 100 g, 1 cup). Choose `1 cup` (approximately 195 g).
+
+**Step 4 — Read the nutrient table.** NuMa displays the full nutrient profile scaled to your chosen portion: macronutrients, minerals, vitamins, and amino acids.
+
+**Step 5 — Read the protein completeness section.** Below the nutrient table, NuMa shows a per-amino-acid ratio table. Brown rice is low in lysine — its lysine score will be well below 1.0 (the FAO reference floor). This is the limiting amino acid.
+
+**Step 6 — Read the complement suggestions.** Because a gap exists, NuMa automatically shows the Protein Complement Suggestions section. The header line tells you what was considered — for example:
+
+    Considered: built-in list of ~30 common protein sources.
+
+(If you have pantry items or analyzed recipes, they appear here too.) The suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
+
+**What you learned:** NuMa can tell you not just what is in a food but what is missing — and exactly what to add to fix it.
+
+---
+
+#### Workflow 2 — Analyzing a meal with pantry items as complement candidates
+
+**What this shows:** how recording your own protein sources in the Pantry makes complement suggestions personal and practical, drawing on foods you actually have.
+
+**Step 1 — Add a food to your Pantry.** From the Foods menu, select My Pantry, then Add item. Search for `hemp seeds` and save it. This takes about thirty seconds.
+
+**Step 2 — Create a meal.** From the main menu, open Meals & Log. Create a new meal for today. Add two foods: `brown rice cooked` (1 cup) and `black beans cooked` (½ cup). Save the meal.
+
+**Step 3 — Analyze the meal.** Open the meal and select View nutrition analysis. NuMa aggregates the nutrients across both foods and shows a combined profile.
+
+**Step 4 — Read the protein completeness section.** Rice and beans together improve each other's amino acid profile significantly — this is protein complementarity in action. The combined score will be higher than either food alone.
+
+**Step 5 — Read the complement suggestions.** The header now reads something like:
+
+    Considered: 1 pantry item, built-in list of ~30 common protein sources.
+
+Hemp seeds — your pantry item — will appear in the suggestions if they qualify as a gap closer for this particular meal. Because the suggestion is drawn from your pantry, it reflects a food you actually have, not just a theoretical option.
+
+**What you learned:** Building even a small pantry of protein sources you keep on hand transforms complement suggestions from generic advice into a practical shopping and cooking guide.
+
+---
+
+#### Workflow 3 — Using an analyzed recipe as a complement candidate
+
+**What this shows:** how recipes you have analyzed become available as complement options for other foods and meals, so NuMa can suggest "add a serving of your lentil soup" rather than just "add lentils."
+
+**Step 1 — Create and analyze a recipe.** From the Recipes menu, create a simple recipe — for example, a lentil soup with lentils, onion, garlic, and vegetable broth. Add the ingredients with gram amounts. Then open the recipe and select Analyze recipe. NuMa computes the full nutrient profile, saves it, and displays protein completeness and DCP.
+
+**Step 2 — Look up a food with protein gaps.** Return to the Foods menu and analyze a portion of `corn tortilla` (2 tortillas, approximately 46 g). Corn is low in lysine and tryptophan.
+
+**Step 3 — Read the complement suggestions.** The header now reads something like:
+
+    Considered: 1 analyzed recipe, built-in list of ~30 common protein sources.
+
+Your lentil soup recipe appears as a candidate. NuMa shows how many grams of the recipe (and approximately how many servings) would close the gaps in the corn tortillas. The suggestion might read: "Add to food above: 180 g  (0.9 servings)."
+
+**Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen. A fully populated pantry and recipe collection will produce a header like:
+
+    Considered: 6 pantry items, 4 analyzed recipes, built-in list of ~30 common protein sources.
+
+**What you learned:** NuMa's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
 
 ---
 
@@ -133,7 +215,7 @@ If only DIAAS-boosting options are shown (Tier 2), the underlying problem is tha
 
 You do not need to eat complement foods at the same meal — meeting daily totals is sufficient for healthy adults. See also ?diaas and ?gap for background.
 
-Data sources: your pantry (Foods → My Pantry) is checked first; a built-in table of about 30 common protein sources is used otherwise, filtered by your dietary preferences (see ?diet).
+Data sources: your pantry (Foods → My Pantry) and any recipes you have analyzed are checked first; a built-in list of about 30 common protein sources is also always consulted as a fallback, filtered by your dietary preferences (see ?diet). The suggestion header tells you exactly which sources were considered for that run.
 
 
 ### Protein Completeness [complete]
@@ -2596,6 +2678,248 @@ BARE NUMBER
 A bare number with no unit is assumed to be grams, but NutriMagnus
 always asks for confirmation before storing it.
 
-### Note
+### Appendix I: Worked validation example — meal-level DIAAS for pinto beans + quinoa [appendix-i]
+
+This appendix lets you verify NuMa's protein quality calculation independently. Every step is shown explicitly so you can reproduce it in a spreadsheet or calculator, then compare your result with what NuMa produces when you enter these two foods as a meal.
+
+#### The two foods
+
+| Food | FDC ID | Data type | USDA source |
+|------|--------|-----------|-------------|
+| Beans, pinto, mature seeds, cooked, boiled, with salt | 173796 | SR Legacy | https://fdc.nal.usda.gov/food-details/173796/nutrients |
+| Quinoa, cooked | 168917 | SR Legacy | https://fdc.nal.usda.gov/food-details/168917/nutrients |
+
+All nutrient values below are drawn directly from those pages as of June 2026. The demo uses **100 g of each food** — round numbers that make the arithmetic easy to follow.
+
+---
+
+#### Step 1 — Individual nutrient profiles (per 100 g, from USDA)
+
+**Table I-1. Macronutrients and key micronutrients**
+
+| Nutrient | Unit | Pinto beans (FDC 173796) | Quinoa (FDC 168917) |
+|----------|------|------------------------:|--------------------:|
+| Calories | kcal | 143.0 | 120.0 |
+| Protein | g | 9.01 | 4.40 |
+| Carbohydrate | g | 26.22 | 21.30 |
+| Total fat | g | 0.65 | 1.92 |
+| Fiber | g | 9.00 | 2.80 |
+| Saturated fat | g | 0.109 | 0.231 |
+| Monounsaturated fat | g | 0.106 | 0.528 |
+| Polyunsaturated fat | g | 0.188 | 1.078 |
+| Calcium | mg | 46.0 | 17.0 |
+| Iron | mg | 2.09 | 1.49 |
+| Magnesium | mg | 50.0 | 64.0 |
+| Phosphorus | mg | 147.0 | 152.0 |
+| Potassium | mg | 436.0 | 172.0 |
+| Sodium | mg | 238.0 | 7.0 |
+| Zinc | mg | 0.98 | 1.09 |
+| Vitamin C | mg | 0.8 | 0.0 |
+| Thiamin (B1) | mg | 0.193 | 0.107 |
+| Riboflavin (B2) | mg | 0.062 | 0.110 |
+| Niacin (B3) | mg | 0.318 | 0.412 |
+| Vitamin B6 | mg | 0.229 | 0.123 |
+| Folate | mcg | 172.0 | 42.0 |
+| Vitamin E | mg | 0.94 | 0.63 |
+| Vitamin K | mcg | 3.5 | 0.0 |
+| Choline | mg | — | 23.0 |
+
+**Table I-2. Indispensable amino acids (IAAs) per 100 g**
+
+Amounts are in grams. Note that Met+Cys and Phe+Tyr are scored as *pairs* in the DIAAS methodology (see Step 3).
+
+| Amino acid | Pinto beans | Quinoa |
+|------------|------------:|-------:|
+| Histidine | 0.232 | 0.127 |
+| Isoleucine | 0.368 | 0.157 |
+| Leucine | 0.664 | 0.261 |
+| Lysine | 0.571 | 0.239 |
+| Methionine | 0.126 | 0.096 |
+| Cystine (pairs with Met) | 0.090 | 0.063 |
+| Phenylalanine | 0.450 | 0.185 |
+| Tyrosine (pairs with Phe) | 0.234 | 0.083 |
+| Threonine | 0.350 | 0.131 |
+| Tryptophan | 0.098 | 0.052 |
+| Valine | 0.435 | 0.185 |
+
+---
+
+#### Step 2 — Pooled nutrients for the meal (100 g pinto + 100 g quinoa = 200 g total)
+
+To pool, simply add the values from the two 100 g servings. The totals below represent the entire 200 g meal.
+
+**Table I-3. Pooled macros and key micronutrients (200 g meal)**
+
+| Nutrient | Pinto 100 g | Quinoa 100 g | Meal total |
+|----------|------------:|-------------:|-----------:|
+| Calories (kcal) | 143.0 | 120.0 | 263.0 |
+| Protein (g) | 9.01 | 4.40 | **13.41** |
+| Carbohydrate (g) | 26.22 | 21.30 | 47.52 |
+| Total fat (g) | 0.65 | 1.92 | 2.57 |
+| Fiber (g) | 9.00 | 2.80 | 11.80 |
+| Calcium (mg) | 46.0 | 17.0 | 63.0 |
+| Iron (mg) | 2.09 | 1.49 | 3.58 |
+| Magnesium (mg) | 50.0 | 64.0 | 114.0 |
+| Potassium (mg) | 436.0 | 172.0 | 608.0 |
+| Folate (mcg) | 172.0 | 42.0 | 214.0 |
+
+**Table I-4. Pooled IAA totals for the meal (g)**
+
+| Amino acid | Pinto 100 g | Quinoa 100 g | Meal total |
+|------------|------------:|-------------:|-----------:|
+| Histidine | 0.232 | 0.127 | 0.359 |
+| Isoleucine | 0.368 | 0.157 | 0.525 |
+| Leucine | 0.664 | 0.261 | 0.925 |
+| Lysine | 0.571 | 0.239 | 0.810 |
+| Met + Cys | 0.126 + 0.090 = 0.216 | 0.096 + 0.063 = 0.159 | **0.375** |
+| Phe + Tyr | 0.450 + 0.234 = 0.684 | 0.185 + 0.083 = 0.268 | **0.952** |
+| Threonine | 0.350 | 0.131 | 0.481 |
+| Tryptophan | 0.098 | 0.052 | 0.150 |
+| Valine | 0.435 | 0.185 | 0.620 |
+
+---
+
+#### Step 3 — Applying digestibility to get digestible IAA amounts
+
+Raw amino acid values from USDA are not all absorbed. The DIAAS methodology requires multiplying each food's IAA amounts by that food's *true ileal digestibility coefficient* — a value between 0 and 1 representing the fraction of each IAA that actually reaches the bloodstream.
+
+NuMa's digestibility values come from the FAO 2013 report and published literature. For these two foods:
+
+| Food | Digestibility coefficient | Source |
+|------|:------------------------:|--------|
+| Pinto beans | **0.80** | FAO Food and Nutrition Paper 92 (2013) |
+| Quinoa | **0.85** | Mathai et al. (2017), *British Journal of Nutrition* |
+
+To apply: multiply each food's IAA total by its coefficient. For example, for pinto beans' leucine: 0.664 × 0.80 = 0.531 g digestible leucine.
+
+**Table I-5. Digestible IAA amounts per food (g)**
+
+| Amino acid | Pinto × 0.80 | Quinoa × 0.85 | Pooled digestible |
+|------------|-------------:|--------------:|------------------:|
+| Histidine | 0.232 × 0.80 = **0.18560** | 0.127 × 0.85 = **0.10795** | **0.29355** |
+| Isoleucine | 0.368 × 0.80 = **0.29440** | 0.157 × 0.85 = **0.13345** | **0.42785** |
+| Leucine | 0.664 × 0.80 = **0.53120** | 0.261 × 0.85 = **0.22185** | **0.75305** |
+| Lysine | 0.571 × 0.80 = **0.45680** | 0.239 × 0.85 = **0.20315** | **0.65995** |
+| Met+Cys | 0.216 × 0.80 = **0.17280** | 0.159 × 0.85 = **0.13515** | **0.30795** |
+| Phe+Tyr | 0.684 × 0.80 = **0.54720** | 0.268 × 0.85 = **0.22780** | **0.77500** |
+| Threonine | 0.350 × 0.80 = **0.28000** | 0.131 × 0.85 = **0.11135** | **0.39135** |
+| Tryptophan | 0.098 × 0.80 = **0.07840** | 0.052 × 0.85 = **0.04420** | **0.12260** |
+| Valine | 0.435 × 0.80 = **0.34800** | 0.185 × 0.85 = **0.15725** | **0.50525** |
+
+---
+
+#### Step 4 — The FAO reference amounts for this meal
+
+The DIAAS method scores each pooled digestible IAA against how much of that IAA a *reference protein* of equal weight would provide. The reference values, from FAO Food and Nutrition Paper 92 (2013), Table 6, are expressed in **mg of IAA per gram of total protein** for older children, adolescents, and adults.
+
+The full table is in Appendix C of this manual. The relevant values are:
+
+| IAA | FAO reference (mg/g protein) |
+|-----|-----------------------------:|
+| Histidine | 16.0 |
+| Isoleucine | 30.0 |
+| Leucine | 61.0 |
+| Lysine | 48.0 |
+| Met+Cys | 23.0 |
+| Phe+Tyr | 41.0 |
+| Threonine | 25.0 |
+| Tryptophan | 6.6 |
+| Valine | 40.0 |
+
+The meal contains **13.41 g total protein** (9.01 + 4.40). To find how many grams of each IAA the reference protein provides for this amount of protein, multiply:
+
+    Reference amount (g) = FAO value (mg/g) × 13.41 (g protein) ÷ 1000
+
+**Table I-6. FAO reference IAA amounts for 13.41 g protein**
+
+| IAA | FAO (mg/g) | Calculation | Reference (g) |
+|-----|----------:|-------------|-------------:|
+| Histidine | 16.0 | 16.0 × 13.41 ÷ 1000 | 0.21456 |
+| Isoleucine | 30.0 | 30.0 × 13.41 ÷ 1000 | 0.40230 |
+| Leucine | 61.0 | 61.0 × 13.41 ÷ 1000 | 0.81801 |
+| Lysine | 48.0 | 48.0 × 13.41 ÷ 1000 | 0.64368 |
+| Met+Cys | 23.0 | 23.0 × 13.41 ÷ 1000 | 0.30843 |
+| Phe+Tyr | 41.0 | 41.0 × 13.41 ÷ 1000 | 0.54981 |
+| Threonine | 25.0 | 25.0 × 13.41 ÷ 1000 | 0.33525 |
+| Tryptophan | 6.6 | 6.6 × 13.41 ÷ 1000 | 0.08851 |
+| Valine | 40.0 | 40.0 × 13.41 ÷ 1000 | 0.53640 |
+
+---
+
+#### Step 5 — IAA ratios and the composite DIAAS score
+
+For each IAA, divide the pooled digestible amount (from Table I-5) by the reference amount (from Table I-6). The result is a ratio: a value ≥ 1.0 means the meal meets or exceeds the reference for that IAA; below 1.0 means it falls short.
+
+    Ratio = pooled digestible IAA (g) ÷ FAO reference IAA (g)
+
+**Table I-7. IAA ratios vs. FAO reference**
+
+| IAA | Pooled dig. (g) | Reference (g) | Ratio | Meets reference? |
+|-----|----------------:|--------------:|------:|:----------------:|
+| Histidine | 0.29355 | 0.21456 | 1.368 | Yes |
+| Isoleucine | 0.42785 | 0.40230 | 1.063 | Yes |
+| **Leucine** | **0.75305** | **0.81801** | **0.921** | **No — limiting** |
+| Lysine | 0.65995 | 0.64368 | 1.025 | Yes |
+| Met+Cys | 0.30795 | 0.30843 | 0.998 | Marginal (99.8%) |
+| Phe+Tyr | 0.77500 | 0.54981 | 1.410 | Yes |
+| Threonine | 0.39135 | 0.33525 | 1.167 | Yes |
+| Tryptophan | 0.12260 | 0.08851 | 1.385 | Yes |
+| Valine | 0.50525 | 0.53640 | 0.942 | No |
+
+The **composite DIAAS score is the lowest ratio** — the *limiting* amino acid determines the ceiling for all the others, because when one IAA runs out, the others cannot be used for protein synthesis.
+
+    Composite DIAAS = min(all ratios) = 0.921   (limited by Leucine)
+
+A DIAAS of 0.921 means this meal delivers about 92% of the protein quality of a reference protein. It also means the **digestible complete protein** for this 200 g meal is:
+
+    DCP = 13.41 g × min(0.921, 1.0) = 12.35 g
+
+---
+
+#### Step 6 — Interpreting the result
+
+A composite DIAAS ≥ 1.0 means the meal's protein is fully complete relative to the FAO reference. Values below 1.0 indicate partial completeness — the lower the value, the more the limiting amino acid constrains usable protein.
+
+For this meal:
+
+- **Leucine** is the limiting IAA at 0.921. This is not surprising: leucine is the most abundant IAA in animal proteins, but plant proteins generally provide less of it relative to total protein.
+- **Valine** is also below reference at 0.942. The combination of one legume and one pseudo-cereal improves but does not fully resolve either gap.
+- **Lysine**, which is the classic weak point of grains, is met here (1.025) — the pinto beans contribute the lysine that quinoa alone would not cover.
+- **Met+Cys** is nearly exactly met at 0.998 — essentially at the reference.
+
+The DCP of 12.35 g from 13.41 g of raw protein means that roughly 1.06 g of protein per meal is rendered non-contributory by the leucine shortfall. In practical terms, this is a high-quality plant-protein meal — DIAAS above 0.9 is considered "good quality" by the FAO.
+
+---
+
+#### Step 7 — Reproduce this in NuMa and compare
+
+To run the same analysis in NuMa:
+
+1. From the main menu, select **Meals & Log**.
+2. Create a new meal and add two foods:
+   - Search for **pinto beans cooked** → select FDC 173796
+     ("Beans, pinto, mature seeds, cooked, boiled, with salt")
+   - Enter a portion of **100 g**
+   - Add a second food: search for **quinoa cooked** → select FDC 168917
+     ("Quinoa, cooked")
+   - Enter a portion of **100 g**
+3. Save the meal, then open it and select **View nutrition analysis**.
+4. In the analysis screen, scroll to the **Protein quality** section.
+
+NuMa will display:
+- Total protein
+- Composite DIAAS score
+- Digestible complete protein (DCP)
+- A per-IAA ratio table identifying the limiting amino acid
+
+Compare the values NuMa shows with those in Table I-7 above. They should match to at least three significant figures. If they do not, please report the discrepancy at the project issue tracker.
+
+---
+
+### Notes
 
 [^1]: Lippman, D., Stump, M., Veazey, E., Guimarães, S. T., Rosenfeld, R., Kelly, J. H., Ornish, D., & Katz, D. L. (2024). Foundations of Lifestyle Medicine and its Evolution. *Mayo Clinic Proceedings: Innovations, Quality & Outcomes, 8(1)*, 97–111. https://doi.org/10.1016/j.mayocpiqo.2023.11.004
+
+[^2]: U.S. Department of Agriculture, Agricultural Research Service. (2019). *FoodData Central*. https://fdc.nal.usda.gov/
+
+[^3]: Open Food Facts contributors. (2012). *Open Food Facts*. https://world.openfoodfacts.org/

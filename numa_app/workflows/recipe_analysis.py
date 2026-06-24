@@ -426,6 +426,13 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             else:
                 analysis_nutrients = combined
 
+        # Cache per-100g nutrients for complement suggestions (needs total_weight)
+        _cache_wt_g = _recipe_weight_to_g(recipe["total_weight"], recipe["total_weight_unit"])
+        if _cache_wt_g and _cache_wt_g > 0 and not no_servings:
+            _cache_per100g = {k: v / _cache_wt_g * 100 for k, v in combined.items()}
+            with _db.get_db() as conn:
+                _db.recipe_save_nutrients(conn, recipe["id"], json.dumps(_cache_per100g))
+
         # Compute DCP, save to DB, and display it as a summary line
         now_utc = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat()
         # When servings=0 the "per serving" concept doesn't apply; treat as 1 for math.

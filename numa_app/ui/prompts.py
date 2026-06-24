@@ -165,7 +165,7 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         hint_parts.append(f"[{state.T['choice']}]({'|'.join(choices)})[/{state.T['choice']}]")
     if default is not _NO_DEFAULT and default not in ("", None):
         hint_parts.append(
-            f"(Press enter to keep [{state.T['default_hint']}]{default}[/{state.T['default_hint']}])"
+            f"([{state.T['default_hint']}]{default}[/{state.T['default_hint']}])"
         )
     hint = (" " + " ".join(hint_parts)) if hint_parts else ""
     if two_line:
@@ -190,7 +190,7 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
             termios.tcflush(fd, termios.TCIFLUSH)
             while True:
                 try:
-                    ch = sys.stdin.read(1)
+                    ch = _os.read(fd, 1).decode("ascii", errors="replace")
                 except KeyboardInterrupt:
                     state.console.print()
                     raise Cancelled
@@ -229,7 +229,7 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         tty.setcbreak(fd)
         while True:
             try:
-                ch = sys.stdin.read(1)
+                ch = _os.read(fd, 1).decode("ascii", errors="replace")
             except KeyboardInterrupt:
                 state.console.print()
                 raise Cancelled
@@ -271,7 +271,7 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
                 sys.stdout.write("#")
                 sys.stdout.flush()
                 try:
-                    ch2 = sys.stdin.read(1)
+                    ch2 = _os.read(fd, 1).decode("ascii", errors="replace")
                 except KeyboardInterrupt:
                     state.console.print()
                     raise Cancelled

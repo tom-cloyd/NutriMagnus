@@ -251,6 +251,11 @@ def init_db() -> None:
             )
         """)
 
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN nutrients_json TEXT")
+        except sqlite3.OperationalError:
+            pass
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
@@ -404,6 +409,18 @@ def recipe_set_dcp(
     conn.execute(
         "UPDATE recipes SET dcp_g = ?, dcp_computed_at = ? WHERE id = ?",
         (dcp_g, computed_at, recipe_id),
+    )
+
+
+def recipe_save_nutrients(
+    conn: sqlite3.Connection,
+    recipe_id: int,
+    nutrients_json_str: str,
+) -> None:
+    """Cache per-100g nutrient profile for a recipe (used for complement suggestions)."""
+    conn.execute(
+        "UPDATE recipes SET nutrients_json = ? WHERE id = ?",
+        (nutrients_json_str, recipe_id),
     )
 
 
