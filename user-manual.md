@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-23:1032* / Reading 1 hour, 46 minutes
+*Updated 2026-06-23:1945* / Reading 1 hour, 46 minutes
 
 **NutriMagnus** is an open-source program for use by individuals wanting to know specifics about the nutritional value of their diet. It gives a very thorough analysis of nutrition, and focuses particularly on protein.
 
@@ -509,6 +509,36 @@ those rows.
 Type ?rda for a general overview of where these values come from.
 
 ## Part 3 — Using NutriMagnus
+### Installation
+
+#### Windows
+
+Note: the Windows version is coming soon. When available, installation will be as follows:
+
+1. Go to https://codeberg.org/Tom_Cloyd/NutriMagnus/releases/latest
+2. Click **nutrimagnus.exe** to download it
+3. Double-click the downloaded file to launch the program
+
+No installation steps are required — the program runs directly from the downloaded file. If Windows displays a security warning ("Windows protected your PC"), click **More info** then **Run anyway**. This warning appears because the program is not yet signed with a commercial certificate; it is safe to proceed.
+
+#### Linux
+
+1. Go to https://codeberg.org/Tom_Cloyd/NutriMagnus/releases/latest
+2. Click **nutrimagnus** to download it
+3. Open a terminal and navigate to your Downloads folder:
+
+        cd ~/Downloads
+
+4. Make the file runnable (one-time step):
+
+        chmod +x nutrimagnus
+
+5. Launch the program:
+
+        ./nutrimagnus
+
+---
+
 ### Getting help
 
 NutriMagnus displays a help footer at the bottom of tables and analysis
@@ -1178,19 +1208,6 @@ Type ?meal-diaas to see where this value appears in the analysis output.
 Type ?diaas for background on true ileal digestibility.
 
 ---
-
-
----
-
-### *Installation
-
-#### Windows
-
-(to be completed)
-
-#### Linux
-
-(to be completed)
 
 ### Menu navigation
 
