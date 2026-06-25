@@ -5,10 +5,11 @@ Docs: README-numa-documentation.md, Project Structure
 import json
 import pathlib
 
+import platform_utils as _platform_utils
 from .. import state
 from ..ui.prompts import Cancelled, _prompt
 
-_PREFS_FILE = pathlib.Path.home() / ".local" / "share" / "numa" / "prefs.json"
+_PREFS_FILE = _platform_utils.get_data_dir() / "prefs.json"
 
 
 _VALID_DIET_PREFS = {"all", "vegetarian", "plant_only"}

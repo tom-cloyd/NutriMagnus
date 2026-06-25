@@ -3,16 +3,29 @@ prompts.py — _prompt() and input primitives: Cancelled, ReturnToMain, _ask_flo
 Docs: README-numa-documentation.md, Architecture: "numa_app/ui/prompts.py — input primitives"
 """
 import os as _os
-import readline
-import select as _select
 import sys
-import termios
-import tty
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from .. import state
+
+# ── Platform-specific terminal control ──────────────────────────────────────
+_WINDOWS = sys.platform == "win32"
+
+if _WINDOWS:
+    import msvcrt as _msvcrt
+else:
+    import select as _select
+    import termios
+    import tty
+
+# readline is Unix-only; on Windows we degrade gracefully (no prefill, no hook)
+try:
+    import readline
+    _HAS_READLINE = True
+except ImportError:
+    _HAS_READLINE = False
 
 
 class Cancelled(Exception):
@@ -58,15 +71,11 @@ def _append_input_history(entry: str) -> None:
 
 
 def _read_escape_seq() -> str:
-    """Read the bytes that follow an ESC character.
-    Returns the sequence string (usually '[A'–'[D' for arrow keys), or '' if
-    nothing arrives within the timeout (bare ESC key press).
-    Drains any extended bytes beyond the first two so they never leak into the
-    next prompt (e.g. ESC[1;5D sent by some terminals for ctrl+arrow).
-
-    Uses os.read() directly on the file descriptor to bypass Python's IO
-    buffering layers entirely — avoids race conditions with TextIOWrapper and
-    BufferedReader internal buffers."""
+    """Read the bytes that follow an ESC character, return the sequence string.
+    Returns '' if nothing arrives within the timeout (bare ESC press).
+    On Windows uses msvcrt extended-key detection instead of select()."""
+    if _WINDOWS:
+        return _read_escape_seq_windows()
     fd = sys.stdin.fileno()
     r, _, _ = _select.select([fd], [], [], 0.15)
     if not r:
@@ -85,6 +94,21 @@ def _read_escape_seq() -> str:
         except OSError:
             break
     return chunk[:2].decode("ascii", errors="replace")
+
+
+def _read_escape_seq_windows() -> str:
+    """Windows: translate msvcrt extended-key codes to Unix-like '[A'/'[B' sequences."""
+    if not _msvcrt.kbhit():
+        return ""
+    ch = _msvcrt.getwch()
+    if ch in ('\xe0', '\x00'):
+        if _msvcrt.kbhit():
+            ch2 = _msvcrt.getwch()
+            if ch2 == 'H':   # up arrow
+                return "[A"
+            if ch2 == 'P':   # down arrow
+                return "[B"
+    return ""
 
 
 def _show_help(ref: str) -> None:
@@ -135,11 +159,12 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
     if prefill and default is not _NO_DEFAULT and default not in ("", None) and not choices:
         _prefill_text = str(default)
 
-        def _hook() -> None:
-            readline.insert_text(_prefill_text)
-            readline.redisplay()
+        if _HAS_READLINE:
+            def _hook() -> None:
+                readline.insert_text(_prefill_text)
+                readline.redisplay()
+            readline.set_pre_input_hook(_hook)
 
-        readline.set_pre_input_hook(_hook)
         if two_line:
             state.console.print(f"  {prompt_text}:", highlight=False)
             _input_prompt = "  "
@@ -156,7 +181,8 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
             sys.stdout.flush()
             raise Cancelled
         finally:
-            readline.set_pre_input_hook(None)
+            if _HAS_READLINE:
+                readline.set_pre_input_hook(None)
         stripped = result.strip()
         return stripped if (stripped or allow_empty) else default
 
@@ -175,6 +201,17 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         state.console.print(f"{prompt_text}{hint}: ", end="", highlight=False)
     sys.stdout.flush()
 
+    # ── Windows path: msvcrt for single-keypress, input() for free-text ──────
+    if _WINDOWS:
+        if choices:
+            return _win_single_keypress(choices, default)
+        result = _win_freetext(default, slash_max)
+        _append_input_history(result)
+        if result == "" and default is not _NO_DEFAULT and default not in (None,):
+            return str(default)
+        return result
+
+    # ── Unix path ─────────────────────────────────────────────────────────────
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
 
@@ -315,6 +352,58 @@ def _prompt_once(prompt_text: str, *, default: Any = _NO_DEFAULT, choices: list[
         _append_input_history(result)
     if result == "" and default is not _NO_DEFAULT and default not in (None,):
         return str(default)
+    return result
+
+
+def _win_single_keypress(choices: list[str], default: Any) -> str:
+    """Windows single-keypress input using msvcrt.getwch()."""
+    choices_lower = [c.lower() for c in choices]
+    while True:
+        ch = _msvcrt.getwch()
+        if ch in ('\x03', '\x04'):
+            state.console.print()
+            raise Cancelled
+        if ch == '\x1b':
+            _read_escape_seq_windows()  # drain any extended bytes
+            state.console.print()
+            raise Cancelled
+        if ch in ('\xe0', '\x00'):
+            # Extended key (arrow, F-key, etc.) — drain the second byte and ignore
+            _msvcrt.getwch()
+            continue
+        if ch in ('\r', '\n'):
+            if default is not _NO_DEFAULT and default not in (None,):
+                state.console.print()
+                return str(default)
+            continue
+        ch_low = ch.lower()
+        if ch_low in choices_lower:
+            sys.stdout.write(ch_low)
+            sys.stdout.flush()
+            state.console.print()
+            return ch_low
+        # Invalid character: ignore silently.
+
+
+def _win_freetext(default: Any, slash_max: int) -> str:
+    """Windows free-text input using input(). Loses up-arrow history; everything else works."""
+    try:
+        result = input()
+    except (KeyboardInterrupt, EOFError):
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        raise Cancelled
+    result = result.strip()
+
+    if result == "" and default is not _NO_DEFAULT and default not in (None,):
+        return str(default)
+
+    # Support #N quick-select on Windows (user types e.g. "#3" and presses Enter)
+    if slash_max > 0 and result.startswith("#") and len(result) == 2:
+        ch2 = result[1]
+        if ch2.isdigit() and 1 <= int(ch2) <= slash_max:
+            return result  # return "#N" as-is, same as Unix path
+
     return result
 
 

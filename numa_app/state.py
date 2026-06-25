@@ -8,6 +8,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from rich.console import Console
 
+import platform_utils as _platform_utils
+_config_dir = _platform_utils.get_config_dir()
+
 
 THEMES: dict[str, dict[str, str]] = {
     "dark": {
@@ -52,8 +55,8 @@ class AppContext:
     theme_name: str = "dark"
     theme: dict[str, str] = field(default_factory=lambda: THEMES["dark"].copy())
     diet_pref: str = "all"  # "all" | "vegetarian" | "plant_only"
-    theme_file: Path = Path.home() / ".config" / "numa" / "theme"
-    prefs_file: Path = Path.home() / ".config" / "numa" / "prefs.json"
+    theme_file: Path = field(default_factory=lambda: _platform_utils.get_config_dir() / "theme")
+    prefs_file: Path = field(default_factory=lambda: _platform_utils.get_config_dir() / "prefs.json")
 
 
 app_ctx = AppContext()

@@ -1,7 +1,7 @@
 """
 db.py — SQLite database for numa nutritional analysis program.
 
-Database location: ~/.local/share/numa/numa.db
+Database location: ~/.local/share/numa/numa.db (Linux) / %LOCALAPPDATA%/numa/numa.db (Windows)
 Docs: README-numa-documentation.md, Architecture: "db.py — SQLite database"
 """
 
@@ -11,7 +11,9 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Generator
 
-_DB_PATH = pathlib.Path.home() / ".local" / "share" / "numa" / "numa.db"
+import platform_utils as _platform_utils
+
+_DB_PATH = _platform_utils.get_data_dir() / "numa.db"
 
 
 def get_db_path() -> pathlib.Path:

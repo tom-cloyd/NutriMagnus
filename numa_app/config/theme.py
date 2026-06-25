@@ -4,10 +4,11 @@ Docs: README-numa-documentation.md, Project Structure
 """
 import pathlib
 
+import platform_utils as _platform_utils
 from .. import state
 from ..ui.prompts import _prompt
 
-_THEME_FILE = pathlib.Path.home() / ".local" / "share" / "numa" / "theme"
+_THEME_FILE = _platform_utils.get_data_dir() / "theme"
 
 
 def _detect_terminal_theme() -> str:

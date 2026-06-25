@@ -18,7 +18,9 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Optional
 
-_CONFIG_DIR      = pathlib.Path.home() / ".config" / "numa"
+import platform_utils as _platform_utils
+
+_CONFIG_DIR      = _platform_utils.get_config_dir()
 _LEGACY_FILE     = _CONFIG_DIR / "profile.json"
 _PROFILES_DIR    = _CONFIG_DIR / "profiles"
 _ACTIVE_NAME_FILE = _CONFIG_DIR / "active_profile.txt"

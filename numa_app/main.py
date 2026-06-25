@@ -44,7 +44,9 @@ def _launch_web() -> None:
             _web_proc.terminate()
             _web_proc.wait()
         else:
-            subprocess.run(["fuser", "-k", "8000/tcp"], capture_output=True)
+            # fuser is Linux-only; on Windows we skip the kill (rare edge case)
+            if sys.platform != "win32":
+                subprocess.run(["fuser", "-k", "8000/tcp"], capture_output=True)
         import time
         time.sleep(0.8)
     _web_proc = subprocess.Popen(
