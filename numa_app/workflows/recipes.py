@@ -177,31 +177,28 @@ def _compute_recipe_dcp(rid: int) -> float | None:
     return total_digestible
 
 
-def _compute_recipe_protein_summary(rid: int) -> tuple[float, float | None]:
-    """Return (raw_protein_g, dcp_g) for an entire recipe, including nested sub-recipes.
+def _compute_recipe_protein_summary(rid: int) -> tuple[float, float | None, bool]:
+    """Return (raw_protein_g, dcp_g, minor_skipped) for an entire recipe, including nested sub-recipes.
     raw_protein_g is 0.0 if no ingredient data is cached.
-    dcp_g is None when AA profile data is unavailable for any ingredient with protein."""
+    dcp_g is None when AA profile data is unavailable for any significant ingredient with protein.
+    minor_skipped is True when one or more low-protein ingredients (<1 g and <5% of total) lacked
+    DIAAS data and were excluded from the DCP calculation rather than blocking it."""
     with _db.get_db() as conn:
         ingredients = _db.recipe_get_ingredients(conn, rid)
 
-    raw_protein = 0.0
-    total_digestible = 0.0
-    has_protein = False
-    dcp_available = True
-
+    # First pass: collect per-ingredient protein and DIAAS data.
+    ing_data: list[dict] = []
     for ing in ingredients:
         if ing["ref_recipe_id"]:
-            sub_raw, sub_dcp = _compute_recipe_protein_summary(ing["ref_recipe_id"])
+            sub_raw, sub_dcp, _ = _compute_recipe_protein_summary(ing["ref_recipe_id"])
             with _db.get_db() as conn:
                 sub_recipe = _db.recipe_get(conn, ing["ref_recipe_id"])
             if sub_recipe and sub_recipe["servings"] > 0:
                 portion = ing["amount"] / sub_recipe["servings"]
-                raw_protein += sub_raw * portion
-                if sub_dcp is not None:
-                    has_protein = True
-                    total_digestible += sub_dcp * portion
-                else:
-                    dcp_available = False
+                ing_data.append({
+                    "protein_g": sub_raw * portion,
+                    "diaas_contrib": sub_dcp * portion if sub_dcp is not None else None,
+                })
             continue
         _refresh_cache_if_missing_aa(ing["fdc_id"])
         with _db.get_db() as conn:
@@ -212,17 +209,36 @@ def _compute_recipe_protein_summary(rid: int) -> tuple[float, float | None]:
             json.loads(cached["nutrients_json"]), ing["amount"], base_size=100.0
         )
         p = scaled.get("protein_g", 0.0)
-        raw_protein += p
-        if p > 0:
-            has_protein = True
-            diaas = _usda.get_diaas(ing["food_name"])
-            if diaas is not None:
-                total_digestible += p * diaas
+        diaas = _usda.get_diaas(ing["food_name"]) if p > 0 else None
+        ing_data.append({
+            "protein_g": p,
+            "diaas_contrib": p * diaas if (p > 0 and diaas is not None) else None,
+        })
+
+    raw_protein = sum(d["protein_g"] for d in ing_data)
+
+    # Second pass: compute DCP, treating minor contributors without DIAAS as skippable.
+    total_digestible = 0.0
+    has_protein = False
+    dcp_available = True
+    minor_skipped = False
+
+    for d in ing_data:
+        p = d["protein_g"]
+        if p <= 0:
+            continue
+        has_protein = True
+        if d["diaas_contrib"] is not None:
+            total_digestible += d["diaas_contrib"]
+        else:
+            is_minor = p < 1.0 and (raw_protein > 0 and p / raw_protein < 0.05)
+            if is_minor:
+                minor_skipped = True
             else:
                 dcp_available = False
 
     dcp_g = total_digestible if (has_protein and dcp_available) else None
-    return (raw_protein, dcp_g)
+    return (raw_protein, dcp_g, minor_skipped)
 
 
 def _compute_recipe_gl(rid: int) -> tuple[float, list[str]]:

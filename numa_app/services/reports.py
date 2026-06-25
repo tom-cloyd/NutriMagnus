@@ -61,7 +61,7 @@ def _offer_export(report_title: str, sections: list[dict]) -> None:
                 ("txt", "Export a copy as plain text"),
                 ("md",  "Export a copy as markdown"),
                 ("html","Export a copy as HTML"),
-                ("Enter", "Skip"),
+                ("Enter / b", "Skip"),
             ],
             default="",
         )

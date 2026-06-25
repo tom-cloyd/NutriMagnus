@@ -658,7 +658,6 @@ def _search_and_pick_food(
                 state.console.print()
                 table_title("Food cache")
                 state.console.print(_ctbl)
-                help_footer("food-cache")
 
                 _cache_recipes = prepend_recipes or []
                 if _cache_recipes:
@@ -675,6 +674,7 @@ def _search_and_pick_food(
                         "  [grey62]DCP ✓ = digestible complete protein score computed for this recipe[/grey62]",
                         highlight=False,
                     )
+                help_footer("food-cache")
 
                 state.console.print()
 

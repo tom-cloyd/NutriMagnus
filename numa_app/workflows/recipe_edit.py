@@ -229,11 +229,12 @@ def _do_recipe_edit(recipe=None) -> None:
                 tbl.add_row(*row)
             state.console.print(tbl)
             table_footer(f"  {ID_KEY}")
-            _raw_prot, _dcp = _compute_recipe_protein_summary(rid)
+            _raw_prot, _dcp, _minor_skipped = _compute_recipe_protein_summary(rid)
             _dcp_str = f"{_dcp:.1f} g" if _dcp is not None else "[grey62]— (AA data missing)[/grey62]"
+            _minor_note = "  [grey62](minor ingredients w/o AA data excluded)[/grey62]" if (_dcp is not None and _minor_skipped) else ""
             state.console.print(
                 f"  [grey62]Protein:[/grey62]  raw {_raw_prot:.1f} g  "
-                f"[grey62]·[/grey62]  complete (DCP) {_dcp_str}"
+                f"[grey62]·[/grey62]  complete (DCP) {_dcp_str}{_minor_note}"
             )
             help_footer("recipe-ingredients")
         else:

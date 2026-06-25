@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-23:1945* / Reading 1 hour, 46 minutes
+*Updated 2026-06-24:1908* / Reading 1 hour, 46 minutes
 
 **NutriMagnus** is an open-source program for use by individuals wanting to know specifics about the nutritional value of their diet. It gives a very thorough analysis of nutrition, and focuses particularly on protein.
 
@@ -56,13 +56,13 @@ There is very little discussion of the problem in the mass media. So, it is up t
 
 These are technical problems that are beyond the ability of ordinary people to solve well. An easy-to-use, freely available computer program will go far toward solving this problem. This is what this project is about.
 
-Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the reach features and readily modifiable design that I have wanted. The NutriMagnus program addresses both problems in detail. It also suggests complementary foods that can be combined with a food or recipe or meal to create complete proteins in one's diet.
+Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the rich features and readily modifiable design that I want. The NutriMagnus program addresses both problems in detail. It also suggests complementary foods that can be combined with a food or recipe or meal to create complete proteins in one's diet.
 
-NutriMagnus has been under intense development and is still being developed. Testing is well along, but not complete. Validation of the computations it offers is likewise well along but not complete. I am using it now for daily diet planning and its usefulness has exceeded my expectations. At the same time, I continue to see and resolve bugs - now mostly in the interface a user sees.
+NutriMagnus has been under intense development and is still being developed. Over time, new users will expertience unanticipated needs and the program can be further developed to meet them. This is one reason why [reporting problems](#feedback) is so important - feedback drives program development.
 
 Very recently, a Windows version of the program has been developed. It will soon be available for download and user trials. 
 
-### Why you trust NutriMagnus
+### Why you can trust NutriMagnus (NuMa)
 
 **NuMa draws on multiple data sources, and tells you which ones it used.** Nutrient data comes primarily from USDA FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, NuMa also draws on data you have built up yourself: foods saved to your Pantry, and recipes you have analyzed. For protein complement suggestions specifically, a built-in list of about 30 common protein sources fills in as a fallback when your own data doesn't cover a gap. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
@@ -70,7 +70,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **Appendix I has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in NuMa and compare the result.
 
-**Problems may appear anyway.** As is well understood by professional programmers, all programs have bugs. This is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all fixes benefit everyone who uses the program.
+**Problems may appear anyway.** As professional programmers will tell you, all programs have bugs. This is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all fixes benefit everyone who uses the program.
 
 **How to report suspected errors or problem with the program:** (to be developed)
 
@@ -80,11 +80,13 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **Three examples showing NutriMagnus in action, end to end.** Each workflow is self-contained. You do not need to read Part 2 (nutrition concepts) or Part 3 (reference) first — terms are briefly explained in place. The three examples are chosen to show progressively richer use of the program's data sources.
 
+**Use this as a tutorial!** With Numa installed and launching successfully, work through any of the following workflows step by step, paying close attention to the step instructions, and what it produces on your screen. You will become familiar with the program quickly doing this.
+
 ---
 
 #### Workflow 1 — Looking up a single food and finding its protein gaps
 
-**What this shows:** how to search for a food, read its nutrient profile, and get automatic complement suggestions drawn from the built-in protein source list.
+**What this shows:** how to search for a food, read its nutrient profile, and get automatic protein complement suggestions drawn from the built-in protein source list.
 
 **Step 1 — Open the Foods menu.** From the main menu, press `1` or type `foods`. You will see a submenu with options for searching, analyzing, comparing, and managing foods.
 
@@ -542,7 +544,7 @@ No installation steps are required — the program runs directly from the downlo
 ### Getting help
 
 NutriMagnus displays a help footer at the bottom of tables and analysis
-output whenever additional context is available. It looks like this:
+output whenever additional context is available. It looks like this (this is just an example):
 
 > At any prompt, type `?diaas` or `?dcp` for help with these columns.
 
@@ -2154,7 +2156,7 @@ When you analyze a meal for the first time, you may see a "Fetching amino acid d
 
 ---
 
-### *Troubleshooting — what to do if you have a problem
+### *Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 
 (Under development)
 

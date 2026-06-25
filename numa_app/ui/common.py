@@ -3,6 +3,7 @@ common.py — menu rendering, safe dispatch, and table formatting helpers (dot_c
 Docs: README-numa-documentation.md, Architecture: "numa_app/ui/common.py — menu rendering and safe dispatch"
 """
 import os
+import shutil
 import subprocess
 import tempfile
 from typing import Any, Callable
@@ -125,7 +126,7 @@ def _open_in_editor(text: str = "") -> str:
     if not cmd:
         # last-resort fallbacks
         for fallback in ("nano", "vi"):
-            if subprocess.run(["which", fallback], capture_output=True).returncode == 0:
+            if shutil.which(fallback) is not None:
                 cmd = fallback
                 break
     if not cmd:
@@ -141,6 +142,19 @@ def _open_in_editor(text: str = "") -> str:
             tf_path = tf.name
         # Split to handle commands like "code --wait"
         cmd_parts = cmd.split() + [tf_path]
+        _hint_map = {
+            "micro": "Ctrl+S = save  ·  Ctrl+Q = quit",
+            "nano":  "Ctrl+O = save  ·  Ctrl+X = quit",
+            "vim":   ":wq = save and quit  ·  :q! = quit without saving",
+            "vi":    ":wq = save and quit  ·  :q! = quit without saving",
+            "nvim":  ":wq = save and quit",
+            "helix": "Ctrl+S = save  ·  :q = quit",
+            "hx":    "Ctrl+S = save  ·  :q = quit",
+        }
+        _ename = os.path.basename(cmd_parts[0]).lower()
+        _hint = next((v for k, v in _hint_map.items() if k in _ename), None)
+        if _hint:
+            state.console.print(f"  [grey62]({_hint})[/grey62]")
         subprocess.run(cmd_parts, check=False)
         with open(tf_path, encoding="utf-8") as f:
             result = f.read()
