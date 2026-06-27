@@ -270,7 +270,7 @@ def _do_recipe_edit(recipe=None) -> None:
         elif choice == "1":
             state.console.print()
             try:
-                query = _prompt("Search food or recipe  [grey62](name · FDC ID · barcode · b=back)[/grey62]", free_text=True).strip()
+                query = _prompt("Search food or recipe  [grey62](name · FDC ID · barcode · Enter/b=back)[/grey62]", free_text=True).strip()
             except Cancelled:
                 continue
             ql = query.lower()

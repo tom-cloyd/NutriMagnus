@@ -72,7 +72,7 @@ def _menu_foods() -> bool:
 def _do_food_search() -> None:
     try:
         query = _prompt(
-            "Search food or recipe  [grey62](name · FDC ID · barcode · b=back · dout <id…>=output data)[/grey62]",
+            "Search food or recipe  [grey62](name · FDC ID · barcode · Enter/b=back · dout <id…>=output data)[/grey62]",
             free_text=True,
         ).strip()
     except Cancelled:
@@ -143,7 +143,7 @@ def _do_food_search() -> None:
 def _do_analyze_food_portion() -> None:
     try:
         query = _prompt(
-            "Search food or recipe  [grey62](name · FDC ID · barcode · b=back)[/grey62]",
+            "Search food or recipe  [grey62](name · FDC ID · barcode · Enter/b=back)[/grey62]",
             free_text=True,
         ).strip()
     except Cancelled:

@@ -621,6 +621,9 @@ class TestMealsMenu:
 
     def test_pct_goal_dash_without_profile(self, runner: NumaTestRunner, monkeypatch, cached_food):
         """Without a profile the % goal cell stays '—' after p is pressed."""
+        # Remove the Default profile the autouse fixture created so there's truly no profile.
+        for f in _profile._PROFILES_DIR.glob("*.json"):
+            f.unlink()
         self._setup_complete_meal(runner, monkeypatch)
         runner.invoke(input="3\np\nb\nq\n")
         with _db.get_db() as conn:
@@ -628,10 +631,9 @@ class TestMealsMenu:
         assert row["day_pct_goal"] is None
 
     def test_pct_goal_computed_with_profile(
-        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+        self, runner: NumaTestRunner, monkeypatch, cached_food
     ):
         """With a profile set, p stores a positive day_pct_goal and renders it in the table."""
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
         # Set up profile: age=35, sex=m, weight=80 kg, height=178 cm, activity=3
         runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         self._setup_complete_meal(runner, monkeypatch)
@@ -647,10 +649,9 @@ class TestMealsMenu:
         assert "grams" in result.output
 
     def test_pct_goal_shown_only_on_topmost_row(
-        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+        self, runner: NumaTestRunner, monkeypatch, cached_food
     ):
         """% goal appears exactly once per date — on the topmost row only."""
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
         runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         self._setup_complete_meal(runner, monkeypatch, name="Breakfast")
         runner.invoke(
@@ -664,10 +665,9 @@ class TestMealsMenu:
         assert result.output.count(pct_str) == 1
 
     def test_pct_goal_persists_across_sessions(
-        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+        self, runner: NumaTestRunner, monkeypatch, cached_food
     ):
         """day_pct_goal stored by p is visible in a later session without re-running p."""
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
         runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         self._setup_complete_meal(runner, monkeypatch)
         runner.invoke(input="3\np\nb\nq\n")
@@ -698,8 +698,8 @@ class TestSummaryMenu:
         _mock_api(monkeypatch)
         # Log a meal on a known date
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
-        # View summary for that date
-        result = runner.invoke(input="4\n2\n2025-03-15\nb\nq\n")
+        # View summary for that date; 'n' declines the RDA comparison shown when a profile exists
+        result = runner.invoke(input="4\n2\n2025-03-15\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "Calories" in result.output
         assert "Protein" in result.output
@@ -725,8 +725,8 @@ class TestSettingsMenu:
     def test_set_api_key(self, runner: NumaTestRunner, tmp_path, monkeypatch):
         config_file = tmp_path / "config.json"
         monkeypatch.setattr(_usda_api, "_CONFIG_FILE", config_file)
-        # Settings: 7 (Advanced) → 2 (API key) → enter key → b (back from advanced) → b → q
-        result = runner.invoke(input="5\n7\n2\nMYNEWKEY\nb\nb\nq\n")
+        # Settings: 8 (Advanced) → 2 (API key) → enter key → b (back from advanced) → b → q
+        result = runner.invoke(input="5\n8\n2\nMYNEWKEY\nb\nb\nq\n")
         assert result.exit_code == 0
         assert "saved" in result.output.lower()
         assert config_file.exists()
@@ -818,54 +818,48 @@ class TestUserProfileSettings:
         assert result.exit_code == 0
         assert "profile" in result.output.lower()
 
-    def test_set_profile_saves_file(self, runner: NumaTestRunner, tmp_path, monkeypatch):
+    def test_set_profile_saves_file(self, runner: NumaTestRunner):
         """Walking through the profile form saves a JSON file."""
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        # Settings: 2 (User profile) → age=35 → sex=m → weight=80 → height=178 →
-        # activity=3 (moderate) → b → q
+        # Settings: 2 (Manage profiles) → e (edit active) → age=35 → sex=m →
+        # weight=80 → height=178 → activity=3 (moderate) → b → b → q
         result = runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
-        assert pf.exists()
-        data = json.loads(pf.read_text())
+        saved = _profile._PROFILES_DIR / "Default.json"
+        assert saved.exists()
+        data = json.loads(saved.read_text())
         assert data["age"] == 35
         assert data["sex"] == "male"
 
-    def test_set_profile_shows_calorie_target(self, runner: NumaTestRunner, tmp_path, monkeypatch):
+    def test_set_profile_shows_calorie_target(self, runner: NumaTestRunner):
         """After saving, the response shows the estimated calorie target."""
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        result = runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
+        # Settings(5) → Manage profiles(2) → edit #1(e1) → age/sex/weight/height/activity → back → quit
+        result = runner.invoke(input="5\n2\ne1\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
         assert "kcal" in result.output.lower() or "calorie" in result.output.lower()
 
-    def test_invalid_age_reprompts(self, runner: NumaTestRunner, tmp_path, monkeypatch):
+    def test_invalid_age_reprompts(self, runner: NumaTestRunner):
         """Non-numeric age input triggers re-prompt before accepting a valid entry."""
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        # bad age → valid age → sex → weight → height → activity → back → quit
-        result = runner.invoke(input="5\n2\nnotanage\n35\nm\n80\n178\n3\nb\nq\n")
+        # Settings(5) → Manage profiles(2) → edit #1(e1) → bad age → valid age → ... → back → quit
+        result = runner.invoke(input="5\n2\ne1\nnotanage\n35\nm\n80\n178\n3\nb\nq\n")
         assert result.exit_code == 0
-        assert pf.exists()
-        assert json.loads(pf.read_text())["age"] == 35
+        saved = _profile._PROFILES_DIR / "Default.json"
+        assert saved.exists()
+        assert json.loads(saved.read_text())["age"] == 35
 
-    def test_profile_status_shows_not_set(self, runner: NumaTestRunner, tmp_path, monkeypatch):
+    def test_profile_status_shows_not_set(self, runner: NumaTestRunner):
         """Settings menu shows 'not set' when no profile exists."""
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
+        # Remove the Default profile the autouse fixture created.
+        for f in _profile._PROFILES_DIR.glob("*.json"):
+            f.unlink()
         result = runner.invoke(input="5\nb\nq\n")
         assert result.exit_code == 0
         assert "not set" in result.output.lower()
 
-    def test_profile_status_shows_details_when_set(
-        self, runner: NumaTestRunner, tmp_path, monkeypatch
-    ):
+    def test_profile_status_shows_details_when_set(self, runner: NumaTestRunner):
         """After setting a profile, Settings menu shows age/sex/weight in status line."""
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        # Set profile first
-        runner.invoke(input="5\n2\n40\nf\n62\n165\n2\nb\nq\n")
-        # Now open settings again — status line should show details
+        # Settings(5) → Manage profiles(2) → edit #1(e1) → age=40,sex=f,weight,height,activity → back → quit
+        runner.invoke(input="5\n2\ne1\n40\nf\n62\n165\n2\nb\nq\n")
+        # Now open settings again — status line should show updated details
         result = runner.invoke(input="5\nb\nq\n")
         assert result.exit_code == 0
         assert "40" in result.output   # age
@@ -877,25 +871,22 @@ class TestUserProfileSettings:
 # ---------------------------------------------------------------------------
 
 class TestDailySummaryRDA:
-    def test_no_profile_shows_tip(self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path):
+    def test_no_profile_shows_tip(self, runner: NumaTestRunner, monkeypatch, cached_food):
         """Without a profile, daily summary shows a tip to set one up."""
         _mock_api(monkeypatch)
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
+        # Remove the Default profile so there's truly no profile.
+        for f in _profile._PROFILES_DIR.glob("*.json"):
+            f.unlink()
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
-        result = runner.invoke(input="4\n2\n2025-03-15\nn\nb\nq\n")
+        result = runner.invoke(input="4\n2\n2025-03-15\nb\nq\n")
         assert result.exit_code == 0
         assert "profile" in result.output.lower()
 
     def test_with_profile_offers_rda_comparison(
-        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+        self, runner: NumaTestRunner, monkeypatch, cached_food
     ):
         """With a profile set, daily summary prompts to compare against RDA."""
         _mock_api(monkeypatch)
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        # Set profile
-        runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         # Log a meal
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         # View summary: decline complement → accept RDA comparison
@@ -904,26 +895,20 @@ class TestDailySummaryRDA:
         assert "rda" in result.output.lower() or "recommended" in result.output.lower()
 
     def test_rda_comparison_shows_protein(
-        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+        self, runner: NumaTestRunner, monkeypatch, cached_food
     ):
         """RDA comparison table includes Protein row."""
         _mock_api(monkeypatch)
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
 
     def test_rda_comparison_decline_skips_table(
-        self, runner: NumaTestRunner, monkeypatch, cached_food, tmp_path
+        self, runner: NumaTestRunner, monkeypatch, cached_food
     ):
         """Declining the RDA comparison prompt does not print the table."""
         _mock_api(monkeypatch)
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        runner.invoke(input="s\n2\n35\nm\n80\n178\n3\nb\nq\n")
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n2\n2025-03-15\nn\nn\nb\nq\n")
         assert result.exit_code == 0

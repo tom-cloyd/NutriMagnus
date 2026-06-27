@@ -455,7 +455,7 @@ def _meal_add_items(meal_id: int) -> None:
     while True:
         state.console.print()
         try:
-            query = _prompt("Search food or recipe  [grey62](name · FDC ID · barcode · b/d=back, m=main, q=quit)[/grey62]", free_text=True).strip()
+            query = _prompt("Search food or recipe  [grey62](name · FDC ID · barcode · Enter/b/d=back, m=main, q=quit)[/grey62]", free_text=True).strip()
         except Cancelled:
             break
         ql = query.lower()
@@ -917,7 +917,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                           daily_nutrients=daily_nutrients, rda=rda)
 
     ing_list = _compute_meal_ingredient_list(meal_id)
-    missing_aa, _dcp_g = _print_meal_diaas(ing_list, profile=profile)
+    missing_aa, _dcp_g, meal_diaas = _print_meal_diaas(ing_list, profile=profile)
     if missing_aa:
         pbn = {
             ing["food_name"]: ing["nutrients_100g"].get("protein_g", 0.0) * ing["grams"] / 100.0
@@ -932,7 +932,8 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
         if _usda.has_amino_acid_data(ing["nutrients_100g"])
     ]) if ing_list else {}
     if aa_nutrients:
-        _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True)
+        _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True,
+                                      base_diaas=meal_diaas)
 
     gl_total, gl_blockers = _compute_meal_gl(meal_id)
     section_title("Glycemic load")
@@ -957,17 +958,28 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
 
     # Day-level analysis (only when there are multiple meals today)
     if len(today_meals) > 1:
+        try:
+            raw = _prompt(
+                f"\nReady for day-level analysis across all {len(today_meals)} meals today."
+                f"  [grey62]Enter=continue · b=back[/grey62]",
+                free_text=True,
+            ).strip().lower()
+        except Cancelled:
+            return
+        if raw in ("b", "back"):
+            return
         all_day_ings: list[dict] = []
         for m in today_meals:
             all_day_ings.extend(_compute_meal_ingredient_list(m["id"]))
-        _print_meal_diaas(all_day_ings, profile=profile, title="Day-Level Complete Protein Analysis")
+        _, _, day_diaas = _print_meal_diaas(all_day_ings, profile=profile, title="Day-Level Complete Protein Analysis")
         day_aa_nutrients = _usda.sum_nutrients(*[
             _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
             for ing in all_day_ings
             if _usda.has_amino_acid_data(ing["nutrients_100g"])
         ]) if all_day_ings else {}
         if day_aa_nutrients:
-            _print_complement_suggestions(day_aa_nutrients, context="daily", basis_label="all meals today", silent_if_complete=True)
+            _print_complement_suggestions(day_aa_nutrients, context="daily", basis_label="all meals today",
+                                          silent_if_complete=True, base_diaas=day_diaas)
 
         gl_total_day = 0.0
         gl_blockers_day: list[str] = []
@@ -1374,14 +1386,15 @@ def _analyze_day(meals: list, meal_date: str) -> None:
     title = f"All meals — {meal_date}"
     _print_nutrient_table(combined, title=f"Nutrient analysis for {title}")
     profile = _profile.load_profile()
-    _missing_aa, _dcp_g = _print_meal_diaas(all_ings, profile=profile)
+    _missing_aa, _dcp_g, meal_diaas = _print_meal_diaas(all_ings, profile=profile)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
         for ing in all_ings
         if _usda.has_amino_acid_data(ing["nutrients_100g"])
     ]) if all_ings else {}
     if aa_nutrients:
-        _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True)
+        _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True,
+                                      base_diaas=meal_diaas)
     gl_total_day = 0.0
     gl_blockers_day: list[str] = []
     for m in meals:

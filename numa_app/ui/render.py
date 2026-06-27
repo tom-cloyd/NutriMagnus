@@ -332,12 +332,14 @@ def _print_meal_diaas(
 
     profile: when provided, prints a compact adequacy line right after the DCP line.
 
-    Returns (missing_aa_names, dcp_g):
+    Returns (missing_aa_names, dcp_g, diaas):
         missing_aa_names: food names excluded due to missing AA data; empty = analysis complete.
         dcp_g: digestible complete protein in grams, or None if DIAAS analysis unavailable.
+        diaas: meal DIAAS (capped at 1.0), or None if unavailable. Pass as base_diaas to
+               _print_complement_suggestions so its DCP projections use the correct baseline.
     """
     if not ingredient_list:
-        return [], None
+        return [], None, None
 
     with _db.get_db() as conn:
         result = _diaas.meal_level_diaas(ingredient_list, conn)
@@ -352,7 +354,7 @@ def _print_meal_diaas(
                 "\n  [grey62](Meal-level DIAAS analysis unavailable — "
                 "no amino acid data for any ingredient.)[/grey62]"
             )
-        return result["missing_aa_names"], None
+        return result["missing_aa_names"], None, None
 
     section_title(title,
                   "pooled across foods, digestibility-corrected (DIAAS)")
@@ -518,7 +520,9 @@ def _print_meal_diaas(
                 state.console.print(f"  [grey62]    • {_src}[/grey62]", highlight=False)
 
     help_footer("meal-diaas", "iaa-ratios")
-    return result["missing_aa_names"], result.get("digestible_complete_protein_g")
+    raw_diaas = result.get("diaas")
+    capped_diaas = min(raw_diaas, 1.0) if raw_diaas is not None else None
+    return result["missing_aa_names"], result.get("digestible_complete_protein_g"), capped_diaas
 
 def _print_recipe_bioavailability(
     ingredient_stats: list[dict],
@@ -831,50 +835,121 @@ def _print_complement_suggestions(
         unit = "serving" if abs(count - 1.0) < 0.05 else "servings"
         return f"{count:.1f} {unit}"
 
+    _GRAD_THRESHOLD = 30  # grams; above this, show graduated scale instead of single amount
+
     def _show_suggestion(s: dict, label: str) -> None:
         diaas_str = f"  [grey62]DIAAS {s['diaas']:.2f}[/grey62]" if s.get("diaas") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}] "
                       f"[bold]{s['name']}[/bold]{_source_str(s)}{diaas_str}")
-        if s.get("recipe_id"):
-            hint = _serving_hint(s["grams"], s.get("serving_weight_g"))
-        else:
-            hint = _volume_hint(s["grams"], s["name"])
-        vol_str = f"  [grey62]({hint})[/grey62]" if hint else ""
-        state.console.print(f"    {add_verb}: [bold]{s['grams']}g[/bold]{vol_str}")
-        # Show AA scores before → after for the most affected gaps.
-        # orig_score is digestibility-adjusted (from get_aa_gaps);
-        # new_scores values are raw — multiply by _digestibility for a fair comparison.
-        score_parts = []
-        for aa, orig_score, _ in gaps[:3]:
-            new_raw = s["new_scores"].get(aa)
-            if new_raw is not None and _digestibility > 0:
-                new_score = new_raw * _digestibility
+        full_grams = s["grams"]
+
+        if full_grams > _GRAD_THRESHOLD:
+            # Graduated display: 4 steps at 25/50/75/100% of the full amount.
+            raw_steps = [max(1, round(full_grams * f)) for f in (0.25, 0.50, 0.75, 1.0)]
+            seen_g: set[int] = set()
+            steps = [g for g in raw_steps if not (g in seen_g or seen_g.add(g))]  # type: ignore[func-returns-value]
+            step_fracs = [g / full_grams for g in steps]
+
+            # Volume hints: smallest and largest step.
+            if s.get("recipe_id"):
+                min_hint = _serving_hint(steps[0], s.get("serving_weight_g"))
+                max_hint = _serving_hint(steps[-1], s.get("serving_weight_g"))
             else:
-                new_score = orig_score
-            label_aa = _aa_label(aa)
-            arrow = f"[{state.T['success']}]{new_score:.2f}[/{state.T['success']}]" if new_score >= 1.0 \
-                else f"[{state.T['warning']}]{new_score:.2f}[/{state.T['warning']}]"
-            score_parts.append(f"{label_aa}: {orig_score:.2f}→{arrow}")
-        state.console.print(f"    Effect: {' · '.join(score_parts)}")
-        dig = s["digestible_protein_added"]
-        raw = s["protein_added"]
-        state.console.print(f"    Adds: [bold]{dig:.1f}g[/bold] digestible protein "
-                      f"[grey62](from {raw:.1f}g raw)[/grey62]", highlight=False)
-        if s.get("predicted_diaas") is not None:
-            total_dig = (base_protein + raw) * min(1.0, s["predicted_diaas"])
-        elif s.get("new_scores") and _digestibility > 0:
-            new_raw_min = min(s["new_scores"].values())
-            total_dig = (base_protein + raw) * min(1.0, _digestibility * new_raw_min)
+                min_hint = _volume_hint(steps[0], s["name"])
+                max_hint = _volume_hint(steps[-1], s["name"])
+            if min_hint and max_hint and min_hint != max_hint:
+                vol_str = f"  [grey62]({min_hint} to {max_hint})[/grey62]"
+            elif max_hint:
+                vol_str = f"  [grey62]({max_hint})[/grey62]"
+            else:
+                vol_str = ""
+
+            grams_list = ", ".join(f"{g}g" for g in steps)
+            state.console.print(f"    {add_verb}: [bold]{grams_list}[/bold]{vol_str}")
+
+            # Primary-gap AA score at each step (linear interpolation: 0g→full).
+            # orig_score is digestibility-adjusted; new_scores are raw — scale to match.
+            if gaps:
+                primary_aa, orig_score, _ = gaps[0]
+                new_raw = s["new_scores"].get(primary_aa)
+                if new_raw is not None and _digestibility > 0:
+                    new_score_full = new_raw * _digestibility
+                    aa_scores = [orig_score + frac * (new_score_full - orig_score)
+                                 for frac in step_fracs]
+                    def _fmt_aa(sc: float, is_last: bool) -> str:
+                        if is_last:
+                            c = state.T["success"] if sc >= 1.0 else state.T["warning"]
+                            return f"[{c}]{sc:.2f}[/{c}]"
+                        return f"{sc:.2f}"
+                    score_strs = [_fmt_aa(sc, i == len(aa_scores) - 1)
+                                  for i, sc in enumerate(aa_scores)]
+                    state.console.print(
+                        f"    {_aa_label(primary_aa)}: {', '.join(score_strs)}"
+                    )
+
+            # Digestible protein added at each step (exact linear scaling).
+            dig_full = s["digestible_protein_added"]
+            raw_full = s["protein_added"]
+            dig_list = ", ".join(f"{dig_full * frac:.1f}g" for frac in step_fracs)
+            state.console.print(
+                f"    Adds: [bold]{dig_list}[/bold] digestible protein "
+                f"[grey62](full serving: {raw_full:.1f}g raw)[/grey62]",
+                highlight=False,
+            )
+
+            # Total digestible complete protein at each step.
+            total_list = ", ".join(
+                f"{base_digestible + dig_full * frac:.1f}g" for frac in step_fracs
+            )
+            state.console.print(
+                f"    Total digestible complete protein: "
+                f"[{state.T['success']}]{total_list}[/{state.T['success']}]",
+                highlight=False,
+            )
+
         else:
-            total_dig = base_digestible + dig
-        state.console.print(f"    Total digestible complete protein now = "
-                      f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
-                      highlight=False)
+            # Single-amount display (unchanged for practical servings ≤ 30g).
+            if s.get("recipe_id"):
+                hint = _serving_hint(s["grams"], s.get("serving_weight_g"))
+            else:
+                hint = _volume_hint(s["grams"], s["name"])
+            vol_str = f"  [grey62]({hint})[/grey62]" if hint else ""
+            state.console.print(f"    {add_verb}: [bold]{s['grams']}g[/bold]{vol_str}")
+            # Show AA scores before → after for the most affected gaps.
+            # orig_score is digestibility-adjusted (from get_aa_gaps);
+            # new_scores values are raw — multiply by _digestibility for a fair comparison.
+            score_parts = []
+            for aa, orig_score, _ in gaps[:3]:
+                new_raw = s["new_scores"].get(aa)
+                if new_raw is not None and _digestibility > 0:
+                    new_score = new_raw * _digestibility
+                else:
+                    new_score = orig_score
+                label_aa = _aa_label(aa)
+                arrow = f"[{state.T['success']}]{new_score:.2f}[/{state.T['success']}]" if new_score >= 1.0 \
+                    else f"[{state.T['warning']}]{new_score:.2f}[/{state.T['warning']}]"
+                score_parts.append(f"{label_aa}: {orig_score:.2f}→{arrow}")
+            state.console.print(f"    Effect: {' · '.join(score_parts)}")
+            dig = s["digestible_protein_added"]
+            raw = s["protein_added"]
+            state.console.print(f"    Adds: [bold]{dig:.1f}g[/bold] digestible protein "
+                          f"[grey62](from {raw:.1f}g raw)[/grey62]", highlight=False)
+            if s.get("predicted_diaas") is not None:
+                total_dig = (base_protein + raw) * min(1.0, s["predicted_diaas"])
+            elif s.get("new_scores") and _digestibility > 0:
+                new_raw_min = min(s["new_scores"].values())
+                total_dig = (base_protein + raw) * min(1.0, _digestibility * new_raw_min)
+            else:
+                total_dig = base_digestible + dig
+            state.console.print(f"    Total digestible complete protein now = "
+                          f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
+                          highlight=False)
+
         if s.get("opens_new_gap"):
             state.console.print(f"    [{state.T['warning']}]Note: closes the above gap but opens a new one "
                           f"— consider layering with a second complement.[/{state.T['warning']}]")
         if context == "recipe":
-            state.console.print(f"    [grey62]{pair_verb}: serve {s['grams']}g alongside[/grey62]")
+            state.console.print(f"    [grey62]{pair_verb}: serve {full_grams}g alongside[/grey62]")
 
     def _show_paged(suggs: list[dict], section_label: str, page_size: int = 3) -> None:
         """Display suggestions in pages of page_size, prompting for more after each."""

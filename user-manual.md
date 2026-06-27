@@ -1,10 +1,14 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-24:1908* / Reading 1 hour, 46 minutes
+*Updated 2026-06-25:0820* / Reading 1 hour, 52 minutes
+
+<!--  the following preface is (26-06-25) what appears on the WEB version home page, accessed in home.md. -->
 
 **NutriMagnus** is an open-source program for use by individuals wanting to know specifics about the nutritional value of their diet. It gives a very thorough analysis of nutrition, and focuses particularly on protein.
 
-**This manual is a work-in-progress.** It is modified virtually every day, as is the program itself. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. The manual also has not yet been given a careful editing; it is an advanced first draft.
+**Both program and accompanying User Manual are an on-going project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. The manual has not yet received a careful editorial review; it is an advanced first draft.
+
+**User feedback is highly valued.** What many software users don't realize is that ANY feedback is appreciated and likely to be useful. User experience with the program is our best measure of our success or failure. Please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
 
 ---
 

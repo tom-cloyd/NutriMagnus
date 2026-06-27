@@ -4,7 +4,7 @@ Shared fixtures for the numa test suite.
 Key fixtures:
   use_test_db       — autouse; redirects all db.get_db() calls to a per-test
                       temp database so tests never touch ~/.local/share/numa/numa.db
-  use_test_profile  — autouse; redirects profile._PROFILE_FILE to a temp path
+  use_test_profile  — autouse; redirects profile._PROFILES_DIR/_ACTIVE_NAME_FILE to temp paths
   use_test_prefs    — autouse; pre-populates a temp prefs file and patches both
                       prefs._PREFS_FILE and main._PREFS_FILE so _load_prefs()
                       and the main menu guard both see the temp file
@@ -172,11 +172,26 @@ def use_test_db(db_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def use_test_profile(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    Redirect profile._PROFILE_FILE to a per-test temp path so tests never
-    read or write the real ~/.config/numa/profile.json.
+    Redirect profile storage to per-test temp directories so tests never
+    read or write the real ~/.config/numa/ profile files.
     Applied automatically to every test.
     """
-    monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "test_profile.json")
+    profiles_dir = tmp_path / "profiles"
+    profiles_dir.mkdir()
+    active_file = tmp_path / "active_profile.txt"
+    legacy_file = tmp_path / "profile.json"  # prevent migration from real legacy file
+    monkeypatch.setattr(_profile, "_PROFILES_DIR", profiles_dir)
+    monkeypatch.setattr(_profile, "_ACTIVE_NAME_FILE", active_file)
+    monkeypatch.setattr(_profile, "_LEGACY_FILE", legacy_file)
+    # Pre-populate a Default profile so load_profile() returns a valid object.
+    default_profile = _profile.UserProfile(
+        age=35, sex="male", weight_kg=75.0, height_cm=178.0,
+        activity_level="moderate", name="Default",
+    )
+    import dataclasses, json as _json
+    (profiles_dir / "Default.json").write_text(
+        _json.dumps(dataclasses.asdict(default_profile), indent=2) + "\n"
+    )
 
 
 @pytest.fixture(autouse=True)

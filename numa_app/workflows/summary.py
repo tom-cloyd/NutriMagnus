@@ -70,7 +70,7 @@ def _do_daily_summary(meal_date: str) -> None:
     meal_names = ", ".join(m["name"] for m in meals)
     _print_nutrient_table(combined, title=f"Daily Total — {meal_date}",
                           per_label=f"meals: {meal_names}")
-    missing_aa, _dcp_g = _print_meal_diaas(all_ings)
+    missing_aa, _dcp_g, day_diaas = _print_meal_diaas(all_ings)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
         for ing in all_ings
@@ -80,7 +80,8 @@ def _do_daily_summary(meal_date: str) -> None:
     if user_profile:
         _print_protein_adequacy(combined, user_profile, context_label=f"Daily total ({meal_date})", dcp_g=_dcp_g)
     if aa_nutrients:
-        _print_complement_suggestions(aa_nutrients, context="daily", offer_if_covered=True)
+        _print_complement_suggestions(aa_nutrients, context="daily", offer_if_covered=True,
+                                      base_diaas=day_diaas)
 
     # Offer RDA comparison if a profile is set
     user_profile = _profile.load_profile()

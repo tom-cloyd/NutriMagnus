@@ -20,22 +20,19 @@ from profile import (
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
-def male_35(tmp_path, monkeypatch):
-    monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
+def male_35():
     return UserProfile(age=35, sex="male", weight_kg=80.0, height_cm=178.0,
                        activity_level="moderate")
 
 
 @pytest.fixture()
-def female_55(tmp_path, monkeypatch):
-    monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
+def female_55():
     return UserProfile(age=55, sex="female", weight_kg=65.0, height_cm=163.0,
                        activity_level="light")
 
 
 @pytest.fixture()
-def other_25(tmp_path, monkeypatch):
-    monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
+def other_25():
     return UserProfile(age=25, sex="other", weight_kg=70.0, height_cm=170.0,
                        activity_level="active")
 
@@ -45,14 +42,20 @@ def other_25(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 class TestLoadSave:
-    def test_load_returns_none_when_no_file(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
+    def test_load_returns_none_when_no_file(self):
+        # autouse fixture sets _PROFILES_DIR to a temp dir with a Default profile;
+        # remove it so there are no profiles at all.
+        for f in _profile._PROFILES_DIR.glob("*.json"):
+            f.unlink()
         assert load_profile() is None
 
-    def test_roundtrip(self, male_35, tmp_path, monkeypatch):
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", tmp_path / "profile.json")
-        save_profile(male_35)
-        loaded = load_profile()
+    def test_roundtrip(self, male_35):
+        # Profile name field drives the filename; autouse fixture has already set
+        # _PROFILES_DIR to a temp directory.
+        p = UserProfile(age=35, sex="male", weight_kg=80.0, height_cm=178.0,
+                        activity_level="moderate", name="TestRoundtrip")
+        save_profile(p)
+        loaded = load_profile("TestRoundtrip")
         assert loaded is not None
         assert loaded.age == 35
         assert loaded.sex == "male"
@@ -60,31 +63,28 @@ class TestLoadSave:
         assert loaded.height_cm == pytest.approx(178.0)
         assert loaded.activity_level == "moderate"
 
-    def test_save_creates_parent_dirs(self, tmp_path, monkeypatch):
-        deep = tmp_path / "a" / "b" / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", deep)
+    def test_save_creates_profiles_dir(self, tmp_path, monkeypatch):
+        # Verify save_profile() creates _PROFILES_DIR when it doesn't exist.
+        new_dir = tmp_path / "deep" / "profiles"
+        monkeypatch.setattr(_profile, "_PROFILES_DIR", new_dir)
         p = UserProfile(age=30, sex="male", weight_kg=75.0, height_cm=175.0,
-                        activity_level="sedentary")
+                        activity_level="sedentary", name="Default")
         save_profile(p)
-        assert deep.exists()
+        assert (new_dir / "Default.json").exists()
 
-    def test_load_returns_none_on_corrupt_file(self, tmp_path, monkeypatch):
-        f = tmp_path / "profile.json"
-        f.write_text("not valid json")
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", f)
+    def test_load_returns_none_on_corrupt_file(self):
+        (_profile._PROFILES_DIR / "Default.json").write_text("not valid json")
         assert load_profile() is None
 
-    def test_load_returns_none_on_missing_keys(self, tmp_path, monkeypatch):
-        f = tmp_path / "profile.json"
-        f.write_text(json.dumps({"age": 30}))
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", f)
+    def test_load_returns_none_on_missing_keys(self):
+        (_profile._PROFILES_DIR / "Default.json").write_text(json.dumps({"age": 30}))
         assert load_profile() is None
 
-    def test_save_writes_valid_json(self, male_35, tmp_path, monkeypatch):
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        save_profile(male_35)
-        data = json.loads(pf.read_text())
+    def test_save_writes_valid_json(self, male_35):
+        p = UserProfile(age=35, sex="male", weight_kg=80.0, height_cm=178.0,
+                        activity_level="moderate", name="WriteTest")
+        save_profile(p)
+        data = json.loads((_profile._PROFILES_DIR / "WriteTest.json").read_text())
         assert data["age"] == 35
         assert data["sex"] == "male"
 
@@ -461,24 +461,22 @@ class TestUnitFields:
         assert p.weight_unit == "kg"
         assert p.height_unit == "cm"
 
-    def test_unit_fields_saved_and_loaded(self, tmp_path, monkeypatch):
-        pf = tmp_path / "profile.json"
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
+    def test_unit_fields_saved_and_loaded(self):
         p = UserProfile(age=30, sex="male", weight_kg=75, height_cm=175,
                         activity_level="sedentary", weight_unit="lb",
-                        height_unit="imperial")
+                        height_unit="imperial", name="UnitTest")
         _profile.save_profile(p)
-        loaded = _profile.load_profile()
+        loaded = _profile.load_profile("UnitTest")
         assert loaded.weight_unit == "lb"
         assert loaded.height_unit == "imperial"
 
-    def test_old_profile_without_unit_fields_loads_with_defaults(self, tmp_path, monkeypatch):
+    def test_old_profile_without_unit_fields_loads_with_defaults(self):
         """Profiles saved before unit fields existed load cleanly with metric defaults."""
-        pf = tmp_path / "profile.json"
-        pf.write_text('{"age":35,"sex":"male","weight_kg":80.0,"height_cm":178.0,'
-                      '"activity_level":"moderate"}')
-        monkeypatch.setattr(_profile, "_PROFILE_FILE", pf)
-        loaded = _profile.load_profile()
+        (_profile._PROFILES_DIR / "LegacyTest.json").write_text(
+            '{"age":35,"sex":"male","weight_kg":80.0,"height_cm":178.0,'
+            '"activity_level":"moderate","name":"LegacyTest"}'
+        )
+        loaded = _profile.load_profile("LegacyTest")
         assert loaded is not None
         assert loaded.weight_unit == "kg"
         assert loaded.height_unit == "cm"
