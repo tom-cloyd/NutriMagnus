@@ -16,26 +16,40 @@
     {{ food.data_type }}
     {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
   </p>
+  {% if food.user_drafted %}
+  <div class="d-flex gap-2 mb-2">
+    <a href="/food/custom-profiles/{{ food.fdc_id }}/edit" class="btn btn-sm btn-outline-secondary">Edit nutrients</a>
+    <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Copy as new draft</button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 
 {# ── Portion selector ─────────────────────────────────────────────────── #}
 <div class="portion-form">
   <p class="portion-label">
     <strong>Recalculate all nutrient values for a different amount:</strong>
-    {% if portions %} choose a preset portion below, or type any weight in grams.{% else %} type any weight in grams.{% endif %}
+    type any amount (e.g. <code>3 oz</code>, <code>1/4 cup</code>, <code>150 g</code>, <code>2 T</code>){% if portions %} or choose a preset{% endif %}.
   </p>
   <form method="get" action="/food/{{ food.fdc_id }}">
     <div class="portion-input-row">
-      <input type="number" name="amount" id="amount-input"
-             value="{{ amount }}" min="1" max="9999" step="any"
-             aria-label="Amount in grams" class="form-control portion-amount-input">
-      <span class="portion-unit">g</span>
+      <input type="text" name="portion_str" id="amount-input"
+             value="{{ portion_str }}"
+             placeholder="e.g. 100 g, 3 oz, 1 cup"
+             aria-label="Portion amount" class="form-control portion-amount-input"
+             style="max-width:13rem">
       {% if portions %}
       <select id="portion-select" class="form-select portion-select" aria-label="Named portions"
-              onchange="document.getElementById('amount-input').value=this.value; this.selectedIndex=0;">
+              onchange="
+                var i = this.selectedIndex;
+                if (i > 0) {
+                  document.getElementById('amount-input').value = 'p' + i;
+                  this.selectedIndex = 0;
+                }">
         <option value="">— or choose a preset —</option>
         {% for p in portions %}
-        <option value="{{ p.gram_weight }}">{{ p.description }} ({{ p.gram_weight|round(1) }} g)</option>
+        <option value="{{ loop.index }}">{{ p.description }} ({{ p.gram_weight|round(1) }} g)</option>
         {% endfor %}
       </select>
       {% endif %}
@@ -43,7 +57,13 @@
               style="margin-left:1.5rem;padding-left:1.5rem;padding-right:1.5rem">Recalculate nutrients</button>
     </div>
   </form>
-  {% if amount != 100.0 %}
+  {% if portion_error %}
+  <p class="numa-error mt-1"><small>{{ portion_error }}</small></p>
+  {% elif portion_label %}
+  <small class="muted">Showing values for <strong>{{ portion_label }}</strong>{% if " g" not in portion_label %} ({{ amount }}&thinsp;g){% endif %}
+    &middot; <a href="/food/{{ food.fdc_id }}">back to 100 g</a>
+  </small>
+  {% elif amount != 100.0 %}
   <small class="muted">Showing values for {{ amount }}&thinsp;g
     &middot; <a href="/food/{{ food.fdc_id }}">back to 100 g</a>
   </small>
@@ -65,7 +85,7 @@
     <thead>
       <tr>
         <th>Nutrient</th>
-        <th class="num-col">{{ amount | int }}{% if amount != amount | int %}{{ amount }}{% endif %}&thinsp;g</th>
+        <th class="num-col">{% if portion_label %}{{ portion_label }}{% if " g" not in portion_label %} ({{ amount }}&thinsp;g){% endif %}{% else %}{{ amount | int }}{% if amount != amount | int %}{{ amount }}{% endif %}&thinsp;g{% endif %}</th>
         <th>Unit</th>
         {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
       </tr>
@@ -97,8 +117,33 @@
 
   <div class="protein-meta">
     {% if protein.diaas is not none %}
-    <p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }}
-      &nbsp;<span class="muted">(digestibility factor)</span></p>
+    <p>
+      <strong>DIAAS:</strong>
+      <span class="{% if protein.diaas_level == 'good' %}status-met{% elif protein.diaas_level == 'ok' %}rda-near{% else %}rda-low{% endif %}">
+        {{ "%.2f"|format(protein.diaas) }}
+      </span>
+      &nbsp;<small class="muted">(protein digestibility score; 1.0 = fully digestible)</small>
+    </p>
+    <div style="max-width:20rem; margin-bottom:0.5rem">
+      <div style="background:#e9ecef; border-radius:4px; height:8px; overflow:hidden">
+        <div style="width:{{ protein.diaas_pct }}%; height:100%; background:{% if protein.diaas_level == 'good' %}#198754{% elif protein.diaas_level == 'ok' %}#ffc107{% else %}#dc3545{% endif %}"></div>
+      </div>
+    </div>
+    {% if protein.protein_digestible is not none %}
+    <p class="mb-1">
+      <strong>Digestible protein:</strong> {{ protein.protein_digestible }}&thinsp;g
+      <small class="muted">(from {{ protein.protein_raw }}&thinsp;g raw &times; DIAAS {{ "%.2f"|format(protein.diaas) }})</small>
+    </p>
+    {% endif %}
+    {% if protein.dcp_g is not none %}
+    <div class="dcp-box {% if protein.complete %}dcp-complete{% else %}dcp-incomplete{% endif %} mb-2">
+      <strong>Digestible complete protein:</strong> {{ protein.dcp_g }}&thinsp;g
+      {% if not protein.complete %}
+      <small class="muted">&mdash; limited by {{ protein.limiting_aa }}
+        (score {{ "%.3f"|format(protein.limiting_score) }})</small>
+      {% endif %}
+    </div>
+    {% endif %}
     {% endif %}
     <p>
       {% if protein.complete %}
@@ -136,6 +181,16 @@
 </details>
 {% endif %}
 
+{# ── Foundation Foods suggestion when protein present but no AA data ─── #}
+{% if suggest_foundation %}
+<div class="alert alert-info mt-3" style="max-width:42rem">
+  <strong>No amino acid data for this food.</strong>
+  Foundation Foods (USDA's most complete dataset) usually includes full amino acid profiles.
+  <a href="/food/search?query={{ suggest_foundation | urlencode }}">Search for
+  &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent.
+</div>
+{% endif %}
+
 {# ── Anti-nutrient flags ─────────────────────────────────────────────── #}
 {% if antinutrients %}
 <details>
@@ -151,5 +206,184 @@
   {% endfor %}
 </details>
 {% endif %}
+
+{# ── Protein Complement Suggestions ───────────────────────────────────── #}
+{% if complements and not complements.no_data %}
+<details>
+  <summary><strong>Protein Complement Suggestions</strong></summary>
+  {% if complements.no_gaps %}
+  <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered — no complement needed.</p>
+  {% else %}
+  <p class="muted mt-2"><small>{{ complements.ranking_note }}</small></p>
+  <p class="mt-1"><strong>Gaps:</strong>
+    {% for gap in complements.gaps %}
+      {{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}
+    {% endfor %}
+  </p>
+
+  {% macro suggest_card(s, verb) %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1">
+      <strong>{{ s.name }}</strong>
+      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+      {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
+      {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
+    </p>
+    <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+    {% if s.aa_effects %}
+    <p class="mb-1 muted"><small>Effect:
+      {% for e in s.aa_effects %}
+        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </small></p>
+    {% endif %}
+    <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw)</small></p>
+    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+    {% if s.opens_new_gap %}
+    <p class="mb-0 rda-near"><small>&#9888; Closes gap but opens a new one — consider layering.</small></p>
+    {% endif %}
+  </div>
+  {% endmacro %}
+
+  {% if complements.pantry_empty %}
+  <p class="muted"><small>(No pantry items saved — add protein sources via Foods &rarr; My Pantry.)</small></p>
+  {% elif complements.pantry_no_qualify %}
+  <p class="muted"><small>(Pantry items found but none qualify for this gap.)</small></p>
+  {% endif %}
+
+  {% if complements.pantry %}
+  <h5 class="mt-3">From your pantry</h5>
+  {% for s in complements.pantry %}{{ suggest_card(s, "Serve alongside") }}{% endfor %}
+  {% endif %}
+
+  {% if complements.general %}
+  <h5 class="mt-3">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h5>
+  {% for s in complements.general %}{{ suggest_card(s, "Serve alongside") }}{% endfor %}
+  {% endif %}
+
+  <p class="muted mt-2"><small>{{ complements.exhausted_msg }}</small></p>
+
+  {% if complements.pairs %}
+  <h5 class="mt-3">Two-food combinations</h5>
+  <p class="muted"><small>Food A closes the primary gap (but opens a new one); food B closes what A left behind. Together they achieve a complete amino acid profile.</small></p>
+  {% for p in complements.pairs %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1"><strong>{{ p.foods[0].name }}</strong> + <strong>{{ p.foods[1].name }}</strong>
+      {% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
+    </p>
+    {% for f in p.foods %}
+    <p class="mb-1 ms-2"><strong>Serve alongside: {{ f.grams }}&thinsp;g {{ f.name }}</strong>
+      {% if f.fdc_id %}<small class="muted"> FDC {{ f.fdc_id }}</small>{% endif %}
+      {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
+    </p>
+    {% endfor %}
+    {% if p.aa_effects %}
+    <p class="mb-1 muted"><small>Effect:
+      {% for e in p.aa_effects %}
+        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </small></p>
+    {% endif %}
+    <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw)</small></p>
+    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if complements.diaas_improvers %}
+  <h5 class="mt-3">DIAAS-boosting options</h5>
+  <p class="muted"><small>These foods raise the combined DIAAS score by pooling high-digestibility amino acids with this food. Each row shows a serving size, the resulting DIAAS, and digestible complete protein (DCP).</small></p>
+  {% for s in complements.diaas_improvers %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1">
+      <strong>{{ s.name }}</strong>
+      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+      {% if s.diaas %}<small class="muted"> &middot; own DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
+    </p>
+    {% if s.current_diaas is not none %}
+    <p class="mb-1 muted"><small>Current meal DIAAS: {{ "%.2f"|format(s.current_diaas) }}</small></p>
+    {% endif %}
+    {% if s.steps %}
+    <table class="table table-sm mb-1" style="max-width:28rem">
+      <thead><tr><th>Add</th><th>Meal DIAAS</th><th>DCP</th></tr></thead>
+      <tbody>
+      {% for step in s.steps %}
+      <tr>
+        <td>{{ step.grams }}&thinsp;g</td>
+        <td><span class="{% if step.new_diaas >= 0.9 %}status-met{% elif step.new_diaas >= 0.7 %}rda-near{% else %}rda-low{% endif %}">{{ "%.2f"|format(step.new_diaas) }}</span></td>
+        <td>{% if step.dcp is not none %}<strong>{{ "%.1f"|format(step.dcp) }}&thinsp;g</strong>{% else %}&mdash;{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="mb-1 muted"><small>Serve alongside: <strong>{{ s.grams | round | int }}&thinsp;g</strong></small></p>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if complements.two_step_combos %}
+  <h5 class="mt-3">Two-step combinations</h5>
+  <p class="muted"><small>Step 1 closes the amino acid gap; Step 2 raises overall digestibility. Together they maximize digestible complete protein (DCP).</small></p>
+  {% for combo in complements.two_step_combos %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1 fw-semibold">Step 1 &mdash; close the gap</p>
+    <p class="mb-1 ms-2">
+      <strong>{{ combo.step1.grams | round | int }}&thinsp;g {{ combo.step1.name }}</strong>
+      {% if combo.step1.fdc_id %}<small class="muted"> FDC {{ combo.step1.fdc_id }}</small>{% endif %}
+      {% if combo.step1.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step1.diaas) }}</small>{% endif %}
+    </p>
+    {% if combo.step1.aa_effects %}
+    <p class="mb-1 ms-2 muted"><small>AA effect:
+      {% for e in combo.step1.aa_effects %}
+        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </small></p>
+    {% endif %}
+    <p class="mb-2 ms-2 muted"><small>DCP: {{ combo.step1.dcp_before }}&thinsp;g &rarr; <strong class="status-met">{{ combo.step1.dcp_after }}&thinsp;g</strong></small></p>
+    {% if combo.step2 %}
+    <p class="mb-1 fw-semibold">Step 2 &mdash; boost digestibility</p>
+    <p class="mb-1 ms-2">
+      <strong>{{ combo.step2.grams | round | int }}&thinsp;g {{ combo.step2.name }}</strong>
+      {% if combo.step2.fdc_id %}<small class="muted"> FDC {{ combo.step2.fdc_id }}</small>{% endif %}
+      {% if combo.step2.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step2.diaas) }}</small>{% endif %}
+    </p>
+    <p class="mb-1 ms-2 muted"><small>Meal DIAAS after Step 2: <span class="{% if combo.step2.new_diaas >= 0.9 %}status-met{% elif combo.step2.new_diaas >= 0.7 %}rda-near{% else %}rda-low{% endif %}">{{ "%.2f"|format(combo.step2.new_diaas) }}</span></small></p>
+    <p class="mb-0 ms-2 muted"><small>DCP: {{ combo.step2.dcp_before }}&thinsp;g &rarr; <strong class="status-met">{% if combo.step2.dcp_after is not none %}{{ "%.1f"|format(combo.step2.dcp_after) }}{% else %}&mdash;{% endif %}&thinsp;g</strong>
+      {% if combo.step2.net_gain is not none %}&nbsp;<span class="muted">(+{{ combo.step2.net_gain }}&thinsp;g net vs base)</span>{% endif %}
+    </small></p>
+    {% else %}
+    <p class="mb-0 muted"><small>No available food improves on the DIAAS already achieved by Step 1.</small></p>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% endif %}{# end no_gaps else #}
+</details>
+{% endif %}
+
+{# ── Add to Pantry ───────────────────────────────────────────────────── #}
+<hr>
+<details>
+  <summary><strong>Add to Pantry</strong>
+    <span class="muted" style="font-size:.9rem"> — save this food for complement suggestions</span>
+  </summary>
+  <form method="post" action="/pantry/add" class="mt-3" style="max-width:28rem">
+    <input type="hidden" name="food_name" value="{{ food.name }}">
+    <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+    <div class="mb-2">
+      <label class="form-label">Food</label>
+      <p class="form-control-plaintext py-0">{{ food.name }}</p>
+    </div>
+    <div class="mb-2">
+      <label for="pantry-notes" class="form-label">Notes <span class="muted">(optional)</span></label>
+      <input type="text" class="form-control form-control-sm" id="pantry-notes" name="notes"
+             placeholder="e.g. brand, variety">
+    </div>
+    <button type="submit" class="btn btn-outline-success btn-sm">Add to My Pantry</button>
+  </form>
+</details>
 
 {% endblock %}

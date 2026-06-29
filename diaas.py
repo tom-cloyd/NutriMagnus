@@ -230,7 +230,8 @@ def meal_level_diaas(
         "estimate_sources":             list[str]   — food names using category/default digestibility
     """
     total_protein_g = 0.0
-    aa_protein_g = 0.0   # protein only from foods that have AA data (used for reference denominator)
+    aa_protein_g = 0.0      # raw protein from foods with AA data (FAO reference denominator)
+    aa_dig_protein_g = 0.0  # digestibility-corrected protein from AA-analyzed foods (DCP ceiling)
     pooled: dict[str, float] = {k: 0.0 for k in FAO_REFERENCE}
     pooled_counts: dict[str, int] = {k: 0 for k in FAO_REFERENCE}
     ingredient_results: list[dict] = []
@@ -267,6 +268,7 @@ def meal_level_diaas(
 
         any_aa_data = True
         aa_protein_g += protein_g
+        aa_dig_protein_g += protein_g * dig
         ing_iaa: dict[str, float] = {}
 
         for aa_key, secondary in _IAA_PAIRS.items():
@@ -294,6 +296,7 @@ def meal_level_diaas(
         return {
             "diaas": None,
             "total_protein_g": total_protein_g,
+            "aa_dig_protein_g": aa_dig_protein_g,
             "digestible_complete_protein_g": None,
             "limiting_iaa": None,
             "limiting_label": None,
@@ -327,6 +330,7 @@ def meal_level_diaas(
         return {
             "diaas": None,
             "total_protein_g": total_protein_g,
+            "aa_dig_protein_g": aa_dig_protein_g,
             "digestible_complete_protein_g": None,
             "limiting_iaa": None,
             "limiting_label": None,
@@ -340,12 +344,16 @@ def meal_level_diaas(
 
     limiting_iaa = min(iaa_ratios, key=lambda k: iaa_ratios[k])
     composite_diaas = iaa_ratios[limiting_iaa]
-    dcp = ref_basis * min(composite_diaas, 1.0)
+    # Cap DCP at the digestibility-corrected protein from AA-analyzed foods.
+    # Using raw protein × DIAAS can exceed absorbed protein when DIAAS > avg digestibility
+    # (limiting AA concentrated in higher-dig foods). Capping enforces the physical ceiling.
+    dcp = min(ref_basis * min(composite_diaas, 1.0), aa_dig_protein_g)
 
     return {
         "diaas": composite_diaas,
         "total_protein_g": total_protein_g,
         "aa_protein_g": aa_protein_g,
+        "aa_dig_protein_g": aa_dig_protein_g,
         "digestible_complete_protein_g": dcp,
         "limiting_iaa": limiting_iaa,
         "limiting_label": IAA_LABELS.get(limiting_iaa),

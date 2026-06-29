@@ -638,6 +638,11 @@ def _score_one_complement(
                 dig_scores[aa_key] = (base_aa * base_digestibility + comp_aa * comp_dig) / ref_g
         if dig_scores:
             predicted_diaas = min(dig_scores.values())
+    # Reject if adding this complement would reduce total DCP (pooled DIAAS
+    # below the base meal's digestibility).  Only meaningful when we have real
+    # digestibility data; skip when base_digestibility is the 1.0 default.
+    if predicted_diaas is not None and base_digestibility < 1.0 and predicted_diaas < base_digestibility:
+        return None
     return {
         "grams":                    round(grams),
         "new_scores":               new_pc.get("scores", {}),
@@ -650,6 +655,7 @@ def _score_one_complement(
         "digestible_protein_added": dig_added,
         "diaas":                    cand_diaas,
         "predicted_diaas":          predicted_diaas,
+        "comp_nutrients":           cand_nutrients,
     }
 
 
@@ -659,6 +665,7 @@ def suggest_complements(
     diet_pref: str = "all",
     base_digestibility: float = 1.0,
     base_food_name: str | None = None,
+    max_improver_grams: float = 300,
 ) -> dict[str, list[dict]]:
     """
     Suggest complement foods to close essential amino acid gaps.
@@ -677,7 +684,8 @@ def suggest_complements(
         name, grams, new_scores, new_complete, gaps_closed,
         remaining_gaps, protein_added, digestible_protein_added, diaas
     DIAAS-improver dicts contain:
-        name, grams, current_diaas, new_diaas,
+        name, steps (list of {grams, new_diaas}), grams (largest step),
+        current_diaas, new_diaas (at largest step),
         protein_added, digestible_protein_added, diaas
     """
     gaps = get_aa_gaps(base_nutrients, digestibility=base_digestibility)
@@ -708,9 +716,10 @@ def suggest_complements(
         comp_name: str,
         comp_diaas_val: float | None,
         target: float = 0.90,
+        max_grams: float = 300,
     ) -> dict | None:
         """
-        Find the smallest practical serving of comp that meaningfully improves the
+        Find a stepped progression of practical servings of comp that improve the
         combined pooled DIAAS (base + complement), using numerical search.
 
         Uses pooled DIAAS methodology (consistent with diaas.meal_level_diaas):
@@ -724,7 +733,10 @@ def suggest_complements(
         can still meaningfully raise DIAAS even though they can't analytically close
         every gap.  The numerical approach handles that correctly.
 
-        Returns None if improvement < 0.05 DIAAS points or best X > 300g.
+        max_grams: cap on the largest step shown; use 120 for meal/food/daily
+            contexts, 300 for recipe contexts.
+
+        Returns None if no step within max_grams achieves ≥ 0.03 DIAAS improvement.
         """
         base_protein = base_nutrients.get("protein_g", 0.0)
         comp_protein = comp_nutrients.get("protein_g", 0.0)
@@ -758,65 +770,37 @@ def suggest_complements(
         if current_diaas_val >= target:
             return None  # base already meets target
 
-        # Collect analytical candidate X values for AAs where denom > 0.
-        candidate_X: list[float] = []
-        for aa_key, ref_mg_per_g in _FAO_REF.items():
-            secondary = _DIAAS_PAIRS.get(aa_key)
-            base_aa = base_nutrients.get(aa_key, 0.0)
-            if secondary:
-                base_aa += base_nutrients.get(secondary, 0.0)
-            if base_aa <= 0:
-                continue
-            comp_aa = comp_nutrients.get(aa_key, 0.0)
-            if secondary:
-                comp_aa += comp_nutrients.get(secondary, 0.0)
-            A_k = base_aa * base_tid
-            C_k = comp_aa / 100.0 * d_comp
-            R_t_k = target * ref_mg_per_g / 1000.0
-            ref_g = ref_mg_per_g / 1000.0 * P
-            if ref_g <= 0 or A_k / ref_g >= target:
-                continue  # already meets target for this AA
-            denom = C_k - R_t_k * Q
-            if denom > 0:
-                grams_k = (R_t_k * P - A_k) / denom
-                if 1.0 <= grams_k <= 300.0:
-                    candidate_X.append(grams_k)
-        # Always probe a range of practical amounts — catches foods where the
-        # DIAAS peak is not aligned with any single analytical crossing point.
-        candidate_X.extend([10, 20, 30, 50, 75, 100, 150, 200, 250, 300])
+        # Standard step sizes; trim to max_grams cap.
+        if max_grams <= 120:
+            all_steps = [15, 30, 60, 120]
+        else:
+            all_steps = [30, 60, 100, 150, 200, 300]
+        step_sizes = [s for s in all_steps if s <= max_grams]
 
-        # Find the X that maximises pooled DIAAS.
-        best_X = 0.0
-        best_diaas = current_diaas_val
-        for X in candidate_X:
+        # Evaluate pooled DIAAS at each step.
+        steps: list[dict] = []
+        prev_diaas = current_diaas_val
+        for X in step_sizes:
             d = _pooled_diaas(X)
-            if d > best_diaas:
-                best_diaas = d
-                best_X = X
+            if d > current_diaas_val + 0.005 and d > prev_diaas - 0.005:
+                dcp = round((P + Q * X) * min(1.0, d), 1)
+                steps.append({"grams": X, "new_diaas": round(d, 2), "dcp": dcp})
+                prev_diaas = d
 
-        if best_X <= 0 or best_diaas < current_diaas_val + 0.05:
-            return None  # no meaningful improvement at any practical amount
+        if not steps:
+            return None
+        best_diaas = steps[-1]["new_diaas"]
+        if best_diaas < current_diaas_val + 0.03:
+            return None  # no meaningful improvement within the cap
 
-        # If target is reachable, find the minimum X that crosses it (binary search).
-        if best_diaas >= target:
-            lo, hi = 1.0, best_X
-            for _ in range(20):
-                mid = (lo + hi) / 2.0
-                if _pooled_diaas(mid) >= target:
-                    hi = mid
-                else:
-                    lo = mid
-            best_X = hi
-
-        if best_X > 300:
-            return None  # impractical even if mathematically valid
-
+        best_X = steps[-1]["grams"]
         protein_added = Q * best_X
         dig_added = protein_added * (comp_diaas_val if comp_diaas_val is not None else d_comp)
         return {
-            "grams":                    round(best_X),
+            "steps":                    steps,
+            "grams":                    best_X,   # largest step (for ranking)
             "current_diaas":            round(current_diaas_val, 2),
-            "new_diaas":                round(min(best_diaas, target + 0.01), 2),
+            "new_diaas":                round(best_diaas, 2),
             "protein_added":            protein_added,
             "digestible_protein_added": dig_added,
             "diaas":                    comp_diaas_val,
@@ -855,7 +839,8 @@ def suggest_complements(
                 gap_closers.append({"name": name, "fdc_id": fdc_id, **extra, **metrics})
             else:
                 # Try DIAAS-improver (pooled DIAAS formula with per-food digestibilities)
-                imp = _diaas_improver_score(cand_nutrients, name, cand_diaas)
+                imp = _diaas_improver_score(cand_nutrients, name, cand_diaas,
+                                           max_grams=max_improver_grams)
                 if imp is not None:
                     seen_names.add(name)
                     diaas_improvers.append({"name": name, "fdc_id": fdc_id, **extra, **imp})

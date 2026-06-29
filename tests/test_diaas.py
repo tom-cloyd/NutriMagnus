@@ -337,10 +337,12 @@ class TestMealLevelDiasCalculation:
         assert result["diaas"] is not None
         assert result["total_protein_g"] == pytest.approx(_SOY_100G["protein_g"] * 20 / 100)
 
-    def test_dcp_equals_protein_times_min_diaas_1(self):
+    def test_dcp_capped_at_digestible_protein(self):
+        # DCP is capped at aa_dig_protein_g (protein × digestibility for AA-analyzed foods).
+        # For soy isolate (DIAAS ≥ 1.0, dig=0.95), the cap is tighter than protein × 1.0.
         result = self._single_soy()
-        dcp_expected = result["total_protein_g"] * min(result["diaas"], 1.0)
-        assert result["digestible_complete_protein_g"] == pytest.approx(dcp_expected)
+        assert result["digestible_complete_protein_g"] == pytest.approx(result["aa_dig_protein_g"])
+        assert result["digestible_complete_protein_g"] <= result["total_protein_g"]
 
     def test_soy_is_complete_protein(self):
         """Soy isolate should have all IAA ratios above 1.0."""

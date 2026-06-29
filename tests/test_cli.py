@@ -285,7 +285,7 @@ class TestFoodsMenu:
         result = runner.invoke(input="1\n1\nchicken\n1\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
-        assert "62" not in result.output   # no 200g scaled result
+        assert "62.00" not in result.output   # no 200g scaled result (31g × 2)
 
     def test_invalid_portion_input_retries(self, runner: NumaTestRunner, monkeypatch):
         """Bad portion input shows an error and re-prompts rather than dropping to the menu."""

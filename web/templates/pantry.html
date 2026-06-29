@@ -12,6 +12,10 @@
 <h2>My Pantry</h2>
 <p class="muted">Foods you have on hand. Used first for protein complementarity, and searched before online databases.</p>
 
+{% if added %}
+<div class="alert alert-success">Food added to pantry.</div>
+{% endif %}
+
 {# ── Add form ── #}
 <div class="card mb-4" style="max-width:36rem">
   <div class="card-body">

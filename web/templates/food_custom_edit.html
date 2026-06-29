@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ food.name }} — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/custom-profiles">Custom Profiles</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Edit {{ food.name }}</li>
+  </ol>
+</nav>
+
+<h2>Edit Custom Profile</h2>
+<p class="muted">All nutrient values are <strong>per 100 g</strong>. Leave fields blank to clear them (zero is treated as absent).</p>
+
+{% if saved %}
+<div class="alert alert-success">Profile saved. <a href="/food/{{ food.fdc_id }}">View food detail</a></div>
+{% endif %}
+
+<form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/edit">
+
+  {# ── Identity ── #}
+  <div class="card mb-4" style="max-width:44rem">
+    <div class="card-body">
+      <h5 class="card-title">Identity</h5>
+      <div class="row g-2 mb-2">
+        <div class="col-12">
+          <label for="name" class="form-label">Food name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="name" name="name"
+                 value="{{ food.name }}" required>
+        </div>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-sm-4">
+          <label for="serving_size" class="form-label">Serving size</label>
+          <input type="number" class="form-control" id="serving_size" name="serving_size"
+                 value="{{ food.serving_size or '' }}" min="0" step="any"
+                 placeholder="e.g. 28">
+        </div>
+        <div class="col-sm-4">
+          <label for="serving_unit" class="form-label">Serving unit</label>
+          <input type="text" class="form-control" id="serving_unit" name="serving_unit"
+                 value="{{ food.serving_unit or '' }}"
+                 placeholder="e.g. g, oz, cup, tablet">
+        </div>
+      </div>
+      <div class="mb-2">
+        <label for="notes" class="form-label">Notes</label>
+        <input type="text" class="form-control" id="notes" name="notes"
+               value="{{ food.notes or '' }}"
+               placeholder="Source, brand, caveats…">
+      </div>
+    </div>
+  </div>
+
+  {# ── Nutrient groups ── #}
+  {% for group in field_groups %}
+  <details class="mb-3" open>
+    <summary><strong>{{ group.name }}</strong></summary>
+    <div class="card card-body mt-2" style="max-width:44rem">
+      <div class="row g-2">
+        {% for f in group.fields %}
+        <div class="col-sm-4">
+          <label for="f_{{ f.key }}" class="form-label">
+            {{ f.label }} <span class="muted">({{ f.unit }})</span>
+          </label>
+          <input type="number" class="form-control form-control-sm" id="f_{{ f.key }}"
+                 name="{{ f.key }}"
+                 value="{{ f.value if f.value != '' else '' }}"
+                 min="0" step="any"
+                 placeholder="0">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+  {% endfor %}
+
+  <div class="d-flex gap-2 mt-3">
+    <button type="submit" class="btn btn-primary">Save nutrient profile</button>
+    <a href="/food/{{ food.fdc_id }}" class="btn btn-outline-secondary">View food</a>
+    <a href="/food/custom-profiles" class="btn btn-outline-secondary">All custom profiles</a>
+  </div>
+</form>
+{% endblock %}

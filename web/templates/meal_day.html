@@ -246,12 +246,59 @@
       {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
     </p>
-    <p class="mb-1"><strong>Add to meal:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+    {% if s.steps %}
+    <table class="table table-sm mb-0 mt-1" style="max-width:32rem">
+      <thead><tr><th>Add to day</th><th>Day DIAAS</th><th>DCP</th></tr></thead>
+      <tbody>
+      {% for step in s.steps %}
+      <tr>
+        <td>{{ step.grams }}&thinsp;g</td>
+        <td>{{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(step.new_diaas) }}</strong></td>
+        <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g</p>
     {% if s.current_diaas is not none and s.new_diaas is not none %}
-    <p class="mb-1 muted"><small>Meal DIAAS: {{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(s.new_diaas) }}</strong></small></p>
+    <p class="mb-1 muted"><small>Day DIAAS: {{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(s.new_diaas) }}</strong></small></p>
     {% endif %}
-    <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw)</small></p>
-    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if complements.two_step_combos %}
+  <h5 class="mt-3">Two-step combinations</h5>
+  <p class="muted"><small>Each pairs a gap-closer (Step 1) with the best DIAAS-booster for the resulting protein pool (Step 2).</small></p>
+  {% for combo in complements.two_step_combos %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1 fw-semibold">Combination {{ loop.index }}</p>
+    <p class="mb-1"><strong>Step 1 &mdash; Add {{ combo.step1.grams }}&thinsp;g {{ combo.step1.name }}</strong>
+      {% if combo.step1.fdc_id %}<small class="muted"> FDC {{ combo.step1.fdc_id }}</small>{% endif %}
+      {% if combo.step1.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step1.diaas) }}</small>{% endif %}
+    </p>
+    {% if combo.step1.aa_effects %}
+    <p class="mb-1 muted"><small>AA effect:
+      {% for e in combo.step1.aa_effects %}
+        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </small></p>
+    {% endif %}
+    <p class="mb-1 muted"><small>DCP: {{ combo.step1.dcp_before }}&thinsp;g &rarr; <strong>{{ combo.step1.dcp_after }}&thinsp;g</strong></small></p>
+    {% if combo.step2 %}
+    <p class="mb-1 mt-1"><strong>Step 2 &mdash; Add {{ combo.step2.grams }}&thinsp;g {{ combo.step2.name }}</strong>
+      {% if combo.step2.fdc_id %}<small class="muted"> FDC {{ combo.step2.fdc_id }}</small>{% endif %}
+      {% if combo.step2.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step2.diaas) }}</small>{% endif %}
+    </p>
+    <p class="mb-1 muted"><small>Day DIAAS &rarr; <strong>{{ "%.2f"|format(combo.step2.new_diaas) }}</strong></small></p>
+    <p class="mb-0 muted"><small>DCP: {{ combo.step2.dcp_before }}&thinsp;g &rarr; <strong>{{ combo.step2.dcp_after }}&thinsp;g</strong>
+      {% if combo.step2.net_gain is not none %}&nbsp;<span class="muted">(net gain from base: +{{ combo.step2.net_gain }}&thinsp;g)</span>{% endif %}
+    </small></p>
+    {% else %}
+    <p class="mb-0 muted"><small><em>No DIAAS-boosting option improves on the DIAAS already achieved by Step 1.</em></small></p>
+    {% endif %}
   </div>
   {% endfor %}
   {% endif %}

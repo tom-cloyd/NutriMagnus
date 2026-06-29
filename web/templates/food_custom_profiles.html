@@ -10,14 +10,14 @@
 </nav>
 
 <h2>Custom Food Profiles</h2>
-<p class="muted">
-  Create and manage your own food data entries.
-  To edit a profile's nutrients, open it via the link and use the portion selector.
-  Full nutrient editing coming soon.
-</p>
+<p class="muted">Create and manage your own food data entries with full nutrient control.</p>
+
+{% if copied %}
+<div class="alert alert-success">Draft created — edit its nutrients below.</div>
+{% endif %}
 
 {# ── Create form ── #}
-<div class="card mb-4" style="max-width:36rem">
+<div class="card mb-3" style="max-width:36rem">
   <div class="card-body">
     <h5 class="card-title">Create a new profile</h5>
     <form method="post" action="/food/custom-profiles/create">
@@ -29,6 +29,47 @@
     </form>
   </div>
 </div>
+
+{# ── Copy from cache ── #}
+<details class="mb-4">
+  <summary><strong>Copy a cached food as a draft</strong>
+    <span class="muted" style="font-size:.9rem"> — start from existing USDA nutrient data</span>
+  </summary>
+  <div class="card card-body mt-2" style="max-width:36rem">
+    <p class="muted"><small>Search the food cache, then click Copy to create an editable draft pre-filled with that food's nutrient data.</small></p>
+    <form method="get" action="/food/custom-profiles" class="mb-2">
+      <div class="input-group">
+        <input type="text" class="form-control" name="copy_q"
+               value="{{ copy_q or '' }}"
+               placeholder="Search cached foods…">
+        <button type="submit" class="btn btn-outline-secondary">Search</button>
+      </div>
+    </form>
+    {% if copy_results %}
+    <p class="result-count">{{ copy_results|length }} result{% if copy_results|length != 1 %}s{% endif %} for <strong>{{ copy_q }}</strong></p>
+    <table class="table table-sm table-hover">
+      <thead class="table-light">
+        <tr><th>Food</th><th>Type</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in copy_results %}
+        <tr>
+          <td>{{ r.name }}</td>
+          <td class="muted">{{ r.data_type or "—" }}</td>
+          <td>
+            <form method="post" action="/food/custom-profiles/copy/{{ r.fdc_id }}" style="display:inline">
+              <button type="submit" class="btn btn-sm btn-outline-primary">Copy as draft</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% elif copy_q %}
+    <p class="muted">No cached foods matching <strong>{{ copy_q }}</strong>.</p>
+    {% endif %}
+  </div>
+</details>
 
 {# ── List ── #}
 {% if foods %}
@@ -48,7 +89,9 @@
       <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></td>
       <td class="muted">{{ food.fdc_id }}</td>
       <td class="muted">{{ food.data_type or "User Drafted" }}</td>
-      <td>
+      <td class="text-nowrap">
+        <a href="/food/custom-profiles/{{ food.fdc_id }}/edit"
+           class="btn btn-sm btn-outline-secondary me-1">Edit nutrients</a>
         <form method="post" action="/food/custom-profiles/delete/{{ food.fdc_id }}" style="display:inline">
           <button type="submit" class="btn btn-sm btn-outline-danger"
                   onclick="return confirm('Delete profile for {{ food.name | replace("'", "\\'") }}?')">

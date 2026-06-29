@@ -4,6 +4,7 @@ Docs: README-numa-documentation.md, Architecture: "web/ — Local web app"
 """
 import datetime
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -36,7 +37,107 @@ def _render_home_md() -> str:
     _HOME_CACHE.write_text(html, encoding="utf-8")
     return html
 
-_HOME_BODY = _render_home_md()
+# ---------------------------------------------------------------------------
+# Portion-string parser (mirrors CLI numa_app/services/portions.py)
+# ---------------------------------------------------------------------------
+
+_PORTION_UNIT_TO_G: dict[str, float] = {
+    "g": 1.0, "gr": 1.0, "gram": 1.0, "grams": 1.0,
+    "oz": 28.3495, "ounce": 28.3495, "ounces": 28.3495,
+    "lb": 453.592, "lbs": 453.592, "pound": 453.592, "pounds": 453.592,
+    "kg": 1000.0, "kilogram": 1000.0, "kilograms": 1000.0,
+}
+_PORTION_VOL_TO_ML: dict[str, float] = {
+    "c": 236.6, "cup": 236.6, "cups": 236.6,
+    "T": 14.8, "tbsp": 14.8, "tablespoon": 14.8, "tablespoons": 14.8,
+    "t": 4.9,  "tsp": 4.9,  "teaspoon": 4.9,  "teaspoons": 4.9,
+    "ml": 1.0, "milliliter": 1.0, "milliliters": 1.0, "cc": 1.0,
+    "floz": 29.6,
+    "l": 1000.0, "liter": 1000.0, "liters": 1000.0,
+}
+
+
+def _parse_portion_str(
+    raw: str,
+    portions: list[dict],
+    food_name: str = "",
+) -> tuple[float, str] | tuple[None, str]:
+    """
+    Parse a free-form portion string into (grams, display_label).
+    Returns (None, error_message) on failure.
+
+    Accepts: plain number (→ g), weight units (oz, lb, kg, g),
+    volume units (cup, T, tsp, ml …), fractions (1/4, 1 1/2),
+    and USDA preset codes (p1, p2 …).
+    """
+    raw = raw.strip()
+    if not raw:
+        return None, "Enter an amount."
+
+    # pN shortcut — USDA named portion
+    m = re.fullmatch(r"(?i)p(\d+)", raw)
+    if m:
+        idx = int(m.group(1)) - 1
+        if 0 <= idx < len(portions):
+            p = portions[idx]
+            return float(p["gram_weight"]), p["description"]
+        return None, f"No preset p{idx + 1} for this food."
+
+    # Tokenise: split on whitespace, keep "/" attached to adjacent digits
+    tokens = re.findall(r"\d+/\d+|\S+", raw)
+
+    def _parse_num(toks: list[str]) -> tuple[float, int] | None:
+        if not toks:
+            return None
+        t = toks[0]
+        if re.fullmatch(r"\d+/\d+", t):
+            num, den = t.split("/")
+            return float(num) / float(den), 1
+        try:
+            whole = float(t)
+        except ValueError:
+            return None
+        # Mixed number: "1 1/2"
+        if len(toks) > 1 and re.fullmatch(r"\d+/\d+", toks[1]):
+            num, den = toks[1].split("/")
+            return whole + float(num) / float(den), 2
+        return whole, 1
+
+    parsed = _parse_num(tokens)
+    if parsed is None:
+        return None, f'Could not read a number from "{raw}".'
+    number, consumed = parsed
+    rest = tokens[consumed:]
+
+    # No unit → grams
+    if not rest:
+        return number, f"{number:g} g"
+
+    unit = rest[0]
+
+    # Weight unit
+    factor = _PORTION_UNIT_TO_G.get(unit.lower())
+    if factor is not None:
+        grams = round(number * factor, 2)
+        return grams, f"{number:g} {unit}"
+
+    # Volume unit (case-sensitive for T vs t, fall back to lower)
+    ml_per = _PORTION_VOL_TO_ML.get(unit) or _PORTION_VOL_TO_ML.get(unit.lower())
+    if ml_per is not None:
+        density = _usda.get_density_g_per_ml(food_name, portions)
+        if density is None:
+            return None, (
+                f'Volume unit "{unit}" recognised, but no density data is available '
+                f"for this food. Enter weight in g or oz instead."
+            )
+        grams = round(number * ml_per * density, 2)
+        label = f"{number:g} {unit} (≈ {grams:.4g} g)"
+        return grams, label
+
+    return None, f'Unit "{unit}" not recognised. Try: g, oz, lb, cup, T, tsp, ml.'
+
+
+# ---------------------------------------------------------------------------
 
 _DIET_LABELS = {
     "all":        "All animal foods (meat, fish, dairy, eggs)",
@@ -167,11 +268,238 @@ def _protein_section(food_name: str, nutrients: dict) -> dict | None:
         }
         for k, v in sorted(pc["scores"].items(), key=lambda x: x[1])
     ]
+    protein_raw = nutrients.get("protein_g", 0.0)
+    protein_digestible = round(protein_raw * digestibility, 1) if diaas is not None else None
+    limiting_score = min(pc["scores"].values()) if pc["scores"] else None
+    dcp_g = None
+    if protein_digestible is not None and limiting_score is not None:
+        dcp_g = round(protein_digestible * min(1.0, limiting_score), 1)
     return {
-        "diaas":         diaas,
-        "complete":      pc["complete"],
-        "limiting_aa":   limiting_label,
-        "aa_rows":       aa_rows,
+        "diaas":              diaas,
+        "diaas_pct":          min(100, round(diaas * 100)) if diaas is not None else None,
+        "diaas_level":        ("good" if diaas >= 0.90 else ("ok" if diaas >= 0.70 else "low")) if diaas is not None else None,
+        "complete":           pc["complete"],
+        "limiting_aa":        limiting_label,
+        "limiting_score":     round(limiting_score, 3) if limiting_score is not None else None,
+        "aa_rows":            aa_rows,
+        "protein_raw":        round(protein_raw, 1),
+        "protein_digestible": protein_digestible,
+        "dcp_g":              dcp_g,
+    }
+
+
+def _food_complement_section(food_name: str, nutrients: dict) -> dict:
+    """Complement suggestions for a single food, using its own DIAAS as digestibility."""
+    if not _usda.has_amino_acid_data(nutrients) or nutrients.get("protein_g", 0) <= 0:
+        return {"no_data": True}
+    diaas = _usda.get_diaas(food_name)
+    digestibility = diaas if diaas is not None else 1.0
+    try:
+        gaps = _usda.get_aa_gaps(nutrients, digestibility=digestibility)
+    except Exception:
+        return {"no_data": True}
+    if not gaps:
+        return {"no_gaps": True}
+
+    prefs = _load_prefs_file()
+    diet_pref = prefs.get("diet_pref", "all")
+    pantry = _web_pantry_candidates()
+    max_improver_grams = 120
+    try:
+        suggestions = _usda.suggest_complements(
+            nutrients, pantry, diet_pref=diet_pref,
+            base_digestibility=digestibility,
+            base_food_name=food_name,
+            max_improver_grams=max_improver_grams,
+        )
+    except Exception:
+        return {"no_data": True}
+
+    base_protein = nutrients.get("protein_g", 0.0)
+    base_digestible = base_protein * digestibility
+
+    def _aa_effects(s: dict) -> list[dict]:
+        return [
+            {
+                "label":  _usda.nutrient_label(aa)[0],
+                "before": round(orig_score, 2),
+                "after":  round(s.get("new_scores", {}).get(aa, orig_score), 2),
+                "met":    s.get("new_scores", {}).get(aa, orig_score) >= 1.0,
+            }
+            for aa, orig_score, _ in gaps[:3]
+        ]
+
+    def _total_dig(s: dict) -> float:
+        raw = float(s.get("protein_added") or 0)
+        new_scores = s.get("new_scores", {})
+        if new_scores and gaps:
+            new_raw_min = min(new_scores.values())
+            old_raw_min = gaps[0][1]
+            scale = (new_raw_min / old_raw_min) if old_raw_min > 0 else 1.0
+            return round((base_protein + raw) * min(1.0, scale), 1)
+        return round(base_digestible + float(s.get("digestible_protein_added") or 0), 1)
+
+    def _fmt(s: dict) -> dict:
+        return {
+            "name":              s.get("name", ""),
+            "grams":             s.get("grams"),
+            "fdc_id":            s.get("fdc_id"),
+            "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
+            "new_complete":      s.get("new_complete", False),
+            "dig_protein_added": round(float(s.get("digestible_protein_added") or 0), 1),
+            "protein_added":     round(float(s.get("protein_added") or 0), 1),
+            "opens_new_gap":     s.get("opens_new_gap", False),
+            "aa_effects":        _aa_effects(s),
+            "total_dig":         _total_dig(s),
+        }
+
+    def _fmt_improver(s: dict) -> dict:
+        raw = float(s.get("protein_added") or 0)
+        dig = float(s.get("digestible_protein_added") or 0)
+        new_diaas = s.get("new_diaas") or 0.0
+        total_dig = round((base_protein + raw) * min(1.0, new_diaas), 1) if new_diaas else round(base_digestible + dig, 1)
+        return {
+            "name":              s.get("name", ""),
+            "grams":             s.get("grams"),
+            "fdc_id":            s.get("fdc_id"),
+            "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
+            "current_diaas":     s.get("current_diaas"),
+            "new_diaas":         s.get("new_diaas"),
+            "steps":             s.get("steps", []),
+            "dig_protein_added": round(dig, 1),
+            "protein_added":     round(raw, 1),
+            "total_dig":         total_dig,
+        }
+
+    sort_key = lambda s: (0 if s.get("new_complete") else 1, float(s.get("grams") or 999))
+    pantry_suggs    = sorted(suggestions.get("pantry",  []), key=sort_key)[:3]
+    general_suggs   = sorted(suggestions.get("general", []), key=sort_key)[:6]
+    pair_suggs      = suggestions.get("pairs", [])[:6]
+    diaas_improvers = suggestions.get("diaas_improvers", [])[:3]
+
+    # Two-step combos: pair each top gap-closer with the best DIAAS-booster for its pool.
+    two_step_combos: list[dict] = []
+    top_gap_closers = (pantry_suggs + general_suggs)[:3]
+    if top_gap_closers and diaas_improvers:
+        for gc in top_gap_closers:
+            comp_nutrients = gc.get("comp_nutrients")
+            if not comp_nutrients:
+                continue
+            gc_grams = gc["grams"]
+            gc_raw   = float(gc.get("protein_added") or 0)
+            gc_diaas = gc.get("predicted_diaas") or digestibility
+            gc_dcp   = round((base_protein + gc_raw) * min(1.0, gc_diaas), 1)
+            combined = _usda.sum_nutrients(
+                nutrients, _usda.scale_nutrients(comp_nutrients, gc_grams)
+            )
+            try:
+                sub = _usda.suggest_complements(
+                    combined, pantry, diet_pref=diet_pref,
+                    base_digestibility=gc_diaas,
+                    max_improver_grams=max_improver_grams,
+                )
+            except Exception:
+                sub = {}
+            qualifying = [
+                b for b in sub.get("diaas_improvers", [])
+                if b.get("steps") and b["steps"][0]["new_diaas"] > gc_diaas
+            ]
+            combo: dict = {
+                "step1": {
+                    "name":       gc.get("name", ""),
+                    "fdc_id":     gc.get("fdc_id"),
+                    "diaas":      round(gc["diaas"], 2) if gc.get("diaas") else None,
+                    "grams":      gc_grams,
+                    "aa_effects": _aa_effects(gc),
+                    "dcp_before": round(base_digestible, 1),
+                    "dcp_after":  gc_dcp,
+                },
+                "step2": None,
+            }
+            if qualifying:
+                b      = qualifying[0]
+                b_step = b["steps"][0]
+                b_dcp  = b_step.get("dcp")
+                combo["step2"] = {
+                    "name":      b.get("name", ""),
+                    "fdc_id":    b.get("fdc_id"),
+                    "diaas":     round(b["diaas"], 2) if b.get("diaas") else None,
+                    "grams":     b_step["grams"],
+                    "new_diaas": b_step["new_diaas"],
+                    "dcp_before": gc_dcp,
+                    "dcp_after":  b_dcp,
+                    "net_gain":  round(b_dcp - base_digestible, 1) if b_dcp is not None else None,
+                }
+            two_step_combos.append(combo)
+
+    gap_rows = [{"label": _usda.nutrient_label(k)[0], "score": round(v, 3)} for k, v, _ in gaps[:4]]
+    limiting_aa = gaps[0][0] if gaps else None
+    limiting_label = _usda.nutrient_label(limiting_aa)[0] if limiting_aa else "this amino acid"
+    low_in = _AA_LOW_IN.get(limiting_aa or "", "many plant foods")
+    n_shown = len(pantry_suggs) + len(general_suggs)
+    exhausted_prefix = "All options that qualify are shown above — no others meet the criteria." \
+        if n_shown > 0 else "No qualifying options found in the database."
+
+    def _fmt_pair(p: dict) -> dict:
+        foods_out = [
+            {
+                "name":          f.get("name", ""),
+                "fdc_id":        f.get("fdc_id"),
+                "diaas":         round(f["diaas"], 2) if f.get("diaas") else None,
+                "grams":         f.get("grams"),
+                "protein_added": f.get("protein_added", 0),
+                "dig_added":     f.get("dig_added", 0),
+            }
+            for f in p.get("foods", [])
+        ]
+        new_scores = p.get("new_scores", {})
+        total_raw  = base_protein + float(p.get("total_protein_added") or 0)
+        if new_scores and gaps:
+            new_raw_min = min(new_scores.values())
+            old_raw_min = gaps[0][1]
+            scale = (new_raw_min / old_raw_min) if old_raw_min > 0 else 1.0
+            total_dig_complete = round(total_raw * min(1.0, scale), 1)
+        else:
+            total_dig_complete = round(base_digestible + float(p.get("total_dig_added") or 0), 1)
+        pair_effects = [
+            {
+                "label":  _usda.nutrient_label(aa)[0],
+                "before": round(orig_score, 2),
+                "after":  round(new_scores.get(aa, orig_score), 2),
+                "met":    new_scores.get(aa, orig_score) >= 1.0,
+            }
+            for aa, orig_score, _ in gaps[:3]
+        ]
+        return {
+            "foods":               foods_out,
+            "total_grams":         p.get("total_grams"),
+            "gaps_closed":         p.get("gaps_closed", False),
+            "new_complete":        p.get("new_complete", False),
+            "total_protein_added": p.get("total_protein_added", 0),
+            "total_dig_added":     p.get("total_dig_added", 0),
+            "total_dig_complete":  total_dig_complete,
+            "aa_effects":          pair_effects,
+        }
+
+    return {
+        "no_gaps":           False,
+        "gaps":              gap_rows,
+        "ranking_note":      "Ranked by grams needed (smallest first). Exception: an option that fully completes the amino acid profile is promoted to the top — but only if its serving is 50 g or less.",
+        "pantry_empty":      not pantry,
+        "pantry_no_qualify": bool(pantry) and not pantry_suggs,
+        "pantry":            [_fmt(s) for s in pantry_suggs],
+        "general":           [_fmt(s) for s in general_suggs],
+        "pairs":             [_fmt_pair(p) for p in pair_suggs],
+        "diaas_improvers":   [_fmt_improver(s) for s in diaas_improvers],
+        "two_step_combos":   two_step_combos,
+        "have_gap_closers":  bool(pantry_suggs or general_suggs),
+        "exhausted_msg": (
+            f"{exhausted_prefix} A qualifying complement must have a {limiting_label}/protein ratio "
+            f"above the FAO reference to close the gap to score 1.0 in a practical serving (≤ 500 g). "
+            f"Score 1.0 = meets human requirements (the floor, not an aspirational target). "
+            f"Foods that don't qualify for a {limiting_label} gap: {low_in}. "
+            f"Their ratio falls below the reference — adding them dilutes the score further."
+        ),
     }
 
 
@@ -181,7 +509,7 @@ def _protein_section(food_name: str, nutrients: dict) -> dict | None:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse(request, "home.html", {"home_body": _HOME_BODY})
+    return templates.TemplateResponse(request, "home.html", {"home_body": _render_home_md()})
 
 
 async def _search_logic(request: Request, query: str, template: str, extra_ctx: dict | None = None):
@@ -196,6 +524,16 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
         with _db.get_db() as conn:
             all_recipes = _db.recipe_list(conn)
             cached = _db.search_cached_foods(conn, query)
+        seen_ids: set[int] = set()
+        for row in cached:
+            seen_ids.add(row["fdc_id"])
+            results.append({
+                "fdc_id":    row["fdc_id"],
+                "name":      row["name"],
+                "data_type": row["data_type"],
+                "brand":     row["brand"] or "",
+                "source":    "cache",
+            })
         matching_recipes = sorted(
             [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)],
             key=lambda r: (-sum(1 for w in query_words if w in r["name"].lower()), r["name"].lower()),
@@ -208,16 +546,6 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                 "data_type": "Recipe",
                 "brand":     "",
                 "source":    "local",
-            })
-        seen_ids: set[int] = set()
-        for row in cached:
-            seen_ids.add(row["fdc_id"])
-            results.append({
-                "fdc_id":    row["fdc_id"],
-                "name":      row["name"],
-                "data_type": row["data_type"],
-                "brand":     row["brand"] or "",
-                "source":    "cache",
             })
         try:
             for food in _usda.search_foods(query):
@@ -242,7 +570,9 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
 
 
 @app.get("/food/search", response_class=HTMLResponse)
-async def food_search_get(request: Request):
+async def food_search_get(request: Request, query: str = Query(default="")):
+    if query.strip():
+        return await _search_logic(request, query, "search.html")
     return templates.TemplateResponse(request, "search.html", {"results": [], "query": ""})
 
 
@@ -352,7 +682,7 @@ async def food_analyze_recipe_portion_post(
         "diaas_display":      diaas_display,
         "has_profile":        rda is not None,
         "protein_adequacy":   _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":        _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None),
+        "complements":        _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe"),
         "gl":                 _recipe_gl_web(recipe_id, recipe_servings, servings),
     })
 
@@ -401,17 +731,15 @@ async def food_convert_get(request: Request, q: str = ""):
 async def food_convert_detail(
     request: Request,
     fdc_id: int,
-    amount: float = Query(default=None),
+    portion_str: str = Query(default=""),
 ):
     food_data: dict = {}
     portions: list = []
-    nutrients: dict = {}
 
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
 
     if cached:
-        nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
         portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
         food_data = {"fdc_id": cached["fdc_id"], "name": cached["name"], "brand": cached["brand"] or ""}
     else:
@@ -421,7 +749,6 @@ async def food_convert_detail(
             return templates.TemplateResponse(request, "food_convert.html", {
                 "search_error": f"Could not load food {fdc_id}: {exc}",
             })
-        nutrients = detail.get("nutrients", {})
         portions = detail.get("portions", [])
         food_data = {"fdc_id": fdc_id, "name": detail["name"], "brand": detail.get("brand") or ""}
         with _db.get_db() as conn:
@@ -429,25 +756,115 @@ async def food_convert_detail(
                            data_type=detail.get("dataType", ""), brand=detail.get("brand"),
                            serving_size=detail.get("servingSize"),
                            serving_unit=detail.get("servingUnit"),
-                           nutrients=nutrients, portions=portions)
+                           nutrients=detail.get("nutrients", {}), portions=portions)
 
     density = _usda.get_density_g_per_ml(food_data["name"], portions)
 
+    # Parse the free-form portion string → grams
+    convert_grams: float | None = None
+    convert_label: str | None = None
+    convert_error: str | None = None
+    convert_volume: float | None = None
     closest_portion = None
-    if amount and portions:
-        best = min(portions, key=lambda p: abs(float(p.get("gram_weight", 0)) - amount))
-        closest_portion = best
+
+    if portion_str.strip():
+        parsed_g, parsed_label = _parse_portion_str(portion_str.strip(), portions, food_data["name"])
+        if parsed_g is None:
+            convert_error = parsed_label
+        else:
+            convert_grams = parsed_g
+            convert_label = parsed_label
+            if density and convert_grams:
+                convert_volume = round(convert_grams / density, 1)
+            if convert_grams and portions:
+                closest_portion = min(
+                    portions, key=lambda p: abs(float(p.get("gram_weight", 0)) - convert_grams)
+                )
 
     return templates.TemplateResponse(request, "food_convert.html", {
-        "food":            food_data,
-        "portions":        portions,
-        "density":         density,
-        "amount":          amount,
-        "closest_portion": closest_portion,
+        "food":             food_data,
+        "portions":         portions,
+        "density":          density,
+        "portion_str":      portion_str.strip(),
+        "convert_grams":    convert_grams,
+        "convert_label":    convert_label,
+        "convert_error":    convert_error,
+        "convert_volume":   convert_volume,
+        "closest_portion":  closest_portion,
     })
 
 
 # ---------------------------------------------------------------------------
+# Edit-form nutrient groups (key, label, unit) for custom profile editing
+# ---------------------------------------------------------------------------
+
+_EDIT_NUTRIENT_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
+    ("Macronutrients", [
+        ("calories",        "Calories",             "kcal"),
+        ("protein_g",       "Protein",              "g"),
+        ("carbs_g",         "Carbohydrate",         "g"),
+        ("fat_g",           "Total Fat",            "g"),
+        ("fiber_g",         "Fiber",                "g"),
+        ("sugar_g",         "Sugars",               "g"),
+        ("saturated_fat_g", "Saturated Fat",        "g"),
+        ("mono_fat_g",      "Monounsaturated Fat",  "g"),
+        ("poly_fat_g",      "Polyunsaturated Fat",  "g"),
+    ]),
+    ("Omega Fatty Acids", [
+        ("omega3_ala_mg", "ALA (omega-3)",      "mg"),
+        ("omega3_epa_mg", "EPA (omega-3)",      "mg"),
+        ("omega3_dha_mg", "DHA (omega-3)",      "mg"),
+        ("omega6_la_mg",  "Linoleic (omega-6)", "mg"),
+    ]),
+    ("Minerals", [
+        ("calcium_mg",    "Calcium",    "mg"),
+        ("iron_mg",       "Iron",       "mg"),
+        ("magnesium_mg",  "Magnesium",  "mg"),
+        ("phosphorus_mg", "Phosphorus", "mg"),
+        ("potassium_mg",  "Potassium",  "mg"),
+        ("sodium_mg",     "Sodium",     "mg"),
+        ("zinc_mg",       "Zinc",       "mg"),
+    ]),
+    ("Vitamins", [
+        ("vitamin_a_mcg",  "Vitamin A",       "mcg RAE"),
+        ("vitamin_c_mg",   "Vitamin C",       "mg"),
+        ("vitamin_d_mcg",  "Vitamin D",       "mcg"),
+        ("vitamin_e_mg",   "Vitamin E",       "mg"),
+        ("vitamin_k_mcg",  "Vitamin K",       "mcg"),
+        ("thiamin_mg",     "Thiamin (B1)",    "mg"),
+        ("riboflavin_mg",  "Riboflavin (B2)", "mg"),
+        ("niacin_mg",      "Niacin (B3)",     "mg"),
+        ("b6_mg",          "Vitamin B6",      "mg"),
+        ("folate_mcg",     "Folate (B9)",     "mcg"),
+        ("b12_mcg",        "Vitamin B12",     "mcg"),
+    ]),
+    ("Phytonutrients", [
+        ("beta_carotene_mcg",      "Beta-carotene",     "mcg"),
+        ("alpha_carotene_mcg",     "Alpha-carotene",    "mcg"),
+        ("lycopene_mcg",           "Lycopene",          "mcg"),
+        ("lutein_zeaxanthin_mcg",  "Lutein+Zeaxanthin", "mcg"),
+        ("choline_mg",             "Choline",           "mg"),
+        ("beta_sitosterol_mg",     "Beta-sitosterol",   "mg"),
+        ("isoflavones_mg",         "Isoflavones",       "mg"),
+    ]),
+    ("Amino Acids", [
+        ("aa_tryptophan_g",    "Tryptophan",    "g"),
+        ("aa_threonine_g",     "Threonine",     "g"),
+        ("aa_isoleucine_g",    "Isoleucine",    "g"),
+        ("aa_leucine_g",       "Leucine",       "g"),
+        ("aa_lysine_g",        "Lysine",        "g"),
+        ("aa_methionine_g",    "Methionine",    "g"),
+        ("aa_cystine_g",       "Cystine",       "g"),
+        ("aa_phenylalanine_g", "Phenylalanine", "g"),
+        ("aa_tyrosine_g",      "Tyrosine",      "g"),
+        ("aa_valine_g",        "Valine",        "g"),
+        ("aa_histidine_g",     "Histidine",     "g"),
+    ]),
+]
+
+_ALL_NUTRIENT_KEYS: set[str] = {k for _, fields in _EDIT_NUTRIENT_GROUPS for k, _, _ in fields}
+
+
 # Compare helpers
 # ---------------------------------------------------------------------------
 
@@ -465,10 +882,14 @@ _COMPARE_GROUPS: list[tuple[str, list[str]]] = [
         "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
         "b6_mg", "folate_mcg", "b12_mcg",
     ]),
+    ("Phytonutrients", [
+        "beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
+        "lutein_zeaxanthin_mcg", "choline_mg", "beta_sitosterol_mg", "isoflavones_mg",
+    ]),
     ("Amino Acids", [
         "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
-        "aa_lysine_g", "aa_methionine_g", "aa_phenylalanine_g",
-        "aa_valine_g", "aa_histidine_g",
+        "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
+        "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g",
     ]),
 ]
 
@@ -617,9 +1038,9 @@ async def food_compare_add(
     id_list, amount_list = _parse_ids_amounts(ids, amounts)
     ids_str = ",".join(str(i) for i in id_list)
     amounts_str = ",".join(str(a) for a in amount_list)
-    if len(id_list) >= 6:
+    if len(id_list) >= 8:
         return RedirectResponse(
-            f"/food/compare?ids={ids_str}&amounts={amounts_str}&error=Maximum+6+foods+allowed",
+            f"/food/compare?ids={ids_str}&amounts={amounts_str}&error=Maximum+8+foods+allowed",
             status_code=303,
         )
     if fdc_id not in id_list:
@@ -720,14 +1141,15 @@ async def food_cache_get(request: Request, q: str = ""):
         ann = annotations.get(row["fdc_id"])
         nuts = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
         foods.append({
-            "fdc_id":    row["fdc_id"],
-            "name":      row["name"],
-            "data_type": row["data_type"] or "",
-            "brand":     row["brand"] or "",
-            "has_aa":    _usda.has_amino_acid_data(nuts),
-            "gi":        ann["gi_estimate"] if ann else None,
-            "diaas":     ann["diaas_estimate"] if ann else None,
-            "notes":     row["notes"] or "",
+            "fdc_id":         row["fdc_id"],
+            "name":           row["name"],
+            "data_type":      row["data_type"] or "",
+            "brand":          row["brand"] or "",
+            "has_aa":         _usda.has_amino_acid_data(nuts),
+            "gi":             ann["gi_estimate"] if ann else None,
+            "diaas":          ann["diaas_estimate"] if ann else None,
+            "notes":          row["notes"] or "",
+            "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
         })
     return templates.TemplateResponse(request, "food_cache.html", {
         "foods": foods,
@@ -742,24 +1164,165 @@ async def food_cache_delete(fdc_id: int = Form(...)):
     return RedirectResponse("/food/cache", status_code=303)
 
 
+@app.get("/food/cache/{fdc_id}/portions", response_class=HTMLResponse)
+async def food_cache_portions_get(request: Request, fdc_id: int):
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        return RedirectResponse("/food/cache", status_code=303)
+    portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+    return templates.TemplateResponse(request, "food_cache_portions.html", {
+        "food":     {"fdc_id": cached["fdc_id"], "name": cached["name"]},
+        "portions": portions,
+        "saved":    False,
+        "error":    None,
+    })
+
+
+@app.post("/food/cache/{fdc_id}/portions/add", response_class=HTMLResponse)
+async def food_cache_portions_add(
+    request: Request,
+    fdc_id: int,
+    description: str = Form(...),
+    gram_weight: str = Form(...),
+):
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        return RedirectResponse("/food/cache", status_code=303)
+    portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+    error = None
+    try:
+        gw = float(gram_weight)
+        if gw <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        error = "Gram weight must be a positive number."
+    desc = description.strip()
+    if not desc:
+        error = "Description is required."
+    if not error:
+        portions.append({"description": desc, "gram_weight": round(gw, 2)})
+        with _db.get_db() as conn:
+            _db.update_food_portions(conn, fdc_id, portions)
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+    return templates.TemplateResponse(request, "food_cache_portions.html", {
+        "food":     {"fdc_id": fdc_id, "name": cached["name"]},
+        "portions": portions,
+        "saved":    not error,
+        "error":    error,
+    })
+
+
+@app.post("/food/cache/{fdc_id}/portions/delete", response_class=HTMLResponse)
+async def food_cache_portions_delete(
+    request: Request,
+    fdc_id: int,
+    portion_index: int = Form(...),
+):
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        return RedirectResponse("/food/cache", status_code=303)
+    portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+    if 0 <= portion_index < len(portions):
+        portions.pop(portion_index)
+        with _db.get_db() as conn:
+            _db.update_food_portions(conn, fdc_id, portions)
+    return templates.TemplateResponse(request, "food_cache_portions.html", {
+        "food":     {"fdc_id": fdc_id, "name": cached["name"]},
+        "portions": portions,
+        "saved":    False,
+        "error":    None,
+    })
+
+
+@app.post("/food/cache/{fdc_id}/refresh", response_class=HTMLResponse)
+async def food_cache_refresh(request: Request, fdc_id: int):
+    """Re-fetch nutrients from USDA and replace all cached nutrient data."""
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        return RedirectResponse("/food/cache", status_code=303)
+    if fdc_id < 0:
+        return RedirectResponse(f"/food/cache?error=off_no_refresh", status_code=303)
+    error = None
+    try:
+        detail = _usda.get_food_detail(fdc_id)
+        new_nutrients = detail.get("nutrients", {})
+        new_portions = detail.get("portions") or json.loads(cached["portions_json"] or "[]")
+        with _db.get_db() as conn:
+            _db.update_cached_food_profile(
+                conn, fdc_id,
+                name=detail.get("name") or cached["name"],
+                nutrients=new_nutrients,
+                data_type=detail.get("dataType") or cached["data_type"],
+                brand=detail.get("brand") or cached["brand"],
+                serving_size=detail.get("servingSize") or cached["serving_size"],
+                serving_unit=detail.get("servingUnit") or cached["serving_unit"],
+                portions=new_portions,
+                notes=cached["notes"],
+                user_drafted=False,
+            )
+    except Exception as exc:
+        error = str(exc)
+    if error:
+        with _db.get_db() as conn:
+            rows = _db.list_cached_foods(conn)
+            fdc_ids = [r["fdc_id"] for r in rows]
+            annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
+        foods = []
+        for row in rows:
+            ann = annotations.get(row["fdc_id"])
+            nuts = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+            foods.append({
+                "fdc_id":        row["fdc_id"],
+                "name":          row["name"],
+                "data_type":     row["data_type"] or "",
+                "brand":         row["brand"] or "",
+                "has_aa":        _usda.has_amino_acid_data(nuts),
+                "gi":            ann["gi_estimate"] if ann else None,
+                "diaas":         ann["diaas_estimate"] if ann else None,
+                "notes":         row["notes"] or "",
+                "curator_notes": row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
+            })
+        return templates.TemplateResponse(request, "food_cache.html", {
+            "foods":         foods,
+            "q":             "",
+            "refresh_error": f"Refresh failed for FDC {fdc_id}: {error}",
+        })
+    return RedirectResponse(f"/food/{fdc_id}?refreshed=1", status_code=303)
+
+
 @app.get("/pantry", response_class=HTMLResponse)
-async def pantry_get(request: Request):
+async def pantry_get(request: Request, added: str = ""):
     with _db.get_db() as conn:
         items = [dict(r) for r in _db.pantry_list(conn)]
-    return templates.TemplateResponse(request, "pantry.html", {"items": items})
+    return templates.TemplateResponse(request, "pantry.html", {
+        "items": items,
+        "added": bool(added),
+    })
 
 
 @app.post("/pantry/add", response_class=RedirectResponse)
 async def pantry_add(
     food_name: str = Form(...),
     notes: str = Form(""),
+    fdc_id: str = Form(""),
 ):
     food_name = food_name.strip()
     notes = notes.strip() or None
+    fdc_id_int: int | None = None
+    try:
+        fdc_id_int = int(fdc_id) if fdc_id.strip() else None
+    except ValueError:
+        pass
     if food_name:
         with _db.get_db() as conn:
-            _db.pantry_add(conn, food_name, notes=notes)
-    return RedirectResponse("/pantry", status_code=303)
+            _db.pantry_add(conn, food_name, fdc_id=fdc_id_int, notes=notes)
+    return RedirectResponse("/pantry?added=1", status_code=303)
 
 
 @app.post("/pantry/remove/{pantry_id}", response_class=RedirectResponse)
@@ -770,11 +1333,19 @@ async def pantry_remove(pantry_id: int):
 
 
 @app.get("/food/custom-profiles", response_class=HTMLResponse)
-async def food_custom_profiles_get(request: Request):
+async def food_custom_profiles_get(request: Request, copy_q: str = Query(default="")):
     with _db.get_db() as conn:
         rows = _db.list_user_drafted_foods(conn)
+        copy_results = []
+        if copy_q.strip():
+            copy_results = [dict(r) for r in _db.search_cached_foods(conn, copy_q.strip())]
     foods = [dict(r) for r in rows]
-    return templates.TemplateResponse(request, "food_custom_profiles.html", {"foods": foods})
+    return templates.TemplateResponse(request, "food_custom_profiles.html", {
+        "foods": foods,
+        "copy_q": copy_q.strip(),
+        "copy_results": copy_results,
+        "copied": False,
+    })
 
 
 @app.post("/food/custom-profiles/create", response_class=RedirectResponse)
@@ -804,6 +1375,119 @@ async def food_custom_profiles_delete(fdc_id: int):
     with _db.get_db() as conn:
         _db.delete_cached_food(conn, fdc_id)
     return RedirectResponse("/food/custom-profiles", status_code=303)
+
+
+@app.get("/food/custom-profiles/{fdc_id}/edit", response_class=HTMLResponse)
+async def food_custom_profiles_edit_get(request: Request, fdc_id: int):
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        return RedirectResponse("/food/custom-profiles", status_code=303)
+    nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
+    field_groups = [
+        {
+            "name": group_name,
+            "fields": [
+                {"key": k, "label": label, "unit": unit, "value": nutrients.get(k, "")}
+                for k, label, unit in fields
+            ],
+        }
+        for group_name, fields in _EDIT_NUTRIENT_GROUPS
+    ]
+    return templates.TemplateResponse(request, "food_custom_edit.html", {
+        "food": dict(cached),
+        "field_groups": field_groups,
+        "saved": False,
+    })
+
+
+@app.post("/food/custom-profiles/{fdc_id}/edit", response_class=HTMLResponse)
+async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        return RedirectResponse("/food/custom-profiles", status_code=303)
+    form = await request.form()
+    name = (form.get("name") or cached["name"]).strip() or cached["name"]
+    serving_size: float | None = cached["serving_size"]
+    srv_raw = (form.get("serving_size") or "").strip()
+    if srv_raw:
+        try:
+            serving_size = float(srv_raw)
+        except ValueError:
+            pass
+    serving_unit = (form.get("serving_unit") or cached["serving_unit"] or "").strip() or None
+    notes = (form.get("notes") or "").strip() or None
+    nutrients: dict[str, float] = {}
+    for key in _ALL_NUTRIENT_KEYS:
+        raw = (form.get(key) or "").strip()
+        if raw:
+            try:
+                v = float(raw)
+                if v != 0:
+                    nutrients[key] = v
+            except ValueError:
+                pass
+    portions_json = cached["portions_json"]
+    portions: list[dict] = []
+    if portions_json and portions_json != "null":
+        portions = json.loads(portions_json)
+    with _db.get_db() as conn:
+        _db.update_cached_food_profile(
+            conn, fdc_id, name, nutrients,
+            data_type=cached["data_type"] or "User Drafted",
+            brand=cached["brand"],
+            serving_size=serving_size,
+            serving_unit=serving_unit,
+            portions=portions,
+            notes=notes,
+            user_drafted=True,
+        )
+    with _db.get_db() as conn:
+        updated = _db.get_cached_food(conn, fdc_id)
+    nutrients_reload = json.loads(updated["nutrients_json"]) if updated["nutrients_json"] else {}
+    field_groups = [
+        {
+            "name": group_name,
+            "fields": [
+                {"key": k, "label": label, "unit": unit, "value": nutrients_reload.get(k, "")}
+                for k, label, unit in fields
+            ],
+        }
+        for group_name, fields in _EDIT_NUTRIENT_GROUPS
+    ]
+    return templates.TemplateResponse(request, "food_custom_edit.html", {
+        "food": dict(updated),
+        "field_groups": field_groups,
+        "saved": True,
+    })
+
+
+@app.post("/food/custom-profiles/copy/{fdc_id}", response_class=RedirectResponse)
+async def food_custom_profiles_copy(fdc_id: int):
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+        if not cached:
+            return RedirectResponse("/food/custom-profiles", status_code=303)
+        new_id = _db.next_user_drafted_fdc_id(conn)
+        nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
+        portions_json = cached["portions_json"]
+        portions: list[dict] = []
+        if portions_json and portions_json != "null":
+            portions = json.loads(portions_json)
+        _db.cache_food(
+            conn,
+            fdc_id=new_id,
+            name=f"Copy of {cached['name']}",
+            data_type="User Drafted",
+            brand=cached["brand"],
+            serving_size=cached["serving_size"],
+            serving_unit=cached["serving_unit"],
+            nutrients=nutrients,
+            portions=portions,
+            user_drafted=True,
+        )
+    return RedirectResponse(f"/food/custom-profiles/{new_id}/edit", status_code=303)
 
 
 @app.get("/food/annotate", response_class=HTMLResponse)
@@ -851,17 +1535,17 @@ async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "")
 @app.post("/food/annotate/{fdc_id}", response_class=RedirectResponse)
 async def food_annotate_edit_post(
     fdc_id: int,
-    gi_estimate:    str = Form(""),
-    diaas_estimate: str = Form(""),
-    prep_context:   str = Form(""),
-    gi_no_prompt:   str = Form(""),
+    gi_estimate:     str = Form(""),
+    diaas_estimate:  str = Form(""),
+    prep_context:    str = Form(""),
+    gi_no_prompt:    str = Form(""),
     diaas_no_prompt: str = Form(""),
 ):
-    gi   = float(gi_estimate)   if gi_estimate.strip()   else None
+    gi   = float(gi_estimate)    if gi_estimate.strip()    else None
     dias = float(diaas_estimate) if diaas_estimate.strip() else None
     prep = prep_context.strip() or None
     with _db.get_db() as conn:
-        _db.upsert_food_annotation(
+        _db.set_food_annotation(
             conn, fdc_id,
             gi_estimate=gi,
             gi_no_prompt=bool(gi_no_prompt),
@@ -872,12 +1556,20 @@ async def food_annotate_edit_post(
     return RedirectResponse(f"/food/annotate/{fdc_id}?saved=1", status_code=303)
 
 
+@app.post("/food/annotate/{fdc_id}/clear", response_class=RedirectResponse)
+async def food_annotate_clear(fdc_id: int):
+    with _db.get_db() as conn:
+        _db.delete_food_annotation(conn, fdc_id)
+    return RedirectResponse(f"/food/annotate/{fdc_id}", status_code=303)
+
+
 # /food/{fdc_id} must be registered LAST among /food/* routes so literal paths win.
 @app.get("/food/{fdc_id}", response_class=HTMLResponse)
 async def food_detail(
     request: Request,
     fdc_id: int,
     amount: float = Query(default=100.0, gt=0),
+    portion_str: str = Query(default=""),
 ):
     nutrients: dict = {}
     portions: list = []
@@ -890,12 +1582,13 @@ async def food_detail(
         nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
         portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
         food = {
-            "fdc_id":       cached["fdc_id"],
-            "name":         cached["name"],
-            "data_type":    cached["data_type"],
-            "brand":        cached["brand"] or "",
-            "serving_size": cached["serving_size"],
-            "serving_unit": cached["serving_unit"] or "",
+            "fdc_id":        cached["fdc_id"],
+            "name":          cached["name"],
+            "data_type":     cached["data_type"],
+            "brand":         cached["brand"] or "",
+            "serving_size":  cached["serving_size"],
+            "serving_unit":  cached["serving_unit"] or "",
+            "user_drafted":  bool(cached["user_drafted"]),
         }
     else:
         try:
@@ -915,6 +1608,7 @@ async def food_detail(
             "brand":        detail.get("brand") or "",
             "serving_size": detail.get("servingSize"),
             "serving_unit": detail.get("servingUnit") or "",
+            "user_drafted": False,
         }
         with _db.get_db() as conn:
             _db.cache_food(
@@ -929,6 +1623,18 @@ async def food_detail(
                 portions=portions,
             )
 
+    # Resolve portion: free-form string takes priority over plain gram amount
+    portion_error: str | None = None
+    portion_label: str | None = None
+    if portion_str.strip():
+        parsed_g, parsed_label = _parse_portion_str(portion_str.strip(), portions, food["name"])
+        if parsed_g is None:
+            portion_error = parsed_label  # error message
+            amount = 100.0
+        else:
+            amount = parsed_g if parsed_g > 0 else 100.0
+            portion_label = parsed_label
+
     # Scale nutrient display values; protein analysis uses per-100g ratios so stays unscaled
     display_nutrients = _usda.scale_nutrients(nutrients, amount) if amount != 100.0 else nutrients
     rda = _load_rda()
@@ -938,14 +1644,24 @@ async def food_detail(
         rda_scaled = {k: (v * (amount / 100.0), u, t) for k, (v, u, t) in rda.items()}
     antinutrient_flags = _usda.get_antinutrient_flags(food["name"])
 
+    # Foundation fallback: protein present but no AA data — suggest a Foundation Foods search
+    suggest_foundation: str | None = None
+    if nutrients.get("protein_g", 0) > 0 and not _usda.has_amino_acid_data(nutrients):
+        suggest_foundation = food["name"].split(",")[0].strip()
+
     return templates.TemplateResponse(request, "food_detail.html", {
         "food":               food,
         "amount":             amount,
+        "portion_str":        portion_str.strip(),
+        "portion_label":      portion_label,
+        "portion_error":      portion_error,
         "portions":           portions,
         "nutrient_sections":  _nutrient_sections(display_nutrients, rda_scaled or rda),
-        "protein":            _protein_section(food["name"], nutrients),
+        "protein":            _protein_section(food["name"], display_nutrients),
+        "complements":        _food_complement_section(food["name"], display_nutrients),
         "antinutrients":      antinutrient_flags,
         "has_profile":        rda is not None,
+        "suggest_foundation": suggest_foundation,
     })
 
 
@@ -1051,9 +1767,10 @@ def _protein_adequacy(nutrients: dict, diaas_dcp_g: float | None, rda: dict | No
         target = _REFERENCE_ADULT_PROTEIN_G
         personal = False
     intake = diaas_dcp_g if diaas_dcp_g else nutrients.get("protein_g", 0.0)
+    label = "Digestible complete protein" if diaas_dcp_g is not None else "Protein"
     pct = intake / target * 100.0
     return {"target": round(target, 1), "intake": round(intake, 1),
-            "pct": round(pct, 0), "personal": personal}
+            "pct": round(pct, 0), "personal": personal, "label": label}
 
 
 def _web_pantry_candidates() -> list[dict]:
@@ -1091,8 +1808,16 @@ _AA_LOW_IN: dict[str, str] = {
     "aa_phenylalanine_g": "most plant foods",
 }
 
-def _complement_suggestions(aa_nutrients: dict, diaas_score: float | None) -> dict:
-    """Build complement suggestion data. Returns no_data sentinel if AA data unavailable."""
+def _complement_suggestions(
+    aa_nutrients: dict,
+    diaas_score: float | None,
+    context: str = "meal",
+) -> dict:
+    """Build complement suggestion data. Returns no_data sentinel if AA data unavailable.
+
+    context: "meal", "daily", "food", or "recipe" — controls the max serving cap
+        for DIAAS-booster steps (120 g for meal/daily/food, 300 g for recipe).
+    """
     if not aa_nutrients or aa_nutrients.get("protein_g", 0) <= 0:
         return {"no_data": True}
     # Use digestibility=1.0 for gap analysis, matching CLI meal context behaviour.
@@ -1106,10 +1831,12 @@ def _complement_suggestions(aa_nutrients: dict, diaas_score: float | None) -> di
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
     pantry = _web_pantry_candidates()
+    max_improver_grams = 300 if context == "recipe" else 120
     try:
         suggestions = _usda.suggest_complements(
             aa_nutrients, pantry, diet_pref=diet_pref,
             base_digestibility=1.0,
+            max_improver_grams=max_improver_grams,
         )
     except Exception:
         return {"no_data": True}
@@ -1169,6 +1896,7 @@ def _complement_suggestions(aa_nutrients: dict, diaas_score: float | None) -> di
             "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
             "current_diaas":     s.get("current_diaas"),
             "new_diaas":         s.get("new_diaas"),
+            "steps":             s.get("steps", []),
             "dig_protein_added": round(dig, 1),
             "protein_added":     round(raw, 1),
             "total_dig":         total_dig,
@@ -1178,7 +1906,62 @@ def _complement_suggestions(aa_nutrients: dict, diaas_score: float | None) -> di
     pantry_suggs    = sorted(suggestions.get("pantry",  []), key=sort_key)[:3]
     general_suggs   = sorted(suggestions.get("general", []), key=sort_key)[:6]
     pair_suggs      = suggestions.get("pairs", [])[:6]
-    diaas_improvers = suggestions.get("diaas_improvers", [])[:5]
+    diaas_improvers = suggestions.get("diaas_improvers", [])[:3]
+
+    # Two-step combos: pair each top gap-closer with the best DIAAS-booster for its pool.
+    two_step_combos: list[dict] = []
+    top_gap_closers = (pantry_suggs + general_suggs)[:3]
+    if top_gap_closers and diaas_improvers:
+        for gc in top_gap_closers:
+            comp_nutrients = gc.get("comp_nutrients")
+            if not comp_nutrients:
+                continue
+            gc_grams  = gc["grams"]
+            gc_raw    = float(gc.get("protein_added") or 0)
+            gc_diaas  = gc.get("predicted_diaas") or 1.0
+            gc_dcp    = round((base_protein + gc_raw) * min(1.0, gc_diaas), 1)
+            combined  = _usda.sum_nutrients(
+                aa_nutrients, _usda.scale_nutrients(comp_nutrients, gc_grams)
+            )
+            try:
+                sub = _usda.suggest_complements(
+                    combined, pantry, diet_pref=diet_pref,
+                    base_digestibility=gc_diaas,
+                    max_improver_grams=max_improver_grams,
+                )
+            except Exception:
+                sub = {}
+            qualifying = [
+                b for b in sub.get("diaas_improvers", [])
+                if b.get("steps") and b["steps"][0]["new_diaas"] > gc_diaas
+            ]
+            combo: dict = {
+                "step1": {
+                    "name":       gc.get("name", ""),
+                    "fdc_id":     gc.get("fdc_id"),
+                    "diaas":      round(gc["diaas"], 2) if gc.get("diaas") else None,
+                    "grams":      gc_grams,
+                    "aa_effects": _aa_effects(gc),
+                    "dcp_before": round(base_digestible, 1),
+                    "dcp_after":  gc_dcp,
+                },
+                "step2": None,
+            }
+            if qualifying:
+                b      = qualifying[0]
+                b_step = b["steps"][0]
+                b_dcp  = b_step.get("dcp")
+                combo["step2"] = {
+                    "name":      b.get("name", ""),
+                    "fdc_id":    b.get("fdc_id"),
+                    "diaas":     round(b["diaas"], 2) if b.get("diaas") else None,
+                    "grams":     b_step["grams"],
+                    "new_diaas": b_step["new_diaas"],
+                    "dcp_before": gc_dcp,
+                    "dcp_after":  b_dcp,
+                    "net_gain":  round(b_dcp - base_digestible, 1) if b_dcp is not None else None,
+                }
+            two_step_combos.append(combo)
 
     gap_rows = [{"label": _usda.nutrient_label(k)[0], "score": round(v, 3)} for k, v, _ in gaps[:4]]
     limiting_aa = gaps[0][0] if gaps else None
@@ -1241,6 +2024,7 @@ def _complement_suggestions(aa_nutrients: dict, diaas_score: float | None) -> di
         "general":           [_fmt(s) for s in general_suggs],
         "pairs":             [_fmt_pair(p) for p in pair_suggs],
         "diaas_improvers":   [_fmt_improver(s) for s in diaas_improvers],
+        "two_step_combos":   two_step_combos,
         "have_gap_closers":  bool(pantry_suggs or general_suggs),
         "exhausted_msg":     (
             f"{exhausted_prefix} A qualifying complement must have a {limiting_label}/protein ratio "
@@ -1683,7 +2467,7 @@ async def meal_view(request: Request, meal_id: int, q: str = ""):
         "nutrient_sections":   _nutrient_sections(total_nutrients, rda, daily_nutrients) if total_nutrients else [],
         "diaas":               diaas_display,
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":         _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None),
+        "complements":         _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="meal"),
         "gl":                  {"total": gl_total, "blockers": gl_blockers},
         "q":                   q,
         "search_results":      search_results,
@@ -1960,7 +2744,7 @@ async def meal_day_view(request: Request, meal_id: int):
         "nutrient_sections": _nutrient_sections(combined_nutrients, rda) if combined_nutrients else [],
         "diaas":             diaas_display,
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None),
+        "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="daily"),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
     })
@@ -2002,15 +2786,16 @@ async def settings_get(request: Request, saved: str = ""):
 
 @app.post("/settings", response_class=RedirectResponse)
 async def settings_post(
-    age:            int   = Form(...),
-    sex:            str   = Form(...),
-    weight:         float = Form(...),
-    weight_unit:    str   = Form("kg"),
-    height_cm:      float = Form(0.0),
-    height_ft:      int   = Form(0),
-    height_in:      float = Form(0.0),
-    height_unit:    str   = Form("cm"),
-    activity_level: str   = Form(...),
+    age:              int   = Form(...),
+    sex:              str   = Form(...),
+    weight:           float = Form(...),
+    weight_unit:      str   = Form("kg"),
+    height_cm:        float = Form(0.0),
+    height_ft:        int   = Form(0),
+    height_in:        float = Form(0.0),
+    height_unit:      str   = Form("cm"),
+    activity_level:   str   = Form(...),
+    use_oxalate_data: str   = Form(""),
 ):
     if height_unit == "imperial":
         height_cm_val = _profile.ftin_to_cm(height_ft, height_in)
@@ -2027,6 +2812,7 @@ async def settings_post(
         activity_level=activity_level,
         weight_unit=weight_unit,
         height_unit=height_unit,
+        use_oxalate_data=bool(use_oxalate_data),
     )
     _profile.save_profile(profile)
     return RedirectResponse("/settings?saved=profile", status_code=303)
@@ -2148,7 +2934,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         "nutrient_sections": _nutrient_sections(scaled, rda) if scaled else [],
         "diaas":             diaas_display,
         "protein_adequacy":  _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":       _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None),
+        "complements":       _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe"),
         "gl":                _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":       rda is not None,
     })
@@ -2400,7 +3186,7 @@ async def summary_date(request: Request, meal_date: str):
         "nutrient_sections": _nutrient_sections(combined_nutrients, rda) if combined_nutrients else [],
         "diaas":             diaas_display,
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None),
+        "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="daily"),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
     })

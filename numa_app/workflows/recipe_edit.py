@@ -45,7 +45,7 @@ def _do_recipe_edit(recipe=None) -> None:
     _meta_fields = [
         ("[underline]Name[/underline]",        "name",        recipe["name"],                "str",  False),
         ("[underline]Description[/underline]", "description", recipe["description"] or "",   "str",  True),
-        ("[underline]Servings[/underline]  [grey62](0 = analyze by weight/volume)[/grey62]", "servings", str(recipe["servings"]), "int", False),
+        ("[underline]Servings[/underline]  [grey62](0 = analyze by weight/volume)[/grey62]", "servings", str(recipe["servings"]), "serving", False),
         ("[underline]Serving size[/underline]  [grey62](e.g. 1 cup, 1 slice — Enter to skip)[/grey62]", "serving_size", recipe["serving_size"] or "", "str", True),
         ("[underline]Complete?[/underline]  [grey62](y/n)[/grey62]", "complete", "y" if recipe["complete"] else "n", "bool", False),
     ]
@@ -79,7 +79,14 @@ def _do_recipe_edit(recipe=None) -> None:
                 _mi -= 1
             continue
         _val = _raw if _raw else _meta_vals[_key]
-        if _typ == "int":
+        if _typ == "serving":
+            _sv = _parse_serving_amount(_val)
+            if _sv is not None and _sv >= 0:
+                _meta_vals[_key] = _sv
+            else:
+                state.console.print(f"  [{state.T['warning']}]Enter a number (e.g. 4, 1.5, 1/2, or 0).[/{state.T['warning']}]")
+                continue
+        elif _typ == "int":
             if _val.isdigit():
                 _meta_vals[_key] = int(_val)
             else:

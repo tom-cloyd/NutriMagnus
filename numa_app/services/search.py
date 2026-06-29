@@ -148,7 +148,7 @@ def _refresh_cache_if_missing_aa(fdc_id: int) -> dict | None:
     # Re-fetch full detail from API
     try:
         detail = _usda.get_food_detail(fdc_id)
-    except _usda.USDAError:
+    except (KeyboardInterrupt, _usda.USDAError):
         return None
     if not _usda.has_amino_acid_data(detail["nutrients"]):
         return None  # API also lacks AA data — nothing gained
@@ -511,8 +511,8 @@ def _search_and_pick_food(
         _api_words = [w for w in clean_query.split() if w not in _PREP_WORDS]
         api_query = " ".join(_api_words) if _api_words else clean_query
 
-        state.console.print("[grey62]Searching local cache...[/grey62]")
-        cache_results = _search_cached_foods_by_name(clean_query)
+        with state.console.status("[grey62]Searching local cache...[/grey62]", spinner="dots"):
+            cache_results = _search_cached_foods_by_name(clean_query)
         cache_fdcids = {r.get("fdcId") for r in cache_results if r.get("fdcId")}
 
         if not _instant_recipes_offered and prepend_recipes and not full_search:
@@ -753,8 +753,8 @@ def _search_and_pick_food(
                     _lbl = "USDA + Open Food Facts"
                 else:
                     _lbl = "USDA"
-                state.console.print(f"[grey62]Searching {_lbl}...[/grey62]")
-                _bg_done.wait()
+                with state.console.status(f"[grey62]Searching {_lbl}...[/grey62]", spinner="dots"):
+                    _bg_done.wait()
 
             if _bg_exc and not _bg_results:
                 _be = _bg_exc[0]
@@ -787,19 +787,19 @@ def _search_and_pick_food(
                 label = "USDA + Open Food Facts"
             else:
                 label = "USDA"
-            state.console.print(f"[grey62]Searching {label}...[/grey62]")
             state.console.print()
             try:
-                api_results = _usda.search_foods(api_query, data_types=data_types)
-                # For default (unrestricted) searches the USDA API ranks by its own relevance
-                # score, which buries Foundation/SR Legacy under many branded results.
-                # Fetch them explicitly and prepend so they always appear.
-                if data_types is None:
-                    generic = _usda.search_foods(
-                        api_query, data_types=["Foundation", "SR Legacy"], page_size=8
-                    )
-                    generic_ids = {r["fdcId"] for r in generic}
-                    api_results = generic + [r for r in api_results if r["fdcId"] not in generic_ids]
+                with state.console.status(f"[grey62]Searching {label}...[/grey62]", spinner="dots"):
+                    api_results = _usda.search_foods(api_query, data_types=data_types)
+                    # For default (unrestricted) searches the USDA API ranks by its own relevance
+                    # score, which buries Foundation/SR Legacy under many branded results.
+                    # Fetch them explicitly and prepend so they always appear.
+                    if data_types is None:
+                        generic = _usda.search_foods(
+                            api_query, data_types=["Foundation", "SR Legacy"], page_size=8
+                        )
+                        generic_ids = {r["fdcId"] for r in generic}
+                        api_results = generic + [r for r in api_results if r["fdcId"] not in generic_ids]
             except _usda.USDAError as e:
                 if cache_results:
                     state.console.print(

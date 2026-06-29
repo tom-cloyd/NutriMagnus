@@ -1,14 +1,22 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-25:0820* / Reading 1 hour, 52 minutes
+*Updated 2026-06-29:0953* / Reading 1 hour, 53 minutes
 
-<!--  the following preface is (26-06-25) what appears on the WEB version home page, accessed in home.md. -->
+<!--  the following preface is (26-06-28) what appears on the WEB version home page, accessed in home.md. -->
 
-**NutriMagnus** is an open-source program for use by individuals wanting to know specifics about the nutritional value of their diet. It gives a very thorough analysis of nutrition, and focuses particularly on protein.
+**NutriMagnus ("NuMa")** is an open-source program which provides specifics about essential nutritional qualities of food. Good food choices require this information. NuMa gives a very thorough analysis of nutrition, focusing particularly on protein because this is a problem for those eating primarily a plant-based diet.
 
-**Both program and accompanying User Manual are an on-going project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. The manual has not yet received a careful editorial review; it is an advanced first draft.
+**Eating is about persistence, and our connectedness makes both possible.** Modern science grew from careful observation, and this has led to the indisputable conclusion that all life exists in relation to other life and to the material universe. This connectedness allows us to persist for a time, because by ourselves we are not sufficient. We NEED what is outside us.
 
-**User feedback is highly valued.** What many software users don't realize is that ANY feedback is appreciated and likely to be useful. User experience with the program is our best measure of our success or failure. Please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
+A key quality of the known world, including all life, is change - impermanence, and this is especially true of life forms. We are constantly dying and being reborn, on many levels. As individuals, while we exist, most of the cells in our body persist for a shorter span than we do. During their lifespan they do their work using available materials. Eventually they must be replaced by new cells constructed again from available materials. 
+
+From where do these materials come? Some are immediately available in the local environment of a cell, but the rest have to come from elsewhere, and ultimately that means from outside our bodies. For this reason we must eat.
+
+Eating almost always involves making choices, and choice requires information. The two major problems with food choice are a) awareness of the choices to be made, and b) information about the options available for our choosing. Both of these problems are addressed in the general domain of nutrition science. NuMa takes up both problems, in detail.
+
+**Both program and accompanying User Manual are an on-going project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review; it is an advanced first draft.
+
+**User feedback is highly valued.** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is the best measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
 
 ---
 
@@ -193,9 +201,7 @@ Sometimes the digestibility of the base food is low enough that no practical amo
 
 For those situations, DIAAS-boosting options are shown instead. These foods raise the combined meal DIAAS score toward 0.90 by contributing digestible amino acids that pool with the base food's amino acids. The calculation uses each food's own true ileal digestibility (not just the DIAAS score), so a high-digestibility food like soy protein isolate (95%) contributes disproportionately more digestible amino acids than its raw content alone would suggest.
 
-Each DIAAS-boosting suggestion shows:
-  - Grams to add
-  - Meal DIAAS before and after adding that amount
+Each DIAAS-boosting suggestion shows a progression of serving sizes — 15 g, 30 g, 60 g, and up to 120 g (roughly 1/2 cup) for meal, food, and daily-summary analyses. Each step shows the meal DIAAS before and after adding that amount, so you can choose a realistic portion rather than being given a single impractically large target. Recipe analysis uses larger steps (up to 300 g) because recipe quantities serve multiple people.
 
 TIER 3 — TWO-FOOD COMBINATIONS
 
@@ -222,6 +228,22 @@ If only DIAAS-boosting options are shown (Tier 2), the underlying problem is tha
 You do not need to eat complement foods at the same meal — meeting daily totals is sufficient for healthy adults. See also ?diaas and ?gap for background.
 
 Data sources: your pantry (Foods → My Pantry) and any recipes you have analyzed are checked first; a built-in list of about 30 common protein sources is also always consulted as a fallback, filtered by your dietary preferences (see ?diet). The suggestion header tells you exactly which sources were considered for that run.
+
+
+### Two-step combinations [comb]
+
+After the gap-closer and DIAAS-boosting sections, NutriMagnus offers to show two-step combinations. Each combination pairs one of the top gap-closers (Step 1) with the best DIAAS-booster for the resulting protein pool (Step 2).
+
+Why two steps? A gap-closer fixes amino acid balance but may not raise digestibility. A DIAAS-booster raises digestibility but cannot close a specific amino acid gap on its own. Together they address both problems: Step 1 corrects the limiting amino acid; Step 2 raises the overall DIAAS of the now-balanced pool, increasing digestible complete protein (DCP) further.
+
+Each combination shows:
+  - Step 1: the gap-closer, its serving size, and the DCP gain from the base
+  - Step 2: the smallest practical serving of the best booster for that pool, and the further DCP gain
+  - Net DCP gain from base to end of Step 2
+
+If no DIAAS-booster can improve on the post-Step-1 pool (because the gap-closer already raised the pool's digestibility above what any available booster can match), the program says so rather than showing a misleading suggestion.
+
+See also ?comp for the full complement suggestion system.
 
 
 ### Protein Completeness [complete]
@@ -280,7 +302,92 @@ The "Total digestible protein" line below the table is the sum after step 1 only
 
 Note: DIAAS itself is not capped — a high-quality food can score above 1.0, meaning it has surplus amino acids relative to the reference. The min(DIAAS, 1.0) applies only when computing DCP, because having excess amino acids does not allow you to absorb more total protein than you consumed.
 
-See also ?diaas, ?dcp, ?gap.
+See also ?diaas, ?dcp, ?gap, ?dcp-cap.
+
+
+### Why DCP Is Sometimes Capped Below the DIAAS Projection [dcp-cap]
+
+The short version: the DIAAS formula can project a Digestible Complete Protein value that
+is mathematically higher than the protein your body actually absorbed. When that happens,
+NutriMagnus caps DCP at the absorbed-protein ceiling, because you cannot use more protein
+than you took in.
+
+Why this happens
+
+DIAAS is defined by the FAO as:
+
+    DIAAS = (digestible supply of the limiting amino acid)
+            divided by
+            (FAO reference density for that amino acid × raw protein)
+
+The numerator uses digestibility-corrected amino acids. The denominator uses raw (pre-
+digestion) protein. This is intentional in the FAO standard. DCP is then:
+
+    DCP = raw protein × DIAAS
+
+Substituting the DIAAS definition, this simplifies to:
+
+    DCP = digestible limiting-AA supply / FAO reference density for that AA
+
+In plain words, DCP answers: "How many grams of a reference-quality protein would supply
+the same amount of limiting amino acid as this meal provides?"
+
+For a single food, DIAAS never exceeds that food's own digestibility, so DCP cannot exceed
+absorbed protein. In a mixed meal, however, the limiting amino acid may be concentrated in
+a high-digestibility ingredient while the bulk of the protein mass comes from lower-
+digestibility ingredients. The DIAAS score then reflects the high-digestibility source,
+but average protein absorption reflects the lower-digestibility majority. DIAAS ends up
+higher than the weighted-average digestibility, and the DCP formula overshoots absorbed
+protein. This is a known mathematical artifact of applying FAO DIAAS to mixed meals.
+
+A worked example
+
+Suppose a breakfast has two protein sources:
+
+    Food                   Raw protein   Digestibility   Absorbed protein
+    -------------------    -----------   -------------   ----------------
+    Soy protein isolate    10 g          0.95            9.5 g
+    Oatmeal                30 g          0.82            24.6 g
+    -------------------    -----------   -------------   ----------------
+    Total                  40 g          avg 0.854       34.1 g
+
+Soy isolate is lysine-rich. Because lysine is the usual limiting amino acid in grain-heavy
+meals, it strongly influences the DIAAS score. Suppose the pooled lysine supply (after
+digestibility correction) yields:
+
+    DIAAS = 0.91
+
+Raw-formula DCP:
+
+    DCP = 40 g × 0.91 = 36.4 g
+
+But total absorbed protein is only 34.1 g. The cap is applied:
+
+    DCP = min(36.4 g, 34.1 g) = 34.1 g
+
+Why did DIAAS exceed average digestibility? The soy isolate (dig 0.95) provides most of
+the lysine, so the lysine ratio in the DIAAS calculation reflects its high digestibility.
+The larger oatmeal portion (dig 0.82) dominates the absorbed-protein total and pulls the
+weighted average down to 0.854. DIAAS (0.91) ended up above that average, causing the
+overshoot.
+
+What the cap means in practice
+
+A capped DCP is actually good news about amino acid quality. It means your limiting amino
+acid is present in such good supply (relative to raw protein) that the formula projects
+more complete protein than you could possibly absorb. The practical reading: all of your
+absorbed protein is functioning as complete protein. You are not losing protein to an
+amino acid shortfall.
+
+Compare this to an uncapped DCP that is well below absorbed protein: the gap between them
+represents protein you absorbed but cannot fully use for tissue synthesis because the
+limiting amino acid ran out first. That is the more common and more concerning situation.
+
+The average digestibility shown in the cap note is the weighted average of per-ingredient
+digestibility coefficients, weighted by protein content. Each coefficient comes from the
+curated lookup table or category estimate described in ?meal-diaas.
+
+See also ?diaas, ?dcp, ?aa-scoring.
 
 
 ### FAO 2013 Reference Standard [fao]

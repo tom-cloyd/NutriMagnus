@@ -147,6 +147,8 @@ def _get(path: str, params: dict) -> Any:
         raise USDAError(f"USDA API {e.code}: {reason}") from e
     except urllib.error.URLError as e:
         raise USDAError(f"Network error: {e.reason}") from e
+    except KeyboardInterrupt:
+        raise USDAError("Request cancelled.") from None
 
 
 # Foods that the USDA search index fails to surface reliably, mapped to their

@@ -58,7 +58,7 @@
               <li>
                 <a class="dropdown-item" href="/food/compare">
                   5. <strong>Compare</strong> foods
-                  <span class="dd-hint">(side-by-side table, up to 4)</span>
+                  <span class="dd-hint">(side-by-side table, up to 6)</span>
                 </a>
               </li>
               <li><hr class="dropdown-divider"></li>
@@ -118,13 +118,11 @@
     {% block content %}{% endblock %}
   </main>
 
-  <footer class="container-fluid mt-4 py-2 border-top text-center">
-    <small class="text-secondary">
-      numa — local nutritional analysis &middot; data per 100 g unless noted
-      <span id="shortcut-hint" style="display:none">
-        &nbsp;&middot;&nbsp; Keyboard shortcuts active (<kbd>Alt+Shift</kbd>+key).
-        <a href="/settings">Can turn off in Settings.</a>
-      </span>
+  <footer class="container mt-4 py-2 border-top">
+    <small class="text-secondary d-block">NuMa — local nutritional analysis &middot; data per 100 g unless noted</small>
+    <small class="text-secondary" id="shortcut-hint" style="display:none">
+      Keyboard shortcuts active (<kbd>Alt+Shift</kbd>+key).
+      <a href="/settings">Can turn off in Settings.</a>
     </small>
   </footer>
 
@@ -132,23 +130,38 @@
   <script>
   (function () {
     var STORAGE_KEY = 'numa_accesskeys';
+    var enabled = localStorage.getItem(STORAGE_KEY) !== 'false';
+
     function applyShortcuts(on) {
       document.documentElement.classList.toggle('shortcuts-on', on);
-      document.querySelectorAll('[data-ak]').forEach(function (el) {
-        if (on) el.setAttribute('accesskey', el.dataset.ak);
-        else el.removeAttribute('accesskey');
-      });
       var hint = document.getElementById('shortcut-hint');
       if (hint) hint.style.display = on ? '' : 'none';
     }
-    var enabled = localStorage.getItem(STORAGE_KEY) !== 'false';
+
+    // Custom keydown handler: Alt+Shift+key — more reliable than browser accesskey
+    // for Bootstrap dropdown toggles (accesskey fires click but loses focus in the dropdown).
+    document.addEventListener('keydown', function (e) {
+      if (!enabled) return;
+      if (!e.altKey || !e.shiftKey) return;
+      // Skip when focus is inside a text input / textarea / select
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      var key = e.key.toLowerCase();
+      var target = document.querySelector('[data-ak="' + key + '"]');
+      if (!target) return;
+      e.preventDefault();
+      target.click();
+      target.focus();
+    });
+
     applyShortcuts(enabled);
     var toggle = document.getElementById('shortcuts-toggle');
     if (toggle) {
       toggle.checked = enabled;
       toggle.addEventListener('change', function () {
-        localStorage.setItem(STORAGE_KEY, this.checked ? 'true' : 'false');
-        applyShortcuts(this.checked);
+        enabled = this.checked;
+        localStorage.setItem(STORAGE_KEY, enabled ? 'true' : 'false');
+        applyShortcuts(enabled);
       });
     }
   })();

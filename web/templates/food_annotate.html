@@ -125,6 +125,13 @@
       <button type="submit" class="btn btn-primary">Save annotation</button>
       <a href="/food/annotate" class="btn btn-outline-secondary ms-2">Back to list</a>
     </form>
+    {% if annotation %}
+    <hr>
+    <form method="post" action="/food/annotate/{{ fdc_id }}/clear"
+          onsubmit="return confirm('Clear all annotations for this food?')">
+      <button type="submit" class="btn btn-sm btn-outline-danger">Clear all annotations</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 {% endif %}

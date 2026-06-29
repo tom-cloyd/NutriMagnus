@@ -299,8 +299,7 @@ def _menu_meals() -> bool:
                 )
             state.console.print(tbl)
             state.console.print(
-                "  [grey62]BCP = bioavailable (digestible) complete protein"
-                "  ·  values are saved; press p to (re)compute[/grey62]",
+                "  [grey62]BCP = bioavailable (digestible) complete protein  ·  values are saved[/grey62]",
                 highlight=False,
             )
             help_footer("meals-list")
@@ -326,8 +325,8 @@ def _menu_meals() -> bool:
             state.console.print("  [grey62]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/grey62]", highlight=False)
             state.console.print("  [grey62]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/grey62]", highlight=False)
         state.console.print("  [grey62]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/grey62]", highlight=False)
-        if page and any(m["complete"] for m in page):
-            state.console.print("  [grey62]  p ············  Compute BCP for all complete meals shown[/grey62]", highlight=False)
+        state.console.print("  [grey62]  p ············  Compute/recompute BCP for all complete meals (shown and not shown)[/grey62]", highlight=False)
+        state.console.print("  [grey62]  p{N}-{M} ······  Compute BCP for complete meals in ID range  (e.g. p60-67)[/grey62]", highlight=False)
         if has_more:
             state.console.print("  [grey62]  mr ···········  Show next 15 older meals[/grey62]", highlight=False)
         state.console.print("  [grey62]  d{YYYY-MM-DD}   Jump to meals on or before a date  (e.g. d2025-03-15)[/grey62]", highlight=False)
@@ -352,28 +351,38 @@ def _menu_meals() -> bool:
         if rl == "s":
             _safe_call(_do_meal_food_search)
             continue
-        if rl == "p":
-            complete_page = [m for m in page if m["complete"]]
-            if not complete_page:
-                state.console.print("  [grey62]No complete meals shown.[/grey62]")
+        if rl == "p" or (rl.startswith("p") and len(rl) > 1 and rl[1:].replace("-", "").isdigit()):
+            id_min: int | None = None
+            id_max: int | None = None
+            if rl != "p":
+                range_str = rl[1:]
+                if "-" in range_str:
+                    parts = range_str.split("-", 1)
+                    try:
+                        id_min, id_max = int(parts[0]), int(parts[1])
+                    except ValueError:
+                        state.console.print(f"[{state.T['warning']}]Use p or p{{N}}-{{M}} (e.g. p60-67).[/{state.T['warning']}]")
+                        continue
+                else:
+                    try:
+                        id_min = id_max = int(range_str)
+                    except ValueError:
+                        state.console.print(f"[{state.T['warning']}]Use p or p{{N}}-{{M}} (e.g. p60-67).[/{state.T['warning']}]")
+                        continue
+            with _db.get_db() as conn:
+                to_compute = _db.meal_list_complete(conn, id_min=id_min, id_max=id_max)
+            if not to_compute:
+                state.console.print("  [grey62]No complete meals found in that range.[/grey62]")
                 continue
-            # Also compute BCP for any other complete meals on the same dates,
-            # so that Day BCP reflects the full day even for off-page meals.
-            to_compute: list = list(complete_page)
-            seen_ids = {m["id"] for m in complete_page}
-            for _d in dates_in_page:
-                with _db.get_db() as conn:
-                    for dm in _db.meal_list_by_date(conn, _d):
-                        if dm["complete"] and dm["id"] not in seen_ids:
-                            to_compute.append(dm)
-                            seen_ids.add(dm["id"])
+            state.console.print(f"  [grey62]Computing BCP for {len(to_compute)} meal(s)…[/grey62]")
             with state.console.status("[bold]Computing BCP…[/bold]", spinner="dots"):
                 for m in to_compute:
                     bcp = _compute_meal_bcp(m["id"])
                     with _db.get_db() as conn:
                         _db.meal_set_bcp(conn, m["id"], bcp)
-            # Compute day totals and % of profile protein goal, then persist.
-            for _d in dates_in_page:
+            # Update Day BCP totals for all affected dates.
+            affected_dates = {m["meal_date"] for m in to_compute}
+            for _d in affected_dates:
                 with _db.get_db() as conn:
                     date_meals = _db.meal_list_by_date(conn, _d)
                 day_vals = [
@@ -387,6 +396,7 @@ def _menu_meals() -> bool:
                     if dm["complete"]:
                         with _db.get_db() as conn:
                             _db.meal_set_day_pct_goal(conn, dm["id"], pct)
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] BCP computed for {len(to_compute)} meal(s).")
             continue
         if rl == "mr" and has_more:
             offset += _MEALS_PAGE
@@ -1384,8 +1394,10 @@ def _analyze_day(meals: list, meal_date: str) -> None:
         state.console.print("[grey62]No nutrient data found.[/grey62]")
         return
     title = f"All meals — {meal_date}"
-    _print_nutrient_table(combined, title=f"Nutrient analysis for {title}")
     profile = _profile.load_profile()
+    rda = _profile.compute_rda(profile) if profile else None
+    _print_nutrient_table(combined, title=f"Nutrient analysis for {title}",
+                          daily_nutrients=combined, rda=rda, show_meal_pct=False)
     _missing_aa, _dcp_g, meal_diaas = _print_meal_diaas(all_ings, profile=profile)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)

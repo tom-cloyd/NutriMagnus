@@ -82,27 +82,39 @@
 <p class="muted">No named portions available for this food.</p>
 {% endif %}
 
-<h5 class="mt-3">Enter a gram amount</h5>
+<h5 class="mt-3">Convert an amount</h5>
+<p class="muted"><small>Accepts any unit — e.g. <code>3 oz</code>, <code>0.5 lb</code>,
+  <code>1/4 cup</code>, <code>1 1/2 T</code>, <code>2 tsp</code>, <code>150 g</code>{% if portions %},
+  or a preset like <code>p1</code>{% endif %}.
+  Plain numbers are treated as grams.</small></p>
 <form method="get" action="/food/convert/{{ food.fdc_id }}" class="mb-3">
-  <div class="input-group" style="max-width:20rem">
-    <input type="number" name="amount" class="form-control"
-           value="{{ amount or '' }}" min="0.1" step="any" placeholder="grams">
-    <span class="input-group-text">g</span>
-    <button type="submit" class="btn btn-outline-secondary">Look up</button>
+  <div class="input-group" style="max-width:26rem">
+    <input type="text" name="portion_str" class="form-control"
+           value="{{ portion_str or '' }}"
+           placeholder="e.g. 3 oz, 1/4 cup, 150 g"
+           autofocus>
+    <button type="submit" class="btn btn-outline-secondary">Convert</button>
   </div>
 </form>
 
-{% if amount %}
+{% if convert_error %}
+<p class="numa-error"><small>{{ convert_error }}</small></p>
+{% elif convert_grams is not none %}
 <div class="border rounded p-3 mb-3" style="max-width:36rem; background:#f8f9fa">
-  {% if closest_portion %}
-  <p><strong>{{ amount }} g</strong> &approx; <strong>{{ closest_portion.description }}</strong>
-    ({{ closest_portion.gram_weight | round(1) }} g)</p>
-  {% else %}
-  <p><strong>{{ amount }} g</strong> — no named portion match available.</p>
+  <p class="mb-1">
+    <strong>{{ convert_label }}</strong>
+    &nbsp;=&nbsp;
+    <strong>{{ "%.1f"|format(convert_grams) }}&thinsp;g</strong>
+  </p>
+  {% if convert_volume %}
+  <p class="mb-1">
+    <strong>Volume equivalent:</strong> {{ convert_volume }}&thinsp;mL
+    <span class="muted">(at {{ "%.3f"|format(density) }}&thinsp;g/mL)</span>
+  </p>
   {% endif %}
-  {% if density %}
-  <p><strong>Volume equivalent:</strong> {{ "%.1f"|format(amount / density) }} mL
-    <span class="muted">(at {{ "%.3f"|format(density) }} g/mL)</span></p>
+  {% if closest_portion %}
+  <p class="mb-0 muted"><small>Closest named portion: {{ closest_portion.description }}
+    ({{ closest_portion.gram_weight | round(1) }}&thinsp;g)</small></p>
   {% endif %}
 </div>
 {% endif %}

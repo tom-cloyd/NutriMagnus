@@ -353,6 +353,37 @@ def upsert_food_annotation(
     """, (fdc_id, gi_estimate, gi_no_prompt, diaas_estimate, diaas_no_prompt, prep_context))
 
 
+def set_food_annotation(
+    conn: sqlite3.Connection,
+    fdc_id: int,
+    *,
+    gi_estimate: float | None,
+    gi_no_prompt: bool,
+    diaas_estimate: float | None,
+    diaas_no_prompt: bool,
+    prep_context: str | None,
+) -> None:
+    """Write all annotation fields at once (explicit NULLs clear existing values).
+    Use this for web forms; use upsert_food_annotation for CLI (field-at-a-time) updates."""
+    conn.execute("""
+        INSERT INTO food_annotations
+            (fdc_id, gi_estimate, gi_no_prompt, diaas_estimate, diaas_no_prompt, prep_context, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+        ON CONFLICT(fdc_id) DO UPDATE SET
+            gi_estimate     = excluded.gi_estimate,
+            gi_no_prompt    = excluded.gi_no_prompt,
+            diaas_estimate  = excluded.diaas_estimate,
+            diaas_no_prompt = excluded.diaas_no_prompt,
+            prep_context    = excluded.prep_context,
+            updated_at      = datetime('now')
+    """, (fdc_id, gi_estimate, 1 if gi_no_prompt else 0,
+          diaas_estimate, 1 if diaas_no_prompt else 0, prep_context))
+
+
+def delete_food_annotation(conn: sqlite3.Connection, fdc_id: int) -> None:
+    conn.execute("DELETE FROM food_annotations WHERE fdc_id = ?", (fdc_id,))
+
+
 def annotations_for_fdcids(
     conn: sqlite3.Connection, fdc_ids: list[int]
 ) -> dict[int, sqlite3.Row]:
@@ -687,6 +718,24 @@ def meal_count_recent(
         params["before_date"] = before_date
     row = conn.execute(f"SELECT COUNT(*) FROM meals {where}", params).fetchone()
     return row[0] if row else 0
+
+
+def meal_list_complete(
+    conn: sqlite3.Connection,
+    id_min: int | None = None,
+    id_max: int | None = None,
+) -> list[sqlite3.Row]:
+    """Return all complete meals, optionally filtered to an ID range."""
+    clauses = ["complete = 1"]
+    params: list = []
+    if id_min is not None:
+        clauses.append("id >= ?")
+        params.append(id_min)
+    if id_max is not None:
+        clauses.append("id <= ?")
+        params.append(id_max)
+    where = " AND ".join(clauses)
+    return conn.execute(f"SELECT * FROM meals WHERE {where} ORDER BY id", params).fetchall()
 
 
 def meal_get(conn: sqlite3.Connection, meal_id: int) -> sqlite3.Row | None:

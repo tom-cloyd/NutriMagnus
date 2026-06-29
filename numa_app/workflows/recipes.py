@@ -22,17 +22,27 @@ from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness, _print_recipe_bioavailability
 
 def _parse_measure(raw: str) -> tuple[float | None, str | None]:
-    """Parse 'NUMBER UNIT' input, e.g. '4 cups' → (4.0, 'cups'), '' → (None, None)."""
+    """Parse 'NUMBER UNIT' input, e.g. '4 cups' → (4.0, 'cups'), '' → (None, None).
+    Also handles no-space forms like '2639g' or '11.2c'."""
+    import re
     raw = raw.strip()
     if not raw:
         return None, None
     parts = raw.split(None, 1)
     try:
         val = float(parts[0])
+        unit = parts[1].strip() if len(parts) > 1 else None
+        return val, unit
     except ValueError:
-        return None, None
-    unit = parts[1].strip() if len(parts) > 1 else None
-    return val, unit
+        pass
+    # Try splitting a leading number from a trailing unit with no space
+    m = re.match(r'^(\d+(?:\.\d+)?)\s*([a-zA-Z].*)$', raw)
+    if m:
+        try:
+            return float(m.group(1)), m.group(2).strip()
+        except ValueError:
+            pass
+    return None, None
 
 
 _RECIPE_PAGE = 20

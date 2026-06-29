@@ -123,7 +123,7 @@ def _run_menu() -> None:
         state.console.print("  [grey62]Ctrl+C at any prompt — cancel and go back up menu tree[/grey62]")
         if _first_menu_visit:
             state.console.print()
-            state.console.print("  [grey62]Built-in help: type [bold]?help[/bold] at any prompt to list all available topics.[/grey62]")
+            state.console.print("  [grey62]Type [bold]?[/bold] or [bold]?help[/bold] at any prompt to list built-in help topics.[/grey62]")
             state.console.print("  [grey62]Wherever it is relevant, a tip appears below the output — e.g.[/grey62]")
             state.console.print("  [grey62]  \"At any prompt, type ?diaas or ?dcp for help with these topics.\"[/grey62]")
             state.console.print("  [grey62]Type that ?topic at the next prompt to read the explanation inline.[/grey62]")

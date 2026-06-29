@@ -68,15 +68,17 @@ def _do_daily_summary(meal_date: str) -> None:
         state.console.print("[grey62]No nutrient data found for this day.[/grey62]")
         return
     meal_names = ", ".join(m["name"] for m in meals)
+    user_profile = _profile.load_profile()
+    rda = _profile.compute_rda(user_profile) if user_profile else None
     _print_nutrient_table(combined, title=f"Daily Total — {meal_date}",
-                          per_label=f"meals: {meal_names}")
+                          per_label=f"meals: {meal_names}",
+                          daily_nutrients=combined, rda=rda, show_meal_pct=False)
     missing_aa, _dcp_g, day_diaas = _print_meal_diaas(all_ings)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
         for ing in all_ings
         if _usda.has_amino_acid_data(ing["nutrients_100g"])
     ]) if all_ings else {}
-    user_profile = _profile.load_profile()
     if user_profile:
         _print_protein_adequacy(combined, user_profile, context_label=f"Daily total ({meal_date})", dcp_g=_dcp_g)
     if aa_nutrients:

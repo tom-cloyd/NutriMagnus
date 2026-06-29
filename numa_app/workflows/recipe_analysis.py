@@ -20,12 +20,12 @@ import usda as _usda
 import profile as _profile
 from .. import state
 from ..services.portions import _normalize_unit_display, _parse_portion_input, _pick_portion, _try_resolve_unknown_weight, _UNIT_TO_GRAMS, _VOLUME_TO_ML
-from ..services.search import _refresh_cache_if_missing_aa
+from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
 from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, section_title, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import (
-    _print_complement_suggestions, _print_nutrient_table,
+    _print_complement_suggestions, _get_daily_context, _print_nutrient_table,
     _print_protein_adequacy, _print_protein_completeness, _print_recipe_bioavailability,
     _print_dcp_adequacy_section,
 )
@@ -55,22 +55,22 @@ def _resolve_recipe_dcp_data(
         if "(weight not known)" in (ing["unit"] or "")
         and ing["id"] not in (resolved_ing_ids or set())
     ]
-    no_aa_ings  = [s for s in ingredient_stats if not s.get("has_aa", True)]
+    no_aa_ings  = [s for s in ingredient_stats if not s.get("has_aa", True)
+                   and s.get("protein_g", 0) >= 0.1]
     pc          = _usda.protein_completeness(combined)
     no_aa       = not pc.get("has_data")
 
-    if not zero_weight and not no_aa:
+    if not zero_weight and not no_aa and not no_aa_ings:
         return ingredient_stats, combined, False, []
 
     state.console.print(f"\n  [{state.T['warning']}]⚠  Missing data for digestible complete protein (DCP):[/{state.T['warning']}]")
     for ing in zero_weight:
         state.console.print(f"    • {ing['food_name']} — weight unknown ({_normalize_unit_display(ing['unit'])})")
-    if no_aa:
-        if no_aa_ings:
-            for s in no_aa_ings:
-                state.console.print(f"    • {s['name']} — no amino acid profile in USDA data")
-        else:
-            state.console.print("    • No amino acid profile available in USDA data for these ingredients.")
+    if no_aa and not no_aa_ings:
+        state.console.print("    • No amino acid profile available in USDA data for these ingredients.")
+    if no_aa_ings:
+        for s in no_aa_ings:
+            state.console.print(f"    • {s['name']} — no amino acid profile in USDA data")
     state.console.print(
         f"  [grey62]If any flagged ingredient is not a significant protein source "
         f"(e.g. spices, oil, salt), its missing data can safely be ignored.[/grey62]"
@@ -78,7 +78,7 @@ def _resolve_recipe_dcp_data(
 
     # Build numbered options dynamically, preserving the action key internally
     action_items: list[tuple[str, str]] = []  # (action_key, label)
-    if no_aa and no_aa_ings:
+    if no_aa_ings:
         action_items.append(("f", "Fix: replace affected ingredients via Foundation Foods search"))
     if zero_weight:
         action_items.append(("p", "Provide missing data now"))
@@ -124,14 +124,38 @@ def _resolve_recipe_dcp_data(
             for ing in all_ings:
                 if ing["food_name"].lower() not in affected_names:
                     continue
+                suggested = _simplify_food_query(ing["food_name"].split(",")[0].strip())
                 state.console.print(
                     f"\n  Replacing: [{state.T['accent']}]{ing['food_name']}[/{state.T['accent']}]\n"
-                    "  [grey62]Search for a Foundation Foods replacement:[/grey62]"
+                    f"  [grey62]Suggested search: '{suggested}'[/grey62]"
                 )
-                food = _search_and_pick_food(data_types=["Foundation", "SR Legacy"], show_aa_status=True, allow_research=True)
+                try:
+                    raw_sq = _prompt(
+                        "Search Foundation Foods + SR Legacy  [grey62](Enter to use suggestion · b=skip)[/grey62]",
+                        free_text=True,
+                    ).strip()
+                except Cancelled:
+                    state.console.print("  [grey62]Skipped.[/grey62]")
+                    continue
+                if raw_sq.lower() in ("b", "back"):
+                    state.console.print("  [grey62]Skipped.[/grey62]")
+                    continue
+                search_query = raw_sq or suggested
+                food = _search_and_pick_food(
+                    data_types=["Foundation", "SR Legacy"],
+                    initial_query=search_query,
+                    show_aa_status=True,
+                    allow_research=True,
+                )
                 if food is None:
                     state.console.print("  [grey62]Skipped.[/grey62]")
                     continue
+                orig_label = _normalize_unit_display(ing["unit"]) if ing["unit"] else None
+                if ing["amount"] and ing["amount"] > 0:
+                    orig_str = f"{ing['amount']:g} g"
+                    if orig_label and orig_label != "—":
+                        orig_str = f"{orig_label}  ({ing['amount']:g} g)"
+                    state.console.print(f"  [grey62]Original amount: [bold]{orig_str}[/bold][/grey62]")
                 result = _pick_portion(food)
                 if result is None:
                     state.console.print("  [grey62]Skipped.[/grey62]")
@@ -391,37 +415,44 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
     if combined:
         state.console.print()
         no_servings = recipe["servings"] == 0
+        daily_nutrients, rda = _get_daily_context()
 
         if no_servings:
             # No serving count — show whole-recipe totals, then per-100g / per-volume
             # if the user recorded a total weight or volume.
             _print_nutrient_table(combined, title="Total recipe",
-                                  per_label="whole recipe (no serving count)")
+                                  per_label="whole recipe (no serving count)",
+                                  daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
             analysis_nutrients = combined
 
             wt_g = _recipe_weight_to_g(recipe["total_weight"], recipe["total_weight_unit"])
             if wt_g:
                 per_100g = {k: v / wt_g * 100 for k, v in combined.items()}
                 _print_nutrient_table(per_100g, title="Per 100 g",
-                                      per_label="based on recorded recipe weight")
+                                      per_label="based on recorded recipe weight",
+                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
                 analysis_nutrients = per_100g
 
             vol_ml = _recipe_vol_to_ml(recipe["total_volume"], recipe["total_volume_unit"])
             if vol_ml:
                 per_100ml = {k: v / vol_ml * 100 for k, v in combined.items()}
                 _print_nutrient_table(per_100ml, title="Per 100 ml",
-                                      per_label="based on recorded recipe volume")
+                                      per_label="based on recorded recipe volume",
+                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
                 per_cup = {k: v / vol_ml * 236.6 for k, v in combined.items()}
                 _print_nutrient_table(per_cup, title="Per 1 cup (236 ml)",
-                                      per_label="based on recorded recipe volume")
+                                      per_label="based on recorded recipe volume",
+                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
                 if not wt_g:
                     analysis_nutrients = per_100ml
         else:
             _print_nutrient_table(combined, title="Total recipe",
-                                  per_label=f"whole recipe ({recipe['servings']} servings)")
+                                  per_label=f"whole recipe ({recipe['servings']} servings)",
+                                  daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
             if recipe["servings"] > 1:
                 per_serving = {k: v / recipe["servings"] for k, v in combined.items()}
-                _print_nutrient_table(per_serving, title="Per serving")
+                _print_nutrient_table(per_serving, title="Per serving",
+                                      daily_nutrients=daily_nutrients, rda=rda)
                 analysis_nutrients = per_serving
             else:
                 analysis_nutrients = combined
@@ -542,6 +573,18 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 "(e.g. legumes + grains, or dairy / eggs / soy) to improve amino acid balance.[/grey62]",
                 highlight=False,
             )
+        else:
+            # Partial AA gap: some ingredients have AA data, others don't
+            missing_aa_ings = [s["name"] for s in ingredient_stats
+                               if not s.get("has_aa") and s.get("protein_g", 0) >= 0.1]
+            if missing_aa_ings:
+                names_str = ", ".join(missing_aa_ings)
+                state.console.print(
+                    f"\n  [{state.T['warning']}]⚠  These ingredient(s) have no amino acid profile "
+                    f"— AA completeness scores are partial:[/{state.T['warning']}]"
+                    f"\n    [grey62]{names_str}[/grey62]",
+                    highlight=False,
+                )
 
         # Protein adequacy — merged with DCP result and DIAAS explanation (step 5)
         profile = _profile.load_profile()

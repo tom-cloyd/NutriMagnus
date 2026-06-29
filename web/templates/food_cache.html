@@ -23,6 +23,10 @@
   </div>
 </form>
 
+{% if refresh_error is defined and refresh_error %}
+<div class="alert alert-danger">{{ refresh_error }}</div>
+{% endif %}
+
 {% if q %}
 <p class="result-count">
   {{ foods|length }} result{% if foods|length != 1 %}s{% endif %}
@@ -33,35 +37,35 @@
 {% endif %}
 
 {% if foods %}
-<table class="table table-sm table-hover">
+<table class="table table-sm table-hover align-middle">
   <thead class="table-light">
     <tr>
       <th>ID</th>
       <th>Name</th>
       <th>Type</th>
-      <th>Brand</th>
-      <th class="text-center">AA data</th>
+      <th class="text-center">AA</th>
       <th class="text-center">GI est.</th>
       <th class="text-center">DIAAS est.</th>
-      <th class="text-center">Notes</th>
-      <th></th>
+      <th>Notes</th>
+      <th>Actions</th>
     </tr>
   </thead>
   <tbody>
     {% for food in foods %}
     <tr>
-      <td class="muted">
+      <td class="muted" style="white-space:nowrap">
         {% if food.fdc_id < 0 %}OFF
         {% else %}{{ food.fdc_id }}{% endif %}
       </td>
-      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></td>
-      <td class="muted">{{ food.data_type or "—" }}</td>
-      <td class="muted">{{ food.brand or "—" }}</td>
+      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a>
+        {% if food.brand %}<br><small class="muted">{{ food.brand }}</small>{% endif %}
+      </td>
+      <td class="muted"><small>{{ food.data_type or "—" }}</small></td>
       <td class="text-center">
         {% if food.has_aa %}
-        <span class="status-met">&#10003;</span>
+        <span class="status-met" title="Amino acid data available">&#10003;</span>
         {% else %}
-        <span class="muted">&#8212;</span>
+        <span class="muted" title="No amino acid data">&#8212;</span>
         {% endif %}
       </td>
       <td class="text-center muted">
@@ -70,14 +74,35 @@
       <td class="text-center muted">
         {{ "%.2f"|format(food.diaas) if food.diaas is not none else "—" }}
       </td>
-      <td class="text-center">
-        {% if food.notes %}
-        <span title="{{ food.notes }}">&#10003;</span>
+      <td style="max-width:18rem">
+        {% if food.notes or food.curator_notes %}
+        <details>
+          <summary style="cursor:pointer;color:var(--numa-accent)">
+            <small>Notes ▸</small>
+          </summary>
+          {% if food.notes %}
+          <div class="mt-1"><small><strong>Source/confidence:</strong><br>{{ food.notes }}</small></div>
+          {% endif %}
+          {% if food.curator_notes %}
+          <div class="mt-1"><small><strong>Curator notes:</strong><br>{{ food.curator_notes }}</small></div>
+          {% endif %}
+        </details>
         {% else %}
         <span class="muted">—</span>
         {% endif %}
       </td>
-      <td>
+      <td style="white-space:nowrap">
+        <a href="/food/cache/{{ food.fdc_id }}/portions"
+           class="btn btn-sm btn-outline-secondary me-1" title="Edit portions (cup, piece, custom weights)">Portions</a>
+        {% if food.fdc_id > 0 %}
+        <form method="post" action="/food/cache/{{ food.fdc_id }}/refresh" style="display:inline">
+          <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
+                  title="Re-fetch all nutrients from USDA (keeps your portions and notes)"
+                  onclick="return confirm('Re-fetch nutrients from USDA for {{ food.name | replace("'", "\\'") }}? This will replace all nutrient values (your custom portions and notes are kept).')">
+            Refresh
+          </button>
+        </form>
+        {% endif %}
         <form method="post" action="/food/cache/delete" style="display:inline">
           <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
           <button type="submit" class="btn btn-sm btn-outline-danger"
@@ -90,6 +115,7 @@
     {% endfor %}
   </tbody>
 </table>
+<p class="muted"><small>AA = amino acid data available &middot; GI / DIAAS = user-annotated estimates &middot; <a href="/food/annotate">Annotate a food</a></small></p>
 {% else %}
 <p>No foods in cache{% if q %} matching that filter{% endif %}.</p>
 {% endif %}

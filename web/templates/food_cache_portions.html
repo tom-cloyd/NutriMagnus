@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Edit Portions — {{ food.name }} — numa{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache">Food Cache</a></li>
+    <li class="breadcrumb-item"><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Edit Portions</li>
+  </ol>
+</nav>
+
+<h2>Edit Portions</h2>
+<p class="muted"><strong>{{ food.name }}</strong></p>
+<p>Custom portions let you enter amounts like <em>1 cup</em>, <em>1 slice</em>, or <em>2 T</em>
+   on the food detail page instead of typing the gram weight. Each portion stores a gram equivalent.</p>
+
+{% if saved %}
+<div class="alert alert-success">Portion saved.</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<h4 class="mt-4">Current portions</h4>
+{% if portions %}
+<table class="table table-sm" style="max-width:32rem">
+  <thead class="table-light">
+    <tr><th>Description</th><th class="text-end">Grams</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for p in portions %}
+    <tr>
+      <td>{{ p.description }}</td>
+      <td class="text-end muted">{{ p.gram_weight }}</td>
+      <td>
+        <form method="post" action="/food/cache/{{ food.fdc_id }}/portions/delete" style="display:inline">
+          <input type="hidden" name="portion_index" value="{{ loop.index0 }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Remove portion {{ p.description }}?')">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No custom portions defined yet.</p>
+{% endif %}
+
+<h4 class="mt-4">Add a portion</h4>
+<form method="post" action="/food/cache/{{ food.fdc_id }}/portions/add" style="max-width:28rem">
+  <div class="mb-3">
+    <label for="desc" class="form-label">Description <span class="muted">(e.g. <em>1 cup</em>, <em>1 slice</em>, <em>2 T</em>)</span></label>
+    <input type="text" class="form-control" id="desc" name="description"
+           placeholder="e.g. 1 cup" required autofocus>
+  </div>
+  <div class="mb-3">
+    <label for="gw" class="form-label">Gram weight for that portion</label>
+    <div class="input-group" style="max-width:12rem">
+      <input type="number" class="form-control" id="gw" name="gram_weight"
+             placeholder="e.g. 236" step="0.01" min="0.01" required>
+      <span class="input-group-text">g</span>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary">Add portion</button>
+  <a href="/food/cache" class="btn btn-outline-secondary ms-2">Back to Cache</a>
+</form>
+
+<div class="mt-4">
+  <h4>Preset shortcuts</h4>
+  <p class="muted"><small>
+    Click a preset to fill in the description. You still need to enter the gram weight for this specific food.
+  </small></p>
+  <div class="d-flex flex-wrap gap-2">
+    {% for label in ["1 cup", "1/2 cup", "1/4 cup", "1 T", "1 tsp",
+                     "1 piece", "1 slice", "1 clove", "1 tablet", "1 scoop"] %}
+    <button type="button" class="btn btn-sm btn-outline-secondary"
+            onclick="document.getElementById('desc').value='{{ label }}'; document.getElementById('gw').focus()">
+      {{ label }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
