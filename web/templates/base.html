@@ -114,9 +114,13 @@
     </div>
   </nav>
 
-  <main class="container">
-    {% block content %}{% endblock %}
-  </main>
+  {# Analysis pages override layout_class + sidebar_nav blocks to get two-column layout #}
+  <div class="{% block layout_class %}container{% endblock %}">
+    {% block sidebar_nav %}{% endblock %}
+    <main class="{% block main_class %}{% endblock %}">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 
   <footer class="container mt-4 py-2 border-top">
     <small class="text-secondary d-block">NuMa — local nutritional analysis &middot; data per 100 g unless noted</small>
@@ -127,6 +131,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+  {% block scripts %}{% endblock %}
   <script>
   (function () {
     var STORAGE_KEY = 'numa_accesskeys';

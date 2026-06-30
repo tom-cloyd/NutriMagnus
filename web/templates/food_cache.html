@@ -9,10 +9,11 @@
   </ol>
 </nav>
 
-<h2>Food Cache</h2>
+<h2>Food Cache {{ manual_link("cached") }}</h2>
 <p class="muted">All foods that have been loaded from USDA or Open Food Facts are stored here.</p>
 
 <form method="get" action="/food/cache" class="mb-3">
+  
   <div class="input-group" style="max-width:36rem">
     <input type="text" class="form-control" name="q" value="{{ q or '' }}"
            placeholder="Filter by name…" autofocus>

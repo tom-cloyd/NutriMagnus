@@ -172,6 +172,15 @@ templates.env.filters["ftin_ft"]  = lambda cm: _profile.cm_to_ftin(cm)[0]
 templates.env.filters["ftin_in"]  = lambda cm: round(_profile.cm_to_ftin(cm)[1], 1)
 templates.env.filters["fromjson"] = json.loads
 
+def _manual_link(anchor: str, text: str = "Learn more") -> str:
+    """Render an inline link to a user-manual section, opened in a new tab."""
+    from markupsafe import Markup, escape
+    return Markup(
+        f'<a class="manual-link" href="/manual#{escape(anchor)}" target="_blank" rel="noopener">{escape(text)} &rarr;</a>'
+    )
+
+templates.env.globals["manual_link"] = _manual_link
+
 # ---------------------------------------------------------------------------
 # Nutrient display groups (ordered for presentation)
 # ---------------------------------------------------------------------------
@@ -1694,6 +1703,31 @@ def _recipe_nutrients_per_serving(recipe_id: int, conn) -> dict:
     return {k: v / servings for k, v in total.items()} if servings else total
 
 
+def _flatten_recipe_diaas_ingredients(recipe_id: int, conn, target_servings: float) -> list[dict]:
+    """Recursively expand a recipe's ingredients into food-level dicts for DIAAS.
+    target_servings: how many servings of this recipe to account for."""
+    result = []
+    recipe = _db.recipe_get(conn, recipe_id)
+    if not recipe:
+        return result
+    recipe_servings = float(recipe["servings"] or 1)
+    for ing in _db.recipe_get_ingredients(conn, recipe_id):
+        if ing["ref_recipe_id"]:
+            sub_target = float(ing["amount"]) / recipe_servings * target_servings
+            result.extend(_flatten_recipe_diaas_ingredients(ing["ref_recipe_id"], conn, sub_target))
+        elif ing["fdc_id"]:
+            cached = _db.get_cached_food(conn, ing["fdc_id"])
+            if not cached or not cached["nutrients_json"]:
+                continue
+            result.append({
+                "food_name":      ing["food_name"],
+                "nutrients_100g": json.loads(cached["nutrients_json"]),
+                "grams":          float(ing["amount"]) / recipe_servings * target_servings,
+                "fdc_id":         ing["fdc_id"],
+            })
+    return result
+
+
 def _build_diaas_display(diaas_result: dict | None) -> dict | None:
     """Build the full diaas_display dict from a meal_level_diaas result."""
     if not diaas_result or not diaas_result.get("diaas"):
@@ -1868,12 +1902,48 @@ def _complement_suggestions(
             return round((base_protein + raw) * min(1.0, scale), 1)
         return round(base_digestible + dig, 1)
 
+    _GRAD_THRESHOLD = 30
+
+    def _dcp_at_frac(frac: float, raw_full: float, new_scores_full: dict) -> float | None:
+        """DCP of the combined pool (base + frac*complement) using weighted-pool IAA formula."""
+        if not gaps or not new_scores_full or raw_full <= 0:
+            return None
+        total_p = base_protein + frac * raw_full
+        if total_p <= 0:
+            return None
+        min_score = 1.0
+        for aa_key, base_score_i, *_ in gaps:
+            if aa_key not in new_scores_full:
+                continue
+            # complement_aa_equiv = AA units contributed by the full complement
+            comp_aa = new_scores_full[aa_key] * (base_protein + raw_full) - base_score_i * base_protein
+            score_at_f = (base_score_i * base_protein + frac * comp_aa) / total_p
+            min_score = min(min_score, score_at_f)
+        return round(total_p * min(1.0, min_score), 1)
+
+    def _grad_steps(full_grams: float | None, dig_full: float,
+                    raw_full: float = 0.0, new_scores_full: dict | None = None) -> list[dict]:
+        if not full_grams or full_grams <= _GRAD_THRESHOLD:
+            return []
+        seen: set[int] = set()
+        steps = []
+        for frac in (0.25, 0.50, 0.75, 1.0):
+            g = max(1, round(full_grams * frac))
+            if g not in seen:
+                seen.add(g)
+                dcp = _dcp_at_frac(frac, raw_full, new_scores_full or {})
+                steps.append({"grams": g, "dig_protein": round(dig_full * frac, 1), "dcp": dcp})
+        return steps
+
     def _fmt(s: dict) -> dict:
         raw = float(s.get("protein_added") or 0)
         dig = float(s.get("digestible_protein_added") or 0)
+        full_grams = s.get("grams")
+        new_scores = s.get("new_scores", {})
         return {
             "name":              s.get("name", ""),
-            "grams":             s.get("grams"),
+            "grams":             full_grams,
+            "grad_steps":        _grad_steps(full_grams, dig, raw_full=raw, new_scores_full=new_scores),
             "fdc_id":            s.get("fdc_id"),
             "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
             "new_complete":      s.get("new_complete", False),
@@ -2461,6 +2531,26 @@ async def meal_view(request: Request, meal_id: int, q: str = ""):
     diaas_display = _build_diaas_display(diaas_result)
     aa_nutrients   = _meal_aa_nutrients(meal_id)
     gl_total, gl_blockers = _compute_gl(meal_id)
+
+    item_antinutrients = []
+    seen_names: set[str] = set()
+    with _db.get_db() as conn:
+        for item in items:
+            food_name = item.get("food_name", "")
+            if item.get("recipe_id"):
+                for ing in _expand_recipe_ingredients(item["recipe_id"], 1.0, conn):
+                    n = ing["food_name"]
+                    if n not in seen_names:
+                        seen_names.add(n)
+                        flags = _usda.get_antinutrient_flags(n)
+                        if flags:
+                            item_antinutrients.append({"food_name": n, "flags": flags})
+            elif item.get("fdc_id") and food_name and food_name not in seen_names:
+                seen_names.add(food_name)
+                flags = _usda.get_antinutrient_flags(food_name)
+                if flags:
+                    item_antinutrients.append({"food_name": food_name, "flags": flags})
+
     return templates.TemplateResponse(request, "meal.html", {
         "meal":                dict(meal),
         "items":               items,
@@ -2469,6 +2559,7 @@ async def meal_view(request: Request, meal_id: int, q: str = ""):
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":         _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="meal"),
         "gl":                  {"total": gl_total, "blockers": gl_blockers},
+        "item_antinutrients":  item_antinutrients,
         "q":                   q,
         "search_results":      search_results,
         "today":               datetime.date.today().isoformat(),
@@ -2786,16 +2877,15 @@ async def settings_get(request: Request, saved: str = ""):
 
 @app.post("/settings", response_class=RedirectResponse)
 async def settings_post(
-    age:              int   = Form(...),
-    sex:              str   = Form(...),
-    weight:           float = Form(...),
-    weight_unit:      str   = Form("kg"),
-    height_cm:        float = Form(0.0),
-    height_ft:        int   = Form(0),
-    height_in:        float = Form(0.0),
-    height_unit:      str   = Form("cm"),
-    activity_level:   str   = Form(...),
-    use_oxalate_data: str   = Form(""),
+    age:            int   = Form(...),
+    sex:            str   = Form(...),
+    weight:         float = Form(...),
+    weight_unit:    str   = Form("kg"),
+    height_cm:      float = Form(0.0),
+    height_ft:      int   = Form(0),
+    height_in:      float = Form(0.0),
+    height_unit:    str   = Form("cm"),
+    activity_level: str   = Form(...),
 ):
     if height_unit == "imperial":
         height_cm_val = _profile.ftin_to_cm(height_ft, height_in)
@@ -2804,6 +2894,7 @@ async def settings_post(
 
     weight_kg = _profile.lb_to_kg(weight) if weight_unit == "lb" else weight
 
+    existing = _profile.load_profile()
     profile = _profile.UserProfile(
         age=age,
         sex=sex,
@@ -2812,7 +2903,7 @@ async def settings_post(
         activity_level=activity_level,
         weight_unit=weight_unit,
         height_unit=height_unit,
-        use_oxalate_data=bool(use_oxalate_data),
+        use_oxalate_data=existing.use_oxalate_data if existing else False,
     )
     _profile.save_profile(profile)
     return RedirectResponse("/settings?saved=profile", status_code=303)
@@ -2903,19 +2994,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
         recipe_servings = float(recipe["servings"] or 1)
 
-        diaas_ingredients = []
-        for ing in ingredients:
-            if not ing["fdc_id"] or ing["ref_recipe_id"]:
-                continue
-            cached = _db.get_cached_food(conn, ing["fdc_id"])
-            if not cached or not cached["nutrients_json"]:
-                continue
-            diaas_ingredients.append({
-                "food_name":      ing["food_name"],
-                "nutrients_100g": json.loads(cached["nutrients_json"]),
-                "grams":          float(ing["amount"]) / recipe_servings * servings,
-                "fdc_id":         ing["fdc_id"],
-            })
+        diaas_ingredients = _flatten_recipe_diaas_ingredients(recipe_id, conn, servings)
 
         diaas_result = None
         if diaas_ingredients:
@@ -2927,26 +3006,73 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
     scaled = {k: v * servings for k, v in per_serving.items()}
     rda = _load_rda()
     diaas_display = _build_diaas_display(diaas_result)
+
+    ingredient_antinutrients = []
+    for ing in ingredients:
+        flags = _usda.get_antinutrient_flags(ing["food_name"])
+        if flags:
+            ingredient_antinutrients.append({"food_name": ing["food_name"], "flags": flags})
+
     return templates.TemplateResponse(request, "recipe_detail.html", {
-        "recipe":            dict(recipe),
-        "ingredients":       ingredients,
-        "servings":          servings,
-        "nutrient_sections": _nutrient_sections(scaled, rda) if scaled else [],
-        "diaas":             diaas_display,
-        "protein_adequacy":  _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":       _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe"),
-        "gl":                _recipe_gl_web(recipe_id, recipe_servings, servings),
-        "has_profile":       rda is not None,
+        "recipe":                   dict(recipe),
+        "ingredients":              ingredients,
+        "servings":                 servings,
+        "nutrient_sections":        _nutrient_sections(scaled, rda) if scaled else [],
+        "diaas":                    diaas_display,
+        "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
+        "complements":              _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe"),
+        "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
+        "has_profile":              rda is not None,
+        "ingredient_antinutrients": ingredient_antinutrients,
     })
 
 
 @app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
-async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = ""):
+async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = ""):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
             return RedirectResponse("/recipes", status_code=303)
         ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
+
+        # Running nutrition totals for edit-page live feedback
+        _ns_total: dict = {}
+        _ns_diaas_ings: list = []
+        for _ing in ingredients:
+            if _ing["ref_recipe_id"] or not _ing["fdc_id"]:
+                continue
+            _cached = _db.get_cached_food(conn, _ing["fdc_id"])
+            if not _cached or not _cached["nutrients_json"]:
+                continue
+            _nuts = json.loads(_cached["nutrients_json"])
+            _scaled = _usda.scale_nutrients(_nuts, float(_ing["amount"]))
+            for k, v in _scaled.items():
+                _ns_total[k] = _ns_total.get(k, 0.0) + v
+            _ns_diaas_ings.append({
+                "food_name":      _ing["food_name"],
+                "nutrients_100g": _nuts,
+                "grams":          float(_ing["amount"]),
+                "fdc_id":         _ing["fdc_id"],
+            })
+        _ns_dcp: float | None = None
+        if _ns_diaas_ings:
+            try:
+                _ns_result = _diaas.meal_level_diaas(_ns_diaas_ings, conn)
+                if _ns_result:
+                    _ns_dcp = round(_ns_result.get("digestible_complete_protein_g") or 0, 1)
+            except Exception:
+                pass
+        _ns_srv = float(recipe["servings"] or 1)
+        nutrition_summary = {
+            "calories":      round(_ns_total.get("calories", 0)),
+            "protein_g":     round(_ns_total.get("protein_g", 0), 1),
+            "dcp_g":         _ns_dcp,
+            "cal_per_srv":   round(_ns_total.get("calories", 0) / _ns_srv),
+            "prot_per_srv":  round(_ns_total.get("protein_g", 0) / _ns_srv, 1),
+            "dcp_per_srv":   round(_ns_dcp / _ns_srv, 1) if _ns_dcp is not None else None,
+            "servings":      int(_ns_srv),
+            "has_data":      bool(_ns_total),
+        }
 
     search_results = []
     if q:
@@ -2979,11 +3105,13 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
             pass
 
     return templates.TemplateResponse(request, "recipe_edit.html", {
-        "recipe":         dict(recipe),
-        "ingredients":    ingredients,
-        "q":              q,
-        "search_results": search_results,
-        "saved":          saved,
+        "recipe":             dict(recipe),
+        "ingredients":        ingredients,
+        "q":                  q,
+        "search_results":     search_results,
+        "saved":              saved,
+        "error":              error,
+        "nutrition_summary":  nutrition_summary,
     })
 
 
@@ -3050,7 +3178,6 @@ async def recipe_ingredient_add(
     unit: str = Form("g"),
     notes: str = Form(""),
 ):
-    grams = round(amount * _UNIT_TO_GRAMS.get(unit, 1.0), 2)
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
@@ -3065,10 +3192,25 @@ async def recipe_ingredient_add(
                                nutrients=detail.get("nutrients", {}),
                                portions=detail.get("portions", []))
             food_name = food_name or detail["name"]
+            with _db.get_db() as conn:
+                cached = _db.get_cached_food(conn, fdc_id)
         except Exception:
             return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
 
     name = food_name or (cached["name"] if cached else "Unknown food")
+
+    if unit in _UNIT_TO_GRAMS:
+        grams = round(amount * _UNIT_TO_GRAMS[unit], 2)
+    else:
+        # Volume unit — attempt density conversion
+        portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
+        parsed_g, msg = _parse_portion_str(f"{amount:g} {unit}", portions, name)
+        if parsed_g is None:
+            return RedirectResponse(
+                f"/recipe/{recipe_id}/edit?error={msg}", status_code=303
+            )
+        grams = parsed_g
+
     with _db.get_db() as conn:
         _db.recipe_add_ingredient(conn, recipe_id, fdc_id, name, grams, "g",
                                    notes.strip() or None)
@@ -3095,6 +3237,22 @@ async def recipe_ingredient_edit(
     with _db.get_db() as conn:
         _db.recipe_update_ingredient(conn, ing_id, grams, "g",
                                       food_name.strip(), notes.strip() or None)
+    return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/ingredient/{ing_id}/move", response_class=RedirectResponse)
+async def recipe_ingredient_move(recipe_id: int, ing_id: int, direction: str = Form(...)):
+    with _db.get_db() as conn:
+        ings = _db.recipe_get_ingredients(conn, recipe_id)
+        ids = [i["id"] for i in ings]
+        if ing_id not in ids:
+            return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+        idx = ids.index(ing_id)
+        if direction == "up" and idx > 0:
+            ids[idx], ids[idx - 1] = ids[idx - 1], ids[idx]
+        elif direction == "down" and idx < len(ids) - 1:
+            ids[idx], ids[idx + 1] = ids[idx + 1], ids[idx]
+        _db.recipe_reorder_ingredients(conn, ids)
     return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
 
 
@@ -3140,6 +3298,10 @@ async def summary_date(request: Request, meal_date: str):
             m["meal_items"] = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
 
     diaas_display = _build_diaas_display(diaas_result)
+
+    if diaas_display and diaas_display.get("dcp_g") is not None:
+        with _db.get_db() as conn:
+            _db.day_bcp_cache_set(conn, meal_date, diaas_display["dcp_g"])
 
     aa_nutrients: dict = {}
     for m in meals:

@@ -12,4 +12,4 @@ Eating almost always involves making choices, and choice requires information. T
 
 **User feedback is highly valued.** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is the best measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
 
-(Excerpted 2026-06-29 from the beginning of the **User Manual** - see link in the main menu above.)
+(Excerpted 2026-06-29 from the beginning of the **User Manual** - for access to the full manual, use the link in the main menu above.)

@@ -42,7 +42,7 @@
 {# ── Day-level DIAAS ──────────────────────────────────────────────────── #}
 {% if diaas %}
 <details open>
-  <summary><strong>Protein Quality — Full Day (DIAAS)</strong></summary>
+  <summary><strong>Protein Quality — Full Day (DIAAS)</strong> {{ manual_link("dcp") }}</summary>
 
   <div class="protein-meta">
     <p><strong>Composite DIAAS:</strong>
@@ -149,7 +149,7 @@
 {# ── Complement suggestions ───────────────────────────────────────────── #}
 {% if complements and not complements.no_data %}
 <details>
-  <summary><strong>Protein Complement Suggestions — Full Day</strong></summary>
+  <summary><strong>Protein Complement Suggestions — Full Day</strong> {{ manual_link("comp") }}</summary>
   {% if complements.no_gaps %}
   <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
   {% else %}
@@ -310,7 +310,7 @@
 {# ── Glycemic load ────────────────────────────────────────────────────── #}
 {% if gl %}
 <details>
-  <summary><strong>Glycemic Load — Full Day</strong></summary>
+  <summary><strong>Glycemic Load — Full Day</strong> {{ manual_link("glycemic") }}</summary>
   <div class="protein-meta mt-2">
     {% if gl.total is not none %}
     <p>
@@ -334,7 +334,7 @@
 {# ── Combined nutrients ───────────────────────────────────────────────── #}
 {% if nutrient_sections %}
 <details open>
-  <summary><strong>Total Nutrients — All Meals Combined</strong></summary>
+  <summary><strong>Total Nutrients — All Meals Combined</strong> {{ manual_link("nutrients") }}</summary>
 
   {% if not has_profile %}
   <p class="rda-no-profile">

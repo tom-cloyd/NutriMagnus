@@ -98,15 +98,6 @@
       </select>
     </div>
 
-    <div class="mb-3 form-check">
-      <input type="checkbox" class="form-check-input" id="use_oxalate_data" name="use_oxalate_data"
-             value="1" {{ 'checked' if profile and profile.use_oxalate_data }}>
-      <label class="form-check-label" for="use_oxalate_data">
-        Enable oxalate tracking
-        <span class="muted"><small> — show Harvard oxalate data for foods and recipes</small></span>
-      </label>
-    </div>
-
     <button type="submit" class="btn btn-primary">Save profile</button>
   </form>
 </details>
@@ -239,6 +230,7 @@
 <details>
   <summary data-ak="6"><u class="ak">6</u>. <strong>Protein Digestibility Overrides</strong>
     <span class="muted"> — advanced: per-food DIAAS coefficients</span>
+    {{ manual_link("dcp-overrides") }}
   </summary>
 
   {% if saved == 'diaas' %}

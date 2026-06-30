@@ -4,6 +4,7 @@
 {% block content %}
 <div class="d-flex align-items-center gap-3 mb-3">
   <h2 class="mb-0">Recipes</h2>
+  {{ manual_link("recipes") }}
   <a href="/recipe/new" class="btn btn-primary btn-sm">+ New recipe</a>
 </div>
 
@@ -33,6 +34,7 @@
       <th style="width:7rem;text-align:right">DCP/srv (g)</th>
       <th style="width:6rem;text-align:center">Complete</th>
       <th style="width:7rem">Created</th>
+      <th style="width:9rem"></th>
     </tr>
   </thead>
   <tbody>
@@ -49,6 +51,16 @@
         {% if r.complete %}<span class="status-met">&#10003;</span>{% else %}<span class="muted">—</span>{% endif %}
       </td>
       <td class="muted"><small>{{ r.created_at[:10] if r.created_at else "—" }}</small></td>
+      <td style="white-space:nowrap">
+        <a href="/recipe/{{ r.id }}/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
+        <form method="post" action="/recipe/{{ r.id }}/copy" style="display:inline">
+          <button type="submit" class="btn btn-outline-secondary btn-sm">Copy</button>
+        </form>
+        <form method="post" action="/recipe/{{ r.id }}/delete" style="display:inline"
+              onsubmit="return confirm('Delete {{ r.name | replace("'","&#39;") }}?')">
+          <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

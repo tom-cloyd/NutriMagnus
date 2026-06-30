@@ -343,6 +343,166 @@ td:first-child, th:first-child {
   margin-top: 1px;
 }
 
+/* ── Analysis page: two-column layout with sidebar ──────────────────── */
+
+.analysis-page {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 1.5rem;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .analysis-page { grid-template-columns: 1fr; }
+  .analysis-sidebar { display: none; }
+}
+
+.analysis-sidebar {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 5rem);
+  overflow-y: auto;
+  background: #f8fafc;
+  border: 1px solid #dee2e6;
+  border-radius: 5px;
+  padding-bottom: 0.5rem;
+}
+
+.analysis-content { min-width: 0; }
+
+/* ── Sidebar nav items ───────────────────────────────────────────────── */
+
+.sb-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #6c757d;
+  padding: 0.55rem 0.75rem 0.3rem;
+  border-bottom: 1px solid #dee2e6;
+  margin-bottom: 0.25rem;
+}
+
+.sb-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sb-item { margin-bottom: 1px; }
+
+.sb-toggle {
+  display: block;
+  width: 100%;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1a3a6b;
+  text-decoration: none;
+  line-height: 1.3;
+}
+
+.sb-toggle:hover { background: #e8f0ff; color: #1a3a6b; }
+
+.sb-item.sb-active > .sb-toggle {
+  background: #dbeafe;
+  color: #1e40af;
+  border-left: 3px solid #1d4ed8;
+  padding-left: calc(0.6rem - 3px);
+}
+
+.sb-sub {
+  list-style: none;
+  padding: 0 0 0.2rem 1.4rem;
+  margin: 0;
+}
+
+.sb-link {
+  display: block;
+  font-size: 0.8rem;
+  color: #374151;
+  text-decoration: none;
+  padding: 0.12rem 0.4rem;
+  border-radius: 2px;
+}
+
+.sb-link:hover { background: #f0f4f8; color: #1a3a6b; }
+
+.sb-link.sb-link-active { color: #1d4ed8; font-weight: 600; }
+
+/* ── Analysis sections (replace <details>) ───────────────────────────── */
+
+.analysis-section { margin-bottom: 1.25rem; }
+
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.2rem; }
+
+.section-heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111;
+  background: #f0f4f8;
+  border-left: 3px solid #0d6efd;
+  padding: 0.3rem 0.5rem;
+  margin: 0 0 0.75rem 0;
+}
+
+.manual-link {
+  font-size: 0.875em;
+  font-weight: 400;
+  color: #5a6472;
+  text-decoration: none;
+  margin-left: 0.6rem;
+}
+
+.manual-link:hover { color: #1a3a6b; text-decoration: underline; }
+
+/* ── Protein summary card ────────────────────────────────────────────── */
+
+.protein-summary-card {
+  border-left: 4px solid;
+  padding: 0.65rem 1rem;
+  margin-bottom: 0.75rem;
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1.25rem;
+}
+
+.protein-summary-card.psc-complete  { background: #d1e7dd; border-color: #198754; }
+.protein-summary-card.psc-incomplete { background: #fff3cd; border-color: #ffc107; }
+.protein-summary-card.psc-unknown   { background: #f1f5f9; border-color: #94a3b8; }
+
+.ps-metric { flex: 0 0 auto; }
+
+.ps-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #444;
+  margin-bottom: 0.1rem;
+}
+
+.ps-value {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.ps-status { font-size: 0.9rem; margin-top: 0.2rem; }
+
+.ps-derivation {
+  font-size: 0.88rem;
+  color: #444;
+  align-self: center;
+  max-width: 30rem;
+}
+
 /* ── Food comparison table ───────────────────────────────────────────── */
 
 .compare-table {

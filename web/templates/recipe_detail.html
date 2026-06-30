@@ -1,6 +1,91 @@
 {% extends "base.html" %}
 {% block title %}{{ recipe.name }} — numa{% endblock %}
 
+{% block layout_class %}analysis-page{% endblock %}
+{% block main_class %}analysis-content{% endblock %}
+
+{# ── Sidebar ───────────────────────────────────────────────────────────── #}
+{% block sidebar_nav %}
+<nav class="analysis-sidebar" id="analysis-sidebar" aria-label="Page sections">
+<div class="sb-title">Contents</div>
+<ul class="sb-list">
+  {% if diaas %}
+  <li class="sb-item" data-target="sec-protein-summary">
+    <a class="sb-toggle" href="#sec-protein-summary">Protein Summary</a>
+  </li>
+  {% endif %}
+  {% if ingredients %}
+  <li class="sb-item" data-target="sec-ingredients">
+    <a class="sb-toggle" href="#sec-ingredients">Ingredients</a>
+  </li>
+  {% endif %}
+  {% if nutrient_sections %}
+  <li class="sb-item" data-target="sec-nutrients">
+    <a class="sb-toggle" href="#sec-nutrients">Nutritional Analysis</a>
+    <ul class="sb-sub">
+      {% for section in nutrient_sections %}
+      <li><a class="sb-link" href="#nut-{{ loop.index }}">{{ section.name }}</a></li>
+      {% endfor %}
+    </ul>
+  </li>
+  {% endif %}
+  {% if diaas %}
+  <li class="sb-item" data-target="sec-protein-quality">
+    <a class="sb-toggle" href="#sec-protein-quality">Complete Protein Analysis</a>
+    <ul class="sb-sub">
+      {% if diaas.ing_rows %}<li><a class="sb-link" href="#pq-digestibility">Digestibility</a></li>{% endif %}
+      {% if diaas.iaa_rows %}<li><a class="sb-link" href="#pq-aa-ratios">AA Ratios</a></li>{% endif %}
+    </ul>
+  </li>
+  {% endif %}
+  {% if diaas and diaas.missing %}
+  <li class="sb-item" data-target="sec-missing-aa">
+    <a class="sb-toggle" href="#sec-missing-aa">Missing AA Profiles</a>
+  </li>
+  {% endif %}
+  {% if complements and not complements.no_data %}
+  <li class="sb-item" data-target="sec-complements">
+    <a class="sb-toggle" href="#sec-complements">Complement Suggestions</a>
+    {% if not complements.no_gaps %}
+    <ul class="sb-sub">
+      {% if complements.pantry or complements.pantry_no_qualify or complements.pantry_empty %}
+      <li><a class="sb-link" href="#cmpl-pantry">From your pantry</a></li>
+      {% endif %}
+      {% if complements.general %}
+      <li><a class="sb-link" href="#cmpl-general">Other suggestions</a></li>
+      {% endif %}
+      {% if complements.pairs %}
+      <li><a class="sb-link" href="#cmpl-pairs">Two-food combos</a></li>
+      {% endif %}
+    </ul>
+    {% endif %}
+  </li>
+  {% if complements.diaas_improvers %}
+  <li class="sb-item" data-target="sec-diaas-boost">
+    <a class="sb-toggle" href="#sec-diaas-boost">DIAAS Boosters</a>
+  </li>
+  {% endif %}
+  {% if complements.two_step_combos %}
+  <li class="sb-item" data-target="sec-two-step">
+    <a class="sb-toggle" href="#sec-two-step">Two-Step Combinations</a>
+  </li>
+  {% endif %}
+  {% endif %}
+  {% if gl %}
+  <li class="sb-item" data-target="sec-glycemic">
+    <a class="sb-toggle" href="#sec-glycemic">Glycemic Load</a>
+  </li>
+  {% endif %}
+  {% if ingredient_antinutrients %}
+  <li class="sb-item" data-target="sec-antinutrients">
+    <a class="sb-toggle" href="#sec-antinutrients">Anti-nutrient Notes</a>
+  </li>
+  {% endif %}
+</ul>
+</nav>
+{% endblock %}
+
+{# ── Main content ──────────────────────────────────────────────────────── #}
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -27,11 +112,9 @@
 {# ── Actions ──────────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a href="/recipe/{{ recipe.id }}/edit" class="btn btn-sm btn-outline-primary">Edit recipe</a>
-
   <form method="post" action="/recipe/{{ recipe.id }}/copy" style="margin:0">
     <button type="submit" class="btn btn-sm btn-outline-secondary">Copy recipe</button>
   </form>
-
   <form method="post" action="/recipe/{{ recipe.id }}/delete" style="margin:0"
         onsubmit="return confirm('Delete recipe &quot;{{ recipe.name }}&quot;? This cannot be undone.')">
     <button type="submit" class="btn btn-sm btn-outline-danger">Delete recipe</button>
@@ -47,10 +130,55 @@
   <button type="submit" class="btn btn-sm btn-primary">Re-analyze</button>
 </form>
 
+{# ── Protein Summary ──────────────────────────────────────────────────── #}
+{% if diaas %}
+<section id="sec-protein-summary" class="analysis-section">
+  <h3 class="section-heading">Protein Summary {{ manual_link("dcp") }}</h3>
+  {% if diaas.dcp_g is not none %}
+  <div class="protein-summary-card {% if diaas.score is not none and diaas.score >= 0.9 %}psc-complete{% elif diaas.dcp_g %}psc-incomplete{% else %}psc-unknown{% endif %}">
+    <div class="ps-metric">
+      <div class="ps-label">Digestible Complete Protein (DCP)</div>
+      <div class="ps-value">{{ diaas.dcp_g }}&thinsp;g</div>
+      {% if protein_adequacy and not protein_adequacy.no_profile %}
+      <div class="ps-status muted">{{ protein_adequacy.pct | int }}% of daily target ({{ protein_adequacy.target }}&thinsp;g)</div>
+      {% endif %}
+    </div>
+    {% if diaas.score is not none %}
+    <div class="ps-derivation">
+      {% if diaas.aa_protein_g and diaas.aa_protein_g < diaas.total_protein_g - 0.05 %}
+      {{ diaas.aa_protein_g }}&thinsp;g raw (AA-analyzed foods)
+      {% else %}
+      {{ diaas.total_protein_g }}&thinsp;g raw protein
+      {% endif %}
+      &times; DIAAS&thinsp;{{ "%.3f"|format(diaas.score) }}
+      = <strong>{{ diaas.dcp_g }}&thinsp;g DCP</strong>
+    </div>
+    {% endif %}
+  </div>
+  {% elif diaas.score is not none %}
+  <div class="protein-summary-card psc-unknown">
+    <div class="ps-metric">
+      <div class="ps-label">Composite DIAAS</div>
+      <div class="ps-value">{{ "%.3f"|format(diaas.score) }}</div>
+      <div class="ps-status muted">DCP not computed</div>
+    </div>
+  </div>
+  {% else %}
+  <div class="protein-summary-card psc-unknown">
+    <div class="ps-metric">
+      <div class="ps-label">Protein</div>
+      <div class="ps-value muted">—</div>
+      <div class="ps-status muted">Insufficient amino acid data for DIAAS</div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
 {# ── Ingredients ──────────────────────────────────────────────────────── #}
 {% if ingredients %}
-<details open>
-  <summary><strong>Ingredients ({{ ingredients|length }})</strong></summary>
+<section id="sec-ingredients" class="analysis-section">
+  <h3 class="section-heading">Ingredients ({{ ingredients|length }}) {{ manual_link("recipe-ingredients") }}</h3>
   <table class="nutrient-table mt-2">
     <thead>
       <tr>
@@ -74,9 +202,10 @@
         <td>
           {% if ing.fdc_id and ing.fdc_id > 0 %}
             <a href="/food/{{ ing.fdc_id }}?amount={{ ing.amount | round(1) }}">{{ ing.food_name }}</a>
+          {% elif ing.ref_recipe_id %}
+            <a href="/recipe/{{ ing.ref_recipe_id }}">{{ ing.food_name }}</a>
           {% else %}
             {{ ing.food_name }}
-            {% if ing.ref_recipe_id %}<small class="muted"> (recipe)</small>{% endif %}
           {% endif %}
         </td>
         <td><small class="muted">{{ ing.notes or "" }}</small></td>
@@ -84,17 +213,17 @@
       {% endfor %}
     </tbody>
   </table>
-</details>
+</section>
 {% else %}
 <p class="muted">No ingredients yet. <a href="/recipe/{{ recipe.id }}/edit">Add ingredients.</a></p>
 {% endif %}
 
-{# ── Nutrient analysis ────────────────────────────────────────────────── #}
+{# ── Nutritional Analysis ─────────────────────────────────────────────── #}
 {% if nutrient_sections %}
-<details open>
-  <summary><strong>Nutrient analysis
-    <small class="muted"> — {{ servings }} serving{% if servings != 1 %}s{% endif %}</small>
-  </strong></summary>
+<section id="sec-nutrients" class="analysis-section">
+  <h3 class="section-heading">Nutritional Analysis {{ manual_link("nutrients") }}
+    <small class="muted" style="font-weight:400"> — {{ servings }} serving{% if servings != 1 %}s{% endif %}</small>
+  </h3>
 
   {% if not has_profile %}
   <p class="rda-no-profile mt-2">
@@ -104,7 +233,7 @@
   {% endif %}
 
   {% for section in nutrient_sections %}
-  <h4>{{ section.name }}</h4>
+  <h4 id="nut-{{ loop.index }}" style="margin-top:0.75rem">{{ section.name }}</h4>
   <table class="nutrient-table">
     <thead>
       <tr>
@@ -132,18 +261,18 @@
     </tbody>
   </table>
   {% endfor %}
-</details>
+</section>
 {% endif %}
 
 {# ── Complete Protein Analysis (DIAAS) ────────────────────────────────── #}
 {% if diaas %}
-<details open>
-  <summary><strong>Complete Protein Analysis</strong>
-    <small class="muted"> — pooled, digestibility-corrected (DIAAS)</small>
-  </summary>
+<section id="sec-protein-quality" class="analysis-section">
+  <h3 class="section-heading">Complete Protein Analysis {{ manual_link("protein-quality") }}
+    <small class="muted" style="font-weight:400"> — pooled, digestibility-corrected (DIAAS)</small>
+  </h3>
 
   {% if diaas.ing_rows %}
-  <h5 class="mt-3">Ingredients: digestibility</h5>
+  <h5 class="mt-3" id="pq-digestibility">Ingredients: digestibility</h5>
   <table class="nutrient-table">
     <thead>
       <tr>
@@ -166,7 +295,11 @@
         <td class="num-col">{{ ing.digestible_protein_g }}</td>
         <td>
           {% if ing.has_aa %}<span class="status-met">&#10003;</span>
-          {% else %}<span class="muted">—</span>{% endif %}
+          {% else %}
+            <span class="muted">—</span>
+            <a href="/recipe/{{ recipe.id }}/edit?q={{ ing.food_name | urlencode }}"
+               class="btn btn-outline-warning btn-sm ms-1" title="Search for a Foundation Food replacement with AA data">Replace</a>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -175,7 +308,7 @@
   {% endif %}
 
   {% if diaas.iaa_rows %}
-  <h5 class="mt-3">Amino acid ratios
+  <h5 class="mt-3" id="pq-aa-ratios">Amino acid ratios
     <small class="muted"> — digestible AA ÷ FAO reference &nbsp;|&nbsp; DIAAS = lowest ratio</small>
   </h5>
   <table class="nutrient-table">
@@ -227,26 +360,74 @@
     <p class="muted"><small>&#9888; Phe+Tyr combined: gap may be present</small></p>
     {% endif %}
   </div>
-</details>
+</section>
 {% endif %}
 
-{# ── Missing AA profiles ───────────────────────────────────────────────── #}
+{# ── Missing AA Profiles ───────────────────────────────────────────────── #}
 {% if diaas and diaas.missing %}
-<details>
-  <summary><strong>Missing Amino Acid Profiles</strong></summary>
-  <p class="muted mt-2">&#9888; These ingredients lacked AA data and were excluded from DIAAS:</p>
+<section id="sec-missing-aa" class="analysis-section">
+  <h3 class="section-heading">Missing Amino Acid Profiles {{ manual_link("missing-aa") }}</h3>
+  <p class="muted mt-2">&#9888; These ingredients lacked AA data and were excluded from DIAAS. Search for a Foundation Foods replacement to fix this:</p>
   <ul class="list-unstyled ms-2">
     {% for name in diaas.missing %}
-    <li><small>&#9888; {{ name }}</small></li>
+    <li class="mb-1">
+      <small>&#9888; {{ name }}</small>
+      <a href="/recipe/{{ recipe.id }}/edit?q={{ name | urlencode }}"
+         class="btn btn-outline-warning btn-sm ms-2">Find Foundation Food replacement</a>
+    </li>
     {% endfor %}
   </ul>
-</details>
+</section>
 {% endif %}
 
-{# ── Protein Complement Suggestions ───────────────────────────────────── #}
+{# ── Complement Suggestions ───────────────────────────────────────────── #}
 {% if complements and not complements.no_data %}
-<details>
-  <summary><strong>Protein Complement Suggestions</strong></summary>
+
+{% macro suggest_card(s, verb) %}
+<div class="card card-body mb-2 p-2" style="max-width:38rem">
+  <p class="mb-1">
+    <strong>{{ s.name }}</strong>
+    {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+    {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
+    {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
+  </p>
+  {% if s.grad_steps %}
+  <p class="mb-1"><strong>{{ verb }} (graduated):</strong></p>
+  <table class="table table-sm mb-1" style="max-width:36rem">
+    <thead><tr><th>Amount</th><th>Digestible protein added</th><th>DCP achieved</th></tr></thead>
+    <tbody>
+    {% for step in s.grad_steps %}
+    <tr{% if loop.last %} class="table-success"{% endif %}>
+      <td><strong>{{ step.grams }}&thinsp;g</strong>{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
+      <td>{{ step.dig_protein }}&thinsp;g</td>
+      <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+  {% endif %}
+  {% if s.aa_effects %}
+  <p class="mb-1 muted"><small>Effect:
+    {% for e in s.aa_effects %}
+      {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+    {% endfor %}
+  </small></p>
+  {% endif %}
+  <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein at full serving (from {{ s.protein_added }}&thinsp;g raw)</small></p>
+  <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with full serving: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+  {% if s.new_complete and s.grad_steps %}
+  <p class="mb-0 muted"><small>The complement fills amino acid gaps in the base protein, making previously wasted raw protein utilizable. DCP rises faster than the complement alone because it unlocks the base protein too.</small></p>
+  {% endif %}
+  {% if s.opens_new_gap %}
+  <p class="mb-0 rda-near"><small>&#9888; Closes gap but opens a new one — consider layering.</small></p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+<section id="sec-complements" class="analysis-section">
+  <h3 class="section-heading">Protein Complement Suggestions {{ manual_link("comp") }}</h3>
   {% if complements.no_gaps %}
   <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
   {% else %}
@@ -257,30 +438,6 @@
     {% endfor %}
   </p>
 
-  {% macro suggest_card(s, verb) %}
-  <div class="card card-body mb-2 p-2" style="max-width:38rem">
-    <p class="mb-1">
-      <strong>{{ s.name }}</strong>
-      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
-      {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
-      {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
-    </p>
-    <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g</p>
-    {% if s.aa_effects %}
-    <p class="mb-1 muted"><small>Effect:
-      {% for e in s.aa_effects %}
-        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
-      {% endfor %}
-    </small></p>
-    {% endif %}
-    <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw)</small></p>
-    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
-    {% if s.opens_new_gap %}
-    <p class="mb-0 rda-near"><small>&#9888; Closes gap but opens a new one — consider layering.</small></p>
-    {% endif %}
-  </div>
-  {% endmacro %}
-
   {% if complements.pantry_empty %}
   <p class="muted"><small>(No pantry items saved — add protein sources via Foods &rarr; My Pantry.)</small></p>
   {% elif complements.pantry_no_qualify %}
@@ -288,24 +445,24 @@
   {% endif %}
 
   {% if complements.pantry %}
-  <h5 class="mt-3">From your pantry</h5>
+  <h5 class="mt-3" id="cmpl-pantry">From your pantry</h5>
   {% for s in complements.pantry %}{{ suggest_card(s, "Add to recipe") }}{% endfor %}
   {% endif %}
 
   {% if complements.general %}
-  <h5 class="mt-3">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h5>
+  <h5 class="mt-3" id="cmpl-general">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h5>
   {% for s in complements.general %}{{ suggest_card(s, "Add to recipe") }}{% endfor %}
   {% endif %}
 
   <p class="muted mt-2"><small>{{ complements.exhausted_msg }}</small></p>
 
   {% if complements.pairs %}
-  <h5 class="mt-3">Two-food combinations</h5>
+  <h5 class="mt-3" id="cmpl-pairs">Two-food combinations</h5>
   <p class="muted"><small>Food A closes the primary gap (but opens a new one); food B closes what A left behind. Together they achieve a complete amino acid profile.</small></p>
   {% for p in complements.pairs %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1"><strong>{{ p.foods[0].name }}</strong> + <strong>{{ p.foods[1].name }}</strong>
-      {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
+      {% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
     {% for f in p.foods %}
     <p class="mb-1 ms-2"><strong>Add to recipe: {{ f.grams }}&thinsp;g {{ f.name }}</strong>
@@ -321,13 +478,17 @@
     </small></p>
     {% endif %}
     <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw)</small></p>
-    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
+    <p class="mb-0 muted"><small>Total digestible complete protein with both foods: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
   </div>
   {% endfor %}
   {% endif %}
+  {% endif %}{# end no_gaps else #}
+</section>
 
-  {% if complements.diaas_improvers %}
-  <h5 class="mt-3">DIAAS-boosting options</h5>
+{# ── DIAAS Boosters ───────────────────────────────────────────────────── #}
+{% if complements.diaas_improvers %}
+<section id="sec-diaas-boost" class="analysis-section">
+  <h3 class="section-heading">DIAAS-Boosting Options {{ manual_link("comp") }}</h3>
   <p class="muted"><small>
     {% if complements.have_gap_closers %}
     These foods can't close a specific AA gap on their own, but raise the recipe's overall DIAAS score toward 0.90 via protein pooling.
@@ -362,10 +523,13 @@
     {% endif %}
   </div>
   {% endfor %}
-  {% endif %}
+</section>
+{% endif %}
 
-  {% if complements.two_step_combos %}
-  <h5 class="mt-3">Two-step combinations</h5>
+{# ── Two-Step Combinations ────────────────────────────────────────────── #}
+{% if complements.two_step_combos %}
+<section id="sec-two-step" class="analysis-section">
+  <h3 class="section-heading">Two-Step Combinations {{ manual_link("comb") }}</h3>
   <p class="muted"><small>Each pairs a gap-closer (Step 1) with the best DIAAS-booster for the resulting protein pool (Step 2).</small></p>
   {% for combo in complements.two_step_combos %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
@@ -396,16 +560,15 @@
     {% endif %}
   </div>
   {% endfor %}
-  {% endif %}
-
-  {% endif %}{# end no_gaps else #}
-</details>
+</section>
 {% endif %}
 
-{# ── Glycemic load ────────────────────────────────────────────────────── #}
+{% endif %}{# end complements block #}
+
+{# ── Glycemic Load ────────────────────────────────────────────────────── #}
 {% if gl %}
-<details>
-  <summary><strong>Glycemic load</strong></summary>
+<section id="sec-glycemic" class="analysis-section">
+  <h3 class="section-heading">Glycemic Load {{ manual_link("glycemic") }}</h3>
   <div class="protein-meta mt-2">
     {% if gl.total is not none %}
     <p>
@@ -423,7 +586,55 @@
     </ul>
     {% endif %}
   </div>
-</details>
+</section>
 {% endif %}
 
+{# ── Anti-nutrient Notes ──────────────────────────────────────────────── #}
+{% if ingredient_antinutrients %}
+<section id="sec-antinutrients" class="analysis-section">
+  <h3 class="section-heading">Anti-nutrient Notes {{ manual_link("antinutrients") }}</h3>
+  {% for item in ingredient_antinutrients %}
+  <p class="mb-1"><strong>{{ item.food_name }}</strong></p>
+  {% for flag in item.flags %}
+  <div class="antinutrient-card ms-3 mb-2">
+    <header><strong>{{ flag.problem }}</strong></header>
+    <p>{{ flag.cause }}</p>
+    {% for sol_label, sol_text in flag.solutions %}
+    <footer><em>{{ sol_label }}:</em> {{ sol_text }}</footer>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% endfor %}
+</section>
+{% endif %}
+
+{% endblock %}
+
+{# ── Sidebar JS ───────────────────────────────────────────────────────── #}
+{% block scripts %}
+<script>
+(function () {
+  function updateActive() {
+    var scrollY = window.scrollY + 100;
+    var current = null;
+    document.querySelectorAll('.analysis-section').forEach(function (sec) {
+      if (sec.offsetTop <= scrollY) current = sec.id;
+    });
+    document.querySelectorAll('.sb-item').forEach(function (item) {
+      item.classList.toggle('sb-active', item.dataset.target === current);
+    });
+    document.querySelectorAll('.sb-link').forEach(function (link) {
+      var href = link.getAttribute('href');
+      if (!href || !href.startsWith('#')) return;
+      var el = document.getElementById(href.slice(1));
+      if (!el) return;
+      var elTop = el.offsetTop;
+      link.classList.toggle('sb-link-active', elTop <= scrollY + 50 && elTop > scrollY - 300);
+    });
+  }
+
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+})();
+</script>
 {% endblock %}

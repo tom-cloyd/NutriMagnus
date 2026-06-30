@@ -95,6 +95,7 @@
 </details>
 
 {# ── 2. Nutrient analysis ─────────────────────────────────────────────────── #}
+{% if nutrient_sections %}<p>{{ manual_link("nutrients") }}</p>{% endif %}
 {% for section in nutrient_sections %}
 <details open>
   <summary><strong>{{ section.name }}</strong></summary>
@@ -131,6 +132,7 @@
 <details open>
   <summary><strong>Meal-Level Complete Protein Analysis</strong>
     <span class="muted" style="font-size:.9rem"> — digestibility-corrected (DIAAS)</span>
+    {{ manual_link("meal-diaas") }}
   </summary>
 
   {% if diaas_display %}
@@ -220,7 +222,7 @@
 {# ── 4. Missing Amino Acid Profiles ──────────────────────────────────────── #}
 {% if diaas_display and diaas_display.missing %}
 <details>
-  <summary><strong>Missing Amino Acid Profiles</strong></summary>
+  <summary><strong>Missing Amino Acid Profiles</strong> {{ manual_link("missing-aa") }}</summary>
   <p class="muted mt-2">The following ingredients lack USDA amino acid records and were excluded
     from the DIAAS calculation:</p>
   <ul class="list-unstyled ms-2">
@@ -253,7 +255,7 @@
 
 {# ── 6. Protein Complement Suggestions ────────────────────────────────────── #}
 <details>
-  <summary><strong>Protein Complement Suggestions</strong></summary>
+  <summary><strong>Protein Complement Suggestions</strong> {{ manual_link("comp") }}</summary>
   {% if complements.no_data %}
   <p class="muted mt-2">No amino acid data available for the ingredients in this recipe.</p>
   {% elif complements.no_gaps %}
@@ -408,7 +410,7 @@
 
 {# ── 7. Glycemic load ─────────────────────────────────────────────────────── #}
 <details>
-  <summary><strong>Glycemic load</strong></summary>
+  <summary><strong>Glycemic load</strong> {{ manual_link("glycemic") }}</summary>
   <div class="protein-meta mt-2">
     {% if gl.total is not none %}
     <p>

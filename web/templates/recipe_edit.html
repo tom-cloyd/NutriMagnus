@@ -10,11 +10,17 @@
   </ol>
 </nav>
 
-<h2>Edit Recipe</h2>
+<h2>Edit Recipe {{ manual_link("recipe-ingredients") }}</h2>
 
 {% if saved %}
 <div class="alert alert-success alert-dismissible fade show" role="alert">
   Recipe saved.
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+  {{ error }}
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 {% endif %}
@@ -85,6 +91,7 @@
         <th class="num-col">Amount</th>
         <th>Food</th>
         <th>Notes</th>
+        <th style="width:4rem"></th>
         <th></th>
         <th></th>
       </tr>
@@ -104,6 +111,22 @@
           {% if ing.ref_recipe_id %}<small class="muted"> (recipe)</small>{% endif %}
         </td>
         <td><small class="muted">{{ ing.notes or "" }}</small></td>
+
+        {# Move up / down #}
+        <td style="white-space:nowrap">
+          {% if not loop.first %}
+          <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/move" style="display:inline">
+            <input type="hidden" name="direction" value="up">
+            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Move up">&uarr;</button>
+          </form>
+          {% endif %}
+          {% if not loop.last %}
+          <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/move" style="display:inline">
+            <input type="hidden" name="direction" value="down">
+            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Move down">&darr;</button>
+          </form>
+          {% endif %}
+        </td>
 
         {# Edit inline #}
         <td>
@@ -154,6 +177,53 @@
   {% endif %}
 </details>
 
+{# ── Running nutrition totals ─────────────────────────────────────────── #}
+{% if nutrition_summary.has_data %}
+<div class="card mt-3" style="max-width:36rem">
+  <div class="card-header py-2"><strong>Running totals</strong>
+    <small class="text-muted ms-2">updates after each ingredient change</small>
+  </div>
+  <div class="card-body py-2 px-3">
+    <table class="nutrient-table mb-0" style="width:100%">
+      <thead>
+        <tr>
+          <th></th>
+          <th class="num-col">Whole recipe</th>
+          <th class="num-col">Per serving
+            <small class="text-muted">(÷&thinsp;{{ nutrition_summary.servings }})</small>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Calories</td>
+          <td class="num-col">{{ nutrition_summary.calories }}&thinsp;kcal</td>
+          <td class="num-col">{{ nutrition_summary.cal_per_srv }}&thinsp;kcal</td>
+        </tr>
+        <tr>
+          <td>Protein (raw)</td>
+          <td class="num-col">{{ nutrition_summary.protein_g }}&thinsp;g</td>
+          <td class="num-col">{{ nutrition_summary.prot_per_srv }}&thinsp;g</td>
+        </tr>
+        <tr>
+          {% if nutrition_summary.dcp_g is not none %}
+          <td>Protein (DCP)
+            <small class="text-muted">digestible complete</small>
+          </td>
+          <td class="num-col">{{ nutrition_summary.dcp_g }}&thinsp;g</td>
+          <td class="num-col">{{ nutrition_summary.dcp_per_srv }}&thinsp;g</td>
+          {% else %}
+          <td colspan="3" class="muted">
+            <small>DCP not available — add Foundation Foods with amino acid data for a complete estimate.</small>
+          </td>
+          {% endif %}
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 {# ── Add ingredient ───────────────────────────────────────────────────── #}
 <details {% if q %}open{% endif %}>
   <summary><strong>Add Ingredient</strong></summary>
@@ -167,6 +237,7 @@
   </form>
 
   {% if search_results %}
+  <p class="muted mt-1 mb-2"><small>Add a replacement below, then remove the original ingredient above.</small></p>
   <table class="nutrient-table add-food-table">
     <thead>
       <tr>
@@ -201,11 +272,19 @@
             <div class="input-group" style="max-width:22rem">
               <input type="number" class="form-control" name="amount" value="100"
                      min="0.01" max="9999" step="any" style="max-width:6rem">
-              <select class="form-select" name="unit" style="max-width:5rem">
-                <option value="g">g</option>
-                <option value="oz">oz</option>
-                <option value="lb">lb</option>
-                <option value="kg">kg</option>
+              <select class="form-select" name="unit" style="max-width:6rem">
+                <optgroup label="Weight">
+                  <option value="g">g</option>
+                  <option value="oz">oz</option>
+                  <option value="lb">lb</option>
+                  <option value="kg">kg</option>
+                </optgroup>
+                <optgroup label="Volume">
+                  <option value="cup">cup</option>
+                  <option value="T">T (tbsp)</option>
+                  <option value="tsp">tsp</option>
+                  <option value="ml">ml</option>
+                </optgroup>
               </select>
               <button type="submit" class="btn btn-primary">Add to recipe</button>
             </div>

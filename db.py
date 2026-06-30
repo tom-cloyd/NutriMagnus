@@ -227,6 +227,11 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 pass
 
+        try:
+            conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN sort_order INTEGER")
+        except sqlite3.OperationalError:
+            pass
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS saved_comparisons (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -257,6 +262,14 @@ def init_db() -> None:
             conn.execute("ALTER TABLE recipes ADD COLUMN nutrients_json TEXT")
         except sqlite3.OperationalError:
             pass
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS day_bcp_cache (
+                meal_date   TEXT PRIMARY KEY,
+                dcp_g       REAL NOT NULL,
+                computed_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
 
 # ---------------------------------------------------------------------------
 # Food cache
@@ -503,9 +516,18 @@ def recipe_get(conn: sqlite3.Connection, recipe_id: int) -> sqlite3.Row | None:
 
 def recipe_get_ingredients(conn: sqlite3.Connection, recipe_id: int) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id",
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY COALESCE(sort_order, id), id",
         (recipe_id,)
     ).fetchall()
+
+
+def recipe_reorder_ingredients(conn: sqlite3.Connection, ordered_ids: list[int]) -> None:
+    """Assign sort_order 1..N to ingredients given by their IDs in the desired order."""
+    for pos, ing_id in enumerate(ordered_ids, start=1):
+        conn.execute(
+            "UPDATE recipe_ingredients SET sort_order = ? WHERE id = ?",
+            (pos, ing_id),
+        )
 
 
 def recipe_auto_weight(conn: sqlite3.Connection, recipe_id: int) -> float | None:
@@ -661,21 +683,33 @@ def meal_list_dates(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.R
     ).fetchall()
 
 
+def day_bcp_cache_set(conn: sqlite3.Connection, meal_date: str, dcp_g: float) -> None:
+    """Persist the day-level pooled DCP computed by the summary analysis."""
+    conn.execute(
+        "INSERT OR REPLACE INTO day_bcp_cache (meal_date, dcp_g, computed_at) VALUES (?, ?, datetime('now'))",
+        (meal_date, dcp_g),
+    )
+
+
 def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.Row]:
     """Return recent meal dates with aggregated BCP data.
 
     Columns: meal_date, day_bcp (NULL if no complete meals have bcp_g computed),
     complete_count (number of complete meals that day).
+    Prefers the pooled day-level DCP from day_bcp_cache when available.
     """
     return conn.execute(
         """
         SELECT
-            meal_date,
-            SUM(CASE WHEN complete = 1 AND bcp_g IS NOT NULL THEN bcp_g END) AS day_bcp,
-            COUNT(CASE WHEN complete = 1 THEN 1 END) AS complete_count
-        FROM meals
-        GROUP BY meal_date
-        ORDER BY meal_date DESC
+            m.meal_date,
+            COALESCE(c.dcp_g,
+                SUM(CASE WHEN m.complete = 1 AND m.bcp_g IS NOT NULL THEN m.bcp_g END)
+            ) AS day_bcp,
+            COUNT(CASE WHEN m.complete = 1 THEN 1 END) AS complete_count
+        FROM meals m
+        LEFT JOIN day_bcp_cache c ON c.meal_date = m.meal_date
+        GROUP BY m.meal_date
+        ORDER BY m.meal_date DESC
         LIMIT ?
         """,
         (limit,),

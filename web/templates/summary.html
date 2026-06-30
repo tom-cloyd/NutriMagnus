@@ -1,8 +1,34 @@
 {% extends "base.html" %}
 {% block title %}{% if date_detail %}Summary — {{ date_detail }}{% else %}Daily Summary{% endif %} — numa{% endblock %}
 
+{% block layout_class %}{% if date_detail %}analysis-page{% else %}container{% endif %}{% endblock %}
+{% block main_class %}{% if date_detail %}analysis-content{% endif %}{% endblock %}
+
+{% block sidebar_nav %}
+{% if date_detail %}
+<aside class="analysis-sidebar">
+  <div class="sb-title">{{ date_detail }}</div>
+  <ul class="sb-list">
+    <li class="sb-item"><a class="sb-toggle" href="#sec-meals">Meals</a></li>
+    {% if diaas %}
+    <li class="sb-item"><a class="sb-toggle" href="#sec-diaas">Protein Quality (DIAAS)</a></li>
+    {% endif %}
+    {% if complements and not complements.no_data %}
+    <li class="sb-item"><a class="sb-toggle" href="#sec-comp">Complement Suggestions</a></li>
+    {% endif %}
+    {% if gl %}
+    <li class="sb-item"><a class="sb-toggle" href="#sec-gl">Glycemic Load</a></li>
+    {% endif %}
+    {% if nutrient_sections %}
+    <li class="sb-item"><a class="sb-toggle" href="#sec-nutrients">Total Nutrients</a></li>
+    {% endif %}
+  </ul>
+</aside>
+{% endif %}
+{% endblock %}
+
 {% block content %}
-<h2>Daily Summary</h2>
+<h2>Daily Summary {{ manual_link("goals") }}</h2>
 
 {# ── Date picker ──────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
@@ -70,9 +96,15 @@
 {# ── Full day analysis ─────────────────────────────────────────────────── #}
 {% if date_detail %}
 <hr>
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb mb-1">
+    <li class="breadcrumb-item"><a href="/summary">Daily Summary</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ date_detail }}</li>
+  </ol>
+</nav>
 <h3>{{ date_detail }}{% if date_detail == today %} <small class="muted">(today)</small>{% endif %}</h3>
 
-<div class="mb-3">
+<div id="sec-meals" class="mb-3">
   <strong>{{ meals | length }} meal{{ 's' if meals | length != 1 else '' }}:</strong>
   {% for m in meals %}
   <div class="ms-2 mt-2">
@@ -98,8 +130,8 @@
 
 {# DIAAS #}
 {% if diaas %}
-<details open>
-  <summary><strong>Protein Quality — Full Day (DIAAS)</strong></summary>
+<details id="sec-diaas" open>
+  <summary><strong>Protein Quality — Full Day (DIAAS)</strong> {{ manual_link("dcp") }}</summary>
   <div class="protein-meta">
     <p><strong>Composite DIAAS:</strong>
       {% if diaas.score is not none %}{{ "%.3f"|format(diaas.score) }}{% else %}N/A{% endif %}
@@ -165,7 +197,7 @@
   {% endif %}
 
   {% if diaas.ing_rows %}
-  <h5 class="mt-3">Per-ingredient breakdown</h5>
+  <h4 class="mt-3">Per-ingredient breakdown</h4>
   <table class="nutrient-table">
     <thead>
       <tr>
@@ -200,8 +232,8 @@
 
 {# Complement suggestions #}
 {% if complements and not complements.no_data %}
-<details>
-  <summary><strong>Protein Complement Suggestions — Full Day</strong></summary>
+<details id="sec-comp">
+  <summary><strong>Protein Complement Suggestions — Full Day</strong> {{ manual_link("comp") }}</summary>
   {% if complements.no_gaps %}
   <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
   {% else %}
@@ -220,7 +252,23 @@
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
       {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
+    {% if s.grad_steps %}
+    <p class="mb-1"><strong>Add to day (graduated):</strong></p>
+    <table class="table table-sm mb-1" style="max-width:36rem">
+      <thead><tr><th>Amount</th><th>Digestible protein added</th><th>DCP achieved</th></tr></thead>
+      <tbody>
+        {% for step in s.grad_steps %}
+        <tr{% if loop.last %} class="table-success"{% endif %}>
+          <td><strong>{{ step.grams }}&thinsp;g</strong>{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
+          <td>{{ step.dig_protein }}&thinsp;g</td>
+          <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
     <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+    {% endif %}
     {% if s.aa_effects %}
     <p class="mb-1 muted"><small>Effect:
       {% for e in s.aa_effects %}
@@ -229,7 +277,10 @@
     </small></p>
     {% endif %}
     <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw)</small></p>
-    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+    <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with full serving: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+    {% if s.new_complete and s.grad_steps %}
+    <p class="mb-0 muted"><small>The complement fills amino acid gaps in the base protein, making previously wasted raw protein utilizable. DCP rises faster than the complement alone because it unlocks the base protein too.</small></p>
+    {% endif %}
     {% if s.opens_new_gap %}
     <p class="mb-0 rda-near"><small>&#9888; Closes above gap but opens a new one.</small></p>
     {% endif %}
@@ -242,17 +293,17 @@
   <p class="muted"><small>(Pantry items found but none qualify for the limiting amino acid.)</small></p>
   {% endif %}
   {% if complements.pantry %}
-  <h5 class="mt-3">From your pantry</h5>
+  <h4 class="mt-3">From your pantry</h4>
   {% for s in complements.pantry %}{{ suggest_card(s) }}{% endfor %}
   {% endif %}
   {% if complements.general %}
-  <h5 class="mt-3">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h5>
+  <h4 class="mt-3">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h4>
   {% for s in complements.general %}{{ suggest_card(s) }}{% endfor %}
   {% endif %}
   <p class="muted mt-2"><small>{{ complements.exhausted_msg }}</small></p>
 
   {% if complements.pairs %}
-  <h5 class="mt-3">Two-food combinations</h5>
+  <h4 class="mt-3">Two-food combinations</h4>
   <p class="muted"><small>Food A closes the primary gap (but opens a new one); food B closes what A left behind. Together they achieve a complete amino acid profile.</small></p>
   {% for p in complements.pairs %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
@@ -273,7 +324,7 @@
     </small></p>
     {% endif %}
     <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw)</small></p>
-    <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
+    <p class="mb-0 muted"><small>Total digestible complete protein with both foods: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
   </div>
   {% endfor %}
   {% endif %}
@@ -284,8 +335,8 @@
 
 {# Glycemic load #}
 {% if gl %}
-<details>
-  <summary><strong>Glycemic Load — Full Day</strong></summary>
+<details id="sec-gl">
+  <summary><strong>Glycemic Load — Full Day</strong> {{ manual_link("glycemic") }}</summary>
   <div class="protein-meta mt-2">
     {% if gl.total is not none %}
     <p>
@@ -308,8 +359,8 @@
 
 {# Nutrients #}
 {% if nutrient_sections %}
-<details open>
-  <summary><strong>Total Nutrients — All Meals Combined</strong></summary>
+<details id="sec-nutrients" open>
+  <summary><strong>Total Nutrients — All Meals Combined</strong> {{ manual_link("nutrients") }}</summary>
 
   {% if not has_profile %}
   <p class="rda-no-profile">
@@ -355,3 +406,25 @@
 {% endif %}{# end date_detail #}
 
 {% endblock %}
+
+{% if date_detail %}
+{% block scripts %}
+<script>
+(function () {
+  var sections = Array.from(document.querySelectorAll('[id^="sec-"]'));
+  var links    = Array.from(document.querySelectorAll('.sb-toggle'));
+  function update() {
+    var mid = window.scrollY + window.innerHeight / 3;
+    var active = sections[0];
+    sections.forEach(function (s) { if (s.offsetTop <= mid) active = s; });
+    links.forEach(function (a) {
+      var li = a.parentElement;
+      li.classList.toggle('sb-active', active && a.getAttribute('href') === '#' + active.id);
+    });
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+{% endblock %}
+{% endif %}
