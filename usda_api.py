@@ -289,6 +289,11 @@ def _parse_food(data: dict) -> dict:
         desc = p.get("portionDescription") or p.get("modifier", "")
         gw = p.get("gramWeight")
         if desc and gw:
+            # USDA sometimes prepends a redundant count: "1 1 cookie" → "1 cookie"
+            # Only strip the leading number when what follows also starts with a digit
+            # (so "1 cup" is preserved but "1 1 cookie" becomes "1 cookie")
+            import re as _re
+            desc = _re.sub(r'^\d+\s+(?=\d)', '', desc.strip(), count=1)
             portions.append({"description": desc, "gram_weight": float(gw)})
 
     # If USDA has no explicit portions but the food has a household serving description

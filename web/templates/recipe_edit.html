@@ -259,35 +259,20 @@
             <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
             <input type="hidden" name="food_name" value="{{ food.name }}">
             {% if food.portions %}
-            <div class="mb-1">
-              <select class="form-select form-select-sm" style="max-width:22rem"
-                      onchange="(function(sel){var f=sel.closest('form');f.querySelector('[name=amount]').value=sel.value||'';})(this)">
-                <option value="">— enter grams manually —</option>
-                {% for p in food.portions %}
-                <option value="{{ p.gram_weight | round(1) }}">{{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g)</option>
-                {% endfor %}
-              </select>
-            </div>
+            <div class="mb-1"><small class="muted">
+              Portions:
+              {% for p in food.portions %}
+              <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+              {% endfor %}
+            </small></div>
             {% endif %}
-            <div class="input-group" style="max-width:22rem">
-              <input type="number" class="form-control" name="amount" value="100"
-                     min="0.01" max="9999" step="any" style="max-width:6rem">
-              <select class="form-select" name="unit" style="max-width:6rem">
-                <optgroup label="Weight">
-                  <option value="g">g</option>
-                  <option value="oz">oz</option>
-                  <option value="lb">lb</option>
-                  <option value="kg">kg</option>
-                </optgroup>
-                <optgroup label="Volume">
-                  <option value="cup">cup</option>
-                  <option value="T">T (tbsp)</option>
-                  <option value="tsp">tsp</option>
-                  <option value="ml">ml</option>
-                </optgroup>
-              </select>
+            <div class="input-group" style="max-width:28rem">
+              <input type="text" class="form-control" name="portion_str"
+                     placeholder="e.g. 150 g, 2 oz, 1/4 cup, p1, 6 p1"
+                     aria-label="Amount" required>
               <button type="submit" class="btn btn-primary">Add to recipe</button>
             </div>
+            <div style="font-size:0.8rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
           </form>
         </td>
       </tr>
@@ -300,3 +285,14 @@
 </details>
 
 {% endblock %}
+
+{% if search_results %}
+{% block scripts %}
+<script>
+(function () {
+  var inp = document.querySelector('.add-food-form input[name="portion_str"]');
+  if (inp) inp.focus();
+})();
+</script>
+{% endblock %}
+{% endif %}

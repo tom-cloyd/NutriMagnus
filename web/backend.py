@@ -74,7 +74,10 @@ def _parse_portion_str(
     if not raw:
         return None, "Enter an amount."
 
-    # pN shortcut — USDA named portion
+    # Normalise "6p1" → "6 p1" so number and portion code can be parsed separately
+    raw = re.sub(r'(?i)(\d+)(p\d+)', r'\1 \2', raw)
+
+    # pN shortcut — USDA named portion (bare: "p1")
     m = re.fullmatch(r"(?i)p(\d+)", raw)
     if m:
         idx = int(m.group(1)) - 1
@@ -115,6 +118,16 @@ def _parse_portion_str(
 
     unit = rest[0]
 
+    # NUMBER pN — multiple of a USDA named portion (e.g. "6 p1", "1.5 p2")
+    pN = re.fullmatch(r"(?i)p(\d+)", unit)
+    if pN:
+        idx = int(pN.group(1)) - 1
+        if 0 <= idx < len(portions):
+            p = portions[idx]
+            grams = round(number * float(p["gram_weight"]), 2)
+            return grams, f"{number:g} × {p['description']}"
+        return None, f"No preset p{idx + 1} for this food."
+
     # Weight unit
     factor = _PORTION_UNIT_TO_G.get(unit.lower())
     if factor is not None:
@@ -134,7 +147,7 @@ def _parse_portion_str(
         label = f"{number:g} {unit} (≈ {grams:.4g} g)"
         return grams, label
 
-    return None, f'Unit "{unit}" not recognised. Try: g, oz, lb, cup, T, tsp, ml.'
+    return None, f'Unit "{unit}" not recognised. Try: g, oz, lb, cup, T, tsp, ml, p1, 6 p1.'
 
 
 # ---------------------------------------------------------------------------
@@ -2455,7 +2468,7 @@ async def meal_refresh_aa(meal_id: int):
 
 
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
-async def meal_view(request: Request, meal_id: int, q: str = ""):
+async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = ""):
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
         if not meal:
@@ -2566,6 +2579,7 @@ async def meal_view(request: Request, meal_id: int, q: str = ""):
         "has_profile":         rda is not None,
         "has_day_pct":         daily_nutrients is not None,
         "sibling_meals":       sibling_meals,
+        "add_error":           add_error,
     })
 
 
@@ -2579,11 +2593,8 @@ async def meal_add_food(
     meal_id: int,
     fdc_id: int = Form(...),
     food_name: str = Form(""),
-    amount: float = Form(100.0),
-    unit: str = Form("g"),
+    portion_str: str = Form("100 g"),
 ):
-    grams = round(amount * _UNIT_TO_GRAMS.get(unit, 1.0), 2)
-    # Ensure food is cached before adding to meal
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
@@ -2598,10 +2609,20 @@ async def meal_add_food(
                                nutrients=detail.get("nutrients", {}),
                                portions=detail.get("portions", []))
             food_name = food_name or detail["name"]
+            with _db.get_db() as conn:
+                cached = _db.get_cached_food(conn, fdc_id)
         except Exception:
             return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
     name = food_name or (cached["name"] if cached else "Unknown food")
+    portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
+    raw = portion_str.strip() or "100 g"
+    grams, error_msg = _parse_portion_str(raw, portions, name)
+    if not grams:
+        from urllib.parse import quote
+        return RedirectResponse(
+            f"/meal/{meal_id}?add_error={quote(error_msg)}", status_code=303
+        )
     with _db.get_db() as conn:
         _db.meal_add_food(conn, meal_id, fdc_id, name, grams, "g")
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
@@ -3174,8 +3195,7 @@ async def recipe_ingredient_add(
     recipe_id: int,
     fdc_id: int = Form(...),
     food_name: str = Form(""),
-    amount: float = Form(100.0),
-    unit: str = Form("g"),
+    portion_str: str = Form("100 g"),
     notes: str = Form(""),
 ):
     with _db.get_db() as conn:
@@ -3198,19 +3218,12 @@ async def recipe_ingredient_add(
             return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
 
     name = food_name or (cached["name"] if cached else "Unknown food")
-
-    if unit in _UNIT_TO_GRAMS:
-        grams = round(amount * _UNIT_TO_GRAMS[unit], 2)
-    else:
-        # Volume unit — attempt density conversion
-        portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
-        parsed_g, msg = _parse_portion_str(f"{amount:g} {unit}", portions, name)
-        if parsed_g is None:
-            return RedirectResponse(
-                f"/recipe/{recipe_id}/edit?error={msg}", status_code=303
-            )
-        grams = parsed_g
-
+    portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
+    grams, msg = _parse_portion_str(portion_str.strip() or "100 g", portions, name)
+    if grams is None:
+        return RedirectResponse(
+            f"/recipe/{recipe_id}/edit?error={msg}", status_code=303
+        )
     with _db.get_db() as conn:
         _db.recipe_add_ingredient(conn, recipe_id, fdc_id, name, grams, "g",
                                    notes.strip() or None)

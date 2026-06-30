@@ -149,8 +149,9 @@
 </div>
 
 {# ── Add food (inline control — not an analysis section) ──────────────── #}
-<details {% if q %}open{% endif %} class="mb-3">
+<details {% if q or add_error %}open{% endif %} class="mb-3" id="add-food-details">
   <summary><strong>Add Food or Recipe</strong></summary>
+  {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
 
   <form method="get" action="/meal/{{ meal.id }}">
     <div class="input-group mb-3 mt-2">
@@ -194,27 +195,20 @@
             <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
             <input type="hidden" name="food_name" value="{{ food.name }}">
             {% if food.portions %}
-            <div class="mb-1">
-              <select class="form-select form-select-sm" style="max-width:22rem"
-                      onchange="(function(sel){var f=sel.closest('form');f.querySelector('[name=amount]').value=sel.value||'';})(this)">
-                <option value="">— enter grams manually —</option>
-                {% for p in food.portions %}
-                <option value="{{ p.gram_weight | round(1) }}">{{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g)</option>
-                {% endfor %}
-              </select>
-            </div>
+            <div class="mb-1"><small class="muted">
+              Portions:
+              {% for p in food.portions %}
+              <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+              {% endfor %}
+            </small></div>
             {% endif %}
-            <div class="input-group" style="max-width:22rem">
-              <input type="number" class="form-control" name="amount" value="100" min="0.01" max="9999" step="any"
-                     aria-label="Amount" style="max-width:6rem">
-              <select class="form-select" name="unit" style="max-width:5rem" aria-label="Unit">
-                <option value="g">g</option>
-                <option value="oz">oz</option>
-                <option value="lb">lb</option>
-                <option value="kg">kg</option>
-              </select>
+            <div class="input-group" style="max-width:28rem">
+              <input type="text" class="form-control" name="portion_str"
+                     placeholder="e.g. 150 g, 2 oz, 1/4 cup, p1, 6 p1"
+                     aria-label="Amount" required>
               <button type="submit" class="btn btn-primary">Add to meal</button>
             </div>
+            <div style="font-size:0.8rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
           </form>
           {% endif %}
         </td>
@@ -825,6 +819,25 @@
 
   window.addEventListener('scroll', updateActive, { passive: true });
   updateActive();
+})();
+</script>
+<script>
+(function () {
+  var details = document.getElementById('add-food-details');
+  if (!details) return;
+
+  function focusFirst() {
+    if (!details.open) return;
+    // If search results are showing, focus the first amount field
+    var inp = details.querySelector('input[name="portion_str"], input[name="servings"]');
+    // Otherwise focus the search box
+    if (!inp) inp = details.querySelector('input[name="q"]');
+    if (inp) inp.focus();
+  }
+
+  details.addEventListener('toggle', focusFirst);
+  // Also run immediately if already open on page load (e.g. after a search)
+  focusFirst();
 })();
 </script>
 {% endblock %}
