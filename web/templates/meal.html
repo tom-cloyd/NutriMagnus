@@ -149,7 +149,7 @@
 </div>
 
 {# ── Add food (inline control — not an analysis section) ──────────────── #}
-<details {% if q or add_error %}open{% endif %} class="mb-3" id="add-food-details">
+<details open class="mb-3" id="add-food-details">
   <summary><strong>Add Food or Recipe</strong></summary>
   {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
 
@@ -166,25 +166,49 @@
     <thead>
       <tr>
         <th>Food / Recipe</th>
-        <th>Source</th>
-        <th colspan="2">Amount &rarr; Add</th>
+        <th class="col-aa" title="Amino acid data available">AA</th>
+        <th class="col-gi" title="Glycemic index (annotated)">GI</th>
+        <th class="col-diaas" title="DIAAS score (annotated)">DIAAS</th>
+        <th class="col-id">ID#</th>
+        <th class="col-source">Source</th>
+        <th class="col-amount" colspan="2">Amount &rarr; Add</th>
       </tr>
     </thead>
     <tbody>
       {% for food in search_results %}
       <tr>
-        <td>
-          {{ food.name }}
-          <br><small class="muted">{{ food.data_type }}</small>
+        <td>{{ food.name }}
+          {% if food.data_type or food.brand %}<br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>{% endif %}
         </td>
-        <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
-        <td colspan="2">
+        <td class="col-aa">
+          {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+          {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
+          {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+          {% endif %}
+        </td>
+        <td class="col-gi"><small>{{ food.gi or '' }}</small></td>
+        <td class="col-diaas"><small>{{ food.diaas or '' }}</small></td>
+        <td class="col-id muted"><small>{% if food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% endif %}</small></td>
+        <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+        <td class="col-amount" colspan="2">
           {% if food._type == "recipe" %}
           <form method="post" action="/meal/{{ meal.id }}/add-recipe" class="add-food-form">
             <input type="hidden" name="recipe_id" value="{{ food.recipe_id }}">
             <input type="hidden" name="recipe_name" value="{{ food.name }}">
+            <div class="mb-1">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="mode" id="mode_recipe_{{ food.recipe_id }}"
+                       value="recipe" checked>
+                <label class="form-check-label" for="mode_recipe_{{ food.recipe_id }}">Whole recipe</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="mode" id="mode_ing_{{ food.recipe_id }}"
+                       value="ingredients">
+                <label class="form-check-label" for="mode_ing_{{ food.recipe_id }}">Individual ingredients</label>
+              </div>
+            </div>
             <div class="input-group" style="max-width:16rem">
-              <input type="number" class="form-control" name="servings" value="1" min="0.5" max="99" step="0.5"
+              <input type="number" class="form-control" name="servings" value="1" min="0.01" max="99" step="0.01"
                      aria-label="Number of servings" style="max-width:6rem">
               <span class="input-group-text">srv</span>
               <button type="submit" class="btn btn-primary">Add to meal</button>
@@ -194,6 +218,7 @@
           <form method="post" action="/meal/{{ meal.id }}/add" class="add-food-form">
             <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
             <input type="hidden" name="food_name" value="{{ food.name }}">
+            <input type="hidden" name="off_code" value="{{ food.off_code or '' }}">
             {% if food.portions %}
             <div class="mb-1"><small class="muted">
               Portions:
@@ -216,6 +241,11 @@
       {% endfor %}
     </tbody>
   </table>
+  <p class="muted mt-1" style="font-size:0.8rem">
+    AA: ✓ confirmed &middot; ~✓ likely (Foundation/SR Legacy, not yet fetched) &middot; ✗ none &nbsp;&nbsp;
+    GI = glycemic index &middot; DIAAS = protein digestibility score &nbsp;&nbsp;
+    Source: <strong>cache</strong> = local &middot; <strong>usda</strong> = USDA FoodData Central &middot; <strong>off</strong> = Open Food Facts
+  </p>
   {% elif q %}
   <p>No results for <strong>{{ q }}</strong>.</p>
   {% endif %}
@@ -312,7 +342,7 @@
                   {% else %}
                   <label class="form-label mb-0 text-nowrap">Servings</label>
                   <input type="number" name="amount" value="{{ item.amount }}"
-                         class="form-control form-control-sm" min="0.5" max="99" step="0.5"
+                         class="form-control form-control-sm" min="0.01" max="99" step="0.01"
                          style="width:7rem" required>
                   {% endif %}
                 </div>

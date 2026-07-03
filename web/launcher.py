@@ -52,7 +52,11 @@ def main() -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if s.connect_ex((args.host, args.port)) == 0:
             print(f"Port {args.port} is already in use.")
-            ans = input("Kill the existing process and restart? [y/N] ").strip().lower()
+            if sys.stdin.isatty():
+                ans = input("Kill the existing process and restart? [y/N] ").strip().lower()
+            else:
+                # Non-interactive (launched from CLI) — kill automatically
+                ans = "y"
             if ans == "y":
                 import subprocess
                 if sys.platform == "win32":

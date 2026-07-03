@@ -143,6 +143,47 @@ table {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Add-food search results table ──────────────────────────────────── */
+
+.add-food-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+/* Tight padding for all cells — override the nutrient-table 2rem default */
+.add-food-table th,
+.add-food-table td {
+  padding: 0.3rem 0.45rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+/* Name column: left-aligned, wraps at ~200px, no forced wide width */
+.add-food-table th:first-child,
+.add-food-table td:first-child {
+  width: 200px;
+  max-width: 200px;
+  padding-left: 0.45rem;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Narrow metadata columns: shrink to content */
+.add-food-table .col-aa,
+.add-food-table .col-gi,
+.add-food-table .col-diaas,
+.add-food-table .col-id,
+.add-food-table .col-source {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Amount→Add column: take remaining space, don't wrap the input group */
+.add-food-table .col-amount {
+  white-space: nowrap;
+}
+
 /* ── Source badges ───────────────────────────────────────────────────── */
 
 .source-badge {
@@ -162,6 +203,16 @@ table {
 .source-usda {
   background: #e5e7eb;
   color: #1f2937;
+}
+
+.source-off {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.source-local {
+  background: #d1fae5;
+  color: #065f46;
 }
 
 /* ── Status indicators ───────────────────────────────────────────────── */
@@ -506,17 +557,25 @@ h4 { font-size: 1.2rem; }
 /* ── Food comparison table ───────────────────────────────────────────── */
 
 .compare-table {
-  width: auto;          /* don't stretch to full container width */
-  table-layout: auto;   /* browser sizes each column to its content */
-  font-size: 0.92rem;
+  width: auto;
+  table-layout: fixed;
+  font-size: 0.82rem;
 }
 
 .compare-nutrient-col {
-  white-space: nowrap;  /* first col: as wide as longest nutrient name */
+  white-space: nowrap;
+  width: auto;
 }
 
-.compare-val-col {
-  white-space: nowrap;  /* food cols: as wide as the header label */
+th.compare-val-col {
+  width: 5.5rem;
+  white-space: normal;
+  word-break: break-word;
+  text-align: right;
+}
+
+td.compare-val-col {
+  white-space: nowrap;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -524,4 +583,26 @@ h4 { font-size: 1.2rem; }
 .compare-max {
   font-weight: 700;
   background: #e8f5e9;
+}
+
+.sort-badge {
+  display: inline-block;
+  width: 1.3em;
+  height: 1.3em;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  text-align: center;
+  line-height: 1.3em;
+  font-size: 0.72em;
+  font-weight: 700;
+  cursor: pointer;
+  margin-right: 0.25em;
+  vertical-align: middle;
+  user-select: none;
+  color: #888;
+}
+.sort-badge.active {
+  background: #1e40af;
+  color: #fff;
+  border-color: #1e40af;
 }

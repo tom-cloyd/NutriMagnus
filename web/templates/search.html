@@ -31,6 +31,7 @@
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>
+      <th class="muted" style="width:6rem">ID</th>
       <th>Food</th>
       <th>Brand</th>
       <th>Type</th>
@@ -40,6 +41,11 @@
   <tbody>
     {% for food in results %}
     <tr>
+      <td class="muted"><small>
+        {% if food._type == "recipe" %}—
+        {% elif food.fdc_id > 0 %}{{ food.fdc_id }}
+        {% else %}OFF{% endif %}
+      </small></td>
       <td>
         {% if food._type == "recipe" %}
         <a href="/recipe/{{ food.recipe_id }}">{{ food.name }}</a>

@@ -59,38 +59,44 @@
   </div>
 </form>
 
-{# ── Search results — user picks which one to add ── #}
+{# ── Search results — user selects multiple to add ── #}
 {% if search_error %}
 <p class="numa-error">{{ search_error }}</p>
 {% endif %}
 {% if search_results %}
-<p class="result-count">
-  {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
-  for <strong>{{ search }}</strong> — click <em>Add</em> to include in comparison
-</p>
-<table class="table table-sm table-hover mb-3" style="max-width:52rem">
-  <thead class="table-light">
-    <tr><th>Food</th><th>Brand</th><th>Type</th><th>Source</th><th></th></tr>
-  </thead>
-  <tbody>
-    {% for r in search_results %}
-    <tr>
-      <td>{{ r.name }}</td>
-      <td class="muted">{{ r.brand or "—" }}</td>
-      <td class="muted">{{ r.data_type }}</td>
-      <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>
-      <td>
-        <form method="post" action="/food/compare/add" style="display:inline">
-          <input type="hidden" name="fdc_id" value="{{ r.fdc_id }}">
-          <input type="hidden" name="ids" value="{{ ids_str }}">
-          <input type="hidden" name="amounts" value="{{ amounts_str }}">
-          <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<form method="post" action="/food/compare/add-multiple">
+  <input type="hidden" name="ids" value="{{ ids_str }}">
+  <input type="hidden" name="amounts" value="{{ amounts_str }}">
+  <p class="result-count">
+    {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
+    for <strong>{{ search }}</strong> — check items to add, then click &rArr;
+    <button type="submit" class="btn btn-primary btn-sm ms-1">Add selected to comparison</button>
+  </p>
+  <table class="table table-sm table-hover mb-2" style="max-width:56rem">
+    <thead class="table-light">
+      <tr>
+        <th style="width:2rem"></th>
+        <th class="muted" style="width:6rem">ID</th>
+        <th>Food</th>
+        <th>Brand</th>
+        <th>Type</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in search_results %}
+      <tr>
+        <td><input type="checkbox" name="fdc_id" value="{{ r.fdc_id }}" class="row-chk"></td>
+        <td class="muted"><small>{{ r.fdc_id if r.fdc_id > 0 else 'OFF' }}</small></td>
+        <td>{{ r.name }}</td>
+        <td class="muted">{{ r.brand or "—" }}</td>
+        <td class="muted">{{ r.data_type }}</td>
+        <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
 {% elif search %}
 <p>No results for <strong>{{ search }}</strong>.</p>
 {% endif %}
@@ -102,6 +108,7 @@
   <table class="table table-sm table-hover mb-2" style="max-width:52rem">
     <thead class="table-light">
       <tr>
+        <th class="muted" style="width:6rem">ID</th>
         <th>Food</th>
         <th>Type</th>
         <th class="num-col">Amount (g)</th>
@@ -111,6 +118,7 @@
     <tbody>
       {% for e in entries %}
       <tr>
+        <td class="muted"><small>{{ e.fdc_id if e.fdc_id > 0 else 'OFF' }}</small></td>
         <td><a href="/food/{{ e.fdc_id }}">{{ e.name }}</a></td>
         <td class="muted">{{ e.data_type }}</td>
         <td class="num-col" style="width:9rem">
@@ -130,24 +138,34 @@
       {% endfor %}
     </tbody>
   </table>
-  <button type="submit" class="btn btn-outline-secondary btn-sm mb-3">Update amounts</button>
+  <div class="d-flex gap-2 mb-3">
+    <button type="submit" class="btn btn-outline-secondary btn-sm">Update amounts</button>
+    {% if entries|length >= 2 %}
+    <a href="#comparison" class="btn btn-primary btn-sm">Show comparison &darr;</a>
+    {% endif %}
+    <a href="/food/compare" class="btn btn-outline-danger btn-sm">Clear comparison</a>
+  </div>
 </form>
 {% endif %}
 
 {# ── Comparison table ── #}
 {% if compare_groups and entries|length >= 2 %}
-<hr>
-<h4>Nutrient comparison</h4>
-<p class="muted">Highest value per row is highlighted. All values scaled to the specified gram amount.</p>
+<hr id="comparison">
+<div class="d-flex align-items-center gap-3 mb-1">
+  <h4 class="mb-0">Nutrient comparison</h4>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="sortCompareColumns()">Sort columns by checked nutrients</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSortBadges()">Clear sort</button>
+</div>
+<p class="muted">Check nutrients in the order you want to sort by, then click Sort. Highest value per row is highlighted. Values scaled to the specified gram amount.</p>
 
 <div class="table-responsive">
-<table class="table table-sm table-bordered compare-table">
+<table class="table table-sm table-bordered compare-table" id="compare-table">
   <thead class="table-light">
     <tr>
       <th class="compare-nutrient-col">Nutrient</th>
       {% for e in entries %}
       <th class="compare-val-col">
-        {{ e.name | truncate(30) }}<br>
+        <span class="muted">{{ e.fdc_id if e.fdc_id > 0 else 'OFF' }}</span> / {{ e.name | truncate(28) }}<br>
         <span class="muted">{{ e.amount }}g</span>
       </th>
       {% endfor %}
@@ -159,8 +177,10 @@
       <td colspan="{{ entries|length + 1 }}"><strong>{{ group.name }}</strong></td>
     </tr>
     {% for row in group.rows %}
-    <tr>
-      <td class="compare-nutrient-col">{{ row.label }} <span class="muted">{{ row.unit }}</span></td>
+    <tr class="compare-data-row">
+      <td class="compare-nutrient-col">
+        <span class="sort-badge" onclick="toggleSortBadge(this)"></span>{{ row.label }} <span class="muted">{{ row.unit }}</span>
+      </td>
       {% for cell in row.cells %}
       <td class="compare-val-col {% if cell.is_max %}compare-max{% endif %}">
         {{ cell.value if cell.value is not none else "—" }}
@@ -172,6 +192,81 @@
   {% endfor %}
 </table>
 </div>
+
+<script>
+(function() {
+  // Assign stable row indices to all data rows on load
+  document.querySelectorAll('#compare-table .compare-data-row').forEach((tr, i) => {
+    tr.dataset.rowIdx = i;
+  });
+
+  const sortOrder = []; // row indices in the order the user checked them
+
+  window.toggleSortBadge = function(badge) {
+    const rowIdx = badge.closest('tr').dataset.rowIdx;
+    const pos = sortOrder.indexOf(rowIdx);
+    if (pos === -1) {
+      sortOrder.push(rowIdx);
+      badge.textContent = sortOrder.length;
+      badge.classList.add('active');
+    } else {
+      sortOrder.splice(pos, 1);
+      badge.classList.remove('active');
+      badge.textContent = '';
+      // renumber remaining badges
+      sortOrder.forEach((idx, i) => {
+        document.querySelector(`#compare-table tr[data-row-idx="${idx}"] .sort-badge`).textContent = i + 1;
+      });
+    }
+  };
+
+  window.clearSortBadges = function() {
+    sortOrder.length = 0;
+    document.querySelectorAll('#compare-table .sort-badge').forEach(b => {
+      b.textContent = '';
+      b.classList.remove('active');
+    });
+  };
+
+  window.sortCompareColumns = function() {
+    if (sortOrder.length === 0) return;
+    const table = document.getElementById('compare-table');
+    const allRows = table.querySelectorAll('tr');
+    const numCols = table.querySelector('thead tr').cells.length - 1;
+
+    // Build sort keys: for each food column, an array of values per selected nutrient (in order)
+    const keys = Array.from({length: numCols}, () => []);
+    for (const rowIdx of sortOrder) {
+      const tr = table.querySelector(`tr[data-row-idx="${rowIdx}"]`);
+      if (!tr) continue;
+      for (let c = 0; c < numCols; c++) {
+        const cell = tr.cells[c + 1];
+        const v = cell ? parseFloat(cell.textContent.trim()) : NaN;
+        keys[c].push(isNaN(v) ? -Infinity : v);
+      }
+    }
+
+    // Sort column indices descending (highest nutrient value first)
+    const order = Array.from({length: numCols}, (_, i) => i);
+    order.sort((a, b) => {
+      for (let k = 0; k < sortOrder.length; k++) {
+        if (keys[b][k] !== keys[a][k]) return keys[b][k] - keys[a][k];
+      }
+      return 0;
+    });
+
+    // Rearrange every row's food cells (skip group-header rows which have colspan)
+    for (const row of allRows) {
+      if (row.cells.length < 2) continue;
+      const label = row.cells[0];
+      const food = Array.from(row.cells).slice(1);
+      while (row.cells.length) row.deleteCell(0);
+      row.appendChild(label);
+      order.forEach(i => row.appendChild(food[i]));
+    }
+  };
+})();
+</script>
 {% elif entries|length == 1 %}
 <p class="muted">Add at least one more food to see the comparison table.</p>
 {% endif %}

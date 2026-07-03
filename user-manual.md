@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-06-29:1645* / Reading 1 hour, 57 minutes
+*Updated 2026-06-30:0930* / Reading 1 hour, 57 minutes
 
 <!--  the following preface is (26-06-28) what appears on the WEB version home page, accessed in home.md. -->
 

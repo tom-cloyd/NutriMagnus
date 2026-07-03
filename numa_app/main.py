@@ -36,6 +36,9 @@ def _web_is_running() -> bool:
         return s.connect_ex(("127.0.0.1", 8000)) == 0
 
 
+_WEB_LOG = _PROJECT_ROOT / "web-server.log"
+
+
 def _launch_web() -> None:
     global _web_proc
     if _web_is_running():
@@ -49,13 +52,29 @@ def _launch_web() -> None:
                 subprocess.run(["fuser", "-k", "8000/tcp"], capture_output=True)
         import time
         time.sleep(0.8)
+    log_fh = open(_WEB_LOG, "w")
     _web_proc = subprocess.Popen(
-        [sys.executable, str(_PROJECT_ROOT / "web" / "launcher.py")],
+        [sys.executable, str(_PROJECT_ROOT / "web" / "launcher.py"), "--no-browser"],
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_fh,
+        stderr=log_fh,
     )
-    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Web version launching at {_WEB_URL} — browser tab will open shortly.")
+    import time
+    time.sleep(1.5)
+    if _web_proc.poll() is not None:
+        log_fh.flush()
+        log = _WEB_LOG.read_text().strip()
+        state.console.print(f"[{state.T['error']}]✗  Web server failed to start.[/{state.T['error']}]")
+        if log:
+            state.console.print(f"[{state.T['error']}]{log}[/{state.T['error']}]")
+        state.console.print(f"[grey62]Full log: {_WEB_LOG}[/grey62]")
+        return
+    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Web version ready at {_WEB_URL}")
+    opened = webbrowser.open_new_tab(_WEB_URL)
+    if not opened:
+        state.console.print(f"[grey62]  Could not open browser automatically — navigate to {_WEB_URL} manually.[/grey62]")
+    else:
+        state.console.print(f"[grey62]  Tab opening in Firefox. If it doesn't appear, check other workspaces or navigate to {_WEB_URL}.[/grey62]")
 
 
 def rebuild_manual_if_stale() -> None:

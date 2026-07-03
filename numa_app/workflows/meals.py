@@ -501,6 +501,27 @@ def _meal_add_items(meal_id: int) -> None:
                 with _db.get_db() as conn:
                     r_total_weight = _db.recipe_auto_weight(conn, rid)
             r_total_servings = result["servings"] or 1
+
+            # Ask whether to add the recipe as a whole or expand its ingredients
+            try:
+                mode = _prompt_with_options(
+                    "Add to meal as",
+                    [
+                        ("1", f"Whole recipe — one item labeled '{rname}'"),
+                        ("2", "Individual ingredients — each ingredient becomes a separate meal item"),
+                    ],
+                    default="1",
+                ).strip()
+            except Cancelled:
+                continue
+            if not mode or mode in ("b", "back"):
+                continue
+            if mode == "m":
+                raise ReturnToMain()
+            if mode == "q":
+                raise SystemExit(0)
+            add_as_ingredients = (mode == "2")
+
             srv_hint = "[grey62](servings e.g. 1, 1/2, 1.5  ·  or weight e.g. 290 g · b=back, m=main, q=quit)[/grey62]"
             servings = None
             portion_label = None
@@ -559,9 +580,37 @@ def _meal_add_items(meal_id: int) -> None:
                 break
             if not servings or servings <= 0:
                 continue
-            with _db.get_db() as conn:
-                _db.meal_add_recipe(conn, meal_id, rid, rname, servings, unit=portion_label)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {rname}  {portion_label}")
+
+            if add_as_ingredients:
+                # Expand recipe: add each ingredient as a separate meal item, scaled to the chosen portion
+                with _db.get_db() as conn:
+                    ings = _db.recipe_get_ingredients(conn, rid)
+                scale = servings / r_total_servings
+                with _db.get_db() as conn:
+                    for ing in ings:
+                        if ing["ref_recipe_id"]:
+                            scaled_srv = (ing["amount"] or 1) * scale
+                            _db.meal_add_recipe(
+                                conn, meal_id, ing["ref_recipe_id"], ing["food_name"],
+                                scaled_srv, unit=_format_recipe_portion_label(scaled_srv),
+                            )
+                        else:
+                            scaled_g = (ing["amount"] or 0) * scale
+                            _db.meal_add_food(
+                                conn, meal_id, ing["fdc_id"], ing["food_name"],
+                                scaled_g, f"{scaled_g:.4g} g", ing["notes"] or None,
+                            )
+                n_added = len(ings)
+                srv_desc = portion_label or _format_recipe_portion_label(servings)
+                state.console.print(
+                    f"  [{state.T['success']}]✓[/{state.T['success']}]"
+                    f" Added {n_added} ingredient{'s' if n_added != 1 else ''}"
+                    f" from {rname}  [{state.T['hi']}]{srv_desc}[/{state.T['hi']}]"
+                )
+            else:
+                with _db.get_db() as conn:
+                    _db.meal_add_recipe(conn, meal_id, rid, rname, servings, unit=portion_label)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {rname}  {portion_label}")
             _print_meal_items(meal_id, meal_name)
             _print_meal_protein_summary(meal_id)
 

@@ -18,6 +18,7 @@ from fastapi.templating import Jinja2Templates
 
 import db as _db
 import diaas as _diaas
+import openfoodfacts as _off
 import profile as _profile
 import usda as _usda
 
@@ -27,6 +28,19 @@ _HOME_MD    = _WEB_DIR.parent / "home.md"
 _PREFS_FILE = Path.home() / ".local" / "share" / "numa" / "prefs.json"
 
 _HOME_CACHE = _WEB_DIR / "home_body.cache"
+
+# Mirror of CLI search.py constants — strip these from USDA API queries
+_SEARCH_PREP_WORDS = {
+    "peeled", "unpeeled", "sliced", "diced", "chopped", "minced", "grated",
+    "shredded", "mashed", "pureed", "juiced", "squeezed", "seeded", "pitted",
+    "skinless", "boneless", "trimmed", "halved", "quartered", "cubed",
+    "cooked", "boiled", "steamed", "baked", "fried", "grilled", "sauteed",
+    "blanched", "poached", "braised", "stewed", "microwaved",
+    "frozen", "canned", "pickled", "smoked", "cured", "fermented",
+    "fresh", "raw", "dried", "dehydrated", "reconstituted",
+    "plain", "unseasoned", "seasoned", "marinated",
+}
+_SEARCH_META_WORDS = {"usda", "off", "openfoodfacts"}
 
 def _render_home_md() -> str:
     if not _HOME_MD.exists():
@@ -86,8 +100,18 @@ def _parse_portion_str(
             return float(p["gram_weight"]), p["description"]
         return None, f"No preset p{idx + 1} for this food."
 
-    # Tokenise: split on whitespace, keep "/" attached to adjacent digits
+    # Tokenise: split on whitespace, keep "/" attached to adjacent digits,
+    # then split any attached number+unit pairs (e.g. "31g" → ["31", "g"])
     tokens = re.findall(r"\d+/\d+|\S+", raw)
+    expanded: list[str] = []
+    for tok in tokens:
+        if not tok.lower().startswith("p"):
+            _m = re.match(r'^(\d[\d./]*)\s*([A-Za-z].*)$', tok)
+            if _m:
+                expanded.extend([_m.group(1), _m.group(2)])
+                continue
+        expanded.append(tok)
+    tokens = expanded
 
     def _parse_num(toks: list[str]) -> tuple[float, int] | None:
         if not toks:
@@ -1068,6 +1092,27 @@ async def food_compare_add(
     if fdc_id not in id_list:
         id_list.append(fdc_id)
         amount_list.append(100.0)
+    ids_str = ",".join(str(i) for i in id_list)
+    amounts_str = ",".join(str(a) for a in amount_list)
+    return RedirectResponse(
+        f"/food/compare?ids={ids_str}&amounts={amounts_str}",
+        status_code=303,
+    )
+
+
+@app.post("/food/compare/add-multiple", response_class=RedirectResponse)
+async def food_compare_add_multiple(request: Request, ids: str = Form(""), amounts: str = Form("")):
+    form = await request.form()
+    fdc_ids = form.getlist("fdc_id")
+    id_list, amount_list = _parse_ids_amounts(ids, amounts)
+    for fdc_id_str in fdc_ids:
+        try:
+            fdc_id = int(fdc_id_str)
+        except (ValueError, TypeError):
+            continue
+        if fdc_id not in id_list and len(id_list) < 8:
+            id_list.append(fdc_id)
+            amount_list.append(100.0)
     ids_str = ",".join(str(i) for i in id_list)
     amounts_str = ",".join(str(a) for a in amount_list)
     return RedirectResponse(
@@ -2485,10 +2530,16 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     # Search results for add-food panel
     search_results = []
     if q:
+        # Preprocess query (same logic as CLI search.py)
+        _clean_words = [w for w in q.lower().split() if w not in _SEARCH_META_WORDS]
+        clean_query = " ".join(_clean_words) if _clean_words else q
+        _api_words  = [w for w in clean_query.split() if w not in _SEARCH_PREP_WORDS]
+        api_query   = " ".join(_api_words) if _api_words else clean_query
+
         # Prepend matching recipes (local DB, instant)
         with _db.get_db() as conn:
-            all_recipes = _db.recipe_list(conn)
-            cached = _db.search_cached_foods(conn, q)
+            all_recipes   = _db.recipe_list(conn)
+            cached_rows   = _db.search_cached_foods(conn, clean_query)
         ql = q.lower()
         query_words = ql.split()
         matching_recipes = sorted(
@@ -2504,24 +2555,107 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                 "data_type": "Recipe",
                 "source":   "local",
             })
+
+        # Collect raw API results (double USDA search, same strategy as CLI)
         seen: set[int] = set()
-        for row in cached:
+        cache_fdc_ids: set[int] = set()
+        raw_api: list[dict] = []
+
+        for row in cached_rows:
+            cache_fdc_ids.add(row["fdc_id"])
             seen.add(row["fdc_id"])
-            portions = json.loads(row["portions_json"]) if row["portions_json"] else []
-            search_results.append({"fdc_id": row["fdc_id"], "name": row["name"],
-                                    "data_type": row["data_type"], "source": "cache",
-                                    "portions": portions})
+
         try:
-            for food in _usda.search_foods(q):
-                fid = food.get("fdcId")
-                if fid and fid not in seen:
-                    seen.add(fid)
-                    search_results.append({"fdc_id": fid,
-                                           "name": food.get("description", ""),
-                                           "data_type": food.get("dataType", ""),
-                                           "source": "usda"})
+            general = _usda.search_foods(api_query)
+            foundation = _usda.search_foods(api_query, data_types=["Foundation", "SR Legacy"], page_size=8)
+            found_ids = {f["fdcId"] for f in foundation}
+            usda_combined = foundation + [f for f in general if f["fdcId"] not in found_ids]
+            raw_api.extend(usda_combined)
         except Exception:
             pass
+
+        try:
+            for food in _off.search_foods(api_query, page_size=6):
+                name_lower = food.get("description", "").lower()
+                if not any(name_lower == f.get("description", "").lower() for f in raw_api):
+                    raw_api.append(food)
+        except Exception:
+            pass
+
+        # Bulk-fetch annotations for all candidate fdc_ids
+        all_candidate_ids = (
+            list(cache_fdc_ids)
+            + [f["fdcId"] for f in raw_api if isinstance(f.get("fdcId"), int)]
+        )
+        with _db.get_db() as conn:
+            annotations = _db.annotations_for_fdcids(conn, all_candidate_ids)
+            # Also load cached nutrient records for AA-status computation
+            cached_nutrients: dict[int, str | None] = {}
+            for fid in all_candidate_ids:
+                row = _db.get_cached_food(conn, fid)
+                if row:
+                    cached_nutrients[fid] = row["nutrients_json"]
+
+        def _aa_status(fdc_id: int, data_type: str, from_off: bool) -> str:
+            if from_off:
+                return "✗"
+            nuts_json = cached_nutrients.get(fdc_id)
+            if nuts_json:
+                return "✓" if _usda.has_amino_acid_data(json.loads(nuts_json)) else "✗"
+            if data_type in ("Foundation", "SR Legacy"):
+                return "~✓"
+            return "✗"
+
+        def _ann_gi(fdc_id: int) -> str:
+            ann = annotations.get(fdc_id)
+            if ann and ann["gi_estimate"] is not None:
+                return str(int(round(ann["gi_estimate"])))
+            return ""
+
+        def _ann_diaas(fdc_id: int) -> str:
+            ann = annotations.get(fdc_id)
+            if ann and ann["diaas_estimate"] is not None:
+                return f"{ann['diaas_estimate']:.2f}"
+            return ""
+
+        # Cached foods first
+        for row in cached_rows:
+            fid = row["fdc_id"]
+            portions = json.loads(row["portions_json"]) if row["portions_json"] else []
+            dtype = row["data_type"] or ""
+            search_results.append({
+                "fdc_id":    fid,
+                "name":      row["name"],
+                "data_type": dtype,
+                "brand":     row["brand"] or "",
+                "source":    "cache",
+                "off_code":  "",
+                "portions":  portions,
+                "aa":        _aa_status(fid, dtype, False),
+                "gi":        _ann_gi(fid),
+                "diaas":     _ann_diaas(fid),
+            })
+
+        # API results not already in cache
+        for food in raw_api:
+            fid = food.get("fdcId")
+            if not fid or fid in seen:
+                continue
+            seen.add(fid)
+            from_off = bool(food.get("_from_off"))
+            dtype = "Open Food Facts" if from_off else food.get("dataType", "")
+            search_results.append({
+                "fdc_id":    fid,
+                "name":      food.get("description", ""),
+                "data_type": dtype,
+                "brand":     food.get("brandOwner") or food.get("brandName") or "",
+                "source":    "off" if from_off else "usda",
+                "off_code":  food.get("_off_code", "") if from_off else "",
+                "portions":  [],
+                "aa":        _aa_status(fid, dtype, from_off),
+                "gi":        _ann_gi(fid),
+                "diaas":     _ann_diaas(fid),
+            })
 
     rda = _load_rda()
 
@@ -2594,12 +2728,18 @@ async def meal_add_food(
     fdc_id: int = Form(...),
     food_name: str = Form(""),
     portion_str: str = Form("100 g"),
+    off_code: str = Form(""),
 ):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
         try:
-            detail = _usda.get_food_detail(fdc_id)
+            if _off.is_off_id(fdc_id) and off_code:
+                detail = _off.lookup_by_barcode(off_code)
+                if not detail:
+                    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+            else:
+                detail = _usda.get_food_detail(fdc_id)
             with _db.get_db() as conn:
                 _db.cache_food(conn, fdc_id=detail["fdcId"], name=detail["name"],
                                data_type=detail.get("dataType", ""),
@@ -2634,15 +2774,34 @@ async def meal_add_recipe_item(
     recipe_id: int = Form(...),
     recipe_name: str = Form(""),
     servings: float = Form(1.0),
+    mode: str = Form("recipe"),
 ):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
     if not recipe:
         return RedirectResponse(f"/meal/{meal_id}", status_code=303)
     name = recipe_name or recipe["name"]
-    unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
-    with _db.get_db() as conn:
-        _db.meal_add_recipe(conn, meal_id, recipe_id, name, servings, unit=unit)
+
+    if mode == "ingredients":
+        r_total_servings = float(recipe["servings"] or 1)
+        scale = servings / r_total_servings
+        with _db.get_db() as conn:
+            ings = _db.recipe_get_ingredients(conn, recipe_id)
+        with _db.get_db() as conn:
+            for ing in ings:
+                if ing["ref_recipe_id"]:
+                    scaled_srv = (ing["amount"] or 1) * scale
+                    sub_unit = f"{scaled_srv:g} serving" + ("s" if scaled_srv != 1 else "")
+                    _db.meal_add_recipe(conn, meal_id, ing["ref_recipe_id"],
+                                        ing["food_name"], scaled_srv, unit=sub_unit)
+                else:
+                    scaled_g = (ing["amount"] or 0) * scale
+                    _db.meal_add_food(conn, meal_id, ing["fdc_id"],
+                                      ing["food_name"], scaled_g, f"{scaled_g:.4g} g")
+    else:
+        unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
+        with _db.get_db() as conn:
+            _db.meal_add_recipe(conn, meal_id, recipe_id, name, servings, unit=unit)
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
