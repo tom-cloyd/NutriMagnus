@@ -1155,7 +1155,7 @@ async def food_compare_amounts(request: Request, ids: str = Form("")):
 
 @app.post("/food/compare/save", response_class=RedirectResponse)
 async def food_compare_save(
-    name: str = Form(...),
+    name: str = Form(""),
     ids: str = Form(""),
     amounts: str = Form(""),
 ):
@@ -1177,6 +1177,20 @@ async def food_compare_load(cmp_id: int):
     ids_str = ",".join(str(i) for i in json.loads(row["fdc_ids"]))
     amounts_str = ",".join(str(a) for a in json.loads(row["amounts"]))
     return RedirectResponse(f"/food/compare?ids={ids_str}&amounts={amounts_str}", status_code=303)
+
+
+@app.post("/food/compare/saved/rename", response_class=RedirectResponse)
+async def food_compare_saved_rename(
+    cmp_id: int = Form(...),
+    name: str = Form(""),
+    ids: str = Form(""),
+    amounts: str = Form(""),
+):
+    new_name = name.strip() or "Untitled"
+    with _db.get_db() as conn:
+        _db.saved_comparison_rename(conn, cmp_id, new_name)
+    url = f"/food/compare?ids={ids}&amounts={amounts}" if ids else "/food/compare"
+    return RedirectResponse(url, status_code=303)
 
 
 @app.post("/food/compare/saved/delete", response_class=RedirectResponse)

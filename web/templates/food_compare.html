@@ -29,7 +29,17 @@
     <tbody>
       {% for s in saved_lists %}
       <tr>
-        <td><a href="/food/compare/load/{{ s.id }}">{{ s.name }}</a></td>
+        <td>
+          <a href="/food/compare/load/{{ s.id }}">{{ s.name }}</a>
+          <form method="post" action="/food/compare/saved/rename" class="d-inline-flex align-items-center gap-1 ms-2">
+            <input type="hidden" name="cmp_id" value="{{ s.id }}">
+            <input type="hidden" name="ids" value="{{ ids_str }}">
+            <input type="hidden" name="amounts" value="{{ amounts_str }}">
+            <input type="text" name="name" value="{{ s.name }}"
+                   class="form-control form-control-sm" style="max-width:14rem">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
+          </form>
+        </td>
         <td class="muted">{{ s.fdc_ids | fromjson | length }}</td>
         <td class="muted">{{ s.created_at[:10] }}</td>
         <td>

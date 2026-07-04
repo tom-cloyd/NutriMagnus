@@ -977,6 +977,11 @@ def saved_comparison_get(conn: sqlite3.Connection, cmp_id: int) -> sqlite3.Row |
     ).fetchone()
 
 
+def saved_comparison_rename(conn: sqlite3.Connection, cmp_id: int, name: str) -> bool:
+    cur = conn.execute("UPDATE saved_comparisons SET name = ? WHERE id = ?", (name, cmp_id))
+    return cur.rowcount > 0
+
+
 def saved_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
     cur = conn.execute("DELETE FROM saved_comparisons WHERE id = ?", (cmp_id,))
     return cur.rowcount > 0
