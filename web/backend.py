@@ -295,6 +295,223 @@ def _load_rda() -> dict | None:
     return _profile.compute_rda(profile)
 
 
+_OXALATE_SCORE_THRESHOLD = 0.50   # minimum fuzzy-match score
+_OXALATE_STOP = frozenset({
+    "raw", "cooked", "boiled", "baked", "roasted", "fried", "grilled", "steamed",
+    "dried", "fresh", "frozen", "canned", "salted", "unsalted", "plain", "regular",
+    "sweetened", "unsweetened", "whole", "ground", "crushed", "sliced", "diced",
+    "chopped", "mashed", "shredded", "grated", "mixed", "with", "without", "and",
+    "or", "the", "of", "in", "from", "for", "a", "an", "de", "mature", "seeds",
+    "drained", "salt", "added", "flesh", "skin", "large", "medium", "small", "heat",
+    "moist", "light", "dark", "heavy", "type", "types", "style",
+})
+_OXALATE_SERVING_UNITS: dict[str, float] = {
+    "oz": 28.3495, "ounce": 28.3495, "ounces": 28.3495,
+    "cup": 240.0, "cups": 240.0,
+    "pint": 473.0,
+    "tbsp": 15.0, "tbs": 15.0,
+    "tsp": 5.0,
+    "g": 1.0, "gram": 1.0, "grams": 1.0,
+    "ml": 1.0,
+    "lb": 453.592, "lbs": 453.592,
+}
+# Units where serving_size → grams conversion is reliable (true weight, not volume density)
+_OXALATE_WEIGHT_UNITS = frozenset({"oz", "ounce", "ounces", "g", "gram", "grams", "lb", "lbs"})
+
+
+def _parse_serving_qty(s: str):
+    """Parse leading quantity from serving-size string. Returns (float, remainder) or (None, s)."""
+    import re
+    m = re.match(r'^(\d+)\s+(\d+)/(\d+)', s)
+    if m:
+        return int(m.group(1)) + int(m.group(2)) / int(m.group(3)), s[m.end():]
+    m = re.match(r'^(\d+)/(\d+)', s)
+    if m:
+        return int(m.group(1)) / int(m.group(2)), s[m.end():]
+    m = re.match(r'^(\d+\.?\d*)', s)
+    if m:
+        return float(m.group(1)), s[m.end():]
+    return None, s
+
+
+def _serving_str_to_grams(serving_size: str) -> float | None:
+    """Convert a serving-size string like '1/2 cup' or '1 1/2 oz' to grams."""
+    if not serving_size:
+        return None
+    qty, rest = _parse_serving_qty(serving_size.strip().lower())
+    if qty is None:
+        return None
+    unit_word = rest.strip().split()[0] if rest.strip() else ""
+    grams_per_unit = _OXALATE_SERVING_UNITS.get(unit_word)
+    if grams_per_unit is None:
+        return None
+    return qty * grams_per_unit
+
+
+def _serving_is_weight(serving_size: str) -> bool:
+    """True if serving_size is expressed in a true weight unit (oz, g, lb) vs volume."""
+    if not serving_size:
+        return False
+    _, rest = _parse_serving_qty(serving_size.strip().lower())
+    unit_word = rest.strip().split()[0] if rest.strip() else ""
+    return unit_word in _OXALATE_WEIGHT_UNITS
+
+
+def _oxalate_word_match(query: str, match_name: str) -> bool:
+    """True if at least one significant word (≥4 chars, non-stop) from query is in match_name."""
+    import re
+    q_words = {w for w in re.findall(r'[a-z]+', query.lower())
+               if len(w) >= 4 and w not in _OXALATE_STOP}
+    m_words = set(re.findall(r'[a-z]+', match_name.lower()))
+    return bool(q_words & m_words)
+
+
+def _oxalate_info(fdc_id: int | None, food_name: str) -> dict | None:
+    """Return oxalate data for one food, auto-linking on first call if not yet linked.
+
+    Returns None when oxalate.db is unavailable, fdc_id is invalid/negative, or no
+    good match was found.  Returned dict keys:
+        mg_per_100g (float|None), mg_per_serving (float|None), serving_size (str|None),
+        category (str), ref_name (str), confirmed (bool)
+    """
+    if not fdc_id or fdc_id < 0:
+        return None
+    import oxalate as _ox
+    if not _ox.is_available():
+        return None
+
+    with _db.get_db() as conn:
+        link = _db.oxalate_link_get(conn, fdc_id)
+
+    def _row_to_info(ox_row, confirmed: bool) -> dict | None:
+        if ox_row is None:
+            return None
+        return {
+            "mg_per_100g":   ox_row["oxalate_mg_per_100g"],
+            "mg_per_serving": ox_row["oxalate_mg_per_serving"],
+            "serving_size":  ox_row["serving_size"],
+            "category":      ox_row["category"],
+            "ref_name":      ox_row["food_name"],
+            "confirmed":     confirmed,
+        }
+
+    if link is not None:
+        if link["no_match"] or not link["oxalate_food_id"]:
+            return None
+        with _ox.get_oxalate_db() as ox_conn:
+            ox_row = _ox.get_by_id(ox_conn, link["oxalate_food_id"])
+        return _row_to_info(ox_row, bool(link["user_confirmed"]))
+
+    # First time: fuzzy-match against the reference DB
+    try:
+        with _ox.get_oxalate_db() as ox_conn:
+            candidates = _ox.search_similar(ox_conn, food_name, top_n=3)
+    except Exception:
+        return None
+
+    best_match = None
+    for score, row in candidates:
+        if score >= _OXALATE_SCORE_THRESHOLD and _oxalate_word_match(food_name, row["food_name"]):
+            best_match = (score, row)
+            break
+
+    if best_match:
+        _, best = best_match
+        with _db.get_db() as conn:
+            conn.execute(
+                "INSERT INTO oxalate_links"
+                " (fdc_id, oxalate_food_id, user_confirmed, confirmed_at, no_match)"
+                " VALUES (?, ?, 0, datetime('now'), 0)"
+                " ON CONFLICT(fdc_id) DO NOTHING",
+                (fdc_id, best["id"]),
+            )
+        return _row_to_info(best, False)
+
+    # No confident match — record to avoid re-querying
+    with _db.get_db() as conn:
+        conn.execute(
+            "INSERT INTO oxalate_links"
+            " (fdc_id, oxalate_food_id, user_confirmed, confirmed_at, no_match)"
+            " VALUES (?, NULL, 0, datetime('now'), 1)"
+            " ON CONFLICT(fdc_id) DO NOTHING",
+            (fdc_id,),
+        )
+    return None
+
+
+def _oxalate_for_items(items: list[dict]) -> dict | None:
+    """Compute oxalate totals for a list of food items.
+
+    Each item: {fdc_id, food_name, amount_g}.
+    Returns {total_mg (exact portion where calculable), rows, qualitative, missing} or None.
+    - rows: foods where mg/100g is known → exact mg computed
+    - qualitative: foods with only per-serving data → category + reference serving shown
+    - missing: foods with no oxalate data
+    """
+    import oxalate as _ox
+    if not _ox.is_available():
+        return None
+
+    total_mg = 0.0
+    rows: list[dict] = []
+    qualitative: list[dict] = []
+    missing: list[str] = []
+
+    for item in items:
+        fdc_id   = item.get("fdc_id")
+        name     = item.get("food_name", "")
+        amount_g = float(item.get("amount_g") or 0)
+        if not amount_g:
+            continue
+        info = _oxalate_info(fdc_id, name)
+        if not info:
+            missing.append(name)
+            continue
+
+        if info["mg_per_100g"] is not None:
+            mg = info["mg_per_100g"] * amount_g / 100.0
+            total_mg += mg
+            rows.append({
+                "name":      name,
+                "amount_g":  round(amount_g, 1),
+                "mg":        round(mg, 1),
+                "category":  info["category"],
+                "confirmed": info["confirmed"],
+            })
+        elif info["mg_per_serving"] is not None:
+            serving_g = _serving_str_to_grams(info["serving_size"] or "")
+            if serving_g and serving_g > 0 and _serving_is_weight(info["serving_size"] or ""):
+                # Weight-based serving → derive mg/100g and compute exact portion mg
+                mg_per_100g = info["mg_per_serving"] / serving_g * 100.0
+                mg = mg_per_100g * amount_g / 100.0
+                total_mg += mg
+                rows.append({
+                    "name":      name,
+                    "amount_g":  round(amount_g, 1),
+                    "mg":        round(mg, 1),
+                    "category":  info["category"],
+                    "confirmed": info["confirmed"],
+                })
+            else:
+                # Volume-based serving — density unknown, category only
+                qualitative.append({
+                    "name":      name,
+                    "category":  info["category"],
+                    "confirmed": info["confirmed"],
+                })
+        else:
+            missing.append(name)
+
+    if not rows and not qualitative:
+        return None
+    return {
+        "total_mg":   round(total_mg, 1) if rows else None,
+        "rows":       rows,
+        "qualitative": qualitative,
+        "missing":    missing,
+    }
+
+
 def _protein_section(food_name: str, nutrients: dict) -> dict | None:
     if nutrients.get("protein_g", 0) <= 0:
         return None
@@ -1730,6 +1947,11 @@ async def food_detail(
     if nutrients.get("protein_g", 0) > 0 and not _usda.has_amino_acid_data(nutrients):
         suggest_foundation = food["name"].split(",")[0].strip()
 
+    oxalate = _oxalate_info(food["fdc_id"], food["name"])
+    oxalate_mg_portion: float | None = None
+    if oxalate and amount and oxalate.get("mg_per_100g") is not None:
+        oxalate_mg_portion = round(oxalate["mg_per_100g"] * amount / 100.0, 1)
+
     return templates.TemplateResponse(request, "food_detail.html", {
         "food":               food,
         "amount":             amount,
@@ -1743,6 +1965,8 @@ async def food_detail(
         "antinutrients":      antinutrient_flags,
         "has_profile":        rda is not None,
         "suggest_foundation": suggest_foundation,
+        "oxalate":            oxalate,
+        "oxalate_mg_portion": oxalate_mg_portion,
     })
 
 
@@ -2562,12 +2786,16 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         )
         for r in matching_recipes:
             search_results.append({
-                "_type":    "recipe",
-                "recipe_id": r["id"],
-                "name":     r["name"],
-                "servings": float(r["servings"] or 1),
-                "data_type": "Recipe",
-                "source":   "local",
+                "_type":         "recipe",
+                "recipe_id":     r["id"],
+                "name":          r["name"],
+                "servings":      float(r["servings"] or 1),
+                "total_weight":  r["total_weight"],
+                "total_weight_unit": r["total_weight_unit"] or "g",
+                "total_volume":  r["total_volume"],
+                "total_volume_unit": r["total_volume_unit"] or "ml",
+                "data_type":     "Recipe",
+                "source":        "local",
             })
 
         # Collect raw API results (double USDA search, same strategy as CLI)
@@ -2712,6 +2940,32 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                 if flags:
                     item_antinutrients.append({"food_name": food_name, "flags": flags})
 
+    ox_items = []
+    with _db.get_db() as conn:
+        for it in items:
+            if it.get("recipe_id"):
+                portion_factor = float(it["amount"] or 1)
+                recipe = _db.recipe_get(conn, it["recipe_id"])
+                if recipe:
+                    r_servings = float(recipe["servings"] or 1)
+                    factor = portion_factor / r_servings
+                else:
+                    factor = portion_factor
+                for ing in _expand_recipe_ingredients(it["recipe_id"], factor, conn):
+                    if ing.get("fdc_id") and ing["fdc_id"] > 0:
+                        ox_items.append({
+                            "fdc_id":    ing["fdc_id"],
+                            "food_name": ing["food_name"],
+                            "amount_g":  ing["grams"],
+                        })
+            elif it.get("fdc_id"):
+                ox_items.append({
+                    "fdc_id":    it["fdc_id"],
+                    "food_name": it["food_name"],
+                    "amount_g":  it["amount"],
+                })
+    oxalate = _oxalate_for_items(ox_items)
+
     return templates.TemplateResponse(request, "meal.html", {
         "meal":                dict(meal),
         "items":               items,
@@ -2721,6 +2975,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "complements":         _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="meal"),
         "gl":                  {"total": gl_total, "blockers": gl_blockers},
         "item_antinutrients":  item_antinutrients,
+        "oxalate":             oxalate,
         "q":                   q,
         "search_results":      search_results,
         "today":               datetime.date.today().isoformat(),
@@ -2789,12 +3044,25 @@ async def meal_add_recipe_item(
     recipe_name: str = Form(""),
     servings: float = Form(1.0),
     mode: str = Form("recipe"),
+    amount_mode: str = Form("servings"),
+    amount_value_weight: str = Form(""),
+    amount_value_volume: str = Form(""),
 ):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
     if not recipe:
         return RedirectResponse(f"/meal/{meal_id}", status_code=303)
     name = recipe_name or recipe["name"]
+
+    # Convert weight/volume entry to an equivalent servings count
+    try:
+        r_servings = float(recipe["servings"] or 1)
+        if amount_mode == "weight" and amount_value_weight.strip() and recipe["total_weight"]:
+            servings = (float(amount_value_weight) / float(recipe["total_weight"])) * r_servings
+        elif amount_mode == "volume" and amount_value_volume.strip() and recipe["total_volume"]:
+            servings = (float(amount_value_volume) / float(recipe["total_volume"])) * r_servings
+    except (ValueError, ZeroDivisionError):
+        pass
 
     if mode == "ingredients":
         r_total_servings = float(recipe["servings"] or 1)
@@ -3207,6 +3475,14 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         if flags:
             ingredient_antinutrients.append({"food_name": ing["food_name"], "flags": flags})
 
+    # Oxalate: build items list from direct-food ingredients (skip sub-recipes)
+    ox_items = [
+        {"fdc_id": ing["fdc_id"], "food_name": ing["food_name"],
+         "amount_g": float(ing["amount"]) * servings}
+        for ing in ingredients if ing.get("fdc_id") and not ing.get("ref_recipe_id")
+    ]
+    oxalate = _oxalate_for_items(ox_items)
+
     return templates.TemplateResponse(request, "recipe_detail.html", {
         "recipe":                   dict(recipe),
         "ingredients":              ingredients,
@@ -3218,6 +3494,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
         "ingredient_antinutrients": ingredient_antinutrients,
+        "oxalate":                  oxalate,
     })
 
 
@@ -3427,19 +3704,50 @@ async def recipe_ingredient_edit(
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/move", response_class=RedirectResponse)
-async def recipe_ingredient_move(recipe_id: int, ing_id: int, direction: str = Form(...)):
+async def recipe_ingredient_move(recipe_id: int, ing_id: int, direction: str = Form(...), next: str = Form("edit")):
     with _db.get_db() as conn:
         ings = _db.recipe_get_ingredients(conn, recipe_id)
         ids = [i["id"] for i in ings]
+        dest = f"/recipe/{recipe_id}" if next == "detail" else f"/recipe/{recipe_id}/edit"
         if ing_id not in ids:
-            return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+            return RedirectResponse(dest, status_code=303)
         idx = ids.index(ing_id)
         if direction == "up" and idx > 0:
             ids[idx], ids[idx - 1] = ids[idx - 1], ids[idx]
         elif direction == "down" and idx < len(ids) - 1:
             ids[idx], ids[idx + 1] = ids[idx + 1], ids[idx]
         _db.recipe_reorder_ingredients(conn, ids)
-    return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+    return RedirectResponse(dest + "#sec-ingredients", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/instructions", response_class=RedirectResponse)
+async def recipe_instructions_post(recipe_id: int, instructions: str = Form("")):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+        _db.recipe_update(
+            conn, recipe_id,
+            name=recipe["name"], description=recipe["description"] or "",
+            servings=recipe["servings"], instructions=instructions.strip(),
+            total_weight=recipe["total_weight"],
+            total_weight_unit=recipe["total_weight_unit"],
+            complete=bool(recipe["complete"]),
+        )
+    return RedirectResponse(f"/recipe/{recipe_id}#sec-procedure", status_code=303)
+
+
+@app.get("/recipe/{recipe_id}/print", response_class=HTMLResponse)
+async def recipe_print(request: Request, recipe_id: int):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+        ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
+    return templates.TemplateResponse(request, "recipe_print.html", {
+        "recipe":      dict(recipe),
+        "ingredients": ingredients,
+    })
 
 
 @app.get("/summary", response_class=HTMLResponse)

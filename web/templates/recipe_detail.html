@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ recipe.name }} — numa{% endblock %}
+{% block title %}NutriMagnus — {{ recipe.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
 {% block main_class %}analysis-content{% endblock %}
@@ -19,6 +19,9 @@
     <a class="sb-toggle" href="#sec-ingredients">Ingredients</a>
   </li>
   {% endif %}
+  <li class="sb-item" data-target="sec-procedure">
+    <a class="sb-toggle" href="#sec-procedure">Procedure</a>
+  </li>
   {% if nutrient_sections %}
   <li class="sb-item" data-target="sec-nutrients">
     <a class="sb-toggle" href="#sec-nutrients">Nutritional Analysis</a>
@@ -76,9 +79,9 @@
     <a class="sb-toggle" href="#sec-glycemic">Glycemic Load</a>
   </li>
   {% endif %}
-  {% if ingredient_antinutrients %}
+  {% if oxalate or ingredient_antinutrients %}
   <li class="sb-item" data-target="sec-antinutrients">
-    <a class="sb-toggle" href="#sec-antinutrients">Anti-nutrient Notes</a>
+    <a class="sb-toggle" href="#sec-antinutrients">Anti-nutrients</a>
   </li>
   {% endif %}
 </ul>
@@ -112,6 +115,7 @@
 {# ── Actions ──────────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a href="/recipe/{{ recipe.id }}/edit" class="btn btn-sm btn-outline-primary">Edit recipe</a>
+  <a href="/recipe/{{ recipe.id }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">Print / save recipe</a>
   <form method="post" action="/recipe/{{ recipe.id }}/copy" style="margin:0">
     <button type="submit" class="btn btn-sm btn-outline-secondary">Copy recipe</button>
   </form>
@@ -186,6 +190,7 @@
         <th class="num-col">Amount</th>
         <th>Food</th>
         <th>Notes</th>
+        <th style="width:4rem"></th>
       </tr>
     </thead>
     <tbody>
@@ -209,6 +214,22 @@
           {% endif %}
         </td>
         <td><small class="muted">{{ ing.notes or "" }}</small></td>
+        <td style="white-space:nowrap">
+          {% if not loop.first %}
+          <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/move" style="display:inline">
+            <input type="hidden" name="direction" value="up">
+            <input type="hidden" name="next" value="detail">
+            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Move up">&uarr;</button>
+          </form>
+          {% endif %}
+          {% if not loop.last %}
+          <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/move" style="display:inline">
+            <input type="hidden" name="direction" value="down">
+            <input type="hidden" name="next" value="detail">
+            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Move down">&darr;</button>
+          </form>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -217,6 +238,30 @@
 {% else %}
 <p class="muted">No ingredients yet. <a href="/recipe/{{ recipe.id }}/edit">Add ingredients.</a></p>
 {% endif %}
+
+{# ── Procedure ────────────────────────────────────────────────────────── #}
+<section id="sec-procedure" class="analysis-section">
+  <h3 class="section-heading">Procedure</h3>
+  {% if recipe.instructions %}
+  <div class="mt-2" style="white-space:pre-wrap;line-height:1.6">{{ recipe.instructions }}</div>
+  {% else %}
+  <p class="muted mt-2">No procedure entered yet.</p>
+  {% endif %}
+  <details class="mt-3">
+    <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer;display:inline-block">
+      {% if recipe.instructions %}Edit procedure{% else %}Add procedure{% endif %}
+    </summary>
+    <div class="mt-2" style="max-width:44rem">
+      <form method="post" action="/recipe/{{ recipe.id }}/instructions">
+        <textarea class="form-control" name="instructions" rows="10"
+                  placeholder="Enter step-by-step instructions…">{{ recipe.instructions or '' }}</textarea>
+        <div class="d-flex gap-2 mt-2">
+          <button type="submit" class="btn btn-primary btn-sm">Save procedure</button>
+        </div>
+      </form>
+    </div>
+  </details>
+</section>
 
 {# ── Nutritional Analysis ─────────────────────────────────────────────── #}
 {% if nutrient_sections %}
@@ -589,10 +634,48 @@
 </section>
 {% endif %}
 
-{# ── Anti-nutrient Notes ──────────────────────────────────────────────── #}
-{% if ingredient_antinutrients %}
+{# ── Anti-nutrients (oxalate + other) ─────────────────────────────────── #}
+{% if oxalate or ingredient_antinutrients %}
 <section id="sec-antinutrients" class="analysis-section">
-  <h3 class="section-heading">Anti-nutrient Notes {{ manual_link("antinutrients") }}</h3>
+  <h3 class="section-heading">Anti-nutrients {{ manual_link("antinutrients") }}</h3>
+  {% if oxalate %}
+  <h4 class="mt-2 mb-1" style="font-size:1rem">Oxalate ({{ servings }} serving{{ 's' if servings != 1 else '' }})</h4>
+  {% if oxalate.total_mg is not none %}
+  <p class="mt-1 mb-2"><strong>Total: {{ oxalate.total_mg }}&thinsp;mg</strong></p>
+  {% endif %}
+  {% if oxalate.rows %}
+  <p class="mb-1 muted" style="font-size:0.85rem"><em>Quantitative — scaled to your portion:</em></p>
+  <table class="nutrient-table mt-0" style="max-width:42rem">
+    <thead><tr><th>Ingredient</th><th class="num-col">Amount</th><th class="num-col">Oxalate</th><th>Category</th></tr></thead>
+    <tbody>
+      {% for row in oxalate.rows %}
+      <tr>
+        <td>{{ row.name }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %}</td>
+        <td class="num-col">{{ row.amount_g }}&thinsp;g</td>
+        <td class="num-col">{{ row.mg }}&thinsp;mg</td>
+        <td><span class="oxalate-cat oxalate-{{ row.category | replace(' ', '-') }}">{{ row.category | title }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if oxalate.qualitative %}
+  <p class="{% if oxalate.rows %}mt-3{% else %}mt-1{% endif %} mb-1 muted" style="font-size:0.85rem"><em>Categorical report only — no quantitative data available:</em></p>
+  <ul class="list-unstyled mt-0 mb-0" style="font-size:0.9rem">
+    {% for row in oxalate.qualitative %}
+    <li class="mb-1">{{ row.name }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %} &mdash;
+      <span class="oxalate-cat oxalate-{{ row.category | replace(' ', '-') }}">{{ row.category | title }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if oxalate.missing %}
+  <p class="muted mt-2" style="font-size:0.8rem">No oxalate data for: {{ oxalate.missing | join(' · ') }}</p>
+  {% endif %}
+  <p class="muted mt-1" style="font-size:0.8rem">~ = auto-matched, not yet confirmed &nbsp;&middot;&nbsp; Source: Harvard T.H. Chan School of Public Health</p>
+  {% endif %}
+  {% if ingredient_antinutrients %}
+  {% if oxalate %}<hr class="my-2">{% endif %}
   {% for item in ingredient_antinutrients %}
   <p class="mb-1"><strong>{{ item.food_name }}</strong></p>
   {% for flag in item.flags %}
@@ -605,6 +688,7 @@
   </div>
   {% endfor %}
   {% endfor %}
+  {% endif %}
 </section>
 {% endif %}
 

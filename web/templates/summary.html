@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if date_detail %}Summary — {{ date_detail }}{% else %}Daily Summary{% endif %} — numa{% endblock %}
+{% block title %}NutriMagnus — {% if date_detail %}Summary — {{ date_detail }}{% else %}Daily Summary{% endif %}{% endblock %}
 
 {% block layout_class %}{% if date_detail %}analysis-page{% else %}container{% endif %}{% endblock %}
 {% block main_class %}{% if date_detail %}analysis-content{% endif %}{% endblock %}

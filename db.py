@@ -487,7 +487,7 @@ def recipe_set_saved_analysis(conn: sqlite3.Connection, recipe_id: int,
 def recipe_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete,"
-        " last_accessed_at, total_weight, total_weight_unit"
+        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit"
         " FROM recipes ORDER BY name"
     ).fetchall()
 
@@ -495,7 +495,7 @@ def recipe_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 def recipe_list_recent(conn: sqlite3.Connection, limit: int = 20) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete,"
-        " last_accessed_at, total_weight, total_weight_unit"
+        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit"
         " FROM recipes ORDER BY COALESCE(last_accessed_at, created_at) DESC LIMIT ?",
         (limit,)
     ).fetchall()

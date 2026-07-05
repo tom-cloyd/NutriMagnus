@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ food.name }} — numa{% endblock %}
+{% block title %}NutriMagnus — {{ food.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
 {% block main_class %}analysis-content{% endblock %}
@@ -57,9 +57,9 @@
   </li>
   {% endif %}
   {% endif %}
-  {% if antinutrients %}
+  {% if oxalate or antinutrients %}
   <li class="sb-item" data-target="sec-antinutrients">
-    <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Anti-nutrient Notes</button>
+    <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Anti-nutrients</button>
   </li>
   {% endif %}
   <li class="sb-item" data-target="sec-pantry">
@@ -320,9 +320,42 @@
 {% endif %}
 
 {# ── Anti-nutrient Notes ──────────────────────────────────────────────── #}
-{% if antinutrients %}
+{# ── Oxalate ──────────────────────────────────────────────────────────── #}
+{% if oxalate or antinutrients %}
 <section id="sec-antinutrients" class="analysis-section">
-  <h3 class="section-heading">Anti-nutrient Notes {{ manual_link("antinutrients") }}</h3>
+  <h3 class="section-heading">Anti-nutrients {{ manual_link("antinutrients") }}</h3>
+  {% if oxalate %}
+  <h4 class="mt-2 mb-1" style="font-size:1rem">Oxalate</h4>
+  <table class="nutrient-table mt-1" style="max-width:32rem">
+    <tbody>
+      {% if oxalate.mg_per_100g is not none %}
+      <tr>
+        <td>Per 100&thinsp;g</td>
+        <td class="num-col">{{ oxalate.mg_per_100g | round(1) }}&thinsp;mg</td>
+        <td><span class="oxalate-cat oxalate-{{ oxalate.category | replace(' ', '-') }}">{{ oxalate.category | title }}</span></td>
+      </tr>
+      {% if oxalate_mg_portion is not none and amount != 100 %}
+      <tr>
+        <td>This portion ({{ amount | round(1) }}&thinsp;g)</td>
+        <td class="num-col">{{ oxalate_mg_portion }}&thinsp;mg</td>
+        <td></td>
+      </tr>
+      {% endif %}
+      {% else %}
+      <tr>
+        <td>Ref serving ({{ oxalate.serving_size }})</td>
+        <td class="num-col">{{ oxalate.mg_per_serving }}&thinsp;mg</td>
+        <td><span class="oxalate-cat oxalate-{{ oxalate.category | replace(' ', '-') }}">{{ oxalate.category | title }}</span></td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+  <p class="muted mt-1" style="font-size:0.8rem">
+    Reference: {{ oxalate.ref_name }}{% if not oxalate.confirmed %} <span class="text-warning">(auto-matched — <a href="/food/{{ food.fdc_id }}/oxalate-link">correct if wrong</a>)</span>{% endif %}
+  </p>
+  {% endif %}
+  {% if antinutrients %}
+  {% if oxalate %}<hr class="my-2">{% endif %}
   {% for flag in antinutrients %}
   <div class="antinutrient-card">
     <header><strong>{{ flag.problem }}</strong></header>
@@ -332,6 +365,7 @@
     {% endif %}
   </div>
   {% endfor %}
+  {% endif %}
 </section>
 {% endif %}
 
