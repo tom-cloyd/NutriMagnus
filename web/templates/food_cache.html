@@ -58,7 +58,7 @@
         {% if food.fdc_id < 0 %}OFF
         {% else %}{{ food.fdc_id }}{% endif %}
       </td>
-      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a>
+      <td><a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
         {% if food.brand %}<br><small class="muted">{{ food.brand }}</small>{% endif %}
       </td>
       <td class="muted"><small>{{ food.data_type or "—" }}</small></td>

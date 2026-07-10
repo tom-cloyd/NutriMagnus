@@ -184,11 +184,28 @@ _MEALS_PAGE = 15
 def _compute_meal_bcp(meal_id: int) -> float | None:
     """Return digestible complete protein (g) for a meal, or None if unavailable."""
     ing_list = _compute_meal_ingredient_list(meal_id)
-    if not ing_list:
-        return None
+    if ing_list:
+        with _db.get_db() as conn:
+            result = _diaas.meal_level_diaas(ing_list, conn)
+        dcp = result.get("digestible_complete_protein_g")
+        if dcp is not None:
+            return dcp
+
+    # Fallback: when ingredient AA expansion yields nothing (cached nutrients lack AA
+    # data), sum stored per-serving DCP from recipe items that have been analysed.
     with _db.get_db() as conn:
-        result = _diaas.meal_level_diaas(ing_list, conn)
-    return result.get("digestible_complete_protein_g")
+        items = _db.meal_get_items(conn, meal_id)
+    total_dcp = 0.0
+    has_any = False
+    for item in items:
+        if item["item_type"] != "recipe":
+            continue
+        with _db.get_db() as conn:
+            recipe = _db.recipe_get(conn, item["recipe_id"])
+        if recipe and recipe["dcp_g"] is not None:
+            total_dcp += recipe["dcp_g"] * item["amount"]
+            has_any = True
+    return total_dcp if has_any else None
 
 
 def _print_meal_protein_summary(meal_id: int) -> None:
@@ -1511,7 +1528,7 @@ def _print_meal_history_flat(rows: list, query: str) -> None:
         is_recipe = r["item_type"] == "recipe"
         portion   = r["unit"] if r["unit"] else (f"{r['amount']:.0f} g" if r["amount"] else "[grey62]—[/grey62]")
         notes     = r["notes"] or ""
-        name_cell = (f"{r['food_name']} [grey62](recipe)[/grey62]" if is_recipe else r["food_name"])
+        name_cell = (f"[bold]{r['food_name']}[/bold] [grey62](recipe)[/grey62]" if is_recipe else f"[bold]{r['food_name']}[/bold]")
         tbl.add_row(r["meal_date"], r["meal_name"], name_cell, portion, notes)
     state.console.print(tbl)
     help_footer("meal-history")
@@ -1542,11 +1559,11 @@ def _print_meal_history_summary(rows: list) -> None:
         dates      = sorted(r["meal_date"] for r in items)
         if is_recipe:
             total_str  = "[grey62]—[/grey62]"
-            name_cell  = f"{food_name} [grey62](recipe)[/grey62]"
+            name_cell  = f"[bold]{food_name}[/bold] [grey62](recipe)[/grey62]"
         else:
             total_g   = sum(r["amount"] for r in items if r["amount"])
             total_str = f"[{s}]{total_g:.0f} g[/{s}]" if total_g else "[grey62]—[/grey62]"
-            name_cell = food_name
+            name_cell = f"[bold]{food_name}[/bold]"
         tbl.add_row(name_cell, str(len(items)), total_str, dates[0], dates[-1])
     state.console.print(tbl)
     help_footer("meal-history")

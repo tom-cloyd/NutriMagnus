@@ -8,14 +8,21 @@
   <a href="/recipe/new" class="btn btn-primary btn-sm">+ New recipe</a>
 </div>
 
-<form method="get" action="/recipes" class="mb-3">
-  <div class="input-group" style="max-width:28rem">
-    <input type="text" class="form-control" name="q" value="{{ q }}"
-           placeholder="Filter by name…" autofocus>
-    <button type="submit" class="btn btn-outline-secondary">Filter</button>
-    {% if q %}<a href="/recipes" class="btn btn-outline-secondary">Clear</a>{% endif %}
-  </div>
-</form>
+<div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+  <form method="get" action="/recipes">
+    <div class="input-group" style="max-width:28rem">
+      <input type="text" class="form-control" name="q" value="{{ q }}"
+             placeholder="Filter by name…" autofocus>
+      <button type="submit" class="btn btn-outline-secondary">Filter</button>
+      {% if q %}<a href="/recipes" class="btn btn-outline-secondary">Clear</a>{% endif %}
+    </div>
+  </form>
+  <form method="post" action="/recipes/compute-bcp">
+    <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute BCP for all complete recipes</button>
+  </form>
+  <small class="muted">BCP = digestible complete protein per serving</small>
+</div>
 
 {% if not recipes %}
   {% if q %}
@@ -41,11 +48,11 @@
     {% for r in recipes %}
     <tr>
       <td class="muted">{{ r.id }}</td>
-      <td><a href="/recipe/{{ r.id }}">{{ r.name }}</a></td>
+      <td><a href="/recipe/{{ r.id }}"><strong>{{ r.name }}</strong></a></td>
       <td class="muted"><small>{{ r.description or "—" }}</small></td>
       <td style="text-align:right">{{ r.servings }}</td>
       <td style="text-align:right">
-        {% if r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">—</span>{% endif %}
+        {% if r.complete and r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">—</span>{% endif %}
       </td>
       <td style="text-align:center">
         {% if r.complete %}<span class="status-met">&#10003;</span>{% else %}<span class="muted">—</span>{% endif %}
@@ -65,6 +72,7 @@
     {% endfor %}
   </tbody>
 </table>
+
 <p class="muted mt-2"><small>{{ recipes|length }} recipe{% if recipes|length != 1 %}s{% endif %}{% if q %} matching "{{ q }}"{% endif %}</small></p>
 {% endif %}
 {% endblock %}

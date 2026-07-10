@@ -678,7 +678,7 @@ def _do_copy_cached_food() -> None:
 
         tbl.add_row(
             str(_ci), type_str, _id_cell(r["fdc_id"]),
-            dot_cell(r["name"], _CNAME_W), brand_cell,
+            dot_cell(r["name"], _CNAME_W, bold=True), brand_cell,
             ann_cell, aa_cell,
         )
 

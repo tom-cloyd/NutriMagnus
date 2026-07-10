@@ -175,7 +175,7 @@
     <tbody>
       {% for food in search_results %}
       <tr class="food-meta-row">
-        <td>{{ food.name }}
+        <td><strong>{{ food.name }}</strong>
           {% if food.data_type or food.brand %}<br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>{% endif %}
         </td>
         <td class="col-aa">

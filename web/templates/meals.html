@@ -37,6 +37,11 @@
     {% endif %}
   </form>
   <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
+  <form method="post" action="/meals/compute-bcp">
+    <input type="hidden" name="redirect_to" value="/meals{% if date_filter %}?date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute BCP for all complete meals</button>
+  </form>
+  <small class="muted">BCP = bioavailable (digestible) complete protein{% if protein_target %} · goal = {{ protein_target|int }} g/day{% endif %}</small>
 </div>
 
 {# ── Meal list ────────────────────────────────────────────────────────── #}
@@ -56,7 +61,7 @@
     <tr>
       <th>Meal</th>
       <th>Date</th>
-      <th class="text-center">Done</th>
+      <th class="text-center">Complete</th>
       <th class="num-col">Items</th>
       <th class="num-col" title="Digestible Complete Protein for this meal">Meal BCP</th>
       <th class="num-col" title="Sum of BCP across all complete meals on this date">Day BCP</th>
@@ -105,13 +110,7 @@
     {% endfor %}
   </tbody>
 </table>
-<div class="d-flex gap-2 align-items-center mt-1 mb-2">
-  <form method="post" action="/meals/compute-bcp">
-    <input type="hidden" name="redirect_to" value="/meals{% if date_filter %}?date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
-    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute BCP for all complete meals</button>
-  </form>
-  <small class="muted">BCP = bioavailable (digestible) complete protein{% if protein_target %} · goal = {{ protein_target|int }} g/day{% endif %}</small>
-</div>
+
 {% else %}
 <p class="muted mt-2">
   {% if date_filter %}No meals on or before {{ date_filter }}.{% else %}No meals yet. Create one above.{% endif %}

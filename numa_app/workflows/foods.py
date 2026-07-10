@@ -1114,7 +1114,7 @@ def _do_annotate_food() -> None:
         tbl.add_column("Name",  min_width=40)
         tbl.add_column("Type",  min_width=14)
         for i, f in enumerate(foods, 1):
-            tbl.add_row(str(i), f["name"], f["data_type"] or "")
+            tbl.add_row(str(i), f"[bold]{f['name']}[/bold]", f["data_type"] or "")
 
         from ..ui.common import table_title, table_footer
         title_note = (
@@ -1528,7 +1528,7 @@ def _do_list_cached_foods() -> None:
                 n_cell = f"[{s}]✓[/{s}]" if f["curator_notes"] else "—"
                 tbl.add_row(str(i), aa_cell, gi_cell, diaas_cell,
                             _id_cell(f["fdc_id"]),
-                            dot_cell(f["name"], _NAME_W), f["data_type"] or "",
+                            dot_cell(f["name"], _NAME_W, bold=True), f["data_type"] or "",
                             dot_cell(f["brand"] or "", _BRAND_W),
                             c_cell, n_cell)
 

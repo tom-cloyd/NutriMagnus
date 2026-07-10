@@ -428,7 +428,10 @@ def _search_and_pick_food(
         last = lines[-1]
         pad = _SRCH_W - len(last) - 1
         if pad > 0:
-            lines[-1] = f"{last} [grey62]{'·' * pad}[/grey62]"
+            lines[-1] = f"[bold]{last}[/bold] [grey62]{'·' * pad}[/grey62]"
+        else:
+            lines[-1] = f"[bold]{last}[/bold]"
+        lines[:-1] = [f"[bold]{line}[/bold]" for line in lines[:-1]]
         return "\n".join(lines)
 
     def _brand_cell(brand: str) -> str:
@@ -533,7 +536,7 @@ def _search_and_pick_food(
                 _dcp_hint = "  [grey62]DCP ✓[/grey62]" if _rr["dcp_g"] is not None else ""
                 state.console.print(
                     f"    [{state.T['accent']}]R{_ri}.[/{state.T['accent']}]"
-                    f" {_rr['name']}{_dcp_hint}",
+                    f" [bold]{_rr['name']}[/bold]{_dcp_hint}",
                     highlight=False,
                 )
             state.console.print(
@@ -667,7 +670,7 @@ def _search_and_pick_food(
                         _dcp_hint = f"  [grey62]DCP ✓[/grey62]" if _rr["dcp_g"] is not None else ""
                         state.console.print(
                             f"    [{state.T['accent']}]R{_ri}.[/{state.T['accent']}]"
-                            f" {_rr['name']}{_dcp_hint}",
+                            f" [bold]{_rr['name']}[/bold]{_dcp_hint}",
                             highlight=False,
                         )
                     state.console.print(

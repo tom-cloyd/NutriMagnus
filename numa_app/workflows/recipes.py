@@ -67,7 +67,7 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
         complete_str = "[green]✓[/green]" if r["complete"] else "[grey62]—[/grey62]"
         rname = r["name"][:_RNAME_W - 1]
         rdots = "·" * (_RNAME_W - len(rname) - 1)
-        tbl.add_row(str(r["id"]), f"{rname} [grey62]{rdots}[/grey62]", str(r["servings"]), dcp_str, complete_str, r["created_at"])
+        tbl.add_row(str(r["id"]), f"[bold]{rname}[/bold] [grey62]{rdots}[/grey62]", str(r["servings"]), dcp_str, complete_str, r["created_at"])
     state.console.print(tbl)
     if not label:
         state.console.print(f"  [grey62]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/grey62]")
@@ -932,7 +932,7 @@ def _do_recipe_search() -> None:
             rdots = "·" * (_RNAME_W - len(rname) - 1)
             tbl.add_row(
                 str(i), str(r["id"]),
-                f"{rname} [grey62]{rdots}[/grey62]",
+                f"[bold]{rname}[/bold] [grey62]{rdots}[/grey62]",
                 str(r["servings"]),
                 (r["created_at"] or "")[:10],
             )

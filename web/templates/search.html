@@ -32,6 +32,10 @@
   <thead class="table-light">
     <tr>
       <th class="muted" style="width:6rem">ID</th>
+      <th title="Amino acid data">AA</th>
+      <th title="Glycemic index (annotated)">GI</th>
+      <th title="DIAAS score (annotated)">DIAAS</th>
+      <th title="Has a saved note">Notes</th>
       <th>Food</th>
       <th>Brand</th>
       <th>Type</th>
@@ -47,10 +51,19 @@
         {% else %}OFF{% endif %}
       </small></td>
       <td>
+        {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+        {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
+        {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      <td class="muted"><small>{{ food.gi if food.gi is not none else "—" }}</small></td>
+      <td class="muted"><small>{{ food.diaas if food.diaas is not none else "—" }}</small></td>
+      <td class="muted">{% if food.has_notes %}<span title="Has a saved note">y</span>{% endif %}</td>
+      <td>
         {% if food._type == "recipe" %}
-        <a href="/recipe/{{ food.recipe_id }}">{{ food.name }}</a>
+        <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
         {% else %}
-        <a href="/food/{{ food.fdc_id }}">{{ food.name }}</a>
+        <a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
         {% endif %}
       </td>
       <td class="muted">{{ food.brand or "—" }}</td>

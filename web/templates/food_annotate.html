@@ -52,7 +52,7 @@
   <tbody>
     {% for food in foods %}
     <tr>
-      <td>{{ food.name }}</td>
+      <td><strong>{{ food.name }}</strong></td>
       <td class="muted">{{ food.data_type or "—" }}</td>
       <td class="text-center muted">
         {{ "%.0f"|format(food.gi) if food.gi is not none else "—" }}

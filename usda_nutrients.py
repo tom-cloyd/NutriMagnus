@@ -1245,6 +1245,7 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("honey",),                                                1.42),
     (("olive oil", "coconut oil", "vegetable oil", "canola oil",
       "avocado oil", "sesame oil"),                             0.92),
+    (("butter",),                                              0.91),
     # Powders / flours
     (("cocoa powder",),                                         0.47),
     (("protein powder", "whey powder"),                         0.50),

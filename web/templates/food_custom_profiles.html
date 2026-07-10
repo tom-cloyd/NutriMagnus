@@ -54,7 +54,7 @@
       <tbody>
         {% for r in copy_results %}
         <tr>
-          <td>{{ r.name }}</td>
+          <td><strong>{{ r.name }}</strong></td>
           <td class="muted">{{ r.data_type or "—" }}</td>
           <td>
             <form method="post" action="/food/custom-profiles/copy/{{ r.fdc_id }}" style="display:inline">

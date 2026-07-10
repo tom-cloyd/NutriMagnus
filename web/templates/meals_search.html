@@ -50,7 +50,7 @@
       <td>{{ r.meal_date }}</td>
       <td><a href="/meal/{{ r.meal_id }}">{{ r.meal_name }}</a></td>
       <td>
-        {{ r.food_name }}
+        <strong>{{ r.food_name }}</strong>
         {% if r.item_type == "recipe" %}<small class="muted"> (recipe)</small>{% endif %}
       </td>
       <td class="num-col">
@@ -96,7 +96,7 @@
       {% set amounts = group | map(attribute="amount") | select | list %}
       <tr>
         <td>
-          {{ name }}
+          <strong>{{ name }}</strong>
           {% if is_recipe %}<small class="muted"> (recipe)</small>{% endif %}
         </td>
         <td class="num-col">{{ group | length }}</td>

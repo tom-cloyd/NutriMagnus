@@ -40,7 +40,7 @@
   <tbody>
     {% for food in search_results %}
     <tr>
-      <td><a href="/food/convert/{{ food.fdc_id }}">{{ food.name }}</a></td>
+      <td><a href="{{ food.convert_url }}"><strong>{{ food.name }}</strong></a></td>
       <td class="muted">{{ food.brand or "—" }}</td>
       <td class="muted">{{ food.data_type }}</td>
       <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
@@ -87,7 +87,7 @@
   <code>1/4 cup</code>, <code>1 1/2 T</code>, <code>2 tsp</code>, <code>150 g</code>{% if portions %},
   or a preset like <code>p1</code>{% endif %}.
   Plain numbers are treated as grams.</small></p>
-<form method="get" action="/food/convert/{{ food.fdc_id }}" class="mb-3">
+<form method="get" action="{{ convert_url }}" class="mb-3">
   <div class="input-group" style="max-width:26rem">
     <input type="text" name="portion_str" class="form-control"
            value="{{ portion_str or '' }}"

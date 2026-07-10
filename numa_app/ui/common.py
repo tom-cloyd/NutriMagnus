@@ -21,10 +21,13 @@ _OFF_ID_THRESHOLD = -1_000_000_000
 ID_KEY = "[grey62](ID key: number = USDA FDC · OFF = Open Food Facts · usr = user-drafted)[/grey62]"
 
 
-def dot_cell(text: str, width: int) -> str:
-    """Truncate *text* to *width* chars and pad the remainder with dim dot leaders."""
+def dot_cell(text: str, width: int, *, bold: bool = False) -> str:
+    """Truncate *text* to *width* chars and pad the remainder with dim dot leaders.
+    Pass bold=True for search/pick-list results, so the name stands out from the leaders."""
     t = text[:width - 1]
-    return f"{t} [grey62]{'·' * (width - len(t) - 1)}[/grey62]"
+    if bold:
+        t = f"[bold]{t}[/bold]"
+    return f"{t} [grey62]{'·' * (width - len(text[:width - 1]) - 1)}[/grey62]"
 
 
 def table_title(title: str, subtitle: str = "") -> None:
