@@ -18,6 +18,7 @@ import usda as _usda
 import profile as _profile
 from .. import state
 from ..services import complements as _complements
+from ..services.rda_status import rda_status
 from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
@@ -1551,29 +1552,16 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
         pct_str = f"{pct:.0f}%"
 
         # Status bar and color
+        tier = rda_status(pct, rda_type)
+        bar_color = {"met": state.T["success"], "near": state.T["warning"],
+                     "low": state.T["error"], "over": state.T["error"]}[tier]
         if rda_type == "limit":
-            # For limits: green if under, yellow if near (80-100%), red if over
-            if pct <= 80:
-                bar_color = state.T["success"]
-                status_note = "within limit"
-            elif pct <= 100:
-                bar_color = state.T["warning"]
-                status_note = "approaching limit"
-            else:
-                bar_color = state.T["error"]
-                status_note = f"over limit by {pct - 100:.0f}%"
+            status_note = {"met": "within limit", "near": "approaching limit"}.get(
+                tier, f"over limit by {pct - 100:.0f}%"
+            )
             filled = min(int(BAR_WIDTH * min(pct, 200) / 200), BAR_WIDTH)
         else:
-            # For minimums/targets: red < 70%, yellow 70-99%, green 100%+
-            if pct >= 100:
-                bar_color = state.T["success"]
-                status_note = "met"
-            elif pct >= 70:
-                bar_color = state.T["warning"]
-                status_note = f"{100 - pct:.0f}% short"
-            else:
-                bar_color = state.T["error"]
-                status_note = f"{100 - pct:.0f}% short"
+            status_note = "met" if tier == "met" else f"{100 - pct:.0f}% short"
             filled = min(int(BAR_WIDTH * min(pct, 100) / 100), BAR_WIDTH)
 
         bar = f"[{bar_color}]{'█' * filled}[/{bar_color}]{'░' * (BAR_WIDTH - filled)}"

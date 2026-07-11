@@ -51,6 +51,7 @@ numa_app/
     glycemic_load.py — shared GL aggregation (CLI + web): compute_glycemic_load()
     meal_bcp.py      — shared meal-DCP fallback (CLI + web): recipe_dcp_fallback()
     portions.py      — _parse_portion_input(), _pick_portion()
+    rda_status.py    — shared RDA/limit percent-of-target classification (CLI + web): rda_status()
     recipe_nutrients.py — shared recursive recipe-ingredient expansion (CLI + web):
                        expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
     search.py        — _search_and_pick_food()

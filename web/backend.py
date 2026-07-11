@@ -25,6 +25,7 @@ from numa_app.services import complements as _complements
 from numa_app.services.glycemic_load import compute_glycemic_load
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.portions import _ing_amount_display
+from numa_app.services.rda_status import rda_status
 from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 
 _WEB_DIR    = Path(__file__).parent
@@ -252,9 +253,7 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
 
 
 def _rda_css(pct: float, rda_type: str) -> str:
-    if rda_type == "limit":
-        return "rda-over" if pct > 100 else "rda-met"
-    return "rda-met" if pct >= 100 else ("rda-near" if pct >= 75 else "rda-low")
+    return "rda-" + rda_status(pct, rda_type)
 
 
 def _nutrient_sections(nutrients: dict, rda: dict | None = None,

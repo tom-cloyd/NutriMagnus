@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-11:1353
+UPDATED: 2026-07-11:1410
 ---
 
 ## Table of Contents
@@ -95,6 +95,7 @@ numa/
       meal_bcp.py                  — shared meal-DCP fallback (CLI + web): recipe_dcp_fallback()
       oxalate_link.py              — maybe_show_oxalate(fdc_id, food_name): check/display/prompt oxalate link
       portions.py                  — _pick_portion(), _parse_portion_input()
+      rda_status.py                — shared RDA/limit percent-of-target classification (CLI + web): rda_status()
       recipe_nutrients.py          — shared recursive recipe-ingredient expansion (CLI + web):
                                      expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
       reports.py                   — export rendering support
@@ -1294,7 +1295,7 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 
 ## Test Suite
 
-The test suite has been rebuilt for the refactored `numa_app/` package structure. **422 tests**, all passing.
+The test suite has been rebuilt for the refactored `numa_app/` package structure. **436 tests**, all passing.
 
 Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `pythonpath = .`).
 
@@ -1313,6 +1314,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
 | `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL rollup via `gl_g`, partial totals alongside blockers |
 | `tests/test_meal_bcp.py` | `numa_app/services/meal_bcp.py`: `recipe_dcp_fallback()` sums precomputed recipe `dcp_g` when ingredient-level AA data is unavailable |
+| `tests/test_rda_status.py` | `numa_app/services/rda_status.py`: `rda_status()` tier boundaries for minimum/target and limit-type nutrients |
 
 ### Test infrastructure
 
