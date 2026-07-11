@@ -15,6 +15,7 @@ import db as _db
 import usda as _usda
 from .. import state
 from ..services.portions import _normalize_unit_display, _ing_amount_display, _parse_portion_input, _pick_portion, _try_resolve_unknown_weight, _UNIT_TO_GRAMS, _VOLUME_TO_ML
+from ..services.recipe_nutrients import recipe_total_nutrients
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
 from ..services.reports import _offer_export
 from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, table_footer, table_title, help_footer
@@ -361,27 +362,10 @@ def _get_recipe_total_nutrients(recipe_id: int) -> tuple[object | None, list, di
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         ingredients = _db.recipe_get_ingredients(conn, recipe_id) if recipe else []
-
-    combined: dict[str, float] = {}
-    if recipe and ingredients:
-        for ing in ingredients:
-            if ing["ref_recipe_id"]:
-                _, _, sub_nutrients = _get_recipe_total_nutrients(ing["ref_recipe_id"])
-                with _db.get_db() as conn:
-                    sub_recipe = _db.recipe_get(conn, ing["ref_recipe_id"])
-                if sub_recipe and sub_recipe["servings"] > 0:
-                    scale = ing["amount"] / sub_recipe["servings"]
-                    scaled = {k: v * scale for k, v in sub_nutrients.items()}
-                    combined = _usda.sum_nutrients(combined, scaled)
-            else:
-                _refresh_cache_if_missing_aa(ing["fdc_id"])
-                with _db.get_db() as conn:
-                    cached = _db.get_cached_food(conn, ing["fdc_id"])
-                if cached:
-                    scaled = _usda.scale_nutrients(
-                        json.loads(cached["nutrients_json"]), ing["amount"], base_size=100.0
-                    )
-                    combined = _usda.sum_nutrients(combined, scaled)
+        combined = (
+            recipe_total_nutrients(recipe_id, conn, refresh_missing_aa=True)
+            if recipe and ingredients else {}
+        )
     return recipe, ingredients, combined
 
 

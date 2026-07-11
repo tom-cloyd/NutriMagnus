@@ -23,6 +23,7 @@ import profile as _profile
 import usda as _usda
 from numa_app.services import complements as _complements
 from numa_app.services.portions import _ing_amount_display
+from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 
 _WEB_DIR    = Path(__file__).parent
 _MANUAL     = _WEB_DIR.parent / "user-manual.html"
@@ -2011,48 +2012,18 @@ def _recipe_nutrients_per_serving(recipe_id: int, conn) -> dict:
     if not recipe:
         return {}
     servings = float(recipe["servings"] or 1)
-    total: dict = {}
-    for ing in _db.recipe_get_ingredients(conn, recipe_id):
-        if ing["ref_recipe_id"]:
-            # Sub-recipe: get its per-serving nutrients and scale by servings consumed
-            sub_per_serving = _recipe_nutrients_per_serving(ing["ref_recipe_id"], conn)
-            amount = float(ing["amount"])
-            for k, v in sub_per_serving.items():
-                total[k] = total.get(k, 0.0) + v * amount
-        elif ing["fdc_id"]:
-            cached = _db.get_cached_food(conn, ing["fdc_id"])
-            if not cached or not cached["nutrients_json"]:
-                continue
-            nuts_100g = json.loads(cached["nutrients_json"])
-            scaled = _usda.scale_nutrients(nuts_100g, float(ing["amount"]))
-            for k, v in scaled.items():
-                total[k] = total.get(k, 0.0) + v
+    total = recipe_total_nutrients(recipe_id, conn)
     return {k: v / servings for k, v in total.items()} if servings else total
 
 
 def _flatten_recipe_diaas_ingredients(recipe_id: int, conn, target_servings: float) -> list[dict]:
     """Recursively expand a recipe's ingredients into food-level dicts for DIAAS.
     target_servings: how many servings of this recipe to account for."""
-    result = []
     recipe = _db.recipe_get(conn, recipe_id)
     if not recipe:
-        return result
+        return []
     recipe_servings = float(recipe["servings"] or 1)
-    for ing in _db.recipe_get_ingredients(conn, recipe_id):
-        if ing["ref_recipe_id"]:
-            sub_target = float(ing["amount"]) / recipe_servings * target_servings
-            result.extend(_flatten_recipe_diaas_ingredients(ing["ref_recipe_id"], conn, sub_target))
-        elif ing["fdc_id"]:
-            cached = _db.get_cached_food(conn, ing["fdc_id"])
-            if not cached or not cached["nutrients_json"]:
-                continue
-            result.append({
-                "food_name":      ing["food_name"],
-                "nutrients_100g": json.loads(cached["nutrients_json"]),
-                "grams":          float(ing["amount"]) / recipe_servings * target_servings,
-                "fdc_id":         ing["fdc_id"],
-            })
-    return result
+    return expand_recipe_ingredients(recipe_id, conn, portion_factor=target_servings / recipe_servings)
 
 
 def _build_diaas_display(diaas_result: dict | None) -> dict | None:
@@ -2240,23 +2211,11 @@ def _compute_gl(meal_id: int) -> tuple[float | None, list[str]]:
     return (None if blockers else round(gl_total, 1), blockers)
 
 
-def _best_aa_nutrients(nuts: dict, food_name: str) -> dict | None:
-    """Return nuts enhanced with complement-table AA data if cached AA data is missing.
-    Mirrors the CLI's _best_nutrients fallback logic."""
-    if _usda.has_amino_acid_data(nuts):
-        return nuts
-    complement = _usda.get_complement_nutrients(food_name)
-    if complement and _usda.has_amino_acid_data(complement):
-        actual_protein = nuts.get("protein_g", 0)
-        ref_protein = complement.get("protein_g", 0)
-        if ref_protein > 0 and actual_protein > 0:
-            scale = actual_protein / ref_protein
-            merged = dict(nuts)
-            for k, v in complement.items():
-                if k.startswith("aa_") and k not in merged:
-                    merged[k] = v * scale
-            return merged
-    return None
+def _expand_recipe_ingredients(recipe_id: int, portion_factor: float, conn) -> list[dict]:
+    """Recursively expand a recipe's ingredients for DIAAS, scaling by portion_factor.
+    Thin positional-argument wrapper — the recursion itself lives in
+    numa_app.services.recipe_nutrients (shared with the CLI)."""
+    return expand_recipe_ingredients(recipe_id, conn, portion_factor=portion_factor)
 
 
 def _meal_aa_nutrients(meal_id: int) -> dict:
@@ -2270,7 +2229,7 @@ def _meal_aa_nutrients(meal_id: int) -> dict:
                 cached = _db.get_cached_food(conn, row["fdc_id"])
                 if not cached or not cached["nutrients_json"]:
                     continue
-                nuts = _best_aa_nutrients(json.loads(cached["nutrients_json"]), row["food_name"])
+                nuts = best_aa_nutrients(json.loads(cached["nutrients_json"]), row["food_name"])
                 if nuts:
                     scaled = _usda.scale_nutrients(nuts, float(row["amount"]))
                     for k, v in scaled.items():
@@ -2282,35 +2241,11 @@ def _meal_aa_nutrients(meal_id: int) -> dict:
                 recipe_servings = float(recipe["servings"] or 1)
                 portion_factor = float(row["amount"]) / recipe_servings
                 for ing in _expand_recipe_ingredients(row["recipe_id"], portion_factor, conn):
-                    nuts = _best_aa_nutrients(ing["nutrients_100g"], ing["food_name"])
+                    nuts = best_aa_nutrients(ing["nutrients_100g"], ing["food_name"])
                     if nuts:
                         scaled = _usda.scale_nutrients(nuts, ing["grams"])
                         for k, v in scaled.items():
                             result[k] = result.get(k, 0.0) + v
-    return result
-
-
-def _expand_recipe_ingredients(recipe_id: int, portion_factor: float, conn) -> list[dict]:
-    """Recursively expand a recipe's ingredients for DIAAS, scaling by portion_factor."""
-    result = []
-    for ing in _db.recipe_get_ingredients(conn, recipe_id):
-        if ing["ref_recipe_id"]:
-            sub = _db.recipe_get(conn, ing["ref_recipe_id"])
-            sub_servings = float(sub["servings"] or 1) if sub else 1.0
-            sub_factor = float(ing["amount"]) / sub_servings * portion_factor
-            result.extend(_expand_recipe_ingredients(ing["ref_recipe_id"], sub_factor, conn))
-        elif ing["fdc_id"]:
-            cached = _db.get_cached_food(conn, ing["fdc_id"])
-            if not cached or not cached["nutrients_json"]:
-                continue
-            nuts_100g = json.loads(cached["nutrients_json"])
-            if nuts_100g:
-                result.append({
-                    "food_name":      ing["food_name"],
-                    "fdc_id":         ing["fdc_id"],
-                    "nutrients_100g": nuts_100g,
-                    "grams":          float(ing["amount"]) * portion_factor,
-                })
     return result
 
 

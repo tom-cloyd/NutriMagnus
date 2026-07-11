@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-11:1245
+UPDATED: 2026-07-11:1306
 ---
 
 ## Table of Contents
@@ -93,6 +93,8 @@ numa/
                                      two_step_combo(), build_complement_display()
       oxalate_link.py              — maybe_show_oxalate(fdc_id, food_name): check/display/prompt oxalate link
       portions.py                  — _pick_portion(), _parse_portion_input()
+      recipe_nutrients.py          — shared recursive recipe-ingredient expansion (CLI + web):
+                                     expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
       reports.py                   — export rendering support
       search.py                    — _search_and_pick_food(), _suggest_foundation_search()
     workflows/
@@ -1290,7 +1292,7 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 
 ## Test Suite
 
-The test suite has been rebuilt for the refactored `numa_app/` package structure. **408 tests**, all passing.
+The test suite has been rebuilt for the refactored `numa_app/` package structure. **414 tests**, all passing.
 
 Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `pythonpath = .`).
 
@@ -1306,6 +1308,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_cli.py` | All menus end-to-end; USDA API mocked; dietary prefs toggle; Foods item 3 (recipe portion analysis); profile settings and RDA comparison |
 | `tests/test_web.py` | FastAPI `TestClient` tests: every parameter-free page render, food search/detail, and all mutating POST workflows — pantry, meals (create/add/complete/delete/rename/merge/refresh-aa/add-recipe), recipes (new/edit/delete/copy/ingredient add-edit-move), custom profiles, settings (profile/DIAAS-override), food-cache delete/prune, annotate, and compare (add/add-multiple/remove/amounts/save/load/rename/delete) |
 | `tests/test_complements.py` | `numa_app/services/complements.py`: `aa_effects()` digestibility rescaling, `two_step_combo()`, `build_complement_display()` gap detection |
+| `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
 
 ### Test infrastructure
 

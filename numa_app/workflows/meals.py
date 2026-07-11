@@ -16,6 +16,7 @@ import usda as _usda
 from .. import state
 from ..services.annotations import maybe_prompt_gi
 from ..services.portions import _normalize_unit_display, _pick_portion
+from ..services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
 from ..ui.common import _prompt_with_options, _safe_call, _show_menu, dot_cell, table_title, section_title, help_footer
@@ -800,25 +801,7 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
 def _recipe_total_nutrients(recipe_id: int) -> dict[str, float]:
     """Return summed raw nutrients for all ingredients in a recipe, handling nested recipes."""
     with _db.get_db() as conn:
-        ings = _db.recipe_get_ingredients(conn, recipe_id)
-    total: dict[str, float] = {}
-    for ing in ings:
-        if ing["ref_recipe_id"]:
-            with _db.get_db() as conn:
-                sub = _db.recipe_get(conn, ing["ref_recipe_id"])
-            sub_servings = sub["servings"] if sub and sub["servings"] and sub["servings"] > 0 else 1
-            sub_total = _recipe_total_nutrients(ing["ref_recipe_id"])
-            portion = ing["amount"] / sub_servings
-            total = _usda.sum_nutrients(total, {k: v * portion for k, v in sub_total.items()})
-        else:
-            with _db.get_db() as conn:
-                cached = _db.get_cached_food(conn, ing["fdc_id"])
-            if cached:
-                scaled = _usda.scale_nutrients(
-                    json.loads(cached["nutrients_json"]), ing["amount"], base_size=100.0
-                )
-                total = _usda.sum_nutrients(total, scaled)
-    return total
+        return recipe_total_nutrients(recipe_id, conn)
 
 
 def _compute_meal_nutrients(meal_id: int) -> dict[str, float] | None:
@@ -865,51 +848,12 @@ def _compute_meal_ingredient_list(meal_id: int, force_refresh: bool = False) -> 
     def _best_nutrients(fdc_id: int, food_name: str) -> dict[str, float] | None:
         """Return the best available nutrient dict for a food, with AA data if possible."""
         if force_refresh:
-            refreshed = _refresh_cache_if_missing_aa(fdc_id)
-        else:
-            refreshed = None
+            _refresh_cache_if_missing_aa(fdc_id)
         with _db.get_db() as conn:
             cached = _db.get_cached_food(conn, fdc_id)
         if cached is None:
             return None
-        nutrients = refreshed if refreshed is not None else json.loads(cached["nutrients_json"])
-        # If still missing AA data, try merging from the complement table
-        if not _usda.has_amino_acid_data(nutrients):
-            complement = _usda.get_complement_nutrients(food_name)
-            if complement and _usda.has_amino_acid_data(complement):
-                # Scale complement table AAs to match actual protein content
-                actual_protein = nutrients.get("protein_g", 0)
-                ref_protein = complement.get("protein_g", 0)
-                if ref_protein > 0 and actual_protein > 0:
-                    scale = actual_protein / ref_protein
-                    merged = dict(nutrients)
-                    for k, v in complement.items():
-                        if k.startswith("aa_") and k not in merged:
-                            merged[k] = v * scale
-                    return merged
-        return nutrients
-
-    def _expand_ings(recipe_id: int, portion: float) -> list[dict]:
-        with _db.get_db() as conn:
-            ings = _db.recipe_get_ingredients(conn, recipe_id)
-        out: list[dict] = []
-        for ing in ings:
-            if ing["ref_recipe_id"]:
-                with _db.get_db() as conn:
-                    sub = _db.recipe_get(conn, ing["ref_recipe_id"])
-                sub_servings = sub["servings"] if sub and sub["servings"] and sub["servings"] > 0 else 1
-                sub_portion = ing["amount"] / sub_servings * portion
-                out.extend(_expand_ings(ing["ref_recipe_id"], sub_portion))
-            else:
-                nutrients = _best_nutrients(ing["fdc_id"], ing["food_name"])
-                if nutrients is not None:
-                    out.append({
-                        "food_name":      ing["food_name"],
-                        "fdc_id":         ing["fdc_id"],
-                        "nutrients_100g": nutrients,
-                        "grams":          ing["amount"] * portion,
-                    })
-        return out
+        return best_aa_nutrients(json.loads(cached["nutrients_json"]), food_name)
 
     result: list[dict] = []
     for item in items:
@@ -925,9 +869,17 @@ def _compute_meal_ingredient_list(meal_id: int, force_refresh: bool = False) -> 
         elif item["item_type"] == "recipe":
             with _db.get_db() as conn:
                 recipe = _db.recipe_get(conn, item["recipe_id"])
-            if recipe:
-                portion = item["amount"] / recipe["servings"] if recipe["servings"] and recipe["servings"] > 0 else item["amount"]
-                result.extend(_expand_ings(item["recipe_id"], portion))
+                if recipe:
+                    portion = item["amount"] / recipe["servings"] if recipe["servings"] and recipe["servings"] > 0 else item["amount"]
+                    leaves = expand_recipe_ingredients(
+                        item["recipe_id"], conn, portion_factor=portion, refresh_missing_aa=force_refresh,
+                    )
+                else:
+                    leaves = []
+            for leaf in leaves:
+                nutrients = best_aa_nutrients(leaf["nutrients_100g"], leaf["food_name"])
+                if nutrients is not None:
+                    result.append({**leaf, "nutrients_100g": nutrients})
     return result
 
 
