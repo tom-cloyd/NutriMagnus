@@ -1,0 +1,338 @@
+"""
+complements.py — shared protein-complement display math for CLI (render.py)
+and web (backend.py). Both previously reimplemented this independently;
+extracting it here keeps AA-gap scoring and two-step combo pairing in one place.
+Docs: README-numa-documentation.md, Architecture: "numa_app/services/complements.py — complement display math"
+"""
+import usda as _usda
+
+Nutrients = dict[str, float]
+Gaps = list[tuple[str, float, float]]  # (aa_key, orig_score, deficit_g) from usda.get_aa_gaps
+
+AA_LOW_IN: dict[str, str] = {
+    "aa_methionine_g":    "grains (rice, wheat, quinoa) and most legumes",
+    "aa_lysine_g":        "grains (rice, wheat, corn, oats)",
+    "aa_threonine_g":     "wheat and refined grains",
+    "aa_leucine_g":       "most plant foods other than soy",
+    "aa_isoleucine_g":    "legumes and most plant foods",
+    "aa_valine_g":        "most plant foods",
+    "aa_tryptophan_g":    "untreated corn-based foods",
+    "aa_histidine_g":     "most plant foods",
+    "aa_phenylalanine_g": "most plant foods",
+}
+
+
+def aa_effects(s: dict, gaps: Gaps, *, digestibility: float = 1.0, limit: int = 3) -> list[dict]:
+    """Before/after AA scores for a single suggestion, against the top `limit` gaps.
+
+    `digestibility` scales the suggestion's raw new_scores onto the same basis
+    as `gaps`' orig_scores (which were computed at some fixed digestibility —
+    1.0 for meal/daily contexts, the food's own DIAAS for food/recipe contexts).
+    Falls back to orig_score when the suggestion has no new_scores entry for an AA.
+    """
+    effects = []
+    new_scores = s.get("new_scores", {})
+    for aa, orig_score, _ in gaps[:limit]:
+        new_raw = new_scores.get(aa)
+        if new_raw is not None and digestibility > 0:
+            new_score = new_raw * digestibility
+        else:
+            new_score = orig_score
+        effects.append({
+            "label":  _usda.nutrient_label(aa)[0],
+            "before": round(orig_score, 2),
+            "after":  round(new_score, 2),
+            "met":    new_score >= 1.0,
+        })
+    return effects
+
+
+def two_step_combo(
+    gc: dict,
+    base_nutrients: Nutrients,
+    *,
+    base_protein: float,
+    base_digestible: float,
+    pantry_candidates: list[dict],
+    diet_pref: str,
+    gaps: Gaps,
+    max_improver_grams: float,
+    fallback_digestibility: float = 1.0,
+    aa_effects_limit: int = 3,
+) -> dict | None:
+    """Pair a gap-closer (Step 1) with the best DIAAS-booster for the resulting
+    protein pool (Step 2, if one qualifies). Returns None if `gc` has no cached
+    nutrient profile to build a pool from.
+
+    fallback_digestibility: the base food's own digestibility (1.0 for meal/daily
+    contexts; the food's actual DIAAS for food/recipe contexts) — used both as the
+    default pool digestibility when `gc` has no predicted_diaas, and to scale
+    Step 1's aa_effects onto the same basis as `gaps`.
+    """
+    comp_nutrients = gc.get("comp_nutrients")
+    if not comp_nutrients:
+        return None
+
+    gc_grams = gc["grams"]
+    gc_raw = float(gc.get("protein_added") or 0)
+    gc_diaas = gc.get("predicted_diaas") or fallback_digestibility
+    gc_dcp = round((base_protein + gc_raw) * min(1.0, gc_diaas), 1)
+
+    combined = _usda.sum_nutrients(
+        base_nutrients, _usda.scale_nutrients(comp_nutrients, gc_grams)
+    )
+    sub = _usda.suggest_complements(
+        combined, pantry_candidates, diet_pref=diet_pref,
+        base_digestibility=gc_diaas, max_improver_grams=max_improver_grams,
+    )
+    qualifying = [
+        b for b in sub.get("diaas_improvers", [])
+        if b.get("steps") and b["steps"][0]["new_diaas"] > gc_diaas
+    ]
+
+    step1 = {
+        "name":       gc.get("name", ""),
+        "fdc_id":     gc.get("fdc_id"),
+        "diaas":      round(gc["diaas"], 2) if gc.get("diaas") else None,
+        "grams":      gc_grams,
+        "aa_effects": aa_effects(gc, gaps, digestibility=fallback_digestibility, limit=aa_effects_limit),
+        "dcp_before": round(base_digestible, 1),
+        "dcp_after":  gc_dcp,
+    }
+
+    step2 = None
+    if qualifying:
+        b = qualifying[0]
+        b_step = b["steps"][0]
+        b_dcp = b_step.get("dcp")
+        step2 = {
+            "name":       b.get("name", ""),
+            "fdc_id":     b.get("fdc_id"),
+            "diaas":      round(b["diaas"], 2) if b.get("diaas") else None,
+            "grams":      b_step["grams"],
+            "new_diaas":  b_step["new_diaas"],
+            "dcp_before": gc_dcp,
+            "dcp_after":  b_dcp,
+            "net_gain":   round(b_dcp - base_digestible, 1) if b_dcp is not None else None,
+        }
+
+    return {"step1": step1, "step2": step2, "gc_diaas": gc_diaas}
+
+
+_GRAD_THRESHOLD = 30  # grams; above this, show a graduated 25/50/75/100% scale
+
+
+def build_complement_display(
+    base_nutrients: Nutrients,
+    pantry_candidates: list[dict],
+    *,
+    diet_pref: str = "all",
+    digestibility: float = 1.0,
+    base_food_name: str | None = None,
+    max_improver_grams: float = 120,
+    pantry_limit: int = 3,
+    general_limit: int = 6,
+    pair_limit: int = 6,
+    improver_limit: int = 3,
+    two_step_limit: int = 3,
+) -> dict:
+    """Build the full complement-suggestion display structure for one base food/meal/recipe.
+
+    `digestibility` is the basis gaps/scores are computed and compared at: 1.0 for
+    meal/daily contexts (a pooled DIAAS can't be re-applied as a per-food multiplier),
+    or the food's own DIAAS for single-food/recipe contexts. All internal AA-score
+    comparisons are done on this same basis — usda.suggest_complements()'s "new_scores"
+    are always raw (pre-digestibility) per its docstring, so every comparison against
+    `gaps`' digestibility-adjusted orig_scores must first rescale new_scores by
+    `digestibility`; skipping that step (as the web backend previously did for
+    single-food pages) silently overstates AA "after" scores whenever digestibility < 1.0.
+
+    Returns {"no_data": True}, {"no_gaps": True}, or the full display dict consumed
+    by both the CLI (numa_app/ui/render.py) and the web templates.
+    """
+    if not base_nutrients or base_nutrients.get("protein_g", 0) <= 0:
+        return {"no_data": True}
+    try:
+        gaps = _usda.get_aa_gaps(base_nutrients, digestibility=digestibility)
+    except Exception:
+        return {"no_data": True}
+    if not gaps:
+        return {"no_gaps": True}
+
+    try:
+        suggestions = _usda.suggest_complements(
+            base_nutrients, pantry_candidates, diet_pref=diet_pref,
+            base_digestibility=digestibility,
+            base_food_name=base_food_name,
+            max_improver_grams=max_improver_grams,
+        )
+    except Exception:
+        return {"no_data": True}
+
+    base_protein = base_nutrients.get("protein_g", 0.0)
+    base_digestible = base_protein * digestibility
+
+    def _adj_min(new_scores: dict) -> float:
+        """Rescale the raw new_scores' minimum onto the digestibility-adjusted basis."""
+        return min(new_scores.values()) * digestibility
+
+    def _total_dig(s: dict) -> float:
+        raw = float(s.get("protein_added") or 0)
+        dig = float(s.get("digestible_protein_added") or 0)
+        new_scores = s.get("new_scores", {})
+        if new_scores and gaps:
+            old_adj_min = gaps[0][1]
+            new_adj_min = _adj_min(new_scores)
+            scale = (new_adj_min / old_adj_min) if old_adj_min > 0 else 1.0
+            return round((base_protein + raw) * min(1.0, scale), 1)
+        return round(base_digestible + dig, 1)
+
+    def _dcp_at_frac(frac: float, raw_full: float, new_scores_full: dict) -> float | None:
+        """DCP of the combined pool (base + frac*complement) using the weighted-pool IAA formula."""
+        if not gaps or not new_scores_full or raw_full <= 0:
+            return None
+        total_p = base_protein + frac * raw_full
+        if total_p <= 0:
+            return None
+        min_score = 1.0
+        for aa_key, base_score_i, *_ in gaps:
+            if aa_key not in new_scores_full:
+                continue
+            new_adj = new_scores_full[aa_key] * digestibility
+            comp_aa = new_adj * (base_protein + raw_full) - base_score_i * base_protein
+            score_at_f = (base_score_i * base_protein + frac * comp_aa) / total_p
+            min_score = min(min_score, score_at_f)
+        return round(total_p * min(1.0, min_score), 1)
+
+    def _grad_steps(full_grams: float | None, dig_full: float,
+                    raw_full: float = 0.0, new_scores_full: dict | None = None) -> list[dict]:
+        if not full_grams or full_grams <= _GRAD_THRESHOLD:
+            return []
+        seen: set[int] = set()
+        steps = []
+        for frac in (0.25, 0.50, 0.75, 1.0):
+            g = max(1, round(full_grams * frac))
+            if g not in seen:
+                seen.add(g)
+                dcp = _dcp_at_frac(frac, raw_full, new_scores_full or {})
+                steps.append({"grams": g, "dig_protein": round(dig_full * frac, 1), "dcp": dcp})
+        return steps
+
+    def _fmt(s: dict) -> dict:
+        raw = float(s.get("protein_added") or 0)
+        dig = float(s.get("digestible_protein_added") or 0)
+        full_grams = s.get("grams")
+        new_scores = s.get("new_scores", {})
+        return {
+            "name":              s.get("name", ""),
+            "grams":             full_grams,
+            "grad_steps":        _grad_steps(full_grams, dig, raw_full=raw, new_scores_full=new_scores),
+            "fdc_id":            s.get("fdc_id"),
+            "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
+            "new_complete":      s.get("new_complete", False),
+            "dig_protein_added": round(dig, 1),
+            "protein_added":     round(raw, 1),
+            "opens_new_gap":     s.get("opens_new_gap", False),
+            "aa_effects":        aa_effects(s, gaps, digestibility=digestibility),
+            "total_dig":         _total_dig(s),
+        }
+
+    def _fmt_improver(s: dict) -> dict:
+        raw = float(s.get("protein_added") or 0)
+        dig = float(s.get("digestible_protein_added") or 0)
+        new_diaas = s.get("new_diaas") or 0.0
+        total_dig = (round((base_protein + raw) * min(1.0, new_diaas), 1) if new_diaas
+                     else round(base_digestible + dig, 1))
+        return {
+            "name":              s.get("name", ""),
+            "grams":             s.get("grams"),
+            "fdc_id":            s.get("fdc_id"),
+            "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
+            "current_diaas":     s.get("current_diaas"),
+            "new_diaas":         s.get("new_diaas"),
+            "steps":             s.get("steps", []),
+            "dig_protein_added": round(dig, 1),
+            "protein_added":     round(raw, 1),
+            "total_dig":         total_dig,
+        }
+
+    def _fmt_pair(p: dict) -> dict:
+        foods_out = [
+            {
+                "name":          f.get("name", ""),
+                "fdc_id":        f.get("fdc_id"),
+                "diaas":         round(f["diaas"], 2) if f.get("diaas") else None,
+                "grams":         f.get("grams"),
+                "protein_added": f.get("protein_added", 0),
+                "dig_added":     f.get("dig_added", 0),
+            }
+            for f in p.get("foods", [])
+        ]
+        new_scores = p.get("new_scores", {})
+        total_raw  = base_protein + float(p.get("total_protein_added") or 0)
+        if new_scores and gaps:
+            old_adj_min = gaps[0][1]
+            new_adj_min = _adj_min(new_scores)
+            scale = (new_adj_min / old_adj_min) if old_adj_min > 0 else 1.0
+            total_dig_complete = round(total_raw * min(1.0, scale), 1)
+        else:
+            total_dig_complete = round(base_digestible + float(p.get("total_dig_added") or 0), 1)
+        return {
+            "foods":               foods_out,
+            "total_grams":         p.get("total_grams"),
+            "gaps_closed":         p.get("gaps_closed", False),
+            "new_complete":        p.get("new_complete", False),
+            "total_protein_added": p.get("total_protein_added", 0),
+            "total_dig_added":     p.get("total_dig_added", 0),
+            "total_dig_complete":  total_dig_complete,
+            "aa_effects":          aa_effects({"new_scores": new_scores}, gaps, digestibility=digestibility),
+        }
+
+    sort_key = lambda s: (0 if s.get("new_complete") else 1, float(s.get("grams") or 999))
+    pantry_suggs    = sorted(suggestions.get("pantry",  []), key=sort_key)[:pantry_limit]
+    general_suggs   = sorted(suggestions.get("general", []), key=sort_key)[:general_limit]
+    pair_suggs      = suggestions.get("pairs", [])[:pair_limit]
+    diaas_improvers = suggestions.get("diaas_improvers", [])[:improver_limit]
+
+    two_step_combos: list[dict] = []
+    top_gap_closers = (pantry_suggs + general_suggs)[:two_step_limit]
+    if top_gap_closers and diaas_improvers:
+        for gc in top_gap_closers:
+            combo = two_step_combo(
+                gc, base_nutrients,
+                base_protein=base_protein, base_digestible=base_digestible,
+                pantry_candidates=pantry_candidates, diet_pref=diet_pref,
+                gaps=gaps, max_improver_grams=max_improver_grams,
+                fallback_digestibility=digestibility,
+            )
+            if combo is not None:
+                two_step_combos.append(combo)
+
+    gap_rows = [{"label": _usda.nutrient_label(k)[0], "score": round(v, 3)} for k, v, _ in gaps[:4]]
+    limiting_aa = gaps[0][0] if gaps else None
+    limiting_label = _usda.nutrient_label(limiting_aa)[0] if limiting_aa else "this amino acid"
+    low_in = AA_LOW_IN.get(limiting_aa or "", "many plant foods")
+    n_shown = len(pantry_suggs) + len(general_suggs)
+    exhausted_prefix = ("All options that qualify are shown above — no others meet the criteria."
+                        if n_shown > 0 else "No qualifying options found in the database.")
+
+    return {
+        "no_gaps":           False,
+        "gaps":              gap_rows,
+        "ranking_note":      "Ranked by grams needed (smallest first). Exception: an option that fully completes the amino acid profile is promoted to the top — but only if its serving is 50 g or less.",
+        "pantry_empty":      not pantry_candidates,
+        "pantry_no_qualify": bool(pantry_candidates) and not pantry_suggs,
+        "pantry":            [_fmt(s) for s in pantry_suggs],
+        "general":           [_fmt(s) for s in general_suggs],
+        "pairs":             [_fmt_pair(p) for p in pair_suggs],
+        "diaas_improvers":   [_fmt_improver(s) for s in diaas_improvers],
+        "two_step_combos":   two_step_combos,
+        "have_gap_closers":  bool(pantry_suggs or general_suggs),
+        "exhausted_msg": (
+            f"{exhausted_prefix} A qualifying complement must have a {limiting_label}/protein ratio "
+            f"above the FAO reference to close the gap to score 1.0 in a practical serving (≤ 500 g). "
+            f"Score 1.0 = meets human requirements (the floor, not an aspirational target). "
+            f"Foods that don't qualify for a {limiting_label} gap: {low_in}. "
+            f"Their ratio falls below the reference — adding them dilutes the score further."
+        ),
+    }

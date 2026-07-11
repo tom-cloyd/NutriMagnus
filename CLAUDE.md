@@ -46,6 +46,8 @@ numa_app/
                        _print_recipe_bioavailability, _print_rda_comparison
   services/
     annotations.py   — GI/DIAAS annotation prompts for foods
+    complements.py   — shared complement-suggestion math (CLI + web): aa_effects(),
+                       two_step_combo(), build_complement_display()
     portions.py      — _parse_portion_input(), _pick_portion()
     search.py        — _search_and_pick_food()
     reports.py       — auto-save + user-export offer
