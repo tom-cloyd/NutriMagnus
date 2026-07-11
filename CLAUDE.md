@@ -58,7 +58,9 @@ numa_app/
     recipe_analysis.py — _do_recipe_view (full nutrition analysis)
     recipe_edit.py   — _do_recipe_edit
     settings.py      — Settings menu
-    summary.py       — Daily Summary menu
+    analysis.py      — Analysis menu dispatch (daily summary, food use in meals)
+    summary.py       — Daily summary - DCP and goals
+    food_use.py      — Food use in meals (frequency-of-use table + histogram)
 ```
 
 ---

@@ -14,6 +14,7 @@ import db as _db
 import profile as _profile
 import usda as _usda
 from .. import state
+from ..services.annotations import maybe_prompt_gi
 from ..services.portions import _normalize_unit_display, _pick_portion
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
@@ -236,7 +237,7 @@ def _menu_meals() -> bool:
         has_more = len(meals) > _MEALS_PAGE
         page = meals[:_MEALS_PAGE]
 
-        # Compute day BCP totals from whatever is stored in DB for each date in view.
+        # Compute day DCP totals from whatever is stored in DB for each date in view.
         dates_in_page = {m["meal_date"] for m in page}
         day_bcp: dict[str, float | None] = {}
         for _d in dates_in_page:
@@ -259,7 +260,7 @@ def _menu_meals() -> bool:
         if before_date:
             title += f"  [grey62]— from {before_date}[/grey62]"
         if protein_target:
-            title += f"  [grey62]— daily BCP goal = {protein_target:.0f} grams[/grey62]"
+            title += f"  [grey62]— daily DCP goal = {protein_target:.0f} grams[/grey62]"
         section_title(title)
 
         _W_NAME = 24
@@ -270,8 +271,8 @@ def _menu_meals() -> bool:
             tbl.add_column("Complete", justify="center", min_width=8)
             tbl.add_column("Meal",     min_width=_W_NAME, max_width=_W_NAME, no_wrap=True)
             tbl.add_column("Items",    justify="right",  min_width=5)
-            tbl.add_column("Meal BCP",     justify="right",  min_width=8)
-            tbl.add_column("Day BCP",      justify="right",  min_width=7)
+            tbl.add_column("Meal DCP",     justify="right",  min_width=8)
+            tbl.add_column("Day DCP",      justify="right",  min_width=7)
             tbl.add_column("% profile goal", justify="left",  min_width=13)
             s = state.T["success"]
             dates_seen: set[str] = set()
@@ -316,7 +317,7 @@ def _menu_meals() -> bool:
                 )
             state.console.print(tbl)
             state.console.print(
-                "  [grey62]BCP = bioavailable (digestible) complete protein  ·  values are saved[/grey62]",
+                "  [grey62]DCP = bioavailable (digestible) complete protein  ·  values are saved[/grey62]",
                 highlight=False,
             )
             help_footer("meals-list")
@@ -342,8 +343,8 @@ def _menu_meals() -> bool:
             state.console.print("  [grey62]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/grey62]", highlight=False)
             state.console.print("  [grey62]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/grey62]", highlight=False)
         state.console.print("  [grey62]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/grey62]", highlight=False)
-        state.console.print("  [grey62]  p ············  Compute/recompute BCP for all complete meals (shown and not shown)[/grey62]", highlight=False)
-        state.console.print("  [grey62]  p{N}-{M} ······  Compute BCP for complete meals in ID range  (e.g. p60-67)[/grey62]", highlight=False)
+        state.console.print("  [grey62]  p ············  Compute/recompute DCP for all complete meals (shown and not shown)[/grey62]", highlight=False)
+        state.console.print("  [grey62]  p{N}-{M} ······  Compute DCP for complete meals in ID range  (e.g. p60-67)[/grey62]", highlight=False)
         if has_more:
             state.console.print("  [grey62]  mr ···········  Show next 15 older meals[/grey62]", highlight=False)
         state.console.print("  [grey62]  d{YYYY-MM-DD}   Jump to meals on or before a date  (e.g. d2025-03-15)[/grey62]", highlight=False)
@@ -391,13 +392,13 @@ def _menu_meals() -> bool:
             if not to_compute:
                 state.console.print("  [grey62]No complete meals found in that range.[/grey62]")
                 continue
-            state.console.print(f"  [grey62]Computing BCP for {len(to_compute)} meal(s)…[/grey62]")
-            with state.console.status("[bold]Computing BCP…[/bold]", spinner="dots"):
+            state.console.print(f"  [grey62]Computing DCP for {len(to_compute)} meal(s)…[/grey62]")
+            with state.console.status("[bold]Computing DCP…[/bold]", spinner="dots"):
                 for m in to_compute:
                     bcp = _compute_meal_bcp(m["id"])
                     with _db.get_db() as conn:
                         _db.meal_set_bcp(conn, m["id"], bcp)
-            # Update Day BCP totals for all affected dates.
+            # Update Day DCP totals for all affected dates.
             affected_dates = {m["meal_date"] for m in to_compute}
             for _d in affected_dates:
                 with _db.get_db() as conn:
@@ -413,7 +414,7 @@ def _menu_meals() -> bool:
                     if dm["complete"]:
                         with _db.get_db() as conn:
                             _db.meal_set_day_pct_goal(conn, dm["id"], pct)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] BCP computed for {len(to_compute)} meal(s).")
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] DCP computed for {len(to_compute)} meal(s).")
             continue
         if rl == "mr" and has_more:
             offset += _MEALS_PAGE
@@ -644,6 +645,10 @@ def _meal_add_items(meal_id: int) -> None:
             with _db.get_db() as conn:
                 _db.meal_add_food(conn, meal_id, food["fdcId"], food["name"], grams, label, notes)
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
+            try:
+                maybe_prompt_gi(food["fdcId"], food["name"])
+            except Cancelled:
+                pass
             _print_meal_items(meal_id, meal_name)
             _print_meal_protein_summary(meal_id)
 
@@ -1519,6 +1524,7 @@ def _print_meal_history_flat(rows: list, query: str) -> None:
     _W_NOTE = 16
     table_title("MEAL HISTORY — OCCURRENCES", f"[grey62]search: '{query}'[/grey62]")
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+    tbl.add_column("ID",      min_width=5, justify="right")
     tbl.add_column("Date",    min_width=10, no_wrap=True)
     tbl.add_column("Meal",    min_width=_W_MEAL, max_width=_W_MEAL, no_wrap=True)
     tbl.add_column("Food / Recipe", min_width=_W_FOOD, max_width=_W_FOOD, no_wrap=True)
@@ -1529,7 +1535,7 @@ def _print_meal_history_flat(rows: list, query: str) -> None:
         portion   = r["unit"] if r["unit"] else (f"{r['amount']:.0f} g" if r["amount"] else "[grey62]—[/grey62]")
         notes     = r["notes"] or ""
         name_cell = (f"[bold]{r['food_name']}[/bold] [grey62](recipe)[/grey62]" if is_recipe else f"[bold]{r['food_name']}[/bold]")
-        tbl.add_row(r["meal_date"], r["meal_name"], name_cell, portion, notes)
+        tbl.add_row(f"[grey62]{r['meal_id']}[/grey62]", r["meal_date"], r["meal_name"], name_cell, portion, notes)
     state.console.print(tbl)
     help_footer("meal-history")
 

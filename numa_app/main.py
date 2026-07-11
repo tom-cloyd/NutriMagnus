@@ -21,7 +21,7 @@ from .workflows.foods import _menu_foods
 from .workflows.meals import _menu_meals
 from .workflows.settings import _menu_settings
 from .workflows.recipes import _menu_recipes
-from .workflows.summary import _menu_summary
+from .workflows.analysis import _menu_analysis
 
 _PROJECT_ROOT = Path(__file__).parent.parent
 _WEB_URL = "http://127.0.0.1:8000"
@@ -129,8 +129,8 @@ def _run_menu() -> None:
         state.console.print("     [grey62]create · browse/manage · develop (add/remove ingredients with nutritional feedback)[/grey62]")
         state.console.print(f"  [{state.T['accent']}]3.[/{state.T['accent']}] [bold]Meals & Log[/bold]")
         state.console.print("     [grey62]log meal · view/edit by date · analyze · delete[/grey62]")
-        state.console.print(f"  [{state.T['accent']}]4.[/{state.T['accent']}] [bold]Daily Summary[/bold]")
-        state.console.print("     [grey62]today · by date · recent days[/grey62]")
+        state.console.print(f"  [{state.T['accent']}]4.[/{state.T['accent']}] [bold]Analysis[/bold]")
+        state.console.print("     [grey62]daily summary · food use in meals[/grey62]")
         state.console.print(f"  [grey62]5.[/grey62] [bold]Settings[/bold]  [grey62](theme · user profile · dietary preferences · API key · DB path)[/grey62]")
         if _web_is_running():
             state.console.print(f"  [{state.T['success']}]w.[/{state.T['success']}] Web version  [grey62](running at {_WEB_URL} — opens new tab)[/grey62]")
@@ -166,7 +166,7 @@ def _run_menu() -> None:
                 if not _menu_meals():
                     break
             elif choice == "4":
-                if not _menu_summary():
+                if not _menu_analysis():
                     break
             elif choice == "5":
                 if not _menu_settings():

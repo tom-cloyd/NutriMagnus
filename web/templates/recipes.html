@@ -2,26 +2,39 @@
 {% block title %}NutriMagnus — Recipes{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center gap-3 mb-3">
+<div class="d-flex align-items-center gap-3 mb-1">
   <h2 class="mb-0">Recipes</h2>
   {{ manual_link("recipes") }}
   <a href="/recipe/new" class="btn btn-primary btn-sm">+ New recipe</a>
 </div>
 
+<p class="muted mb-3"><small>{{ total_count }} recipe{% if total_count != 1 %}s{% endif %} in database</small></p>
+
 <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
   <form method="get" action="/recipes">
+    <input type="hidden" name="sort" value="{{ sort }}">
     <div class="input-group" style="max-width:28rem">
-      <input type="text" class="form-control" name="q" value="{{ q }}"
+      <input type="text" class="form-control form-control-sm" name="q" value="{{ q }}"
              placeholder="Filter by name…" autofocus>
-      <button type="submit" class="btn btn-outline-secondary">Filter</button>
-      {% if q %}<a href="/recipes" class="btn btn-outline-secondary">Clear</a>{% endif %}
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
+      {% if q %}<a href="/recipes?sort={{ sort }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}
     </div>
   </form>
-  <form method="post" action="/recipes/compute-bcp">
-    <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}">
-    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute BCP for all complete recipes</button>
+  <form method="get" action="/recipes">
+    <input type="hidden" name="q" value="{{ q }}">
+    <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
+    <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      <option value="recent" {% if sort == "recent" %}selected{% endif %}>Last accessed</option>
+      <option value="name"   {% if sort == "name"   %}selected{% endif %}>Name</option>
+      <option value="dcp"    {% if sort == "dcp"    %}selected{% endif %}>DCP/serving</option>
+    </select>
   </form>
-  <small class="muted">BCP = digestible complete protein per serving</small>
+  <form method="post" action="/recipes/compute-bcp">
+    <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}{% if sort %}{% if q %}&{% else %}?{% endif %}sort={{ sort }}{% endif %}">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute DCP for all complete recipes</button>
+  </form>
+  <small class="muted">DCP = digestible complete protein per serving</small>
 </div>
 
 {% if not recipes %}

@@ -82,9 +82,14 @@
 </div>
 {% endif %}
 
+{% if next %}
+<p class="muted">No GI estimate on file for this food yet. Add one now, skip for this time only (you'll be asked again next time), or skip forever (add it later via Annotate a Food if you change your mind).</p>
+{% endif %}
+
 <div class="card" style="max-width:36rem">
   <div class="card-body">
     <form method="post" action="/food/annotate/{{ fdc_id }}">
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
       <div class="mb-3">
         <label for="gi_estimate" class="form-label">GI estimate <span class="muted">(0–100, optional)</span></label>
@@ -123,8 +128,18 @@
       </div>
 
       <button type="submit" class="btn btn-primary">Save annotation</button>
+      {% if next %}
+      <a href="{{ next }}" class="btn btn-outline-secondary ms-2">Skip for now</a>
+      {% else %}
       <a href="/food/annotate" class="btn btn-outline-secondary ms-2">Back to list</a>
+      {% endif %}
     </form>
+    {% if next %}
+    <form method="post" action="/food/annotate/{{ fdc_id }}/skip-forever" class="mt-2">
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Skip forever for this food</button>
+    </form>
+    {% endif %}
     {% if annotation %}
     <hr>
     <form method="post" action="/food/annotate/{{ fdc_id }}/clear"

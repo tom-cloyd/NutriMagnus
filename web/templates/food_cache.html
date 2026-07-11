@@ -13,7 +13,7 @@
 <p class="muted">All foods that have been loaded from USDA or Open Food Facts are stored here.</p>
 
 <form method="get" action="/food/cache" class="mb-3">
-  
+
   <div class="input-group" style="max-width:36rem">
     <input type="text" class="form-control" name="q" value="{{ q or '' }}"
            placeholder="Filter by name…" autofocus>
@@ -23,6 +23,15 @@
     {% endif %}
   </div>
 </form>
+
+<p class="mb-3">
+  <a href="/food/cache/prune" class="btn btn-sm btn-outline-secondary"
+     title="Remove foods not used in any pantry entry, recipe, or meal">Prune unused foods</a>
+</p>
+
+{% if pruned %}
+<div class="alert alert-success">Pruned {{ pruned }} unused food{% if pruned != 1 %}s{% endif %} from the cache.</div>
+{% endif %}
 
 {% if refresh_error is defined and refresh_error %}
 <div class="alert alert-danger">{{ refresh_error }}</div>

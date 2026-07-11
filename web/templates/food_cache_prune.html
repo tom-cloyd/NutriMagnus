@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Prune Unused Foods{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache">Food Cache</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Prune Unused Foods</li>
+  </ol>
+</nav>
+
+<h2>Prune Unused Foods</h2>
+<p class="muted">Foods below are not referenced by any pantry entry, recipe ingredient, or logged meal item. User-drafted foods (created or edited by hand) are protected and never listed here.</p>
+
+{% if unused %}
+<p><strong>{{ unused|length }}</strong> unused food{% if unused|length != 1 %}s{% endif %} will be deleted from the cache.</p>
+<div class="table-responsive mb-3">
+  <table class="table table-sm table-hover" style="max-width:44rem">
+    <thead class="table-light">
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in unused %}
+      <tr>
+        <td class="muted" style="white-space:nowrap">{% if f.fdc_id < 0 %}OFF{% else %}{{ f.fdc_id }}{% endif %}</td>
+        <td>{{ f.name }}</td>
+        <td class="muted"><small>{{ f.data_type or "—" }}</small></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<form method="post" action="/food/cache/prune" class="d-flex gap-2">
+  <button type="submit" class="btn btn-danger btn-sm"
+          onclick="return confirm('Delete {{ unused|length }} unused food{{ "s" if unused|length != 1 else "" }} from cache? This cannot be undone.')">
+    Prune {{ unused|length }} food{% if unused|length != 1 %}s{% endif %}
+  </button>
+  <a href="/food/cache" class="btn btn-outline-secondary btn-sm">Cancel</a>
+</form>
+{% else %}
+<p class="muted">Nothing to prune — every cached food is referenced by a pantry entry, recipe, or meal.</p>
+<a href="/food/cache" class="btn btn-outline-secondary btn-sm">Back to Food Cache</a>
+{% endif %}
+{% endblock %}

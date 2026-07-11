@@ -180,6 +180,9 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if diaas_display.omitted_low_protein %}
+  <p class="muted mt-1"><small>Foods without a meaningful amount of protein (&lt;0.1&thinsp;g) are omitted from this table.</small></p>
+  {% endif %}
   {% endif %}
 
   {# ── 3b. Meal amino acid ratios ─────────────────────────────────────────── #}

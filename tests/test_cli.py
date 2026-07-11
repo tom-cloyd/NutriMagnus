@@ -15,7 +15,8 @@ Strategy:
     so tests don't write real files and don't need extra input lines.
 
 Input sequence notation used in comments:
-    Main menu choices: 1=Foods, 2=Recipes, 3=Meals, 4=Summary, 5=Settings, q=Quit
+    Main menu choices: 1=Foods, 2=Recipes, 3=Meals, 4=Analysis, 5=Settings, q=Quit
+    Analysis submenu:  1=Daily summary - DCP and goals, 2=Food use in meals, m=Main, q=Quit
     Foods submenu:     1=Search, 2=Analyze USDA portion, 3=Analyze recipe portion,
                        4=Convert, 5=View cached, 6=Pantry, b=Back, q=Quit
     Recipes submenu:   1=Create, 2=Browse (action+id: v/e/x/a/d/c), 3=Develop, b=Back, q=Quit
@@ -40,6 +41,7 @@ from tests.conftest import (
     SAMPLE_FDC_ID,
     SAMPLE_FOOD_DETAIL,
     SAMPLE_NUTRIENTS,
+    SAMPLE_NUTRIENTS_2,
     SAMPLE_SEARCH_RESULTS,
     NumaTestRunner,
 )
@@ -271,6 +273,25 @@ class TestFoodsMenu:
         assert result.exit_code == 0
         assert "Chicken" in result.output
 
+    def test_prune_unused_deletes_unreferenced_food(self, runner: NumaTestRunner, cached_food):
+        # cached_food is not referenced by any pantry entry, recipe, or meal.
+        # Foods(1) -> Food Cache(6) -> prune(u) -> confirm(y) -> back -> quit
+        result = runner.invoke(input="1\n6\nu\ny\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Pruned 1 unused food" in result.output
+        with _db.get_db() as conn:
+            assert _db.get_cached_food(conn, cached_food["fdcId"]) is None
+
+    def test_prune_unused_none_to_prune(self, runner: NumaTestRunner, db_conn, cached_food):
+        # Reference the food from the pantry so it's no longer "unused"
+        with _db.get_db() as conn:
+            _db.pantry_add(conn, cached_food["name"], cached_food["fdcId"])
+        result = runner.invoke(input="1\n6\nu\nb\nq\n")
+        assert result.exit_code == 0
+        assert "No unused foods to prune" in result.output
+        with _db.get_db() as conn:
+            assert _db.get_cached_food(conn, cached_food["fdcId"]) is not None
+
     def test_search_offers_portion_analysis_accept(self, runner: NumaTestRunner, monkeypatch):
         """After viewing per-100g nutrients, pressing y leads to scaled portion output."""
         _mock_api(monkeypatch)
@@ -501,7 +522,7 @@ class TestMealsMenu:
             assert _db.meal_list_by_date(conn, "2025-03-15") == []
 
     # ------------------------------------------------------------------
-    # BCP columns and p-command
+    # DCP columns and p-command
     # ------------------------------------------------------------------
 
     def test_meal_set_bcp_stores_value(self, db_conn):
@@ -536,16 +557,16 @@ class TestMealsMenu:
         assert bcp > 0.0
 
     def test_bcp_columns_shown_in_table(self, runner: NumaTestRunner, monkeypatch, cached_food):
-        """Meal BCP and Day BCP column headers always appear in the meals list."""
+        """Meal DCP and Day DCP column headers always appear in the meals list."""
         _mock_api(monkeypatch)
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         result = runner.invoke(input="3\nb\nq\n")
         assert result.exit_code == 0
-        assert "Meal BCP" in result.output
-        assert "Day BCP" in result.output
+        assert "Meal DCP" in result.output
+        assert "Day DCP" in result.output
 
     def test_bcp_footer_explains_abbreviation(self, runner: NumaTestRunner, monkeypatch, cached_food):
-        """Footer below the table explains what BCP means and that p recomputes."""
+        """Footer below the table explains what DCP means and that p recomputes."""
         _mock_api(monkeypatch)
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         result = runner.invoke(input="3\nb\nq\n")
@@ -557,16 +578,16 @@ class TestMealsMenu:
         _mock_api(monkeypatch)
         # n=new → date → name → 1=add items → search → pick → 100g → note → d=done → 6=mark complete → b=back
         runner.invoke(
-            input=f"3\nn\n{date}\n{name}\n1\nchicken\n1\n100 g\n\nd\n6\nb\nq\n"
+            input=f"3\nn\n{date}\n{name}\n1\nchicken\n1\n100 g\n\n\nd\n6\nb\nq\n"
         )
 
     def test_p_command_computes_bcp_for_complete_meal(self, runner: NumaTestRunner, monkeypatch, cached_food):
-        """Pressing p computes BCP and it appears in the table output."""
+        """Pressing p computes DCP and it appears in the table output."""
         self._setup_complete_meal(runner, monkeypatch)
-        # p=compute BCP → table re-renders with value → b=back → q=quit
+        # p=compute DCP → table re-renders with value → b=back → q=quit
         result = runner.invoke(input="3\np\nb\nq\n")
         assert result.exit_code == 0
-        # BCP value should appear as "XX.X g" in the output
+        # DCP value should appear as "XX.X g" in the output
         assert " g" in result.output
         # Stored in DB
         with _db.get_db() as conn:
@@ -583,13 +604,13 @@ class TestMealsMenu:
         assert "No complete meals" in result.output
 
     def test_bcp_persists_across_sessions(self, runner: NumaTestRunner, monkeypatch, cached_food):
-        """BCP computed via p is stored in the DB and shown in subsequent sessions."""
+        """DCP computed via p is stored in the DB and shown in subsequent sessions."""
         self._setup_complete_meal(runner, monkeypatch)
         runner.invoke(input="3\np\nb\nq\n")  # compute and store
         # Fresh session: visit meals list without pressing p
         result = runner.invoke(input="3\nb\nq\n")
         assert result.exit_code == 0
-        # A numeric BCP value (not just "—") should appear
+        # A numeric DCP value (not just "—") should appear
         with _db.get_db() as conn:
             row = _db.meal_list_by_date(conn, "2025-03-15")[0]
         stored = row["bcp_g"]
@@ -597,12 +618,12 @@ class TestMealsMenu:
         assert f"{stored:.1f} g" in result.output
 
     def test_day_bcp_sums_complete_meals_on_same_date(self, runner: NumaTestRunner, monkeypatch, cached_food):
-        """Day BCP = sum of BCP for all complete meals on the date, shown only on the topmost row."""
+        """Day DCP = sum of DCP for all complete meals on the date, shown only on the topmost row."""
         self._setup_complete_meal(runner, monkeypatch, name="Breakfast")
         runner.invoke(
-            input="3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n100 g\n\nd\n6\nb\nq\n"
+            input="3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n100 g\n\n\nd\n6\nb\nq\n"
         )
-        runner.invoke(input="3\np\nb\nq\n")  # compute BCPs
+        runner.invoke(input="3\np\nb\nq\n")  # compute DCPs
         with _db.get_db() as conn:
             meals = _db.meal_list_by_date(conn, "2025-03-15")
         bcps = [m["bcp_g"] for m in meals if m["bcp_g"] is not None]
@@ -645,7 +666,7 @@ class TestMealsMenu:
         # Value shows in the table; title shows the goal in grams
         result = runner.invoke(input="3\nb\nq\n")
         assert f"{row['day_pct_goal']:.0f}%" in result.output
-        assert "daily BCP goal" in result.output
+        assert "daily DCP goal" in result.output
         assert "grams" in result.output
 
     def test_pct_goal_shown_only_on_topmost_row(
@@ -655,7 +676,7 @@ class TestMealsMenu:
         runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         self._setup_complete_meal(runner, monkeypatch, name="Breakfast")
         runner.invoke(
-            input="3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n100 g\n\nd\n6\nb\nq\n"
+            input="3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n100 g\n\n\nd\n6\nb\nq\n"
         )
         runner.invoke(input="3\np\nb\nq\n")
         with _db.get_db() as conn:
@@ -687,10 +708,10 @@ class TestSummaryMenu:
     def test_enter_and_back(self, runner: NumaTestRunner):
         result = runner.invoke(input="4\nb\nq\n")
         assert result.exit_code == 0
-        assert "Summary" in result.output
+        assert "Analysis" in result.output
 
     def test_today_summary_no_meals(self, runner: NumaTestRunner):
-        result = runner.invoke(input="4\n1\nb\nq\n")
+        result = runner.invoke(input="4\n1\n1\nb\nq\n")
         assert result.exit_code == 0
         assert "No meals" in result.output
 
@@ -699,7 +720,7 @@ class TestSummaryMenu:
         # Log a meal on a known date
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         # View summary for that date; 'n' declines the RDA comparison shown when a profile exists
-        result = runner.invoke(input="4\n2\n2025-03-15\nn\nb\nq\n")
+        result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\nb\nq\n")
         assert result.exit_code == 0
         assert "Calories" in result.output
         assert "Protein" in result.output
@@ -707,7 +728,7 @@ class TestSummaryMenu:
     def test_recent_days_shows_dates(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
-        result = runner.invoke(input="4\n3\nb\nq\n")
+        result = runner.invoke(input="4\n1\n3\nb\nq\n")
         assert result.exit_code == 0
         assert "2025-03-15" in result.output
 
@@ -878,7 +899,7 @@ class TestDailySummaryRDA:
         for f in _profile._PROFILES_DIR.glob("*.json"):
             f.unlink()
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
-        result = runner.invoke(input="4\n2\n2025-03-15\nb\nq\n")
+        result = runner.invoke(input="4\n1\n2\n2025-03-15\nb\nq\n")
         assert result.exit_code == 0
         assert "profile" in result.output.lower()
 
@@ -890,7 +911,7 @@ class TestDailySummaryRDA:
         # Log a meal
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         # View summary: decline complement → accept RDA comparison
-        result = runner.invoke(input="4\n2\n2025-03-15\nn\ny\nb\nq\n")
+        result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "rda" in result.output.lower() or "recommended" in result.output.lower()
 
@@ -900,7 +921,7 @@ class TestDailySummaryRDA:
         """RDA comparison table includes Protein row."""
         _mock_api(monkeypatch)
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
-        result = runner.invoke(input="4\n2\n2025-03-15\nn\ny\nb\nq\n")
+        result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
 
@@ -910,7 +931,96 @@ class TestDailySummaryRDA:
         """Declining the RDA comparison prompt does not print the table."""
         _mock_api(monkeypatch)
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100\ny\n\nd\nb\nq\n")
-        result = runner.invoke(input="4\n2\n2025-03-15\nn\nn\nb\nq\n")
+        result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\nn\nb\nq\n")
         assert result.exit_code == 0
         # Table header should not appear
         assert "% of RDA" not in result.output
+
+
+# ---------------------------------------------------------------------------
+# Food use in meals analysis
+# ---------------------------------------------------------------------------
+
+class TestFoodUseAnalysis:
+    def _seed(self, db_conn, cached_food):
+        """Second cached food + a 2-ingredient recipe logged into two meals on two dates."""
+        second_fdc_id = 999999
+        db_conn.execute("""
+            INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (second_fdc_id, "Brown rice, cooked", "SR Legacy", None, 100.0, "g",
+              json.dumps(SAMPLE_NUTRIENTS_2), json.dumps([])))
+        db_conn.commit()
+
+        with _db.get_db() as conn:
+            recipe_id = _db.recipe_create(conn, "Chicken and Rice", "", 2, "")
+            _db.recipe_add_ingredient(conn, recipe_id, cached_food["fdcId"], cached_food["name"], 150.0, "g")
+            _db.recipe_add_ingredient(conn, recipe_id, second_fdc_id, "Brown rice, cooked", 200.0, "g")
+
+            meal1 = _db.meal_create(conn, "Lunch", "2026-01-01")
+            _db.meal_add_food(conn, meal1, cached_food["fdcId"], cached_food["name"], 100.0, "g")
+
+            meal2 = _db.meal_create(conn, "Dinner", "2026-01-02")
+            _db.meal_add_recipe(conn, meal2, recipe_id, "Chicken and Rice", 1.0, "servings")
+
+        return meal1, meal2
+
+    def test_meal_ids_ranks_and_expands_recipe(self, runner: NumaTestRunner, db_conn, cached_food):
+        meal1, meal2 = self._seed(db_conn, cached_food)
+
+        # Analysis(4) -> Food use in meals(2) -> select by Meal IDs(2) -> both IDs -> All foods(1) -> quit
+        result = runner.invoke(input=f"4\n2\n2\n{meal1} {meal2}\n1\nq\n")
+        assert result.exit_code == 0
+        assert "Food Use in Meals" in result.output
+        # Chicken appears standalone (meal1) and expanded from the recipe (meal2).
+        # The table column truncates long names, so match a safe prefix.
+        chicken_prefix = cached_food["name"][:20]
+        assert chicken_prefix in result.output
+        # Recipe row and its expanded rice ingredient both appear
+        assert "Chicken and Rice" in result.output
+        assert "Brown rice, cooked" in result.output
+        # Chicken (2 days) ranks above the recipe / rice (1 day each)
+        chicken_pos = result.output.index(chicken_prefix)
+        rice_pos = result.output.index("Brown rice, cooked")
+        assert chicken_pos < rice_pos
+
+    def test_date_range_covers_both_meals(self, runner: NumaTestRunner, db_conn, cached_food):
+        meal1, meal2 = self._seed(db_conn, cached_food)
+
+        # Analysis(4) -> Food use in meals(2) -> select by Date range(s)(1) -> one range covering both dates -> All foods(1) -> quit
+        result = runner.invoke(input="4\n2\n1\n2026-01-01\n2026-01-02\nn\n1\nq\n")
+        assert result.exit_code == 0
+        assert "2 meal(s) across 2 distinct day(s)" in result.output
+        assert cached_food["name"][:20] in result.output
+        assert "Chicken and Rice" in result.output
+
+    def test_no_selection_shows_message(self, runner: NumaTestRunner):
+        # Select by Meal IDs(2), leave the ID field blank
+        result = runner.invoke(input="4\n2\n2\n\nq\n")
+        assert result.exit_code == 0
+        assert "nothing to analyze" in result.output.lower()
+
+    def test_protein_only_filter_excludes_zero_protein_food(self, runner: NumaTestRunner, db_conn, cached_food):
+        # A zero-protein food logged standalone on a separate date
+        zero_protein_nutrients = dict(SAMPLE_NUTRIENTS_2)
+        zero_protein_nutrients["protein_g"] = 0.0
+        db_conn.execute("""
+            INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (777777, "Olive oil", "SR Legacy", None, 100.0, "g",
+              json.dumps(zero_protein_nutrients), json.dumps([])))
+        db_conn.commit()
+
+        with _db.get_db() as conn:
+            meal1 = _db.meal_create(conn, "Lunch", "2026-02-01")
+            _db.meal_add_food(conn, meal1, cached_food["fdcId"], cached_food["name"], 100.0, "g")
+
+            meal2 = _db.meal_create(conn, "Dinner", "2026-02-02")
+            _db.meal_add_food(conn, meal2, 777777, "Olive oil", 15.0, "g")
+
+        # Select by Meal IDs(2) -> both -> Only protein-containing foods(2) -> quit
+        result = runner.invoke(input=f"4\n2\n2\n{meal1} {meal2}\n2\nq\n")
+        assert result.exit_code == 0
+        assert "protein-containing foods only" in result.output
+        assert cached_food["name"][:20] in result.output
+        assert "Olive oil" not in result.output

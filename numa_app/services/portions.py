@@ -125,8 +125,14 @@ def _ing_amount_display(unit_label: str | None, grams: float | None) -> str:
     parentheses when the label is volume-only and grams are known.
     """
     label = _normalize_unit_display(unit_label or "")
-    if grams and grams > 0 and not _HAS_WEIGHT_RE.search(label):
-        label = f"{label} ({grams:.4g} g)"
+    if grams and grams > 0:
+        if not re.search(r'\d', label):
+            # Legacy rows can store a bare unit ("g", "cup") with no quantity
+            # baked into the label; fall back to the known gram weight so the
+            # displayed string always starts with a re-parseable number.
+            return f"{grams:.4g} g"
+        if not _HAS_WEIGHT_RE.search(label):
+            label = f"{label} ({grams:.4g} g)"
     return label
 
 

@@ -1523,7 +1523,7 @@ async def food_compare_saved_delete(
 
 
 @app.get("/food/cache", response_class=HTMLResponse)
-async def food_cache_get(request: Request, q: str = ""):
+async def food_cache_get(request: Request, q: str = "", pruned: int = 0):
     with _db.get_db() as conn:
         if q.strip():
             rows = _db.search_cached_foods(conn, q.strip())
@@ -1548,8 +1548,9 @@ async def food_cache_get(request: Request, q: str = ""):
             "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
         })
     return templates.TemplateResponse(request, "food_cache.html", {
-        "foods": foods,
-        "q":     q,
+        "foods":  foods,
+        "q":      q,
+        "pruned": pruned,
     })
 
 
@@ -1558,6 +1559,23 @@ async def food_cache_delete(fdc_id: int = Form(...)):
     with _db.get_db() as conn:
         _db.delete_cached_food(conn, fdc_id)
     return RedirectResponse("/food/cache", status_code=303)
+
+
+@app.get("/food/cache/prune", response_class=HTMLResponse)
+async def food_cache_prune_get(request: Request):
+    """Preview foods not referenced by any pantry entry, recipe, or meal before pruning."""
+    with _db.get_db() as conn:
+        unused = _db.list_unused_cached_foods(conn)
+    return templates.TemplateResponse(request, "food_cache_prune.html", {
+        "unused": unused,
+    })
+
+
+@app.post("/food/cache/prune", response_class=RedirectResponse)
+async def food_cache_prune_post():
+    with _db.get_db() as conn:
+        deleted = _db.prune_unused_cached_foods(conn)
+    return RedirectResponse(f"/food/cache?pruned={len(deleted)}", status_code=303)
 
 
 @app.get("/food/cache/{fdc_id}/portions", response_class=HTMLResponse)
@@ -1803,6 +1821,11 @@ async def pantry_add(
     if food_name:
         with _db.get_db() as conn:
             _db.pantry_add(conn, food_name, fdc_id=fdc_id_int, notes=notes)
+    if fdc_id_int is not None and _gi_prompt_needed(fdc_id_int):
+        from urllib.parse import quote
+        return RedirectResponse(
+            f"/food/annotate/{fdc_id_int}?next={quote('/pantry?added=1')}", status_code=303
+        )
     return RedirectResponse("/pantry?added=1", status_code=303)
 
 
@@ -1971,6 +1994,15 @@ async def food_custom_profiles_copy(fdc_id: int):
     return RedirectResponse(f"/food/custom-profiles/{new_id}/edit", status_code=303)
 
 
+def _gi_prompt_needed(fdc_id: int) -> bool:
+    """True if this food has no GI estimate and prompts for it aren't suppressed."""
+    with _db.get_db() as conn:
+        ann = _db.get_food_annotation(conn, fdc_id)
+    if ann is None:
+        return True
+    return ann["gi_estimate"] is None and not ann["gi_no_prompt"]
+
+
 @app.get("/food/annotate", response_class=HTMLResponse)
 async def food_annotate_list(request: Request, q: str = ""):
     with _db.get_db() as conn:
@@ -1999,7 +2031,7 @@ async def food_annotate_list(request: Request, q: str = ""):
 
 
 @app.get("/food/annotate/{fdc_id}", response_class=HTMLResponse)
-async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = ""):
+async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "", next: str = ""):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         ann = _db.get_food_annotation(conn, fdc_id)
@@ -2010,6 +2042,7 @@ async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "")
         "food_name": food_name,
         "annotation": dict(ann) if ann else None,
         "saved":     bool(saved),
+        "next":      next,
     })
 
 
@@ -2021,6 +2054,7 @@ async def food_annotate_edit_post(
     prep_context:    str = Form(""),
     gi_no_prompt:    str = Form(""),
     diaas_no_prompt: str = Form(""),
+    next:            str = Form(""),
 ):
     gi   = float(gi_estimate)    if gi_estimate.strip()    else None
     dias = float(diaas_estimate) if diaas_estimate.strip() else None
@@ -2034,7 +2068,19 @@ async def food_annotate_edit_post(
             diaas_no_prompt=bool(diaas_no_prompt),
             prep_context=prep,
         )
+    if next:
+        return RedirectResponse(next, status_code=303)
     return RedirectResponse(f"/food/annotate/{fdc_id}?saved=1", status_code=303)
+
+
+@app.post("/food/annotate/{fdc_id}/skip-forever", response_class=RedirectResponse)
+async def food_annotate_skip_forever(fdc_id: int, next: str = Form("")):
+    """Suppress future GI prompts for this food without touching any other annotation field."""
+    with _db.get_db() as conn:
+        _db.upsert_food_annotation(conn, fdc_id, gi_no_prompt=1)
+    if next:
+        return RedirectResponse(next, status_code=303)
+    return RedirectResponse("/food/annotate", status_code=303)
 
 
 @app.post("/food/annotate/{fdc_id}/clear", response_class=RedirectResponse)
@@ -2235,9 +2281,13 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
         key=lambda r: r["label"],
     )
     ing_rows = []
+    omitted_low_protein = False
     for ing in diaas_result.get("ingredients", []):
-        d = ing.get("digestibility", 1.0)
         p = ing.get("protein_g", 0.0)
+        if p < 0.1:
+            omitted_low_protein = True
+            continue
+        d = ing.get("digestibility", 1.0)
         dig_p = p * d if ing.get("has_aa_data") else p
         src = ing.get("dig_source", "")
         src_tag = "user" if "user override" in src else ("~est" if "estimate" in src else "")
@@ -2262,6 +2312,7 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
         "limiting_label":  diaas_result.get("limiting_label"),
         "iaa_rows":        iaa_rows,
         "ing_rows":        ing_rows,
+        "omitted_low_protein": omitted_low_protein,
         "missing":         diaas_result.get("missing_aa_names", []),
         "has_complete":    diaas_result.get("has_complete_data", False),
         "phe_tyr_gap":     diaas_result.get("phe_tyr_gap", False),
@@ -2786,7 +2837,7 @@ def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None]:
 # ---------------------------------------------------------------------------
 
 def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
-    """Compute DIAAS-based BCP for a meal and persist it. Returns dcp_g or None."""
+    """Compute DIAAS-based DCP for a meal and persist it. Returns dcp_g or None."""
     _, _, diaas_result = _meal_totals(meal_id)
     diaas = _build_diaas_display(diaas_result)
     bcp_g = diaas["dcp_g"] if diaas else None
@@ -2796,11 +2847,11 @@ def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
 
 
 def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | None) -> dict:
-    """Build template context for the meals list, including day BCP aggregates."""
+    """Build template context for the meals list, including day DCP aggregates."""
     meals = [dict(m) for m in meals_rows]
     hidden = max(0, total - len(meals))
 
-    # Build day BCP totals from persisted bcp_g (complete meals only)
+    # Build day DCP totals from persisted bcp_g (complete meals only)
     dates_in_page = {m["meal_date"] for m in meals}
     day_bcp: dict[str, float | None] = {}
     for d in dates_in_page:
@@ -2815,7 +2866,7 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
     if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
         protein_target = rda["protein_g"][0]
 
-    # Tag each meal with first-of-date flag so template can place Day BCP correctly
+    # Tag each meal with first-of-date flag so template can place Day DCP correctly
     seen_dates: set[str] = set()
     for m in meals:
         d = m["meal_date"]
@@ -2851,7 +2902,7 @@ async def meals_list(request: Request, show_all: bool = False, date: str = ""):
 
 @app.post("/meals/compute-bcp", response_class=RedirectResponse)
 async def meals_compute_bcp(redirect_to: str = Form("/meals")):
-    """Recompute and persist BCP for all complete meals that lack a stored value."""
+    """Recompute and persist DCP for all complete meals that lack a stored value."""
     with _db.get_db() as conn:
         all_meals = _db.meal_list_recent(conn, limit=10000)
     rda = _load_rda()
@@ -3212,6 +3263,11 @@ async def meal_add_food(
         )
     with _db.get_db() as conn:
         _db.meal_add_food(conn, meal_id, fdc_id, name, grams, "g")
+    if _gi_prompt_needed(fdc_id):
+        from urllib.parse import quote
+        return RedirectResponse(
+            f"/food/annotate/{fdc_id}?next={quote(f'/meal/{meal_id}')}", status_code=303
+        )
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
@@ -3610,17 +3666,31 @@ async def recipes_compute_bcp(redirect_to: str = Form("/recipes")):
     return RedirectResponse(redirect_to, status_code=303)
 
 
+_RECIPE_SORT_KEYS = {
+    "name":       lambda r: (r["name"] or "").lower(),
+    "recent":     lambda r: r["last_accessed_at"] or r["created_at"] or "",
+    "dcp":        lambda r: r["dcp_g"] if r["dcp_g"] is not None else -1.0,
+}
+
+
 @app.get("/recipes", response_class=HTMLResponse)
-async def recipes_list(request: Request, q: str = ""):
+async def recipes_list(request: Request, q: str = "", sort: str = "recent"):
     with _db.get_db() as conn:
+        total_count = _db.recipe_count(conn)
         all_recipes = [dict(r) for r in _db.recipe_list_recent(conn, limit=200)]
     if q:
         ql = q.lower()
         words = ql.split()
         all_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in words)]
+    if sort not in _RECIPE_SORT_KEYS:
+        sort = "recent"
+    reverse = sort in ("recent", "dcp")
+    all_recipes.sort(key=_RECIPE_SORT_KEYS[sort], reverse=reverse)
     return templates.TemplateResponse(request, "recipes.html", {
         "recipes": all_recipes,
+        "total_count": total_count,
         "q": q,
+        "sort": sort,
     })
 
 
@@ -4073,6 +4143,103 @@ async def summary_date(request: Request, meal_date: str):
         "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="daily"),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
+    })
+
+
+@app.get("/analysis/food-use", response_class=HTMLResponse)
+async def analysis_food_use(
+    request: Request,
+    mode: str = Query(default="range"),
+    ranges_raw: str = Query(default=""),
+    meal_ids: str = Query(default=""),
+    protein_only: bool = Query(default=False),
+):
+    """Food use in meals: frequency-of-use table across a chosen set of meals.
+
+    mode selects EITHER date range(s) ("range") OR meal IDs ("ids") — never both.
+    """
+    ranges: list[tuple[str, str]] = []
+    requested_ids: list[int] = []
+    missing_ids: list[int] = []
+
+    if mode == "range":
+        for line in ranges_raw.splitlines():
+            line = line.strip()
+            if ":" not in line:
+                continue
+            start, end = line.split(":", 1)
+            start, end = start.strip(), end.strip()
+            if start and end:
+                if start > end:
+                    start, end = end, start
+                ranges.append((start, end))
+    else:
+        for token in re.split(r"[\s,]+", meal_ids.strip()):
+            if not token:
+                continue
+            try:
+                requested_ids.append(int(token))
+            except ValueError:
+                pass
+
+    meals_by_id: dict[int, dict] = {}
+    with _db.get_db() as conn:
+        for start, end in ranges:
+            for row in _db.meal_list_by_date_range(conn, start, end):
+                meals_by_id[row["id"]] = dict(row)
+        if requested_ids:
+            found = _db.meal_list_by_ids(conn, requested_ids)
+            found_ids = {row["id"] for row in found}
+            missing_ids = [i for i in requested_ids if i not in found_ids]
+            for row in found:
+                meals_by_id[row["id"]] = dict(row)
+
+    agg: dict[tuple, dict] = {}
+    with _db.get_db() as conn:
+        for meal_id, meal in meals_by_id.items():
+            items = _db.meal_expand_food_items(conn, meal_id)
+            seen: set = set()
+            for fdc_id, name, kind, has_protein in items:
+                key = (fdc_id, kind) if fdc_id is not None else (kind, name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                entry = agg.setdefault(key, {
+                    "name": name, "fdc_id": fdc_id, "kind": kind, "has_protein": has_protein,
+                    "meal_ids": set(), "days": set(),
+                })
+                entry["meal_ids"].add(meal_id)
+                entry["days"].add(meal["meal_date"])
+
+    rows_all = list(agg.values())
+    if protein_only:
+        rows_all = [r for r in rows_all if r["has_protein"]]
+
+    rows_sorted = sorted(
+        rows_all,
+        key=lambda e: (-len(e["days"]), -len(e["meal_ids"]), e["name"].lower()),
+    )
+    max_days = len(rows_sorted[0]["days"]) if rows_sorted else 0
+    result_rows = [{
+        "fdc_id": r["fdc_id"],
+        "name":   r["name"],
+        "kind":   r["kind"],
+        "days":   len(r["days"]),
+        "meals":  len(r["meal_ids"]),
+        "pct":    round(len(r["days"]) / max_days * 100, 0) if max_days else 0,
+    } for r in rows_sorted]
+
+    return templates.TemplateResponse(request, "analysis_food_use.html", {
+        "mode":          mode,
+        "ranges":        ranges,
+        "ranges_raw":    ranges_raw,
+        "meal_ids_raw":  meal_ids,
+        "protein_only":  protein_only,
+        "missing_ids":   missing_ids,
+        "rows":          result_rows,
+        "total_meals":   len(meals_by_id),
+        "total_days":    len({m["meal_date"] for m in meals_by_id.values()}),
+        "submitted":     bool(ranges or requested_ids),
     })
 
 

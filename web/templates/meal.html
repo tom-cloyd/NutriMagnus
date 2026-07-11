@@ -442,14 +442,14 @@
       <div class="mb-2">
         <label class="form-check-label d-flex align-items-center gap-2">
           <input type="checkbox" name="merge_ids" value="{{ meal.id }}" class="form-check-input" checked>
-          <strong>{{ meal.name }}</strong> <small class="muted">(this meal, {{ items|length }} items)</small>
+          <strong>{{ meal.name }}</strong> <small class="muted">#{{ meal.id }} (this meal, {{ items|length }} items)</small>
         </label>
       </div>
       {% for sib in sibling_meals %}
       <div class="mb-2">
         <label class="form-check-label d-flex align-items-center gap-2">
           <input type="checkbox" name="merge_ids" value="{{ sib.id }}" class="form-check-input" checked>
-          <a href="/meal/{{ sib.id }}">{{ sib.name }}</a>
+          <a href="/meal/{{ sib.id }}">{{ sib.name }}</a> <small class="muted">#{{ sib.id }}</small>
         </label>
       </div>
       {% endfor %}
@@ -565,6 +565,9 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if diaas.omitted_low_protein %}
+  <p class="muted mt-1"><small>Foods without a meaningful amount of protein (&lt;0.1&thinsp;g) are omitted from this table.</small></p>
+  {% endif %}
   {% endif %}
 
   {% if diaas.iaa_rows %}

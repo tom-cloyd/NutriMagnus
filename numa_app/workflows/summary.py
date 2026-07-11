@@ -1,6 +1,6 @@
 """
-summary.py — Daily Summary menu: today's, by-date, and recent-days nutrient summaries with RDA comparison.
-Docs: README-numa-documentation.md, Menu Structure: "4. Daily Summary"
+summary.py — Daily summary - DCP and goals: today's, by-date, and recent-days nutrient summaries with RDA comparison.
+Docs: README-numa-documentation.md, Menu Structure: "4. Analysis"
 """
 from datetime import date
 
@@ -14,10 +14,10 @@ from ..ui.prompts import Cancelled, _ask_date, _prompt
 from ..ui.render import _print_complement_suggestions, _print_meal_diaas, _print_nutrient_table, _print_protein_adequacy, _print_rda_comparison
 from .meals import _compute_meal_ingredient_list, _compute_meal_nutrients
 
-def _menu_summary() -> bool:
+def _menu_daily_summary() -> bool:
     """Daily summary submenu. Returns True to go back, False to quit."""
     while True:
-        _show_menu("Daily Nutrition Summary", [
+        _show_menu("Daily Summary — DCP and Goals", [
             ("1", "Today's summary"),
             ("2", "Summary for a specific date"),
             ("3", "Recent days  (list dates with meals)"),
@@ -121,7 +121,7 @@ def _do_list_recent_days() -> None:
     section_title("Recent days with meals")
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("Date",    min_width=12)
-    tbl.add_column("Day BCP", justify="right", min_width=9)
+    tbl.add_column("Day DCP", justify="right", min_width=9)
     if protein_goal:
         tbl.add_column("% goal", justify="right", min_width=7)
 
@@ -142,9 +142,9 @@ def _do_list_recent_days() -> None:
         tbl.add_row(*cells)
 
     state.console.print(tbl)
-    footer_lines = ["  [grey62]BCP = bioavailable complete protein  ·  -- = not yet computed[/grey62]"]
+    footer_lines = ["  [grey62]DCP = bioavailable complete protein  ·  -- = not yet computed[/grey62]"]
     if protein_goal:
-        footer_lines.append(f"  [grey62]% goal = Day BCP ÷ {protein_goal:.0f} g daily protein target[/grey62]")
+        footer_lines.append(f"  [grey62]% goal = Day DCP ÷ {protein_goal:.0f} g daily protein target[/grey62]")
     else:
         footer_lines.append("  [grey62]Set a user profile (Settings) to see % of daily protein goal[/grey62]")
     table_footer(*footer_lines)

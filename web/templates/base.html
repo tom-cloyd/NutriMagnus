@@ -97,9 +97,27 @@
             <a class="nav-link {% if path.startswith('/meal') %}active{% endif %}"
                href="/meals" data-ak="m"><u class="ak">M</u>eals &amp; Log</a>
           </li>
-          <li class="nav-item">
-            <a class="nav-link {% if path.startswith('/summary') %}active{% endif %}"
-               href="/summary" data-ak="d"><u class="ak">D</u>aily Summary</a>
+          {# ── Analysis dropdown ── #}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if path.startswith('/summary') or path.startswith('/analysis') %}active{% endif %}"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+               data-ak="n" id="nav-analysis-dropdown">
+              A<u class="ak">n</u>alysis
+            </a>
+            <ul class="dropdown-menu numa-dropdown" aria-labelledby="nav-analysis-dropdown">
+              <li>
+                <a class="dropdown-item" href="/summary">
+                  1. <strong>Daily summary</strong>
+                  <span class="dd-hint">(DCP and goals)</span>
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/analysis/food-use">
+                  2. <strong>Food use in meals</strong>
+                  <span class="dd-hint">(frequency across date ranges / meal IDs)</span>
+                </a>
+              </li>
+            </ul>
           </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/settings') %}active{% endif %}"

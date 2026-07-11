@@ -312,6 +312,40 @@ def delete_cached_food(conn: sqlite3.Connection, fdc_id: int) -> bool:
     return cur.rowcount > 0
 
 
+def list_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool = False) -> list[sqlite3.Row]:
+    """Return cache foods referenced by no pantry entry, recipe ingredient, or logged meal item.
+
+    By default excludes user_drafted foods (custom profiles created manually,
+    which often exist before they've been used anywhere) — pass
+    include_drafted=True to consider them for pruning too.
+    """
+    drafted_clause = "" if include_drafted else "AND user_drafted = 0"
+    return conn.execute(f"""
+        SELECT fdc_id, name, data_type, brand, user_drafted
+        FROM foods
+        WHERE fdc_id NOT IN (SELECT fdc_id FROM pantry WHERE fdc_id IS NOT NULL)
+          AND fdc_id NOT IN (SELECT fdc_id FROM recipe_ingredients)
+          AND fdc_id NOT IN (SELECT fdc_id FROM meal_items WHERE item_type = 'food' AND fdc_id IS NOT NULL)
+          {drafted_clause}
+        ORDER BY name
+    """).fetchall()
+
+
+def prune_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool = False) -> list[sqlite3.Row]:
+    """Delete every cache food not referenced by pantry, recipes, or meals.
+
+    Returns the rows that were deleted (fdc_id, name, data_type, brand,
+    user_drafted), so a caller can report or log what was removed. See
+    list_unused_cached_foods() for the include_drafted semantics — callers
+    that want a confirm-before-delete flow should call that first and pass
+    the same include_drafted value here.
+    """
+    unused = list_unused_cached_foods(conn, include_drafted=include_drafted)
+    for row in unused:
+        conn.execute("DELETE FROM foods WHERE fdc_id = ?", (row["fdc_id"],))
+    return unused
+
+
 def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
     words = query.split()
     if not words:
@@ -482,6 +516,10 @@ def recipe_set_saved_analysis(conn: sqlite3.Connection, recipe_id: int,
         "UPDATE recipes SET saved_analysis_at = ?, saved_analysis_text = ? WHERE id = ?",
         (timestamp, text, recipe_id),
     )
+
+
+def recipe_count(conn: sqlite3.Connection) -> int:
+    return conn.execute("SELECT COUNT(*) FROM recipes").fetchone()[0]
 
 
 def recipe_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -692,7 +730,7 @@ def day_bcp_cache_set(conn: sqlite3.Connection, meal_date: str, dcp_g: float) ->
 
 
 def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.Row]:
-    """Return recent meal dates with aggregated BCP data.
+    """Return recent meal dates with aggregated DCP data.
 
     Columns: meal_date, day_bcp (NULL if no complete meals have bcp_g computed),
     complete_count (number of complete meals that day).
@@ -781,6 +819,62 @@ def meal_get_items(conn: sqlite3.Connection, meal_id: int) -> list[sqlite3.Row]:
         "SELECT * FROM meal_items WHERE meal_id = ? ORDER BY id",
         (meal_id,)
     ).fetchall()
+
+
+def meal_list_by_date_range(conn: sqlite3.Connection, start_date: str, end_date: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM meals WHERE meal_date BETWEEN ? AND ? ORDER BY meal_date, created_at",
+        (start_date, end_date)
+    ).fetchall()
+
+
+def meal_list_by_ids(conn: sqlite3.Connection, ids: list[int]) -> list[sqlite3.Row]:
+    """Return meals matching the given IDs, ordered by date. Missing IDs are silently omitted."""
+    if not ids:
+        return []
+    placeholders = ",".join("?" * len(ids))
+    return conn.execute(
+        f"SELECT * FROM meals WHERE id IN ({placeholders}) ORDER BY meal_date, created_at",
+        ids
+    ).fetchall()
+
+
+def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple[int | None, str, str, bool]]:
+    """Flatten a meal's items into (fdc_id, name, kind, has_protein) tuples.
+
+    Plain food items yield one ("food") tuple. Recipe items yield one ("recipe")
+    tuple for the recipe itself, plus one ("food") tuple per base ingredient
+    (recursively expanded through nested sub-recipes via ref_recipe_id).
+
+    has_protein reflects the food's cached protein_g > 0 (False if the food
+    isn't cached). A recipe row's has_protein is True if any of its
+    (recursively) expanded ingredients has_protein.
+    """
+    def _food_has_protein(fdc_id: int) -> bool:
+        cached = get_cached_food(conn, fdc_id)
+        if not cached:
+            return False
+        nutrients = json.loads(cached["nutrients_json"])
+        return nutrients.get("protein_g", 0) > 0
+
+    def _expand_recipe(recipe_id: int) -> list[tuple[int | None, str, str, bool]]:
+        out: list[tuple[int | None, str, str, bool]] = []
+        for ing in recipe_get_ingredients(conn, recipe_id):
+            if ing["ref_recipe_id"]:
+                out.extend(_expand_recipe(ing["ref_recipe_id"]))
+            else:
+                out.append((ing["fdc_id"], ing["food_name"], "food", _food_has_protein(ing["fdc_id"])))
+        return out
+
+    result: list[tuple[int | None, str, str, bool]] = []
+    for item in meal_get_items(conn, meal_id):
+        if item["item_type"] == "food":
+            result.append((item["fdc_id"], item["food_name"], "food", _food_has_protein(item["fdc_id"])))
+        elif item["item_type"] == "recipe":
+            expanded = _expand_recipe(item["recipe_id"])
+            result.append((None, item["food_name"], "recipe", any(e[3] for e in expanded)))
+            result.extend(expanded)
+    return result
 
 
 def meal_update_item(conn: sqlite3.Connection, item_id: int, meal_id: int,

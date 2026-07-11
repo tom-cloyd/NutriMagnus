@@ -39,9 +39,9 @@
   <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
   <form method="post" action="/meals/compute-bcp">
     <input type="hidden" name="redirect_to" value="/meals{% if date_filter %}?date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
-    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute BCP for all complete meals</button>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute DCP for all complete meals</button>
   </form>
-  <small class="muted">BCP = bioavailable (digestible) complete protein{% if protein_target %} · goal = {{ protein_target|int }} g/day{% endif %}</small>
+  <small class="muted">DCP = bioavailable (digestible) complete protein{% if protein_target %} · goal = {{ protein_target|int }} g/day{% endif %}</small>
 </div>
 
 {# ── Meal list ────────────────────────────────────────────────────────── #}
@@ -59,18 +59,20 @@
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>
+      <th class="num-col">ID</th>
       <th>Meal</th>
       <th>Date</th>
       <th class="text-center">Complete</th>
       <th class="num-col">Items</th>
-      <th class="num-col" title="Digestible Complete Protein for this meal">Meal BCP</th>
-      <th class="num-col" title="Sum of BCP across all complete meals on this date">Day BCP</th>
-      {% if protein_target %}<th class="num-col" title="Day BCP ÷ {{ protein_target|int }} g daily target">% goal</th>{% endif %}
+      <th class="num-col" title="Digestible Complete Protein for this meal">Meal DCP</th>
+      <th class="num-col" title="Sum of DCP across all complete meals on this date">Day DCP</th>
+      {% if protein_target %}<th class="num-col" title="Day DCP ÷ {{ protein_target|int }} g daily target">% goal</th>{% endif %}
     </tr>
   </thead>
   <tbody>
     {% for meal in meals %}
     <tr>
+      <td class="num-col muted">{{ meal.id }}</td>
       <td><a href="/meal/{{ meal.id }}">{{ meal.name }}</a></td>
       <td>{{ meal.meal_date }}</td>
       <td class="text-center">

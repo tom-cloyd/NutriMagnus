@@ -8,6 +8,7 @@ import db as _db
 import usda as _usda
 from rich.table import Table
 from .. import state
+from ..services.annotations import maybe_prompt_gi
 from ..services.search import _search_and_pick_food, _suggest_foundation_search
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float
 from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY, dot_cell, section_title, table_footer, help_footer
@@ -211,6 +212,11 @@ def _do_pantry_add() -> None:
             has_aa = _usda.has_amino_acid_data(food.get("nutrients") or {})
             aa_note = "" if has_aa else f"  [{state.T['warning']}](no AA data)[/{state.T['warning']}]"
             state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food_name}{aa_note}")
+            if not multi:
+                try:
+                    maybe_prompt_gi(fdc_id, food_name)
+                except Cancelled:
+                    pass
             if not multi and not food.get("portions"):
                 _offer_custom_portions(fdc_id, food_name, [])
         if multi:

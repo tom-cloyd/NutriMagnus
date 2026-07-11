@@ -1556,6 +1556,7 @@ def _do_list_cached_foods() -> None:
             state.console.print( "    [bold]f[/bold]    Refresh nutrients from USDA  [grey62](e.g. f3 — re-fetch nutrients, keeps your portions/notes)[/grey62]")
             state.console.print( "    [bold]p[/bold]    Edit portions                [grey62](e.g. p3 — add cup/piece/custom weights)[/grey62]")
             state.console.print( "    [bold]d[/bold]    Delete from cache            [grey62](e.g. d3  d1,4,7)[/grey62]", highlight=False)
+            state.console.print( "    [bold]u[/bold]    Prune unused foods           [grey62](not in any pantry entry, recipe, or meal)[/grey62]", highlight=False)
             state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [grey62](i alone = list foods missing AA data · i3  i1,4,7  iFDCID,FDCID · ?fetch)[/grey62]", highlight=False)
             state.console.print( "    [bold]r[/bold]    Read Claude response         [grey62](import ~/claude_response.txt)[/grey62]")
             state.console.print( "    [bold]l[/bold]    List  [grey62](re-display this table)[/grey62]")
@@ -1572,12 +1573,12 @@ def _do_list_cached_foods() -> None:
                 state.console.print(
                     f"\n  [grey62]Cache — {len(foods)} of {len(all_foods)} foods"
                     f" · filter: '{filter_text}'"
-                    f" · v# c# n# a# e# f# p# d# i# r · l=list · /filter · b=back[/grey62]"
+                    f" · v# c# n# a# e# f# p# d# i# r u · l=list · /filter · b=back[/grey62]"
                 )
             else:
                 state.console.print(
                     f"\n  [grey62]Cache — {len(all_foods)} foods"
-                    f" · v# c# n# a# e# f# p# d# i# r · l=list · /filter · b=back[/grey62]"
+                    f" · v# c# n# a# e# f# p# d# i# r u · l=list · /filter · b=back[/grey62]"
                 )
 
         try:
@@ -1646,6 +1647,37 @@ def _do_list_cached_foods() -> None:
                         f"  [{state.T['warning']}]Deleted {n_deleted} of {len(to_delete)} "
                         f"(some may have already been removed).[/{state.T['warning']}]"
                     )
+                show_table = True
+            continue
+
+        if cmd == "u":
+            with _db.get_db() as conn:
+                unused = _db.list_unused_cached_foods(conn)
+            if not unused:
+                state.console.print(
+                    "[grey62]No unused foods to prune — every cached food is referenced "
+                    "by a pantry entry, recipe, or meal.[/grey62]"
+                )
+                continue
+            preview = "\n".join(f"  · {f['name']}" for f in unused[:5])
+            if len(unused) > 5:
+                preview += f"\n  · … and {len(unused) - 5} more"
+            confirm_msg = (
+                f"Prune {len(unused)} unused food{'s' if len(unused) != 1 else ''} from cache?  "
+                f"[grey62]Not used in any pantry entry, recipe, or meal.  (y/N)[/grey62]\n"
+                + preview
+            )
+            try:
+                confirm = _prompt(confirm_msg, default="n").strip().lower()
+            except Cancelled:
+                continue
+            if confirm == "y":
+                with _db.get_db() as conn:
+                    deleted = _db.prune_unused_cached_foods(conn)
+                state.console.print(
+                    f"  [{state.T['success']}]✓[/{state.T['success']}]  "
+                    f"Pruned {len(deleted)} unused food{'s' if len(deleted) != 1 else ''} from cache."
+                )
                 show_table = True
             continue
 

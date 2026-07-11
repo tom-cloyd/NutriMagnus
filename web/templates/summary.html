@@ -44,14 +44,14 @@
 {# ── Recent days table ────────────────────────────────────────────────── #}
 <details {% if not date_detail %}open{% endif %}>
   <summary><strong>Recent Days with Meals</strong>
-    {% if protein_target %}<small class="muted ms-2"> — BCP goal: {{ protein_target|int }} g/day</small>{% endif %}
+    {% if protein_target %}<small class="muted ms-2"> — DCP goal: {{ protein_target|int }} g/day</small>{% endif %}
   </summary>
   {% if day_rows %}
   <table class="table table-sm table-hover mt-2" style="max-width:34rem">
     <thead class="table-light">
       <tr>
         <th>Date</th>
-        <th class="num-col">Day BCP</th>
+        <th class="num-col">Day DCP</th>
         {% if protein_target %}<th class="num-col">% goal</th>{% endif %}
         <th class="num-col">Meals</th>
         <th></th>
@@ -84,8 +84,8 @@
     </tbody>
   </table>
   <p class="muted"><small>
-    BCP = bioavailable (digestible) complete protein &middot;
-    — = not yet computed (open a meal and click <em>Compute BCP</em> from the <a href="/meals">Meals</a> page)
+    DCP = bioavailable (digestible) complete protein &middot;
+    — = not yet computed (open a meal and click <em>Compute DCP</em> from the <a href="/meals">Meals</a> page)
     {% if not protein_target %}&middot; Set a profile in <a href="/settings">Settings</a> to see % goal{% endif %}
   </small></p>
   {% else %}
@@ -109,6 +109,7 @@
   {% for m in meals %}
   <div class="ms-2 mt-2">
     <a href="/meal/{{ m.id }}"><strong>{{ m.name }}</strong></a>
+    <small class="muted">#{{ m.id }}</small>
     {% if m.complete %}<span class="text-success ms-1" title="Complete">&#10003;</span>{% endif %}
     {% if m.meal_items %}
     <ul class="list-unstyled ms-3 mb-0">

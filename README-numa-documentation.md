@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-06-28:2045
+UPDATED: 2026-07-11:0034
 ---
 
 ## Table of Contents
@@ -103,7 +103,9 @@ numa/
       recipe_analysis.py           — Analyze recipe workflow (_do_recipe_view, _resolve_recipe_dcp_data)
       recipe_edit.py               — Edit recipe workflow (_do_recipe_edit)
       settings.py                  — Settings menu; user profile; DIAAS overrides; RDA comparison
-      summary.py                   — Daily Summary menu
+      analysis.py                   — Analysis menu; dispatches to daily summary and food-use analyses
+      summary.py                   — Daily summary - DCP and goals (formerly the top-level Daily Summary menu)
+      food_use.py                   — Food use in meals: frequency-of-use table + histogram over a chosen meal set
   manual.py                        — User manual parser; ?keyword help lookup; show(), lookup(),
                                      available(); _ALIASES for topic shortcuts
   user-manual.md                   — Essential instructions, tips, and reference material for
@@ -236,7 +238,7 @@ For menu navigation conventions, keyboard shortcuts, and first-run setup, see th
 
 ## Menu Structure
 
-numa has five top-level menu areas: **Foods**, **Recipes**, **Meals & Log**, **Daily Summary**, and **Settings**. For a complete description of every menu command and workflow, see the [NutriMagnus User Manual](user-manual.html).
+numa has five top-level menu areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary - DCP and goals** (the original per-day nutrient/RDA workflow) and **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs). For a complete description of every menu command and workflow, see the [NutriMagnus User Manual](user-manual.html).
 
 ---
 
@@ -258,7 +260,9 @@ When a cached USDA food is selected and its stored nutrients are missing all fou
 
 The `food_annotations` table stores user-supplied estimates attached to individual cached foods by `fdc_id` (fields: `gi_estimate`, `diaas_estimate`, `prep_context`, `gi_no_prompt`, `diaas_no_prompt`). See the [User Manual](user-manual.html) for the annotation workflow.
 
-**Prompt suppression:** The `gi_no_prompt` and `diaas_no_prompt` boolean flags in `food_annotations` control whether the inline annotation prompt is shown during analysis. Setting either flag via the `x` response or the annotation editor suppresses the prompt permanently for that food. Clearing annotations resets these flags.
+**Prompt on first add:** `numa_app/services/annotations.py:maybe_prompt_gi()` is called the first time a food is added to the Pantry (single-add path) or to a meal, if that food has no `gi_estimate` on file and `gi_no_prompt` isn't set. CLI: `Enter`/`s` skips just this once (asked again next time); `x` sets `gi_no_prompt=1` (never asked again for that food; can still be added later via `annotate_food_interactive`). Web (`web/backend.py:_gi_prompt_needed()`): `/pantry/add` and `/meal/{id}/add` redirect to `/food/annotate/{fdc_id}?next=...` when a prompt is warranted; the annotate page offers "Skip for now" (no DB write, redirects to `next`) vs. "Skip forever for this food" (POSTs to `/food/annotate/{fdc_id}/skip-forever`, which sets `gi_no_prompt=1` via `upsert_food_annotation` without touching other fields). `diaas_no_prompt` exists in the schema and CLI (`maybe_prompt_diaas`) but is not currently wired into any add flow.
+
+**Seeding GI values in bulk:** `import_gi_seed.py` (repo root) writes `gi_estimate` for cached foods whose name exactly matches an entry in a small hardcoded table sourced from Foster-Powell/Holt/Brand-Miller (2008) *Diabetes Care* 31(12):2281-3 (CC-licensed, ~60 common foods). Ambiguous/fuzzy matches are printed for manual review rather than written automatically — see the script's docstring. Run with `--apply` to write; without it, it's a dry run.
 
 **Visibility columns:** The **Ann** column in search result tables (`GI`, `DI`, or `GI DI` in green) and the `AA`/`GI`/`DIAAS` columns in the cached food list are driven by joins against `food_annotations` keyed on `fdc_id`.
 
@@ -1101,6 +1105,8 @@ All FastAPI routes and backend helpers are in this single file. Key patterns:
 | POST | `/food/compare/saved/delete` | Delete a saved comparison |
 | GET | `/food/cache` | Browse/search cached foods |
 | POST | `/food/cache/delete` | Remove a food from the cache |
+| GET | `/food/cache/prune` | Preview foods unused by pantry/recipes/meals before pruning |
+| POST | `/food/cache/prune` | Delete all foods unused by pantry/recipes/meals (user-drafted foods protected) |
 | GET | `/food/custom-profiles` | List user-drafted food profiles |
 | POST | `/food/custom-profiles/create` | Create a new drafted profile |
 | POST | `/food/custom-profiles/delete/{fdc_id}` | Delete a drafted profile |
@@ -1156,7 +1162,7 @@ All FastAPI routes and backend helpers are in this single file. Key patterns:
 
 Shared layout wrapper. Includes Bootstrap 5 CDN, `/static/style.css`, the top navbar with dropdown menus, a footer, and the keyboard-shortcut JS. All other templates extend this.
 
-The navbar marks the active section by comparing `request.url.path` to each nav link's prefix. Foods items are in a dropdown; Recipes, Meals, Daily Summary, Settings, and Manual are top-level links.
+The navbar marks the active section by comparing `request.url.path` to each nav link's prefix. Foods and Analysis (Daily summary, Food use in meals) are dropdowns; Recipes, Meals, Settings, and Manual are top-level links.
 
 #### `home.html`
 

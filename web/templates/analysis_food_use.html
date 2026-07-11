@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Food Use in Meals{% endblock %}
+
+{% block content %}
+<h2>Food Use in Meals {{ manual_link("fooduse") }}</h2>
+<p class="muted">Tabulates which foods appear across a set of meals you choose, ranked by how many distinct days each food was used. Pick one selection method below — they can't be combined in a single search.</p>
+
+<form method="get" action="/analysis/food-use" class="mb-4" id="food-use-form">
+  <div class="mb-3">
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="mode" id="mode-range" value="range" {% if mode != "ids" %}checked{% endif %}>
+      <label class="form-check-label" for="mode-range">Date range(s)</label>
+    </div>
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="mode" id="mode-ids" value="ids" {% if mode == "ids" %}checked{% endif %}>
+      <label class="form-check-label" for="mode-ids">Meal IDs</label>
+    </div>
+  </div>
+
+  <div class="mb-3" id="range-block">
+    <label class="form-label" for="ranges_raw">Date ranges <small class="muted">(one per line, <code>YYYY-MM-DD:YYYY-MM-DD</code>)</small></label>
+    <textarea class="form-control" id="ranges_raw" name="ranges_raw" rows="3"
+              placeholder="2026-01-01:2026-01-31">{{ ranges_raw or "" }}</textarea>
+  </div>
+  <div class="mb-3" id="ids-block">
+    <label class="form-label" for="meal_ids">Meal IDs <small class="muted">(comma or space separated)</small></label>
+    <input type="text" class="form-control" id="meal_ids" name="meal_ids" value="{{ meal_ids_raw or "" }}" placeholder="12, 15, 18">
+  </div>
+
+  <div class="mb-3 form-check">
+    <input class="form-check-input" type="checkbox" id="protein_only" name="protein_only" value="true" {% if protein_only %}checked{% endif %}>
+    <label class="form-check-label" for="protein_only">Only protein-containing foods <small class="muted">(protein_g &gt; 0 per 100g)</small></label>
+  </div>
+
+  <button type="submit" class="btn btn-primary btn-sm">Analyze</button>
+</form>
+
+<script>
+(function () {
+  var rangeRadio = document.getElementById('mode-range');
+  var idsRadio = document.getElementById('mode-ids');
+  var rangeBlock = document.getElementById('range-block');
+  var idsBlock = document.getElementById('ids-block');
+
+  function sync() {
+    var byRange = rangeRadio.checked;
+    rangeBlock.querySelectorAll('textarea, input').forEach(function (el) { el.disabled = !byRange; });
+    idsBlock.querySelectorAll('input').forEach(function (el) { el.disabled = byRange; });
+    rangeBlock.classList.toggle('opacity-50', !byRange);
+    idsBlock.classList.toggle('opacity-50', byRange);
+  }
+  rangeRadio.addEventListener('change', sync);
+  idsRadio.addEventListener('change', sync);
+  sync();
+})();
+</script>
+
+{% if missing_ids %}
+<p class="text-warning">Meal ID(s) not found: {{ missing_ids|join(", ") }}</p>
+{% endif %}
+
+{% if submitted %}
+  {% if rows %}
+  <p class="muted">{{ total_meals }} meal(s) across {{ total_days }} distinct day(s){% if protein_only %} &middot; protein-containing foods only{% endif %}.</p>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover" style="max-width:52rem">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th>
+          <th>Food</th>
+          <th>Kind</th>
+          <th class="num-col">Days used</th>
+          <th class="num-col">Meals</th>
+          <th style="min-width:14rem">Frequency</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="muted">{% if r.fdc_id %}{{ r.fdc_id }}{% endif %}</td>
+          <td>{% if r.kind == "recipe" %}<strong>{{ r.name }}</strong>{% else %}{{ r.name }}{% endif %}</td>
+          <td class="muted">{% if r.kind == "recipe" %}recipe{% endif %}</td>
+          <td class="num-col">{{ r.days }}</td>
+          <td class="num-col">{{ r.meals }}</td>
+          <td>
+            <div class="progress" role="progressbar" aria-label="Days used" aria-valuenow="{{ r.pct|int }}" aria-valuemin="0" aria-valuemax="100" style="height:1rem">
+              <div class="progress-bar" style="width: {{ r.pct|int }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted"><small>
+    Days used = distinct calendar days the food appeared in this analysis set &middot;
+    recipe rows show the recipe itself; its ingredients are also listed individually.
+  </small></p>
+  {% else %}
+  <p class="muted mt-2">No meals matched the selected date range(s) / meal IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

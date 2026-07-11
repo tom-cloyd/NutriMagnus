@@ -37,6 +37,7 @@
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>
+      <th class="num-col">ID</th>
       <th>Date</th>
       <th>Meal</th>
       <th>Food / Recipe</th>
@@ -47,6 +48,7 @@
   <tbody>
     {% for r in rows %}
     <tr>
+      <td class="num-col muted">{{ r.meal_id }}</td>
       <td>{{ r.meal_date }}</td>
       <td><a href="/meal/{{ r.meal_id }}">{{ r.meal_name }}</a></td>
       <td>
