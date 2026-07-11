@@ -17,6 +17,7 @@ from .. import state
 from ..services.annotations import maybe_prompt_gi
 from ..services.portions import _normalize_unit_display, _pick_portion
 from ..services.glycemic_load import compute_glycemic_load
+from ..services.meal_bcp import recipe_dcp_fallback
 from ..services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
@@ -197,18 +198,7 @@ def _compute_meal_bcp(meal_id: int) -> float | None:
     # Fallback: when ingredient AA expansion yields nothing (cached nutrients lack AA
     # data), sum stored per-serving DCP from recipe items that have been analysed.
     with _db.get_db() as conn:
-        items = _db.meal_get_items(conn, meal_id)
-    total_dcp = 0.0
-    has_any = False
-    for item in items:
-        if item["item_type"] != "recipe":
-            continue
-        with _db.get_db() as conn:
-            recipe = _db.recipe_get(conn, item["recipe_id"])
-        if recipe and recipe["dcp_g"] is not None:
-            total_dcp += recipe["dcp_g"] * item["amount"]
-            has_any = True
-    return total_dcp if has_any else None
+        return recipe_dcp_fallback(meal_id, conn)
 
 
 def _print_meal_protein_summary(meal_id: int) -> None:

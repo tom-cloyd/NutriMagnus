@@ -23,6 +23,7 @@ import profile as _profile
 import usda as _usda
 from numa_app.services import complements as _complements
 from numa_app.services.glycemic_load import compute_glycemic_load
+from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.portions import _ing_amount_display
 from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 
@@ -2312,11 +2313,16 @@ def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None]:
 # ---------------------------------------------------------------------------
 
 def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
-    """Compute DIAAS-based DCP for a meal and persist it. Returns dcp_g or None."""
+    """Compute DIAAS-based DCP for a meal and persist it. Returns dcp_g or None.
+
+    Falls back to summing recipe items' precomputed dcp_g when ingredient-level
+    AA data is unavailable (matches the CLI's _compute_meal_bcp fallback)."""
     _, _, diaas_result = _meal_totals(meal_id)
     diaas = _build_diaas_display(diaas_result)
     bcp_g = diaas["dcp_g"] if diaas else None
     with _db.get_db() as conn:
+        if bcp_g is None:
+            bcp_g = recipe_dcp_fallback(meal_id, conn)
         _db.meal_set_bcp(conn, meal_id, bcp_g)
     return bcp_g
 

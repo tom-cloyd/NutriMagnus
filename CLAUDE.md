@@ -49,6 +49,7 @@ numa_app/
     complements.py   — shared complement-suggestion math (CLI + web): aa_effects(),
                        two_step_combo(), build_complement_display()
     glycemic_load.py — shared GL aggregation (CLI + web): compute_glycemic_load()
+    meal_bcp.py      — shared meal-DCP fallback (CLI + web): recipe_dcp_fallback()
     portions.py      — _parse_portion_input(), _pick_portion()
     recipe_nutrients.py — shared recursive recipe-ingredient expansion (CLI + web):
                        expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
