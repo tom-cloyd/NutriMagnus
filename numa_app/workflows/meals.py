@@ -16,6 +16,7 @@ import usda as _usda
 from .. import state
 from ..services.annotations import maybe_prompt_gi
 from ..services.portions import _normalize_unit_display, _pick_portion
+from ..services.glycemic_load import compute_glycemic_load
 from ..services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
@@ -888,41 +889,17 @@ def _compute_meal_gl(meal_id: int) -> tuple[float, list[str]]:
     blockers is empty if GL is fully computable; non-empty means incomplete GI data."""
     with _db.get_db() as conn:
         items = _db.meal_get_items(conn, meal_id)
-
-    food_ids = [it["fdc_id"] for it in items if it["item_type"] == "food" and it["fdc_id"]]
-    with _db.get_db() as conn:
-        ann_map = _db.annotations_for_fdcids(conn, food_ids) if food_ids else {}
-
-    blockers: list[str] = []
-    gl_total = 0.0
-
-    for item in items:
-        if item["item_type"] == "recipe":
-            with _db.get_db() as conn:
-                recipe = _db.recipe_get(conn, item["recipe_id"])
-            if recipe is None or recipe["gl_g"] is None:
-                name = recipe["name"] if recipe else f"recipe #{item['recipe_id']}"
-                blockers.append(f"{name} (no GL — analyze it first)")
-            else:
-                servings = recipe["servings"] or 1
-                gl_total += recipe["gl_g"] * (item["amount"] / servings)
-            continue
-
-        ann = ann_map.get(item["fdc_id"])
-        if ann is None or ann["gi_estimate"] is None:
-            blockers.append(item["food_name"])
-            continue
-
-        with _db.get_db() as conn:
-            cached = _db.get_cached_food(conn, item["fdc_id"])
-        if cached is None:
-            blockers.append(item["food_name"])
-            continue
-
-        carbs_g = json.loads(cached["nutrients_json"]).get("carbs_g", 0.0) * item["amount"] / 100.0
-        gl_total += ann["gi_estimate"] * carbs_g / 100.0
-
-    return (gl_total, blockers)
+        line_items = [
+            {
+                "kind":      "recipe" if item["item_type"] == "recipe" else "food",
+                "name":      item["food_name"],
+                "amount":    item["amount"],
+                "fdc_id":    item["fdc_id"],
+                "recipe_id": item["recipe_id"],
+            }
+            for item in items
+        ]
+        return compute_glycemic_load(line_items, conn)
 
 
 def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:

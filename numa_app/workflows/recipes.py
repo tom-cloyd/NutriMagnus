@@ -14,6 +14,7 @@ from rich.table import Table
 import db as _db
 import usda as _usda
 from .. import state
+from ..services.glycemic_load import compute_glycemic_load
 from ..services.portions import _normalize_unit_display, _ing_amount_display, _parse_portion_input, _pick_portion, _try_resolve_unknown_weight, _UNIT_TO_GRAMS, _VOLUME_TO_ML
 from ..services.recipe_nutrients import recipe_total_nutrients
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
@@ -256,44 +257,22 @@ def _compute_recipe_gl(rid: int) -> tuple[float, list[str]]:
     """
     Compute glycemic load (GL) for the whole recipe.
     Returns (gl_whole_recipe, []) when all ingredients have GI annotations.
-    Returns (0.0, [blocker_names]) if any ingredient is missing GI data.
-    The float return value is only meaningful when the blocker list is empty.
+    Returns (gl_partial, [blocker_names]) if any ingredient is missing GI data —
+    gl_partial only accounts for the ingredients that could be computed.
     """
     with _db.get_db() as conn:
         ingredients = _db.recipe_get_ingredients(conn, rid)
-
-    food_ids = [i["fdc_id"] for i in ingredients if i["fdc_id"] and not i["ref_recipe_id"]]
-    with _db.get_db() as conn:
-        ann_map = _db.annotations_for_fdcids(conn, food_ids)
-
-    blockers: list[str] = []
-    gl_total = 0.0
-
-    for ing in ingredients:
-        if ing["ref_recipe_id"]:
-            with _db.get_db() as conn:
-                sub = _db.recipe_get(conn, ing["ref_recipe_id"])
-            if sub is None or sub["gl_g"] is None:
-                blockers.append((sub["name"] if sub else f"recipe #{ing['ref_recipe_id']}") + " (no GL — analyze it first)")
-            elif sub["servings"] > 0:
-                gl_total += sub["gl_g"] * (ing["amount"] / sub["servings"])
-            continue
-
-        ann = ann_map.get(ing["fdc_id"])
-        if ann is None or ann["gi_estimate"] is None:
-            blockers.append(ing["food_name"])
-            continue
-
-        with _db.get_db() as conn:
-            cached = _db.get_cached_food(conn, ing["fdc_id"])
-        if cached is None:
-            blockers.append(ing["food_name"])
-            continue
-
-        carbs_g = json.loads(cached["nutrients_json"]).get("carbs_g", 0.0) * ing["amount"] / 100.0
-        gl_total += ann["gi_estimate"] * carbs_g / 100.0
-
-    return (gl_total, blockers)
+        line_items = [
+            {
+                "kind":      "recipe" if ing["ref_recipe_id"] else "food",
+                "name":      ing["food_name"],
+                "amount":    ing["amount"],
+                "fdc_id":    ing["fdc_id"],
+                "recipe_id": ing["ref_recipe_id"],
+            }
+            for ing in ingredients
+        ]
+        return compute_glycemic_load(line_items, conn)
 
 
 def _augment_aa_from_curated(

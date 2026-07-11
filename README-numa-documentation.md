@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-11:1306
+UPDATED: 2026-07-11:1324
 ---
 
 ## Table of Contents
@@ -91,6 +91,7 @@ numa/
       annotations.py               — annotate_food_interactive(), maybe_prompt_gi/diaas(); food annotation UI
       complements.py               — shared complement-suggestion display math (CLI + web): aa_effects(),
                                      two_step_combo(), build_complement_display()
+      glycemic_load.py              — shared glycemic load aggregation (CLI + web): compute_glycemic_load()
       oxalate_link.py              — maybe_show_oxalate(fdc_id, food_name): check/display/prompt oxalate link
       portions.py                  — _pick_portion(), _parse_portion_input()
       recipe_nutrients.py          — shared recursive recipe-ingredient expansion (CLI + web):
@@ -1292,7 +1293,7 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 
 ## Test Suite
 
-The test suite has been rebuilt for the refactored `numa_app/` package structure. **414 tests**, all passing.
+The test suite has been rebuilt for the refactored `numa_app/` package structure. **419 tests**, all passing.
 
 Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `pythonpath = .`).
 
@@ -1309,6 +1310,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_web.py` | FastAPI `TestClient` tests: every parameter-free page render, food search/detail, and all mutating POST workflows — pantry, meals (create/add/complete/delete/rename/merge/refresh-aa/add-recipe), recipes (new/edit/delete/copy/ingredient add-edit-move), custom profiles, settings (profile/DIAAS-override), food-cache delete/prune, annotate, and compare (add/add-multiple/remove/amounts/save/load/rename/delete) |
 | `tests/test_complements.py` | `numa_app/services/complements.py`: `aa_effects()` digestibility rescaling, `two_step_combo()`, `build_complement_display()` gap detection |
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
+| `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL rollup via `gl_g`, partial totals alongside blockers |
 
 ### Test infrastructure
 
