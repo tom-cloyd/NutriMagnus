@@ -17,6 +17,7 @@ import diaas as _diaas
 import usda as _usda
 import profile as _profile
 from .. import state
+from ..services import complements as _complements
 from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
@@ -952,18 +953,11 @@ def _print_complement_suggestions(
             vol_str = f"  [grey62]({hint})[/grey62]" if hint else ""
             state.console.print(f"    {add_verb}: [bold]{s['grams']}g[/bold]{vol_str}")
             # Show AA scores before → after for the most affected gaps.
-            # orig_score is digestibility-adjusted (from get_aa_gaps);
-            # new_scores values are raw — multiply by _digestibility for a fair comparison.
             score_parts = []
-            for aa, orig_score, _ in gaps[:3]:
-                new_raw = s["new_scores"].get(aa)
-                if new_raw is not None and _digestibility > 0:
-                    new_score = new_raw * _digestibility
-                else:
-                    new_score = orig_score
+            for (aa, orig_score, _), effect in zip(gaps[:3], _complements.aa_effects(s, gaps, digestibility=_digestibility)):
                 label_aa = _aa_label(aa)
-                arrow = f"[{state.T['success']}]{new_score:.2f}[/{state.T['success']}]" if new_score >= 1.0 \
-                    else f"[{state.T['warning']}]{new_score:.2f}[/{state.T['warning']}]"
+                arrow = f"[{state.T['success']}]{effect['after']:.2f}[/{state.T['success']}]" if effect["met"] \
+                    else f"[{state.T['warning']}]{effect['after']:.2f}[/{state.T['warning']}]"
                 score_parts.append(f"{label_aa}: {orig_score:.2f}→{arrow}")
             state.console.print(f"    Effect: {' · '.join(score_parts)}")
             dig = s["digestible_protein_added"]
@@ -1031,15 +1025,10 @@ def _print_complement_suggestions(
                           f"[bold]{f['name']}[/bold]{_source_str(f)}{diaas_str}")
         # Show AA scores before → after for the top gaps.
         score_parts = []
-        for aa, orig_score, _ in gaps[:3]:
-            new_raw = p["new_scores"].get(aa)
-            if new_raw is not None and _digestibility > 0:
-                new_score = new_raw * _digestibility
-            else:
-                new_score = orig_score
+        for (aa, orig_score, _), effect in zip(gaps[:3], _complements.aa_effects(p, gaps, digestibility=_digestibility)):
             label_aa = _aa_label(aa)
-            arrow = f"[{state.T['success']}]{new_score:.2f}[/{state.T['success']}]" if new_score >= 1.0 \
-                else f"[{state.T['warning']}]{new_score:.2f}[/{state.T['warning']}]"
+            arrow = f"[{state.T['success']}]{effect['after']:.2f}[/{state.T['success']}]" if effect["met"] \
+                else f"[{state.T['warning']}]{effect['after']:.2f}[/{state.T['warning']}]"
             score_parts.append(f"{label_aa}: {orig_score:.2f}→{arrow}")
         if score_parts:
             state.console.print(f"    Effect: {' · '.join(score_parts)}")
@@ -1094,22 +1083,10 @@ def _print_complement_suggestions(
 
     # Per-AA note about which common foods typically fall below the FAO reference
     # and therefore cannot close that gap regardless of quantity.
-    _AA_LOW_IN: dict[str, str] = {
-        "aa_methionine_g":    "grains (rice, wheat, quinoa) and most legumes",
-        "aa_lysine_g":        "grains (rice, wheat, corn, oats)",
-        "aa_threonine_g":     "wheat and refined grains",
-        "aa_leucine_g":       "most plant foods other than soy",
-        "aa_isoleucine_g":    "legumes and most plant foods",
-        "aa_valine_g":        "most plant foods",
-        "aa_tryptophan_g":    "untreated corn-based foods",
-        "aa_histidine_g":     "most plant foods",
-        "aa_phenylalanine_g": "most plant foods",
-    }
-
     def _general_exhausted_msg(n_shown: int, n_already_shown: int = 0) -> None:
         limiting_aa = gaps[0][0] if gaps else None
         limiting_label = _aa_label(limiting_aa) if limiting_aa else "this amino acid"
-        low_in = _AA_LOW_IN.get(limiting_aa or "", "many plant foods")
+        low_in = _complements.AA_LOW_IN.get(limiting_aa or "", "many plant foods")
         if n_shown > 0:
             prefix = "All options that qualify are shown above — no others meet the criteria."
         elif n_already_shown > 0:
@@ -1255,96 +1232,69 @@ def _print_complement_suggestions(
                 "for the resulting protein pool (Step 2).[/grey62]"
             )
             for i, gc in enumerate(top_gap_closers, 1):
-                comp_nutrients = gc.get("comp_nutrients")
-                if not comp_nutrients:
+                combo = _complements.two_step_combo(
+                    gc, base_nutrients,
+                    base_protein=base_protein, base_digestible=base_digestible,
+                    pantry_candidates=pantry_and_recipes, diet_pref=state._diet_pref,
+                    gaps=gaps, max_improver_grams=max_improver_grams,
+                    fallback_digestibility=_digestibility, aa_effects_limit=2,
+                )
+                if combo is None:
                     continue
-                gc_grams = gc["grams"]
-                gc_raw = gc["protein_added"]
-                gc_diaas = gc.get("predicted_diaas") or _digestibility
-                gc_dcp = round((base_protein + gc_raw) * min(1.0, gc_diaas), 1)
-                combined = _usda.sum_nutrients(
-                    base_nutrients,
-                    _usda.scale_nutrients(comp_nutrients, gc_grams),
-                )
-                sub = _usda.suggest_complements(
-                    combined, pantry_and_recipes,
-                    diet_pref=state._diet_pref,
-                    base_digestibility=gc_diaas,
-                    max_improver_grams=max_improver_grams,
-                )
-                boosters = sub.get("diaas_improvers", [])
-                gc_name = gc.get("name", "")
-                fdc_str = (f"  [grey62]FDC {gc['fdc_id']}[/grey62]"
-                           if gc.get("fdc_id") else "")
-                vol1 = _volume_hint(gc_grams, gc_name)
+                step1, step2, gc_diaas = combo["step1"], combo["step2"], combo["gc_diaas"]
+                gc_name = step1["name"]
+                fdc_str = f"  [grey62]FDC {step1['fdc_id']}[/grey62]" if step1.get("fdc_id") else ""
+                vol1 = _volume_hint(step1["grams"], gc_name)
                 vol1_str = f"  [grey62]({vol1})[/grey62]" if vol1 else ""
                 gc_color = state.T["warning"] if gc_diaas < 0.9 else state.T["success"]
                 state.console.print(
                     f"\n  [{state.T['accent']}]Combination {i}[/{state.T['accent']}]"
                 )
                 state.console.print(
-                    f"    Step 1 — {add_verb} [bold]{gc_grams}g[/bold]{vol1_str}  "
+                    f"    Step 1 — {add_verb} [bold]{step1['grams']}g[/bold]{vol1_str}  "
                     f"[bold]{gc_name}[/bold]{fdc_str}",
                     highlight=False,
                 )
                 score_parts = []
-                for aa, orig_score, _ in gaps[:2]:
-                    new_raw = gc.get("new_scores", {}).get(aa)
-                    if new_raw is not None and _digestibility > 0:
-                        new_score = new_raw * _digestibility
-                    else:
-                        new_score = orig_score
+                for (aa, orig_score, _), effect in zip(gaps[:2], step1["aa_effects"]):
                     label_aa = _aa_label(aa)
-                    arrow = (f"[{state.T['success']}]{new_score:.2f}[/{state.T['success']}]"
-                             if new_score >= 1.0
-                             else f"[{state.T['warning']}]{new_score:.2f}[/{state.T['warning']}]")
+                    arrow = (f"[{state.T['success']}]{effect['after']:.2f}[/{state.T['success']}]"
+                             if effect["met"]
+                             else f"[{state.T['warning']}]{effect['after']:.2f}[/{state.T['warning']}]")
                     score_parts.append(f"{label_aa}: {orig_score:.2f}→{arrow}")
                 if score_parts:
                     state.console.print(f"      AA effect: {' · '.join(score_parts)}")
                 state.console.print(
-                    f"      DCP: [{state.T['success']}]{base_digestible:.1f}g[/{state.T['success']}]"
-                    f" → [{gc_color}]{gc_dcp:.1f}g[/{gc_color}]",
+                    f"      DCP: [{state.T['success']}]{step1['dcp_before']:.1f}g[/{state.T['success']}]"
+                    f" → [{gc_color}]{step1['dcp_after']:.1f}g[/{gc_color}]",
                     highlight=False,
                 )
-                # Only accept a booster whose smallest step actually raises the
-                # post-Step-1 DIAAS — discard any that would lower it.
-                qualifying = [
-                    b for b in boosters
-                    if b.get("steps") and b["steps"][0]["new_diaas"] > gc_diaas
-                ]
-                if not qualifying:
+                if step2 is None:
                     state.console.print(
                         "    Step 2 — [grey62]no available food improves on the DIAAS "
                         "already achieved by Step 1[/grey62]"
                     )
                     continue
-                b = qualifying[0]
-                b_step = b["steps"][0]
-                b_grams = b_step["grams"]
-                b_new_diaas = b_step["new_diaas"]
-                b_dcp = b_step.get("dcp")
-                b_name = b.get("name", "")
-                b_fdc = (f"  [grey62]FDC {b['fdc_id']}[/grey62]"
-                         if b.get("fdc_id") else "")
-                vol2 = _volume_hint(b_grams, b_name)
+                b_color = state.T["success"] if step2["new_diaas"] >= 0.9 else state.T["warning"]
+                vol2 = _volume_hint(step2["grams"], step2["name"])
                 vol2_str = f"  [grey62]({vol2})[/grey62]" if vol2 else ""
-                b_color = state.T["success"] if b_new_diaas >= 0.9 else state.T["warning"]
+                b_fdc = f"  [grey62]FDC {step2['fdc_id']}[/grey62]" if step2.get("fdc_id") else ""
                 state.console.print(
-                    f"    Step 2 — {add_verb} [bold]{b_grams}g[/bold]{vol2_str}  "
-                    f"[bold]{b_name}[/bold]{b_fdc}",
+                    f"    Step 2 — {add_verb} [bold]{step2['grams']}g[/bold]{vol2_str}  "
+                    f"[bold]{step2['name']}[/bold]{b_fdc}",
                     highlight=False,
                 )
                 state.console.print(
                     f"      Meal DIAAS [{gc_color}]{gc_diaas:.2f}[/{gc_color}]"
-                    f" → [{b_color}]{b_new_diaas:.2f}[/{b_color}]",
+                    f" → [{b_color}]{step2['new_diaas']:.2f}[/{b_color}]",
                     highlight=False,
                 )
-                if b_dcp is not None:
-                    total_gain = round(b_dcp - base_digestible, 1)
+                if step2["dcp_after"] is not None:
+                    total_gain = step2["net_gain"]
                     gain_str = f"+{total_gain:.1f}g" if total_gain >= 0 else f"{total_gain:.1f}g"
                     state.console.print(
-                        f"      DCP: [{gc_color}]{gc_dcp:.1f}g[/{gc_color}]"
-                        f" → [{b_color}]{b_dcp:.1f}g[/{b_color}]"
+                        f"      DCP: [{gc_color}]{step2['dcp_before']:.1f}g[/{gc_color}]"
+                        f" → [{b_color}]{step2['dcp_after']:.1f}g[/{b_color}]"
                         f"  [grey62](net gain from base: {gain_str})[/grey62]",
                         highlight=False,
                     )
