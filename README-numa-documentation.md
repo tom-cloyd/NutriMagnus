@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-11:0034
+UPDATED: 2026-07-11:1206
 ---
 
 ## Table of Contents
@@ -1288,11 +1288,11 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 
 ## Test Suite
 
-The test suite has been rebuilt for the refactored `numa_app/` package structure. **316 tests**, all passing.
+The test suite has been rebuilt for the refactored `numa_app/` package structure. **384 tests**, all passing.
 
 Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `pythonpath = .`).
 
-> **Note:** `pytest` is not in `requirements.txt` (which lists only runtime dependencies). Install it separately: `pip install pytest`.
+> **Note:** `pytest` and `httpx` are not in `requirements.txt` (which lists only runtime dependencies). Install separately: `pip install pytest httpx`. `httpx` is only needed for `tests/test_web.py` (FastAPI's `TestClient` requires it).
 
 | File | What it tests |
 |---|---|
@@ -1302,6 +1302,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_diaas.py` | `get_digestibility` (all tiers), `meal_level_diaas` (edge cases, complementarity, pairing, gap flags), DIAAS override CRUD |
 | `tests/test_profile.py` | `load_profile`, `save_profile`, `bmr`, `compute_rda` (sex/age/activity variants), unit conversion helpers |
 | `tests/test_cli.py` | All menus end-to-end; USDA API mocked; dietary prefs toggle; Foods item 3 (recipe portion analysis); profile settings and RDA comparison |
+| `tests/test_web.py` | FastAPI `TestClient` smoke tests for every parameter-free web page, plus food search and food-detail rendering |
 
 ### Test infrastructure
 
