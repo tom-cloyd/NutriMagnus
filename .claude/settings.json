@@ -60,7 +60,17 @@
       "Bash(kill 399595)",
       "Bash(kill 419259)",
       "Bash(curl -s http://localhost:*)",
-      "Bash(curl -s -o /dev/null -w * http://localhost:*)"
+      "Bash(curl -s -o /dev/null -w * http://localhost:*)",
+      "Bash(curl -s \"http://127.0.0.1:*)",
+      "Bash(curl -s http://127.0.0.1:*)",
+      "Bash(curl -s -G \"http://127.0.0.1:*)",
+      "Bash(curl -s https://codeberg.org/api/v1/repos/Tom_Cloyd/NutriMagnus*)",
+      "Bash(python -m pytest *)",
+      "Bash(pytest *)",
+      "Bash(python web/launcher.py *)",
+      "Bash(.venv/bin/python web/launcher.py *)",
+      "Bash(bash web/launch-web.sh)",
+      "Bash(fuser 8000/tcp)"
     ]
   }
 }
