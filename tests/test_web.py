@@ -15,6 +15,7 @@ import pathlib
 import pytest
 from fastapi.testclient import TestClient
 
+import diaas as _diaas
 import profile as _profile
 import web.backend as backend
 from tests.test_cli import _mock_api
@@ -201,3 +202,244 @@ def test_food_compare_add(client: TestClient, cached_food) -> None:
     )
     assert resp.status_code == 303
     assert f"ids={cached_food['fdcId']}" in resp.headers["location"]
+
+
+@pytest.fixture()
+def second_cached_food(db_conn) -> dict:
+    """A second cache food (distinct fdc_id) for tests that need >=2 foods."""
+    row = {"fdcId": 999001, "name": "Second Test Food"}
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?, ?, 'SR Legacy', '{}', '[]')",
+        (row["fdcId"], row["name"]),
+    )
+    db_conn.commit()
+    return row
+
+
+def test_recipe_ingredient_edit_and_move(client: TestClient, cached_food, second_cached_food, db_conn) -> None:
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Salad", "servings": 2}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+        follow_redirects=False,
+    )
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": second_cached_food["fdcId"], "food_name": second_cached_food["name"], "portion_str": "50 g"},
+        follow_redirects=False,
+    )
+    ings = db_conn.execute(
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id", (recipe_id,)
+    ).fetchall()
+    assert len(ings) == 2
+    first_id, second_id = ings[0]["id"], ings[1]["id"]
+
+    resp = client.post(
+        f"/recipe/{recipe_id}/ingredient/{first_id}/edit",
+        data={"portion_str": "200 g", "food_name": cached_food["name"]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    updated = db_conn.execute("SELECT * FROM recipe_ingredients WHERE id = ?", (first_id,)).fetchone()
+    assert updated["amount"] == 200.0
+
+    resp = client.post(
+        f"/recipe/{recipe_id}/ingredient/{second_id}/move",
+        data={"direction": "up"}, follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    reordered = db_conn.execute(
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = ? ORDER BY COALESCE(sort_order, id), id",
+        (recipe_id,),
+    ).fetchall()
+    assert reordered[0]["id"] == second_id
+
+
+def test_recipe_delete_and_copy(client: TestClient, cached_food, db_conn) -> None:
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Stew", "servings": 3}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+        follow_redirects=False,
+    )
+
+    resp = client.post(f"/recipe/{recipe_id}/copy", follow_redirects=False)
+    assert resp.status_code == 303
+    new_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    assert new_id != recipe_id
+    copied = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (new_id,)).fetchone()
+    assert copied["name"] == "Copy of Stew"
+    copied_ings = db_conn.execute(
+        "SELECT * FROM recipe_ingredients WHERE recipe_id = ?", (new_id,)
+    ).fetchall()
+    assert len(copied_ings) == 1
+
+    resp = client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
+    assert resp.status_code == 303
+    assert db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone() is None
+
+
+def test_meal_add_recipe_rename_merge_refresh_aa(client: TestClient, cached_food, db_conn) -> None:
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Chili", "servings": 2}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+        follow_redirects=False,
+    )
+
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-11"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    resp = client.post(
+        f"/meal/{meal_id}/add-recipe",
+        data={"recipe_id": recipe_id, "recipe_name": "Chili", "servings": 1, "mode": "recipe"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    items = db_conn.execute("SELECT * FROM meal_items WHERE meal_id = ?", (meal_id,)).fetchall()
+    assert len(items) == 1
+    assert items[0]["item_type"] == "recipe"
+
+    resp = client.post(
+        f"/meal/{meal_id}/rename", data={"name": "Renamed Dinner", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    meal = db_conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
+    assert meal["name"] == "Renamed Dinner"
+
+    resp = client.post(f"/meal/{meal_id}/refresh-aa", follow_redirects=False)
+    assert resp.status_code == 303
+
+    second_meal_id = int(
+        client.post("/meals/create", data={"name": "Leftovers", "meal_date": "2026-07-11"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    resp = client.post(
+        f"/meal/{meal_id}/merge",
+        data={"new_name": "Combined Meal", "merge_ids": [meal_id, second_meal_id]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    merged_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    merged_items = db_conn.execute("SELECT * FROM meal_items WHERE meal_id = ?", (merged_id,)).fetchall()
+    assert len(merged_items) == 1
+
+
+def test_food_annotate_edit_skip_forever_and_clear(client: TestClient, cached_food, db_conn) -> None:
+    resp = client.post(
+        f"/food/annotate/{cached_food['fdcId']}",
+        data={"gi_estimate": "55", "diaas_estimate": "0.9"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    ann = db_conn.execute(
+        "SELECT * FROM food_annotations WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone()
+    assert ann["gi_estimate"] == 55.0
+    assert ann["diaas_estimate"] == 0.9
+
+    resp = client.post(f"/food/annotate/{cached_food['fdcId']}/skip-forever", follow_redirects=False)
+    assert resp.status_code == 303
+    ann = db_conn.execute(
+        "SELECT * FROM food_annotations WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone()
+    assert ann["gi_no_prompt"] == 1
+
+    resp = client.post(f"/food/annotate/{cached_food['fdcId']}/clear", follow_redirects=False)
+    assert resp.status_code == 303
+    assert db_conn.execute(
+        "SELECT * FROM food_annotations WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone() is None
+
+
+def test_settings_diaas_override_set_and_delete(client: TestClient) -> None:
+    resp = client.post(
+        "/settings/diaas-override",
+        data={"food_name": "Lentils, cooked", "digestibility": 0.85, "notes": "test"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/settings?saved=diaas"
+
+    with backend._db.get_db() as conn:
+        override = _diaas.diaas_override_get(conn, "Lentils, cooked")
+    assert override is not None
+
+    resp = client.post(
+        "/settings/diaas-override/delete", data={"food_name": "Lentils, cooked"}, follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    with backend._db.get_db() as conn:
+        assert _diaas.diaas_override_get(conn, "Lentils, cooked") is None
+
+
+def test_food_compare_add_multiple_remove_amounts(client: TestClient, cached_food, second_cached_food) -> None:
+    resp = client.post(
+        "/food/compare/add-multiple",
+        data={"fdc_id": [cached_food["fdcId"], second_cached_food["fdcId"]]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert str(cached_food["fdcId"]) in location
+    assert str(second_cached_food["fdcId"]) in location
+
+    resp = client.post(
+        "/food/compare/remove",
+        data={"remove_id": second_cached_food["fdcId"],
+              "ids": f"{cached_food['fdcId']},{second_cached_food['fdcId']}",
+              "amounts": "100.0,100.0"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert str(second_cached_food["fdcId"]) not in resp.headers["location"]
+
+    resp = client.post(
+        "/food/compare/amounts",
+        data={"ids": str(cached_food["fdcId"]), f"amounts_{cached_food['fdcId']}": "150"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "amounts=150.0" in resp.headers["location"]
+
+
+def test_food_compare_save_load_rename_delete(client: TestClient, cached_food, second_cached_food, db_conn) -> None:
+    resp = client.post(
+        "/food/compare/save",
+        data={"name": "My Comparison",
+              "ids": f"{cached_food['fdcId']},{second_cached_food['fdcId']}",
+              "amounts": "100.0,100.0"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    row = db_conn.execute("SELECT * FROM saved_comparisons WHERE name = 'My Comparison'").fetchone()
+    assert row is not None
+    cmp_id = row["id"]
+
+    resp = client.get(f"/food/compare/load/{cmp_id}", follow_redirects=False)
+    assert resp.status_code == 303
+    assert str(cached_food["fdcId"]) in resp.headers["location"]
+
+    resp = client.post(
+        "/food/compare/saved/rename", data={"cmp_id": cmp_id, "name": "Renamed Comparison"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    renamed = db_conn.execute("SELECT * FROM saved_comparisons WHERE id = ?", (cmp_id,)).fetchone()
+    assert renamed["name"] == "Renamed Comparison"
+
+    resp = client.post("/food/compare/saved/delete", data={"cmp_id": cmp_id}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert db_conn.execute("SELECT * FROM saved_comparisons WHERE id = ?", (cmp_id,)).fetchone() is None
