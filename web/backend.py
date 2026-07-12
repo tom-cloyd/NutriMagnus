@@ -25,6 +25,8 @@ from numa_app.services import complements as _complements
 from numa_app.services.glycemic_load import compute_glycemic_load
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.portions import _ing_amount_display
+from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
+from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
 from numa_app.services.rda_status import rda_status
 from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 
@@ -58,23 +60,12 @@ def _render_home_md() -> str:
     return html
 
 # ---------------------------------------------------------------------------
-# Portion-string parser (mirrors CLI numa_app/services/portions.py)
+# Portion-string parser (unit tables are numa_app.services.portions' — imported
+# above as _PORTION_UNIT_TO_G / _PORTION_VOL_TO_ML — so the two UIs can't drift
+# apart on gram/ml conversion factors; the parsing function itself stays
+# separate since web's stateless form flow needs different fallback behavior
+# for bare numbers and unknown-density volumes than the CLI's interactive one)
 # ---------------------------------------------------------------------------
-
-_PORTION_UNIT_TO_G: dict[str, float] = {
-    "g": 1.0, "gr": 1.0, "gram": 1.0, "grams": 1.0,
-    "oz": 28.3495, "ounce": 28.3495, "ounces": 28.3495,
-    "lb": 453.592, "lbs": 453.592, "pound": 453.592, "pounds": 453.592,
-    "kg": 1000.0, "kilogram": 1000.0, "kilograms": 1000.0,
-}
-_PORTION_VOL_TO_ML: dict[str, float] = {
-    "c": 236.6, "cup": 236.6, "cups": 236.6,
-    "T": 14.8, "tbsp": 14.8, "tablespoon": 14.8, "tablespoons": 14.8,
-    "t": 4.9,  "tsp": 4.9,  "teaspoon": 4.9,  "teaspoons": 4.9,
-    "ml": 1.0, "milliliter": 1.0, "milliliters": 1.0, "cc": 1.0,
-    "floz": 29.6,
-    "l": 1000.0, "liter": 1000.0, "liters": 1000.0,
-}
 
 
 def _parse_portion_str(
