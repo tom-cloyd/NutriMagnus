@@ -2259,14 +2259,15 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
             # Expand recipe ingredients into DIAAS ingredient list (handles sub-recipes)
             ingredients.extend(_expand_recipe_ingredients(row["recipe_id"], portion_factor, conn))
             items.append({
-                "id":        row["id"],
-                "food_name": row["food_name"],
-                "fdc_id":    None,
-                "recipe_id": row["recipe_id"],
-                "amount":    servings_consumed,
-                "unit":      "serving" + ("s" if servings_consumed != 1 else ""),
-                "notes":     row["notes"] or "",
-                "has_nuts":  bool(per_serving),
+                "id":             row["id"],
+                "food_name":      row["food_name"],
+                "fdc_id":         None,
+                "recipe_id":      row["recipe_id"],
+                "amount":         servings_consumed,
+                "unit":           "serving" + ("s" if servings_consumed != 1 else ""),
+                "notes":          row["notes"] or "",
+                "has_nuts":       bool(per_serving),
+                "recipe_deleted": recipe is None,
             })
 
     return items, total_nutrients, ingredients
@@ -2764,6 +2765,8 @@ async def meal_add_recipe_item(
             ings = _db.recipe_get_ingredients(conn, recipe_id)
         with _db.get_db() as conn:
             for ing in ings:
+                if ing["ref_recipe_deleted"]:
+                    continue
                 if ing["ref_recipe_id"]:
                     scaled_srv = (ing["amount"] or 1) * scale
                     sub_unit = f"{scaled_srv:g} serving" + ("s" if scaled_srv != 1 else "")
@@ -2884,6 +2887,11 @@ async def meals_search(request: Request, q: str = ""):
     if q.strip():
         with _db.get_db() as conn:
             rows = [dict(r) for r in _db.search_meal_history(conn, q.strip())]
+            recipe_ids = {r["recipe_id"] for r in rows if r["item_type"] == "recipe" and r["recipe_id"]}
+            deleted_recipe_ids = {rid for rid in recipe_ids if _db.recipe_get(conn, rid) is None}
+        for r in rows:
+            if r["item_type"] == "recipe":
+                r["recipe_deleted"] = r["recipe_id"] in deleted_recipe_ids
         n_items = len(rows)
         n_meals = len({r["meal_id"] for r in rows})
         n_dates = len({r["meal_date"] for r in rows})
@@ -2936,7 +2944,11 @@ async def meal_day_view(request: Request, meal_id: int):
     # Attach items list to each meal dict
     with _db.get_db() as conn:
         for m in meals:
-            m["meal_items"] = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
+            m_items = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
+            for it in m_items:
+                if it["item_type"] == "recipe":
+                    it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
+            m["meal_items"] = m_items
 
     diaas_display = _build_diaas_display(diaas_result)
 
@@ -3165,6 +3177,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
             return RedirectResponse("/recipes", status_code=303)
         _db.recipe_touch(conn, recipe_id)
         ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
+        referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
         recipe_servings = float(recipe["servings"] or 1)
 
@@ -3207,6 +3220,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         "has_profile":              rda is not None,
         "ingredient_antinutrients": ingredient_antinutrients,
         "oxalate":                  oxalate,
+        "referencing_recipes":      referencing_recipes,
     })
 
 
@@ -3351,6 +3365,7 @@ async def recipe_copy_post(recipe_id: int):
                 conn, new_id, ing["fdc_id"], ing["food_name"],
                 ing["amount"], ing["unit"], ing["notes"],
                 ref_recipe_id=ing["ref_recipe_id"],
+                ref_recipe_deleted=bool(ing["ref_recipe_deleted"]),
             )
     return RedirectResponse(f"/recipe/{new_id}/edit", status_code=303)
 
@@ -3523,7 +3538,11 @@ async def summary_date(request: Request, meal_date: str):
 
     with _db.get_db() as conn:
         for m in meals:
-            m["meal_items"] = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
+            m_items = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
+            for it in m_items:
+                if it["item_type"] == "recipe":
+                    it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
+            m["meal_items"] = m_items
 
     diaas_display = _build_diaas_display(diaas_result)
 
@@ -3586,7 +3605,7 @@ async def summary_date(request: Request, meal_date: str):
 async def analysis_food_use(
     request: Request,
     mode: str = Query(default="range"),
-    ranges_raw: str = Query(default=""),
+    ranges_raw: str | None = Query(default=None),
     meal_ids: str = Query(default=""),
     protein_only: bool = Query(default=False),
 ):
@@ -3594,6 +3613,10 @@ async def analysis_food_use(
 
     mode selects EITHER date range(s) ("range") OR meal IDs ("ids") — never both.
     """
+    if ranges_raw is None:
+        today = datetime.date.today()
+        ranges_raw = f"{today - datetime.timedelta(days=30)}:{today}"
+
     ranges: list[tuple[str, str]] = []
     requested_ids: list[int] = []
     missing_ids: list[int] = []
@@ -3612,6 +3635,13 @@ async def analysis_food_use(
     else:
         for token in re.split(r"[\s,]+", meal_ids.strip()):
             if not token:
+                continue
+            m = re.fullmatch(r"(\d+)-(\d+)", token)
+            if m:
+                lo, hi = int(m.group(1)), int(m.group(2))
+                if lo > hi:
+                    lo, hi = hi, lo
+                requested_ids.extend(range(lo, hi + 1))
                 continue
             try:
                 requested_ids.append(int(token))
@@ -3635,14 +3665,14 @@ async def analysis_food_use(
         for meal_id, meal in meals_by_id.items():
             items = _db.meal_expand_food_items(conn, meal_id)
             seen: set = set()
-            for fdc_id, name, kind, has_protein in items:
+            for fdc_id, name, kind, has_protein, deleted in items:
                 key = (fdc_id, kind) if fdc_id is not None else (kind, name)
                 if key in seen:
                     continue
                 seen.add(key)
                 entry = agg.setdefault(key, {
                     "name": name, "fdc_id": fdc_id, "kind": kind, "has_protein": has_protein,
-                    "meal_ids": set(), "days": set(),
+                    "deleted": deleted, "meal_ids": set(), "days": set(),
                 })
                 entry["meal_ids"].add(meal_id)
                 entry["days"].add(meal["meal_date"])
@@ -3657,12 +3687,13 @@ async def analysis_food_use(
     )
     max_days = len(rows_sorted[0]["days"]) if rows_sorted else 0
     result_rows = [{
-        "fdc_id": r["fdc_id"],
-        "name":   r["name"],
-        "kind":   r["kind"],
-        "days":   len(r["days"]),
-        "meals":  len(r["meal_ids"]),
-        "pct":    round(len(r["days"]) / max_days * 100, 0) if max_days else 0,
+        "fdc_id":  r["fdc_id"],
+        "name":    r["name"],
+        "kind":    r["kind"],
+        "deleted": r["deleted"],
+        "days":    len(r["days"]),
+        "meals":   len(r["meal_ids"]),
+        "pct":     round(len(r["days"]) / max_days * 100, 0) if max_days else 0,
     } for r in rows_sorted]
 
     return templates.TemplateResponse(request, "analysis_food_use.html", {

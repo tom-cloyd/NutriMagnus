@@ -79,7 +79,8 @@ def init_db() -> None:
                 amount        REAL    NOT NULL,
                 unit          TEXT    NOT NULL,
                 notes         TEXT,
-                ref_recipe_id INTEGER REFERENCES recipes(id)
+                ref_recipe_id INTEGER REFERENCES recipes(id),
+                ref_recipe_deleted INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS meals (
@@ -183,6 +184,11 @@ def init_db() -> None:
 
         try:
             conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN ref_recipe_id INTEGER REFERENCES recipes(id)")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN ref_recipe_deleted INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass
 
@@ -473,11 +479,12 @@ def recipe_create(conn: sqlite3.Connection, name: str, description: str,
 def recipe_add_ingredient(conn: sqlite3.Connection, recipe_id: int, fdc_id: int,
                           food_name: str, amount: float, unit: str,
                           notes: str | None = None,
-                          *, ref_recipe_id: int | None = None) -> None:
+                          *, ref_recipe_id: int | None = None,
+                          ref_recipe_deleted: bool = False) -> None:
     conn.execute("""
-        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (recipe_id, fdc_id, food_name, amount, unit, notes or None, ref_recipe_id))
+        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id, ref_recipe_deleted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (recipe_id, fdc_id, food_name, amount, unit, notes or None, ref_recipe_id, 1 if ref_recipe_deleted else 0))
 
 
 def recipe_set_dcp(
@@ -670,7 +677,26 @@ def recipe_remove_ingredient(conn: sqlite3.Connection, ingredient_id: int) -> bo
     return cur.rowcount > 0
 
 
+def recipe_referencing_subrecipe(conn: sqlite3.Connection, recipe_id: int) -> list[sqlite3.Row]:
+    """Return (id, name) rows for recipes that use `recipe_id` as a sub-recipe ingredient."""
+    return conn.execute("""
+        SELECT DISTINCT r.id, r.name
+        FROM recipe_ingredients ri
+        JOIN recipes r ON r.id = ri.recipe_id
+        WHERE ri.ref_recipe_id = ?
+        ORDER BY r.name
+    """, (recipe_id,)).fetchall()
+
+
 def recipe_delete(conn: sqlite3.Connection, recipe_id: int) -> bool:
+    """Delete a recipe. Any other recipe that used it as a sub-recipe keeps its
+    ingredient row (food_name snapshot intact) but is flagged via
+    ref_recipe_deleted so displays can show it as a broken reference instead
+    of silently losing it or failing on the FK constraint."""
+    conn.execute(
+        "UPDATE recipe_ingredients SET ref_recipe_id = NULL, ref_recipe_deleted = 1 WHERE ref_recipe_id = ?",
+        (recipe_id,)
+    )
     cur = conn.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
     return cur.rowcount > 0
 
@@ -839,8 +865,8 @@ def meal_list_by_ids(conn: sqlite3.Connection, ids: list[int]) -> list[sqlite3.R
     ).fetchall()
 
 
-def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple[int | None, str, str, bool]]:
-    """Flatten a meal's items into (fdc_id, name, kind, has_protein) tuples.
+def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple[int | None, str, str, bool, bool]]:
+    """Flatten a meal's items into (fdc_id, name, kind, has_protein, deleted) tuples.
 
     Plain food items yield one ("food") tuple. Recipe items yield one ("recipe")
     tuple for the recipe itself, plus one ("food") tuple per base ingredient
@@ -849,6 +875,11 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
     has_protein reflects the food's cached protein_g > 0 (False if the food
     isn't cached). A recipe row's has_protein is True if any of its
     (recursively) expanded ingredients has_protein.
+
+    deleted is True for a "recipe" row whose recipe_id no longer exists in the
+    recipes table (the recipe was deleted after this meal referenced it). The
+    meal item's stored food_name is used as a fallback label in that case, and
+    it has no expanded ingredients.
     """
     def _food_has_protein(fdc_id: int) -> bool:
         cached = get_cached_food(conn, fdc_id)
@@ -857,22 +888,25 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
         nutrients = json.loads(cached["nutrients_json"])
         return nutrients.get("protein_g", 0) > 0
 
-    def _expand_recipe(recipe_id: int) -> list[tuple[int | None, str, str, bool]]:
-        out: list[tuple[int | None, str, str, bool]] = []
+    def _expand_recipe(recipe_id: int) -> list[tuple[int | None, str, str, bool, bool]]:
+        out: list[tuple[int | None, str, str, bool, bool]] = []
         for ing in recipe_get_ingredients(conn, recipe_id):
-            if ing["ref_recipe_id"]:
+            if ing["ref_recipe_deleted"]:
+                out.append((None, ing["food_name"], "recipe", False, True))
+            elif ing["ref_recipe_id"]:
                 out.extend(_expand_recipe(ing["ref_recipe_id"]))
             else:
-                out.append((ing["fdc_id"], ing["food_name"], "food", _food_has_protein(ing["fdc_id"])))
+                out.append((ing["fdc_id"], ing["food_name"], "food", _food_has_protein(ing["fdc_id"]), False))
         return out
 
-    result: list[tuple[int | None, str, str, bool]] = []
+    result: list[tuple[int | None, str, str, bool, bool]] = []
     for item in meal_get_items(conn, meal_id):
         if item["item_type"] == "food":
-            result.append((item["fdc_id"], item["food_name"], "food", _food_has_protein(item["fdc_id"])))
+            result.append((item["fdc_id"], item["food_name"], "food", _food_has_protein(item["fdc_id"]), False))
         elif item["item_type"] == "recipe":
-            expanded = _expand_recipe(item["recipe_id"])
-            result.append((None, item["food_name"], "recipe", any(e[3] for e in expanded)))
+            recipe_deleted = recipe_get(conn, item["recipe_id"]) is None
+            expanded = [] if recipe_deleted else _expand_recipe(item["recipe_id"])
+            result.append((None, item["food_name"], "recipe", any(e[3] for e in expanded), recipe_deleted))
             result.extend(expanded)
     return result
 
@@ -905,13 +939,13 @@ def search_meal_history(
     conn: sqlite3.Connection, query: str
 ) -> list[sqlite3.Row]:
     """Search food items across all meals by name (LIKE) and by fdc_id cross-reference.
-    Returns rows ordered by meal_date DESC. Recipe items are excluded."""
+    Returns rows ordered by meal_date DESC. Includes both food and recipe items."""
     like = f"%{query}%"
     return conn.execute(
         """
         SELECT m.meal_date, m.name AS meal_name, m.id AS meal_id,
                mi.id AS item_id, mi.item_type, mi.food_name, mi.fdc_id,
-               mi.amount, mi.unit, mi.notes
+               mi.recipe_id, mi.amount, mi.unit, mi.notes
         FROM meal_items mi
         JOIN meals m ON mi.meal_id = m.id
         WHERE (

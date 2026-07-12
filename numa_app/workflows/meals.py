@@ -596,8 +596,12 @@ def _meal_add_items(meal_id: int) -> None:
                 with _db.get_db() as conn:
                     ings = _db.recipe_get_ingredients(conn, rid)
                 scale = servings / r_total_servings
+                skipped_deleted: list[str] = []
                 with _db.get_db() as conn:
                     for ing in ings:
+                        if ing["ref_recipe_deleted"]:
+                            skipped_deleted.append(ing["food_name"])
+                            continue
                         if ing["ref_recipe_id"]:
                             scaled_srv = (ing["amount"] or 1) * scale
                             _db.meal_add_recipe(
@@ -610,7 +614,11 @@ def _meal_add_items(meal_id: int) -> None:
                                 conn, meal_id, ing["fdc_id"], ing["food_name"],
                                 scaled_g, f"{scaled_g:.4g} g", ing["notes"] or None,
                             )
-                n_added = len(ings)
+                if skipped_deleted:
+                    state.console.print(
+                        f"[{state.T['warning']}]⚠  Skipped deleted sub-recipe(s): {', '.join(skipped_deleted)}[/{state.T['warning']}]"
+                    )
+                n_added = len(ings) - len(skipped_deleted)
                 srv_desc = portion_label or _format_recipe_portion_label(servings)
                 state.console.print(
                     f"  [{state.T['success']}]✓[/{state.T['success']}]"
@@ -755,6 +763,10 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
     with _db.get_db() as conn:
         meal_row = _db.meal_get(conn, meal_id)
         items    = _db.meal_get_items(conn, meal_id)
+        recipe_deleted = {
+            it["id"]: _db.recipe_get(conn, it["recipe_id"]) is None
+            for it in items if it["item_type"] == "recipe"
+        }
     date_prefix = f"{meal_row['meal_date']}  ·  " if meal_row else ""
     section_title(f"{date_prefix}{meal_name}  [grey62](ID {meal_id})[/grey62]")
     if not items:
@@ -770,9 +782,14 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
             if it["item_type"] == "recipe":
                 unit = it["unit"] or ""
                 amount_label = unit if unit and unit != "servings" else _format_recipe_portion_label(float(it["amount"]))
-                fname = it["food_name"][:_MITEM_W - 1]
-                fdots = "·" * (_MITEM_W - len(fname) - 1)
-                name_cell = f"{fname} [grey62]{fdots}[/grey62]"
+                if recipe_deleted[it["id"]]:
+                    flag = " (recipe deleted)"
+                    fname = it["food_name"][:max(1, _MITEM_W - len(flag))]
+                    name_cell = f"{fname}[{state.T['error']}]{flag}[/{state.T['error']}]"
+                else:
+                    fname = it["food_name"][:_MITEM_W - 1]
+                    fdots = "·" * (_MITEM_W - len(fname) - 1)
+                    name_cell = f"{fname} [grey62]{fdots}[/grey62]"
             else:
                 unit = it["unit"] or "g"
                 if unit == "g":
@@ -1437,7 +1454,7 @@ def _analyze_day(meals: list, meal_date: str) -> None:
 # Meal history food search
 # ---------------------------------------------------------------------------
 
-def _print_meal_history_flat(rows: list, query: str) -> None:
+def _print_meal_history_flat(rows: list, query: str, deleted_recipe_ids: set[int] = frozenset()) -> None:
     _W_MEAL = 18
     _W_FOOD = 32
     _W_NOTE = 16
@@ -1451,23 +1468,32 @@ def _print_meal_history_flat(rows: list, query: str) -> None:
     tbl.add_column("Notes",   min_width=_W_NOTE, max_width=_W_NOTE, no_wrap=True)
     for r in rows:
         is_recipe = r["item_type"] == "recipe"
+        is_deleted = is_recipe and r["recipe_id"] in deleted_recipe_ids
         portion   = r["unit"] if r["unit"] else (f"{r['amount']:.0f} g" if r["amount"] else "[grey62]—[/grey62]")
         notes     = r["notes"] or ""
-        name_cell = (f"[bold]{r['food_name']}[/bold] [grey62](recipe)[/grey62]" if is_recipe else f"[bold]{r['food_name']}[/bold]")
+        if is_deleted:
+            flag = " (recipe deleted)"
+            fname = r["food_name"][:max(1, _W_FOOD - len(flag))]
+            name_cell = f"[bold]{fname}[/bold][{state.T['error']}]{flag}[/{state.T['error']}]"
+        elif is_recipe:
+            name_cell = f"[bold]{r['food_name']}[/bold] [grey62](recipe)[/grey62]"
+        else:
+            name_cell = f"[bold]{r['food_name']}[/bold]"
         tbl.add_row(f"[grey62]{r['meal_id']}[/grey62]", r["meal_date"], r["meal_name"], name_cell, portion, notes)
     state.console.print(tbl)
     help_footer("meal-history")
 
 
-def _print_meal_history_summary(rows: list) -> None:
+def _print_meal_history_summary(rows: list, deleted_recipe_ids: set[int] = frozenset()) -> None:
     from collections import defaultdict
     groups: dict[str, list] = defaultdict(list)
     for r in rows:
         groups[r["food_name"]].append(r)
 
+    _W_FOOD = 34
     table_title("MEAL HISTORY — SUMMARY")
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
-    tbl.add_column("Food / Recipe", min_width=34, max_width=34, no_wrap=True)
+    tbl.add_column("Food / Recipe", min_width=_W_FOOD, max_width=_W_FOOD, no_wrap=True)
     tbl.add_column("Times", min_width=5,  justify="right")
     tbl.add_column("Total", min_width=10, justify="right")
     tbl.add_column("First", min_width=10)
@@ -1481,8 +1507,14 @@ def _print_meal_history_summary(rows: list) -> None:
     s = state.T["success"]
     for food_name, items in sorted_groups:
         is_recipe  = items[0]["item_type"] == "recipe"
+        is_deleted = is_recipe and items[0]["recipe_id"] in deleted_recipe_ids
         dates      = sorted(r["meal_date"] for r in items)
-        if is_recipe:
+        if is_deleted:
+            flag = " (recipe deleted)"
+            fname = food_name[:max(1, _W_FOOD - len(flag))]
+            total_str  = "[grey62]—[/grey62]"
+            name_cell  = f"[bold]{fname}[/bold][{state.T['error']}]{flag}[/{state.T['error']}]"
+        elif is_recipe:
             total_str  = "[grey62]—[/grey62]"
             name_cell  = f"[bold]{food_name}[/bold] [grey62](recipe)[/grey62]"
         else:
@@ -1509,6 +1541,8 @@ def _do_meal_food_search() -> None:
 
     with _db.get_db() as conn:
         rows = _db.search_meal_history(conn, query)
+        recipe_ids = {r["recipe_id"] for r in rows if r["item_type"] == "recipe" and r["recipe_id"]}
+        deleted_recipe_ids = {rid for rid in recipe_ids if _db.recipe_get(conn, rid) is None}
 
     if not rows:
         state.console.print(
@@ -1545,6 +1579,6 @@ def _do_meal_food_search() -> None:
         raise SystemExit(0)
 
     if view in ("1", "3"):
-        _print_meal_history_flat(rows, query)
+        _print_meal_history_flat(rows, query, deleted_recipe_ids)
     if view in ("2", "3"):
-        _print_meal_history_summary(rows)
+        _print_meal_history_summary(rows, deleted_recipe_ids)

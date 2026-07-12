@@ -31,7 +31,7 @@ from ..ui.render import (
 )
 from .recipes import (
     _pick_recipe_portion, _compute_recipe_dcp, _compute_recipe_gl,
-    _augment_aa_from_curated, _format_recipe_portion_label,
+    _augment_aa_from_curated, _format_recipe_portion_label, _recipe_ing_id_cell,
 )
 
 def _resolve_recipe_dcp_data(
@@ -301,7 +301,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             note_tag = f"  [grey62]({ing['notes']})[/grey62]" if ing["notes"] else ""
             amt = (_format_recipe_portion_label(ing["amount"])
                    if ing["ref_recipe_id"] else _normalize_unit_display(ing["unit"]))
-            state.console.print(f"  • {amt}  {_id_cell(ing['fdc_id'])}  {ing['food_name']}{note_tag}")
+            state.console.print(f"  • {amt}  {_recipe_ing_id_cell(ing)}  {ing['food_name']}{note_tag}")
 
         state.console.print(f"\n[{state.T['accent']}]Procedure:[/{state.T['accent']}]")
         if recipe["instructions"] and recipe["instructions"].strip():
@@ -317,6 +317,11 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             volume_only_warnings: list[str] = []   # ingredients where weight couldn't be derived
             resolved_ing_ids: set[int] = set()     # volume ingredients successfully converted to grams
             for ing in ingredients:
+                if ing["ref_recipe_deleted"]:
+                    volume_only_warnings.append(
+                        f"{ing['food_name']} — this sub-recipe was deleted; excluded from totals"
+                    )
+                    continue
                 if ing["ref_recipe_id"]:
                     from .recipes import _get_recipe_total_nutrients  # lazy — avoids circular import
                     _, _, sub_nutrients = _get_recipe_total_nutrients(ing["ref_recipe_id"])

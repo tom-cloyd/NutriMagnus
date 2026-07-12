@@ -120,7 +120,8 @@
         {% if it.unit %}{{ it.unit }}
         {% elif it.amount %}{{ it.amount | round(1) }}&thinsp;g
         {% endif %}
-        {% if it.item_type == "recipe" %}<small>(recipe)</small>{% endif %}
+        {% if it.item_type == "recipe" and it.recipe_deleted %}<small class="text-danger">(recipe deleted)</small>
+        {% elif it.item_type == "recipe" %}<small>(recipe)</small>{% endif %}
       </li>
       {% endfor %}
     </ul>

@@ -22,7 +22,7 @@ from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_men
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
 from ..services.reports import _offer_export
-from .recipes import _parse_measure, _compute_recipe_dcp, _compute_recipe_gl, _compute_recipe_protein_summary, _format_recipe_portion_label, _parse_serving_amount
+from .recipes import _parse_measure, _compute_recipe_dcp, _compute_recipe_gl, _compute_recipe_protein_summary, _format_recipe_portion_label, _parse_serving_amount, _recipe_ing_id_cell
 
 def _do_recipe_edit(recipe=None) -> None:
     if recipe is None:
@@ -227,7 +227,7 @@ def _do_recipe_edit(recipe=None) -> None:
             if has_notes:
                 tbl.add_column("Note", min_width=20)
             for i, ing in enumerate(ingredients, 1):
-                id_cell = "[grey62]recipe[/grey62]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
+                id_cell = _recipe_ing_id_cell(ing)
                 amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
                        if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
                 row = [str(i), amt, id_cell, dot_cell(ing["food_name"], _RFOOD_W)]

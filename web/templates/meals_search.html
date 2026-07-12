@@ -53,7 +53,8 @@
       <td><a href="/meal/{{ r.meal_id }}">{{ r.meal_name }}</a></td>
       <td>
         <strong>{{ r.food_name }}</strong>
-        {% if r.item_type == "recipe" %}<small class="muted"> (recipe)</small>{% endif %}
+        {% if r.item_type == "recipe" and r.recipe_deleted %}<small class="text-danger"> (recipe deleted)</small>
+        {% elif r.item_type == "recipe" %}<small class="muted"> (recipe)</small>{% endif %}
       </td>
       <td class="num-col">
         {% if r.unit %}{{ r.unit }}
@@ -94,12 +95,14 @@
     {% for name in seen_names %}
       {% set group = rows | selectattr("food_name", "equalto", name) | list %}
       {% set is_recipe = group[0].item_type == "recipe" %}
+      {% set is_deleted = is_recipe and group[0].recipe_deleted %}
       {% set dates = group | map(attribute="meal_date") | sort | list %}
       {% set amounts = group | map(attribute="amount") | select | list %}
       <tr>
         <td>
           <strong>{{ name }}</strong>
-          {% if is_recipe %}<small class="muted"> (recipe)</small>{% endif %}
+          {% if is_deleted %}<small class="text-danger"> (recipe deleted)</small>
+          {% elif is_recipe %}<small class="muted"> (recipe)</small>{% endif %}
         </td>
         <td class="num-col">{{ group | length }}</td>
         <td class="num-col">

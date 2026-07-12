@@ -107,14 +107,14 @@ def _do_food_use_analysis() -> None:
         with _db.get_db() as conn:
             items = _db.meal_expand_food_items(conn, meal_id)
         seen_this_meal = set()
-        for fdc_id, name, kind, has_protein in items:
+        for fdc_id, name, kind, has_protein, deleted in items:
             key = (fdc_id, kind) if fdc_id is not None else (kind, name)
             if key in seen_this_meal:
                 continue
             seen_this_meal.add(key)
             entry = agg.setdefault(key, {
                 "name": name, "fdc_id": fdc_id, "kind": kind, "has_protein": has_protein,
-                "meal_ids": set(), "days": set(),
+                "deleted": deleted, "meal_ids": set(), "days": set(),
             })
             entry["meal_ids"].add(meal_id)
             entry["days"].add(meal["meal_date"])
@@ -155,7 +155,12 @@ def _do_food_use_analysis() -> None:
         n_meals = len(row["meal_ids"])
         filled = min(int(_BAR_WIDTH * n_days / max_days), _BAR_WIDTH) if max_days else 0
         bar = f"[{a}]{'█' * filled}[/{a}]{'░' * (_BAR_WIDTH - filled)}"
-        kind_label = "recipe" if row["kind"] == "recipe" else ""
+        if row["kind"] != "recipe":
+            kind_label = ""
+        elif row["deleted"]:
+            kind_label = f"[{state.T['error']}]recipe (deleted)[/{state.T['error']}]"
+        else:
+            kind_label = "recipe"
         tbl.add_row(
             _id_cell(row["fdc_id"]),
             dot_cell(row["name"], _NAME_WIDTH, bold=(row["kind"] == "recipe")),
@@ -169,5 +174,6 @@ def _do_food_use_analysis() -> None:
         f"  {ID_KEY}",
         "  [grey62]Days used = distinct calendar days the food appeared in this analysis set.[/grey62]",
         "  [grey62]Recipe rows show the recipe itself; its ingredients are also listed individually.[/grey62]",
+        "  [grey62]\"recipe (deleted)\" means the recipe was removed after being used in that meal; its own ingredient breakdown is no longer available.[/grey62]",
     )
     help_footer("fooduse")

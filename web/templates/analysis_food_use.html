@@ -3,7 +3,9 @@
 
 {% block content %}
 <h2>Food Use in Meals {{ manual_link("fooduse") }}</h2>
-<p class="muted">Tabulates which foods appear across a set of meals you choose, ranked by how many distinct days each food was used. Pick one selection method below — they can't be combined in a single search.</p>
+<p class="muted">Tabulates which foods appear across a set of meals you choose, ranked by how many distinct days each food was used.</p>
+
+<p class="muted">Pick one selection method below — they can't be combined in a single search.</p>
 
 <form method="get" action="/analysis/food-use" class="mb-4" id="food-use-form">
   <div class="mb-3">
@@ -23,8 +25,8 @@
               placeholder="2026-01-01:2026-01-31">{{ ranges_raw or "" }}</textarea>
   </div>
   <div class="mb-3" id="ids-block">
-    <label class="form-label" for="meal_ids">Meal IDs <small class="muted">(comma or space separated)</small></label>
-    <input type="text" class="form-control" id="meal_ids" name="meal_ids" value="{{ meal_ids_raw or "" }}" placeholder="12, 15, 18">
+    <label class="form-label" for="meal_ids">Meal IDs <small class="muted">(comma or space separated, ranges like <code>12-32</code> allowed)</small></label>
+    <input type="text" class="form-control" id="meal_ids" name="meal_ids" value="{{ meal_ids_raw or "" }}" placeholder="12, 15, 18, 20-25">
   </div>
 
   <div class="mb-3 form-check">
@@ -41,6 +43,8 @@
   var idsRadio = document.getElementById('mode-ids');
   var rangeBlock = document.getElementById('range-block');
   var idsBlock = document.getElementById('ids-block');
+  var rangesRaw = document.getElementById('ranges_raw');
+  var mealIds = document.getElementById('meal_ids');
 
   function sync() {
     var byRange = rangeRadio.checked;
@@ -51,6 +55,18 @@
   }
   rangeRadio.addEventListener('change', sync);
   idsRadio.addEventListener('change', sync);
+  mealIds.addEventListener('input', function () {
+    if (mealIds.value.trim()) {
+      idsRadio.checked = true;
+      sync();
+    }
+  });
+  rangesRaw.addEventListener('input', function () {
+    if (rangesRaw.value.trim()) {
+      rangeRadio.checked = true;
+      sync();
+    }
+  });
   sync();
 })();
 </script>
@@ -79,7 +95,11 @@
         <tr>
           <td class="muted">{% if r.fdc_id %}{{ r.fdc_id }}{% endif %}</td>
           <td>{% if r.kind == "recipe" %}<strong>{{ r.name }}</strong>{% else %}{{ r.name }}{% endif %}</td>
-          <td class="muted">{% if r.kind == "recipe" %}recipe{% endif %}</td>
+          <td class="muted">
+            {% if r.kind == "recipe" and r.deleted %}<span class="text-danger">recipe (deleted)</span>
+            {% elif r.kind == "recipe" %}recipe
+            {% endif %}
+          </td>
           <td class="num-col">{{ r.days }}</td>
           <td class="num-col">{{ r.meals }}</td>
           <td>
@@ -94,7 +114,8 @@
   </div>
   <p class="muted"><small>
     Days used = distinct calendar days the food appeared in this analysis set &middot;
-    recipe rows show the recipe itself; its ingredients are also listed individually.
+    recipe rows show the recipe itself; its ingredients are also listed individually &middot;
+    "recipe (deleted)" means the recipe was removed after being used in that meal; its own ingredient breakdown is no longer available.
   </small></p>
   {% else %}
   <p class="muted mt-2">No meals matched the selected date range(s) / meal IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>

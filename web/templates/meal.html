@@ -373,7 +373,9 @@
       {% for item in items %}
       <tr>
         <td>
-          {% if item.fdc_id %}
+          {% if item.recipe_deleted %}
+            {{ item.food_name }} <span class="text-danger">(recipe deleted)</span>
+          {% elif item.fdc_id %}
             <a href="/food/{{ item.fdc_id }}?amount={{ item.amount | round(1) }}">{{ item.food_name }}</a>
           {% elif item.recipe_id %}
             <a href="/recipe/{{ item.recipe_id }}">{{ item.food_name }}</a>

@@ -70,13 +70,13 @@
     <tr>
       <td class="num" style="color:#888">{{ loop.index }}</td>
       <td class="num">
-        {% if ing.ref_recipe_id %}
+        {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
           {{ ing.amount | round(2) | string | replace(".0", "") }} srv
         {% else %}
           {{ ing.amount | round(1) }}&thinsp;g
         {% endif %}
       </td>
-      <td>{{ ing.food_name }}{% if ing.ref_recipe_id %} <span style="color:#888">(recipe)</span>{% endif %}</td>
+      <td>{{ ing.food_name }}{% if ing.ref_recipe_deleted %} <span style="color:#c00">(sub-recipe deleted)</span>{% elif ing.ref_recipe_id %} <span style="color:#888">(recipe)</span>{% endif %}</td>
       <td style="color:#555"><small>{{ ing.notes or "" }}</small></td>
     </tr>
     {% endfor %}

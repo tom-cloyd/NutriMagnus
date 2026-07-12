@@ -337,6 +337,16 @@ def _format_recipe_portion_label(servings: float, ref_recipe_id: int | None = No
     return label
 
 
+def _recipe_ing_id_cell(ing) -> str:
+    """ID column for a recipe ingredient row: fdc_id, 'recipe' for a live sub-recipe,
+    or a flagged 'recipe (deleted)' if the sub-recipe it pointed to was since removed."""
+    if ing["ref_recipe_deleted"]:
+        return f"[{state.T['error']}]recipe (deleted)[/{state.T['error']}]"
+    if ing["ref_recipe_id"]:
+        return "[grey62]recipe[/grey62]"
+    return _id_cell(ing["fdc_id"])
+
+
 def _get_recipe_total_nutrients(recipe_id: int) -> tuple[object | None, list, dict[str, float]]:
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
@@ -415,10 +425,7 @@ def _do_recipe_display(recipe=None) -> None:
         state.console.print(f"\n  [{state.T['accent']}]Ingredients:[/{state.T['accent']}]  {ID_KEY}")
         for ing in ingredients:
             note_tag = f"  [grey62]({ing['notes']})[/grey62]" if ing["notes"] else ""
-            if ing["ref_recipe_id"]:
-                id_part = "[grey62]recipe[/grey62]"
-            else:
-                id_part = _id_cell(ing["fdc_id"])
+            id_part = _recipe_ing_id_cell(ing)
             amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
                    if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
             state.console.print(
@@ -576,7 +583,7 @@ def _do_recipe_develop(recipe=None) -> None:
             tbl.add_column("ID",     justify="right", min_width=7)
             tbl.add_column("Food",   min_width=_W, max_width=_W, no_wrap=True)
             for i, ing in enumerate(ingredients, 1):
-                id_cell = "[grey62]recipe[/grey62]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
+                id_cell = _recipe_ing_id_cell(ing)
                 amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
                        if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
                 tbl.add_row(str(i), amt, id_cell, ing["food_name"][:_W])
@@ -1183,7 +1190,7 @@ def _do_recipe_create() -> None:
         tbl.add_column("ID",     justify="right", min_width=7)
         tbl.add_column("Food",   min_width=_W, max_width=_W, no_wrap=True)
         for i, ing in enumerate(cur_ings, 1):
-            id_c = "[grey62]recipe[/grey62]" if ing["ref_recipe_id"] else _id_cell(ing["fdc_id"])
+            id_c = _recipe_ing_id_cell(ing)
             amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
                    if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
             tbl.add_row(str(i), amt, id_c, ing["food_name"][:_W])
@@ -1278,6 +1285,14 @@ def _do_recipe_delete(recipe=None) -> None:
     if recipe is None:
         return
     rid = recipe["id"]
+    with _db.get_db() as conn:
+        referencing = _db.recipe_referencing_subrecipe(conn, rid)
+    if referencing:
+        names = ", ".join(r["name"] for r in referencing)
+        state.console.print(
+            f"[{state.T['warning']}]⚠  This recipe is used as a sub-recipe in: {names}.[/{state.T['warning']}]"
+            f"\n  [grey62]If you delete it, those recipes will keep the ingredient line but flag it as a deleted sub-recipe.[/grey62]"
+        )
     try:
         confirm = _prompt(
             f"Delete [{state.T['hi']}]{recipe['name']}[/{state.T['hi']}]?",

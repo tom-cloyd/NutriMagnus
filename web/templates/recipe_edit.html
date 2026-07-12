@@ -101,14 +101,15 @@
       <tr>
         <td class="num-col muted">{{ loop.index }}</td>
         <td class="num-col" style="white-space:nowrap">
-          {% if ing.ref_recipe_id %}
+          {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
             {{ ing.amount | round(2) | string | replace(".0", "") }} srv
           {% else %}
             {{ ing.amount_display }}
           {% endif %}
         </td>
         <td>{{ ing.food_name }}
-          {% if ing.ref_recipe_id %}<small class="muted"> (recipe)</small>{% endif %}
+          {% if ing.ref_recipe_deleted %}<small class="text-danger"> (sub-recipe deleted)</small>
+          {% elif ing.ref_recipe_id %}<small class="muted"> (recipe)</small>{% endif %}
         </td>
         <td><small class="muted">{{ ing.notes or "" }}</small></td>
 

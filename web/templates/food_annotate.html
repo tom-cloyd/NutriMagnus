@@ -127,11 +127,11 @@
         </label>
       </div>
 
-      <button type="submit" class="btn btn-primary">Save annotation</button>
+      <button type="submit" class="btn btn-outline-secondary">Save annotation</button>
       {% if next %}
-      <a href="{{ next }}" class="btn btn-outline-secondary ms-2">Skip for now</a>
+      <a href="{{ next }}" class="btn btn-primary ms-2" autofocus>Skip for now</a>
       {% else %}
-      <a href="/food/annotate" class="btn btn-outline-secondary ms-2">Back to list</a>
+      <a href="/food/annotate" class="btn btn-primary ms-2" autofocus>Back to list</a>
       {% endif %}
     </form>
     {% if next %}

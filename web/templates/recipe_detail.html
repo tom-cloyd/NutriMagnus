@@ -120,10 +120,21 @@
     <button type="submit" class="btn btn-sm btn-outline-secondary">Copy recipe</button>
   </form>
   <form method="post" action="/recipe/{{ recipe.id }}/delete" style="margin:0"
-        onsubmit="return confirm('Delete recipe &quot;{{ recipe.name }}&quot;? This cannot be undone.')">
+        {% if referencing_recipes %}
+        onsubmit="return confirm('&quot;{{ recipe.name }}&quot; is used as a sub-recipe in: {{ referencing_recipes|map(attribute='name')|join(', ') }}.\n\nIf you delete it, those recipes will keep the ingredient line but flag it as a deleted sub-recipe. Delete anyway?')"
+        {% else %}
+        onsubmit="return confirm('Delete recipe &quot;{{ recipe.name }}&quot;? This cannot be undone.')"
+        {% endif %}>
     <button type="submit" class="btn btn-sm btn-outline-danger">Delete recipe</button>
   </form>
 </div>
+
+{% if referencing_recipes %}
+<p class="text-warning">
+  &#9888; Used as a sub-recipe in:
+  {% for r in referencing_recipes %}<a href="/recipe/{{ r.id }}">{{ r.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+</p>
+{% endif %}
 
 {# ── Servings selector ────────────────────────────────────────────────── #}
 <form method="get" action="/recipe/{{ recipe.id }}" class="d-flex align-items-center gap-2 mb-3">
@@ -198,14 +209,16 @@
       <tr>
         <td class="num-col muted">{{ loop.index }}</td>
         <td class="num-col" style="white-space:nowrap">
-          {% if ing.ref_recipe_id %}
+          {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
             {{ ing.amount | round(2) | string | replace(".0", "") }} srv
           {% else %}
             {{ ing.amount | round(1) }}&thinsp;g
           {% endif %}
         </td>
         <td>
-          {% if ing.fdc_id and ing.fdc_id > 0 %}
+          {% if ing.ref_recipe_deleted %}
+            {{ ing.food_name }} <span class="text-danger">(sub-recipe deleted)</span>
+          {% elif ing.fdc_id and ing.fdc_id > 0 %}
             <a href="/food/{{ ing.fdc_id }}?amount={{ ing.amount | round(1) }}">{{ ing.food_name }}</a>
           {% elif ing.ref_recipe_id %}
             <a href="/recipe/{{ ing.ref_recipe_id }}">{{ ing.food_name }}</a>

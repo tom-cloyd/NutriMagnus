@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-11:2130* / Reading 2 hours, 8 minutes
+*Updated 2026-07-11:2230* / Reading 2 hours, 8 minutes
 
 <!--  the following preface is what appears on the WEB version home page, accessed in home.md. -->
 
@@ -1592,7 +1592,7 @@ Displays all your recipes sorted by most recently accessed. The table shows:
 |---|---|
 | `v{id}` | View the recipe text (name, ingredients, procedure) and optionally open the edit flow |
 | `a{id}` | Run the full nutrition analysis (nutrient table, [DCP](#gloss-dcp), [TID](#gloss-tid) breakdown, complements, glycemic load) |
-| `d{id}` | Delete the recipe after confirmation |
+| `d{id}` | Delete the recipe after confirmation. If another recipe uses it as a sub-recipe, you're warned first — deleting anyway leaves that ingredient line in place but flagged "recipe (deleted)" wherever it's shown (ingredient lists, meal history, Food Use in Meals), rather than removing it or breaking. |
 | `c{id}` | Copy the recipe — you are asked for a new name |
 | `x` | Create a new recipe (same as Recipes → 1) |
 | `/text` | Filter all your recipes to those whose names contain `text` — e.g. `/soup` searches every saved recipe and shows only matches. Type `/` alone to clear the filter. |
