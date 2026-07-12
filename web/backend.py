@@ -2209,63 +2209,73 @@ def _meal_aa_nutrients(meal_id: int) -> dict:
     return result
 
 
+def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
+    """Return (items_for_display, total_nutrients, diaas_ingredients) for one meal.
+
+    Shared by _meal_totals (per-meal DIAAS) and _day_analysis (day-level pooled
+    DIAAS across every meal on a date) — both need the same per-item nutrient
+    scaling and recipe-ingredient expansion; only what they do with the result
+    (compute DIAAS per meal vs. accumulate across meals first) differs."""
+    raw_items = _db.meal_get_items(conn, meal_id)
+    items = []
+    ingredients = []
+    total_nutrients: dict = {}
+
+    for row in raw_items:
+        if row["item_type"] == "food" and row["fdc_id"]:
+            cached = _db.get_cached_food(conn, row["fdc_id"])
+            nuts_100g = json.loads(cached["nutrients_json"]) if cached and cached["nutrients_json"] else {}
+            grams = float(row["amount"])
+            scaled = _usda.scale_nutrients(nuts_100g, grams)
+            for k, v in scaled.items():
+                total_nutrients[k] = total_nutrients.get(k, 0.0) + v
+            items.append({
+                "id":        row["id"],
+                "food_name": row["food_name"],
+                "fdc_id":    row["fdc_id"],
+                "recipe_id": None,
+                "amount":    grams,
+                "unit":      "g",
+                "notes":     row["notes"] or "",
+                "has_nuts":  bool(nuts_100g),
+            })
+            if nuts_100g:
+                ingredients.append({
+                    "food_name":      row["food_name"],
+                    "fdc_id":         row["fdc_id"],
+                    "nutrients_100g": nuts_100g,
+                    "grams":          grams,
+                })
+
+        elif row["item_type"] == "recipe" and row["recipe_id"]:
+            servings_consumed = float(row["amount"])
+            recipe = _db.recipe_get(conn, row["recipe_id"])
+            total_servings = float(recipe["servings"] or 1) if recipe else 1.0
+            portion_factor = servings_consumed / total_servings
+            per_serving = _recipe_nutrients_per_serving(row["recipe_id"], conn)
+            scaled = {k: v * servings_consumed for k, v in per_serving.items()}
+            for k, v in scaled.items():
+                total_nutrients[k] = total_nutrients.get(k, 0.0) + v
+            # Expand recipe ingredients into DIAAS ingredient list (handles sub-recipes)
+            ingredients.extend(_expand_recipe_ingredients(row["recipe_id"], portion_factor, conn))
+            items.append({
+                "id":        row["id"],
+                "food_name": row["food_name"],
+                "fdc_id":    None,
+                "recipe_id": row["recipe_id"],
+                "amount":    servings_consumed,
+                "unit":      "serving" + ("s" if servings_consumed != 1 else ""),
+                "notes":     row["notes"] or "",
+                "has_nuts":  bool(per_serving),
+            })
+
+    return items, total_nutrients, ingredients
+
+
 def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None]:
     """Return (items_with_nutrients, total_nutrients, diaas_result)."""
     with _db.get_db() as conn:
-        raw_items = _db.meal_get_items(conn, meal_id)
-        items = []
-        ingredients = []
-        total_nutrients: dict = {}
-
-        for row in raw_items:
-            if row["item_type"] == "food" and row["fdc_id"]:
-                cached = _db.get_cached_food(conn, row["fdc_id"])
-                nuts_100g = json.loads(cached["nutrients_json"]) if cached and cached["nutrients_json"] else {}
-                grams = float(row["amount"])
-                scaled = _usda.scale_nutrients(nuts_100g, grams)
-                item_label = f"{row['food_name']} ({grams:g} g)"
-                for k, v in scaled.items():
-                    total_nutrients[k] = total_nutrients.get(k, 0.0) + v
-                items.append({
-                    "id":        row["id"],
-                    "food_name": row["food_name"],
-                    "fdc_id":    row["fdc_id"],
-                    "recipe_id": None,
-                    "amount":    grams,
-                    "unit":      "g",
-                    "notes":     row["notes"] or "",
-                    "has_nuts":  bool(nuts_100g),
-                })
-                if nuts_100g:
-                    ingredients.append({
-                        "food_name":      row["food_name"],
-                        "fdc_id":         row["fdc_id"],
-                        "nutrients_100g": nuts_100g,
-                        "grams":          grams,
-                    })
-
-            elif row["item_type"] == "recipe" and row["recipe_id"]:
-                servings_consumed = float(row["amount"])
-                recipe = _db.recipe_get(conn, row["recipe_id"])
-                total_servings = float(recipe["servings"] or 1) if recipe else 1.0
-                portion_factor = servings_consumed / total_servings
-                per_serving = _recipe_nutrients_per_serving(row["recipe_id"], conn)
-                scaled = {k: v * servings_consumed for k, v in per_serving.items()}
-                for k, v in scaled.items():
-                    total_nutrients[k] = total_nutrients.get(k, 0.0) + v
-                # Expand recipe ingredients into DIAAS ingredient list (handles sub-recipes)
-                ingredients.extend(_expand_recipe_ingredients(row["recipe_id"], portion_factor, conn))
-                items.append({
-                    "id":        row["id"],
-                    "food_name": row["food_name"],
-                    "fdc_id":    None,
-                    "recipe_id": row["recipe_id"],
-                    "amount":    servings_consumed,
-                    "unit":      "serving" + ("s" if servings_consumed != 1 else ""),
-                    "notes":     row["notes"] or "",
-                    "has_nuts":  bool(per_serving),
-                })
-
+        items, total_nutrients, ingredients = _meal_expand_for_diaas(meal_id, conn)
         diaas_result = None
         if ingredients:
             try:
@@ -2887,45 +2897,22 @@ async def meals_search(request: Request, q: str = ""):
 
 
 def _day_analysis(meal_date: str) -> tuple[list, dict, dict | None]:
-    """Compute combined nutrients and DIAAS for all meals on a given date."""
+    """Compute combined nutrients and DIAAS for all meals on a given date.
+
+    Reuses _meal_expand_for_diaas (the same per-meal expansion _meal_totals
+    uses) instead of re-walking each meal's items independently, so a fix to
+    that expansion logic can't silently apply to per-meal pages but not to
+    this day-level rollup (or vice versa)."""
     with _db.get_db() as conn:
         meals = [dict(m) for m in _db.meal_list_by_date(conn, meal_date)]
         combined_nutrients: dict = {}
         all_ingredients: list = []
 
         for meal in meals:
-            raw_items = _db.meal_get_items(conn, meal["id"])
-            for row in raw_items:
-                if row["item_type"] == "food" and row["fdc_id"]:
-                    cached = _db.get_cached_food(conn, row["fdc_id"])
-                    if not cached or not cached["nutrients_json"]:
-                        continue
-                    nuts_100g = json.loads(cached["nutrients_json"])
-                    grams = float(row["amount"])
-                    scaled = _usda.scale_nutrients(nuts_100g, grams)
-                    for k, v in scaled.items():
-                        combined_nutrients[k] = combined_nutrients.get(k, 0.0) + v
-                    if nuts_100g:
-                        all_ingredients.append({
-                            "food_name":      row["food_name"],
-                            "fdc_id":         row["fdc_id"],
-                            "nutrients_100g": nuts_100g,
-                            "grams":          grams,
-                        })
-                elif row["item_type"] == "recipe" and row["recipe_id"]:
-                    recipe = _db.recipe_get(conn, row["recipe_id"])
-                    if not recipe:
-                        continue
-                    total_servings = float(recipe["servings"] or 1)
-                    servings_consumed = float(row["amount"])
-                    portion_factor = servings_consumed / total_servings
-                    per_serving = _recipe_nutrients_per_serving(row["recipe_id"], conn)
-                    scaled = {k: v * servings_consumed for k, v in per_serving.items()}
-                    for k, v in scaled.items():
-                        combined_nutrients[k] = combined_nutrients.get(k, 0.0) + v
-                    all_ingredients.extend(
-                        _expand_recipe_ingredients(row["recipe_id"], portion_factor, conn)
-                    )
+            _, nutrients, ingredients = _meal_expand_for_diaas(meal["id"], conn)
+            for k, v in nutrients.items():
+                combined_nutrients[k] = combined_nutrients.get(k, 0.0) + v
+            all_ingredients.extend(ingredients)
 
         diaas_result = None
         if all_ingredients:
