@@ -17,6 +17,7 @@ from usda_api import (       # noqa: F401
 )
 from usda_nutrients import (  # noqa: F401
     Nutrients,
+    COMPARE_GROUPS,
     scale_nutrients,
     sum_nutrients,
     has_amino_acid_data,

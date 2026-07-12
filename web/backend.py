@@ -1033,30 +1033,8 @@ _ALL_NUTRIENT_KEYS: set[str] = {k for _, fields in _EDIT_NUTRIENT_GROUPS for k, 
 # Compare helpers
 # ---------------------------------------------------------------------------
 
-_COMPARE_GROUPS: list[tuple[str, list[str]]] = [
-    ("Macronutrients", [
-        "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
-        "saturated_fat_g", "mono_fat_g", "poly_fat_g",
-    ]),
-    ("Minerals", [
-        "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-        "potassium_mg", "sodium_mg", "zinc_mg",
-    ]),
-    ("Vitamins", [
-        "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
-        "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
-        "b6_mg", "folate_mcg", "b12_mcg",
-    ]),
-    ("Phytonutrients", [
-        "beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
-        "lutein_zeaxanthin_mcg", "choline_mg", "beta_sitosterol_mg", "isoflavones_mg",
-    ]),
-    ("Amino Acids", [
-        "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
-        "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
-        "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g",
-    ]),
-]
+# Single source of truth: usda_nutrients.COMPARE_GROUPS (shared with numa_app/workflows/foods.py).
+_COMPARE_GROUPS = _usda.COMPARE_GROUPS
 
 
 def _build_compare_groups(entries: list[dict]) -> list[dict]:

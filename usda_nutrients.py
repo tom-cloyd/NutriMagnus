@@ -12,6 +12,34 @@ from usda_api import NUTRIENT_MAP, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_
 # Type alias for all per-100g nutrient dicts throughout the codebase.
 Nutrients = dict[str, float]
 
+# Nutrient groupings for the multi-food compare feature (CLI foods.py + web
+# backend.py) — kept here as the single source of truth so the two UIs can't
+# silently drift apart on which nutrients are grouped together.
+COMPARE_GROUPS: list[tuple[str, list[str]]] = [
+    ("Macronutrients", [
+        "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
+        "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+    ]),
+    ("Minerals", [
+        "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
+        "potassium_mg", "sodium_mg", "zinc_mg",
+    ]),
+    ("Vitamins", [
+        "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+        "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
+        "b6_mg", "folate_mcg", "b12_mcg",
+    ]),
+    ("Phytonutrients", [
+        "beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
+        "lutein_zeaxanthin_mcg", "choline_mg", "beta_sitosterol_mg", "isoflavones_mg",
+    ]),
+    ("Amino Acids", [
+        "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
+        "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
+        "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g",
+    ]),
+]
+
 # FAO 2013 specifies Met+Cys and Phe+Tyr as combined pairs.  The reference
 # values in AA_REFERENCE_MG_PER_G_PROTEIN are for the combined pair, so we
 # must sum both members before scoring against the reference.
