@@ -295,6 +295,7 @@ Follow this pattern for any new cross-imports between workflow modules.
 - **Never hardcode Rich color strings** — always `state.T["key"]`.
 - **`_prompt()` only** for user input — never bare `input()`.
 - **Add `Docs:` line** to any new module's docstring pointing to the relevant README section.
+- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Get the current timestamp with `date "+%Y-%m-%d:%H%M"` and never guess it. If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps the same way (see each file's top few lines for the exact format).
 
 ---
 

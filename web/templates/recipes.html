@@ -65,7 +65,7 @@
       <td class="muted"><small>{{ r.description or "—" }}</small></td>
       <td style="text-align:right">{{ r.servings }}</td>
       <td style="text-align:right">
-        {% if r.complete and r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">—</span>{% endif %}
+        {% if r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">—</span>{% endif %}
       </td>
       <td style="text-align:center">
         {% if r.complete %}<span class="status-met">&#10003;</span>{% else %}<span class="muted">—</span>{% endif %}

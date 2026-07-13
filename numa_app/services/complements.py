@@ -5,6 +5,7 @@ extracting it here keeps AA-gap scoring and two-step combo pairing in one place.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/complements.py — complement display math"
 """
 import usda as _usda
+from .portions import amount_note as _amount_note
 
 Nutrients = dict[str, float]
 Gaps = list[tuple[str, float, float]]  # (aa_key, orig_score, deficit_g) from usda.get_aa_gaps
@@ -95,6 +96,7 @@ def two_step_combo(
         "fdc_id":     gc.get("fdc_id"),
         "diaas":      round(gc["diaas"], 2) if gc.get("diaas") else None,
         "grams":      gc_grams,
+        "amount_note": _amount_note(gc_grams, gc.get("name", "")) if gc_grams else None,
         "aa_effects": aa_effects(gc, gaps, digestibility=fallback_digestibility, limit=aa_effects_limit),
         "dcp_before": round(base_digestible, 1),
         "dcp_after":  gc_dcp,
@@ -110,6 +112,7 @@ def two_step_combo(
             "fdc_id":     b.get("fdc_id"),
             "diaas":      round(b["diaas"], 2) if b.get("diaas") else None,
             "grams":      b_step["grams"],
+            "amount_note": _amount_note(b_step["grams"], b.get("name", "")) if b_step.get("grams") else None,
             "new_diaas":  b_step["new_diaas"],
             "dcp_before": gc_dcp,
             "dcp_after":  b_dcp,
@@ -204,7 +207,7 @@ def build_complement_display(
             min_score = min(min_score, score_at_f)
         return round(total_p * min(1.0, min_score), 1)
 
-    def _grad_steps(full_grams: float | None, dig_full: float,
+    def _grad_steps(full_grams: float | None, dig_full: float, food_name: str,
                     raw_full: float = 0.0, new_scores_full: dict | None = None) -> list[dict]:
         if not full_grams or full_grams <= _GRAD_THRESHOLD:
             return []
@@ -215,18 +218,23 @@ def build_complement_display(
             if g not in seen:
                 seen.add(g)
                 dcp = _dcp_at_frac(frac, raw_full, new_scores_full or {})
-                steps.append({"grams": g, "dig_protein": round(dig_full * frac, 1), "dcp": dcp})
+                steps.append({
+                    "grams": g, "amount_note": _amount_note(g, food_name),
+                    "dig_protein": round(dig_full * frac, 1), "dcp": dcp,
+                })
         return steps
 
     def _fmt(s: dict) -> dict:
         raw = float(s.get("protein_added") or 0)
         dig = float(s.get("digestible_protein_added") or 0)
         full_grams = s.get("grams")
+        name = s.get("name", "")
         new_scores = s.get("new_scores", {})
         return {
-            "name":              s.get("name", ""),
+            "name":              name,
             "grams":             full_grams,
-            "grad_steps":        _grad_steps(full_grams, dig, raw_full=raw, new_scores_full=new_scores),
+            "amount_note":       _amount_note(full_grams, name) if full_grams else None,
+            "grad_steps":        _grad_steps(full_grams, dig, name, raw_full=raw, new_scores_full=new_scores),
             "fdc_id":            s.get("fdc_id"),
             "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
             "new_complete":      s.get("new_complete", False),
@@ -243,14 +251,21 @@ def build_complement_display(
         new_diaas = s.get("new_diaas") or 0.0
         total_dig = (round((base_protein + raw) * min(1.0, new_diaas), 1) if new_diaas
                      else round(base_digestible + dig, 1))
+        grams = s.get("grams")
+        name = s.get("name", "")
+        steps_out = [
+            {**step, "amount_note": _amount_note(step["grams"], name) if step.get("grams") else None}
+            for step in s.get("steps", [])
+        ]
         return {
-            "name":              s.get("name", ""),
-            "grams":             s.get("grams"),
+            "name":              name,
+            "grams":             grams,
+            "amount_note":       _amount_note(grams, name) if grams else None,
             "fdc_id":            s.get("fdc_id"),
             "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
             "current_diaas":     s.get("current_diaas"),
             "new_diaas":         s.get("new_diaas"),
-            "steps":             s.get("steps", []),
+            "steps":             steps_out,
             "dig_protein_added": round(dig, 1),
             "protein_added":     round(raw, 1),
             "total_dig":         total_dig,
@@ -263,6 +278,7 @@ def build_complement_display(
                 "fdc_id":        f.get("fdc_id"),
                 "diaas":         round(f["diaas"], 2) if f.get("diaas") else None,
                 "grams":         f.get("grams"),
+                "amount_note":   _amount_note(f["grams"], f.get("name", "")) if f.get("grams") else None,
                 "protein_added": f.get("protein_added", 0),
                 "dig_added":     f.get("dig_added", 0),
             }

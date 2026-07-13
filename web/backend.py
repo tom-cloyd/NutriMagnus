@@ -26,6 +26,7 @@ from numa_app.services.glycemic_load import compute_glycemic_load
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.portions import _ing_amount_display
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
+from version import VERSION
 from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
 from numa_app.services.rda_status import rda_status
 from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
@@ -378,6 +379,10 @@ def _oxalate_info(fdc_id: int | None, food_name: str) -> dict | None:
 
     with _db.get_db() as conn:
         link = _db.oxalate_link_get(conn, fdc_id)
+        # oxalate_links.fdc_id has a FK to foods(fdc_id) — a recipe/meal can
+        # still reference a food that was later pruned from the cache, so
+        # skip persisting a link (but still compute a result) in that case.
+        food_cached = _db.get_cached_food(conn, fdc_id) is not None
 
     def _row_to_info(ox_row, confirmed: bool) -> dict | None:
         if ox_row is None:
@@ -413,25 +418,27 @@ def _oxalate_info(fdc_id: int | None, food_name: str) -> dict | None:
 
     if best_match:
         _, best = best_match
+        if food_cached:
+            with _db.get_db() as conn:
+                conn.execute(
+                    "INSERT INTO oxalate_links"
+                    " (fdc_id, oxalate_food_id, user_confirmed, confirmed_at, no_match)"
+                    " VALUES (?, ?, 0, datetime('now'), 0)"
+                    " ON CONFLICT(fdc_id) DO NOTHING",
+                    (fdc_id, best["id"]),
+                )
+        return _row_to_info(best, False)
+
+    # No confident match — record to avoid re-querying
+    if food_cached:
         with _db.get_db() as conn:
             conn.execute(
                 "INSERT INTO oxalate_links"
                 " (fdc_id, oxalate_food_id, user_confirmed, confirmed_at, no_match)"
-                " VALUES (?, ?, 0, datetime('now'), 0)"
+                " VALUES (?, NULL, 0, datetime('now'), 1)"
                 " ON CONFLICT(fdc_id) DO NOTHING",
-                (fdc_id, best["id"]),
+                (fdc_id,),
             )
-        return _row_to_info(best, False)
-
-    # No confident match — record to avoid re-querying
-    with _db.get_db() as conn:
-        conn.execute(
-            "INSERT INTO oxalate_links"
-            " (fdc_id, oxalate_food_id, user_confirmed, confirmed_at, no_match)"
-            " VALUES (?, NULL, 0, datetime('now'), 1)"
-            " ON CONFLICT(fdc_id) DO NOTHING",
-            (fdc_id,),
-        )
     return None
 
 
@@ -569,7 +576,9 @@ def _food_complement_section(food_name: str, nutrients: dict) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse(request, "home.html", {"home_body": _render_home_md()})
+    return templates.TemplateResponse(
+        request, "home.html", {"home_body": _render_home_md(), "version": VERSION}
+    )
 
 
 async def _search_logic(request: Request, query: str, template: str, extra_ctx: dict | None = None):
@@ -3151,7 +3160,7 @@ async def recipe_new_get(request: Request):
 async def recipe_new_post(
     name: str = Form(...),
     description: str = Form(""),
-    servings: int = Form(4),
+    servings: float = Form(4),
     total_weight: str = Form(""),
     total_weight_unit: str = Form("g"),
 ):
@@ -3270,7 +3279,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
             "cal_per_srv":   round(_ns_total.get("calories", 0) / _ns_srv),
             "prot_per_srv":  round(_ns_total.get("protein_g", 0) / _ns_srv, 1),
             "dcp_per_srv":   round(_ns_dcp / _ns_srv, 1) if _ns_dcp is not None else None,
-            "servings":      int(_ns_srv),
+            "servings":      _ns_srv,
             "has_data":      bool(_ns_total),
         }
 
@@ -3320,7 +3329,7 @@ async def recipe_edit_post(
     recipe_id: int,
     name: str = Form(...),
     description: str = Form(""),
-    servings: int = Form(1),
+    servings: float = Form(1),
     total_weight: str = Form(""),
     total_weight_unit: str = Form("g"),
     instructions: str = Form(""),
@@ -3331,7 +3340,7 @@ async def recipe_edit_post(
         _db.recipe_update(
             conn, recipe_id,
             name=name.strip(), description=description.strip(),
-            servings=max(1, servings), instructions=instructions.strip(),
+            servings=max(1.0, servings), instructions=instructions.strip(),
             total_weight=tw, total_weight_unit=total_weight_unit if tw else None,
             complete=bool(complete),
         )

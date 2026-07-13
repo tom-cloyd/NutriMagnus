@@ -169,7 +169,7 @@
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
       {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
-    <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+    <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
     {% if s.aa_effects %}
     <p class="mb-1 muted"><small>
       Effect:
@@ -213,7 +213,7 @@
       {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
     </p>
     {% for f in p.foods %}
-    <p class="mb-1 ms-2"><strong>Add to meal: {{ f.grams }}&thinsp;g {{ f.name }}</strong>
+    <p class="mb-1 ms-2"><strong>Add to meal: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>
       {% if f.fdc_id %}<small class="muted"> FDC {{ f.fdc_id }}</small>{% endif %}
       {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
     </p>
@@ -253,7 +253,7 @@
       <tbody>
       {% for step in s.steps %}
       <tr>
-        <td>{{ step.grams }}&thinsp;g</td>
+        <td>{{ step.grams }}&thinsp;g{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}</td>
         <td>{{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(step.new_diaas) }}</strong></td>
         <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% endif %}</td>
       </tr>
@@ -261,7 +261,7 @@
       </tbody>
     </table>
     {% else %}
-    <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+    <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
     {% if s.current_diaas is not none and s.new_diaas is not none %}
     <p class="mb-1 muted"><small>Day DIAAS: {{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(s.new_diaas) }}</strong></small></p>
     {% endif %}
@@ -276,7 +276,7 @@
   {% for combo in complements.two_step_combos %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1 fw-semibold">Combination {{ loop.index }}</p>
-    <p class="mb-1"><strong>Step 1 &mdash; Add {{ combo.step1.grams }}&thinsp;g {{ combo.step1.name }}</strong>
+    <p class="mb-1"><strong>Step 1 &mdash; Add {{ combo.step1.grams }}&thinsp;g{% if combo.step1.amount_note %} ({{ combo.step1.amount_note }}){% endif %} {{ combo.step1.name }}</strong>
       {% if combo.step1.fdc_id %}<small class="muted"> FDC {{ combo.step1.fdc_id }}</small>{% endif %}
       {% if combo.step1.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step1.diaas) }}</small>{% endif %}
     </p>
@@ -289,7 +289,7 @@
     {% endif %}
     <p class="mb-1 muted"><small>DCP: {{ combo.step1.dcp_before }}&thinsp;g &rarr; <strong>{{ combo.step1.dcp_after }}&thinsp;g</strong></small></p>
     {% if combo.step2 %}
-    <p class="mb-1 mt-1"><strong>Step 2 &mdash; Add {{ combo.step2.grams }}&thinsp;g {{ combo.step2.name }}</strong>
+    <p class="mb-1 mt-1"><strong>Step 2 &mdash; Add {{ combo.step2.grams }}&thinsp;g{% if combo.step2.amount_note %} ({{ combo.step2.amount_note }}){% endif %} {{ combo.step2.name }}</strong>
       {% if combo.step2.fdc_id %}<small class="muted"> FDC {{ combo.step2.fdc_id }}</small>{% endif %}
       {% if combo.step2.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step2.diaas) }}</small>{% endif %}
     </p>

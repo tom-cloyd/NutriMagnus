@@ -261,7 +261,7 @@
       <tbody>
         {% for step in s.grad_steps %}
         <tr{% if loop.last %} class="table-success"{% endif %}>
-          <td><strong>{{ step.grams }}&thinsp;g</strong>{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
+          <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
           <td>{{ step.dig_protein }}&thinsp;g</td>
           <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
         </tr>
@@ -269,7 +269,7 @@
       </tbody>
     </table>
     {% else %}
-    <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g</p>
+    <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
     {% endif %}
     {% if s.aa_effects %}
     <p class="mb-1 muted"><small>Effect:
@@ -313,7 +313,7 @@
       {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
     </p>
     {% for f in p.foods %}
-    <p class="mb-1 ms-2"><strong>Add to day: {{ f.grams }}&thinsp;g {{ f.name }}</strong>
+    <p class="mb-1 ms-2"><strong>Add to day: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>
       {% if f.fdc_id %}<small class="muted"> FDC {{ f.fdc_id }}</small>{% endif %}
       {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
     </p>

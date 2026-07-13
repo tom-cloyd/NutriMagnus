@@ -226,6 +226,73 @@ def _volume_label(ml: float) -> str:
     return f"{s} t" if _nice(s) else f"{round(ml / 4.9)} t"
 
 
+def volume_hint(grams: float, food_name: str) -> str | None:
+    """Return a human-readable volume equivalent for *grams* of *food_name*, or None.
+
+    Shared by the CLI (protein complement suggestions) and the web app —
+    both display gram amounts for suggested foods and want a cups/tbsp/tsp
+    approximation alongside them where a density estimate is available.
+    """
+    density = _usda.get_density_g_per_ml(food_name, [])
+    if density is None:
+        return None
+    ml = grams / density
+    # Standard measuring cup fractions (value, unicode glyph)
+    _CUP_FRACS = [
+        (0.125, "1/8"), (0.25, "1/4"), (0.333, "1/3"),
+        (0.5, "1/2"),   (0.667, "2/3"), (0.75, "3/4"),
+    ]
+    if ml >= 29.6:  # ≥ 2 tbsp — show in cups or tbsp
+        cups = ml / 236.6
+        whole = int(cups)
+        frac = cups - whole
+        if frac < 0.063:
+            frac_str = ""
+        elif frac > 0.875:
+            whole += 1
+            frac_str = ""
+        else:
+            frac_str = min(_CUP_FRACS, key=lambda f: abs(f[0] - frac))[1]
+        if whole == 0 and not frac_str:
+            # Less than ⅛ cup but ≥ 2 tbsp — fall through to tbsp display
+            tbsp = ml / 14.8
+            rounded = round(tbsp * 2) / 2
+            val = f"{rounded:.1f}".rstrip("0").rstrip(".")
+            return f"≈ {val} tbsp"
+        cup_str = (frac_str if whole == 0 else
+                   f"{whole} {frac_str}" if frac_str else str(whole))
+        unit = "cup" if whole <= 1 and not (whole == 1 and frac_str) else "cups"
+        return f"≈ {cup_str} {unit}"
+    elif ml >= 4.9:  # ≥ 1 tsp
+        tbsp = ml / 14.8
+        if tbsp >= 1:
+            rounded = round(tbsp * 2) / 2
+            val = f"{rounded:.1f}".rstrip("0").rstrip(".")
+            return f"≈ {val} tbsp"
+        tsp = ml / 4.9
+        rounded = round(tsp * 4) / 4
+        val = f"{rounded:.2f}".rstrip("0").rstrip(".")
+        return f"≈ {val} tsp"
+    return None  # too small to be useful
+
+
+def amount_note(grams: float, food_name: str) -> str:
+    """Human-readable amount hint for *grams* of *food_name*.
+
+    Returns a cups/tbsp/tsp estimate when a density is available (via
+    volume_hint), otherwise a weight-ounces conversion — most whole-food
+    proteins (meat, cheese, eggs) are normally measured by weight, not
+    volume, so a bare "no volume available" message isn't as useful as
+    telling the user how many ounces that is.
+    """
+    hint = volume_hint(grams, food_name)
+    if hint:
+        return hint
+    oz = grams / 28.3495
+    oz_str = f"{oz:.1f}".rstrip("0").rstrip(".")
+    return f"no volume conversion available — {oz_str} oz"
+
+
 def _tokenize_portion(raw: str) -> list[str]:
     """Split raw input into tokens, separating any attached number+unit pairs."""
     result = []

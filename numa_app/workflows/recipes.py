@@ -1068,7 +1068,8 @@ def _do_recipe_create() -> None:
 
     try:
         raw_servings = _prompt("Number of servings  [grey62](0 = analyze by weight/volume)[/grey62]", default="0", free_text=True).strip()
-        servings = int(raw_servings) if raw_servings.isdigit() else 0
+        _sv = _parse_serving_amount(raw_servings)
+        servings = _sv if _sv is not None and _sv >= 0 else 0
     except Cancelled:
         servings = 0
 

@@ -455,7 +455,7 @@ def annotations_for_fdcids(
 # ---------------------------------------------------------------------------
 
 def recipe_create(conn: sqlite3.Connection, name: str, description: str,
-                  servings: int, instructions: str,
+                  servings: float, instructions: str,
                   total_volume: float | None = None,
                   total_volume_unit: str | None = None,
                   total_weight: float | None = None,
@@ -645,7 +645,7 @@ def recipe_compute_weight(conn: sqlite3.Connection,
 
 
 def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
-                  description: str, servings: int, instructions: str,
+                  description: str, servings: float, instructions: str,
                   total_volume: float | None = None,
                   total_volume_unit: str | None = None,
                   total_weight: float | None = None,
@@ -1170,7 +1170,12 @@ def oxalate_link_save(
     """Upsert an oxalate link for fdc_id.
     Set no_match=True when the user confirmed no oxalate record applies.
     Set oxalate_food_id to the matching oxalate.db row id when confirmed.
+
+    No-ops if fdc_id isn't in the foods cache (e.g. pruned after a recipe/meal
+    was built from it) — oxalate_links.fdc_id has a FK to foods(fdc_id).
     """
+    if get_cached_food(conn, fdc_id) is None:
+        return
     conn.execute(
         """INSERT INTO oxalate_links
                (fdc_id, oxalate_food_id, user_confirmed, confirmed_at, no_match)

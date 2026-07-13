@@ -18,6 +18,8 @@ import usda as _usda
 import profile as _profile
 from .. import state
 from ..services import complements as _complements
+from ..services.portions import amount_note as _amount_note
+from ..services.portions import volume_hint as _volume_hint
 from ..services.rda_status import rda_status
 from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
@@ -703,50 +705,6 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
             state.console.print(f"    [grey62]* {label}: {sol}[/grey62]")
     help_footer("bioavailability")
 
-def _volume_hint(grams: float, food_name: str) -> str | None:
-    """Return a human-readable volume equivalent for *grams* of *food_name*, or None."""
-    density = _usda.get_density_g_per_ml(food_name, [])
-    if density is None:
-        return None
-    ml = grams / density
-    # Standard measuring cup fractions (value, unicode glyph)
-    _CUP_FRACS = [
-        (0.125, "1/8"), (0.25, "1/4"), (0.333, "1/3"),
-        (0.5, "1/2"),   (0.667, "2/3"), (0.75, "3/4"),
-    ]
-    if ml >= 29.6:  # ≥ 2 tbsp — show in cups or tbsp
-        cups = ml / 236.6
-        whole = int(cups)
-        frac = cups - whole
-        if frac < 0.063:
-            frac_str = ""
-        elif frac > 0.875:
-            whole += 1
-            frac_str = ""
-        else:
-            frac_str = min(_CUP_FRACS, key=lambda f: abs(f[0] - frac))[1]
-        if whole == 0 and not frac_str:
-            # Less than ⅛ cup but ≥ 2 tbsp — fall through to tbsp display
-            tbsp = ml / 14.8
-            rounded = round(tbsp * 2) / 2
-            val = f"{rounded:.1f}".rstrip("0").rstrip(".")
-            return f"≈ {val} tbsp"
-        cup_str = (frac_str if whole == 0 else
-                   f"{whole} {frac_str}" if frac_str else str(whole))
-        unit = "cup" if whole <= 1 and not (whole == 1 and frac_str) else "cups"
-        return f"≈ {cup_str} {unit}"
-    elif ml >= 4.9:  # ≥ 1 tsp
-        tbsp = ml / 14.8
-        if tbsp >= 1:
-            rounded = round(tbsp * 2) / 2
-            val = f"{rounded:.1f}".rstrip("0").rstrip(".")
-            return f"≈ {val} tbsp"
-        tsp = ml / 4.9
-        rounded = round(tsp * 4) / 4
-        val = f"{rounded:.2f}".rstrip("0").rstrip(".")
-        return f"≈ {val} tsp"
-    return None  # too small to be useful
-
 
 def _print_complement_suggestions(
     base_nutrients: dict[str, float],
@@ -899,8 +857,12 @@ def _print_complement_suggestions(
                 vol_str = f"  [grey62]({min_hint} to {max_hint})[/grey62]"
             elif max_hint:
                 vol_str = f"  [grey62]({max_hint})[/grey62]"
-            else:
+            elif s.get("recipe_id"):
                 vol_str = ""
+            else:
+                # No cup/tbsp density available (weight-measured food) —
+                # give an ounces reference for the full-serving amount instead.
+                vol_str = f"  [grey62]({_amount_note(steps[-1], s['name'])})[/grey62]"
 
             grams_list = ", ".join(f"{g}g" for g in steps)
             state.console.print(f"    {add_verb}: [bold]{grams_list}[/bold]{vol_str}")
@@ -950,7 +912,7 @@ def _print_complement_suggestions(
             if s.get("recipe_id"):
                 hint = _serving_hint(s["grams"], s.get("serving_weight_g"))
             else:
-                hint = _volume_hint(s["grams"], s["name"])
+                hint = _amount_note(s["grams"], s["name"])
             vol_str = f"  [grey62]({hint})[/grey62]" if hint else ""
             state.console.print(f"    {add_verb}: [bold]{s['grams']}g[/bold]{vol_str}")
             # Show AA scores before → after for the most affected gaps.
@@ -1020,7 +982,7 @@ def _print_complement_suggestions(
             if f.get("recipe_id"):
                 hint = _serving_hint(f["grams"], f.get("serving_weight_g"))
             else:
-                hint = _volume_hint(f["grams"], f["name"])
+                hint = _amount_note(f["grams"], f["name"])
             vol_str = f"  [grey62]({hint})[/grey62]" if hint else ""
             state.console.print(f"    {add_verb}: [bold]{f['grams']}g[/bold]{vol_str}  "
                           f"[bold]{f['name']}[/bold]{_source_str(f)}{diaas_str}")
@@ -1114,7 +1076,7 @@ def _print_complement_suggestions(
             g = step["grams"]
             new = step["new_diaas"]
             dcp = step.get("dcp")
-            vol = _volume_hint(g, s["name"])
+            vol = _amount_note(g, s["name"])
             vol_str = f"  [grey62]({vol})[/grey62]" if vol else ""
             new_color = state.T["success"] if new >= 0.9 else state.T["warning"]
             dcp_str = (f"  →  DCP [{state.T['success']}]{dcp:.1f}g[/{state.T['success']}]"
@@ -1245,7 +1207,7 @@ def _print_complement_suggestions(
                 step1, step2, gc_diaas = combo["step1"], combo["step2"], combo["gc_diaas"]
                 gc_name = step1["name"]
                 fdc_str = f"  [grey62]FDC {step1['fdc_id']}[/grey62]" if step1.get("fdc_id") else ""
-                vol1 = _volume_hint(step1["grams"], gc_name)
+                vol1 = step1.get("amount_note")
                 vol1_str = f"  [grey62]({vol1})[/grey62]" if vol1 else ""
                 gc_color = state.T["warning"] if gc_diaas < 0.9 else state.T["success"]
                 state.console.print(
@@ -1277,7 +1239,7 @@ def _print_complement_suggestions(
                     )
                     continue
                 b_color = state.T["success"] if step2["new_diaas"] >= 0.9 else state.T["warning"]
-                vol2 = _volume_hint(step2["grams"], step2["name"])
+                vol2 = step2.get("amount_note")
                 vol2_str = f"  [grey62]({vol2})[/grey62]" if vol2 else ""
                 b_fdc = f"  [grey62]FDC {step2['fdc_id']}[/grey62]" if step2.get("fdc_id") else ""
                 state.console.print(
