@@ -8,7 +8,7 @@ depending on which UI displayed it.
 """
 import pytest
 
-from numa_app.services.rda_status import rda_status
+from numa_app.services.rda_status import rda_status, limit_warning
 
 
 class TestMinimumTargetThresholds:
@@ -27,3 +27,15 @@ class TestLimitThresholds:
     ])
     def test_thresholds(self, pct, expected):
         assert rda_status(pct, "limit") == expected
+
+
+class TestLimitWarning:
+    @pytest.mark.parametrize("day_total,limit,expected", [
+        (0, 2000, False), (1799, 2000, False), (1800, 2000, True),
+        (2000, 2000, True), (2500, 2000, True),
+    ])
+    def test_thresholds(self, day_total, limit, expected):
+        assert limit_warning(day_total, limit) is expected
+
+    def test_no_limit_configured_never_warns(self):
+        assert limit_warning(10_000, 0) is False

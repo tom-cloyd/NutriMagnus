@@ -56,6 +56,8 @@ class UserProfile:
     height_unit: str = "cm"        # "cm" or "imperial" — controls display
     name: str = "Default"          # profile display name; also used as filename stem
     use_oxalate_data: bool = False  # enable Harvard oxalate data lookup for foods
+    optimal_targets: dict = field(default_factory=dict)  # nutrient_key -> per-day target, native unit
+    max_limits: dict = field(default_factory=dict)       # nutrient_key -> per-day cap, native unit
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +251,8 @@ def load_profile(name: str | None = None) -> Optional[UserProfile]:
             height_unit=str(data.get("height_unit", "cm")),
             name=str(data.get("name", name)),
             use_oxalate_data=bool(data.get("use_oxalate_data", False)),
+            optimal_targets=dict(data.get("optimal_targets") or {}),
+            max_limits=dict(data.get("max_limits") or {}),
         )
     except (KeyError, ValueError, json.JSONDecodeError):
         return None
@@ -441,3 +445,25 @@ def compute_rda(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
         "b12_mcg":       (b12_mcg,         "mcg",  "minimum"),
         "choline_mg":    (choline_mg,      "mg",   "minimum"),
     }
+
+
+def compute_optimal(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
+    """
+    Return personalized "optimal" targets the user has configured, in the same
+    shape as compute_rda(): nutrient_key -> (value, unit, "target").
+
+    Only nutrients present in profile.optimal_targets are included — nutrients
+    without a configured optimal target are simply absent from the dict, so
+    callers can distinguish "not customized" from "customized to zero".
+    """
+    import usda as _usda
+    result: dict[str, tuple[float, str, str]] = {}
+    for key, val in profile.optimal_targets.items():
+        _label, unit = _usda.nutrient_label(key)
+        result[key] = (float(val), unit, "target")
+    return result
+
+
+def get_max_limits(profile: UserProfile) -> dict[str, float]:
+    """Return the user's configured per-day max limits: nutrient_key -> cap value."""
+    return dict(profile.max_limits)

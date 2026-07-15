@@ -212,7 +212,7 @@
           {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
             {{ ing.amount | round(2) | string | replace(".0", "") }} srv
           {% else %}
-            {{ ing.amount | round(1) }}&thinsp;g
+            {{ ing.amount | round(1) }}&thinsp;g{% if ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}
           {% endif %}
         </td>
         <td>
@@ -299,11 +299,12 @@
         <th class="num-col">Amount</th>
         <th>Unit</th>
         {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
+        {% if has_optimal %}<th class="num-col">optimal goal</th><th class="num-col">% of optimal</th>{% endif %}
       </tr>
     </thead>
     <tbody>
       {% for row in section.rows %}
-      <tr>
+      <tr class="{{ row.limit_warn or '' }}">
         <td>{{ row.label }}</td>
         <td class="num-col">{{ row.value }}</td>
         <td class="muted">{{ row.unit }}</td>
@@ -311,6 +312,14 @@
         <td class="num-col">
           {% if row.pct is not none %}
           <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
+        {% if has_optimal %}
+        <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
+        <td class="num-col">
+          {% if row.optimal_pct is not none %}
+          <span class="{{ row.optimal_css }}">{{ row.optimal_pct | int }}%</span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}

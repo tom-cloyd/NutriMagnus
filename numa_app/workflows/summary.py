@@ -70,9 +70,12 @@ def _do_daily_summary(meal_date: str) -> None:
     meal_names = ", ".join(m["name"] for m in meals)
     user_profile = _profile.load_profile()
     rda = _profile.compute_rda(user_profile) if user_profile else None
+    optimal = _profile.compute_optimal(user_profile) if user_profile else None
+    max_limits = _profile.get_max_limits(user_profile) if user_profile else None
     _print_nutrient_table(combined, title=f"Daily Total — {meal_date}",
                           per_label=f"meals: {meal_names}",
-                          daily_nutrients=combined, rda=rda, show_meal_pct=False)
+                          daily_nutrients=combined, rda=rda,
+                          optimal=optimal, max_limits=max_limits, show_meal_pct=False)
     missing_aa, _dcp_g, day_diaas = _print_meal_diaas(all_ings)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)

@@ -922,6 +922,8 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
     profile = _profile.load_profile()
     daily_nutrients: dict[str, float] | None = None
     rda = None
+    optimal = None
+    max_limits = None
     with _db.get_db() as conn:
         today_meals = _db.meal_list_by_date(conn, meal_date)
     if profile:
@@ -929,9 +931,12 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
         if daily_parts:
             daily_nutrients = _usda.sum_nutrients(*daily_parts)
         rda = _profile.compute_rda(profile)
+        optimal = _profile.compute_optimal(profile)
+        max_limits = _profile.get_max_limits(profile)
 
     _print_nutrient_table(nutrients, title=f"Nutrient analysis for {meal_name}",
-                          daily_nutrients=daily_nutrients, rda=rda)
+                          daily_nutrients=daily_nutrients, rda=rda,
+                          optimal=optimal, max_limits=max_limits)
 
     ing_list = _compute_meal_ingredient_list(meal_id)
     missing_aa, _dcp_g, meal_diaas = _print_meal_diaas(ing_list, profile=profile)
@@ -1403,8 +1408,11 @@ def _analyze_day(meals: list, meal_date: str) -> None:
     title = f"All meals — {meal_date}"
     profile = _profile.load_profile()
     rda = _profile.compute_rda(profile) if profile else None
+    optimal = _profile.compute_optimal(profile) if profile else None
+    max_limits = _profile.get_max_limits(profile) if profile else None
     _print_nutrient_table(combined, title=f"Nutrient analysis for {title}",
-                          daily_nutrients=combined, rda=rda, show_meal_pct=False)
+                          daily_nutrients=combined, rda=rda,
+                          optimal=optimal, max_limits=max_limits, show_meal_pct=False)
     _missing_aa, _dcp_g, meal_diaas = _print_meal_diaas(all_ings, profile=profile)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)

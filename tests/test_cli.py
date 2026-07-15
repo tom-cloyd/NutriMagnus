@@ -308,6 +308,27 @@ class TestFoodsMenu:
         assert "Protein" in result.output
         assert "62.00" not in result.output   # no 200g scaled result (31g × 2)
 
+    def test_search_shows_optimal_column_when_configured(self, runner: NumaTestRunner, monkeypatch):
+        """Configuring a Profile Optimal target for Vitamin D adds the 'Profile Optimal'
+        column group to the food nutrient table."""
+        _mock_api(monkeypatch)
+        # Settings(5) → Nutrient targets(9) → Vitamin D(14) → Optimal target(1) → 50 → back(b) → main(m)
+        # → Foods(1) → Search(1) → chicken → pick 1 → n (skip portion) → b → q
+        result = runner.invoke(
+            input="5\n9\n14\n1\n50\nb\nm\n1\n1\nchicken\n1\nn\nb\nq\n"
+        )
+        assert result.exit_code == 0
+        assert "Profile Optimal" in result.output
+        assert "50.0 mcg" in result.output
+
+    def test_search_no_optimal_column_when_unconfigured(self, runner: NumaTestRunner, monkeypatch):
+        """Without any Profile Optimal targets set, the food nutrient table renders
+        exactly as before — no 'Profile Optimal' column group."""
+        _mock_api(monkeypatch)
+        result = runner.invoke(input="1\n1\nchicken\n1\nn\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Profile Optimal" not in result.output
+
     def test_invalid_portion_input_retries(self, runner: NumaTestRunner, monkeypatch):
         """Bad portion input shows an error and re-prompts rather than dropping to the menu."""
         _mock_api(monkeypatch)
@@ -839,6 +860,48 @@ class TestUserProfileSettings:
         assert result.exit_code == 0
         assert "profile" in result.output.lower()
 
+
+# ---------------------------------------------------------------------------
+# Optimal targets / max limits — Settings menu → Nutrient targets
+# ---------------------------------------------------------------------------
+
+class TestNutrientTargetsSettings:
+    def test_nutrient_targets_option_visible_in_settings(self, runner: NumaTestRunner):
+        result = runner.invoke(input="5\nb\nq\n")
+        assert result.exit_code == 0
+        assert "nutrient targets" in result.output.lower()
+
+    def test_set_optimal_target_saves_to_profile(self, runner: NumaTestRunner):
+        # Settings(5) → Nutrient targets(9) → Vitamin D(14) → Optimal target(1) → 50 → back(b) → back(b) → q
+        result = runner.invoke(input="5\n9\n14\n1\n50\nb\nb\nq\n")
+        assert result.exit_code == 0
+        saved = _profile._PROFILES_DIR / "Default.json"
+        data = json.loads(saved.read_text())
+        assert data["optimal_targets"] == {"vitamin_d_mcg": 50.0}
+
+    def test_set_max_limit_saves_to_profile(self, runner: NumaTestRunner):
+        # Settings(5) → Nutrient targets(9) → Sodium(5) → Max limit(2) → 2000 → back(b) → back(b) → q
+        result = runner.invoke(input="5\n9\n5\n2\n2000\nb\nb\nq\n")
+        assert result.exit_code == 0
+        saved = _profile._PROFILES_DIR / "Default.json"
+        data = json.loads(saved.read_text())
+        assert data["max_limits"] == {"sodium_mg": 2000.0}
+
+    def test_clear_optimal_target(self, runner: NumaTestRunner):
+        runner.invoke(input="5\n9\n14\n1\n50\nb\nb\nq\n")
+        result = runner.invoke(input="5\n9\n14\n3\nb\nb\nq\n")
+        assert result.exit_code == 0
+        saved = _profile._PROFILES_DIR / "Default.json"
+        data = json.loads(saved.read_text())
+        assert data["optimal_targets"] == {}
+
+    def test_no_profile_shows_message(self, runner: NumaTestRunner):
+        for f in _profile._PROFILES_DIR.glob("*.json"):
+            f.unlink()
+        result = runner.invoke(input="5\n9\nb\nq\n")
+        assert result.exit_code == 0
+        assert "no profile set" in result.output.lower()
+
     def test_set_profile_saves_file(self, runner: NumaTestRunner):
         """Walking through the profile form saves a JSON file."""
         # Settings: 2 (Manage profiles) → e (edit active) → age=35 → sex=m →
@@ -924,6 +987,28 @@ class TestDailySummaryRDA:
         result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "Protein" in result.output
+
+    def test_rda_comparison_shows_optimal_and_max_limit_help(
+        self, runner: NumaTestRunner, monkeypatch, cached_food
+    ):
+        """With an Optimal target and a max limit configured, the RDA comparison
+        table's help footers mention both topics; without them, neither appears."""
+        _mock_api(monkeypatch)
+        # Settings(5) → Nutrient targets(9) → Sodium(5) → Max limit(2) → 50 → back(b) → quit
+        runner.invoke(input="5\n9\n5\n2\n50\nb\nq\n")
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\ny\nb\nq\n")
+        assert result.exit_code == 0
+        assert "?maxlimits" in result.output
+
+    def test_rda_comparison_no_max_limit_help_when_unset(
+        self, runner: NumaTestRunner, monkeypatch, cached_food
+    ):
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\ny\nb\nq\n")
+        assert result.exit_code == 0
+        assert "?maxlimits" not in result.output
 
     def test_rda_comparison_decline_skips_table(
         self, runner: NumaTestRunner, monkeypatch, cached_food

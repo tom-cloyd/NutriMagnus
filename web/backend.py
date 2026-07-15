@@ -24,11 +24,11 @@ import usda as _usda
 from numa_app.services import complements as _complements
 from numa_app.services.glycemic_load import compute_glycemic_load
 from numa_app.services.meal_bcp import recipe_dcp_fallback
-from numa_app.services.portions import _ing_amount_display
+from numa_app.services.portions import _ing_amount_display, volume_hint
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
 from version import VERSION
 from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
-from numa_app.services.rda_status import rda_status
+from numa_app.services.rda_status import rda_status, limit_warning
 from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 
 _WEB_DIR    = Path(__file__).parent
@@ -243,13 +243,27 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
     ]),
 ]
 
+# Nutrients offered for Profile Optimal / max-limit configuration in Settings —
+# mirrors numa_app/workflows/settings.py's _do_nutrient_targets() groups.
+_NUTRIENT_TARGET_GROUPS: list[tuple[str, list[str]]] = [
+    ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg"]),
+    ("Minerals", ["calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
+                  "potassium_mg", "zinc_mg"]),
+    ("Vitamins", ["vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+                  "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
+                  "b6_mg", "folate_mcg", "b12_mcg", "choline_mg"]),
+]
+
 
 def _rda_css(pct: float, rda_type: str) -> str:
     return "rda-" + rda_status(pct, rda_type)
 
 
 def _nutrient_sections(nutrients: dict, rda: dict | None = None,
-                       daily_nutrients: dict | None = None) -> list[dict]:
+                       daily_nutrients: dict | None = None,
+                       optimal: dict | None = None,
+                       max_limits: dict | None = None) -> list[dict]:
+    max_limits = max_limits or {}
     sections = []
     for group_name, keys in _NUTRIENT_GROUPS:
         rows = []
@@ -269,15 +283,40 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                     if daily_nutrients is not None:
                         day_pct = round(daily_nutrients.get(key, 0.0) / rda_val * 100, 0)
                         day_rda_css = _rda_css(day_pct, rda_type)
+
+            opt_pct = opt_day_pct = opt_css = opt_day_css = opt_goal = None
+            if optimal and key in optimal:
+                opt_val, opt_unit, opt_type = optimal[key]
+                if opt_val and opt_val > 0:
+                    opt_goal = f"{opt_val:.1f} {opt_unit}"
+                    opt_pct = round(val / opt_val * 100, 0)
+                    opt_css = _rda_css(opt_pct, opt_type)
+                    if daily_nutrients is not None:
+                        opt_day_pct = round(daily_nutrients.get(key, 0.0) / opt_val * 100, 0)
+                        opt_day_css = _rda_css(opt_day_pct, opt_type)
+
+            limit_warn = None
+            limit = max_limits.get(key)
+            if limit and daily_nutrients is not None:
+                day_total = daily_nutrients.get(key, 0.0)
+                if limit_warning(day_total, limit):
+                    limit_warn = "limit-over" if day_total >= limit else "limit-near"
+
             rows.append({
-                "label":       label,
-                "value":       round(val, 3),
-                "unit":        unit,
-                "pct":         pct,
-                "rda_type":    rda_type,
-                "rda_css":     rda_css_val,
-                "day_pct":     day_pct,
-                "day_rda_css": day_rda_css,
+                "label":        label,
+                "value":        round(val, 3),
+                "unit":         unit,
+                "pct":          pct,
+                "rda_type":     rda_type,
+                "rda_css":      rda_css_val,
+                "day_pct":      day_pct,
+                "day_rda_css":  day_rda_css,
+                "optimal_goal":     opt_goal,
+                "optimal_pct":      opt_pct,
+                "optimal_css":      opt_css,
+                "optimal_day_pct":  opt_day_pct,
+                "optimal_day_css":  opt_day_css,
+                "limit_warn":       limit_warn,
             })
         if rows:
             sections.append({"name": group_name, "rows": rows})
@@ -290,6 +329,22 @@ def _load_rda() -> dict | None:
     if profile is None:
         return None
     return _profile.compute_rda(profile)
+
+
+def _load_optimal() -> dict | None:
+    """Load the user profile and return computed Profile Optimal dict, or None if no profile set."""
+    profile = _profile.load_profile()
+    if profile is None:
+        return None
+    return _profile.compute_optimal(profile)
+
+
+def _load_max_limits() -> dict | None:
+    """Load the user profile and return configured max limits, or None if no profile set."""
+    profile = _profile.load_profile()
+    if profile is None:
+        return None
+    return _profile.get_max_limits(profile)
 
 
 _OXALATE_SCORE_THRESHOLD = 0.50   # minimum fuzzy-match score
@@ -754,6 +809,8 @@ async def food_analyze_recipe_portion_post(
     factor = servings  # per_serving already divides by recipe_servings
     scaled = {k: v * factor for k, v in per_serving.items()}
     rda = _load_rda()
+    optimal = _load_optimal()
+    max_limits = _load_max_limits()
     diaas_display = _build_diaas_display(diaas_result)
 
     return templates.TemplateResponse(request, "food_analyze_recipe_portion.html", {
@@ -765,9 +822,10 @@ async def food_analyze_recipe_portion_post(
             "servings_analyzed": servings,
         },
         "ingredients":        display_ingredients,
-        "nutrient_sections":  _nutrient_sections(scaled, rda),
+        "nutrient_sections":  _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits),
         "diaas_display":      diaas_display,
         "has_profile":        rda is not None,
+        "has_optimal":        bool(optimal),
         "protein_adequacy":   _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":        _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe"),
         "gl":                 _recipe_gl_web(recipe_id, recipe_servings, servings),
@@ -1947,10 +2005,15 @@ async def food_detail(
     # Scale nutrient display values; protein analysis uses per-100g ratios so stays unscaled
     display_nutrients = _usda.scale_nutrients(nutrients, amount) if amount != 100.0 else nutrients
     rda = _load_rda()
-    # For RDA % on food detail, scale the RDA targets by the same portion factor
+    optimal = _load_optimal()
+    max_limits = _load_max_limits()
+    # For RDA / Optimal % on food detail, scale the targets by the same portion factor
     rda_scaled: dict | None = None
     if rda and amount != 100.0:
         rda_scaled = {k: (v * (amount / 100.0), u, t) for k, (v, u, t) in rda.items()}
+    optimal_scaled: dict | None = None
+    if optimal and amount != 100.0:
+        optimal_scaled = {k: (v * (amount / 100.0), u, t) for k, (v, u, t) in optimal.items()}
     antinutrient_flags = _usda.get_antinutrient_flags(food["name"])
 
     # Foundation fallback: protein present but no AA data — suggest a Foundation Foods search
@@ -1970,11 +2033,13 @@ async def food_detail(
         "portion_label":      portion_label,
         "portion_error":      portion_error,
         "portions":           portions,
-        "nutrient_sections":  _nutrient_sections(display_nutrients, rda_scaled or rda),
+        "nutrient_sections":  _nutrient_sections(display_nutrients, rda_scaled or rda,
+                                                 optimal=optimal_scaled or optimal, max_limits=max_limits),
         "protein":            _protein_section(food["name"], display_nutrients),
         "complements":        _food_complement_section(food["name"], display_nutrients),
         "antinutrients":      antinutrient_flags,
         "has_profile":        rda is not None,
+        "has_optimal":        bool(optimal),
         "suggest_foundation": suggest_foundation,
         "oxalate":            oxalate,
         "oxalate_mg_portion": oxalate_mg_portion,
@@ -2603,6 +2668,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
             })
 
     rda = _load_rda()
+    optimal = _load_optimal()
+    max_limits = _load_max_limits()
 
     # Compute daily totals (this meal + siblings) for the day total % column
     daily_nutrients: dict | None = None
@@ -2672,7 +2739,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     return templates.TemplateResponse(request, "meal.html", {
         "meal":                dict(meal),
         "items":               items,
-        "nutrient_sections":   _nutrient_sections(total_nutrients, rda, daily_nutrients) if total_nutrients else [],
+        "nutrient_sections":   _nutrient_sections(total_nutrients, rda, daily_nutrients,
+                                                  optimal=optimal, max_limits=max_limits) if total_nutrients else [],
         "diaas":               diaas_display,
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":         _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="meal"),
@@ -2683,6 +2751,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "search_results":      search_results,
         "today":               datetime.date.today().isoformat(),
         "has_profile":         rda is not None,
+        "has_optimal":        bool(optimal),
         "has_day_pct":         daily_nutrients is not None,
         "sibling_meals":       sibling_meals,
         "add_error":           add_error,
@@ -2835,21 +2904,38 @@ async def meal_delete_post(meal_id: int):
 async def meal_update_item_post(
     meal_id: int,
     item_id: int,
-    amount: float = Form(...),
+    amount: str = Form(...),
     notes: str = Form(""),
 ):
     with _db.get_db() as conn:
         items = _db.meal_get_items(conn, meal_id)
     item = next((it for it in items if it["id"] == item_id), None)
-    if item and amount > 0:
-        notes_val = notes.strip() or None
+    if not item:
+        return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+    notes_val = notes.strip() or None
+    if item["item_type"] == "recipe":
+        try:
+            srv = float(amount)
+        except ValueError:
+            return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+        if srv > 0:
+            unit = f"{srv:g} serving" + ("s" if srv != 1 else "")
+            with _db.get_db() as conn:
+                _db.meal_update_item(conn, item_id, meal_id, srv, unit)
+    else:
         with _db.get_db() as conn:
-            if item["item_type"] == "recipe":
-                unit = f"{amount:g} serving" + ("s" if amount != 1 else "")
-                _db.meal_update_item(conn, item_id, meal_id, amount, unit)
-            else:
+            cached = _db.get_cached_food(conn, item["fdc_id"]) if item["fdc_id"] else None
+        portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
+        grams, error_msg = _parse_portion_str(amount.strip(), portions, item["food_name"])
+        if grams:
+            with _db.get_db() as conn:
                 _db.meal_replace_food(conn, item_id, meal_id, item["fdc_id"],
-                                      item["food_name"], amount, "g", notes_val)
+                                      item["food_name"], grams, "g", notes_val)
+        else:
+            from urllib.parse import quote
+            return RedirectResponse(
+                f"/meal/{meal_id}?add_error={quote(error_msg)}", status_code=303
+            )
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
@@ -2981,16 +3067,20 @@ async def meal_day_view(request: Request, meal_id: int):
     gl_total = None if any_gl_none else round(gl_total_sum, 1)
 
     rda = _load_rda()
+    optimal = _load_optimal()
+    max_limits = _load_max_limits()
     return templates.TemplateResponse(request, "meal_day.html", {
         "meal_date":         meal_date,
         "meals":             meals,
         "from_meal_id":      meal_id,
-        "nutrient_sections": _nutrient_sections(combined_nutrients, rda) if combined_nutrients else [],
+        "nutrient_sections": _nutrient_sections(combined_nutrients, rda, combined_nutrients,
+                                                optimal=optimal, max_limits=max_limits) if combined_nutrients else [],
         "diaas":             diaas_display,
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="daily"),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
+        "has_optimal":        bool(optimal),
     })
 
 
@@ -3015,16 +3105,33 @@ async def settings_get(request: Request, saved: str = ""):
     api_key = _usda.get_api_key()
     with _db.get_db() as conn:
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
+
+    nutrient_target_rows = []
+    if profile:
+        for group_name, keys in _NUTRIENT_TARGET_GROUPS:
+            for key in keys:
+                if rda is None or key not in rda:
+                    continue
+                label, unit = _usda.nutrient_label(key)
+                nutrient_target_rows.append({
+                    "key":     key,
+                    "label":   label,
+                    "unit":    unit,
+                    "optimal": profile.optimal_targets.get(key),
+                    "limit":   profile.max_limits.get(key),
+                })
+
     return templates.TemplateResponse(request, "settings.html", {
-        "profile":          profile,
-        "rda_rows":         rda_rows,
-        "activity_labels":  _profile.ACTIVITY_LABELS,
-        "sex_values":       _profile.SEX_VALUES,
-        "saved":            saved,
-        "diet_pref":        diet_pref,
-        "diet_labels":      _DIET_LABELS,
-        "api_key":          api_key,
-        "diaas_overrides":  diaas_overrides,
+        "profile":              profile,
+        "rda_rows":             rda_rows,
+        "activity_labels":      _profile.ACTIVITY_LABELS,
+        "sex_values":           _profile.SEX_VALUES,
+        "saved":                saved,
+        "diet_pref":            diet_pref,
+        "diet_labels":          _DIET_LABELS,
+        "api_key":              api_key,
+        "diaas_overrides":      diaas_overrides,
+        "nutrient_target_rows": nutrient_target_rows,
     })
 
 
@@ -3057,6 +3164,8 @@ async def settings_post(
         weight_unit=weight_unit,
         height_unit=height_unit,
         use_oxalate_data=existing.use_oxalate_data if existing else False,
+        optimal_targets=dict(existing.optimal_targets) if existing else {},
+        max_limits=dict(existing.max_limits) if existing else {},
     )
     _profile.save_profile(profile)
     return RedirectResponse("/settings?saved=profile", status_code=303)
@@ -3093,6 +3202,42 @@ async def settings_diaas_override_delete(food_name: str = Form(...)):
     with _db.get_db() as conn:
         _diaas.diaas_override_delete(conn, food_name.strip())
     return RedirectResponse("/settings?saved=diaas", status_code=303)
+
+
+@app.post("/settings/nutrient-target", response_class=RedirectResponse)
+async def settings_nutrient_target_post(
+    key:      str   = Form(...),
+    optimal:  str   = Form(""),
+    limit:    str   = Form(""),
+):
+    """Set or clear a Profile Optimal target and/or custom max limit for one nutrient.
+    An empty field clears that setting; a numeric value sets it."""
+    profile = _profile.load_profile()
+    if profile is None:
+        return RedirectResponse("/settings", status_code=303)
+
+    valid_keys = {k for _g, keys in _NUTRIENT_TARGET_GROUPS for k in keys}
+    if key in valid_keys:
+        optimal = optimal.strip()
+        if optimal:
+            try:
+                profile.optimal_targets[key] = float(optimal)
+            except ValueError:
+                pass
+        else:
+            profile.optimal_targets.pop(key, None)
+
+        limit = limit.strip()
+        if limit:
+            try:
+                profile.max_limits[key] = float(limit)
+            except ValueError:
+                pass
+        else:
+            profile.max_limits.pop(key, None)
+
+        _profile.save_profile(profile)
+    return RedirectResponse("/settings?saved=nutrient_target", status_code=303)
 
 
 @app.post("/recipes/compute-bcp", response_class=RedirectResponse)
@@ -3186,6 +3331,9 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
             return RedirectResponse("/recipes", status_code=303)
         _db.recipe_touch(conn, recipe_id)
         ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
+        for _ing in ingredients:
+            if not _ing["ref_recipe_id"] and _ing["amount"]:
+                _ing["volume_display"] = volume_hint(_ing["amount"], _ing["food_name"])
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
         recipe_servings = float(recipe["servings"] or 1)
@@ -3201,6 +3349,8 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
 
     scaled = {k: v * servings for k, v in per_serving.items()}
     rda = _load_rda()
+    optimal = _load_optimal()
+    max_limits = _load_max_limits()
     diaas_display = _build_diaas_display(diaas_result)
 
     ingredient_antinutrients = []
@@ -3221,12 +3371,13 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         "recipe":                   dict(recipe),
         "ingredients":              ingredients,
         "servings":                 servings,
-        "nutrient_sections":        _nutrient_sections(scaled, rda) if scaled else [],
+        "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits) if scaled else [],
         "diaas":                    diaas_display,
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":              _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe"),
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
+        "has_optimal":        bool(optimal),
         "ingredient_antinutrients": ingredient_antinutrients,
         "oxalate":                  oxalate,
         "referencing_recipes":      referencing_recipes,
@@ -3242,7 +3393,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
         for _ing in ingredients:
             if not _ing["ref_recipe_id"]:
-                _ing["amount_display"] = _ing_amount_display(_ing["unit"], _ing["amount"])
+                _ing["amount_display"] = _ing_amount_display(_ing["unit"], _ing["amount"], _ing["food_name"])
 
         # Running nutrition totals for edit-page live feedback
         _ns_total: dict = {}
@@ -3577,6 +3728,8 @@ async def summary_date(request: Request, meal_date: str):
     gl_total = None if any_gl_none else round(gl_total_sum, 1)
 
     rda = _load_rda()
+    optimal = _load_optimal()
+    max_limits = _load_max_limits()
 
     # Recent days for sidebar
     with _db.get_db() as conn:
@@ -3601,12 +3754,14 @@ async def summary_date(request: Request, meal_date: str):
         "today":             datetime.date.today().isoformat(),
         "date_detail":       meal_date,
         "meals":             meals,
-        "nutrient_sections": _nutrient_sections(combined_nutrients, rda) if combined_nutrients else [],
+        "nutrient_sections": _nutrient_sections(combined_nutrients, rda, combined_nutrients,
+                                                optimal=optimal, max_limits=max_limits) if combined_nutrients else [],
         "diaas":             diaas_display,
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="daily"),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
+        "has_optimal":        bool(optimal),
     })
 
 

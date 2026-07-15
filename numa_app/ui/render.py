@@ -20,7 +20,7 @@ from .. import state
 from ..services import complements as _complements
 from ..services.portions import amount_note as _amount_note
 from ..services.portions import volume_hint as _volume_hint
-from ..services.rda_status import rda_status
+from ..services.rda_status import rda_status, limit_warning
 from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
@@ -122,8 +122,9 @@ def _load_recipe_candidates() -> list[dict]:
 
 def _get_daily_context(
     meal_date: "str | None" = None,
-) -> "tuple[dict[str, float] | None, dict | None]":
-    """Return (daily_nutrients, rda) for today; (None, None) if no user profile.
+) -> "tuple[dict[str, float] | None, dict | None, dict | None, dict | None]":
+    """Return (daily_nutrients, rda, optimal, max_limits) for today;
+    (None, None, None, None) if no user profile.
 
     daily_nutrients is {} when a profile exists but no meals are logged today.
     Uses a lazy import from meals.py to avoid a circular import at module load time.
@@ -131,17 +132,19 @@ def _get_daily_context(
     from datetime import date as _date
     profile = _profile.load_profile()
     if not profile:
-        return None, None
+        return None, None, None, None
     rda = _profile.compute_rda(profile)
+    optimal = _profile.compute_optimal(profile)
+    max_limits = _profile.get_max_limits(profile)
     today = meal_date or _date.today().isoformat()
     with _db.get_db() as conn:
         today_meals = _db.meal_list_by_date(conn, today)
     if not today_meals:
-        return {}, rda
+        return {}, rda, optimal, max_limits
     from ..workflows.meals import _compute_meal_nutrients
     daily_parts = [n for m in today_meals if (n := _compute_meal_nutrients(m["id"]))]
     daily_nutrients = _usda.sum_nutrients(*daily_parts) if daily_parts else {}
-    return daily_nutrients, rda
+    return daily_nutrients, rda, optimal, max_limits
 
 
 def _print_nutrient_table(
@@ -151,11 +154,20 @@ def _print_nutrient_table(
     *,
     daily_nutrients: "dict[str, float] | None" = None,
     rda: "dict | None" = None,
+    optimal: "dict | None" = None,
+    max_limits: "dict[str, float] | None" = None,
     show_meal_pct: bool = True,
 ) -> None:
     """Render a rich table of nutrients grouped by category.
 
     daily_nutrients + rda: when both provided, adds % columns and Daily goal.
+    optimal: when non-empty, adds a second "Profile Optimal" triplet of columns
+        (meal %, day total %, goal) alongside the RDA triplet, for nutrients the
+        user has configured a custom optimal target for (see profile.compute_optimal).
+        Nutrients without a configured optimal show "–" in those columns.
+    max_limits: nutrient_key -> user-defined per-day cap (profile.get_max_limits).
+        When the day total is within 10% of (or over) a configured limit, that
+        nutrient's label and amount are colored as a warning/error.
     show_meal_pct=False: suppress the 'meal %' column (use when nutrients IS the day total).
     """
     groups = [
@@ -184,52 +196,98 @@ def _print_nutrient_table(
     section_title(title, sub)
 
     show_pct = daily_nutrients is not None and rda is not None
+    show_optimal = show_pct and bool(optimal)
+    max_limits = max_limits or {}
 
     def _rda_color(pct: float, rda_type: str) -> str:
         if rda_type == "limit":
             return state.T["success"] if pct <= 80 else (state.T["warning"] if pct <= 100 else state.T["error"])
         return state.T["success"] if pct >= 100 else (state.T["warning"] if pct >= 70 else state.T["error"])
 
+    def _limit_color(key: str) -> "str | None":
+        limit = max_limits.get(key)
+        if not limit or daily_nutrients is None:
+            return None
+        day_total = daily_nutrients.get(key, 0.0)
+        if not limit_warning(day_total, limit):
+            return None
+        return state.T["error"] if day_total >= limit else state.T["warning"]
+
     _NUT_W = 28
+    _AMT_W, _UNIT_W = 10, 8
+    _MEAL_W, _DAY_W, _GOAL_W = 8, 11, 14
+
+    # Meta-header labeling the RDA vs. Optimal column groups (Rich Table has no
+    # native spanning header, so this is a manually-aligned line printed above it).
+    if show_optimal:
+        base_w = (_NUT_W + 2) + (_AMT_W + 2) + (_UNIT_W + 2)
+        grp_w = ((_MEAL_W + 2) if show_meal_pct else 0) + (_DAY_W + 2) + (_GOAL_W + 2)
+        meta = (" " * base_w
+                + "Profile RDA".center(grp_w)
+                + "Profile Optimal".center(grp_w))
+        state.console.print(f"[{state.T['hi']}]{meta}[/{state.T['hi']}]", highlight=False)
+
     tbl = Table(show_header=True, header_style=state.T["accent"], box=None, padding=(0, 1))
     tbl.add_column("Nutrient", style="", min_width=_NUT_W, max_width=_NUT_W, no_wrap=True)
-    tbl.add_column("Amount", justify="right", min_width=10)
-    tbl.add_column("Unit", style="dim", min_width=8)
+    tbl.add_column("Amount", justify="right", min_width=_AMT_W)
+    tbl.add_column("Unit", style="dim", min_width=_UNIT_W)
     if show_pct:
         if show_meal_pct:
-            tbl.add_column("meal %", justify="right", min_width=8)
-        tbl.add_column("day total %", justify="right", min_width=11)
-        tbl.add_column("Daily goal", justify="right", min_width=12)
+            tbl.add_column("meal %", justify="right", min_width=_MEAL_W, max_width=_MEAL_W)
+        tbl.add_column("day total %", justify="right", min_width=_DAY_W, max_width=_DAY_W)
+        tbl.add_column("Daily goal", justify="right", min_width=_GOAL_W, max_width=_GOAL_W)
+        if show_optimal:
+            if show_meal_pct:
+                tbl.add_column("meal %", justify="right", min_width=_MEAL_W, max_width=_MEAL_W)
+            tbl.add_column("day total %", justify="right", min_width=_DAY_W, max_width=_DAY_W)
+            tbl.add_column("Optimal goal", justify="right", min_width=_GOAL_W, max_width=_GOAL_W)
+
+    triplet_w = (1 if show_meal_pct else 0) + 2  # columns per pct triplet
 
     for group_name, keys in groups:
         present = [(k, nutrients[k]) for k in keys if k in nutrients]
         if not present:
             continue
-        extra_blanks = (2 if show_meal_pct else 1) + 1  # day total % + goal (+ meal % if shown)
+        extra_blanks = triplet_w * (2 if show_optimal else 1)
         header_row = [f"[{state.T['hi']}]{group_name}[/{state.T['hi']}]", "", ""]
         tbl.add_row(*(header_row + ([""] * extra_blanks if show_pct else [])))
         for key, val in present:
             label, unit = _usda.nutrient_label(key)
+            limit_color = _limit_color(key)
             visible = f"  {label}"
             dots = "·" * max(0, _NUT_W - len(visible) - 1)
-            if show_pct:
-                rda_entry = rda.get(key) if rda else None
-                if rda_entry and rda_entry[0] > 0:
-                    rda_val, rda_unit, rda_type = rda_entry
-                    day_pct = daily_nutrients.get(key, 0.0) / rda_val * 100.0
-                    day_cell  = f"[{_rda_color(day_pct,  rda_type)}]{day_pct:.0f}%[/]"
-                    goal_cell = f"[grey62]{rda_val:.1f} {rda_unit}[/grey62]"
-                    if show_meal_pct:
-                        meal_pct = val / rda_val * 100.0
-                        meal_cell = f"[{_rda_color(meal_pct, rda_type)}]{meal_pct:.0f}%[/]"
-                        tbl.add_row(f"{visible} [grey62]{dots}[/grey62]", f"{val:.2f}", unit, meal_cell, day_cell, goal_cell)
-                    else:
-                        tbl.add_row(f"{visible} [grey62]{dots}[/grey62]", f"{val:.2f}", unit, day_cell, goal_cell)
+            name_cell = f"{visible} [grey62]{dots}[/grey62]"
+            amt_cell = f"{val:.2f}"
+            if limit_color:
+                name_cell = f"[{limit_color}]{visible}[/{limit_color}] [grey62]{dots}[/grey62]"
+                amt_cell = f"[{limit_color}]{val:.2f}[/{limit_color}]"
+            if not show_pct:
+                tbl.add_row(name_cell, amt_cell, unit)
+                continue
+
+            row = [name_cell, amt_cell, unit]
+
+            def _pct_cells(entry, val=val) -> list[str]:
+                if not (entry and entry[0] > 0):
+                    return [""] * triplet_w
+                t_val, t_unit, t_type = entry
+                day_pct = daily_nutrients.get(key, 0.0) / t_val * 100.0
+                cells = []
+                if show_meal_pct:
+                    meal_pct = val / t_val * 100.0
+                    cells.append(f"[{_rda_color(meal_pct, t_type)}]{meal_pct:.0f}%[/]")
+                cells.append(f"[{_rda_color(day_pct, t_type)}]{day_pct:.0f}%[/]")
+                cells.append(f"[grey62]{t_val:.1f} {t_unit}[/grey62]")
+                return cells
+
+            row.extend(_pct_cells(rda.get(key) if rda else None))
+            if show_optimal:
+                opt_entry = optimal.get(key) if optimal else None
+                if opt_entry:
+                    row.extend(_pct_cells(opt_entry))
                 else:
-                    blanks = [""] * extra_blanks
-                    tbl.add_row(f"{visible} [grey62]{dots}[/grey62]", f"{val:.2f}", unit, *blanks)
-            else:
-                tbl.add_row(f"{visible} [grey62]{dots}[/grey62]", f"{val:.2f}", unit)
+                    row.extend(["–"] * triplet_w)
+            tbl.add_row(*row)
 
     state.console.print(tbl)
     if show_pct:
@@ -237,6 +295,16 @@ def _print_nutrient_table(
         if show_meal_pct:
             state.console.print("  [grey62]meal % = this meal ÷ daily goal[/grey62]")
         state.console.print("  [grey62]day total % = all meals logged today ÷ daily goal[/grey62]")
+        if show_optimal:
+            state.console.print("  [grey62]Profile Optimal = your custom target, where configured (\"–\" = not set, uses RDA only)[/grey62]")
+            help_footer("optimal")
+        if max_limits:
+            state.console.print(
+                f"  [grey62]Highlighted nutrient in [/grey62][{state.T['warning']}]yellow[/{state.T['warning']}]"
+                f"[grey62] = day total within 10% of your max limit; in [/grey62][{state.T['error']}]red[/{state.T['error']}]"
+                f"[grey62] = at/over it[/grey62]"
+            )
+            help_footer("maxlimits")
     help_footer("nutrients")
 
 
@@ -1414,6 +1482,8 @@ def _print_dcp_adequacy_section(
 def _print_rda_targets(profile: "_profile.UserProfile") -> None:
     """Print a table of personalized daily nutrient targets derived from the user's profile."""
     rda = _profile.compute_rda(profile)
+    optimal = _profile.compute_optimal(profile)
+    max_limits = _profile.get_max_limits(profile)
 
     section_title("Daily Nutrient Targets")
     state.console.print(
@@ -1438,12 +1508,14 @@ def _print_rda_targets(profile: "_profile.UserProfile") -> None:
     tbl.add_column("Nutrient",   min_width=_RDA_W, max_width=_RDA_W, no_wrap=True)
     tbl.add_column("Daily Goal", justify="right", min_width=14)
     tbl.add_column("Goal Type",  min_width=14)
+    if optimal:
+        tbl.add_column("Optimal", justify="right", min_width=14)
 
     for group_name, keys in groups:
         present = [(k, rda[k]) for k in keys if k in rda]
         if not present:
             continue
-        tbl.add_row(f"[{state.T['hi']}]{group_name}[/{state.T['hi']}]", "", "")
+        tbl.add_row(*([f"[{state.T['hi']}]{group_name}[/{state.T['hi']}]", "", ""] + ([""] if optimal else [])))
         for key, (val, unit, rda_type) in present:
             label_info = _usda.nutrient_label(key)
             label = label_info[0] if label_info else key.replace("_", " ").title()
@@ -1456,23 +1528,48 @@ def _print_rda_targets(profile: "_profile.UserProfile") -> None:
             else:
                 type_color = state.T["success"]
                 type_label = "minimum"
-            tbl.add_row(
+            row = [
                 dot_cell(label, _RDA_W),
                 f"{val:.1f} {unit}",
                 f"[{type_color}]{type_label}[/{type_color}]",
-            )
+            ]
+            if optimal:
+                opt_entry = optimal.get(key)
+                row.append(f"{opt_entry[0]:.1f} {opt_entry[1]}" if opt_entry else "–")
+            tbl.add_row(*row)
 
     state.console.print(tbl, highlight=False)
     table_footer(
         "  [grey62]Minimum = daily requirement  ·  Target = recommended intake  ·  Limit = upper safe intake[/grey62]",
         "  [grey62]Targets are personalized to your age, sex, weight, height, and activity level.[/grey62]",
     )
+    if optimal:
+        table_footer("  [grey62]Optimal = your custom Profile Optimal target, where configured — see Settings → Nutrient targets[/grey62]")
+        help_footer("optimal")
+
+    if max_limits:
+        state.console.print()
+        table_title("Your custom max limits")
+        limit_tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        limit_tbl.add_column("Nutrient", min_width=_RDA_W, max_width=_RDA_W, no_wrap=True)
+        limit_tbl.add_column("Max limit", justify="right", min_width=14)
+        for key, val in max_limits.items():
+            label_info = _usda.nutrient_label(key)
+            label = label_info[0] if label_info else key.replace("_", " ").title()
+            unit = label_info[1] if label_info else ""
+            limit_tbl.add_row(dot_cell(label, _RDA_W), f"{val:.1f} {unit}")
+        state.console.print(limit_tbl, highlight=False)
+        help_footer("maxlimits")
+
     help_footer("goals")
 
 
 def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserProfile") -> None:
-    """Print a table comparing daily nutrient totals against personalized RDA targets."""
+    """Print a table comparing daily nutrient totals against personalized RDA (and, where
+    configured, Profile Optimal) targets, flagging any nutrient near a custom max limit."""
     rda = _profile.compute_rda(profile)
+    optimal = _profile.compute_optimal(profile)
+    max_limits = _profile.get_max_limits(profile)
     nutrient_label = _usda.nutrient_label  # (key) → (label, unit) | None
 
     section_title("Daily Intake vs. Recommended Values")
@@ -1491,6 +1588,9 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
     tbl.add_column("Target",    justify="right", min_width=12)
     tbl.add_column("% of RDA",  justify="right", min_width=10)
     tbl.add_column("Status",    min_width=28)
+    if optimal:
+        tbl.add_column("Optimal target", justify="right", min_width=14)
+        tbl.add_column("% of Optimal",   justify="right", min_width=12)
 
     BAR_WIDTH = 16
 
@@ -1529,8 +1629,32 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
         bar = f"[{bar_color}]{'█' * filled}[/{bar_color}]{'░' * (BAR_WIDTH - filled)}"
         status_cell = f"{bar}  [{bar_color}]{status_note}[/{bar_color}]"
 
-        tbl.add_row(dot_cell(label, _RDA_W), intake_str, target_str, pct_str, status_cell)
+        limit = max_limits.get(key)
+        label_cell = dot_cell(label, _RDA_W)
+        if limit and limit_warning(intake, limit):
+            lc = state.T["error"] if intake >= limit else state.T["warning"]
+            label_cell = f"[{lc}]{label_cell}[/{lc}]"
+
+        row = [label_cell, intake_str, target_str, pct_str, status_cell]
+        if optimal:
+            opt_entry = optimal.get(key)
+            if opt_entry and opt_entry[0] > 0:
+                opt_val, opt_unit, opt_type = opt_entry
+                opt_pct = intake / opt_val * 100.0
+                opt_color = rda_status(opt_pct, opt_type)
+                opt_bar_color = {"met": state.T["success"], "near": state.T["warning"],
+                                  "low": state.T["error"], "over": state.T["error"]}[opt_color]
+                row.append(f"{opt_val:.1f} {opt_unit}")
+                row.append(f"[{opt_bar_color}]{opt_pct:.0f}%[/{opt_bar_color}]")
+            else:
+                row.extend(["–", "–"])
+        tbl.add_row(*row)
 
     state.console.print(tbl, highlight=False)
     table_footer("  [grey62]Target = RDA or Adequate Intake  ·  Limit = Tolerable Upper Intake Level[/grey62]")
+    if optimal:
+        table_footer("  [grey62]Optimal target = your custom Profile Optimal setting, where configured (\"–\" = not set)[/grey62]")
+        help_footer("optimal")
+    if max_limits:
+        help_footer("maxlimits")
     help_footer("rda")

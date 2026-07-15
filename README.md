@@ -28,6 +28,7 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Complement suggestions** — NutriMagnus identifies which essential amino acids are missing and suggests specific foods — drawn from your personal pantry first — to fill the gap
 - **Oxalate tracking** — flags high-oxalate foods with practical notes (relevant for kidney stone risk and calcium absorption)
 - **Multiple user profiles** — different RDA targets for different household members (age, sex, weight, activity level)
+- **Personalized nutrient targets** — set a custom "optimal" target above the standard RDA for any nutrient (e.g. higher Vitamin D for older adults), and custom max limits that warn you as you approach them
 - **Personal pantry** — keep a list of protein sources on hand; the complement advisor draws from it first
 - **Extensive built-in help** — type `?topic` at any prompt for inline reference panels covering every feature; a full User Manual is included and accessible without leaving the app
 

@@ -294,6 +294,66 @@
   </form>
 </details>
 
+{# ── 7. Nutrient targets: Profile Optimal + custom max limits ──────────── #}
+<details>
+  <summary data-ak="7"><u class="ak">7</u>. <strong>Nutrient Targets</strong>
+    <span class="muted"> — custom Optimal targets and max limits, on top of your standard RDA</span>
+    {{ manual_link("optimal") }}
+  </summary>
+
+  {% if saved == 'nutrient_target' %}
+  <p class="status-met mt-2"><strong>&#10003; Nutrient target saved.</strong></p>
+  {% endif %}
+
+  {% if nutrient_target_rows %}
+  <p class="mt-2 muted"><small>
+    <strong>Optimal target</strong>: some nutrients (e.g. Vitamin D for older adults) have a
+    recommended intake well above the standard RDA — set your own target here to see it as a
+    second column on nutrient tables. {{ manual_link("optimal") }}<br>
+    <strong>Max limit</strong>: a personal cap you don't want to exceed. When your daily total
+    is within 10% of it, the nutrient is highlighted. {{ manual_link("maxlimits") }}
+    Leave a field blank and save to clear it.
+  </small></p>
+  <table class="table table-sm table-hover mt-2" style="max-width:700px">
+    <thead class="table-light">
+      <tr>
+        <th>Nutrient</th>
+        <th class="text-end">Optimal target</th>
+        <th class="text-end">Max limit</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in nutrient_target_rows %}
+      <tr>
+        <td>{{ row.label }} <span class="muted">({{ row.unit }})</span></td>
+        <td class="text-end">
+          <input type="number" class="form-control form-control-sm" name="optimal"
+                 form="nt-form-{{ row.key }}"
+                 step="any" min="0" style="width:8rem;display:inline-block"
+                 value="{{ row.optimal if row.optimal is not none else '' }}">
+        </td>
+        <td class="text-end">
+          <input type="number" class="form-control form-control-sm" name="limit"
+                 form="nt-form-{{ row.key }}"
+                 step="any" min="0" style="width:8rem;display:inline-block"
+                 value="{{ row.limit if row.limit is not none else '' }}">
+        </td>
+        <td>
+          <form id="nt-form-{{ row.key }}" method="post" action="/settings/nutrient-target" style="margin:0">
+            <input type="hidden" name="key" value="{{ row.key }}">
+            <button type="submit" class="btn btn-outline-primary btn-sm">Save</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted mt-2"><small>Set up your profile above to configure nutrient targets.</small></p>
+  {% endif %}
+</details>
+
 <script>
 function toggleHeight(unit) {
   document.getElementById('height-cm-group').style.display =

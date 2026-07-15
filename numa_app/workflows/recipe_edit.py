@@ -229,7 +229,7 @@ def _do_recipe_edit(recipe=None) -> None:
             for i, ing in enumerate(ingredients, 1):
                 id_cell = _recipe_ing_id_cell(ing)
                 amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
-                       if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
+                       if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"]))
                 row = [str(i), amt, id_cell, dot_cell(ing["food_name"], _RFOOD_W)]
                 if has_notes:
                     row.append(ing["notes"] or "")
@@ -452,7 +452,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 tbl2.add_column("Amount", min_width=14)
                 tbl2.add_column("Food", min_width=_RFOOD_W2, max_width=_RFOOD_W2, no_wrap=True)
                 for i, ing in enumerate(ingredients, 1):
-                    tbl2.add_row(str(i), _ing_amount_display(ing["unit"], ing["amount"]), ing["food_name"])
+                    tbl2.add_row(str(i), _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"]), ing["food_name"])
                 state.console.print(tbl2)
                 help_footer("recipe-ingredients")
                 try:
@@ -527,7 +527,7 @@ def _do_recipe_edit(recipe=None) -> None:
             _export_items = []
             for _ing in _ings_x:
                 _amt = (_format_recipe_portion_label(_ing["amount"], _ing["ref_recipe_id"])
-                        if _ing["ref_recipe_id"] else _ing_amount_display(_ing["unit"], _ing["amount"]))
+                        if _ing["ref_recipe_id"] else _ing_amount_display(_ing["unit"], _ing["amount"], _ing["food_name"]))
                 _export_items.append({
                     "food_name": _ing["food_name"],
                     "amount_display": _amt,

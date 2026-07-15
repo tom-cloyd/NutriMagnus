@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-12:2116* / Reading 2 hours, 17 minutes
+*Updated 2026-07-14:0354* / Reading 2 hours, 17 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -78,7 +78,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it used.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your Pantry, and recipes you have analyzed. For protein complement suggestions specifically, a built-in list of about 30 common protein sources fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be seeded from a small published reference table (see [Glycemic Index](#gi)) rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-07-11), there are 436 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should — for both the terminal program and the web app. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. The terminal program and the web app are two interfaces onto the same underlying nutrition-calculation code (protein complement suggestions, recipe totals, glycemic load, digestible protein, [RDA](#gloss-rda) status, and more) rather than each keeping its own separate copy.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-07-14), there are 460 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should — for both the terminal program and the web app. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. The terminal program and the web app are two interfaces onto the same underlying nutrition-calculation code (protein complement suggestions, recipe totals, glycemic load, digestible protein, [RDA](#gloss-rda) status, and more) rather than each keeping its own separate copy.
 
 **Appendix J has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
@@ -593,7 +593,29 @@ NutriMagnus calculates personalized daily nutrient goals from your user profile 
 
 Nutrients without established [DRIs](#gloss-dri) ([phytonutrients](#gloss-phytonutrients), amino acids) have no goal shown. The "% today" column and "Daily goal" column are blank for those rows.
 
-See [RDA](#rda) for a general overview of where these values come from.
+See [RDA](#rda) for a general overview of where these values come from. If the standard RDA isn't the number you actually want to hit for a given nutrient, see [Profile Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits).
+
+
+### Profile Optimal Targets [optimal]
+
+The standard RDA is a population-wide minimum or average -- it is not always the number that matters most for you. The clearest example is Vitamin D: the RDA is 15-20 mcg/day, but many clinicians recommend a substantially higher daily intake for older adults specifically. Rather than change what "RDA" means, NutriMagnus lets you set your own **Optimal target** for any nutrient, on top of the standard RDA, and tracks both side by side.
+
+Configure Optimal targets in **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web). Pick a nutrient, enter your target amount in that nutrient's usual unit, and save. Leave the field blank and save again to clear it.
+
+Once you have at least one Optimal target set, every nutrient analysis table (food, recipe, meal, and daily summary) gains a second "Profile Optimal" set of columns next to the standard "Profile RDA" columns -- the same meal %, day total %, and goal columns you already know, computed against your custom target instead of the RDA. Nutrients you have not customized show a dash ("–") in these columns rather than falling back to the RDA value, so it stays obvious which nutrients you've actually personalized.
+
+Optimal targets are per-nutrient, not per-day -- there is no single "optimal profile" to pick, only individual overrides you add nutrient by nutrient. Color coding matches the RDA columns: green at or above target, yellow approaching it, red well short (or, for capped nutrients like sodium, red once over).
+
+
+### Maximum Nutrient Limits [maxlimits]
+
+Separate from the built-in Tolerable Upper Intake Level that already caps a few nutrients like sodium in the standard RDA calculation, NutriMagnus lets you set your own personal daily maximum for any nutrient -- useful if your own situation calls for a stricter cap than the general population guideline, or a cap on a nutrient that has no standard upper limit at all.
+
+Configure max limits in the same place as Optimal targets: **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web).
+
+Once a max limit is set for a nutrient, NutriMagnus watches your logged intake for the day. When today's total for that nutrient reaches 90% of your limit, the nutrient's row is highlighted yellow; at or over 100% of the limit, it turns red. This check applies to your **day total**, not to any single meal or food in isolation -- a max limit is a daily budget, and a single meal being close to it isn't itself meaningful without knowing the rest of the day.
+
+The max-limit warning is independent of the Optimal target feature -- you can set one, the other, both, or neither for any given nutrient.
 
 ## Part 3 — Using NutriMagnus
 ### Installation
@@ -663,8 +685,10 @@ The sections linked from analysis output are:
 - [Meal protein digestibility](#meal-diaas) — meal protein digestibility analysis columns
 - [Meal history](#meal-history) — meal history search result tables
 - [Meals list](#meals-list) — Meals & Log list columns
+- [Maximum nutrient limits](#maxlimits) — custom per-day nutrient caps and the near-limit warning
 - [Missing amino acid profiles](#missing-aa) — missing amino acid profile warnings
 - [Nutrient analysis](#nutrients) — nutrient analysis table columns and groups
+- [Profile Optimal targets](#optimal) — custom per-nutrient targets above the standard RDA
 - [Oxalate data](#oxalate) — [oxalate](#gloss-oxalate) data source, enabling, matching, and limitations
 - [My Pantry](#pantry) — [My Pantry](#gloss-my-pantry) table columns
 - [Protein quality](#protein-quality) — single-food amino acid ratios table columns
@@ -771,6 +795,10 @@ When analyzing a meal within a full-day context, three additional columns appear
              capped nutrients (sodium).
     Yellow   Getting close but not there yet.
     Red      Significantly short of the minimum, or over the limit.
+
+If you have configured a Profile Optimal target for any nutrient (Settings → Nutrient targets), the table gains a second set of the same columns under a "Profile Optimal" heading, alongside the standard "Profile RDA" columns. Nutrients you have not customized show a dash ("–") in the Optimal columns. See [Profile Optimal Targets](#optimal) for details.
+
+If you have configured a custom max limit for a nutrient, its row is highlighted (yellow, then red) once today's total is within 10% of that limit. See [Maximum Nutrient Limits](#maxlimits) for details.
 
 [Phytonutrients](#gloss-phytonutrients) (carotenoids, choline, isoflavones, etc.) appear only when [USDA](#gloss-usda) data for that food includes those values -- many foods have none. Amino acids are not in this table; see the Protein Quality section below it.
 

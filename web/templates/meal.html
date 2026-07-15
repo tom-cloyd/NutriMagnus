@@ -396,10 +396,10 @@
               <form method="post" action="/meal/{{ meal.id }}/update/{{ item.id }}" class="d-flex flex-column gap-2">
                 <div class="d-flex gap-2 align-items-center">
                   {% if item.fdc_id %}
-                  <label class="form-label mb-0 text-nowrap">Amount (g)</label>
-                  <input type="number" name="amount" value="{{ item.amount | round(1) }}"
-                         class="form-control form-control-sm" min="0.1" max="99999" step="0.1"
-                         style="width:7rem" required>
+                  <label class="form-label mb-0 text-nowrap">Amount</label>
+                  <input type="text" name="amount" value="{{ item.amount | round(1) }}g"
+                         class="form-control form-control-sm" placeholder="e.g. 150 g, 2 oz, 1/4 cup, p1"
+                         style="width:12rem" required>
                   {% else %}
                   <label class="form-label mb-0 text-nowrap">Servings</label>
                   <input type="number" name="amount" value="{{ item.amount }}"
@@ -407,6 +407,9 @@
                          style="width:7rem" required>
                   {% endif %}
                 </div>
+                {% if item.fdc_id %}
+                <div style="font-size:0.75rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp &middot; p1, p2… (USDA portions)</div>
+                {% endif %}
                 {% if item.fdc_id %}
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0 text-nowrap">Notes</label>
@@ -494,11 +497,16 @@
         <th>Unit</th>
         {% if has_profile %}<th class="num-col">meal %</th>{% endif %}
         {% if has_day_pct %}<th class="num-col">day total %</th>{% endif %}
+        {% if has_optimal %}
+        <th class="num-col">optimal goal</th>
+        {% if has_profile %}<th class="num-col">opt. meal %</th>{% endif %}
+        {% if has_day_pct %}<th class="num-col">opt. day %</th>{% endif %}
+        {% endif %}
       </tr>
     </thead>
     <tbody>
       {% for row in section.rows %}
-      <tr>
+      <tr class="{{ row.limit_warn or '' }}">
         <td>{{ row.label }}</td>
         <td class="num-col">{{ row.value }}</td>
         <td class="muted">{{ row.unit }}</td>
@@ -515,6 +523,23 @@
           <span class="{{ row.day_rda_css }}">{{ row.day_pct | int }}%</span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
+        {% endif %}
+        {% if has_optimal %}
+        <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
+        {% if has_profile %}
+        <td class="num-col">
+          {% if row.optimal_pct is not none %}
+          <span class="{{ row.optimal_css }}">{{ row.optimal_pct | int }}%</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
+        {% if has_day_pct %}
+        <td class="num-col">
+          {% if row.optimal_day_pct is not none %}
+          <span class="{{ row.optimal_day_css }}">{{ row.optimal_day_pct | int }}%</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
         {% endif %}
       </tr>
       {% endfor %}

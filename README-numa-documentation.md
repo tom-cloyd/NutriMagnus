@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-11:2230
+UPDATED: 2026-07-14:0354
 ---
 
 ## Table of Contents
@@ -981,6 +981,10 @@ Profile is saved to and loaded from `~/.config/numa/profile.json`.
 
 The `use_oxalate_data: bool = False` field enables Harvard oxalate data lookup (see below). It is opt-in and defaults to False for all new and existing profiles.
 
+**Profile Optimal targets and custom max limits** (`optimal_targets: dict`, `max_limits: dict` fields, both `nutrient_key -> float`, native unit): user-configured overrides layered on top of the standard RDA. `compute_optimal(profile)` returns only the nutrients present in `optimal_targets`, in the same `(value, unit, "target")` shape as `compute_rda` — absent nutrients are simply not in the dict, so callers can distinguish "not customized" from "customized to zero". `get_max_limits(profile)` returns a copy of `max_limits`. Both are edited via Settings → Nutrient targets (CLI) / Settings → 7. Nutrient Targets (web) and persist through the same `save_profile`/`load_profile` JSON round-trip as the rest of the profile — `load_profile()` explicitly reconstructs `UserProfile` field-by-field, so any new dataclass field must be added there too or it will silently fail to reload despite being written correctly by `save_profile`.
+
+`numa_app/services/rda_status.py`'s `limit_warning(day_total, limit)` returns `True` once a day's total reaches 90% of a configured max limit (or exceeds it) — independent of `rda_status`'s built-in `"limit"` tier for nutrients like sodium that already have a Tolerable Upper Intake Level baked into `compute_rda`. `_print_nutrient_table` (CLI) and `_nutrient_sections` (web) both accept optional `optimal`/`max_limits` dicts: when `optimal` is non-empty, a second "Profile Optimal" triplet of columns (meal %, day total %, goal) is added next to the RDA triplet, with nutrients lacking a configured optimal shown as a dash rather than falling back to RDA; when a nutrient's day total triggers `limit_warning`, its row is colored warning/error.
+
 ---
 
 ## Oxalate Data
@@ -1307,14 +1311,14 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_db.py` | Schema creation, all CRUD helpers, cascade deletes, rollback on exception |
 | `tests/test_usda.py` | `scale_nutrients`, `sum_nutrients`, `_parse_food`, `protein_completeness`, `nutrient_label`, `get_diaas`, `get_antinutrient_flags`, `suggest_complements`, `get_density_g_per_ml` |
 | `tests/test_diaas.py` | `get_digestibility` (all tiers), `meal_level_diaas` (edge cases, complementarity, pairing, gap flags), DIAAS override CRUD |
-| `tests/test_profile.py` | `load_profile`, `save_profile`, `bmr`, `compute_rda` (sex/age/activity variants), unit conversion helpers |
+| `tests/test_profile.py` | `load_profile`, `save_profile`, `bmr`, `compute_rda` (sex/age/activity variants), `compute_optimal`, `get_max_limits`, unit conversion helpers |
 | `tests/test_cli.py` | All menus end-to-end; USDA API mocked; dietary prefs toggle; Foods item 3 (recipe portion analysis); profile settings and RDA comparison |
 | `tests/test_web.py` | FastAPI `TestClient` tests: every parameter-free page render, food search/detail, and all mutating POST workflows — pantry, meals (create/add/complete/delete/rename/merge/refresh-aa/add-recipe), recipes (new/edit/delete/copy/ingredient add-edit-move), custom profiles, settings (profile/DIAAS-override), food-cache delete/prune, annotate, and compare (add/add-multiple/remove/amounts/save/load/rename/delete) |
 | `tests/test_complements.py` | `numa_app/services/complements.py`: `aa_effects()` digestibility rescaling, `two_step_combo()`, `build_complement_display()` gap detection |
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
 | `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL rollup via `gl_g`, partial totals alongside blockers |
 | `tests/test_meal_bcp.py` | `numa_app/services/meal_bcp.py`: `recipe_dcp_fallback()` sums precomputed recipe `dcp_g` when ingredient-level AA data is unavailable |
-| `tests/test_rda_status.py` | `numa_app/services/rda_status.py`: `rda_status()` tier boundaries for minimum/target and limit-type nutrients |
+| `tests/test_rda_status.py` | `numa_app/services/rda_status.py`: `rda_status()` tier boundaries for minimum/target and limit-type nutrients; `limit_warning()` 90%/100% thresholds |
 
 ### Test infrastructure
 

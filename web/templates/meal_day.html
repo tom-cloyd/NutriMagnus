@@ -353,11 +353,12 @@
         <th class="num-col">Total</th>
         <th>Unit</th>
         {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
+        {% if has_optimal %}<th class="num-col">optimal goal</th><th class="num-col">% of optimal</th>{% endif %}
       </tr>
     </thead>
     <tbody>
       {% for row in section.rows %}
-      <tr>
+      <tr class="{{ row.limit_warn or '' }}">
         <td>{{ row.label }}</td>
         <td class="num-col">{{ row.value }}</td>
         <td class="muted">{{ row.unit }}</td>
@@ -365,6 +366,14 @@
         <td class="num-col">
           {% if row.pct is not none %}
           <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
+        {% if has_optimal %}
+        <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
+        <td class="num-col">
+          {% if row.optimal_pct is not none %}
+          <span class="{{ row.optimal_css }}">{{ row.optimal_pct | int }}%</span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}

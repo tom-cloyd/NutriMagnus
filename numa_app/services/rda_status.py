@@ -28,3 +28,12 @@ def rda_status(pct: float, rda_type: str) -> str:
     elif pct >= 70:
         return "near"
     return "low"
+
+
+def limit_warning(day_total: float, limit: float) -> bool:
+    """True when a day's total is within 10% of a user-defined max limit (or over it).
+
+    Independent of rda_status's built-in "limit" tier (e.g. sodium's Tolerable
+    Upper Intake Level) — this checks a separate, user-configured per-nutrient cap.
+    """
+    return limit > 0 and day_total >= limit * 0.9

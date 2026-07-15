@@ -105,6 +105,14 @@ _ALIASES: dict[str, str] = {
     "lectins":              "antinutrients",
     "tannin":               "antinutrients",
     "tannins":              "antinutrients",
+    "optimal-target":       "optimal",
+    "optimal-targets":      "optimal",
+    "profile-optimal":      "optimal",
+    "max-limit":            "maxlimits",
+    "max-limits":           "maxlimits",
+    "maximum-limit":        "maxlimits",
+    "maximum-limits":       "maxlimits",
+    "nutrient-limits":      "maxlimits",
 }
 
 

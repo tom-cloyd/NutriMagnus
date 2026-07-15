@@ -100,9 +100,9 @@ def _do_food_search() -> None:
         _do_recipe_view(food)
         return
 
-    daily_nutrients, rda = _get_daily_context()
+    daily_nutrients, rda, optimal, max_limits = _get_daily_context()
     _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g",
-                          daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                          daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
     has_aa = _print_protein_completeness(food["nutrients"], food_name=food["name"])
     _print_bioavailability(food["name"], food["nutrients"])
     aa_food = food  # tracks whichever food has AA data for all subsequent steps
@@ -110,7 +110,7 @@ def _do_food_search() -> None:
         alt = _suggest_foundation_search(food)
         if alt:
             _print_nutrient_table(alt["nutrients"], title=alt["name"], per_label="per 100g",
-                                  daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                  daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
             has_aa = _print_protein_completeness(alt["nutrients"], food_name=alt["name"])
             _print_bioavailability(alt["name"], alt["nutrients"])
             aa_food = alt
@@ -136,7 +136,7 @@ def _do_food_search() -> None:
         return
     grams, label, scaled = result
     _print_nutrient_table(scaled, title=aa_food["name"], per_label=label,
-                          daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                          daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
     has_aa = _print_protein_completeness(scaled, food_name=aa_food["name"])
     _print_bioavailability(aa_food["name"], scaled)
     if has_aa and _usda.get_aa_gaps(scaled, digestibility=_aa_diaas):
@@ -166,7 +166,7 @@ def _do_analyze_food_portion() -> None:
     if food is None:
         return
 
-    daily_nutrients, rda = _get_daily_context()
+    daily_nutrients, rda, optimal, max_limits = _get_daily_context()
 
     if food.get("_type") == "recipe":
         from .recipes import _get_recipe_total_nutrients, _pick_recipe_portion
@@ -186,7 +186,7 @@ def _do_analyze_food_portion() -> None:
             highlight=False,
         )
         _print_nutrient_table(scaled, title=food_name, per_label=label,
-                              daily_nutrients=daily_nutrients, rda=rda)
+                              daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits)
         has_aa = _print_protein_completeness(scaled)
         if has_aa and _usda.get_aa_gaps(scaled):
             _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True)
@@ -206,7 +206,7 @@ def _do_analyze_food_portion() -> None:
         return
     grams, label, scaled = result
     _print_nutrient_table(scaled, title=food["name"], per_label=label,
-                          daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                          daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
     has_aa = _print_protein_completeness(scaled, food_name=food["name"])
     # export_name / export_sections track what to offer for export at the end
     export_name = f"{food['name']} — {label}"
@@ -224,7 +224,7 @@ def _do_analyze_food_portion() -> None:
                 alt_grams, alt_label, alt_scaled = alt_result
                 _print_nutrient_table(alt_scaled, title=alt["name"],
                                       per_label=alt_label,
-                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                      daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
                 has_aa = _print_protein_completeness(alt_scaled, food_name=alt["name"])
                 _print_bioavailability(alt["name"], alt_scaled)
                 export_name = f"{alt['name']} — {alt_label}"
@@ -345,9 +345,9 @@ def _do_analyze_recipe_portion() -> None:
     scaled = {k: v * factor for k, v in combined.items()}
 
     title = recipe["name"]
-    daily_nutrients, rda = _get_daily_context()
+    daily_nutrients, rda, optimal, max_limits = _get_daily_context()
     _print_nutrient_table(scaled, title=title, per_label=label,
-                          daily_nutrients=daily_nutrients, rda=rda)
+                          daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits)
     has_aa = _print_protein_completeness(scaled)
     if has_aa and _usda.get_aa_gaps(scaled):
         _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True)
@@ -1458,7 +1458,7 @@ def _do_list_cached_foods() -> None:
     filter_text: str | None = None
     show_table = True
     _pending_refresh: tuple | None = None  # (fdc_id, cached_row) — set before redraw so table shows first
-    daily_nutrients, rda = _get_daily_context()
+    daily_nutrients, rda, optimal, max_limits = _get_daily_context()
     while True:
         with _db.get_db() as conn:
             all_foods = _db.list_cached_foods(conn)
@@ -1727,7 +1727,7 @@ def _do_list_cached_foods() -> None:
             if cmd == "n":
                 nutrients = json.loads(cached["nutrients_json"])
                 _print_nutrient_table(nutrients, title=cached["name"], per_label="per 100g",
-                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                      daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
                 _print_protein_completeness(nutrients, food_name=cached["name"])
                 state.console.print()
                 if cached["notes"]:
@@ -1766,7 +1766,7 @@ def _do_list_cached_foods() -> None:
 
             if cmd == "v":
                 _print_nutrient_table(food["nutrients"], title=food["name"], per_label="per 100g",
-                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                      daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
                 _print_protein_completeness(food["nutrients"], food_name=food["name"])
                 show_table = True
             elif cmd == "a":
@@ -1775,7 +1775,7 @@ def _do_list_cached_foods() -> None:
                     continue
                 grams, label, scaled = result
                 _print_nutrient_table(scaled, title=food["name"], per_label=label,
-                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                      daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
                 _print_protein_completeness(scaled, food_name=food["name"])
                 show_table = True
             elif cmd == "e":

@@ -9,7 +9,7 @@ import pytest
 
 import profile as _profile
 from profile import (
-    UserProfile, compute_rda, load_profile, save_profile, bmr,
+    UserProfile, compute_rda, compute_optimal, get_max_limits, load_profile, save_profile, bmr,
     parse_weight, parse_height, format_weight, format_height,
     lb_to_kg, kg_to_lb, ftin_to_cm, cm_to_ftin,
 )
@@ -160,6 +160,42 @@ class TestComputeRdaStructure:
         for key in ("protein_g", "fiber_g", "calcium_mg", "iron_mg",
                     "vitamin_c_mg", "vitamin_d_mcg", "b12_mcg"):
             assert key in rda, f"Missing {key}"
+
+
+# ---------------------------------------------------------------------------
+# compute_optimal / get_max_limits
+# ---------------------------------------------------------------------------
+
+class TestComputeOptimal:
+    def test_empty_when_unset(self, male_35):
+        assert compute_optimal(male_35) == {}
+
+    def test_only_configured_nutrients_present(self, male_35):
+        male_35.optimal_targets = {"vitamin_d_mcg": 50.0}
+        optimal = compute_optimal(male_35)
+        assert set(optimal.keys()) == {"vitamin_d_mcg"}
+
+    def test_value_unit_type_tuple(self, male_35):
+        male_35.optimal_targets = {"vitamin_d_mcg": 50.0}
+        val, unit, rda_type = compute_optimal(male_35)["vitamin_d_mcg"]
+        assert val == 50.0
+        assert unit == "mcg"
+        assert rda_type == "target"
+
+
+class TestMaxLimits:
+    def test_empty_when_unset(self, male_35):
+        assert get_max_limits(male_35) == {}
+
+    def test_returns_configured_limits(self, male_35):
+        male_35.max_limits = {"sodium_mg": 2000.0}
+        assert get_max_limits(male_35) == {"sodium_mg": 2000.0}
+
+    def test_returns_copy_not_reference(self, male_35):
+        male_35.max_limits = {"sodium_mg": 2000.0}
+        limits = get_max_limits(male_35)
+        limits["sodium_mg"] = 1.0
+        assert male_35.max_limits["sodium_mg"] == 2000.0
 
 
 # ---------------------------------------------------------------------------

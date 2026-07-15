@@ -179,6 +179,84 @@ def test_settings_profile_update(client: TestClient) -> None:
     assert profile.sex == "female"
 
 
+def test_optimal_and_max_limit_columns_render(client: TestClient, cached_food, db_conn) -> None:
+    """Configuring a Profile Optimal target and a max limit adds the corresponding
+    columns/rows to the food, meal, and daily-summary nutrient tables without error."""
+    profile = _profile.load_profile()
+    profile.optimal_targets = {"vitamin_d_mcg": 50.0}
+    profile.max_limits = {"sodium_mg": 0.01}  # trivially low — always triggers the warning
+    _profile.save_profile(profile)
+
+    resp = client.get(f"/food/{cached_food['fdcId']}")
+    assert resp.status_code == 200
+    assert "optimal goal" in resp.text
+    assert "% of optimal" in resp.text
+
+    resp = client.post(
+        "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+
+    resp = client.get(f"/meal/{meal_id}")
+    assert resp.status_code == 200
+    assert "optimal goal" in resp.text
+    assert "limit-near" in resp.text or "limit-over" in resp.text
+
+    resp = client.get("/summary/2026-07-11")
+    assert resp.status_code == 200
+    assert "optimal goal" in resp.text
+
+
+def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    assert "Nutrient Targets" in resp.text
+
+    resp = client.post(
+        "/settings/nutrient-target",
+        data={"key": "vitamin_d_mcg", "optimal": "50", "limit": ""},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/settings?saved=nutrient_target"
+    profile = _profile.load_profile()
+    assert profile.optimal_targets == {"vitamin_d_mcg": 50.0}
+
+    resp = client.get("/settings")
+    assert "value=\"50.0\"" in resp.text
+
+    # Clearing: empty optimal field removes the entry
+    client.post(
+        "/settings/nutrient-target",
+        data={"key": "vitamin_d_mcg", "optimal": "", "limit": ""},
+        follow_redirects=False,
+    )
+    profile = _profile.load_profile()
+    assert profile.optimal_targets == {}
+
+
+def test_settings_profile_update_preserves_nutrient_targets(client: TestClient) -> None:
+    """Saving the basic profile form must not wipe previously-set nutrient targets."""
+    client.post(
+        "/settings/nutrient-target",
+        data={"key": "sodium_mg", "optimal": "", "limit": "2000"},
+        follow_redirects=False,
+    )
+    client.post(
+        "/settings",
+        data={"age": 40, "sex": "female", "weight": 65, "activity_level": "moderate"},
+        follow_redirects=False,
+    )
+    profile = _profile.load_profile()
+    assert profile.max_limits == {"sodium_mg": 2000.0}
+
+
 def test_food_cache_delete_and_prune(client: TestClient, cached_food, db_conn) -> None:
     resp = client.post("/food/cache/delete", data={"fdc_id": cached_food["fdcId"]}, follow_redirects=False)
     assert resp.status_code == 303

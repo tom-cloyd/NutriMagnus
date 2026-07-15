@@ -420,14 +420,14 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
     if combined:
         state.console.print()
         no_servings = recipe["servings"] == 0
-        daily_nutrients, rda = _get_daily_context()
+        daily_nutrients, rda, optimal, max_limits = _get_daily_context()
 
         if no_servings:
             # No serving count — show whole-recipe totals, then per-100g / per-volume
             # if the user recorded a total weight or volume.
             _print_nutrient_table(combined, title="Total recipe",
                                   per_label="whole recipe (no serving count)",
-                                  daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                  daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
             analysis_nutrients = combined
 
             wt_g = _recipe_weight_to_g(recipe["total_weight"], recipe["total_weight_unit"])
@@ -435,7 +435,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 per_100g = {k: v / wt_g * 100 for k, v in combined.items()}
                 _print_nutrient_table(per_100g, title="Per 100 g",
                                       per_label="based on recorded recipe weight",
-                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                      daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
                 analysis_nutrients = per_100g
 
             vol_ml = _recipe_vol_to_ml(recipe["total_volume"], recipe["total_volume_unit"])
@@ -443,21 +443,21 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 per_100ml = {k: v / vol_ml * 100 for k, v in combined.items()}
                 _print_nutrient_table(per_100ml, title="Per 100 ml",
                                       per_label="based on recorded recipe volume",
-                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                      daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
                 per_cup = {k: v / vol_ml * 236.6 for k, v in combined.items()}
                 _print_nutrient_table(per_cup, title="Per 1 cup (236 ml)",
                                       per_label="based on recorded recipe volume",
-                                      daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                      daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
                 if not wt_g:
                     analysis_nutrients = per_100ml
         else:
             _print_nutrient_table(combined, title="Total recipe",
                                   per_label=f"whole recipe ({recipe['servings']} servings)",
-                                  daily_nutrients=daily_nutrients, rda=rda, show_meal_pct=False)
+                                  daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits, show_meal_pct=False)
             if recipe["servings"] > 1:
                 per_serving = {k: v / recipe["servings"] for k, v in combined.items()}
                 _print_nutrient_table(per_serving, title="Per serving",
-                                      daily_nutrients=daily_nutrients, rda=rda)
+                                      daily_nutrients=daily_nutrients, rda=rda, optimal=optimal, max_limits=max_limits)
                 analysis_nutrients = per_serving
             else:
                 analysis_nutrients = combined

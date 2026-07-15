@@ -65,7 +65,7 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
     tbl.add_column("Complete", justify="center", min_width=8)
     tbl.add_column("Created",  min_width=12)
     for r in page:
-        dcp_str = f"{r['dcp_g']:.1f}g" if r["dcp_g"] is not None else "[grey62]—[/grey62]"
+        dcp_str = f"{r['dcp_g']:.1f}g" if r["dcp_g"] is not None else "[grey62]NC[/grey62]"
         complete_str = "[green]✓[/green]" if r["complete"] else "[grey62]—[/grey62]"
         rname = r["name"][:_RNAME_W - 1]
         rdots = "·" * (_RNAME_W - len(rname) - 1)
@@ -74,7 +74,7 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
     if not label:
         state.console.print(f"  [grey62]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/grey62]")
     table_footer("  [grey62]Complete ✓ = recipe is marked finished (all ingredients entered)[/grey62]",
-                 "  [grey62]DCP/srv  = digestible complete protein per serving  ·  — = not yet analyzed[/grey62]")
+                 "  [grey62]DCP/srv  = digestible complete protein per serving  ·  NC = not computed[/grey62]")
     help_footer("recipes")
 
 
@@ -427,7 +427,7 @@ def _do_recipe_display(recipe=None) -> None:
             note_tag = f"  [grey62]({ing['notes']})[/grey62]" if ing["notes"] else ""
             id_part = _recipe_ing_id_cell(ing)
             amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
-                   if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
+                   if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"]))
             state.console.print(
                 f"  • {amt}  {id_part}  {ing['food_name']}{note_tag}"
             )
@@ -479,7 +479,7 @@ def _do_recipe_display(recipe=None) -> None:
             {
                 "food_name": ing["food_name"],
                 "amount_display": (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
-                                   if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"])),
+                                   if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"])),
                 "notes": ing["notes"] or "",
             }
             for ing in ingredients
@@ -585,7 +585,7 @@ def _do_recipe_develop(recipe=None) -> None:
             for i, ing in enumerate(ingredients, 1):
                 id_cell = _recipe_ing_id_cell(ing)
                 amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
-                       if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
+                       if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"]))
                 tbl.add_row(str(i), amt, id_cell, ing["food_name"][:_W])
             state.console.print(tbl)
             help_footer("recipe-ingredients")
@@ -1193,7 +1193,7 @@ def _do_recipe_create() -> None:
         for i, ing in enumerate(cur_ings, 1):
             id_c = _recipe_ing_id_cell(ing)
             amt = (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
-                   if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"]))
+                   if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"]))
             tbl.add_row(str(i), amt, id_c, ing["food_name"][:_W])
         state.console.print(tbl)
         help_footer("recipe-ingredients")

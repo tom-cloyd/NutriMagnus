@@ -15,8 +15,8 @@ from ..config import prefs as prefs_config
 from ..config.prefs import _save_prefs, _DIET_LABELS
 from ..config import theme as theme_config
 from ..config.theme import _change_theme
-from ..ui.common import _safe_call, _show_menu, table_title, table_footer, help_footer
-from ..ui.prompts import Cancelled, ReturnToMain, _prompt
+from ..ui.common import _safe_call, _show_menu, table_title, table_footer, help_footer, _prompt_with_options
+from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float
 from ..ui.render import _print_rda_targets
 
 def _do_diaas_overrides() -> None:
@@ -436,6 +436,91 @@ def _do_view_goals() -> None:
     _print_rda_targets(profile)
 
 
+def _do_nutrient_targets() -> None:
+    """Manage per-nutrient Profile Optimal targets and custom max limits."""
+    profile = _profile.load_profile()
+    if not profile:
+        state.console.print(
+            "\n  [grey62]No profile set. Go to Settings → User profile to set your details.[/grey62]"
+        )
+        return
+
+    groups = [
+        ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg"]),
+        ("Minerals", ["calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
+                      "potassium_mg", "zinc_mg"]),
+        ("Vitamins", ["vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+                      "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
+                      "b6_mg", "folate_mcg", "b12_mcg", "choline_mg"]),
+    ]
+
+    while True:
+        rda = _profile.compute_rda(profile)
+        state.console.print()
+        table_title("Nutrient targets",
+                     "custom Profile Optimal targets and max limits, layered on top of your standard RDA")
+        idx = 1
+        numbered: dict[str, str] = {}
+        for group_name, keys in groups:
+            present = [k for k in keys if k in rda]
+            if not present:
+                continue
+            state.console.print(f"\n  [{state.T['hi']}]{group_name}[/{state.T['hi']}]")
+            for key in present:
+                label, unit = _usda.nutrient_label(key)
+                opt = profile.optimal_targets.get(key)
+                lim = profile.max_limits.get(key)
+                opt_str = f"{opt:.1f} {unit}" if opt is not None else "–"
+                lim_str = f"{lim:.1f} {unit}" if lim is not None else "–"
+                state.console.print(
+                    f"    [{state.T['accent']}]{idx:>2}[/{state.T['accent']}]  {label:<24}"
+                    f" optimal: {opt_str:<12} max limit: {lim_str}",
+                    highlight=False,
+                )
+                numbered[str(idx)] = key
+                idx += 1
+
+        state.console.print()
+        try:
+            choice = _prompt("Nutrient #  [grey62](Enter/b=back)[/grey62]", default="").strip()
+        except Cancelled:
+            return
+        if not choice or choice.lower() in ("b", "m", "q"):
+            return
+        key = numbered.get(choice)
+        if key is None:
+            state.console.print(f"[{state.T['warning']}]Unrecognized number.[/{state.T['warning']}]")
+            continue
+
+        label, unit = _usda.nutrient_label(key)
+        try:
+            field = _prompt_with_options(
+                f"Set what for {label}?",
+                [("1", f"Optimal target ({unit})"), ("2", f"Max limit ({unit})"),
+                 ("3", "Clear optimal target"), ("4", "Clear max limit")],
+                default="",
+            )
+        except Cancelled:
+            continue
+
+        if field == "1":
+            val = _ask_float(f"Optimal daily target for {label}, in {unit}")
+            if val is not None:
+                profile.optimal_targets[key] = val
+                _profile.save_profile(profile)
+        elif field == "2":
+            val = _ask_float(f"Max daily limit for {label}, in {unit}")
+            if val is not None:
+                profile.max_limits[key] = val
+                _profile.save_profile(profile)
+        elif field == "3":
+            if profile.optimal_targets.pop(key, None) is not None:
+                _profile.save_profile(profile)
+        elif field == "4":
+            if profile.max_limits.pop(key, None) is not None:
+                _profile.save_profile(profile)
+
+
 def _do_dietary_prefs() -> None:
     """Set the dietary preference for protein complement suggestions."""
     current_label = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
@@ -593,6 +678,7 @@ def _menu_settings() -> bool:
             ("6", f"Editor command  (current setting: {editor_status})"),
             ("7", f"Display program settings at launch  (current setting: {launch_status})"),
             ("8", "Advanced settings  [grey62](API key, storage, protein overrides)[/grey62]"),
+            ("9", f"Nutrient targets  [grey62](Profile Optimal targets and custom max limits, {len(p.optimal_targets) + len(p.max_limits) if p else 0} set)[/grey62]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -618,6 +704,8 @@ def _menu_settings() -> bool:
             _safe_call(_do_launch_display_setting)
         elif choice == "8":
             _safe_call(_menu_advanced_settings)
+        elif choice == "9":
+            _safe_call(_do_nutrient_targets)
         elif choice == "m":
             return True
         elif choice == "q":
