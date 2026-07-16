@@ -1327,6 +1327,40 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("broth", "stock"),                                        1.00),
     (("vinegar",),                                              1.01),
     (("water",),                                                1.00),
+    # Dried herbs & spices — specific ones first (flaked/leafy herbs are much
+    # lighter per volume than ground powders or seeds; values from common
+    # spoon-for-spoon weight references, e.g. King Arthur / USDA SR).
+    (("pepper flakes", "crushed red pepper", "chili flakes"),   0.35),
+    (("black pepper", "white pepper", "peppercorn"),            0.44),
+    (("pepper, red or cayenne", "cayenne"),                     0.45),
+    (("cinnamon",),                                             0.51),
+    (("cumin",),                                                0.48),
+    (("paprika",),                                              0.45),
+    (("garlic powder",),                                        0.45),
+    (("onion powder",),                                         0.45),
+    (("ginger, ground", "ground ginger"),                       0.43),
+    (("nutmeg",),                                                0.48),
+    (("allspice",),                                             0.44),
+    (("turmeric",),                                             0.44),
+    (("chili powder",),                                         0.45),
+    (("curry powder",),                                         0.40),
+    (("cloves",),                                                0.51),
+    (("coriander",),                                            0.45),
+    (("oregano",),                                              0.18),
+    (("basil",),                                                0.13),
+    (("thyme",),                                                0.28),
+    (("rosemary",),                                             0.20),
+    (("spices, sage",),                                         0.28),
+    (("dill weed",),                                            0.18),
+    (("parsley",),                                              0.15),
+    (("bay leaf", "bay leaves"),                                0.15),
+    (("marjoram",),                                             0.16),
+    (("tarragon",),                                             0.18),
+    (("poultry seasoning", "italian seasoning", "seasoning"),   0.35),
+    # Generic fallback for any other dried spice — USDA names these foods
+    # "Spices, <name>", so this catches ones not itemized above. Approximate;
+    # kept last so any more specific match above always wins.
+    (("spices,", "spices ("),                                   0.40),
 ]
 
 

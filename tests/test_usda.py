@@ -882,3 +882,19 @@ class TestGetDensityGPerMl:
 
     def test_case_insensitive_keyword_match(self):
         assert _usda.get_density_g_per_ml("QUINOA, cooked", []) == pytest.approx(0.71)
+
+    def test_red_pepper_flakes_has_density(self):
+        """Regression test: user-reported bug — volume units for red pepper
+        flakes were rejected for lack of density data."""
+        assert _usda.get_density_g_per_ml("Red pepper flakes", []) == pytest.approx(0.35)
+        assert _usda.get_density_g_per_ml("Spices, pepper, red or cayenne", []) == pytest.approx(0.45)
+
+    def test_generic_spice_fallback(self):
+        """Any USDA "Spices, ..." food not individually itemized still gets an
+        approximate density rather than failing outright."""
+        assert _usda.get_density_g_per_ml("Spices, savory, ground", []) == pytest.approx(0.40)
+
+    def test_sage_keyword_does_not_match_sausage(self):
+        """"sage" must not match as a substring of "sausage" (false positive
+        density from an unrelated spice keyword)."""
+        assert _usda.get_density_g_per_ml("Sausage, pork, fresh, cooked", []) is None
