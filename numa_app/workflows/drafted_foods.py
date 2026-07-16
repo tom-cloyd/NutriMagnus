@@ -184,6 +184,23 @@ def _do_edit_cached_food(fdc_id: int, cached) -> None:
     if notes == "-":
         notes = ""
 
+    # Confirm before saving
+    state.console.print(
+        f"\n  [grey62]s[/grey62]  Save changes"
+        f"\n  [grey62]d[/grey62]  Discard"
+        f"\n  [grey62]m[/grey62]  Discard and return to main menu"
+    )
+    try:
+        action = _prompt("Action", choices=["s", "d", "m"], default="s")
+    except Cancelled:
+        action = "d"
+    if action == "d":
+        state.console.print(f"\n  [grey62]Changes discarded.[/grey62]")
+        return
+    if action == "m":
+        state.console.print(f"\n  [grey62]Changes discarded.[/grey62]")
+        raise ReturnToMain()
+
     with _db.get_db() as conn:
         _db.update_cached_food_profile(
             conn, fdc_id, name, nutrients,

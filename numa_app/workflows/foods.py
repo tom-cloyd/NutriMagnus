@@ -17,6 +17,7 @@ from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _ask_float, _prompt
 from ..ui.render import _print_bioavailability, _print_complement_suggestions, _get_daily_context, _print_nutrient_table, _print_protein_completeness
 from ..services.annotations import annotate_food_interactive
 from ..services.reports import _offer_export
+from ..services.food_import import VALID_NUTRIENT_KEYS, convert_per_serving, validate_and_strip
 from .pantry import _do_pantry_menu
 from .recipes import _do_recipe_list, _get_recipe_total_nutrients, _pick_recipe_portion
 from .drafted_foods import _do_edit_cached_food, _do_drafted_foods_menu
@@ -616,22 +617,12 @@ _CLAUDE_PROMPT_FILE   = pathlib.Path.home() / "claude_prompt.txt"
 _CLAUDE_RESPONSE_FILE = pathlib.Path.home() / "claude_response.txt"
 _DOUT_FILE            = pathlib.Path.home() / "numa.data"
 
-_CLAUDE_META_KEYS = {"name", "fdc_id", "fdc_type", "source", "confidence_note"}
-
-_CLAUDE_VALID_KEYS: set[str] = {
-    "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
-    "saturated_fat_g", "mono_fat_g", "poly_fat_g",
-    "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-    "potassium_mg", "sodium_mg", "zinc_mg",
-    "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
-    "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
-    "b6_mg", "folate_mcg", "b12_mcg",
-    "beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
-    "lutein_zeaxanthin_mcg", "choline_mg", "beta_sitosterol_mg", "isoflavones_mg",
-    "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
-    "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
-    "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g",
+_CLAUDE_META_KEYS = {
+    "name", "fdc_id", "fdc_type", "source", "confidence_note",
+    "serving_size_g", "nutrition_per_serving",
 }
+
+_CLAUDE_VALID_KEYS: frozenset[str] = VALID_NUTRIENT_KEYS
 _CLAUDE_AA_KEYS = {k for k in _CLAUDE_VALID_KEYS if k.startswith("aa_")}
 _CLAUDE_VALID_FDC_TYPES = {
     "Foundation", "SR Legacy", "Branded", "Survey (FNDDS)", "User Drafted", "OFF",
@@ -658,6 +649,7 @@ All nutrient values are per 100 g edible portion. Use exactly these key names (o
 
     calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
     saturated_fat_g, mono_fat_g, poly_fat_g,
+    omega3_ala_mg, omega3_epa_mg, omega3_dha_mg, omega6_la_mg,
     calcium_mg, iron_mg, magnesium_mg, phosphorus_mg,
     potassium_mg, sodium_mg, zinc_mg,
     vitamin_a_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
@@ -677,7 +669,11 @@ Critical rules:
 5. For true zeros (e.g. vitamin B12 in plant foods), include the key explicitly with value 0.
 6. Source hierarchy: prefer USDA FoodData Central (cite FDC ID), then USDA SR Legacy (cite FDC ID), then peer-reviewed literature (cite paper), then estimate (flag clearly in confidence_note). Note: direct access to the USDA database is not possible — use your training data, which mirrors these sources.
 7. fdc_type must be exactly one of: "Foundation", "SR Legacy", "Branded", "Survey (FNDDS)", "User Drafted".
-8. If scaling from a non-100 g reference portion, show the calculation in confidence_note.
+8. If scaling from a non-100 g reference portion, show the calculation in confidence_note — UNLESS rule 9 applies.
+9. For a packaged/branded product where you have the manufacturer's Nutrition Facts label (per-serving values), do NOT do the per-100g arithmetic yourself. Instead replace the flat nutrient keys with:
+     "serving_size_g": 28,
+     "nutrition_per_serving": {{ "calories": 120, "protein_g": 3, ... }}
+   numa converts this to per-100g automatically, which is more reliable than an LLM doing the scaling in prose. Use the same key names as above inside nutrition_per_serving.
 
 Foods ({n} total — USDA FDC IDs provided where known):
 {food_list}"""
@@ -798,12 +794,37 @@ def _claude_validate_block(block: dict, idx: int) -> dict | None:
             f"  [grey62]Block {idx} ({name!r}): stripped unrecognised keys: {', '.join(stripped)}[/grey62]"
         )
 
+    confidence_note = block.get("confidence_note")
+
+    # Alternate input shape: per-serving values + serving_size_g, for label-sourced
+    # data (e.g. a packaged product's Nutrition Facts panel). Converted to per-100g.
+    per_serving = block.get("nutrition_per_serving")
+    serving_size_g = block.get("serving_size_g")
+    if per_serving is not None:
+        if not isinstance(serving_size_g, (int, float)) or serving_size_g <= 0:
+            state.console.print(
+                f"  [{state.T['warning']}]Block {idx} ({name!r}): 'nutrition_per_serving' given "
+                f"without a valid 'serving_size_g' — per-serving values skipped.[/{state.T['warning']}]"
+            )
+        else:
+            per_serving_clean, per_serving_stripped = validate_and_strip(per_serving)
+            if per_serving_stripped:
+                state.console.print(
+                    f"  [grey62]Block {idx} ({name!r}): stripped unrecognised per-serving keys: "
+                    f"{', '.join(per_serving_stripped)}[/grey62]"
+                )
+            converted = convert_per_serving(per_serving_clean, float(serving_size_g))
+            nutrients.update(converted)
+            factor = 100 / float(serving_size_g)
+            note = f"Converted from per-{serving_size_g:g}g label values (×{factor:.3f})."
+            confidence_note = f"{confidence_note}  {note}" if confidence_note else note
+
     return {
         "name":            name,
         "fdc_id":          fdc_id,
         "fdc_type":        fdc_type,
         "source":          block.get("source"),
-        "confidence_note": block.get("confidence_note"),
+        "confidence_note": confidence_note,
         "nutrients":       nutrients,
     }
 

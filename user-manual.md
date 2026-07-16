@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-14:0354* / Reading 2 hours, 17 minutes
+*Updated 2026-07-15:2044* / Reading 2 hours, 17 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -78,7 +78,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it used.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your Pantry, and recipes you have analyzed. For protein complement suggestions specifically, a built-in list of about 30 common protein sources fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be seeded from a small published reference table (see [Glycemic Index](#gi)) rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-07-14), there are 460 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should — for both the terminal program and the web app. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. The terminal program and the web app are two interfaces onto the same underlying nutrition-calculation code (protein complement suggestions, recipe totals, glycemic load, digestible protein, [RDA](#gloss-rda) status, and more) rather than each keeping its own separate copy.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-07-15), there are 476 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should — for both the terminal program and the web app. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. The terminal program and the web app are two interfaces onto the same underlying nutrition-calculation code (protein complement suggestions, recipe totals, glycemic load, digestible protein, [RDA](#gloss-rda) status, and more) rather than each keeping its own separate copy.
 
 **Appendix J has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
@@ -282,6 +282,20 @@ Animal proteins typically score 1.0 or above. Most plant proteins score below 1.
 A note on terminology: the [FAO](#gloss-fao) uses the term "indispensable amino acids" (IAA) where this manual uses "essential amino acids" ([EAA](#gloss-eaa)) — both refer to the same nine amino acids. The "I" in [DIAAS](#gloss-diaas) stands for "Indispensable."
 
 NutriMagnus uses [DIAAS](#gloss-diaas) to calculate digestible [complete protein](#gloss-complete-protein) ([DCP](#gloss-dcp)), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#dcp).
+
+#### Estimating DIAAS by hand for a packaged food [diaas-estimate-table]
+
+Branded/packaged products often have no amino acid data at all, so NutriMagnus can't compute [DIAAS](#gloss-diaas) automatically — you record a point estimate instead via the [DIAAS](#gloss-diaas) estimate [Food Annotation](#gloss-food-annotation) (Foods → Annotate a food, or the `diaas_estimate` field if importing manually — see [Getting missing amino acid data](#custom-foods)). [DIAAS](#gloss-diaas) is mostly a property of the *protein source*, not the specific product, so the same point estimate is reusable across many products built from that ingredient. This table of published point estimates by dominant protein source is a starting reference, not a substitute for a real measured value if one is available:
+
+    Protein source        DIAAS       Limiting AA                Note
+    --------------------  ----------  -------------------------  ------------------------------
+    Whole wheat            0.45       Lysine                     Range 0.40-0.57 across studies
+    Soy (isolate/tofu)     0.90-1.00  Methionine+cystine (mild)  Near-complete
+    Pea protein            0.82-0.90  Methionine+cystine         Complements wheat well
+    Oats (dehulled)        0.77       Lysine                     Better than most cereals
+    Sunflower seed          ~0.60     Lysine                     Usually a minor contributor
+
+For a product where one ingredient supplies essentially all the protein (e.g. a wheat cracker where the oil contributes negligible protein), use that ingredient's row directly. For a product with two meaningful protein sources (e.g. a wheat+pea cracker), weight the estimate by each ingredient's share of total protein grams — the same complementary-protein logic used elsewhere in NutriMagnus's [meal-level DIAAS](#dcp) pooling. Document your reasoning (source ingredient, any blending math) in the food's Confidence Note or notes field so it can be reviewed or revised later — see the Triscuit entry in `import_foods.py` for a worked example.
 
 
 ### Limiting-Amino-Acid Scoring [aa-scoring]
@@ -756,6 +770,8 @@ Commands (type the letter followed by the row number, e.g. v3, e12):
     c#      View the confidence/source note only.
     a#      Analyze a portion — choose serving size, then see scaled nutrients.
     e#      Edit food data — name, serving, nutrients, note, GI/DIAAS annotation.
+            After entering your changes you'll see a Save/Discard/Discard-and-
+            return-to-main-menu prompt before anything is written.
     d#      Delete from cache (also d#,# or d# # # for multiple rows).
     u       Prune unused foods — deletes every cached food not referenced by
             any pantry entry, recipe ingredient, or logged meal item. Shows a
@@ -991,6 +1007,11 @@ name), with a bar showing relative frequency.
 Recipe items are counted twice: once as the recipe itself, and again as each
 of its ingredients (recursively expanded through any nested recipes), so both
 the dish and its components show up in the ranking.
+
+Recipe rows always show the recipe's *current* name and are grouped by its
+stable ID — if you rename a recipe after logging it in meals, this analysis
+still finds and merges every occurrence under the new name rather than
+splitting them across old and new names or dropping them.
 
 
 #### Glycemic Load Output [glycemic]
@@ -1469,7 +1490,7 @@ Described in detail under [Food data — where it comes from and how it is store
 
 ##### Fetching Missing Nutritional Data from Claude [fetch]
 
-Some foods in your cache are missing amino acid data (shown as ✗ in the [AA](#gloss-aa) column). You can fill this gap using Claude at claude.ai — no paid subscription required. The workflow has four steps.
+Some foods in your cache are missing amino acid data (shown as ✗ in the [AA](#gloss-aa) column). You can fill this gap using Claude at claude.ai — no paid subscription required. The same `r` (Read Claude response) command also imports **brand-new** foods that aren't in your cache yet — it only requires a `name` and an `fdc_id` in the response file, so you can hand-write (or ask Claude to write) a block for a packaged product using its UPC as the ID. See "Adding a brand-new packaged product" below. The workflow has four steps.
 
 #### Step 1 — Generate the prompt
 
@@ -1538,6 +1559,11 @@ Notes:
   both the original JSON response and the notes text into   ~/claude_response.txt and run r again — it is safe to re-import.
 - If ~/claude_response.txt already exists from a prior session, overwrite
   it completely before saving a new response.
+- For a packaged product where you're reading a Nutrition Facts label
+  yourself, you don't need to convert per-serving values to per-100g by
+  hand. Use "serving_size_g" and "nutrition_per_serving" instead of the
+  flat per-100g keys — NutriMagnus does the conversion for you. See
+  "Adding a brand-new packaged product" below for a full example.
 
 For full context and annotated examples, see 'Getting missing amino acid data' in the user manual (HTML version: #food-cache-fetch-workflow).
 
@@ -1560,7 +1586,7 @@ Described under [Entering custom foods and dietary supplements](#custom-foods).
 Opens your [Food Cache](#gloss-food-cache) list and lets you pick a food to annotate. Annotations add information that the [USDA](#gloss-usda) database does not include:
 
 - **Glycemic index ([GI](#gloss-gi))** — how quickly the food raises blood sugar (scale 0–100).
-- **[DIAAS](#gloss-diaas) estimate** — a protein quality score for packaged foods that lack amino acid data in [USDA](#gloss-usda).
+- **[DIAAS](#gloss-diaas) estimate** — a protein quality score for packaged foods that lack amino acid data in [USDA](#gloss-usda). See [Estimating DIAAS by hand for a packaged food](#diaas-estimate-table) for a quick-reference table by protein source.
 - **Preparation note** — a short reminder such as "boiled 20 min" or "soaked overnight".
 
 Type `/text` at the list prompt to filter by food name before picking. Once saved, annotations appear in the nutrient table and analysis output wherever that food is used.
@@ -1618,7 +1644,7 @@ Displays all your recipes sorted by most recently accessed. The table shows:
 |---|---|
 | `v{id}` | View the recipe text (name, ingredients, procedure) and optionally open the edit flow |
 | `a{id}` | Run the full nutrition analysis (nutrient table, [DCP](#gloss-dcp), [TID](#gloss-tid) breakdown, complements, glycemic load) |
-| `d{id}` | Delete the recipe after confirmation. If another recipe uses it as a sub-recipe, you're warned first — deleting anyway leaves that ingredient line in place but flagged "recipe (deleted)" wherever it's shown (ingredient lists, meal history, Food Use in Meals), rather than removing it or breaking. |
+| `d{id}` | Delete the recipe after confirmation. If another recipe uses it as a sub-recipe, you're warned first — deleting anyway leaves that ingredient line in place but flagged "recipe (deleted)" wherever it's shown (ingredient lists, meal history, Food Use in Meals), rather than removing it or breaking. If you later create a new recipe whose name shares at least one word with a deleted recipe's name (e.g. re-creating "Beef Stew" as "Chicken Stew," or exactly as before), [NuMa](#gloss-numa) offers to relink those broken references (in meals and in any recipe that used it as a sub-recipe) to the new recipe — in the CLI, right after you finish the name/description/servings prompts; in the web app, as a banner on the new recipe's edit page. If more than one distinct deleted recipe matches, you're offered each one separately, and only your confirmed ones get relinked. Declining leaves the old references flagged as before. Recipes → 6 (CLI) or the "Broken recipe references" button on the web Recipes list shows every currently-broken reference in the database, for browsing regardless of what you're about to create. |
 | `c{id}` | Copy the recipe — you are asked for a new name |
 | `x` | Create a new recipe (same as Recipes → 1) |
 | `/text` | Filter all your recipes to those whose names contain `text` — e.g. `/soup` searches every saved recipe and shows only matches. Type `/` alone to clear the filter. |
@@ -1985,9 +2011,11 @@ Enter the food name exactly as it appears in your cache (the match is case-insen
 
 ---
 
-### Getting missing amino acid data into your cache
+### Getting missing amino acid data — and importing new foods — into your cache
 
-Many foods in the [USDA](#gloss-usda) database — particularly branded products and older SR Legacy entries — have complete macronutrient data but no amino acid values. NutriMagnus marks these with ✗ in the [AA](#gloss-aa) column of the [Food Cache](#gloss-food-cache) list. Without amino acid data, protein completeness scores and the meal-level [DIAAS](#gloss-diaas) calculation cannot include that food. There are two ways to fill the gap.
+Many foods in the [USDA](#gloss-usda) database — particularly branded products and older SR Legacy entries — have complete macronutrient data but no amino acid values. NutriMagnus marks these with ✗ in the [AA](#gloss-aa) column of the [Food Cache](#gloss-food-cache) list. Without amino acid data, protein completeness scores and the meal-level [DIAAS](#gloss-diaas) calculation cannot include that food.
+
+The same three methods below also work for adding a food that isn't in your cache at all — a packaged product you've read the Nutrition Facts label for, or a research figure you've sourced yourself. All three accept a food's nutrients either as flat per-100g values, or (new) as a serving size plus per-serving values straight off a label — NutriMagnus converts the label numbers to per-100g for you, so you never have to do that arithmetic by hand.
 
 ---
 
@@ -2048,6 +2076,25 @@ Any explanatory notes or caveats that Claude added after the data are saved auto
 
 **Re-running is safe.** You can run this workflow again at any time to update a food's data or add notes you missed. The import overwrites the existing entry.
 
+**Adding a brand-new packaged product.** The `r` step doesn't require the food to already be in your cache — it only needs `name` and `fdc_id` in the response file. This means you can skip Steps 1–2 (there's nothing to fetch) and write `~/claude_response.txt` yourself, then run `r`. For a product with a barcode, use the UPC digits as the `fdc_id` so it stays unique. Since it's your own label reading rather than Claude-sourced data, give the nutrients as a serving size plus per-serving values instead of doing the per-100g math yourself:
+
+```json
+{
+  "name": "Triscuit Organic Original Crackers",
+  "fdc_id": 44000047764,
+  "fdc_type": "Branded",
+  "source": "Manufacturer label, UPC 044000047764",
+  "confidence_note": "No amino acid data on label.",
+  "serving_size_g": 28,
+  "nutrition_per_serving": {
+    "calories": 120, "protein_g": 3, "carbs_g": 20, "fat_g": 3.5,
+    "fiber_g": 3, "sugar_g": 0, "sodium_mg": 160, "potassium_mg": 115
+  }
+}
+```
+
+NutriMagnus converts `nutrition_per_serving` to per-100g automatically and records the conversion factor in the confidence note. You can mix this shape with the normal flat per-100g shape across foods in the same response file.
+
 ---
 
 #### Method 2 — The `import_foods.py` script (for permanent, curated records)
@@ -2060,7 +2107,25 @@ This is a Python script in the NutriMagnus project folder. You add food records 
 
 All records in the list are written into your cache immediately. The script marks each imported food as user-protected, so NutriMagnus will never silently overwrite the data with a fresh copy from [USDA](#gloss-usda) — even if you search for that food again later. Re-running the script is always safe: existing entries are updated in place, not duplicated.
 
-Use the Claude workflow for exploratory or one-off data gathering where interactive review is helpful. Use `import_foods.py` for stable, permanently-needed records that you have verified from primary sources.
+As with Method 1, an entry can give `"serving_size_g"` and `"nutrition_per_serving"` instead of a flat `"nutrients"` dict when your source is a product label rather than a per-100g reference — the script converts it for you.
+
+Use the Claude workflow for exploratory or one-off data gathering where interactive review is helpful. Use `import_foods.py` for stable, permanently-needed records that you have verified from primary sources and want to keep in version control as a readable list.
+
+---
+
+#### Method 3 — The JSON drop-folder (`import_json_folder.py`)
+
+The quickest route for a single food, and the one requiring the least setup: no menu navigation, no editing a Python file.
+
+1. Create a `food_imports` folder in the NutriMagnus project folder (if it doesn't already exist) and save one JSON file per food in it — any filename, e.g. `triscuit.json`. Each file holds exactly one food record, in the same shape as a Claude-response block (see the example under Method 1): `name`, `fdc_id`, `fdc_type`, optional `source`/`confidence_note`, and either flat per-100g nutrient keys or `serving_size_g` + `nutrition_per_serving`.
+2. Run:
+
+       python import_json_folder.py
+
+3. NutriMagnus lists every food found, with calories, protein, and amino-acid count, and asks for one `y`/`N` confirmation before writing anything.
+4. On confirmation, each food is written to your cache (user-protected, same as Method 2) and its file is moved into `food_imports/imported/` so the drop folder only ever shows pending work.
+
+This is the best fit when you have a single label or research figure to type in by hand and don't want to touch any Python source — write the JSON, run the script, done. Use Method 2 instead once you're accumulating enough records that you want them tracked together as a readable, version-controlled list.
 
 ---
 
@@ -2271,7 +2336,7 @@ In every case, NutriMagnus saves the food's original ID number alongside its dat
 **[Food Annotations](#gloss-food-annotation)** are a second table on your computer. They hold extra information you choose to add about a specific food — information that does not exist in either online table:
 
 - **Glycemic index ([GI](#gloss-gi))** — how quickly a food raises blood sugar (scale 0–100). Neither [USDA](#gloss-usda) nor Open Food Facts provides [GI](#gloss-gi) values, so if you have a figure from a research table or a product source, you can record it here.
-- **[DIAAS](#gloss-diaas) estimate** — a protein quality score (scale 0–1.5). NutriMagnus can calculate this automatically for whole foods that have complete amino acid data. For packaged foods where that data is absent, you can record a known [DIAAS](#gloss-diaas) figure here instead.
+- **[DIAAS](#gloss-diaas) estimate** — a protein quality score (scale 0–1.5). NutriMagnus can calculate this automatically for whole foods that have complete amino acid data. For packaged foods where that data is absent, you can record a known [DIAAS](#gloss-diaas) figure here instead — see [Estimating DIAAS by hand for a packaged food](#diaas-estimate-table) for a quick-reference table by protein source.
 - **A preparation note** — a short reminder such as "boiled 20 minutes" or "soaked overnight."
 
 Each annotation is linked to one specific food in your [Food Cache](#gloss-food-cache) by that food's ID number. This means two things: you can only annotate a food that is already in your cache, and if you ever remove a food from your cache, its annotation is removed with it automatically.
@@ -2813,7 +2878,7 @@ WEIGHT UNITS
 
 VOLUME UNITS
 
-NutriMagnus converts volume to grams via the food's recorded density. If density is unknown for a food, it asks you to supply the weight manually.
+NutriMagnus converts volume to grams via the food's recorded density. If density is unknown for a food, it asks you to supply the weight manually. Common dried herbs and spices (pepper flakes, cinnamon, cumin, oregano, garlic powder, and dozens more) have built-in density estimates, since these are almost always measured by the teaspoon or tablespoon rather than weighed — including a generic fallback for any USDA "Spices, ..." entry not individually itemized.
 
     c  cup  cups                cups  (1 c = 236.6 ml)
     T  tbsp  tablespoon  tablespoons    tablespoons  (1 T = 14.8 ml)

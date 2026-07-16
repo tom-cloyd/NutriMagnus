@@ -1,5 +1,13 @@
 /* numa web app — custom styles layered over Bootstrap 5 */
 
+/* Bootstrap's default border color (#dee2e6) is too faint on white.
+   Match it to .btn-outline-secondary's border (#6c757d) everywhere that
+   consumes these variables: form controls, cards, tables, dropdowns, etc. */
+:root {
+  --bs-border-color: #6c757d;
+  --bs-border-color-translucent: rgba(108, 117, 125, 0.5);
+}
+
 /* ── Base typography and spacing ─────────────────────────────────────── */
 
 body {
@@ -354,6 +362,12 @@ table {
    within 10% of (or over) the user's configured max limit. */
 .limit-near td.nutrient-name, .limit-near td:first-child, .limit-near td.num-col:nth-child(2) { color: #92400e; font-weight: 600; }
 .limit-over td.nutrient-name, .limit-over td:first-child, .limit-over td.num-col:nth-child(2) { color: #991b1b; font-weight: 600; }
+
+/* ── Unsaved-changes indicator (base.html dirty-tracking script) ───────── */
+
+.btn-dirty { box-shadow: 0 0 0 0.2rem rgba(146, 64, 14, 0.35); }
+.unsaved-badge { display: none; margin-left: .5rem; font-size: .875rem; color: #92400e; }
+.form-dirty .unsaved-badge { display: inline; }
 
 .rda-no-profile {
   border-left: 3px solid #bbb;

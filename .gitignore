@@ -26,6 +26,7 @@ claude_prompt.txt
 claude_response.txt
 numa_gen_prompt.py
 numa_import_claude.py
+food_imports/
 
 # --- Generated / cached output ---
 user-manual.html

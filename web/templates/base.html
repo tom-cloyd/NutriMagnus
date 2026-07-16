@@ -201,5 +201,55 @@
     }
   })();
   </script>
+  <script>
+  // Generic "unsaved changes" warning: any POST form containing at least one
+  // editable field is snapshotted on load; input/change marks it dirty and
+  // colors its submit button + shows a badge; submitting clears the flag.
+  // beforeunload warns if any tracked form is still dirty.
+  (function () {
+    function serialize(form) {
+      return new URLSearchParams(new FormData(form)).toString();
+    }
+
+    var dirtyForms = new Set();
+    var forms = document.querySelectorAll('form[method="post"]');
+
+    forms.forEach(function (form) {
+      var hasEditable = form.querySelector(
+        'input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select'
+      );
+      if (!hasEditable) return;
+
+      var baseline = serialize(form);
+      var submitBtn = form.querySelector('button[type=submit], input[type=submit]');
+      var badge = null;
+      if (submitBtn) {
+        badge = document.createElement('span');
+        badge.className = 'unsaved-badge';
+        badge.textContent = 'Unsaved changes';
+        submitBtn.insertAdjacentElement('afterend', badge);
+      }
+
+      function check() {
+        var dirty = serialize(form) !== baseline;
+        form.classList.toggle('form-dirty', dirty);
+        if (submitBtn) submitBtn.classList.toggle('btn-dirty', dirty);
+        if (dirty) dirtyForms.add(form); else dirtyForms.delete(form);
+      }
+
+      form.addEventListener('input', check);
+      form.addEventListener('change', check);
+      form.addEventListener('submit', function () {
+        dirtyForms.delete(form);
+      });
+    });
+
+    window.addEventListener('beforeunload', function (e) {
+      if (dirtyForms.size === 0) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+  })();
+  </script>
 </body>
 </html>

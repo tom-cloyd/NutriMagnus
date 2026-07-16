@@ -16,14 +16,32 @@ Nutrient rules (all values per 100 g):
   - Omit unknown values entirely (never zero-fill unknowns).
   - True zeros (e.g. b12_mcg in plant foods) may be included explicitly.
 
-Extra keys not in _VALID_KEYS (e.g. selenium_mcg, sdg_lignan_mg) are stripped
+Extra keys not recognized (e.g. selenium_mcg, sdg_lignan_mg) are stripped
 automatically — put them in the notes string instead.
+
+Per-serving label data: instead of "nutrients", an entry may give
+"serving_size_g" + "nutrition_per_serving" (same key names, values as printed
+on the label). numa converts to per-100g automatically — do the label math
+by hand and you will eventually get an arithmetic slip; let the script do it.
 
 data_type conventions:
   "SR Legacy"    — data sourced from USDA SR Legacy records
   "Foundation"   — data sourced from USDA Foundation records
   "Branded"      — USDA Branded Foods entry (brand-dependent; flag in notes)
   "User Drafted" — fully user-estimated, no USDA anchor
+
+DIAAS by protein source (quick reference for products with no AA data —
+DIAAS is mostly a property of the protein source, not the specific product;
+see "Estimating DIAAS by hand for a packaged food" in user-manual.md for the
+blending rule when a product has more than one meaningful protein source):
+  Whole wheat            0.45       Lysine limiting       (range 0.40-0.57)
+  Soy (isolate/tofu)     0.90-1.00  Methionine+cystine    (near-complete)
+  Pea protein            0.82-0.90  Methionine+cystine    (complements wheat well)
+  Oats (dehulled)        0.77       Lysine limiting       (better than most cereals)
+  Sunflower seed         ~0.60      Lysine limiting       (usually a minor contributor)
+Record the chosen value via the DIAAS estimate food annotation (not a
+nutrient key), and document the reasoning in the food's notes — see the
+Triscuit entry below for a worked example.
 """
 import sys
 import pathlib
@@ -31,24 +49,7 @@ import pathlib
 # Make sure we can import numa's db module from this directory.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import db as _db
-
-# ---------------------------------------------------------------------------
-# Valid nutrient keys accepted by numa's nutrient dict.
-# ---------------------------------------------------------------------------
-_VALID_KEYS = {
-    "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
-    "saturated_fat_g", "mono_fat_g", "poly_fat_g",
-    "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-    "potassium_mg", "sodium_mg", "zinc_mg",
-    "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
-    "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
-    "b6_mg", "folate_mcg", "b12_mcg",
-    "beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
-    "lutein_zeaxanthin_mcg", "choline_mg", "beta_sitosterol_mg", "isoflavones_mg",
-    "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
-    "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
-    "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g",
-}
+from numa_app.services.food_import import convert_per_serving, validate_and_strip
 
 # ---------------------------------------------------------------------------
 # Foods to import.  Add new entries here each time you run the script.
@@ -302,6 +303,27 @@ _FOODS = [
             "aa_valine_g": 4.500, "aa_histidine_g": 1.800,
         },
     },
+    {
+        "fdc_id":    44000047764,
+        "name":      "Triscuit Organic Original Crackers",
+        "data_type": "Branded",
+        "notes":     "Brand: Nabisco/Mondelez. UPC 044000047764. "
+                     "Source: Manufacturer SmartLabel + label data (accessed 2026-07-15). "
+                     "Serving: 28g = 6 crackers, 9 servings/255g. "
+                     "Ingredients: organic whole grain wheat, organic expeller-pressed sunflower "
+                     "oil, sea salt. Allergens: wheat. Vegan, non-GMO, organic; not gluten-free. "
+                     "Protein source: whole wheat. DIAAS ~0.45 (estimated, limiting AA lysine; "
+                     "published whole-wheat DIAAS ranges ~0.40-0.57 depending on processing/"
+                     "methodology, mid-range point estimate used) -> "
+                     "bioavailable protein ~1.35g per 28g serving. No amino acid breakdown "
+                     "available from label; omitted rather than estimated.",
+        "serving_size_g": 28,
+        "nutrition_per_serving": {
+            "calories": 120, "protein_g": 3, "carbs_g": 20, "fat_g": 3.5,
+            "fiber_g": 3, "sugar_g": 0, "saturated_fat_g": 0,
+            "sodium_mg": 160, "potassium_mg": 115,
+        },
+    },
 ]
 
 
@@ -312,8 +334,15 @@ def main() -> None:
     print(f"Importing {len(_FOODS)} food(s) into numa cache at {_db.get_db_path()}\n")
     with _db.get_db() as conn:
         for food in _FOODS:
-            nutrients = {k: v for k, v in food["nutrients"].items() if k in _VALID_KEYS}
-            stripped = set(food["nutrients"]) - _VALID_KEYS
+            notes = food.get("notes")
+            if "nutrition_per_serving" in food:
+                per_serving, stripped = validate_and_strip(food["nutrition_per_serving"])
+                nutrients = convert_per_serving(per_serving, food["serving_size_g"])
+                factor = 100 / food["serving_size_g"]
+                note = f"Converted from per-{food['serving_size_g']:g}g label values (×{factor:.3f})."
+                notes = f"{notes}  {note}" if notes else note
+            else:
+                nutrients, stripped = validate_and_strip(food["nutrients"])
             _db.cache_food(
                 conn,
                 fdc_id=food["fdc_id"],
@@ -324,7 +353,7 @@ def main() -> None:
                 serving_unit=None,
                 nutrients=nutrients,
                 portions=None,
-                notes=food.get("notes"),
+                notes=notes,
                 user_drafted=True,
             )
             aa_count = sum(1 for k in nutrients if k.startswith("aa_"))

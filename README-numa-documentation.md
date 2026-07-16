@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-14:0354
+UPDATED: 2026-07-15:2033
 ---
 
 ## Table of Contents
@@ -468,13 +468,21 @@ Passing blocks are shown in a review table — name, FDC ID, calories, protein, 
 - `curator_notes` — the batch-level curator text (shown in the N column; readable with `n#`)
 - `user_drafted` **not set** — entries remain overwritable by subsequent USDA re-fetches (omega backfill, incomplete-cache detection)
 
+`_do_claude_import` doesn't require the foods to be pre-existing cache entries — `_claude_validate_block` only needs `name` and `fdc_id`, so a hand-written `~/claude_response.txt` (skipping Steps 1–2 entirely) can introduce a brand-new food, e.g. a packaged product keyed by its UPC.
+
+**Per-serving input (`numa_app/services/food_import.py`).** Nutrient values normally must already be per-100g. As an alternative, a block may give `serving_size_g` + `nutrition_per_serving` (same key names as the flat shape); `_claude_validate_block` runs these through `food_import.convert_per_serving()` (scales by `100 / serving_size_g`) before merging into `nutrients`, and appends the conversion factor to the food's notes. `food_import.VALID_NUTRIENT_KEYS` (derived from `usda_api.NUTRIENT_MAP`, so it can't drift from the nutrients numa actually understands) and `food_import.validate_and_strip()` are the single shared implementation of key validation/stripping — `foods.py`'s `_CLAUDE_VALID_KEYS`, `import_foods.py`, and `import_json_folder.py` all import from this module rather than keeping their own copies.
+
 #### No amino acid data — `import_foods.py` (scripted alternative)
 
-For stable, literature-sourced food records that need to survive repeated numa updates, `import_foods.py` is a standalone Python script that bypasses the interactive workflow. Food dicts are hardcoded in its `_FOODS` list (one per food, with the same nutrient key conventions as the Claude prompt template). Running the script imports all entries via `cache_food(..., user_drafted=True)`.
+For stable, literature-sourced food records that need to survive repeated numa updates, `import_foods.py` is a standalone Python script that bypasses the interactive workflow. Food dicts are hardcoded in its `_FOODS` list (one per food, with the same nutrient key conventions as the Claude prompt template — including the `serving_size_g`/`nutrition_per_serving` alternate shape). Running the script imports all entries via `cache_food(..., user_drafted=True)`.
 
 The `user_drafted=True` flag is the critical difference from the Claude import path: it prevents USDA re-fetches from overwriting the imported data. Without it, the omega backfill or incomplete-cache detection paths in `_fetch_food_from_result` can silently replace a manually curated entry with raw USDA data (which for Branded foods typically lacks amino acids). Re-running the script is always safe — `cache_food()` uses `INSERT OR REPLACE`, so existing entries are updated in place.
 
 The script does not include portion data; `portions_json` is stored as an empty array `[]` via `json.dumps(portions or [])`.
+
+#### `import_json_folder.py` — one-file-per-food drop folder
+
+A third, lower-ceremony import path for a single food: save one JSON file per food into `food_imports/` (created on first run; gitignored) using the same block shape as a Claude-response entry (`name`, `fdc_id`, `fdc_type`, optional `source`/`confidence_note`, plus either flat per-100g nutrient keys or `serving_size_g`/`nutrition_per_serving`). Running `python import_json_folder.py` validates every file via the same `food_import.validate_and_strip()`/`convert_per_serving()` functions, prints a one-line summary per food, asks a single `y/N` confirmation, writes all of them via `cache_food(..., user_drafted=True)` in one `with _db.get_db()` block, then moves each processed file into `food_imports/imported/` — re-running is still safe (`INSERT OR REPLACE`) even if a file were left in place or reintroduced.
 
 ### Protein digestibility — DIAAS
 
@@ -836,7 +844,7 @@ Contains the Foods menu dispatch and the search/analyze/convert/cached-food-view
 
 ### `numa_app/workflows/drafted_foods.py` — cache editing and drafted profiles (~620 lines)
 
-`_do_edit_cached_food(fdc_id, cached)` edits any cached food (USDA, OFF, or user-drafted): name, serving metadata, all nutrients (pre-filled from existing values), and a note. After saving, marks the entry `user_drafted=True` so automatic AA re-fetches will not overwrite the changes. Preserves original USDA portion data. Auto-detects supplement mode (single portion with `gram_weight=100`); for user-drafted foods not yet in supplement mode, asks at the start of the edit session whether to convert.
+`_do_edit_cached_food(fdc_id, cached)` edits any cached food (USDA, OFF, or user-drafted): name, serving metadata, all nutrients (pre-filled from existing values), and a note. After saving, marks the entry `user_drafted=True` so automatic AA re-fetches will not overwrite the changes. Preserves original USDA portion data. Auto-detects supplement mode (single portion with `gram_weight=100`); for user-drafted foods not yet in supplement mode, asks at the start of the edit session whether to convert. Before writing, shows an s/d/m (Save changes / Discard / Discard and return to main menu) confirmation — the same pattern `_do_create_drafted_food` already used, added here for parity since this function batches many field edits in memory before one `update_cached_food_profile()` write.
 
 `_prompt_nutrients(existing, unit_label)` interactively prompts for all nutrient values per 100g (or per tablet/capsule/etc. when `unit_label` is set). Walks through five optional sections: basic macros (always), minerals, vitamins, amino acids (three modes: one-by-one, bulk import, or skip), and phytonutrients. For vitamins A, D, and E, IU input is accepted and auto-converted to the program's native mcg/mg units. In supplement mode, the intro explains the label-entry convention so naive users are not confused by the "per 100g" framing.
 
@@ -1175,6 +1183,8 @@ Shared layout wrapper. Includes Bootstrap 5 CDN, `/static/style.css`, the top na
 
 The navbar marks the active section by comparing `request.url.path` to each nav link's prefix. Foods and Analysis (Daily summary, Food use in meals) are dropdowns; Recipes, Meals, Settings, and Manual are top-level links.
 
+**Unsaved-changes warning.** A third inline script in `base.html` generically tracks every `form[method="post"]` containing at least one non-hidden editable field: it snapshots the form's serialized state (`FormData` → `URLSearchParams`) on load, re-checks on `input`/`change`, and toggles a `.form-dirty` class on the form plus `.btn-dirty` on its submit button (CSS in `web/static/style.css`) and a JS-injected `.unsaved-badge` ("Unsaved changes") span. A `beforeunload` listener warns if any tracked form is still dirty. Forms with no editable fields (delete/move/mark-complete one-click actions) and GET forms (search/filter) are excluded automatically by the selector, so no per-template opt-out markup is needed.
+
 #### `home.html`
 
 Renders the content of `home.md` (project root) as HTML. The markdown file is rendered once at startup and cached in `web/home_body.cache`; the cache is invalidated if `home.md` is newer.
@@ -1319,6 +1329,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL rollup via `gl_g`, partial totals alongside blockers |
 | `tests/test_meal_bcp.py` | `numa_app/services/meal_bcp.py`: `recipe_dcp_fallback()` sums precomputed recipe `dcp_g` when ingredient-level AA data is unavailable |
 | `tests/test_rda_status.py` | `numa_app/services/rda_status.py`: `rda_status()` tier boundaries for minimum/target and limit-type nutrients; `limit_warning()` 90%/100% thresholds |
+| `tests/test_food_import.py` | `numa_app/services/food_import.py`: `VALID_NUTRIENT_KEYS` completeness, `convert_per_serving()` scaling/validation, `validate_and_strip()` key/type filtering |
 
 ### Test infrastructure
 
