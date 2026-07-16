@@ -2765,7 +2765,19 @@ async def meal_add_food(
     food_name: str = Form(""),
     portion_str: str = Form("100 g"),
     off_code: str = Form(""),
+    q: str = Form(""),
 ):
+    from urllib.parse import quote, urlencode
+
+    def _redirect(error: str | None = None) -> RedirectResponse:
+        params = {}
+        if q:
+            params["q"] = q
+        if error:
+            params["add_error"] = error
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
+
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
@@ -2773,7 +2785,7 @@ async def meal_add_food(
             if _off.is_off_id(fdc_id) and off_code:
                 detail = _off.lookup_by_barcode(off_code)
                 if not detail:
-                    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+                    return _redirect()
             else:
                 detail = _usda.get_food_detail(fdc_id)
             with _db.get_db() as conn:
@@ -2788,25 +2800,21 @@ async def meal_add_food(
             with _db.get_db() as conn:
                 cached = _db.get_cached_food(conn, fdc_id)
         except Exception:
-            return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+            return _redirect()
 
     name = food_name or (cached["name"] if cached else "Unknown food")
     portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
     raw = portion_str.strip() or "100 g"
     grams, error_msg = _parse_portion_str(raw, portions, name)
     if not grams:
-        from urllib.parse import quote
-        return RedirectResponse(
-            f"/meal/{meal_id}?add_error={quote(error_msg)}", status_code=303
-        )
+        return _redirect(error=error_msg)
     with _db.get_db() as conn:
         _db.meal_add_food(conn, meal_id, fdc_id, name, grams, "g")
     if _gi_prompt_needed(fdc_id):
-        from urllib.parse import quote
         return RedirectResponse(
             f"/food/annotate/{fdc_id}?next={quote(f'/meal/{meal_id}')}", status_code=303
         )
-    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+    return _redirect()
 
 
 @app.post("/meal/{meal_id}/add-recipe", response_class=RedirectResponse)
@@ -2906,18 +2914,30 @@ async def meal_update_item_post(
     item_id: int,
     amount: str = Form(...),
     notes: str = Form(""),
+    q: str = Form(""),
 ):
+    from urllib.parse import urlencode
+
+    def _redirect(error: str | None = None) -> RedirectResponse:
+        params = {}
+        if q:
+            params["q"] = q
+        if error:
+            params["add_error"] = error
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
+
     with _db.get_db() as conn:
         items = _db.meal_get_items(conn, meal_id)
     item = next((it for it in items if it["id"] == item_id), None)
     if not item:
-        return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+        return _redirect()
     notes_val = notes.strip() or None
     if item["item_type"] == "recipe":
         try:
             srv = float(amount)
         except ValueError:
-            return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+            return _redirect()
         if srv > 0:
             unit = f"{srv:g} serving" + ("s" if srv != 1 else "")
             with _db.get_db() as conn:
@@ -2932,11 +2952,8 @@ async def meal_update_item_post(
                 _db.meal_replace_food(conn, item_id, meal_id, item["fdc_id"],
                                       item["food_name"], grams, "g", notes_val)
         else:
-            from urllib.parse import quote
-            return RedirectResponse(
-                f"/meal/{meal_id}?add_error={quote(error_msg)}", status_code=303
-            )
-    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+            return _redirect(error=error_msg)
+    return _redirect()
 
 
 @app.post("/meal/{meal_id}/merge", response_class=RedirectResponse)
@@ -3296,6 +3313,16 @@ async def recipes_list(request: Request, q: str = "", sort: str = "recent"):
     })
 
 
+@app.get("/recipes/broken-refs", response_class=HTMLResponse)
+async def recipes_broken_refs(request: Request):
+    with _db.get_db() as conn:
+        broken = _db.list_all_broken_recipe_refs(conn)
+    return templates.TemplateResponse(request, "recipe_broken_refs.html", {
+        "meals":   broken["meals"],
+        "recipes": broken["recipes"],
+    })
+
+
 @app.get("/recipe/new", response_class=HTMLResponse)
 async def recipe_new_get(request: Request):
     return templates.TemplateResponse(request, "recipe_new.html", {})
@@ -3385,11 +3412,21 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
 
 
 @app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
-async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = ""):
+async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = "",
+                           relinked: str = ""):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
             return RedirectResponse("/recipes", status_code=303)
+        broken_refs = _db.find_broken_recipe_refs(conn, recipe["name"])
+        _broken_groups: dict[str, dict] = {}
+        for _row in broken_refs["meals"]:
+            _g = _broken_groups.setdefault(_row["matched_name"], {"matched_name": _row["matched_name"], "meals": [], "recipes": []})
+            _g["meals"].append(_row)
+        for _row in broken_refs["recipes"]:
+            _g = _broken_groups.setdefault(_row["matched_name"], {"matched_name": _row["matched_name"], "meals": [], "recipes": []})
+            _g["recipes"].append(_row)
+        broken_groups = sorted(_broken_groups.values(), key=lambda g: g["matched_name"])
         ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
         for _ing in ingredients:
             if not _ing["ref_recipe_id"]:
@@ -3446,6 +3483,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 "fdc_id":    row["fdc_id"],
                 "name":      row["name"],
                 "data_type": row["data_type"],
+                "brand":     row["brand"] or "",
                 "source":    "cache",
                 "portions":  portions,
             })
@@ -3458,6 +3496,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                         "fdc_id":    fid,
                         "name":      food.get("description", ""),
                         "data_type": food.get("dataType", ""),
+                        "brand":     food.get("brandOwner") or food.get("brandName") or "",
                         "source":    "usda",
                         "portions":  [],
                     })
@@ -3472,7 +3511,19 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         "saved":              saved,
         "error":              error,
         "nutrition_summary":  nutrition_summary,
+        "broken_groups":      broken_groups,
+        "relinked":           relinked,
     })
+
+
+@app.post("/recipe/{recipe_id}/relink", response_class=RedirectResponse)
+async def recipe_relink_post(recipe_id: int, matched_name: str = Form(...)):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+        m, r = _db.relink_recipe_refs(conn, matched_name, recipe_id)
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?relinked={m},{r}", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/edit", response_class=RedirectResponse)
@@ -3537,7 +3588,19 @@ async def recipe_ingredient_add(
     food_name: str = Form(""),
     portion_str: str = Form("100 g"),
     notes: str = Form(""),
+    q: str = Form(""),
 ):
+    from urllib.parse import urlencode
+
+    def _redirect(error: str | None = None) -> RedirectResponse:
+        params = {}
+        if q:
+            params["q"] = q
+        if error:
+            params["error"] = error
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/recipe/{recipe_id}/edit{qs}", status_code=303)
+
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
@@ -3555,19 +3618,17 @@ async def recipe_ingredient_add(
             with _db.get_db() as conn:
                 cached = _db.get_cached_food(conn, fdc_id)
         except Exception:
-            return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+            return _redirect()
 
     name = food_name or (cached["name"] if cached else "Unknown food")
     portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
     grams, msg = _parse_portion_str(portion_str.strip() or "100 g", portions, name)
     if grams is None:
-        return RedirectResponse(
-            f"/recipe/{recipe_id}/edit?error={msg}", status_code=303
-        )
+        return _redirect(error=msg)
     with _db.get_db() as conn:
         _db.recipe_add_ingredient(conn, recipe_id, fdc_id, name, grams, msg,
                                    notes.strip() or None)
-    return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+    return _redirect()
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/remove", response_class=RedirectResponse)
@@ -3584,7 +3645,19 @@ async def recipe_ingredient_edit(
     portion_str: str = Form(...),
     food_name: str = Form(...),
     notes: str = Form(""),
+    q: str = Form(""),
 ):
+    from urllib.parse import urlencode
+
+    def _redirect(error: str | None = None) -> RedirectResponse:
+        params = {}
+        if q:
+            params["q"] = q
+        if error:
+            params["error"] = error
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/recipe/{recipe_id}/edit{qs}", status_code=303)
+
     with _db.get_db() as conn:
         ings = _db.recipe_get_ingredients(conn, recipe_id)
         ing = next((i for i in ings if i["id"] == ing_id), None)
@@ -3596,20 +3669,16 @@ async def recipe_ingredient_edit(
         try:
             grams, label = float(portion_str.strip()), portion_str.strip()
         except ValueError:
-            return RedirectResponse(
-                f"/recipe/{recipe_id}/edit?error=Enter a number of servings.", status_code=303
-            )
+            return _redirect(error="Enter a number of servings.")
     else:
         portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
         grams, label = _parse_portion_str(portion_str.strip(), portions, food_name.strip())
         if grams is None:
-            return RedirectResponse(
-                f"/recipe/{recipe_id}/edit?error={label}", status_code=303
-            )
+            return _redirect(error=label)
     with _db.get_db() as conn:
         _db.recipe_update_ingredient(conn, ing_id, grams, label,
                                       food_name.strip(), notes.strip() or None)
-    return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
+    return _redirect()
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/move", response_class=RedirectResponse)
@@ -3772,6 +3841,7 @@ async def analysis_food_use(
     ranges_raw: str | None = Query(default=None),
     meal_ids: str = Query(default=""),
     protein_only: bool = Query(default=False),
+    sort: str = Query(default="frequency"),
 ):
     """Food use in meals: frequency-of-use table across a chosen set of meals.
 
@@ -3829,8 +3899,13 @@ async def analysis_food_use(
         for meal_id, meal in meals_by_id.items():
             items = _db.meal_expand_food_items(conn, meal_id)
             seen: set = set()
-            for fdc_id, name, kind, has_protein, deleted in items:
-                key = (fdc_id, kind) if fdc_id is not None else (kind, name)
+            for fdc_id, name, kind, has_protein, deleted, recipe_id in items:
+                if fdc_id is not None:
+                    key = (fdc_id, kind)
+                elif recipe_id is not None:
+                    key = (kind, recipe_id)
+                else:
+                    key = (kind, name)
                 if key in seen:
                     continue
                 seen.add(key)
@@ -3845,10 +3920,12 @@ async def analysis_food_use(
     if protein_only:
         rows_all = [r for r in rows_all if r["has_protein"]]
 
-    rows_sorted = sorted(
-        rows_all,
-        key=lambda e: (-len(e["days"]), -len(e["meal_ids"]), e["name"].lower()),
-    )
+    sort_keys = {
+        "frequency": lambda e: (-len(e["days"]), -len(e["meal_ids"]), e["name"].lower()),
+        "food":      lambda e: (e["name"].lower(),),
+        "id":        lambda e: (e["fdc_id"] is None, e["fdc_id"] or 0),
+    }
+    rows_sorted = sorted(rows_all, key=sort_keys.get(sort, sort_keys["frequency"]))
     max_days = len(rows_sorted[0]["days"]) if rows_sorted else 0
     result_rows = [{
         "fdc_id":  r["fdc_id"],
@@ -3866,6 +3943,7 @@ async def analysis_food_use(
         "ranges_raw":    ranges_raw,
         "meal_ids_raw":  meal_ids,
         "protein_only":  protein_only,
+        "sort":          sort,
         "missing_ids":   missing_ids,
         "rows":          result_rows,
         "total_meals":   len(meals_by_id),

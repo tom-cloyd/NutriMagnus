@@ -437,6 +437,48 @@ class TestRecipesMenu:
         with _db.get_db() as conn:
             assert _db.recipe_list(conn) == []
 
+    def test_recreate_recipe_offers_relink_to_broken_meal_ref(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        _mock_api(monkeypatch)
+        # Create "Beef Stew", reference it from a meal, then delete it —
+        # leaving the meal item's recipe_id dangling.
+        runner.invoke(input="2\n1\nBeef Stew\n\n1\n\n\n\nn\nchicken\n1\n100 g\n\nn\nb\nq\n")
+        with _db.get_db() as conn:
+            rid = _db.recipe_list(conn)[0]["id"]
+            meal_id = _db.meal_create(conn, "Dinner", "2026-07-15")
+            _db.meal_add_recipe(conn, meal_id, rid, "Beef Stew", 1)
+        runner.invoke(input=f"2\n2\nd{rid}\ny\nq\n")
+
+        # Re-create as "Chicken Stew" (fuzzy match: shares the word "Stew") —
+        # name → description → servings → serving_size/vol/weight (skip) →
+        # complete(n) → relink prompt (y) → ingredient loop (b=skip) →
+        # editor (b=skip) → q
+        result = runner.invoke(input="2\n1\nChicken Stew\n\n1\n\n\n\nn\ny\nb\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Found broken recipe references that may belong to" in result.output
+        assert "Beef Stew" in result.output
+        assert "Relinked 1 meal item(s)" in result.output
+
+        with _db.get_db() as conn:
+            new_rid = [r["id"] for r in _db.recipe_list(conn) if r["id"] != rid][0]
+            item = _db.meal_get_items(conn, meal_id)[0]
+        assert item["recipe_id"] == new_rid
+
+    def test_broken_recipe_refs_menu_lists_dangling_meal_ref(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        _mock_api(monkeypatch)
+        runner.invoke(input="2\n1\nChili\n\n1\n\n\n\nn\nchicken\n1\n100 g\n\nn\nb\nq\n")
+        with _db.get_db() as conn:
+            rid = _db.recipe_list(conn)[0]["id"]
+            meal_id = _db.meal_create(conn, "Lunch", "2026-07-15")
+            _db.meal_add_recipe(conn, meal_id, rid, "Chili", 1)
+        runner.invoke(input=f"2\n2\nd{rid}\ny\nq\n")
+
+        # Recipes menu → 6 (Broken recipe references) → back → quit
+        result = runner.invoke(input="2\n6\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Broken recipe references" in result.output
+        assert "Chili" in result.output
+        assert "Lunch" in result.output
+
     def test_view_recipe_shows_nutrients(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)
         runner.invoke(input="2\n1\nChicken Dish\n\n2\n\n\n\nn\nchicken\n1\n200 g\n\nn\nb\nq\n")

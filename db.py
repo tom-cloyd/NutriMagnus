@@ -7,6 +7,7 @@ Docs: README-numa-documentation.md, Architecture: "db.py — SQLite database"
 
 import json
 import pathlib
+import re as _re
 import sqlite3
 from contextlib import contextmanager
 from typing import Generator
@@ -701,6 +702,84 @@ def recipe_delete(conn: sqlite3.Connection, recipe_id: int) -> bool:
     return cur.rowcount > 0
 
 
+_WORD_RE = _re.compile(r"[A-Za-z0-9]+")
+
+
+def _name_words(s: str) -> set[str]:
+    return {w.lower() for w in _WORD_RE.findall(s or "")}
+
+
+def _all_broken_recipe_refs(conn: sqlite3.Connection) -> tuple[list[sqlite3.Row], list[sqlite3.Row]]:
+    """Every meal_items / recipe_ingredients row left dangling by some deleted
+    recipe, each carrying the original recipe's name as `matched_name`."""
+    meals = conn.execute("""
+        SELECT DISTINCT m.id AS meal_id, m.name AS meal_name, m.meal_date, mi.food_name AS matched_name
+        FROM meal_items mi
+        JOIN meals m ON m.id = mi.meal_id
+        WHERE mi.item_type = 'recipe' AND mi.recipe_id NOT IN (SELECT id FROM recipes)
+        ORDER BY mi.food_name, m.meal_date
+    """).fetchall()
+    recipes = conn.execute("""
+        SELECT DISTINCT r.id AS recipe_id, r.name AS recipe_name, ri.food_name AS matched_name
+        FROM recipe_ingredients ri
+        JOIN recipes r ON r.id = ri.recipe_id
+        WHERE ri.ref_recipe_deleted = 1
+        ORDER BY ri.food_name, r.name
+    """).fetchall()
+    return meals, recipes
+
+
+def find_broken_recipe_refs(conn: sqlite3.Connection, name: str) -> dict:
+    """Fuzzy-find meal_items and recipe_ingredients rows left dangling by a
+    deleted recipe, for offering to relink them when a recipe is (re-)created.
+    A row matches if it shares at least one word (case-insensitive) with
+    `name` — e.g. creating "Chicken Stew" will surface a broken reference
+    stored as "Beef Stew" or just "Stew", not only an exact-name match.
+
+    Because a fuzzy search can turn up broken refs left by more than one
+    distinct deleted recipe, each row carries its original name as
+    `matched_name` — callers should offer/relink one matched_name group at a
+    time (see relink_recipe_refs) rather than assuming every match belongs
+    to the same original recipe.
+
+    Returns {"meals": [rows...], "recipes": [rows...]}.
+    """
+    words = _name_words(name)
+    if not words:
+        return {"meals": [], "recipes": []}
+    all_meals, all_recipes = _all_broken_recipe_refs(conn)
+    meals = [row for row in all_meals if _name_words(row["matched_name"]) & words]
+    recipes = [row for row in all_recipes if _name_words(row["matched_name"]) & words]
+    return {"meals": meals, "recipes": recipes}
+
+
+def list_all_broken_recipe_refs(conn: sqlite3.Connection) -> dict:
+    """Every broken recipe reference in the database, for browsing
+    independent of any specific new recipe's name (see find_broken_recipe_refs
+    for the fuzzy-match version used at recipe-creation time).
+
+    Returns {"meals": [rows...], "recipes": [rows...]}.
+    """
+    meals, recipes = _all_broken_recipe_refs(conn)
+    return {"meals": meals, "recipes": recipes}
+
+
+def relink_recipe_refs(conn: sqlite3.Connection, name: str, new_recipe_id: int) -> tuple[int, int]:
+    """Relink broken meal_items/recipe_ingredients references (matched by the
+    stored food_name snapshot) to a newly (re-)created recipe of that name.
+    Returns (meal_items_relinked, recipe_ingredients_relinked)."""
+    meal_cur = conn.execute("""
+        UPDATE meal_items SET recipe_id = ?
+        WHERE item_type = 'recipe' AND food_name = ?
+          AND recipe_id NOT IN (SELECT id FROM recipes)
+    """, (new_recipe_id, name))
+    ing_cur = conn.execute("""
+        UPDATE recipe_ingredients SET ref_recipe_id = ?, ref_recipe_deleted = 0
+        WHERE ref_recipe_deleted = 1 AND food_name = ?
+    """, (new_recipe_id, name))
+    return meal_cur.rowcount, ing_cur.rowcount
+
+
 # ---------------------------------------------------------------------------
 # Meals
 # ---------------------------------------------------------------------------
@@ -865,8 +944,8 @@ def meal_list_by_ids(conn: sqlite3.Connection, ids: list[int]) -> list[sqlite3.R
     ).fetchall()
 
 
-def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple[int | None, str, str, bool, bool]]:
-    """Flatten a meal's items into (fdc_id, name, kind, has_protein, deleted) tuples.
+def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple[int | None, str, str, bool, bool, int | None]]:
+    """Flatten a meal's items into (fdc_id, name, kind, has_protein, deleted, recipe_id) tuples.
 
     Plain food items yield one ("food") tuple. Recipe items yield one ("recipe")
     tuple for the recipe itself, plus one ("food") tuple per base ingredient
@@ -880,6 +959,14 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
     recipes table (the recipe was deleted after this meal referenced it). The
     meal item's stored food_name is used as a fallback label in that case, and
     it has no expanded ingredients.
+
+    recipe_id is the stable identifier for a "recipe" row — always meal_items'
+    recipe_id for a directly-added recipe (even after deletion, since that
+    column is never cleared), or None for "food" rows and for a nested
+    sub-recipe that was itself deleted (ref_recipe_id is cleared on delete, so
+    no id survives — see recipe_delete()). Callers should key/group recipe
+    rows by recipe_id when present rather than by name, since a recipe's name
+    can change after a meal references it while its id stays fixed.
     """
     def _food_has_protein(fdc_id: int) -> bool:
         cached = get_cached_food(conn, fdc_id)
@@ -888,25 +975,27 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
         nutrients = json.loads(cached["nutrients_json"])
         return nutrients.get("protein_g", 0) > 0
 
-    def _expand_recipe(recipe_id: int) -> list[tuple[int | None, str, str, bool, bool]]:
-        out: list[tuple[int | None, str, str, bool, bool]] = []
+    def _expand_recipe(recipe_id: int) -> list[tuple[int | None, str, str, bool, bool, int | None]]:
+        out: list[tuple[int | None, str, str, bool, bool, int | None]] = []
         for ing in recipe_get_ingredients(conn, recipe_id):
             if ing["ref_recipe_deleted"]:
-                out.append((None, ing["food_name"], "recipe", False, True))
+                out.append((None, ing["food_name"], "recipe", False, True, None))
             elif ing["ref_recipe_id"]:
                 out.extend(_expand_recipe(ing["ref_recipe_id"]))
             else:
-                out.append((ing["fdc_id"], ing["food_name"], "food", _food_has_protein(ing["fdc_id"]), False))
+                out.append((ing["fdc_id"], ing["food_name"], "food", _food_has_protein(ing["fdc_id"]), False, None))
         return out
 
-    result: list[tuple[int | None, str, str, bool, bool]] = []
+    result: list[tuple[int | None, str, str, bool, bool, int | None]] = []
     for item in meal_get_items(conn, meal_id):
         if item["item_type"] == "food":
-            result.append((item["fdc_id"], item["food_name"], "food", _food_has_protein(item["fdc_id"]), False))
+            result.append((item["fdc_id"], item["food_name"], "food", _food_has_protein(item["fdc_id"]), False, None))
         elif item["item_type"] == "recipe":
-            recipe_deleted = recipe_get(conn, item["recipe_id"]) is None
+            live_recipe = recipe_get(conn, item["recipe_id"])
+            recipe_deleted = live_recipe is None
             expanded = [] if recipe_deleted else _expand_recipe(item["recipe_id"])
-            result.append((None, item["food_name"], "recipe", any(e[3] for e in expanded), recipe_deleted))
+            display_name = live_recipe["name"] if live_recipe else item["food_name"]
+            result.append((None, display_name, "recipe", any(e[3] for e in expanded), recipe_deleted, item["recipe_id"]))
             result.extend(expanded)
     return result
 

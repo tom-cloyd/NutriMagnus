@@ -276,6 +276,7 @@
             <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
             <input type="hidden" name="food_name" value="{{ food.name }}">
             <input type="hidden" name="off_code" value="{{ food.off_code or '' }}">
+            <input type="hidden" name="q" value="{{ q }}">
             <div class="d-flex flex-wrap align-items-center gap-3">
               <div class="input-group" style="width:26rem">
                 <input type="text" class="form-control form-control-sm" name="portion_str"
@@ -394,6 +395,7 @@
             <summary class="btn btn-outline-secondary btn-sm" style="list-style:none;cursor:pointer">Edit</summary>
             <div class="card card-body p-2 mt-1" style="min-width:20rem;position:absolute;z-index:10">
               <form method="post" action="/meal/{{ meal.id }}/update/{{ item.id }}" class="d-flex flex-column gap-2">
+                <input type="hidden" name="q" value="{{ q }}">
                 <div class="d-flex gap-2 align-items-center">
                   {% if item.fdc_id %}
                   <label class="form-label mb-0 text-nowrap">Amount</label>

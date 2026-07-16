@@ -154,6 +154,56 @@ def test_recipe_new_edit_and_add_ingredient(client: TestClient, cached_food, db_
     assert ingredients[0]["amount"] == 200.0
 
 
+def test_recipe_edit_ingredient_search_shows_id_and_brand(client: TestClient, cached_food) -> None:
+    """The ingredient-search table on a recipe's edit page must show each
+    result's FDC ID and brand — otherwise same-named foods (e.g. many
+    Branded "Tomato Sauce" entries) are indistinguishable in the list."""
+    resp = client.post(
+        "/recipe/new",
+        data={"name": "Chicken Dish", "servings": 2},
+        follow_redirects=False,
+    )
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+
+    resp = client.get(f"/recipe/{recipe_id}/edit", params={"q": "chicken"})
+    assert resp.status_code == 200
+    assert 'class="col-id' in resp.text
+    assert str(cached_food["fdcId"]) in resp.text
+
+
+def test_recipe_ingredient_add_error_preserves_search_results(client: TestClient, cached_food) -> None:
+    """Regression test: a bad portion string (e.g. a volume unit with no
+    density data) used to redirect back to the edit page without the search
+    query, wiping the whole result list and forcing the user to re-search
+    from scratch. The redirect must carry `q` through so results stay put."""
+    resp = client.post(
+        "/recipe/new",
+        data={"name": "Chicken Dish", "servings": 2},
+        follow_redirects=False,
+    )
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+
+    resp = client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={
+            "fdc_id": cached_food["fdcId"],
+            "food_name": cached_food["name"],
+            "portion_str": "1 zz",
+            "q": "chicken",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert "q=chicken" in location
+    assert "error=" in location
+
+    resp = client.get(location)
+    assert resp.status_code == 200
+    assert str(cached_food["fdcId"]) in resp.text
+    assert "not recognised" in resp.text
+
+
 def test_custom_profile_create(client: TestClient, db_conn) -> None:
     resp = client.post(
         "/food/custom-profiles/create", data={"name": "My Homemade Granola"}, follow_redirects=False,
@@ -364,6 +414,73 @@ def test_recipe_delete_and_copy(client: TestClient, cached_food, db_conn) -> Non
     assert db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone() is None
 
 
+def test_recreated_recipe_offers_relink_to_broken_refs(client: TestClient, db_conn) -> None:
+    """Deleting a recipe used in a meal leaves a dangling reference; a
+    re-created recipe with a fuzzily-matching name (shares a word, not
+    necessarily identical) should surface a relink offer on its edit page,
+    and posting to /relink should reattach the meal item."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Beef Stew", "servings": 3}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(
+        f"/meal/{meal_id}/add-recipe",
+        data={"recipe_id": recipe_id, "recipe_name": "Beef Stew", "servings": 1, "mode": "recipe"},
+        follow_redirects=False,
+    )
+    client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
+
+    new_id = int(
+        client.post("/recipe/new", data={"name": "Chicken Stew", "servings": 4}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    assert new_id != recipe_id
+
+    resp = client.get(f"/recipe/{new_id}/edit")
+    assert resp.status_code == 200
+    assert "still reference a deleted recipe" in resp.text
+    assert "Beef Stew" in resp.text
+
+    resp = client.post(f"/recipe/{new_id}/relink", data={"matched_name": "Beef Stew"}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == f"/recipe/{new_id}/edit?relinked=1,0"
+
+    item = db_conn.execute("SELECT * FROM meal_items WHERE meal_id = ?", (meal_id,)).fetchone()
+    assert item["recipe_id"] == new_id
+
+    resp = client.get(f"/recipe/{new_id}/edit?relinked=1,0")
+    assert "Relinked 1 meal item(s)" in resp.text
+    assert "still reference a deleted recipe" not in resp.text
+
+
+def test_broken_recipe_refs_listing_page(client: TestClient) -> None:
+    """/recipes/broken-refs lists every dangling reference for browsing,
+    independent of any specific recipe being (re-)created."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Chili", "servings": 3}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(
+        f"/meal/{meal_id}/add-recipe",
+        data={"recipe_id": recipe_id, "recipe_name": "Chili", "servings": 1, "mode": "recipe"},
+        follow_redirects=False,
+    )
+    client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
+
+    resp = client.get("/recipes/broken-refs")
+    assert resp.status_code == 200
+    assert "Chili" in resp.text
+    assert "Lunch" in resp.text
+
+
 def test_meal_add_recipe_rename_merge_refresh_aa(client: TestClient, cached_food, db_conn) -> None:
     recipe_id = int(
         client.post("/recipe/new", data={"name": "Chili", "servings": 2}, follow_redirects=False)
@@ -413,6 +530,38 @@ def test_meal_add_recipe_rename_merge_refresh_aa(client: TestClient, cached_food
     merged_id = int(resp.headers["location"].rsplit("/", 1)[-1])
     merged_items = db_conn.execute("SELECT * FROM meal_items WHERE meal_id = ?", (merged_id,)).fetchall()
     assert len(merged_items) == 1
+
+
+def test_food_use_analysis_shows_recipe_current_name_after_rename(client: TestClient) -> None:
+    """Regression test: renaming a recipe used in a meal used to make it
+    vanish from Food Use in Meals (it was keyed/labeled by the frozen name
+    snapshot taken when added to the meal, not the recipe's stable id)."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Chili", "servings": 3}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(
+        f"/meal/{meal_id}/add-recipe",
+        data={"recipe_id": recipe_id, "recipe_name": "Chili", "servings": 1, "mode": "recipe"},
+        follow_redirects=False,
+    )
+
+    resp = client.get("/analysis/food-use", params={"ranges_raw": "2026-07-01:2026-07-31"})
+    assert "Chili" in resp.text
+
+    client.post(
+        f"/recipe/{recipe_id}/edit",
+        data={"name": "Chili Verde", "description": "", "servings": 3},
+        follow_redirects=False,
+    )
+
+    resp = client.get("/analysis/food-use", params={"ranges_raw": "2026-07-01:2026-07-31"})
+    assert "Chili Verde" in resp.text
+    assert "<strong>Chili</strong>" not in resp.text
 
 
 def test_food_annotate_edit_skip_forever_and_clear(client: TestClient, cached_food, db_conn) -> None:

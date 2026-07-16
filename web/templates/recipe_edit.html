@@ -25,51 +25,83 @@
 </div>
 {% endif %}
 
+{% if relinked %}
+{% set relinked_parts = relinked.split(",") %}
+<div class="alert alert-success alert-dismissible fade show" role="alert">
+  Relinked {{ relinked_parts[0] }} meal item(s) and {{ relinked_parts[1] }} recipe ingredient(s) to this recipe.
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+
+{% for g in broken_groups %}
+<div class="alert alert-warning" role="alert">
+  <strong>{{ g.meals|length }}</strong> meal(s) and <strong>{{ g.recipes|length }}</strong> recipe(s)
+  still reference a deleted recipe named <strong>{{ g.matched_name }}</strong>
+  — a possible match for <strong>{{ recipe.name }}</strong>.
+  <form method="post" action="/recipe/{{ recipe.id }}/relink" class="d-inline">
+    <input type="hidden" name="matched_name" value="{{ g.matched_name }}">
+    <button type="submit" class="btn btn-sm btn-warning ms-2">Relink these to this recipe</button>
+  </form>
+</div>
+{% endfor %}
+
 {# ── Metadata form ────────────────────────────────────────────────────── #}
 <details open>
   <summary><strong>Recipe details</strong></summary>
   <form method="post" action="/recipe/{{ recipe.id }}/edit" class="mt-3" style="max-width:36rem">
-    <div class="mb-3">
-      <label class="form-label" for="name">Recipe name <span class="text-danger">*</span></label>
-      <input type="text" class="form-control" id="name" name="name"
-             value="{{ recipe.name }}" required>
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label" for="description">Description</label>
-      <input type="text" class="form-control" id="description" name="description"
-             value="{{ recipe.description or '' }}">
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label" for="servings">Number of servings</label>
-      <input type="number" class="form-control" id="servings" name="servings"
-             value="{{ recipe.servings }}" min="1" max="999" step="0.01" style="max-width:8rem">
-    </div>
-
-    <div class="mb-3">
-      <label class="form-label">Total yield weight <small class="text-muted">(optional)</small></label>
-      <div class="input-group" style="max-width:16rem">
-        <input type="number" class="form-control" name="total_weight"
-               value="{{ recipe.total_weight or '' }}" min="0" step="any">
-        <select class="form-select" name="total_weight_unit" style="max-width:5rem">
-          {% for u in ["g","oz","lb","kg"] %}
-          <option value="{{ u }}" {% if recipe.total_weight_unit == u %}selected{% endif %}>{{ u }}</option>
-          {% endfor %}
-        </select>
+    <div class="row mb-2 align-items-center">
+      <label class="col-sm-4 col-form-label" for="name">Recipe name <span class="text-danger">*</span></label>
+      <div class="col-sm-8">
+        <input type="text" class="form-control" id="name" name="name"
+               value="{{ recipe.name }}" required>
       </div>
     </div>
 
-    <div class="mb-3">
-      <label class="form-label" for="instructions">Instructions <small class="text-muted">(optional)</small></label>
-      <textarea class="form-control" id="instructions" name="instructions"
-                rows="5">{{ recipe.instructions or '' }}</textarea>
+    <div class="row mb-2 align-items-center">
+      <label class="col-sm-4 col-form-label" for="description">Description</label>
+      <div class="col-sm-8">
+        <input type="text" class="form-control" id="description" name="description"
+               value="{{ recipe.description or '' }}">
+      </div>
     </div>
 
-    <div class="mb-3 form-check">
-      <input type="checkbox" class="form-check-input" id="complete" name="complete" value="1"
-             {% if recipe.complete %}checked{% endif %}>
-      <label class="form-check-label" for="complete">Mark recipe as complete</label>
+    <div class="row mb-2 align-items-center">
+      <label class="col-sm-4 col-form-label" for="servings">Number of servings</label>
+      <div class="col-sm-8">
+        <input type="number" class="form-control" id="servings" name="servings"
+               value="{{ recipe.servings }}" min="1" max="999" step="0.01" style="max-width:8rem">
+      </div>
+    </div>
+
+    <div class="row mb-2 align-items-center">
+      <label class="col-sm-4 col-form-label">Total yield weight <small class="text-muted">(optional)</small></label>
+      <div class="col-sm-8">
+        <div class="input-group" style="max-width:16rem">
+          <input type="number" class="form-control" name="total_weight"
+                 value="{{ recipe.total_weight or '' }}" min="0" step="any">
+          <select class="form-select" name="total_weight_unit" style="max-width:5rem">
+            {% for u in ["g","oz","lb","kg"] %}
+            <option value="{{ u }}" {% if recipe.total_weight_unit == u %}selected{% endif %}>{{ u }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-2">
+      <label class="col-sm-4 col-form-label" for="instructions">Instructions <small class="text-muted">(optional)</small></label>
+      <div class="col-sm-8">
+        <textarea class="form-control" id="instructions" name="instructions"
+                  rows="5">{{ recipe.instructions or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-sm-8 offset-sm-4 form-check">
+        <input type="checkbox" class="form-check-input" id="complete" name="complete" value="1"
+               {% if recipe.complete %}checked{% endif %}>
+        <label class="form-check-label" for="complete">Mark recipe as complete</label>
+      </div>
     </div>
 
     <div class="d-flex gap-2">
@@ -136,6 +168,7 @@
             <div class="card card-body p-2 mt-1" style="min-width:22rem;position:absolute;z-index:10">
               <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/edit"
                     class="d-flex flex-column gap-2">
+                <input type="hidden" name="q" value="{{ q }}">
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0 text-nowrap">Amount</label>
                   <input type="text" name="portion_str"
@@ -178,112 +211,122 @@
   {% endif %}
 </details>
 
-{# ── Running nutrition totals ─────────────────────────────────────────── #}
-{% if nutrition_summary.has_data %}
-<div class="card mt-3" style="max-width:36rem">
-  <div class="card-header py-2"><strong>Running totals</strong>
-    <small class="text-muted ms-2">updates after each ingredient change</small>
-  </div>
-  <div class="card-body py-2 px-3">
-    <table class="nutrient-table mb-0" style="width:100%">
-      <thead>
-        <tr>
-          <th></th>
-          <th class="num-col">Whole recipe</th>
-          <th class="num-col">Per serving
-            <small class="text-muted">(÷&thinsp;{{ nutrition_summary.servings }})</small>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Calories</td>
-          <td class="num-col">{{ nutrition_summary.calories }}&thinsp;kcal</td>
-          <td class="num-col">{{ nutrition_summary.cal_per_srv }}&thinsp;kcal</td>
-        </tr>
-        <tr>
-          <td>Protein (raw)</td>
-          <td class="num-col">{{ nutrition_summary.protein_g }}&thinsp;g</td>
-          <td class="num-col">{{ nutrition_summary.prot_per_srv }}&thinsp;g</td>
-        </tr>
-        <tr>
-          {% if nutrition_summary.dcp_g is not none %}
-          <td>Protein (DCP)
-            <small class="text-muted">digestible complete</small>
-          </td>
-          <td class="num-col">{{ nutrition_summary.dcp_g }}&thinsp;g</td>
-          <td class="num-col">{{ nutrition_summary.dcp_per_srv }}&thinsp;g</td>
-          {% else %}
-          <td colspan="3" class="muted">
-            <small>DCP not available — add Foundation Foods with amino acid data for a complete estimate.</small>
-          </td>
-          {% endif %}
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-{% endif %}
+{# ── Add ingredient (left) + running nutrition totals (right) ───────────── #}
+<div class="row mt-3">
+  <div class="col-lg-7">
+    <details id="add-ingredient-section" {% if q %}open{% endif %}>
+      <summary><strong>Add Ingredient</strong></summary>
 
-{# ── Add ingredient ───────────────────────────────────────────────────── #}
-<details {% if q %}open{% endif %}>
-  <summary><strong>Add Ingredient</strong></summary>
+      <form method="get" action="/recipe/{{ recipe.id }}/edit">
+        <div class="input-group mb-3 mt-2" style="max-width:28rem">
+          <input type="text" class="form-control" name="q" value="{{ q }}"
+                 placeholder="Search foods…" autofocus>
+          <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+      </form>
 
-  <form method="get" action="/recipe/{{ recipe.id }}/edit">
-    <div class="input-group mb-3 mt-2" style="max-width:28rem">
-      <input type="text" class="form-control" name="q" value="{{ q }}"
-             placeholder="Search foods…" autofocus>
-      <button type="submit" class="btn btn-primary">Search</button>
+      {% if search_results %}
+      <p class="muted mt-1 mb-2"><small>Add a replacement below, then remove the original ingredient above.</small></p>
+      <table class="nutrient-table add-food-table">
+        <thead>
+          <tr>
+            <th>Food</th>
+            <th class="col-id">ID#</th>
+            <th class="col-source">Source</th>
+            <th colspan="2">Amount &rarr; Add</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for food in search_results %}
+          <tr>
+            <td>
+              <strong>{{ food.name }}</strong>
+              {% if food.data_type or food.brand %}
+              <br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
+              {% endif %}
+            </td>
+            <td class="col-id muted"><small>{% if food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% endif %}</small></td>
+            <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+            <td colspan="2">
+              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add" class="add-food-form">
+                <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+                <input type="hidden" name="food_name" value="{{ food.name }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                {% if food.portions %}
+                <div class="mb-1"><small class="muted">
+                  Portions:
+                  {% for p in food.portions %}
+                  <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+                  {% endfor %}
+                </small></div>
+                {% endif %}
+                <div class="input-group" style="max-width:28rem">
+                  <input type="text" class="form-control" name="portion_str"
+                         placeholder="e.g. 150 g, 2 oz, 1/4 cup, p1, 6 p1"
+                         aria-label="Amount" required>
+                  <button type="submit" class="btn btn-primary">Add to recipe</button>
+                </div>
+                <div style="font-size:0.8rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% elif q %}
+      <p>No results for <strong>{{ q }}</strong>.</p>
+      {% endif %}
+    </details>
+  </div>
+
+  {% if nutrition_summary.has_data %}
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header py-2"><strong>Running totals</strong>
+        <small class="text-muted ms-2">updates after each ingredient change</small>
+      </div>
+      <div class="card-body py-2 px-3">
+        <table class="nutrient-table mb-0" style="width:100%">
+          <thead>
+            <tr>
+              <th></th>
+              <th class="num-col">Whole recipe</th>
+              <th class="num-col">Per serving
+                <small class="text-muted">(÷&thinsp;{{ nutrition_summary.servings }})</small>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Calories</td>
+              <td class="num-col">{{ nutrition_summary.calories }}&thinsp;kcal</td>
+              <td class="num-col">{{ nutrition_summary.cal_per_srv }}&thinsp;kcal</td>
+            </tr>
+            <tr>
+              <td>Protein (raw)</td>
+              <td class="num-col">{{ nutrition_summary.protein_g }}&thinsp;g</td>
+              <td class="num-col">{{ nutrition_summary.prot_per_srv }}&thinsp;g</td>
+            </tr>
+            <tr>
+              {% if nutrition_summary.dcp_g is not none %}
+              <td>Protein (DCP)
+                <small class="text-muted">digestible complete</small>
+              </td>
+              <td class="num-col">{{ nutrition_summary.dcp_g }}&thinsp;g</td>
+              <td class="num-col">{{ nutrition_summary.dcp_per_srv }}&thinsp;g</td>
+              {% else %}
+              <td colspan="3" class="muted">
+                <small>DCP not available — add Foundation Foods with amino acid data for a complete estimate.</small>
+              </td>
+              {% endif %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-  </form>
-
-  {% if search_results %}
-  <p class="muted mt-1 mb-2"><small>Add a replacement below, then remove the original ingredient above.</small></p>
-  <table class="nutrient-table add-food-table">
-    <thead>
-      <tr>
-        <th>Food</th>
-        <th>Source</th>
-        <th colspan="2">Amount &rarr; Add</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for food in search_results %}
-      <tr>
-        <td>
-          <strong>{{ food.name }}</strong>
-          <br><small class="muted">{{ food.data_type }}</small>
-        </td>
-        <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
-        <td colspan="2">
-          <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add" class="add-food-form">
-            <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
-            <input type="hidden" name="food_name" value="{{ food.name }}">
-            {% if food.portions %}
-            <div class="mb-1"><small class="muted">
-              Portions:
-              {% for p in food.portions %}
-              <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
-              {% endfor %}
-            </small></div>
-            {% endif %}
-            <div class="input-group" style="max-width:28rem">
-              <input type="text" class="form-control" name="portion_str"
-                     placeholder="e.g. 150 g, 2 oz, 1/4 cup, p1, 6 p1"
-                     aria-label="Amount" required>
-              <button type="submit" class="btn btn-primary">Add to recipe</button>
-            </div>
-            <div style="font-size:0.8rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% elif q %}
-  <p>No results for <strong>{{ q }}</strong>.</p>
+  </div>
   {% endif %}
-</details>
+</div>
 
 {% endblock %}
 

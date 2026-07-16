@@ -34,6 +34,7 @@
     <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}{% if sort %}{% if q %}&{% else %}?{% endif %}sort={{ sort }}{% endif %}">
     <button type="submit" class="btn btn-sm btn-outline-secondary">Compute DCP for all complete recipes</button>
   </form>
+  <a href="/recipes/broken-refs" class="btn btn-sm btn-outline-secondary">Broken recipe references</a>
   <small class="muted">DCP = digestible complete protein per serving · NC = not computed</small>
 </div>
 

@@ -34,7 +34,7 @@
     <label class="form-check-label" for="protein_only">Only protein-containing foods <small class="muted">(protein_g &gt; 0 per 100g)</small></label>
   </div>
 
-  <button type="submit" class="btn btn-primary btn-sm">Analyze</button>
+  <button type="submit" name="sort" value="{{ sort or 'frequency' }}" class="btn btn-primary btn-sm">Analyze</button>
 </form>
 
 <script>
@@ -78,6 +78,17 @@
 {% if submitted %}
   {% if rows %}
   <p class="muted">{{ total_meals }} meal(s) across {{ total_days }} distinct day(s){% if protein_only %} &middot; protein-containing foods only{% endif %}.</p>
+  <div class="mb-2">
+    <span class="muted me-2">Sort by:</span>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Sort">
+      <button type="submit" form="food-use-form" name="sort" value="frequency"
+              class="btn {% if sort == 'frequency' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Frequency</button>
+      <button type="submit" form="food-use-form" name="sort" value="food"
+              class="btn {% if sort == 'food' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Food</button>
+      <button type="submit" form="food-use-form" name="sort" value="id"
+              class="btn {% if sort == 'id' %}btn-primary{% else %}btn-outline-secondary{% endif %}">ID</button>
+    </div>
+  </div>
   <div class="table-responsive">
     <table class="table table-sm table-hover" style="max-width:52rem">
       <thead class="table-light">

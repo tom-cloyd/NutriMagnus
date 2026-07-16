@@ -188,6 +188,88 @@ class TestRecipes:
         with _db.get_db() as conn:
             assert _db.recipe_delete(conn, 9999) is False
 
+    def test_find_and_relink_broken_recipe_refs(self):
+        """Deleting a recipe that's used in a meal and as a sub-recipe leaves
+        dangling references; re-creating a recipe of the same name should be
+        able to find and relink both kinds of reference."""
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Stew", "", 4, "")
+            parent_rid = _db.recipe_create(conn, "Big Batch", "", 1, "")
+            _db.recipe_add_ingredient(conn, parent_rid, 0, "Stew", 1, "servings", ref_recipe_id=rid)
+            meal_id = _db.meal_create(conn, "Dinner", "2026-01-01")
+            _db.meal_add_recipe(conn, meal_id, rid, "Stew", 1)
+
+        with _db.get_db() as conn:
+            _db.recipe_delete(conn, rid)
+
+        with _db.get_db() as conn:
+            broken = _db.find_broken_recipe_refs(conn, "Stew")
+        assert len(broken["meals"]) == 1
+        assert broken["meals"][0]["meal_id"] == meal_id
+        assert len(broken["recipes"]) == 1
+        assert broken["recipes"][0]["recipe_id"] == parent_rid
+
+        with _db.get_db() as conn:
+            new_rid = _db.recipe_create(conn, "Stew", "", 4, "")
+            n_meals, n_recipes = _db.relink_recipe_refs(conn, "Stew", new_rid)
+        assert (n_meals, n_recipes) == (1, 1)
+
+        with _db.get_db() as conn:
+            broken_after = _db.find_broken_recipe_refs(conn, "Stew")
+            ings = _db.recipe_get_ingredients(conn, parent_rid)
+            item = _db.meal_get_items(conn, meal_id)[0]
+        assert broken_after == {"meals": [], "recipes": []}
+        assert ings[0]["ref_recipe_id"] == new_rid
+        assert ings[0]["ref_recipe_deleted"] == 0
+        assert item["recipe_id"] == new_rid
+
+    def test_relink_recipe_refs_ignores_unrelated_names(self):
+        """relink_recipe_refs must only touch rows matching the given name,
+        not other broken references that happen to exist."""
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Chili", "", 4, "")
+            meal_id = _db.meal_create(conn, "Lunch", "2026-01-02")
+            _db.meal_add_recipe(conn, meal_id, rid, "Chili", 1)
+            _db.recipe_delete(conn, rid)
+            new_rid = _db.recipe_create(conn, "Stew", "", 4, "")
+            n_meals, n_recipes = _db.relink_recipe_refs(conn, "Stew", new_rid)
+        assert (n_meals, n_recipes) == (0, 0)
+
+        with _db.get_db() as conn:
+            item = _db.meal_get_items(conn, meal_id)[0]
+        assert item["recipe_id"] == rid
+
+    def test_find_broken_recipe_refs_is_fuzzy_by_word(self):
+        """A broken reference stored as "Beef Stew" should surface when
+        creating a recipe named "Chicken Stew" (shared word "stew"), but not
+        when creating one named "Chicken Soup" (no shared word)."""
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Beef Stew", "", 4, "")
+            meal_id = _db.meal_create(conn, "Dinner", "2026-01-03")
+            _db.meal_add_recipe(conn, meal_id, rid, "Beef Stew", 1)
+            _db.recipe_delete(conn, rid)
+
+        with _db.get_db() as conn:
+            hit = _db.find_broken_recipe_refs(conn, "Chicken Stew")
+            miss = _db.find_broken_recipe_refs(conn, "Chicken Soup")
+        assert len(hit["meals"]) == 1
+        assert hit["meals"][0]["matched_name"] == "Beef Stew"
+        assert miss == {"meals": [], "recipes": []}
+
+    def test_list_all_broken_recipe_refs(self):
+        """list_all_broken_recipe_refs returns every dangling reference,
+        independent of any candidate name."""
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Chili", "", 4, "")
+            meal_id = _db.meal_create(conn, "Lunch", "2026-01-04")
+            _db.meal_add_recipe(conn, meal_id, rid, "Chili", 1)
+            _db.recipe_delete(conn, rid)
+
+        with _db.get_db() as conn:
+            broken = _db.list_all_broken_recipe_refs(conn)
+        assert len(broken["meals"]) == 1
+        assert broken["meals"][0]["matched_name"] == "Chili"
+
     def test_recipe_list_includes_dcp_g(self):
         """recipe_list rows must include a dcp_g field (None by default)."""
         with _db.get_db() as conn:
@@ -260,6 +342,48 @@ class TestMeals:
             items = _db.meal_get_items(conn, mid)
         assert items[0]["item_type"] == "recipe"
         assert items[0]["amount"] == 2.0
+
+    def test_expand_recipe_item_reflects_current_name_after_rename(self):
+        """meal_expand_food_items must show a recipe's CURRENT name, not the
+        name snapshot stored in meal_items at add-time, and must carry the
+        recipe_id through so callers can group/key by id rather than by a
+        name that can change later."""
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Chili", "", 4, "")
+            mid = _db.meal_create(conn, "Dinner", "2025-03-15")
+            _db.meal_add_recipe(conn, mid, rid, "Chili", 1.0)
+
+        with _db.get_db() as conn:
+            _db.recipe_update(conn, rid, "Chili Verde", "", 4, "")
+
+        with _db.get_db() as conn:
+            items = _db.meal_expand_food_items(conn, mid)
+        recipe_rows = [i for i in items if i[2] == "recipe"]
+        assert len(recipe_rows) == 1
+        fdc_id, name, kind, has_protein, deleted, recipe_id = recipe_rows[0]
+        assert name == "Chili Verde"
+        assert deleted is False
+        assert recipe_id == rid
+
+    def test_expand_recipe_item_keeps_recipe_id_after_delete(self):
+        """Even after the recipe is deleted, recipe_id (from meal_items) is
+        still surfaced — meal_items.recipe_id is a stable stale pointer, never
+        cleared on delete — so a "recipe (deleted)" row can still be grouped
+        consistently across multiple meals that used the same deleted recipe."""
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Chili", "", 4, "")
+            mid = _db.meal_create(conn, "Dinner", "2025-03-15")
+            _db.meal_add_recipe(conn, mid, rid, "Chili", 1.0)
+            _db.recipe_delete(conn, rid)
+
+        with _db.get_db() as conn:
+            items = _db.meal_expand_food_items(conn, mid)
+        recipe_rows = [i for i in items if i[2] == "recipe"]
+        assert len(recipe_rows) == 1
+        fdc_id, name, kind, has_protein, deleted, recipe_id = recipe_rows[0]
+        assert name == "Chili"
+        assert deleted is True
+        assert recipe_id == rid
 
     def test_list_by_date(self):
         with _db.get_db() as conn:

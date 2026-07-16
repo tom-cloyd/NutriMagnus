@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Broken Recipe References{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Broken references</li>
+  </ol>
+</nav>
+
+<h2>Broken Recipe References {{ manual_link("recipe-ingredients") }}</h2>
+<p class="muted">
+  Deleting a recipe doesn't erase where it was used — the meal or sub-recipe ingredient line stays
+  in place, showing the deleted recipe's original name, but no longer links to a live recipe.
+  Create a new recipe with a matching (or similar) name and you'll be offered a relink on its edit page.
+</p>
+
+{% if not meals and not recipes %}
+<p class="muted mt-3">None found.</p>
+{% else %}
+
+{% if meals %}
+<h5 class="mt-4">Meals</h5>
+<table class="table table-sm table-hover" style="max-width:44rem">
+  <thead class="table-light">
+    <tr>
+      <th>Deleted recipe name</th>
+      <th>Meal</th>
+      <th>Date</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in meals %}
+    <tr>
+      <td><strong>{{ row.matched_name }}</strong></td>
+      <td>{{ row.meal_name }}</td>
+      <td class="muted">{{ row.meal_date }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if recipes %}
+<h5 class="mt-4">Recipes</h5>
+<table class="table table-sm table-hover" style="max-width:44rem">
+  <thead class="table-light">
+    <tr>
+      <th>Deleted recipe name</th>
+      <th>Used as sub-recipe in</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in recipes %}
+    <tr>
+      <td><strong>{{ row.matched_name }}</strong></td>
+      <td>{{ row.recipe_name }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% endif %}
+{% endblock %}

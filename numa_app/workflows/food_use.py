@@ -107,8 +107,13 @@ def _do_food_use_analysis() -> None:
         with _db.get_db() as conn:
             items = _db.meal_expand_food_items(conn, meal_id)
         seen_this_meal = set()
-        for fdc_id, name, kind, has_protein, deleted in items:
-            key = (fdc_id, kind) if fdc_id is not None else (kind, name)
+        for fdc_id, name, kind, has_protein, deleted, recipe_id in items:
+            if fdc_id is not None:
+                key = (fdc_id, kind)
+            elif recipe_id is not None:
+                key = (kind, recipe_id)
+            else:
+                key = (kind, name)
             if key in seen_this_meal:
                 continue
             seen_this_meal.add(key)

@@ -1024,6 +1024,7 @@ def _menu_recipes() -> bool:
             ("3", "Develop a recipe  [grey62](add/remove ingredients with nutritional feedback)[/grey62]"),
             ("4", "Analyze a recipe portion  [grey62](saves analysis with date)[/grey62]"),
             ("5", "Search recipes  [grey62](filter by name · #N to pick)[/grey62]"),
+            ("6", "Broken recipe references  [grey62](meals/recipes still pointing to a deleted recipe)[/grey62]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -1043,12 +1044,60 @@ def _menu_recipes() -> bool:
             _safe_call(_do_recipe_analyze_portion)
         elif choice == "5":
             _safe_call(_do_recipe_search)
+        elif choice == "6":
+            _safe_call(_do_broken_recipe_refs)
         elif choice in ("m", "b"):
             return True
         elif choice == "q":
             return False
         else:
             state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+
+
+def _do_broken_recipe_refs() -> None:
+    """List every meal and recipe that still points to a deleted recipe.
+
+    These entries exist because deleting a recipe never removes the meal or
+    sub-recipe ingredient row that used it — it keeps the original name as a
+    snapshot and flags the row as broken instead. Re-creating a recipe under
+    a matching (or similar) name offers to relink these; this view is just
+    for browsing what's currently unlinked."""
+    with _db.get_db() as conn:
+        broken = _db.list_all_broken_recipe_refs(conn)
+
+    table_title("Broken recipe references",
+                "meals and recipes that still point to a recipe you deleted")
+    state.console.print(
+        "  [grey62]Deleting a recipe doesn't erase where it was used — the meal or sub-recipe\n"
+        "  ingredient line stays in place, showing the deleted recipe's original name, but no\n"
+        "  longer links to a live recipe. Create a new recipe with a matching name to be offered\n"
+        "  a relink.[/grey62]\n"
+    )
+
+    if not broken["meals"] and not broken["recipes"]:
+        state.console.print("  [grey62]None found.[/grey62]")
+        return
+
+    if broken["meals"]:
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("Deleted recipe name")
+        tbl.add_column("Meal")
+        tbl.add_column("Date")
+        for row in broken["meals"]:
+            tbl.add_row(row["matched_name"], row["meal_name"], row["meal_date"])
+        table_title("Meals")
+        state.console.print(tbl)
+
+    if broken["recipes"]:
+        tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
+        tbl.add_column("Deleted recipe name")
+        tbl.add_column("Used as sub-recipe in")
+        for row in broken["recipes"]:
+            tbl.add_row(row["matched_name"], row["recipe_name"])
+        table_title("Recipes")
+        state.console.print(tbl)
+
+    help_footer("recipe-ingredients")
 
 
 def _do_recipe_create() -> None:
@@ -1108,9 +1157,34 @@ def _do_recipe_create() -> None:
             total_volume, total_volume_unit, total_weight, total_weight_unit,
             serving_size, complete,
         )
+        broken = _db.find_broken_recipe_refs(conn, name)
 
     state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Recipe [{state.T['hi']}]{name}[/{state.T['hi']}] "
                   f"created (ID {recipe_id}).  Now add ingredients.")
+
+    matched_names = sorted({row["matched_name"] for row in broken["meals"] + broken["recipes"]})
+    if matched_names:
+        state.console.print(
+            f"\n  [{state.T['warning']}]⚠[/{state.T['warning']}] "
+            f"Found broken recipe references that may belong to [{state.T['hi']}]{name}[/{state.T['hi']}]:"
+        )
+        for matched_name in matched_names:
+            n_meals = len([r for r in broken["meals"] if r["matched_name"] == matched_name])
+            n_recipes = len([r for r in broken["recipes"] if r["matched_name"] == matched_name])
+            parts = []
+            if n_meals:
+                parts.append(f"{n_meals} meal(s)")
+            if n_recipes:
+                parts.append(f"{n_recipes} recipe(s)")
+            state.console.print(f"    [{state.T['hi']}]{matched_name}[/{state.T['hi']}]: {' and '.join(parts)}")
+            try:
+                relink = _prompt(f"Relink '{matched_name}' references to this new recipe?", choices=["y", "n"], default="y")
+            except Cancelled:
+                relink = "n"
+            if relink == "y":
+                with _db.get_db() as conn:
+                    m, r = _db.relink_recipe_refs(conn, matched_name, recipe_id)
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Relinked {m} meal item(s) and {r} recipe ingredient(s).")
 
     # Add ingredients loop
     while True:
