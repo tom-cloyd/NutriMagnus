@@ -27,6 +27,7 @@ Input sequence notation used in comments:
 import json
 import subprocess
 import sys
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -647,8 +648,8 @@ class TestMealsMenu:
     def test_p_command_computes_bcp_for_complete_meal(self, runner: NumaTestRunner, monkeypatch, cached_food):
         """Pressing p computes DCP and it appears in the table output."""
         self._setup_complete_meal(runner, monkeypatch)
-        # p=compute DCP → table re-renders with value → b=back → q=quit
-        result = runner.invoke(input="3\np\nb\nq\n")
+        # c=calculate, Enter=default "all meals and days" → table re-renders with value → b=back → q=quit
+        result = runner.invoke(input="3\nc\n\nb\nq\n")
         assert result.exit_code == 0
         # DCP value should appear as "XX.X g" in the output
         assert " g" in result.output
@@ -662,14 +663,14 @@ class TestMealsMenu:
         """Pressing p when no meals are complete shows an informative message."""
         _mock_api(monkeypatch)
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
-        result = runner.invoke(input="3\np\nb\nq\n")
+        result = runner.invoke(input="3\nc\n\nb\nq\n")
         assert result.exit_code == 0
         assert "No complete meals" in result.output
 
     def test_bcp_persists_across_sessions(self, runner: NumaTestRunner, monkeypatch, cached_food):
         """DCP computed via p is stored in the DB and shown in subsequent sessions."""
         self._setup_complete_meal(runner, monkeypatch)
-        runner.invoke(input="3\np\nb\nq\n")  # compute and store
+        runner.invoke(input="3\nc\n\nb\nq\n")  # compute and store
         # Fresh session: visit meals list without pressing p
         result = runner.invoke(input="3\nb\nq\n")
         assert result.exit_code == 0
@@ -686,7 +687,7 @@ class TestMealsMenu:
         runner.invoke(
             input="3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n100 g\n\n\nd\n6\nb\nq\n"
         )
-        runner.invoke(input="3\np\nb\nq\n")  # compute DCPs
+        runner.invoke(input="3\nc\n\nb\nq\n")  # compute DCPs
         with _db.get_db() as conn:
             meals = _db.meal_list_by_date(conn, "2025-03-15")
         bcps = [m["bcp_g"] for m in meals if m["bcp_g"] is not None]
@@ -709,7 +710,7 @@ class TestMealsMenu:
         for f in _profile._PROFILES_DIR.glob("*.json"):
             f.unlink()
         self._setup_complete_meal(runner, monkeypatch)
-        runner.invoke(input="3\np\nb\nq\n")
+        runner.invoke(input="3\nc\n\nb\nq\n")
         with _db.get_db() as conn:
             row = _db.meal_list_by_date(conn, "2025-03-15")[0]
         assert row["day_pct_goal"] is None
@@ -721,7 +722,7 @@ class TestMealsMenu:
         # Set up profile: age=35, sex=m, weight=80 kg, height=178 cm, activity=3
         runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         self._setup_complete_meal(runner, monkeypatch)
-        runner.invoke(input="3\np\nb\nq\n")
+        runner.invoke(input="3\nc\n\nb\nq\n")
         with _db.get_db() as conn:
             row = _db.meal_list_by_date(conn, "2025-03-15")[0]
         assert row["day_pct_goal"] is not None
@@ -741,7 +742,7 @@ class TestMealsMenu:
         runner.invoke(
             input="3\nn\n2025-03-15\nDinner\n1\nchicken\n1\n100 g\n\n\nd\n6\nb\nq\n"
         )
-        runner.invoke(input="3\np\nb\nq\n")
+        runner.invoke(input="3\nc\n\nb\nq\n")
         with _db.get_db() as conn:
             row = _db.meal_list_by_date(conn, "2025-03-15")[0]
         pct_str = f"{row['day_pct_goal']:.0f}%"
@@ -754,13 +755,52 @@ class TestMealsMenu:
         """day_pct_goal stored by p is visible in a later session without re-running p."""
         runner.invoke(input="5\n2\n35\nm\n80\n178\n3\nb\nq\n")
         self._setup_complete_meal(runner, monkeypatch)
-        runner.invoke(input="3\np\nb\nq\n")
+        runner.invoke(input="3\nc\n\nb\nq\n")
         with _db.get_db() as conn:
             row = _db.meal_list_by_date(conn, "2025-03-15")[0]
         stored_pct = row["day_pct_goal"]
         assert stored_pct is not None
         result = runner.invoke(input="3\nb\nq\n")
         assert f"{stored_pct:.0f}%" in result.output
+
+    def test_c_command_stores_calories_too(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """The c command computes and stores calories alongside DCP."""
+        self._setup_complete_meal(runner, monkeypatch)
+        result = runner.invoke(input="3\nc\n\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Calories" in result.output
+        with _db.get_db() as conn:
+            row = _db.meal_list_by_date(conn, "2025-03-15")[0]
+        assert row["calories"] is not None
+        assert row["calories"] > 0.0
+
+    def test_c_command_last_10_days_scope(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Choosing option 2 ('Last 10 days') still computes DCP/calories for a recent meal."""
+        today = date.today().isoformat()
+        _mock_api(monkeypatch)
+        runner.invoke(
+            input=f"3\nn\n{today}\nLunch\n1\nchicken\n1\n100 g\n\n\nd\n6\nb\nq\n"
+        )
+        # c=calculate → 3=last 10 days → b=back → q=quit
+        result = runner.invoke(input="3\nc\n3\nb\nq\n")
+        assert result.exit_code == 0
+        with _db.get_db() as conn:
+            row = _db.meal_list_by_date(conn, today)[0]
+        assert row["bcp_g"] is not None
+        assert row["calories"] is not None
+
+    def test_analyzing_a_meal_saves_dcp_and_calories(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Viewing 'Analyze this meal' persists DCP + calories without running c."""
+        self._setup_complete_meal(runner, monkeypatch)
+        with _db.get_db() as conn:
+            meal_id = _db.meal_list_by_date(conn, "2025-03-15")[0]["id"]
+        # v{id}=view meal → 4=analyze this meal → Enter=skip AA refresh prompt → b=back → b=back → q=quit
+        result = runner.invoke(input=f"3\nv{meal_id}\n4\nn\nb\nb\nq\n")
+        assert result.exit_code == 0
+        with _db.get_db() as conn:
+            row = _db.meal_get(conn, meal_id)
+        assert row["bcp_g"] is not None
+        assert row["calories"] is not None
 
 
 # ---------------------------------------------------------------------------

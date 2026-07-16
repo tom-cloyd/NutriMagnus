@@ -249,7 +249,7 @@ def init_db() -> None:
             )
         """)
 
-        for _col in ("bcp_g REAL", "bcp_computed_at TEXT", "day_pct_goal REAL"):
+        for _col in ("bcp_g REAL", "bcp_computed_at TEXT", "day_pct_goal REAL", "calories REAL"):
             try:
                 conn.execute(f"ALTER TABLE meals ADD COLUMN {_col}")
             except sqlite3.OperationalError:
@@ -915,6 +915,14 @@ def meal_list_complete(
     return conn.execute(f"SELECT * FROM meals WHERE {where} ORDER BY id", params).fetchall()
 
 
+def meal_list_complete_since(conn: sqlite3.Connection, since_date: str) -> list[sqlite3.Row]:
+    """Return all complete meals on or after since_date (YYYY-MM-DD)."""
+    return conn.execute(
+        "SELECT * FROM meals WHERE complete = 1 AND meal_date >= ? ORDER BY id",
+        (since_date,),
+    ).fetchall()
+
+
 def meal_get(conn: sqlite3.Connection, meal_id: int) -> sqlite3.Row | None:
     return conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
 
@@ -1070,10 +1078,11 @@ def meal_set_date(conn: sqlite3.Connection, meal_id: int, new_date: str) -> None
     conn.execute("UPDATE meals SET meal_date = ? WHERE id = ?", (new_date, meal_id))
 
 
-def meal_set_bcp(conn: sqlite3.Connection, meal_id: int, bcp_g: float | None) -> None:
+def meal_set_bcp(conn: sqlite3.Connection, meal_id: int, bcp_g: float | None,
+                 calories: float | None = None) -> None:
     conn.execute(
-        "UPDATE meals SET bcp_g=?, bcp_computed_at=datetime('now') WHERE id=?",
-        (bcp_g, meal_id),
+        "UPDATE meals SET bcp_g=?, calories=?, bcp_computed_at=datetime('now') WHERE id=?",
+        (bcp_g, calories, meal_id),
     )
 
 

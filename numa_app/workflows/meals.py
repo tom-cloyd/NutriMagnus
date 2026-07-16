@@ -4,7 +4,7 @@ Docs: README-numa-documentation.md, Menu Structure: "3. Meals & Log"
 """
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import diaas as _diaas
 
@@ -201,6 +201,23 @@ def _compute_meal_bcp(meal_id: int) -> float | None:
         return recipe_dcp_fallback(meal_id, conn)
 
 
+def _refresh_day_pct_goal(meal_date: str, protein_target: float | None) -> None:
+    """Recompute day_pct_goal for every complete meal on meal_date from stored bcp_g."""
+    with _db.get_db() as conn:
+        date_meals = _db.meal_list_by_date(conn, meal_date)
+    day_vals = [
+        dm["bcp_g"] for dm in date_meals
+        if dm["complete"] and dm["bcp_g"] is not None
+    ]
+    day_total = sum(day_vals) if day_vals else None
+    pct = (day_total / protein_target * 100.0
+           if day_total is not None and protein_target else None)
+    for dm in date_meals:
+        if dm["complete"]:
+            with _db.get_db() as conn:
+                _db.meal_set_day_pct_goal(conn, dm["id"], pct)
+
+
 def _print_meal_protein_summary(meal_id: int) -> None:
     """Print a one-line raw protein / DCP summary for use during meal editing."""
     nutrients = _compute_meal_nutrients(meal_id)
@@ -266,6 +283,7 @@ def _menu_meals() -> bool:
             tbl.add_column("Meal DCP",     justify="right",  min_width=8)
             tbl.add_column("Day DCP",      justify="right",  min_width=7)
             tbl.add_column("% profile goal", justify="left",  min_width=13)
+            tbl.add_column("Calories",     justify="right",  min_width=8)
             s = state.T["success"]
             dates_seen: set[str] = set()
             for m in page:
@@ -277,6 +295,13 @@ def _menu_meals() -> bool:
                     meal_bcp_cell = "[grey62]n/a[/grey62]"
                 else:
                     meal_bcp_cell = "[grey62]—[/grey62]"
+                calories = m["calories"]
+                if calories is not None:
+                    calories_cell = f"{calories:.0f}"
+                elif m["bcp_computed_at"] is not None:
+                    calories_cell = "[grey62]n/a[/grey62]"
+                else:
+                    calories_cell = "[grey62]—[/grey62]"
                 d = m["meal_date"]
                 if d not in dates_seen:
                     dv = day_bcp.get(d)
@@ -306,6 +331,7 @@ def _menu_meals() -> bool:
                     meal_bcp_cell,
                     day_bcp_cell,
                     goal_cell,
+                    calories_cell,
                 )
             state.console.print(tbl)
             state.console.print(
@@ -335,8 +361,7 @@ def _menu_meals() -> bool:
             state.console.print("  [grey62]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/grey62]", highlight=False)
             state.console.print("  [grey62]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/grey62]", highlight=False)
         state.console.print("  [grey62]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/grey62]", highlight=False)
-        state.console.print("  [grey62]  p ············  Compute/recompute DCP for all complete meals (shown and not shown)[/grey62]", highlight=False)
-        state.console.print("  [grey62]  p{N}-{M} ······  Compute DCP for complete meals in ID range  (e.g. p60-67)[/grey62]", highlight=False)
+        state.console.print("  [grey62]  c ············  Calculate DCP and calories (all meals and days / last 30 days / last 10 days)[/grey62]", highlight=False)
         if has_more:
             state.console.print("  [grey62]  mr ···········  Show next 15 older meals[/grey62]", highlight=False)
         state.console.print("  [grey62]  d{YYYY-MM-DD}   Jump to meals on or before a date  (e.g. d2025-03-15)[/grey62]", highlight=False)
@@ -361,52 +386,44 @@ def _menu_meals() -> bool:
         if rl == "s":
             _safe_call(_do_meal_food_search)
             continue
-        if rl == "p" or (rl.startswith("p") and len(rl) > 1 and rl[1:].replace("-", "").isdigit()):
-            id_min: int | None = None
-            id_max: int | None = None
-            if rl != "p":
-                range_str = rl[1:]
-                if "-" in range_str:
-                    parts = range_str.split("-", 1)
-                    try:
-                        id_min, id_max = int(parts[0]), int(parts[1])
-                    except ValueError:
-                        state.console.print(f"[{state.T['warning']}]Use p or p{{N}}-{{M}} (e.g. p60-67).[/{state.T['warning']}]")
-                        continue
-                else:
-                    try:
-                        id_min = id_max = int(range_str)
-                    except ValueError:
-                        state.console.print(f"[{state.T['warning']}]Use p or p{{N}}-{{M}} (e.g. p60-67).[/{state.T['warning']}]")
-                        continue
+        if rl == "c":
+            try:
+                scope = _prompt_with_options(
+                    "Calculate DCP and calories for",
+                    [
+                        ("1", "All meals and days"),
+                        ("2", "Last 30 days"),
+                        ("3", "Last 10 days"),
+                    ],
+                    default="1",
+                )
+            except Cancelled:
+                continue
             with _db.get_db() as conn:
-                to_compute = _db.meal_list_complete(conn, id_min=id_min, id_max=id_max)
+                if scope == "2":
+                    since = (date.today() - timedelta(days=29)).isoformat()
+                    to_compute = _db.meal_list_complete_since(conn, since)
+                elif scope == "3":
+                    since = (date.today() - timedelta(days=9)).isoformat()
+                    to_compute = _db.meal_list_complete_since(conn, since)
+                else:
+                    to_compute = _db.meal_list_complete(conn)
             if not to_compute:
                 state.console.print("  [grey62]No complete meals found in that range.[/grey62]")
                 continue
-            state.console.print(f"  [grey62]Computing DCP for {len(to_compute)} meal(s)…[/grey62]")
-            with state.console.status("[bold]Computing DCP…[/bold]", spinner="dots"):
+            state.console.print(f"  [grey62]Computing DCP and calories for {len(to_compute)} meal(s)…[/grey62]")
+            with state.console.status("[bold]Computing DCP and calories…[/bold]", spinner="dots"):
                 for m in to_compute:
                     bcp = _compute_meal_bcp(m["id"])
+                    nutrients = _compute_meal_nutrients(m["id"])
+                    calories = nutrients.get("calories") if nutrients else None
                     with _db.get_db() as conn:
-                        _db.meal_set_bcp(conn, m["id"], bcp)
+                        _db.meal_set_bcp(conn, m["id"], bcp, calories)
             # Update Day DCP totals for all affected dates.
             affected_dates = {m["meal_date"] for m in to_compute}
             for _d in affected_dates:
-                with _db.get_db() as conn:
-                    date_meals = _db.meal_list_by_date(conn, _d)
-                day_vals = [
-                    dm["bcp_g"] for dm in date_meals
-                    if dm["complete"] and dm["bcp_g"] is not None
-                ]
-                day_total = sum(day_vals) if day_vals else None
-                pct = (day_total / protein_target * 100.0
-                       if day_total is not None and protein_target else None)
-                for dm in date_meals:
-                    if dm["complete"]:
-                        with _db.get_db() as conn:
-                            _db.meal_set_day_pct_goal(conn, dm["id"], pct)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] DCP computed for {len(to_compute)} meal(s).")
+                _refresh_day_pct_goal(_d, protein_target)
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] DCP and calories computed for {len(to_compute)} meal(s).")
             continue
         if rl == "mr" and has_more:
             offset += _MEALS_PAGE
@@ -940,6 +957,13 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
 
     ing_list = _compute_meal_ingredient_list(meal_id)
     missing_aa, _dcp_g, meal_diaas = _print_meal_diaas(ing_list, profile=profile)
+
+    # Persist the calculated DCP and calories so they show up on Meals & Log.
+    with _db.get_db() as conn:
+        _db.meal_set_bcp(conn, meal_id, _dcp_g, nutrients.get("calories"))
+    protein_target = rda.get("protein_g", (0.0,))[0] if rda else None
+    _refresh_day_pct_goal(meal_date, protein_target if protein_target else None)
+
     if missing_aa:
         pbn = {
             ing["food_name"]: ing["nutrients_100g"].get("protein_g", 0.0) * ing["grams"] / 100.0

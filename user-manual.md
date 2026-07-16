@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-15:2044* / Reading 2 hours, 17 minutes
+*Updated 2026-07-16:1029* / Reading 2 hours, 17 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -955,17 +955,21 @@ Columns:
                     on the topmost row for each date only.
     % profile goal  Day DCP as a percentage of your daily protein target.
                     Shown on the topmost row for each date only.
+    Calories        Calories for this meal alone.
 
-[DCP](#gloss-dcp) values start as -- and are computed on demand.
+[DCP](#gloss-dcp) and Calories values start as -- and are computed on demand.
+Analyzing a meal (option 4 in the meal action loop, or command a{id}) also
+saves its DCP and calories automatically.
 
-    --    DCP not yet computed. Press p to compute for all complete meals
-          currently shown (results are saved permanently).
-    n/a   DCP was computed but no amino acid data was available for any
-          ingredient.
+    --    Not yet computed. Press c to calculate for all complete meals,
+          the last 30 days, or the last 10 days (results are saved
+          permanently).
+    n/a   Computed but no amino acid data (DCP) or nutrient data (calories)
+          was available.
 
 % profile goal requires a user profile (Settings -> User profile). Blank if no profile is set.
 
-Commands: n=new  v{id}=view/edit  a{id}=analyze  d{id}=delete   s=search history  p=compute [DCP](#gloss-dcp)  mr=next 15 older  ml=15 newer   d{YYYY-MM-DD}=jump to date
+Commands: n=new  v{id}=view/edit  a{id}=analyze  d{id}=delete   s=search history  c=calculate [DCP](#gloss-dcp) and calories  mr=next 15 older  ml=15 newer   d{YYYY-MM-DD}=jump to date
 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein). See [daily nutrient goals](#goals) to see how your daily protein target is calculated.
 

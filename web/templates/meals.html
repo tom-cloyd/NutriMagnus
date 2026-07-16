@@ -37,9 +37,17 @@
     {% endif %}
   </form>
   <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
-  <form method="post" action="/meals/compute-bcp">
+  <form method="post" action="/meals/compute-bcp" class="d-flex gap-2 align-items-end">
     <input type="hidden" name="redirect_to" value="/meals{% if date_filter %}?date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
-    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute DCP for all complete meals</button>
+    <div>
+      <label class="form-label mb-1" for="compute-scope">Calculate DCP and calories for</label>
+      <select class="form-select form-select-sm" id="compute-scope" name="scope">
+        <option value="all">All meals and days</option>
+        <option value="30">Last 30 days</option>
+        <option value="10">Last 10 days</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Calculate</button>
   </form>
   <small class="muted">DCP = bioavailable (digestible) complete protein{% if protein_target %} · goal = {{ protein_target|int }} g/day{% endif %}</small>
 </div>
@@ -67,6 +75,7 @@
       <th class="num-col" title="Digestible Complete Protein for this meal">Meal DCP</th>
       <th class="num-col" title="Sum of DCP across all complete meals on this date">Day DCP</th>
       {% if protein_target %}<th class="num-col" title="Day DCP ÷ {{ protein_target|int }} g daily target">% goal</th>{% endif %}
+      <th class="num-col">Calories</th>
     </tr>
   </thead>
   <tbody>
@@ -108,6 +117,15 @@
         {% endif %}
       </td>
       {% endif %}
+      <td class="num-col">
+        {% if meal.calories is not none %}
+          {{ "%.0f"|format(meal.calories) }}
+        {% elif meal.bcp_computed_at %}
+          <span class="muted">n/a</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>

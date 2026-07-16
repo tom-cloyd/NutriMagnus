@@ -2366,18 +2366,34 @@ def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None]:
 # ---------------------------------------------------------------------------
 
 def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
-    """Compute DIAAS-based DCP for a meal and persist it. Returns dcp_g or None.
+    """Compute DIAAS-based DCP and calories for a meal and persist them. Returns dcp_g or None.
 
     Falls back to summing recipe items' precomputed dcp_g when ingredient-level
     AA data is unavailable (matches the CLI's _compute_meal_bcp fallback)."""
-    _, _, diaas_result = _meal_totals(meal_id)
+    _, total_nutrients, diaas_result = _meal_totals(meal_id)
     diaas = _build_diaas_display(diaas_result)
     bcp_g = diaas["dcp_g"] if diaas else None
+    calories = total_nutrients.get("calories") if total_nutrients else None
     with _db.get_db() as conn:
         if bcp_g is None:
             bcp_g = recipe_dcp_fallback(meal_id, conn)
-        _db.meal_set_bcp(conn, meal_id, bcp_g)
+        _db.meal_set_bcp(conn, meal_id, bcp_g, calories)
     return bcp_g
+
+
+def _refresh_day_pct_goal(meal_date: str, protein_target: float | None) -> None:
+    """Recompute day_pct_goal for every complete meal on meal_date from stored bcp_g."""
+    with _db.get_db() as conn:
+        date_rows = _db.meal_list_by_date(conn, meal_date)
+    vals = [r["bcp_g"] for r in date_rows if r["complete"] and r["bcp_g"] is not None]
+    if not vals or not protein_target:
+        pct = None
+    else:
+        pct = round(sum(vals) / protein_target * 100, 1)
+    for dr in date_rows:
+        if dr["complete"]:
+            with _db.get_db() as conn:
+                _db.meal_set_day_pct_goal(conn, dr["id"], pct)
 
 
 def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | None) -> dict:
@@ -2435,40 +2451,30 @@ async def meals_list(request: Request, show_all: bool = False, date: str = ""):
 
 
 @app.post("/meals/compute-bcp", response_class=RedirectResponse)
-async def meals_compute_bcp(redirect_to: str = Form("/meals")):
-    """Recompute and persist DCP for all complete meals that lack a stored value."""
+async def meals_compute_bcp(redirect_to: str = Form("/meals"), scope: str = Form("all")):
+    """Recompute and persist DCP + calories for complete meals in the chosen scope
+    (all meals and days / last 30 days / last 10 days)."""
     with _db.get_db() as conn:
-        all_meals = _db.meal_list_recent(conn, limit=10000)
+        if scope == "30":
+            since = (datetime.date.today() - datetime.timedelta(days=29)).isoformat()
+            to_compute = _db.meal_list_complete_since(conn, since)
+        elif scope == "10":
+            since = (datetime.date.today() - datetime.timedelta(days=9)).isoformat()
+            to_compute = _db.meal_list_complete_since(conn, since)
+        else:
+            to_compute = _db.meal_list_complete(conn)
+
+    for meal in to_compute:
+        _compute_and_store_meal_bcp(meal["id"])
+
     rda = _load_rda()
     protein_target: float | None = None
     if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
         protein_target = rda["protein_g"][0]
 
-    for meal in all_meals:
-        if not meal["complete"]:
-            continue
-        _compute_and_store_meal_bcp(meal["id"])
-
-    # Now persist day_pct_goal for every complete meal
-    if protein_target:
-        with _db.get_db() as conn:
-            all_meals2 = _db.meal_list_recent(conn, limit=10000)
-        dates_seen: set[str] = set()
-        for meal in all_meals2:
-            if not meal["complete"] or meal["meal_date"] in dates_seen:
-                continue
-            dates_seen.add(meal["meal_date"])
-            with _db.get_db() as conn:
-                date_rows = _db.meal_list_by_date(conn, meal["meal_date"])
-            vals = [r["bcp_g"] for r in date_rows if r["complete"] and r["bcp_g"] is not None]
-            if not vals:
-                continue
-            day_bcp_g = sum(vals)
-            pct = round(day_bcp_g / protein_target * 100, 1)
-            for dr in date_rows:
-                if dr["complete"]:
-                    with _db.get_db() as conn:
-                        _db.meal_set_day_pct_goal(conn, dr["id"], pct)
+    affected_dates = {meal["meal_date"] for meal in to_compute}
+    for meal_date in affected_dates:
+        _refresh_day_pct_goal(meal_date, protein_target)
 
     return RedirectResponse(redirect_to, status_code=303)
 
@@ -2688,6 +2694,13 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
             daily_nutrients = total_nutrients
 
     diaas_display = _build_diaas_display(diaas_result)
+
+    # Persist the calculated DCP and calories so they show up on Meals & Log.
+    _compute_and_store_meal_bcp(meal_id)
+    if meal["complete"]:
+        protein_target = rda["protein_g"][0] if rda and rda.get("protein_g") and rda["protein_g"][0] > 0 else None
+        _refresh_day_pct_goal(meal["meal_date"], protein_target)
+
     aa_nutrients   = _meal_aa_nutrients(meal_id)
     gl_total, gl_blockers = _compute_gl(meal_id)
 
