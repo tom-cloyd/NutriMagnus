@@ -50,9 +50,9 @@ class TestValidateAndStrip:
         assert stripped == []
 
     def test_strips_unknown_keys(self):
-        clean, stripped = validate_and_strip({"calories": 100, "selenium_mcg": 40})
+        clean, stripped = validate_and_strip({"calories": 100, "molybdenum_mcg": 40})
         assert clean == {"calories": 100.0}
-        assert stripped == ["selenium_mcg"]
+        assert stripped == ["molybdenum_mcg"]
 
     def test_strips_non_numeric_values(self):
         clean, stripped = validate_and_strip({"calories": 100, "protein_g": "unknown"})

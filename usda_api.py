@@ -41,6 +41,8 @@ NUTRIENT_MAP: dict[int, tuple[str, str, str]] = {
     1092: ("potassium_mg",      "Potassium",          "mg"),
     1093: ("sodium_mg",         "Sodium",             "mg"),
     1095: ("zinc_mg",           "Zinc",               "mg"),
+    1100: ("iodine_mcg",        "Iodine",             "mcg"),
+    1103: ("selenium_mcg",      "Selenium",           "mcg"),
     # Vitamins
     1106: ("vitamin_a_mcg",     "Vitamin A",          "mcg RAE"),
     1162: ("vitamin_c_mg",      "Vitamin C",          "mg"),

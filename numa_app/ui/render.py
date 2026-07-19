@@ -21,6 +21,7 @@ from ..services import complements as _complements
 from ..services.portions import amount_note as _amount_note
 from ..services.portions import volume_hint as _volume_hint
 from ..services.rda_status import rda_status, limit_warning
+from ..services.diet_aware import b12_deficiency_note, iron_zinc_bioavailability_note
 from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
@@ -133,7 +134,7 @@ def _get_daily_context(
     profile = _profile.load_profile()
     if not profile:
         return None, None, None, None
-    rda = _profile.compute_rda(profile)
+    rda = _profile.compute_rda(profile, diet_pref=state._diet_pref)
     optimal = _profile.compute_optimal(profile)
     max_limits = _profile.get_max_limits(profile)
     today = meal_date or _date.today().isoformat()
@@ -178,7 +179,7 @@ def _print_nutrient_table(
         ]),
         ("Minerals", [
             "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-            "potassium_mg", "sodium_mg", "zinc_mg",
+            "potassium_mg", "sodium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg",
         ]),
         ("Vitamins", [
             "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
@@ -301,10 +302,14 @@ def _print_nutrient_table(
         if max_limits:
             state.console.print(
                 f"  [grey62]Highlighted nutrient in [/grey62][{state.T['warning']}]yellow[/{state.T['warning']}]"
-                f"[grey62] = day total within 10% of your max limit; in [/grey62][{state.T['error']}]red[/{state.T['error']}]"
+                f"[grey62] = day total within 10% of its max limit (your custom setting, or a built-in safe upper limit"
+                f" where you haven't set one); in [/grey62][{state.T['error']}]red[/{state.T['error']}]"
                 f"[grey62] = at/over it[/grey62]"
             )
             help_footer("maxlimits")
+    if any(k in nutrients for k in
+           ("omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg")):
+        help_footer("omega3")
     help_footer("nutrients")
 
 
@@ -776,7 +781,7 @@ def _print_bioavailability(food_name: str, nutrients: dict[str, float]) -> None:
 
 def _print_complement_suggestions(
     base_nutrients: dict[str, float],
-    context: str = "meal",  # "recipe", "meal", "daily", "food"
+    context: str = "meal",  # "recipe", "meal", "daily", "food", "trend"
     offer_if_covered: bool = False,  # kept for call-site compat, no longer used
     base_food_name: str | None = None,
     basis_label: str | None = None,  # e.g. "per serving" or "whole recipe (7 servings)"
@@ -878,6 +883,9 @@ def _print_complement_suggestions(
     elif context == "daily":
         add_verb = "Add to your day"
         pair_verb = "Pair with a meal"
+    elif context == "trend":
+        add_verb = "Add to upcoming meals"
+        pair_verb = "Pair with an upcoming meal"
     elif context == "food":
         add_verb = "Add to food above"
         pair_verb = "Serve alongside"
@@ -1481,9 +1489,11 @@ def _print_dcp_adequacy_section(
 
 def _print_rda_targets(profile: "_profile.UserProfile") -> None:
     """Print a table of personalized daily nutrient targets derived from the user's profile."""
-    rda = _profile.compute_rda(profile)
+    rda = _profile.compute_rda(profile, diet_pref=state._diet_pref)
     optimal = _profile.compute_optimal(profile)
-    max_limits = _profile.get_max_limits(profile)
+    max_limits = dict(profile.max_limits)
+    built_in_limits = {k: v for k, v in _profile.compute_upper_limits(profile).items()
+                        if k not in max_limits}
 
     section_title("Daily Nutrient Targets")
     state.console.print(
@@ -1495,9 +1505,9 @@ def _print_rda_targets(profile: "_profile.UserProfile") -> None:
     )
 
     groups = [
-        ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g"]),
+        ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "omega3_ala_mg"]),
         ("Minerals", ["calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-                      "potassium_mg", "sodium_mg", "zinc_mg"]),
+                      "potassium_mg", "sodium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg"]),
         ("Vitamins", ["vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
                       "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
                       "b6_mg", "folate_mcg", "b12_mcg", "choline_mg"]),
@@ -1543,36 +1553,55 @@ def _print_rda_targets(profile: "_profile.UserProfile") -> None:
         "  [grey62]Minimum = daily requirement  ·  Target = recommended intake  ·  Limit = upper safe intake[/grey62]",
         "  [grey62]Targets are personalized to your age, sex, weight, height, and activity level.[/grey62]",
     )
+    diet_note = iron_zinc_bioavailability_note(state._diet_pref)
+    if diet_note:
+        state.console.print(f"  [{state.T['warning']}]{diet_note}[/{state.T['warning']}]", highlight=False)
+        help_footer("diet-bioavailability")
     if optimal:
         table_footer("  [grey62]Optimal = your custom Profile Optimal target, where configured — see Settings → Nutrient targets[/grey62]")
         help_footer("optimal")
 
-    if max_limits:
+    def _print_limit_table(title: str, entries: dict[str, float]) -> None:
         state.console.print()
-        table_title("Your custom max limits")
+        table_title(title)
         limit_tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
         limit_tbl.add_column("Nutrient", min_width=_RDA_W, max_width=_RDA_W, no_wrap=True)
         limit_tbl.add_column("Max limit", justify="right", min_width=14)
-        for key, val in max_limits.items():
+        for key, val in entries.items():
             label_info = _usda.nutrient_label(key)
             label = label_info[0] if label_info else key.replace("_", " ").title()
             unit = label_info[1] if label_info else ""
             limit_tbl.add_row(dot_cell(label, _RDA_W), f"{val:.1f} {unit}")
         state.console.print(limit_tbl, highlight=False)
+
+    if max_limits:
+        _print_limit_table("Your custom max limits", max_limits)
+    if built_in_limits:
+        _print_limit_table("Built-in safe upper limits (applied automatically unless you set your own above)",
+                            built_in_limits)
+    if max_limits or built_in_limits:
         help_footer("maxlimits")
 
     help_footer("goals")
 
 
-def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserProfile") -> None:
+def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserProfile", *,
+                          title: str = "Daily Intake vs. Recommended Values",
+                          intake_label: str = "Intake") -> None:
     """Print a table comparing daily nutrient totals against personalized RDA (and, where
-    configured, Profile Optimal) targets, flagging any nutrient near a custom max limit."""
-    rda = _profile.compute_rda(profile)
+    configured, Profile Optimal) targets, flagging any nutrient near a custom max limit.
+
+    title/intake_label let callers reuse this for non-daily comparisons — e.g. the
+    multi-day nutrient trend view passes an N-day average in `nutrients` with an
+    "N-day Average" intake_label, so the exact same status coloring, diet-aware
+    notes, and Optimal/max-limit columns apply without duplicating this function.
+    """
+    rda = _profile.compute_rda(profile, diet_pref=state._diet_pref)
     optimal = _profile.compute_optimal(profile)
     max_limits = _profile.get_max_limits(profile)
     nutrient_label = _usda.nutrient_label  # (key) → (label, unit) | None
 
-    section_title("Daily Intake vs. Recommended Values")
+    section_title(title)
     state.console.print(
         f"  Profile: age {profile.age}  ·  {profile.sex}"
         f"  ·  {_profile.format_weight(profile.weight_kg, profile.weight_unit)}"
@@ -1584,7 +1613,7 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
     _RDA_W = 30
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("Nutrient",  min_width=_RDA_W, max_width=_RDA_W, no_wrap=True)
-    tbl.add_column("Intake",    justify="right", min_width=12)
+    tbl.add_column(intake_label, justify="right", min_width=12)
     tbl.add_column("Target",    justify="right", min_width=12)
     tbl.add_column("% of RDA",  justify="right", min_width=10)
     tbl.add_column("Status",    min_width=28)
@@ -1593,6 +1622,7 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
         tbl.add_column("% of Optimal",   justify="right", min_width=12)
 
     BAR_WIDTH = 16
+    b12_pct: "float | None" = None
 
     for key, (rda_val, unit, rda_type) in rda.items():
         intake = nutrients.get(key, 0.0)
@@ -1603,6 +1633,9 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
             pct = (intake / rda_val) * 100.0
         else:
             pct = 0.0
+
+        if key == "b12_mcg":
+            b12_pct = pct
 
         # Format intake and target
         if unit in ("kcal", "g"):
@@ -1657,4 +1690,16 @@ def _print_rda_comparison(nutrients: dict[str, float], profile: "_profile.UserPr
         help_footer("optimal")
     if max_limits:
         help_footer("maxlimits")
+
+    diet_note = iron_zinc_bioavailability_note(state._diet_pref)
+    if diet_note:
+        state.console.print(f"\n  [{state.T['warning']}]{diet_note}[/{state.T['warning']}]", highlight=False)
+        help_footer("diet-bioavailability")
+
+    if b12_pct is not None:
+        b12_note = b12_deficiency_note(state._diet_pref, b12_pct)
+        if b12_note:
+            state.console.print(f"\n  [{state.T['error']}]⚠ {b12_note}[/{state.T['error']}]", highlight=False)
+            help_footer("diet-bioavailability")
+
     help_footer("rda")

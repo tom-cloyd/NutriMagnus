@@ -115,6 +115,9 @@
     <span class="rda-low">Grey</span> = below 70% &nbsp;
     <span class="rda-over">Red</span> = over the recommended limit.
   </small></p>
+  {% if diet_bioavailability_note %}
+  <p class="rda-near mt-1"><small>{{ diet_bioavailability_note }} {{ manual_link("diet-bioavailability") }}</small></p>
+  {% endif %}
   <table class="nutrient-table">
     <thead>
       <tr>
@@ -304,6 +307,9 @@
   {% if saved == 'nutrient_target' %}
   <p class="status-met mt-2"><strong>&#10003; Nutrient target saved.</strong></p>
   {% endif %}
+  {% if saved == 'nutrient_target_defaults' %}
+  <p class="status-met mt-2"><strong>&#10003; Loaded recommended optimal targets</strong> for any nutrient you hadn't already customized.</p>
+  {% endif %}
 
   {% if nutrient_target_rows %}
   <p class="mt-2 muted"><small>
@@ -314,6 +320,11 @@
     is within 10% of it, the nutrient is highlighted. {{ manual_link("maxlimits") }}
     Leave a field blank and save to clear it.
   </small></p>
+  <form method="post" action="/settings/nutrient-target/load-defaults" class="mt-2">
+    <button type="submit" class="btn btn-outline-secondary btn-sm">Load recommended optimal targets</button>
+    <span class="muted"><small>Fills in commonly-cited targets (e.g. Vitamin D, EPA+DHA) for nutrients you haven't
+      already customized. General guidance, not personalized medical advice — review and adjust freely.</small></span>
+  </form>
   <table class="table table-sm table-hover mt-2" style="max-width:700px">
     <thead class="table-light">
       <tr>

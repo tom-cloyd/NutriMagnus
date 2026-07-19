@@ -28,6 +28,21 @@ import db as _db
 import profile as _profile
 
 
+def nutrient_target_menu_index(key: str) -> str:
+    """Return the 1-based menu index (as a string) for `key` in the Settings →
+    Nutrient targets list, computed from the live group definitions so tests
+    don't hardcode numbers that silently go stale whenever a nutrient is added
+    to numa_app.workflows.settings._NUTRIENT_TARGET_GROUPS."""
+    from numa_app.workflows.settings import _NUTRIENT_TARGET_GROUPS
+    idx = 1
+    for _group_name, keys in _NUTRIENT_TARGET_GROUPS:
+        for k in keys:
+            if k == key:
+                return str(idx)
+            idx += 1
+    raise KeyError(f"{key!r} not found in _NUTRIENT_TARGET_GROUPS")
+
+
 # ---------------------------------------------------------------------------
 # Sample data
 # ---------------------------------------------------------------------------

@@ -311,7 +311,22 @@ def bmr(profile: UserProfile) -> float:
         return base - 78.0
 
 
-def compute_rda(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
+# IOM/NIH ODS-cited bioavailability adjustments for diets without heme iron
+# (meat/fish/poultry) or with phytate-heavy staples that inhibit zinc
+# absorption. Applied as a multiplier on the RDA itself — the standard way
+# this guidance is expressed (e.g. "vegetarians may need up to 1.8x the iron
+# RDA of non-vegetarians"), not as a discount on measured intake. "all" gets
+# no adjustment; "vegetarian" and "plant_only" share the same multipliers —
+# lacto-ovo vegetarians still lack heme iron, and legumes/grains (the shared
+# staple across both patterns) are the primary source of the phytate effect
+# on zinc, not meat's absence specifically.
+_DIET_AWARE_RDA_MULTIPLIERS: dict[str, dict[str, float]] = {
+    "vegetarian": {"iron_mg": 1.8, "zinc_mg": 1.5},
+    "plant_only": {"iron_mg": 1.8, "zinc_mg": 1.5},
+}
+
+
+def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple[float, str, str]]:
     """
     Compute personalized Dietary Reference Intake targets from a UserProfile.
 
@@ -323,6 +338,13 @@ def compute_rda(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
 
     Only nutrients tracked in usda.NUTRIENT_MAP are included.
     Amino acids and phytonutrients without established DRIs are excluded.
+
+    `diet_pref` ("all" | "vegetarian" | "plant_only", default "all") bumps
+    the iron and zinc RDA to reflect reduced dietary bioavailability on
+    vegetarian/plant-based patterns — see _DIET_AWARE_RDA_MULTIPLIERS and
+    manual topic ?diet-bioavailability. This is the same state.state._diet_pref
+    value used elsewhere for complement-suggestion filtering; callers pass it
+    through explicitly since profile.py itself has no dependency on app state.
 
     Sources: NIH Office of Dietary Supplements; USDA 2020-2025 Dietary
     Guidelines; Institute of Medicine Dietary Reference Intakes.
@@ -383,6 +405,12 @@ def compute_rda(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
     # Zinc (RDA)
     zinc_mg = 11.0 if male else 8.0 if female else 9.5
 
+    # Iodine (RDA): 150 mcg, adults of any sex
+    iodine_mcg = 150.0
+
+    # Selenium (RDA): 55 mcg, adults of any sex
+    selenium_mcg = 55.0
+
     # Vitamin A (RDA, mcg RAE)
     vitamin_a_mcg = 900.0 if male else 700.0 if female else 800.0
 
@@ -417,6 +445,16 @@ def compute_rda(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
     # Phosphorus (RDA)
     phosphorus_mg = 700.0
 
+    # Omega-3 ALA (AI). No official DRI exists for direct EPA/DHA intake —
+    # only ALA has an established Adequate Intake. See usda docs / manual
+    # topic ?omega3 for the ALA-to-EPA/DHA conversion caveat this implies,
+    # especially for plant-based diets relying on ALA as their only source.
+    omega3_ala_mg = 1600.0 if male else 1100.0 if female else 1350.0
+
+    diet_multipliers = _DIET_AWARE_RDA_MULTIPLIERS.get(diet_pref, {})
+    iron_mg = round(iron_mg * diet_multipliers.get("iron_mg", 1.0), 1)
+    zinc_mg = round(zinc_mg * diet_multipliers.get("zinc_mg", 1.0), 1)
+
     return {
         # Macros
         "calories":      (float(calories), "kcal", "target"),
@@ -424,6 +462,7 @@ def compute_rda(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
         "carbs_g":       (130.0,           "g",    "minimum"),
         "fiber_g":       (fiber_g,         "g",    "minimum"),
         "sodium_mg":     (2300.0,          "mg",   "limit"),
+        "omega3_ala_mg": (omega3_ala_mg,   "mg",   "minimum"),
         # Minerals
         "calcium_mg":    (calcium_mg,      "mg",   "minimum"),
         "iron_mg":       (iron_mg,         "mg",   "minimum"),
@@ -431,6 +470,8 @@ def compute_rda(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
         "phosphorus_mg": (phosphorus_mg,   "mg",   "minimum"),
         "potassium_mg":  (potassium_mg,    "mg",   "minimum"),
         "zinc_mg":       (zinc_mg,         "mg",   "minimum"),
+        "iodine_mcg":    (iodine_mcg,      "mcg",  "minimum"),
+        "selenium_mcg":  (selenium_mcg,    "mcg",  "minimum"),
         # Vitamins
         "vitamin_a_mcg": (vitamin_a_mcg,   "mcg",  "minimum"),
         "vitamin_c_mg":  (vitamin_c_mg,    "mg",   "minimum"),
@@ -464,6 +505,66 @@ def compute_optimal(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
     return result
 
 
+def compute_optimal_defaults(profile: UserProfile) -> dict[str, float]:
+    """
+    Return a small curated set of "optimal" starting values for nutrients
+    where a widely-cited target above (or in place of) the standard RDA
+    exists, but isn't itself an official DRI compute_rda() could compute.
+
+    This is a starting point for Settings → Nutrient targets' "load
+    recommended optimal targets" action, not personalized medical advice —
+    the user can review and adjust every value, or skip nutrients entirely.
+
+    Deliberately narrow: only nutrients with a specific, commonly-cited
+    numeric target are included. Amino acids are excluded on purpose — their
+    adequacy already depends on total protein intake and is evaluated by the
+    app's FAO/DIAAS amino-acid scoring system (see ?diaas, ?fao), not a flat
+    daily gram target; a static "optimal" AA value here would duplicate and
+    could contradict that more accurate per-meal analysis.
+
+    Sources (population-general, not age/condition-specific):
+      - Vitamin D: many clinicians recommend 1000-2000 IU/day (25-50 mcg) for
+        general adults, well above the 15-20 mcg RDA — the same example used
+        in the Profile Optimal Targets manual topic (?optimal).
+      - EPA + DHA: no official DRI exists (see ?omega3), but ~250-500 mg/day
+        combined is common guidance (e.g. ISSFAL); split evenly here.
+    """
+    return {
+        "vitamin_d_mcg": 50.0,
+        "omega3_epa_mg": 250.0,
+        "omega3_dha_mg": 250.0,
+    }
+
+
+def compute_upper_limits(profile: UserProfile) -> dict[str, float]:
+    """
+    Return built-in Tolerable Upper Intake Levels (UL) for nutrients where daily
+    excess carries a known risk, independent of the "limit"-type rows already in
+    compute_rda() (currently just sodium). These apply automatically as the
+    default max limit for any nutrient the user hasn't explicitly capped
+    themselves — see get_max_limits().
+
+    These are fixed adult values (not age/sex-adjusted) per NIH Office of
+    Dietary Supplements Dietary Reference Intake tables.
+
+    Note: the vitamin_a_mcg UL applies specifically to preformed vitamin A
+    (retinol); usda.NUTRIENT_MAP's vitamin_a_mcg is mcg RAE, which folds in
+    provitamin-A carotenoids that carry no comparable toxicity risk. Treat this
+    UL as a conservative approximation, not a precise clinical threshold.
+    """
+    return {
+        "iron_mg":      45.0,
+        "zinc_mg":      40.0,
+        "vitamin_a_mcg": 3000.0,
+        "b6_mg":        100.0,
+        "iodine_mcg":   1100.0,
+        "selenium_mcg": 400.0,
+    }
+
+
 def get_max_limits(profile: UserProfile) -> dict[str, float]:
-    """Return the user's configured per-day max limits: nutrient_key -> cap value."""
-    return dict(profile.max_limits)
+    """Return per-day max limits: built-in Tolerable Upper Intake Levels merged
+    with the user's own configured caps, which take precedence where both exist.
+    Use profile.max_limits directly (not this function) when you need only the
+    user's explicit settings — e.g. the Settings editor."""
+    return {**compute_upper_limits(profile), **profile.max_limits}

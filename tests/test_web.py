@@ -9,15 +9,18 @@ use_test_prefs) from conftest.py for DB/profile isolation, plus a
 web-specific fixture below since web/backend.py keeps its own _PREFS_FILE
 module constant rather than sharing numa_app.config.prefs._PREFS_FILE.
 """
+import datetime
 import json
 import pathlib
 
 import pytest
 from fastapi.testclient import TestClient
 
+import db as _db
 import diaas as _diaas
 import profile as _profile
 import web.backend as backend
+from tests.conftest import SAMPLE_NUTRIENTS
 from tests.test_cli import _mock_api
 
 
@@ -229,6 +232,46 @@ def test_settings_profile_update(client: TestClient) -> None:
     assert profile.sex == "female"
 
 
+def test_summary_shows_diet_aware_notes_for_plant_only(client: TestClient, cached_food) -> None:
+    client.post("/settings/diet", data={"diet_pref": "plant_only"}, follow_redirects=False)
+
+    resp = client.post(
+        "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+
+    resp = client.get("/summary/2026-07-11")
+    assert resp.status_code == 200
+    assert "iron and zinc" in resp.text.lower()
+    # SAMPLE_NUTRIENTS has no b12_mcg key → 0 intake → well under 50% of RDA
+    assert "B12" in resp.text
+    assert "supplement or fortified food" in resp.text
+
+
+def test_summary_shows_no_diet_notes_for_all_animal_foods(client: TestClient, cached_food) -> None:
+    resp = client.post(
+        "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+
+    resp = client.get("/summary/2026-07-11")
+    assert resp.status_code == 200
+    assert "iron and zinc" not in resp.text.lower()
+    assert "supplement or fortified food" not in resp.text
+
+
 def test_optimal_and_max_limit_columns_render(client: TestClient, cached_food, db_conn) -> None:
     """Configuring a Profile Optimal target and a max limit adds the corresponding
     columns/rows to the food, meal, and daily-summary nutrient tables without error."""
@@ -289,6 +332,107 @@ def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
     )
     profile = _profile.load_profile()
     assert profile.optimal_targets == {}
+
+
+def test_settings_nutrient_target_load_defaults(client: TestClient) -> None:
+    resp = client.post("/settings/nutrient-target/load-defaults", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/settings?saved=nutrient_target_defaults"
+    profile = _profile.load_profile()
+    assert profile.optimal_targets == {
+        "vitamin_d_mcg": 50.0,
+        "omega3_epa_mg": 250.0,
+        "omega3_dha_mg": 250.0,
+    }
+
+    resp = client.get("/settings?saved=nutrient_target_defaults")
+    assert "Loaded recommended optimal targets" in resp.text
+
+
+def test_settings_nutrient_target_load_defaults_skips_customized(client: TestClient) -> None:
+    client.post(
+        "/settings/nutrient-target",
+        data={"key": "vitamin_d_mcg", "optimal": "99", "limit": ""},
+        follow_redirects=False,
+    )
+    client.post("/settings/nutrient-target/load-defaults", follow_redirects=False)
+    profile = _profile.load_profile()
+    assert profile.optimal_targets["vitamin_d_mcg"] == 99.0
+    assert profile.optimal_targets["omega3_epa_mg"] == 250.0
+
+
+def test_summary_trend_no_meals(client: TestClient) -> None:
+    resp = client.get("/summary/trend")
+    assert resp.status_code == 200
+    assert "No meals logged between" in resp.text
+
+
+def test_summary_trend_averages_across_logged_days(client: TestClient, cached_food) -> None:
+    today = datetime.date.today().isoformat()
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+
+    for i, meal_date in enumerate((today, yesterday)):
+        resp = client.post(
+            "/meals/create", data={"name": f"Meal {i}", "meal_date": meal_date},
+            follow_redirects=False,
+        )
+        meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+        client.post(
+            f"/meal/{meal_id}/add",
+            data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+            follow_redirects=False,
+        )
+
+    resp = client.get("/summary/trend?days=7")
+    assert resp.status_code == 200
+    assert "Averaging over 2 logged day(s) out of the last 7" in resp.text
+    assert "2-Day Avg" in resp.text
+    assert "Protein" in resp.text
+
+    # Invalid days value falls back to 7, not a 500
+    resp = client.get("/summary/trend?days=999")
+    assert resp.status_code == 200
+
+
+def test_summary_trend_shows_pooled_complement_suggestions(client: TestClient) -> None:
+    """A lysine gap spread across two logged days is pooled and shown with
+    forward-looking 'upcoming meals' framing on the trend page."""
+    low_lysine = dict(SAMPLE_NUTRIENTS)
+    low_lysine["aa_lysine_g"] = 0.6  # push below the FAO reference to create a real gap
+    fdc_id = 900002
+
+    with _db.get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json) VALUES (?, ?, ?, ?)",
+            (fdc_id, "Low-lysine test food", "SR Legacy", json.dumps(low_lysine)),
+        )
+        conn.commit()
+        today = datetime.date.today().isoformat()
+        yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        for d in (today, yesterday):
+            meal_id = _db.meal_create(conn, "Lunch", d)
+            _db.meal_add_food(conn, meal_id, fdc_id, "Low-lysine test food", 150.0, "g")
+        conn.commit()
+
+    resp = client.get("/summary/trend?days=7")
+    assert resp.status_code == 200
+    assert "Protein Complement Suggestions" in resp.text
+    assert "Add to upcoming meals" in resp.text
+
+
+def test_settings_diet_pref_raises_iron_zinc_rda(client: TestClient) -> None:
+    # Baseline: use_test_web_prefs defaults to include_animal_foods=True → "all"
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    assert "<td>Iron</td>\n        <td class=\"num-col\">8.0</td>" in resp.text
+    assert "<td>Zinc</td>\n        <td class=\"num-col\">11.0</td>" in resp.text
+
+    client.post("/settings/diet", data={"diet_pref": "plant_only"}, follow_redirects=False)
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    # male_35 fixture profile: iron 8.0*1.8=14.4, zinc 11.0*1.5=16.5
+    assert "<td>Iron</td>\n        <td class=\"num-col\">14.4</td>" in resp.text
+    assert "<td>Zinc</td>\n        <td class=\"num-col\">16.5</td>" in resp.text
 
 
 def test_settings_profile_update_preserves_nutrient_targets(client: TestClient) -> None:

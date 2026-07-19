@@ -29,7 +29,7 @@ _GROUPS: list[tuple[str, list[str]]] = [
     ]),
     ("Minerals", [
         "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-        "potassium_mg", "sodium_mg", "zinc_mg",
+        "potassium_mg", "sodium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg",
     ]),
     ("Vitamins", [
         "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",

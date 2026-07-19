@@ -249,6 +249,8 @@ _DRAFT_MINERALS = [
     ("phosphorus_mg",    "Phosphorus",          "mg"),
     ("potassium_mg",     "Potassium",           "mg"),
     ("zinc_mg",          "Zinc",                "mg"),
+    ("iodine_mcg",       "Iodine",              "mcg"),
+    ("selenium_mcg",     "Selenium",            "mcg"),
 ]
 
 _DRAFT_VITAMINS = [

@@ -27,7 +27,7 @@ Input sequence notation used in comments:
 import json
 import subprocess
 import sys
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -45,6 +45,7 @@ from tests.conftest import (
     SAMPLE_NUTRIENTS_2,
     SAMPLE_SEARCH_RESULTS,
     NumaTestRunner,
+    nutrient_target_menu_index,
 )
 
 
@@ -313,10 +314,11 @@ class TestFoodsMenu:
         """Configuring a Profile Optimal target for Vitamin D adds the 'Profile Optimal'
         column group to the food nutrient table."""
         _mock_api(monkeypatch)
-        # Settings(5) → Nutrient targets(9) → Vitamin D(14) → Optimal target(1) → 50 → back(b) → main(m)
+        idx = nutrient_target_menu_index("vitamin_d_mcg")
+        # Settings(5) → Nutrient targets(9) → Vitamin D → Optimal target(1) → 50 → back(b) → main(m)
         # → Foods(1) → Search(1) → chicken → pick 1 → n (skip portion) → b → q
         result = runner.invoke(
-            input="5\n9\n14\n1\n50\nb\nm\n1\n1\nchicken\n1\nn\nb\nq\n"
+            input=f"5\n9\n{idx}\n1\n50\nb\nm\n1\n1\nchicken\n1\nn\nb\nq\n"
         )
         assert result.exit_code == 0
         assert "Profile Optimal" in result.output
@@ -887,6 +889,22 @@ class TestDietaryPrefs:
         result = runner.invoke(input="5\n4\n\nb\nq\n")
         assert result.exit_code == 0
 
+    def test_plant_only_shows_iron_zinc_bioavailability_note_on_goals_screen(
+        self, runner: NumaTestRunner
+    ):
+        # Settings(5) → Dietary prefs(4) → 3=plant-based only → back(b)
+        # → View goals(3) → back(b) → q
+        result = runner.invoke(input="5\n4\n3\nb\n3\nb\nq\n")
+        assert result.exit_code == 0
+        assert "iron and zinc" in result.output.lower()
+        assert "?diet-bioavailability" in result.output
+
+    def test_all_animal_foods_shows_no_bioavailability_note(self, runner: NumaTestRunner):
+        # Default diet_pref is "all" — the goals screen shouldn't mention it.
+        result = runner.invoke(input="5\n3\nb\nq\n")
+        assert result.exit_code == 0
+        assert "iron and zinc" not in result.output.lower()
+
 
 # ---------------------------------------------------------------------------
 # _volume_hint
@@ -954,24 +972,27 @@ class TestNutrientTargetsSettings:
         assert "nutrient targets" in result.output.lower()
 
     def test_set_optimal_target_saves_to_profile(self, runner: NumaTestRunner):
-        # Settings(5) → Nutrient targets(9) → Vitamin D(14) → Optimal target(1) → 50 → back(b) → back(b) → q
-        result = runner.invoke(input="5\n9\n14\n1\n50\nb\nb\nq\n")
+        idx = nutrient_target_menu_index("vitamin_d_mcg")
+        # Settings(5) → Nutrient targets(9) → Vitamin D → Optimal target(1) → 50 → back(b) → back(b) → q
+        result = runner.invoke(input=f"5\n9\n{idx}\n1\n50\nb\nb\nq\n")
         assert result.exit_code == 0
         saved = _profile._PROFILES_DIR / "Default.json"
         data = json.loads(saved.read_text())
         assert data["optimal_targets"] == {"vitamin_d_mcg": 50.0}
 
     def test_set_max_limit_saves_to_profile(self, runner: NumaTestRunner):
-        # Settings(5) → Nutrient targets(9) → Sodium(5) → Max limit(2) → 2000 → back(b) → back(b) → q
-        result = runner.invoke(input="5\n9\n5\n2\n2000\nb\nb\nq\n")
+        idx = nutrient_target_menu_index("sodium_mg")
+        # Settings(5) → Nutrient targets(9) → Sodium → Max limit(2) → 2000 → back(b) → back(b) → q
+        result = runner.invoke(input=f"5\n9\n{idx}\n2\n2000\nb\nb\nq\n")
         assert result.exit_code == 0
         saved = _profile._PROFILES_DIR / "Default.json"
         data = json.loads(saved.read_text())
         assert data["max_limits"] == {"sodium_mg": 2000.0}
 
     def test_clear_optimal_target(self, runner: NumaTestRunner):
-        runner.invoke(input="5\n9\n14\n1\n50\nb\nb\nq\n")
-        result = runner.invoke(input="5\n9\n14\n3\nb\nb\nq\n")
+        idx = nutrient_target_menu_index("vitamin_d_mcg")
+        runner.invoke(input=f"5\n9\n{idx}\n1\n50\nb\nb\nq\n")
+        result = runner.invoke(input=f"5\n9\n{idx}\n3\nb\nb\nq\n")
         assert result.exit_code == 0
         saved = _profile._PROFILES_DIR / "Default.json"
         data = json.loads(saved.read_text())
@@ -983,6 +1004,29 @@ class TestNutrientTargetsSettings:
         result = runner.invoke(input="5\n9\nb\nq\n")
         assert result.exit_code == 0
         assert "no profile set" in result.output.lower()
+
+    def test_load_recommended_optimal_defaults(self, runner: NumaTestRunner):
+        # Settings(5) → Nutrient targets(9) → l=load defaults → back(b) → q
+        result = runner.invoke(input="5\n9\nl\nb\nq\n")
+        assert result.exit_code == 0
+        assert "loaded recommended optimal targets" in result.output.lower()
+        saved = _profile._PROFILES_DIR / "Default.json"
+        data = json.loads(saved.read_text())
+        assert data["optimal_targets"] == {
+            "vitamin_d_mcg": 50.0,
+            "omega3_epa_mg": 250.0,
+            "omega3_dha_mg": 250.0,
+        }
+
+    def test_load_recommended_optimal_defaults_skips_customized(self, runner: NumaTestRunner):
+        idx = nutrient_target_menu_index("vitamin_d_mcg")
+        # Set a custom Vitamin D target first, then load defaults — it must survive untouched.
+        result = runner.invoke(input=f"5\n9\n{idx}\n1\n99\nl\nb\nq\n")
+        assert result.exit_code == 0
+        saved = _profile._PROFILES_DIR / "Default.json"
+        data = json.loads(saved.read_text())
+        assert data["optimal_targets"]["vitamin_d_mcg"] == 99.0
+        assert data["optimal_targets"]["omega3_epa_mg"] == 250.0
 
     def test_set_profile_saves_file(self, runner: NumaTestRunner):
         """Walking through the profile form saves a JSON file."""
@@ -1073,24 +1117,28 @@ class TestDailySummaryRDA:
     def test_rda_comparison_shows_optimal_and_max_limit_help(
         self, runner: NumaTestRunner, monkeypatch, cached_food
     ):
-        """With an Optimal target and a max limit configured, the RDA comparison
-        table's help footers mention both topics; without them, neither appears."""
+        """With an Optimal target and a custom max limit configured, the RDA
+        comparison table's help footers mention both topics."""
         _mock_api(monkeypatch)
-        # Settings(5) → Nutrient targets(9) → Sodium(5) → Max limit(2) → 50 → back(b) → quit
-        runner.invoke(input="5\n9\n5\n2\n50\nb\nq\n")
+        idx = nutrient_target_menu_index("sodium_mg")
+        # Settings(5) → Nutrient targets(9) → Sodium → Max limit(2) → 50 → back(b) → quit
+        runner.invoke(input=f"5\n9\n{idx}\n2\n50\nb\nq\n")
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
         assert "?maxlimits" in result.output
 
-    def test_rda_comparison_no_max_limit_help_when_unset(
+    def test_rda_comparison_shows_max_limit_help_from_built_in_uls_alone(
         self, runner: NumaTestRunner, monkeypatch, cached_food
     ):
+        """Built-in safe upper limits (iron, zinc, vitamin A, B6, iodine,
+        selenium) apply automatically even when the user hasn't configured any
+        max limit themselves, so the help footer still appears."""
         _mock_api(monkeypatch)
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         result = runner.invoke(input="4\n1\n2\n2025-03-15\nn\ny\nb\nq\n")
         assert result.exit_code == 0
-        assert "?maxlimits" not in result.output
+        assert "?maxlimits" in result.output
 
     def test_rda_comparison_decline_skips_table(
         self, runner: NumaTestRunner, monkeypatch, cached_food
@@ -1102,6 +1150,77 @@ class TestDailySummaryRDA:
         assert result.exit_code == 0
         # Table header should not appear
         assert "% of RDA" not in result.output
+
+
+class TestNutrientTrend:
+    def test_no_profile_shows_message(self, runner: NumaTestRunner):
+        for f in _profile._PROFILES_DIR.glob("*.json"):
+            f.unlink()
+        # Analysis(4) → Daily summary(1) → N-day trend(4) → back(b) → q
+        result = runner.invoke(input="4\n1\n4\nb\nq\n")
+        assert result.exit_code == 0
+        assert "no profile set" in result.output.lower()
+
+    def test_no_meals_in_window_shows_message(self, runner: NumaTestRunner):
+        # Analysis(4) → Daily summary(1) → N-day trend(4) → 1=last 7 days → back(b) → q
+        result = runner.invoke(input="4\n1\n4\n1\nb\nq\n")
+        assert result.exit_code == 0
+        assert "no meals logged between" in result.output.lower()
+
+    def test_averages_across_logged_days(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Logging the same food on today and yesterday shows a 2-day average,
+        not a 7-day average diluted by unlogged days."""
+        _mock_api(monkeypatch)
+        today = date.today().isoformat()
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        for d in (today, yesterday):
+            runner.invoke(input=f"3\nn\n{d}\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+
+        result = runner.invoke(input="4\n1\n4\n1\nb\nq\n")
+        assert result.exit_code == 0
+        assert "averaging over 2 logged day(s) out of the last 7" in result.output.lower()
+        assert "2-day average" in result.output.lower()
+        assert "Protein" in result.output
+
+    def test_complete_protein_shows_no_complement_suggestions(
+        self, runner: NumaTestRunner, monkeypatch, cached_food
+    ):
+        """Chicken breast (SAMPLE_NUTRIENTS) has no amino acid gaps, so the
+        pooled multi-day complement section stays silent (silent_if_complete)."""
+        _mock_api(monkeypatch)
+        today = date.today().isoformat()
+        runner.invoke(input=f"3\nn\n{today}\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="4\n1\n4\n1\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Protein Complement Suggestions" not in result.output
+
+    def test_pooled_gap_across_days_shows_complement_suggestions(
+        self, runner: NumaTestRunner, db_conn
+    ):
+        """A lysine gap that shows up across multiple logged days (not just
+        one) is pooled and surfaced with forward-looking 'upcoming meals'
+        framing, not the single-day 'add to your day' framing."""
+        low_lysine = dict(SAMPLE_NUTRIENTS)
+        low_lysine["aa_lysine_g"] = 0.6  # push below the FAO reference to create a real gap
+        fdc_id = 900001
+        db_conn.execute(
+            "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json) VALUES (?, ?, ?, ?)",
+            (fdc_id, "Low-lysine test food", "SR Legacy", json.dumps(low_lysine)),
+        )
+        db_conn.commit()
+
+        today = date.today().isoformat()
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        with _db.get_db() as conn:
+            for d in (today, yesterday):
+                meal_id = _db.meal_create(conn, "Lunch", d)
+                _db.meal_add_food(conn, meal_id, fdc_id, "Low-lysine test food", 150.0, "g")
+
+        result = runner.invoke(input="4\n1\n4\n1\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Protein Complement Suggestions" in result.output
+        assert "pooled across 2 logged day(s)" in result.output
+        assert "Add to upcoming meals" in result.output
 
 
 # ---------------------------------------------------------------------------

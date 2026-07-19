@@ -9,7 +9,9 @@ import pytest
 
 import profile as _profile
 from profile import (
-    UserProfile, compute_rda, compute_optimal, get_max_limits, load_profile, save_profile, bmr,
+    UserProfile, compute_rda, compute_optimal, compute_optimal_defaults,
+    compute_upper_limits, get_max_limits,
+    load_profile, save_profile, bmr,
     parse_weight, parse_height, format_weight, format_height,
     lb_to_kg, kg_to_lb, ftin_to_cm, cm_to_ftin,
 )
@@ -183,13 +185,53 @@ class TestComputeOptimal:
         assert rda_type == "target"
 
 
-class TestMaxLimits:
-    def test_empty_when_unset(self, male_35):
-        assert get_max_limits(male_35) == {}
+class TestComputeOptimalDefaults:
+    def test_expected_nutrients_and_values(self, male_35):
+        assert compute_optimal_defaults(male_35) == {
+            "vitamin_d_mcg": 50.0,
+            "omega3_epa_mg": 250.0,
+            "omega3_dha_mg": 250.0,
+        }
 
-    def test_returns_configured_limits(self, male_35):
+    def test_excludes_amino_acids(self, male_35):
+        defaults = compute_optimal_defaults(male_35)
+        assert not any(k.startswith("aa_") for k in defaults)
+
+    def test_fixed_regardless_of_age_or_sex(self, male_35, female_55):
+        assert compute_optimal_defaults(male_35) == compute_optimal_defaults(female_55)
+
+
+class TestComputeUpperLimits:
+    def test_expected_nutrients_and_values(self, male_35):
+        uls = compute_upper_limits(male_35)
+        assert uls == {
+            "iron_mg": 45.0,
+            "zinc_mg": 40.0,
+            "vitamin_a_mcg": 3000.0,
+            "b6_mg": 100.0,
+            "iodine_mcg": 1100.0,
+            "selenium_mcg": 400.0,
+        }
+
+    def test_fixed_regardless_of_age_or_sex(self, male_35, female_55):
+        assert compute_upper_limits(male_35) == compute_upper_limits(female_55)
+
+
+class TestMaxLimits:
+    def test_returns_built_in_upper_limits_when_unset(self, male_35):
+        # Built-in ULs (iron, zinc, vitamin A, B6, iodine, selenium) apply
+        # automatically even when the user has configured nothing themselves.
+        assert get_max_limits(male_35) == compute_upper_limits(male_35)
+
+    def test_user_configured_limit_added_alongside_built_ins(self, male_35):
         male_35.max_limits = {"sodium_mg": 2000.0}
-        assert get_max_limits(male_35) == {"sodium_mg": 2000.0}
+        result = get_max_limits(male_35)
+        assert result["sodium_mg"] == 2000.0
+        assert result["iron_mg"] == compute_upper_limits(male_35)["iron_mg"]
+
+    def test_user_configured_limit_overrides_built_in(self, male_35):
+        male_35.max_limits = {"zinc_mg": 25.0}
+        assert get_max_limits(male_35)["zinc_mg"] == 25.0
 
     def test_returns_copy_not_reference(self, male_35):
         male_35.max_limits = {"sodium_mg": 2000.0}
@@ -314,6 +356,54 @@ class TestSodiumLimit:
         assert rda["sodium_mg"][0] == pytest.approx(2300.0)
         assert rda["sodium_mg"][1] == "mg"
         assert rda["sodium_mg"][2] == "limit"
+
+
+class TestOmega3Ala:
+    def test_male_1600mg(self, male_35):
+        rda = compute_rda(male_35)
+        assert rda["omega3_ala_mg"] == (1600.0, "mg", "minimum")
+
+    def test_female_1100mg(self, female_55):
+        rda = compute_rda(female_55)
+        assert rda["omega3_ala_mg"] == (1100.0, "mg", "minimum")
+
+    def test_no_epa_or_dha_target(self, male_35):
+        # No official DRI exists for direct EPA/DHA intake — only ALA has one.
+        rda = compute_rda(male_35)
+        assert "omega3_epa_mg" not in rda
+        assert "omega3_dha_mg" not in rda
+
+
+class TestDietAwareIronZinc:
+    def test_default_diet_pref_is_all_no_adjustment(self, male_35):
+        rda_default = compute_rda(male_35)
+        rda_explicit = compute_rda(male_35, diet_pref="all")
+        assert rda_default["iron_mg"] == rda_explicit["iron_mg"]
+
+    def test_vegetarian_bumps_iron_and_zinc(self, male_35):
+        base = compute_rda(male_35, diet_pref="all")
+        veg = compute_rda(male_35, diet_pref="vegetarian")
+        assert veg["iron_mg"][0] == pytest.approx(base["iron_mg"][0] * 1.8, rel=1e-6)
+        assert veg["zinc_mg"][0] == pytest.approx(base["zinc_mg"][0] * 1.5, rel=1e-6)
+        # unit and rda_type are unaffected
+        assert veg["iron_mg"][1:] == base["iron_mg"][1:]
+
+    def test_plant_only_matches_vegetarian_multipliers(self, male_35):
+        veg = compute_rda(male_35, diet_pref="vegetarian")
+        plant = compute_rda(male_35, diet_pref="plant_only")
+        assert veg["iron_mg"][0] == plant["iron_mg"][0]
+        assert veg["zinc_mg"][0] == plant["zinc_mg"][0]
+
+    def test_other_nutrients_unaffected_by_diet_pref(self, male_35):
+        base = compute_rda(male_35, diet_pref="all")
+        veg = compute_rda(male_35, diet_pref="vegetarian")
+        for key in ("calcium_mg", "vitamin_d_mcg", "protein_g", "calories"):
+            assert base[key] == veg[key]
+
+    def test_unknown_diet_pref_falls_back_to_no_adjustment(self, male_35):
+        base = compute_rda(male_35, diet_pref="all")
+        unknown = compute_rda(male_35, diet_pref="something_bogus")
+        assert base["iron_mg"] == unknown["iron_mg"]
 
 
 # ---------------------------------------------------------------------------

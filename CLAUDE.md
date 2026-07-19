@@ -179,9 +179,9 @@ saturated_fat_g, mono_fat_g, poly_fat_g
 # Omega fatty acids (mg)
 omega3_ala_mg, omega3_epa_mg, omega3_dha_mg, omega6_la_mg
 
-# Minerals (mg)
+# Minerals (mg, except iodine/selenium which are mcg)
 calcium_mg, iron_mg, magnesium_mg, phosphorus_mg,
-potassium_mg, sodium_mg, zinc_mg
+potassium_mg, sodium_mg, zinc_mg, iodine_mcg, selenium_mcg
 
 # Vitamins
 vitamin_a_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,

@@ -19,6 +19,28 @@ from ..ui.common import _safe_call, _show_menu, table_title, table_footer, help_
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float
 from ..ui.render import _print_rda_targets
 
+# Nutrients offered for Profile Optimal / max-limit configuration in Settings —
+# mirrors web/backend.py's _NUTRIENT_TARGET_GROUPS. Every nutrient here is
+# settable, not just ones with an established RDA/AI (compute_rda's key set) —
+# amino acids, EPA/DHA, and phytonutrients have no official DRI but are still
+# valid Optimal target or max-limit candidates (see manual topic ?omega3 for
+# why this matters for EPA/DHA specifically).
+_NUTRIENT_TARGET_GROUPS: list[tuple[str, list[str]]] = [
+    ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg",
+                         "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"]),
+    ("Minerals", ["calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
+                  "potassium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg"]),
+    ("Vitamins", ["vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+                  "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
+                  "b6_mg", "folate_mcg", "b12_mcg", "choline_mg"]),
+    ("Phytonutrients", ["beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
+                        "lutein_zeaxanthin_mcg", "beta_sitosterol_mg", "isoflavones_mg"]),
+    ("Amino Acids", ["aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
+                     "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
+                     "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g"]),
+]
+
+
 def _do_diaas_overrides() -> None:
     """Manage per-food protein digestibility overrides for DIAAS calculation."""
     table_title("PROTEIN DIGESTIBILITY OVERRIDES")
@@ -436,6 +458,34 @@ def _do_view_goals() -> None:
     _print_rda_targets(profile)
 
 
+def _load_recommended_optimal_defaults(profile: "_profile.UserProfile") -> None:
+    """Apply profile.compute_optimal_defaults() to any nutrient the user hasn't
+    already customized, save, and report what changed."""
+    defaults = _profile.compute_optimal_defaults(profile)
+    applied: list[str] = []
+    for key, val in defaults.items():
+        if key in profile.optimal_targets:
+            continue
+        profile.optimal_targets[key] = val
+        applied.append(key)
+
+    if not applied:
+        state.console.print(
+            f"\n  [grey62]All recommended nutrients already have a custom Optimal target — nothing to load.[/grey62]"
+        )
+        return
+
+    _profile.save_profile(profile)
+    state.console.print(f"\n  [{state.T['success']}]✓ Loaded recommended optimal targets:[/{state.T['success']}]")
+    for key in applied:
+        label, unit = _usda.nutrient_label(key)
+        state.console.print(f"    {label}: {defaults[key]:.1f} {unit}", highlight=False)
+    state.console.print(
+        "\n  [grey62]These are commonly-cited general guidance, not personalized medical advice —"
+        " review and adjust any of them individually below.[/grey62]"
+    )
+
+
 def _do_nutrient_targets() -> None:
     """Manage per-nutrient Profile Optimal targets and custom max limits."""
     profile = _profile.load_profile()
@@ -445,24 +495,16 @@ def _do_nutrient_targets() -> None:
         )
         return
 
-    groups = [
-        ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg"]),
-        ("Minerals", ["calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-                      "potassium_mg", "zinc_mg"]),
-        ("Vitamins", ["vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
-                      "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
-                      "b6_mg", "folate_mcg", "b12_mcg", "choline_mg"]),
-    ]
+    groups = _NUTRIENT_TARGET_GROUPS
 
     while True:
-        rda = _profile.compute_rda(profile)
         state.console.print()
         table_title("Nutrient targets",
                      "custom Profile Optimal targets and max limits, layered on top of your standard RDA")
         idx = 1
         numbered: dict[str, str] = {}
         for group_name, keys in groups:
-            present = [k for k in keys if k in rda]
+            present = list(keys)
             if not present:
                 continue
             state.console.print(f"\n  [{state.T['hi']}]{group_name}[/{state.T['hi']}]")
@@ -482,11 +524,17 @@ def _do_nutrient_targets() -> None:
 
         state.console.print()
         try:
-            choice = _prompt("Nutrient #  [grey62](Enter/b=back)[/grey62]", default="").strip()
+            choice = _prompt(
+                "Nutrient #  [grey62](Enter/b=back, l=load recommended optimal targets)[/grey62]",
+                default="",
+            ).strip()
         except Cancelled:
             return
         if not choice or choice.lower() in ("b", "m", "q"):
             return
+        if choice.lower() == "l":
+            _load_recommended_optimal_defaults(profile)
+            continue
         key = numbered.get(choice)
         if key is None:
             state.console.print(f"[{state.T['warning']}]Unrecognized number.[/{state.T['warning']}]")

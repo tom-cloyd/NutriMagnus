@@ -2,14 +2,15 @@
 summary.py — Daily summary - DCP and goals: today's, by-date, and recent-days nutrient summaries with RDA comparison.
 Docs: README-numa-documentation.md, Menu Structure: "4. Analysis"
 """
-from datetime import date
+from datetime import date, timedelta
 
 import db as _db
 import profile as _profile
 import usda as _usda
 from rich.table import Table
 from .. import state
-from ..ui.common import _safe_call, _show_menu, section_title, table_footer, help_footer
+from ..services.nutrient_trend import average_from_daily_totals
+from ..ui.common import _safe_call, _show_menu, _prompt_with_options, section_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, _ask_date, _prompt
 from ..ui.render import _print_complement_suggestions, _print_meal_diaas, _print_nutrient_table, _print_protein_adequacy, _print_rda_comparison
 from .meals import _compute_meal_ingredient_list, _compute_meal_nutrients
@@ -21,6 +22,7 @@ def _menu_daily_summary() -> bool:
             ("1", "Today's summary"),
             ("2", "Summary for a specific date"),
             ("3", "Recent days  (list dates with meals)"),
+            ("4", "N-day nutrient trend  (average vs. RDA — spot chronic shortfalls)"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -41,6 +43,8 @@ def _menu_daily_summary() -> bool:
                 _safe_call(_do_daily_summary, d)
         elif choice == "3":
             _safe_call(_do_list_recent_days)
+        elif choice == "4":
+            _safe_call(_do_nutrient_trend)
         elif choice == "m":
             return True
         elif choice == "q":
@@ -69,7 +73,7 @@ def _do_daily_summary(meal_date: str) -> None:
         return
     meal_names = ", ".join(m["name"] for m in meals)
     user_profile = _profile.load_profile()
-    rda = _profile.compute_rda(user_profile) if user_profile else None
+    rda = _profile.compute_rda(user_profile, diet_pref=state._diet_pref) if user_profile else None
     optimal = _profile.compute_optimal(user_profile) if user_profile else None
     max_limits = _profile.get_max_limits(user_profile) if user_profile else None
     _print_nutrient_table(combined, title=f"Daily Total — {meal_date}",
@@ -152,3 +156,76 @@ def _do_list_recent_days() -> None:
         footer_lines.append("  [grey62]Set a user profile (Settings) to see % of daily protein goal[/grey62]")
     table_footer(*footer_lines)
     help_footer("dcp")
+
+
+def _do_nutrient_trend() -> None:
+    """N-day average nutrient intake vs. RDA — surfaces chronic shortfalls
+    (B12, iron, iodine, vitamin D, ...) that a single day's snapshot can't."""
+    user_profile = _profile.load_profile()
+    if not user_profile:
+        state.console.print(
+            "\n  [grey62]No profile set. Go to Settings → User profile to compare against RDA targets.[/grey62]"
+        )
+        return
+
+    try:
+        window = _prompt_with_options(
+            "Average over how many days?",
+            [("1", "Last 7 days"), ("2", "Last 14 days"), ("3", "Last 30 days")],
+            default="1",
+        )
+    except Cancelled:
+        return
+    days = {"1": 7, "2": 14, "3": 30}.get(window)
+    if days is None:
+        return
+
+    end = date.today()
+    start = end - timedelta(days=days - 1)
+
+    with _db.get_db() as conn:
+        meals = _db.meal_list_by_date_range(conn, start.isoformat(), end.isoformat())
+
+    daily_totals: dict[str, dict[str, float]] = {}
+    all_ings: list[dict] = []
+    for meal in meals:
+        nutrients = _compute_meal_nutrients(meal["id"])
+        if nutrients:
+            day = daily_totals.setdefault(meal["meal_date"], {})
+            for key, val in nutrients.items():
+                day[key] = day.get(key, 0.0) + val
+        all_ings.extend(_compute_meal_ingredient_list(meal["id"]))
+
+    avg_nutrients, num_days = average_from_daily_totals(daily_totals)
+    if num_days == 0:
+        state.console.print(
+            f"\n  [grey62]No meals logged between {start.isoformat()} and {end.isoformat()}.[/grey62]"
+        )
+        return
+
+    state.console.print(
+        f"\n  [grey62]Averaging over {num_days} logged day(s) out of the last {days} "
+        f"calendar day(s) ({start.isoformat()} to {end.isoformat()}).[/grey62]"
+    )
+    _print_rda_comparison(
+        avg_nutrients, user_profile,
+        title=f"{num_days}-Day Average vs. Recommended Values",
+        intake_label=f"{num_days}-Day Avg",
+    )
+    help_footer("trend")
+
+    # Pool amino acids across the whole window (not averaged — gap scoring is
+    # a ratio to total protein, so the pooled total and a per-day average
+    # produce identical gaps; the pooled total also reflects what's actually
+    # available to complement across the real foods logged in the window).
+    aa_nutrients = _usda.sum_nutrients(*[
+        _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
+        for ing in all_ings
+        if _usda.has_amino_acid_data(ing["nutrients_100g"])
+    ]) if all_ings else {}
+    if aa_nutrients:
+        _print_complement_suggestions(
+            aa_nutrients, context="trend",
+            basis_label=f"pooled across {num_days} logged day(s)",
+            silent_if_complete=True,
+        )

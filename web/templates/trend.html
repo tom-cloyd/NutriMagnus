@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — N-Day Nutrient Trend{% endblock %}
+{% block layout_class %}container{% endblock %}
+
+{% block content %}
+<h2>N-Day Nutrient Trend {{ manual_link("goals") }}</h2>
+<p class="muted">
+  Average daily nutrient intake across the days you actually logged meals in the window below —
+  a single day's summary can't show a chronic shortfall (e.g. low B12 or iron) the way a trend across
+  several days can.
+</p>
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="/summary/trend?days=7"  class="btn btn-sm {{ 'btn-primary' if days == 7  else 'btn-outline-primary' }}">Last 7 days</a>
+  <a href="/summary/trend?days=14" class="btn btn-sm {{ 'btn-primary' if days == 14 else 'btn-outline-primary' }}">Last 14 days</a>
+  <a href="/summary/trend?days=30" class="btn btn-sm {{ 'btn-primary' if days == 30 else 'btn-outline-primary' }}">Last 30 days</a>
+</div>
+
+{% if num_days == 0 %}
+<p class="muted">No meals logged between {{ start }} and {{ end }}.</p>
+{% else %}
+<p class="muted"><small>Averaging over {{ num_days }} logged day(s) out of the last {{ days }} calendar day(s) ({{ start }} to {{ end }}).</small></p>
+
+{% if not has_profile %}
+<p class="rda-no-profile">
+  No personal profile set up &mdash; RDA % targets not shown.
+  <a href="/settings">Set up your profile in Settings.</a>
+</p>
+{% endif %}
+
+{% if diet_notes and diet_notes.iron_zinc %}
+<p class="rda-near"><small>{{ diet_notes.iron_zinc }} {{ manual_link("diet-bioavailability") }}</small></p>
+{% endif %}
+{% if diet_notes and diet_notes.b12 %}
+<p class="rda-over"><small>&#9888; {{ diet_notes.b12 }} {{ manual_link("diet-bioavailability") }}</small></p>
+{% endif %}
+
+{% for section in nutrient_sections %}
+<h4>{{ section.name }}</h4>
+<table class="nutrient-table">
+  <thead>
+    <tr>
+      <th>Nutrient</th>
+      <th class="num-col">{{ num_days }}-Day Avg</th>
+      <th>Unit</th>
+      {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
+      {% if has_optimal %}<th class="num-col">optimal goal</th><th class="num-col">% of optimal</th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in section.rows %}
+    <tr class="{{ row.limit_warn or '' }}">
+      <td>{{ row.label }}</td>
+      <td class="num-col">{{ row.value }}</td>
+      <td class="muted">{{ row.unit }}</td>
+      {% if has_profile %}
+      <td class="num-col">
+        {% if row.pct is not none %}
+        <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      {% endif %}
+      {% if has_optimal %}
+      <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
+      <td class="num-col">
+        {% if row.optimal_pct is not none %}
+        <span class="{{ row.optimal_css }}">{{ row.optimal_pct | int }}%</span>
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+
+{% if complements and not complements.no_data %}
+<details id="sec-comp">
+  <summary><strong>Protein Complement Suggestions — Pooled Across Window</strong> {{ manual_link("comp") }}</summary>
+  {% if complements.no_gaps %}
+  <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
+  {% else %}
+  <p class="muted mt-2"><small>{{ complements.ranking_note }}</small></p>
+  <p class="mt-1"><strong>Gaps:</strong>
+    {% for gap in complements.gaps %}
+      {{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}
+    {% endfor %}
+  </p>
+
+  {% macro suggest_card(s) %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1">
+      <strong>{{ s.name }}</strong>
+      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+      {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
+      {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
+    </p>
+    {% if s.grad_steps %}
+    <p class="mb-1"><strong>Add to upcoming meals (graduated):</strong></p>
+    <table class="table table-sm mb-1" style="max-width:36rem">
+      <thead><tr><th>Amount</th><th>Digestible protein added</th><th>DCP achieved</th></tr></thead>
+      <tbody>
+        {% for step in s.grad_steps %}
+        <tr{% if loop.last %} class="table-success"{% endif %}>
+          <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
+          <td>{{ step.dig_protein }}&thinsp;g</td>
+          <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="mb-1"><strong>Add to upcoming meals:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
+    {% endif %}
+    {% if s.aa_effects %}
+    <p class="mb-1 muted"><small>Effect:
+      {% for e in s.aa_effects %}
+        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </small></p>
+    {% endif %}
+    <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw)</small></p>
+    <p class="mb-0 muted"><small>Total digestible complete protein with full serving: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+  </div>
+  {% endmacro %}
+
+  {% if complements.pantry_empty %}
+  <p class="muted"><small>(No pantry items saved — add via Foods &rarr; My Pantry.)</small></p>
+  {% elif complements.pantry_no_qualify %}
+  <p class="muted"><small>(Pantry items found but none qualify for the limiting amino acid.)</small></p>
+  {% endif %}
+  {% if complements.pantry %}
+  <h4 class="mt-3">From your pantry</h4>
+  {% for s in complements.pantry %}{{ suggest_card(s) }}{% endfor %}
+  {% endif %}
+  {% if complements.general %}
+  <h4 class="mt-3">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h4>
+  {% for s in complements.general %}{{ suggest_card(s) }}{% endfor %}
+  {% endif %}
+  <p class="muted mt-2"><small>{{ complements.exhausted_msg }}</small></p>
+
+  {% if complements.pairs %}
+  <h4 class="mt-3">Two-food combinations</h4>
+  <p class="muted"><small>Food A closes the primary gap (but opens a new one); food B closes what A left behind. Together they achieve a complete amino acid profile.</small></p>
+  {% for p in complements.pairs %}
+  <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <p class="mb-1"><strong>{{ p.foods[0].name }}</strong> + <strong>{{ p.foods[1].name }}</strong>
+      {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
+    </p>
+    {% for f in p.foods %}
+    <p class="mb-1 ms-2"><strong>Add to upcoming meals: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>
+      {% if f.fdc_id %}<small class="muted"> FDC {{ f.fdc_id }}</small>{% endif %}
+      {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
+    </p>
+    {% endfor %}
+    {% if p.aa_effects %}
+    <p class="mb-1 muted"><small>Effect:
+      {% for e in p.aa_effects %}
+        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
+      {% endfor %}
+    </small></p>
+    {% endif %}
+    <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw)</small></p>
+    <p class="mb-0 muted"><small>Total digestible complete protein with both foods: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% endif %}
+</details>
+{% endif %}
+
+{% endif %}
+{% endblock %}

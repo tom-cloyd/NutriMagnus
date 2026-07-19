@@ -651,7 +651,7 @@ All nutrient values are per 100 g edible portion. Use exactly these key names (o
     saturated_fat_g, mono_fat_g, poly_fat_g,
     omega3_ala_mg, omega3_epa_mg, omega3_dha_mg, omega6_la_mg,
     calcium_mg, iron_mg, magnesium_mg, phosphorus_mg,
-    potassium_mg, sodium_mg, zinc_mg,
+    potassium_mg, sodium_mg, zinc_mg, iodine_mcg, selenium_mcg,
     vitamin_a_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
     vitamin_k_mcg, thiamin_mg, riboflavin_mg, niacin_mg,
     b6_mg, folate_mcg, b12_mcg,
@@ -1257,7 +1257,7 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
     ]),
     ("Minerals", [
         "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-        "potassium_mg", "sodium_mg", "zinc_mg",
+        "potassium_mg", "sodium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg",
     ]),
     ("Vitamins", [
         "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",

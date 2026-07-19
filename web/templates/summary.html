@@ -39,6 +39,7 @@
            value="{{ date_detail or today }}"
            onchange="window.location='/summary/'+this.value">
   </div>
+  <a href="/summary/trend" class="btn btn-sm btn-outline-secondary">N-day nutrient trend</a>
 </div>
 
 {# ── Recent days table ────────────────────────────────────────────────── #}
@@ -369,6 +370,13 @@
     No personal profile set up &mdash; RDA % targets not shown.
     <a href="/settings">Set up your profile in Settings.</a>
   </p>
+  {% endif %}
+
+  {% if diet_notes and diet_notes.iron_zinc %}
+  <p class="rda-near"><small>{{ diet_notes.iron_zinc }} {{ manual_link("diet-bioavailability") }}</small></p>
+  {% endif %}
+  {% if diet_notes and diet_notes.b12 %}
+  <p class="rda-over"><small>&#9888; {{ diet_notes.b12 }} {{ manual_link("diet-bioavailability") }}</small></p>
   {% endif %}
 
   {% for section in nutrient_sections %}

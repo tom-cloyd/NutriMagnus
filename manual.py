@@ -113,6 +113,23 @@ _ALIASES: dict[str, str] = {
     "maximum-limit":        "maxlimits",
     "maximum-limits":       "maxlimits",
     "nutrient-limits":      "maxlimits",
+    "omega-3":              "omega3",
+    "omega":                "omega3",
+    "ala":                  "omega3",
+    "epa":                  "omega3",
+    "dha":                  "omega3",
+    "fish-oil":             "omega3",
+    "diet-bioavailability": "diet-bioavailability",
+    "b12":                  "diet-bioavailability",
+    "vegan":                "diet-bioavailability",
+    "vegetarian-iron":      "diet-bioavailability",
+    "bioavailability-diet": "diet-bioavailability",
+    "trend":                "trend",
+    "nutrient-trend":       "trend",
+    "multi-day":            "trend",
+    "n-day":                "trend",
+    "weekly-average":       "trend",
+    "chronic-shortfall":    "trend",
 }
 
 
