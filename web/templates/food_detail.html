@@ -38,10 +38,10 @@
       <li><a class="sb-link" href="#cmpl-pantry">From your pantry</a></li>
       {% endif %}
       {% if complements.general %}
-      <li><a class="sb-link" href="#cmpl-general">Other suggestions</a></li>
+      <li><a class="sb-link" href="#cmpl-general">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</a></li>
       {% endif %}
       {% if complements.pairs %}
-      <li><a class="sb-link" href="#cmpl-pairs">Two-food combos</a></li>
+      <li><a class="sb-link" href="#cmpl-pairs">Two-food combinations</a></li>
       {% endif %}
     </ul>
     {% endif %}
@@ -552,8 +552,8 @@
     <input type="hidden" name="food_name" value="{{ food.name }}">
     <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
     <div class="mb-2">
-      <label class="form-label">Food</label>
-      <p class="form-control-plaintext py-0">{{ food.name }}</p>
+      <label class="form-label">Food:</label>
+      <p class="form-control-plaintext py-0"><strong>{{ food.name }}</strong></p>
     </div>
     <div class="mb-2">
       <label for="pantry-notes" class="form-label">Notes <span class="muted">(optional)</span></label>
@@ -570,12 +570,13 @@
 {% block scripts %}
 <script>
 (function () {
-  var PREFIX = 'numa_sb_';
+  var PREFIX = 'numa_sb_{{ food.fdc_id }}_';
 
   document.querySelectorAll('.sb-toggle').forEach(function (btn) {
     var item = btn.closest('.sb-item');
     var targetId = item && item.dataset.target;
     var section = targetId ? document.getElementById(targetId) : null;
+    var chevron = btn.querySelector('.sb-chevron');
     if (!section) return;
 
     var stored = sessionStorage.getItem(PREFIX + targetId);
@@ -587,12 +588,25 @@
       btn.setAttribute('aria-expanded', 'true');
     }
 
+    function setCollapsed(collapsed) {
+      section.hidden = collapsed;
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      item.classList.toggle('sb-collapsed', collapsed);
+      sessionStorage.setItem(PREFIX + targetId, collapsed ? 'collapsed' : 'open');
+    }
+
+    /* Chevron: collapse/expand in place, no scrolling. */
+    if (chevron) {
+      chevron.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setCollapsed(!section.hidden);
+      });
+    }
+
+    /* Rest of the button: navigate — expand if needed, then scroll to it. */
     btn.addEventListener('click', function () {
-      var willCollapse = !section.hidden;
-      section.hidden = willCollapse;
-      btn.setAttribute('aria-expanded', willCollapse ? 'false' : 'true');
-      item.classList.toggle('sb-collapsed', willCollapse);
-      sessionStorage.setItem(PREFIX + targetId, willCollapse ? 'collapsed' : 'open');
+      if (section.hidden) setCollapsed(false);
+      section.scrollIntoView({ behavior: 'auto', block: 'start' });
     });
   });
 

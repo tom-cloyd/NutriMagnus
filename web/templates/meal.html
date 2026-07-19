@@ -52,10 +52,10 @@
       <li><a class="sb-link" href="#cmpl-pantry">From your pantry</a></li>
       {% endif %}
       {% if complements.general %}
-      <li><a class="sb-link" href="#cmpl-general">Other suggestions</a></li>
+      <li><a class="sb-link" href="#cmpl-general">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</a></li>
       {% endif %}
       {% if complements.pairs %}
-      <li><a class="sb-link" href="#cmpl-pairs">Two-food combos</a></li>
+      <li><a class="sb-link" href="#cmpl-pairs">Two-food combinations</a></li>
       {% endif %}
     </ul>
     {% endif %}

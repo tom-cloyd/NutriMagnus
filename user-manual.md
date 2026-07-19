@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-16:1029* / Reading 2 hours, 17 minutes
+*Updated 2026-07-19:0541* / Reading 2 hours, 17 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -12,7 +12,7 @@
 
 **Cellular support and replacement depends upon our accessing essential materials, through eating.** While significant essential materials may already exist in the local environment of a cell, but the rest have to come from elsewhere, and ultimately that means from outside our bodies. For this reason we must eat.
 
-**Eating almost always involves making choices, and good choice requires good information.** The three major problems with blocking good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed in the general domain of nutrition science. [NuMa](#gloss-numa) takes up these problems, in detail.
+**Eating usually involves making choices, and good choice requires good information.** The three major problems with blocking good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed in the general domain of nutrition science. [NuMa](#gloss-numa) takes up these problems, in detail.
 
 **Both the program and its accompanying *User Manual* are an ongoing project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review; it is an advanced first draft.
 
@@ -598,6 +598,11 @@ NutriMagnus calculates personalized daily nutrient goals from your user profile 
 #### Sodium (limit)
     2300 mg/day — standard Tolerable Upper Intake Level (fixed for all).
 
+#### Omega-3 ALA (minimum)
+    1600 mg/day men, 1100 mg/day women — Adequate Intake for alpha-linolenic
+    acid (ALA), the plant-sourced omega-3. See [Omega-3 Fatty Acids](#omega3)
+    for why this is the only omega-3 with an official goal in NutriMagnus.
+
 #### Minerals and vitamins
     All use age- and sex-specific values from the Dietary Reference
     Intakes published by the U.S. National Academies of Sciences.
@@ -607,14 +612,42 @@ NutriMagnus calculates personalized daily nutrient goals from your user profile 
 
 Nutrients without established [DRIs](#gloss-dri) ([phytonutrients](#gloss-phytonutrients), amino acids) have no goal shown. The "% today" column and "Daily goal" column are blank for those rows.
 
-See [RDA](#rda) for a general overview of where these values come from. If the standard RDA isn't the number you actually want to hit for a given nutrient, see [Profile Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits).
+See [RDA](#rda) for a general overview of where these values come from. If the standard RDA isn't the number you actually want to hit for a given nutrient, see [Profile Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits). A single day's numbers are only a snapshot -- see [N-Day Nutrient Trend](#trend) for how to spot a shortfall that persists across many days.
+
+
+### N-Day Nutrient Trend [trend]
+
+Every other RDA comparison in NutriMagnus -- food, recipe, meal, daily summary -- looks at a single day. That's the right window for "did today's meals cover me," but it's the wrong window for a nutrient that's chronically a little short: one low day is unremarkable, but the same shortfall repeated for two weeks straight is exactly the kind of pattern a single-day view can never show you, because you'd have to remember and compare each day yourself.
+
+**Access it from Analysis → Daily Summary → N-day nutrient trend** (CLI) or the **"N-day nutrient trend"** button on the Daily Summary page (web). Choose a window -- last 7, 14, or 30 days -- and NutriMagnus averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Profile Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
+
+**Only logged days count.** If you ask for a 30-day trend but only logged meals on 12 of those days, the average is computed over those 12 days -- unlogged days are treated as "no data," not as a zero-intake day. Diluting the average with days you simply didn't track would understate your real intake and could hide the exact shortfall this view exists to surface. The screen tells you how many logged days went into the average (e.g. "Averaging over 12 logged day(s) out of the last 30").
+
+This is the same B12/iron/zinc-aware analysis described in [Diet-Aware Bioavailability and Deficiency Notes](#diet-bioavailability) -- a trend view is often where a B12 or iron pattern actually becomes visible, since a single low day rarely triggers concern on its own.
+
+**Multi-day protein complementarity.** Below the nutrient comparison, the trend view also pools every amino-acid-containing food logged across the window's days and runs the same [complement suggestion](#comp) analysis normally shown for a single day -- but framed for forward planning ("Add to upcoming meals" rather than "Add to your day"), since the gap it found accumulated across several days, not one meal you can still fix. A gap that only shows up when pooled across the whole window -- rather than in any single day's suggestions -- is exactly the kind of small, persistent shortfall this view is meant to catch.
+
+
+### Omega-3 Fatty Acids [omega3]
+
+NutriMagnus tracks four omega fatty acids: ALA, EPA, and DHA (all omega-3), and linoleic acid (omega-6). Only one of these four -- ALA -- has an official Adequate Intake, so it's the only one that appears as a Daily Goal: 1600 mg/day for men, 1100 mg/day for women.
+
+**Why not a goal for EPA and DHA directly?** No U.S. Dietary Reference Intake exists for EPA or DHA intake on their own -- the official guidance covers only total ALA. This matters because ALA is not itself the fatty acid your body mostly uses; it has to be converted into EPA and then DHA, and that conversion is inefficient -- commonly cited at only around 5-10% for EPA, and considerably less for DHA. Two people can hit the same ALA target and land in very different places on EPA/DHA status depending on the rest of their diet, genetics, and sex (conversion tends to be somewhat more efficient in women).
+
+**Why this matters especially for plant-based eaters.** Direct dietary EPA and DHA come almost entirely from fish, algae, and other seafood. If ALA (from flax, chia, walnuts, hemp, canola and soy oils) is your only omega-3 source, meeting the ALA goal is necessary but may not be sufficient -- your actual EPA/DHA status depends on that inefficient conversion step. Common ways to address this without animal fish: algae-oil supplements (a direct EPA/DHA source independent of the ALA conversion pathway), or simply logging ALA-rich foods generously since the target itself already assumes real-world conversion losses are ahead of it.
+
+**Setting your own EPA+DHA target.** Because there's no official DRI to compute automatically, NutriMagnus can't put a Daily Goal on the EPA or DHA rows the way it does for ALA. If you want to track against a target anyway -- clinical guidance in the 250-500 mg/day combined EPA+DHA range is common -- set one yourself as a [Profile Optimal target](#optimal) for `omega3_epa_mg` and/or `omega3_dha_mg` in Settings → Nutrient targets.
+
+Linoleic acid (omega-6) is tracked for completeness but has no established goal or known deficiency risk in a typical diet -- most diets, plant-based or not, comfortably exceed the AI for it.
 
 
 ### Profile Optimal Targets [optimal]
 
 The standard RDA is a population-wide minimum or average -- it is not always the number that matters most for you. The clearest example is Vitamin D: the RDA is 15-20 mcg/day, but many clinicians recommend a substantially higher daily intake for older adults specifically. Rather than change what "RDA" means, NutriMagnus lets you set your own **Optimal target** for any nutrient, on top of the standard RDA, and tracks both side by side.
 
-Configure Optimal targets in **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web). Pick a nutrient, enter your target amount in that nutrient's usual unit, and save. Leave the field blank and save again to clear it.
+Configure Optimal targets in **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web). Pick a nutrient, enter your target amount in that nutrient's usual unit, and save. Leave the field blank and save again to clear it. This works for any nutrient NutriMagnus tracks -- not just ones with a standard RDA. Amino acids, EPA/DHA, and [phytonutrients](#gloss-phytonutrients) have no official [DRI](#gloss-dri) but are still valid Optimal target or [max limit](#maxlimits) candidates; amino acids in particular are more accurately evaluated by the app's [DIAAS](#diaas)-based protein quality scoring (which accounts for total protein intake), so a flat daily gram target here is a coarser measure than that -- useful mainly if you want a simple standalone tripwire for one specific amino acid.
+
+**Loading recommended targets.** Typing values in from scratch is a lot to ask, so the Nutrient targets screen offers a **"load recommended optimal targets"** action (`l` in the CLI, a button in the web version) that fills in a small curated set of commonly-cited targets -- currently Vitamin D and combined EPA+DHA (split evenly) -- for any of those nutrients you haven't already customized yourself. These are general population guidance, not personalized medical advice, and every value it loads can still be reviewed and adjusted individually afterward. See [Omega-3 Fatty Acids](#omega3) for why EPA/DHA specifically has no official DRI to compute automatically.
 
 Once you have at least one Optimal target set, every nutrient analysis table (food, recipe, meal, and daily summary) gains a second "Profile Optimal" set of columns next to the standard "Profile RDA" columns -- the same meal %, day total %, and goal columns you already know, computed against your custom target instead of the RDA. Nutrients you have not customized show a dash ("–") in these columns rather than falling back to the RDA value, so it stays obvious which nutrients you've actually personalized.
 
@@ -623,13 +656,28 @@ Optimal targets are per-nutrient, not per-day -- there is no single "optimal pro
 
 ### Maximum Nutrient Limits [maxlimits]
 
-Separate from the built-in Tolerable Upper Intake Level that already caps a few nutrients like sodium in the standard RDA calculation, NutriMagnus lets you set your own personal daily maximum for any nutrient -- useful if your own situation calls for a stricter cap than the general population guideline, or a cap on a nutrient that has no standard upper limit at all.
+Separate from the built-in Tolerable Upper Intake Level that already caps sodium in the standard RDA calculation, NutriMagnus tracks two more tiers of daily maximum:
 
-Configure max limits in the same place as Optimal targets: **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web).
+- **Built-in safe upper limits.** A handful of nutrients carry a real risk of harm from chronic excess, most often from supplementing rather than food alone: iron, zinc, vitamin A, vitamin B6, iodine, and selenium. NutriMagnus applies the standard adult Tolerable Upper Intake Level for these automatically -- no setup required. You'll see them listed as "Built-in safe upper limits" on the Daily Nutrient Targets screen (**Settings → View goals**, CLI, or the equivalent web page).
+- **Your own custom max limits.** On top of (or instead of) the built-in defaults, you can set your own personal daily maximum for any nutrient -- useful if your situation calls for a stricter cap than the general guideline, or a cap on a nutrient that has no standard upper limit at all. A custom limit you set always takes precedence over the built-in default for that nutrient.
 
-Once a max limit is set for a nutrient, NutriMagnus watches your logged intake for the day. When today's total for that nutrient reaches 90% of your limit, the nutrient's row is highlighted yellow; at or over 100% of the limit, it turns red. This check applies to your **day total**, not to any single meal or food in isolation -- a max limit is a daily budget, and a single meal being close to it isn't itself meaningful without knowing the rest of the day.
+Configure your own max limits in the same place as Optimal targets: **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web).
+
+Once a max limit is active for a nutrient -- whether it's a built-in default or one you set yourself -- NutriMagnus watches your logged intake for the day. When today's total for that nutrient reaches 90% of the limit, the nutrient's row is highlighted yellow; at or over 100% of the limit, it turns red. This check applies to your **day total**, not to any single meal or food in isolation -- a max limit is a daily budget, and a single meal being close to it isn't itself meaningful without knowing the rest of the day.
 
 The max-limit warning is independent of the Optimal target feature -- you can set one, the other, both, or neither for any given nutrient.
+
+
+### Diet-Aware Bioavailability and Deficiency Notes [diet-bioavailability]
+
+Your [dietary preference](#diet) setting (Settings → Dietary preferences) is used for more than filtering protein complement suggestions -- it also shapes two parts of your daily RDA comparison, because a vegetarian or plant-based diet changes not just *what* nutrients you're likely getting, but how much of certain ones your body can actually use.
+
+**Iron and zinc targets are raised on vegetarian and plant-based settings.** Absorbable iron comes in two forms: heme iron (from meat, fish, and poultry, absorbed efficiently) and non-heme iron (from plants, absorbed far less efficiently, and further blocked by phytate in legumes and grains -- see [Antinutrients](#antinutrients)). Zinc absorption is reduced by the same phytate. Rather than silently under-representing this, NutriMagnus raises the iron RDA by 1.8x and the zinc RDA by 1.5x when your dietary preference is set to Vegetarian or Plant-based only -- figures commonly cited by the NIH Office of Dietary Supplements and Institute of Medicine for these patterns. This appears as a normal, higher Daily Goal on the RDA comparison and Daily Nutrient Targets screens, with an explanatory note alongside it. Setting your preference back to "All animal foods" returns both targets to their standard values.
+
+**A B12 warning appears for the Plant-based only setting when intake is low.** Vitamin B12 is almost exclusively animal-sourced -- unlike most nutrient shortfalls, a persistently low B12 reading on a fully plant-based diet isn't something more food logging or dietary variety fixes; it typically means a B12 supplement or B12-fortified food is needed. NutriMagnus shows this warning only when your dietary preference is Plant-based only *and* today's B12 intake is under 50% of the RDA -- vegetarians (who still eat dairy and eggs) aren't flagged, since those foods are a legitimate B12 source and an occasional low day isn't a structural gap the way it is for a fully plant-based diet.
+
+Both of these are general population guidance based on your stated preference, not personalized medical advice -- if you have a diagnosed deficiency or absorption condition, follow your clinician's specific recommendations instead.
+
 
 ## Part 3 — Using NutriMagnus
 ### Installation
@@ -680,6 +728,7 @@ The sections linked from analysis output are:
 - [DCP cap](#dcp-cap) — why [DCP](#gloss-dcp) is sometimes capped below the [DIAAS](#gloss-diaas) projection
 - [Digestibility overrides](#dcp-overrides) — protein digestibility overrides table
 - [DIAAS](#diaas) — digestible indispensable amino acid score
+- [Diet-aware bioavailability and deficiency notes](#diet-bioavailability) — how dietary preference raises iron/zinc targets and flags low B12
 - [Dietary preferences](#diet) — dietary preferences setting
 - [Drafted food profiles](#drafted-foods) — drafted food profiles list columns
 - [FAO reference values](#fao) — [FAO](#gloss-fao) 2013 amino acid reference requirement
@@ -702,6 +751,8 @@ The sections linked from analysis output are:
 - [Maximum nutrient limits](#maxlimits) — custom per-day nutrient caps and the near-limit warning
 - [Missing amino acid profiles](#missing-aa) — missing amino acid profile warnings
 - [Nutrient analysis](#nutrients) — nutrient analysis table columns and groups
+- [N-Day nutrient trend](#trend) — averaging intake across logged days to catch chronic shortfalls
+- [Omega-3 fatty acids](#omega3) — ALA, EPA, DHA, and why only ALA has a Daily Goal
 - [Profile Optimal targets](#optimal) — custom per-nutrient targets above the standard RDA
 - [Oxalate data](#oxalate) — [oxalate](#gloss-oxalate) data source, enabling, matching, and limitations
 - [My Pantry](#pantry) — [My Pantry](#gloss-my-pantry) table columns
@@ -732,6 +783,9 @@ The CACHED FOODS list shows every food you have stored locally. Columns:
             DIAAS (Digestible Indispensable Amino Acid Score) rates protein
             quality: 1.00 = complete, lower = a limiting amino acid is present.
             Add or update via e# (Edit food data). Type ?diaas for details.
+            (Web app only: the Food Cache and My Pantry pages show your saved
+            estimate marked with a star when one exists, otherwise the
+            built-in reference-table value for foods with amino acid data.)
 
     C       Confidence / source note indicator.
               ✓  A source or confidence note is saved for this food.
@@ -951,10 +1005,15 @@ Columns:
     Meal            Name you gave the meal (e.g. Breakfast, Lunch).
     Items           Number of foods and recipes logged in this meal.
     Meal DCP        Bioavailable complete protein for this meal alone (g).
-    Day DCP         Sum of DCP for all complete meals on this date. Shown
-                    on the topmost row for each date only.
+    Day DCP         Sum of DCP for every meal on this date with a computed
+                    value — including meals not yet marked complete, since
+                    DCP is auto-saved as you add items. If any contributing
+                    meal isn't marked complete, the total is flagged with
+                    an asterisk (*) as provisional, since it may still
+                    change. Shown on the topmost row for each date only.
     % profile goal  Day DCP as a percentage of your daily protein target.
-                    Shown on the topmost row for each date only.
+                    Also flagged with * when provisional. Shown on the
+                    topmost row for each date only.
     Calories        Calories for this meal alone.
 
 [DCP](#gloss-dcp) and Calories values start as -- and are computed on demand.
@@ -1237,6 +1296,15 @@ Columns:
                          Search for this food via Foods to add it properly.
     Food    Food name.
     Notes   Your optional note for this pantry entry.
+
+(Web app only: My Pantry also shows Type, GI est., and DIAAS columns,
+matching the [Food Cache](#cached) list — see the DIAAS entry there for
+how the saved-estimate-vs-reference-table value is chosen. A name-only
+entry (no USDA link) shows a "Link a food" button — search and pick a
+match to attach real nutrient data to that same pantry row, rather than
+adding a duplicate. This does not exist in the CLI yet; the CLI's `c`
+command only opens the Food Cache and does not attach a food to a
+name-only pantry entry.)
 
 Only pantry foods with [AA](#gloss-aa) data (checkmark) appear in complement suggestions. Name-only entries (--) and those without [AA](#gloss-aa) data (X) may still appear if their name matches a built-in complement table entry.
 
@@ -2142,7 +2210,7 @@ When you need a food that is not in [USDA](#gloss-usda) or Open Food Facts — o
 - **Name** — what to call this food in searches and meal logs.
 - **Supplement mode** (see below) or normal serving size and unit.
 - **Basic macros** — calories, protein, total fat, carbohydrates, fiber, sugars, saturated fat, mono/poly fats, sodium. These are always prompted.
-- **Minerals** (optional) — calcium, iron, magnesium, phosphorus, potassium, zinc.
+- **Minerals** (optional) — calcium, iron, magnesium, phosphorus, potassium, zinc, iodine, selenium.
 - **Vitamins** (optional) — A, C, D, E, K, B1 (thiamin), B2 (riboflavin), B3 (niacin), B6, B9 (folate), B12. You can type values in IU for vitamins A, D, and E (e.g. `400 IU`) and the program converts them automatically.
 - **Amino acids** (optional) — enter one-by-one or paste in a block from a research table (g per 100g protein — converted automatically).
 - **[Phytonutrients](#gloss-phytonutrients)** (optional) — beta-carotene, lycopene, lutein, choline, and others.

@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-15:2033
+UPDATED: 2026-07-16:1844
 ---
 
 ## Table of Contents
@@ -518,6 +518,8 @@ DIAAS scores are not available from any API — they come from controlled digest
 **Lookup is not cached.** The keyword scan takes microseconds and is repeated on each analysis. USDA nutrient data (macros, minerals, vitamins, amino acids) is cached in the `foods` table after first fetch and never re-fetched unless you delete the cache entry. DIAAS scores, by contrast, are derived from the food name at runtime and are not written back to the database.
 
 **Per-food DIAAS via annotations.** If you have a primary-literature DIAAS value for a specific food, you can save it via **Foods → Annotate a cached food** or the inline prompt during analysis. A saved annotation in `food_annotations.diaas_estimate` takes priority over the keyword table for that food. This is the only path to storing a DIAAS value per-food in the database.
+
+This same saved-value-takes-priority rule applies to the DIAAS column shown in the web app's Food Cache and My Pantry list views (`food_cache.html`, `pantry.html`): a saved annotation is marked with ★, otherwise the list falls back to the keyword-table value when the food has amino acid data. The CLI's Food Cache table (`foods.py`) is narrower — it shows only the saved annotation, never the keyword-table value — so the two surfaces can show different DIAAS figures for the same unannotated food.
 
 ### Meal-level DIAAS analysis
 
@@ -1221,7 +1223,7 @@ Side-by-side nutrient comparison. Up to 6 foods; amounts are independently adjus
 
 #### `food_cache.html`
 
-Browsable/searchable table of all cached foods. Columns: FDC ID, name, data type, brand, AA data flag, GI annotation, DIAAS annotation, notes. Each row links to `/food/{fdc_id}` and `/food/annotate/{fdc_id}`. Supports deletion.
+Browsable/searchable table of all cached foods. Columns: FDC ID, name, data type, brand, AA data flag, GI annotation, DIAAS, notes. The DIAAS column shows your saved annotation (marked ★) when one exists, otherwise the keyword-matched reference-table value (see "Per-food DIAAS via annotations" above) for foods with amino acid data — blank otherwise. Each row links to `/food/{fdc_id}` and `/food/annotate/{fdc_id}`. Supports deletion.
 
 #### `food_custom_profiles.html`
 
@@ -1233,7 +1235,7 @@ Two-mode template. In list mode: browsable/searchable table of cached foods show
 
 #### `pantry.html`
 
-Table of pantry items with food name, FDC ID link (if available), and notes. Add-by-name form at top. Per-row remove button.
+Table of pantry items. Columns match `food_cache.html`: food name, FDC ID link (if available), data type, AA data flag, GI annotation, DIAAS (same saved-annotation-or-reference-table logic, ★ marks a saved value), notes, added date. Add-by-name form at top. Per-row remove button.
 
 #### `meals.html`
 

@@ -24,11 +24,13 @@ import usda as _usda
 from numa_app.services import complements as _complements
 from numa_app.services.glycemic_load import compute_glycemic_load
 from numa_app.services.meal_bcp import recipe_dcp_fallback
+from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, volume_hint
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
 from version import VERSION
 from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
 from numa_app.services.rda_status import rda_status, limit_warning
+from numa_app.services.diet_aware import b12_deficiency_note, iron_zinc_bioavailability_note
 from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 
 _WEB_DIR    = Path(__file__).parent
@@ -198,6 +200,12 @@ def _save_prefs_file(updates: dict) -> None:
     _PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
     _PREFS_FILE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
+
+def _current_diet_pref() -> str:
+    """Return the saved dietary preference, validated, defaulting to 'all'."""
+    pref = _load_prefs_file().get("diet_pref", "all")
+    return pref if pref in _VALID_DIET_PREFS else "all"
+
 app = FastAPI(title="numa")
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=_WEB_DIR / "templates")
@@ -230,7 +238,7 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
     ]),
     ("Minerals", [
         "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-        "potassium_mg", "sodium_mg", "zinc_mg",
+        "potassium_mg", "sodium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg",
     ]),
     ("Vitamins", [
         "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
@@ -246,12 +254,18 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
 # Nutrients offered for Profile Optimal / max-limit configuration in Settings —
 # mirrors numa_app/workflows/settings.py's _do_nutrient_targets() groups.
 _NUTRIENT_TARGET_GROUPS: list[tuple[str, list[str]]] = [
-    ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg"]),
+    ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg",
+                         "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"]),
     ("Minerals", ["calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-                  "potassium_mg", "zinc_mg"]),
+                  "potassium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg"]),
     ("Vitamins", ["vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
                   "vitamin_k_mcg", "thiamin_mg", "riboflavin_mg", "niacin_mg",
                   "b6_mg", "folate_mcg", "b12_mcg", "choline_mg"]),
+    ("Phytonutrients", ["beta_carotene_mcg", "alpha_carotene_mcg", "lycopene_mcg",
+                        "lutein_zeaxanthin_mcg", "beta_sitosterol_mg", "isoflavones_mg"]),
+    ("Amino Acids", ["aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
+                     "aa_lysine_g", "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g",
+                     "aa_tyrosine_g", "aa_valine_g", "aa_histidine_g"]),
 ]
 
 
@@ -328,7 +342,23 @@ def _load_rda() -> dict | None:
     profile = _profile.load_profile()
     if profile is None:
         return None
-    return _profile.compute_rda(profile)
+    return _profile.compute_rda(profile, diet_pref=_current_diet_pref())
+
+
+def _diet_aware_daily_notes(nutrients: dict, rda: dict | None) -> dict:
+    """Return {"iron_zinc": str|None, "b12": str|None} for a day's nutrient
+    total, mirroring the notes CLI's _print_rda_comparison shows below the
+    RDA comparison table."""
+    diet_pref = _current_diet_pref()
+    b12_note = None
+    if rda and "b12_mcg" in rda:
+        rda_val = rda["b12_mcg"][0]
+        pct = (nutrients.get("b12_mcg", 0.0) / rda_val * 100.0) if rda_val > 0 else 0.0
+        b12_note = b12_deficiency_note(diet_pref, pct)
+    return {
+        "iron_zinc": iron_zinc_bioavailability_note(diet_pref),
+        "b12":       b12_note,
+    }
 
 
 def _load_optimal() -> dict | None:
@@ -1047,6 +1077,8 @@ _EDIT_NUTRIENT_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
         ("potassium_mg",  "Potassium",  "mg"),
         ("sodium_mg",     "Sodium",     "mg"),
         ("zinc_mg",       "Zinc",       "mg"),
+        ("iodine_mcg",    "Iodine",     "mcg"),
+        ("selenium_mcg",  "Selenium",   "mcg"),
     ]),
     ("Vitamins", [
         ("vitamin_a_mcg",  "Vitamin A",       "mcg RAE"),
@@ -1376,14 +1408,20 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0):
     for row in rows:
         ann = annotations.get(row["fdc_id"])
         nuts = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+        has_aa = _usda.has_amino_acid_data(nuts)
+        # A saved annotation always takes priority over the keyword-matched
+        # reference table (see README "Per-food DIAAS via annotations").
+        diaas_saved = ann["diaas_estimate"] if ann else None
+        diaas = diaas_saved if diaas_saved is not None else (_usda.get_diaas(row["name"]) if has_aa else None)
         foods.append({
             "fdc_id":         row["fdc_id"],
             "name":           row["name"],
             "data_type":      row["data_type"] or "",
             "brand":          row["brand"] or "",
-            "has_aa":         _usda.has_amino_acid_data(nuts),
+            "has_aa":         has_aa,
             "gi":             ann["gi_estimate"] if ann else None,
-            "diaas":          ann["diaas_estimate"] if ann else None,
+            "diaas":          diaas,
+            "diaas_saved":    diaas_saved is not None,
             "notes":          row["notes"] or "",
             "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
         })
@@ -1551,9 +1589,29 @@ async def food_cache_refresh(request: Request, fdc_id: int):
 
 
 @app.get("/pantry", response_class=HTMLResponse)
-async def pantry_get(request: Request, added: str = "", search: str = ""):
+async def pantry_get(request: Request, added: str = "", linked: str = "",
+                      search: str = "", link_id: int = 0):
     with _db.get_db() as conn:
-        items = [dict(r) for r in _db.pantry_list(conn)]
+        rows = _db.pantry_list(conn)
+        fdc_ids = [r["fdc_id"] for r in rows if r["fdc_id"]]
+        annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
+        items = []
+        for r in rows:
+            item = dict(r)
+            cached = _db.get_cached_food(conn, r["fdc_id"]) if r["fdc_id"] else None
+            nuts = json.loads(cached["nutrients_json"]) if cached and cached["nutrients_json"] else {}
+            has_aa = _usda.has_amino_acid_data(nuts)
+            ann = annotations.get(r["fdc_id"])
+            diaas_saved = ann["diaas_estimate"] if ann else None
+            diaas = diaas_saved if diaas_saved is not None else (_usda.get_diaas(r["food_name"]) if has_aa else None)
+            item.update({
+                "data_type":   cached["data_type"] if cached else "",
+                "has_aa":      has_aa,
+                "gi":          ann["gi_estimate"] if ann else None,
+                "diaas":       diaas,
+                "diaas_saved": diaas_saved is not None,
+            })
+            items.append(item)
 
     search = search.strip()
     search_results: list[dict] = []
@@ -1612,12 +1670,17 @@ async def pantry_get(request: Request, added: str = "", search: str = ""):
         except Exception:
             pass
 
+    link_name = next((i["food_name"] for i in items if i["id"] == link_id), None) if link_id else None
+
     return templates.TemplateResponse(request, "pantry.html", {
         "items": items,
         "added": bool(added),
+        "linked": bool(linked),
         "search": search,
         "search_results": search_results,
         "search_error": search_error,
+        "link_id": link_id or None,
+        "link_name": link_name,
     })
 
 
@@ -1627,12 +1690,18 @@ async def pantry_add(
     notes: str = Form(""),
     fdc_id: str = Form(""),
     off_code: str = Form(""),
+    link_id: str = Form(""),
 ):
     food_name = food_name.strip()
     notes = notes.strip() or None
     fdc_id_int: int | None = None
     try:
         fdc_id_int = int(fdc_id) if fdc_id.strip() else None
+    except ValueError:
+        pass
+    link_id_int: int | None = None
+    try:
+        link_id_int = int(link_id) if link_id.strip() else None
     except ValueError:
         pass
 
@@ -1658,15 +1727,22 @@ async def pantry_add(
             except Exception:
                 pass
 
+    result_flag = "added=1"
     if food_name:
         with _db.get_db() as conn:
-            _db.pantry_add(conn, food_name, fdc_id=fdc_id_int, notes=notes)
+            if link_id_int:
+                existing = _db.pantry_get(conn, link_id_int)
+                existing_notes = existing["notes"] if existing else None
+                _db.pantry_update(conn, link_id_int, food_name, fdc_id_int, existing_notes)
+                result_flag = "linked=1"
+            else:
+                _db.pantry_add(conn, food_name, fdc_id=fdc_id_int, notes=notes)
     if fdc_id_int is not None and _gi_prompt_needed(fdc_id_int):
         from urllib.parse import quote
         return RedirectResponse(
-            f"/food/annotate/{fdc_id_int}?next={quote('/pantry?added=1')}", status_code=303
+            f"/food/annotate/{fdc_id_int}?next={quote('/pantry?' + result_flag)}", status_code=303
         )
-    return RedirectResponse("/pantry?added=1", status_code=303)
+    return RedirectResponse(f"/pantry?{result_flag}", status_code=303)
 
 
 @app.post("/pantry/remove/{pantry_id}", response_class=RedirectResponse)
@@ -2401,14 +2477,21 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
     meals = [dict(m) for m in meals_rows]
     hidden = max(0, total - len(meals))
 
-    # Build day DCP totals from persisted bcp_g (complete meals only)
+    # Build day DCP totals from persisted bcp_g (any meal with a computed
+    # value counts — DCP is auto-saved as items are added, regardless of
+    # whether the meal has been marked complete). A day is flagged
+    # provisional if any contributing meal is still incomplete, so the
+    # template can mark the total as subject to change.
     dates_in_page = {m["meal_date"] for m in meals}
     day_bcp: dict[str, float | None] = {}
+    day_provisional: dict[str, bool] = {}
     for d in dates_in_page:
         with _db.get_db() as conn:
             date_rows = _db.meal_list_by_date(conn, d)
-        vals = [r["bcp_g"] for r in date_rows if r["complete"] and r["bcp_g"] is not None]
+        contributing = [r for r in date_rows if r["bcp_g"] is not None]
+        vals = [r["bcp_g"] for r in contributing]
         day_bcp[d] = round(sum(vals), 1) if vals else None
+        day_provisional[d] = any(not r["complete"] for r in contributing)
 
     # Profile protein target for % goal column
     rda = _load_rda()
@@ -2423,6 +2506,7 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
         m["first_of_date"] = d not in seen_dates
         seen_dates.add(d)
         m["day_bcp"] = day_bcp.get(d)
+        m["day_provisional"] = day_provisional.get(d, False)
         if protein_target and day_bcp.get(d) is not None:
             m["day_pct"] = round(day_bcp[d] / protein_target * 100, 0)  # type: ignore[operator]
         else:
@@ -3121,27 +3205,25 @@ async def meal_day_view(request: Request, meal_id: int):
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_get(request: Request, saved: str = ""):
     profile = _profile.load_profile()
-    rda = _profile.compute_rda(profile) if profile else None
+    diet_pref = _current_diet_pref()
+    rda = _profile.compute_rda(profile, diet_pref=diet_pref) if profile else None
     rda_rows = []
     if rda:
         for key, (val, unit, rda_type) in rda.items():
             label, _ = _usda.nutrient_label(key)
             rda_rows.append({"label": label, "value": round(val, 1),
                               "unit": unit, "rda_type": rda_type})
-    prefs = _load_prefs_file()
-    diet_pref = prefs.get("diet_pref", "all")
-    if diet_pref not in _VALID_DIET_PREFS:
-        diet_pref = "all"
     api_key = _usda.get_api_key()
     with _db.get_db() as conn:
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
 
     nutrient_target_rows = []
     if profile:
+        # Every nutrient listed here is settable, not just ones with an
+        # established RDA/AI — amino acids, EPA/DHA, and phytonutrients have
+        # no official DRI but are still valid Optimal/max-limit candidates.
         for group_name, keys in _NUTRIENT_TARGET_GROUPS:
             for key in keys:
-                if rda is None or key not in rda:
-                    continue
                 label, unit = _usda.nutrient_label(key)
                 nutrient_target_rows.append({
                     "key":     key,
@@ -3162,6 +3244,7 @@ async def settings_get(request: Request, saved: str = ""):
         "api_key":              api_key,
         "diaas_overrides":      diaas_overrides,
         "nutrient_target_rows": nutrient_target_rows,
+        "diet_bioavailability_note": iron_zinc_bioavailability_note(diet_pref),
     })
 
 
@@ -3268,6 +3351,23 @@ async def settings_nutrient_target_post(
 
         _profile.save_profile(profile)
     return RedirectResponse("/settings?saved=nutrient_target", status_code=303)
+
+
+@app.post("/settings/nutrient-target/load-defaults", response_class=RedirectResponse)
+async def settings_nutrient_target_load_defaults():
+    """Apply profile.compute_optimal_defaults() to any nutrient the user
+    hasn't already customized. Mirrors the CLI's 'l' command in
+    numa_app.workflows.settings._do_nutrient_targets()."""
+    profile = _profile.load_profile()
+    if profile is None:
+        return RedirectResponse("/settings", status_code=303)
+
+    defaults = _profile.compute_optimal_defaults(profile)
+    for key, val in defaults.items():
+        if key not in profile.optimal_targets:
+            profile.optimal_targets[key] = val
+    _profile.save_profile(profile)
+    return RedirectResponse("/settings?saved=nutrient_target_defaults", status_code=303)
 
 
 @app.post("/recipes/compute-bcp", response_class=RedirectResponse)
@@ -3741,6 +3841,59 @@ async def recipe_print(request: Request, recipe_id: int):
     })
 
 
+@app.get("/summary/trend", response_class=HTMLResponse)
+async def summary_trend(request: Request, days: int = Query(7)):
+    """N-day average nutrient intake vs. RDA — surfaces chronic shortfalls
+    (B12, iron, iodine, vitamin D, ...) a single day's snapshot can't. Mirrors
+    numa_app.workflows.summary._do_nutrient_trend()."""
+    if days not in (7, 14, 30):
+        days = 7
+
+    end = datetime.date.today()
+    start = end - datetime.timedelta(days=days - 1)
+
+    with _db.get_db() as conn:
+        meals = _db.meal_list_by_date_range(conn, start.isoformat(), end.isoformat())
+        daily_totals: dict[str, dict[str, float]] = {}
+        all_ingredients: list = []
+        for meal in meals:
+            _, nutrients, ingredients = _meal_expand_for_diaas(meal["id"], conn)
+            if nutrients:
+                day = daily_totals.setdefault(meal["meal_date"], {})
+                for key, val in nutrients.items():
+                    day[key] = day.get(key, 0.0) + val
+            all_ingredients.extend(ingredients)
+
+    avg_nutrients, num_days = average_from_daily_totals(daily_totals)
+
+    rda = _load_rda()
+    optimal = _load_optimal()
+    max_limits = _load_max_limits()
+
+    # Pool amino acids across the whole window (not averaged — see
+    # numa_app.workflows.summary._do_nutrient_trend for why pooled totals and
+    # per-day averages produce identical gap ratios).
+    aa_nutrients: dict = {}
+    for ing in all_ingredients:
+        if _usda.has_amino_acid_data(ing["nutrients_100g"]):
+            scaled = _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
+            for k, v in scaled.items():
+                aa_nutrients[k] = aa_nutrients.get(k, 0.0) + v
+
+    return templates.TemplateResponse(request, "trend.html", {
+        "days":              days,
+        "start":             start.isoformat(),
+        "end":               end.isoformat(),
+        "num_days":          num_days,
+        "nutrient_sections": _nutrient_sections(avg_nutrients, rda, avg_nutrients,
+                                                optimal=optimal, max_limits=max_limits) if num_days else [],
+        "has_profile":       rda is not None,
+        "has_optimal":       bool(optimal),
+        "diet_notes":        _diet_aware_daily_notes(avg_nutrients, rda) if num_days else {},
+        "complements":       _complement_suggestions(aa_nutrients, None, context="daily") if aa_nutrients else None,
+    })
+
+
 @app.get("/summary", response_class=HTMLResponse)
 async def summary_index(request: Request):
     """Summary landing: recent-days table + date picker."""
@@ -3844,6 +3997,7 @@ async def summary_date(request: Request, meal_date: str):
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
+        "diet_notes":        _diet_aware_daily_notes(combined_nutrients, rda) if combined_nutrients else {},
     })
 
 

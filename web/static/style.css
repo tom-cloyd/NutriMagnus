@@ -521,6 +521,17 @@ td:first-child, th:first-child {
 
 .sb-toggle:hover { background: #e8f0ff; color: #1a3a6b; }
 
+.sb-chevron {
+  display: inline-block;
+  width: 1.4em;
+  margin-right: 0.15rem;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.sb-chevron:hover { background: #cddcf5; }
+
 .sb-item.sb-active > .sb-toggle {
   background: #dbeafe;
   color: #1e40af;

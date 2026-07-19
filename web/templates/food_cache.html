@@ -55,7 +55,7 @@
       <th>Type</th>
       <th class="text-center">AA</th>
       <th class="text-center">GI est.</th>
-      <th class="text-center">DIAAS est.</th>
+      <th class="text-center">DIAAS</th>
       <th>Notes</th>
       <th>Actions</th>
     </tr>
@@ -82,7 +82,13 @@
         {{ "%.0f"|format(food.gi) if food.gi is not none else "—" }}
       </td>
       <td class="text-center muted">
-        {{ "%.2f"|format(food.diaas) if food.diaas is not none else "—" }}
+        {% if food.diaas is not none %}
+        {% if food.diaas_saved %}
+        <span title="Your saved DIAAS estimate">{{ "%.2f"|format(food.diaas) }}&thinsp;<small>&#9733;</small></span>
+        {% else %}
+        <span title="Computed from the built-in DIAAS reference table">{{ "%.2f"|format(food.diaas) }}</span>
+        {% endif %}
+        {% else %}—{% endif %}
       </td>
       <td style="max-width:18rem">
         {% if food.notes or food.curator_notes %}
@@ -125,7 +131,7 @@
     {% endfor %}
   </tbody>
 </table>
-<p class="muted"><small>AA = amino acid data available &middot; GI / DIAAS = user-annotated estimates &middot; <a href="/food/annotate">Annotate a food</a></small></p>
+<p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a></small></p>
 {% else %}
 <p>No foods in cache{% if q %} matching that filter{% endif %}.</p>
 {% endif %}

@@ -73,7 +73,7 @@
       <th class="text-center">Complete</th>
       <th class="num-col">Items</th>
       <th class="num-col" title="Digestible Complete Protein for this meal">Meal DCP</th>
-      <th class="num-col" title="Sum of DCP across all complete meals on this date">Day DCP</th>
+      <th class="num-col" title="Sum of DCP across all meals with computed data on this date (marked * if any meal isn't complete yet)">Day DCP</th>
       {% if protein_target %}<th class="num-col" title="Day DCP ÷ {{ protein_target|int }} g daily target">% goal</th>{% endif %}
       <th class="num-col">Calories</th>
     </tr>
@@ -103,7 +103,7 @@
       </td>
       <td class="num-col">
         {% if meal.first_of_date and meal.day_bcp is not none %}
-          <span class="status-met">{{ "%.1f"|format(meal.day_bcp) }}</span>
+          <span class="status-met" title="{% if meal.day_provisional %}Provisional — includes a meal not yet marked complete{% else %}Confirmed — all contributing meals are marked complete{% endif %}">{{ "%.1f"|format(meal.day_bcp) }}{% if meal.day_provisional %}&thinsp;<small class="muted">*</small>{% endif %}</span>
         {% elif meal.first_of_date %}
           <span class="muted">—</span>
         {% endif %}
@@ -111,7 +111,7 @@
       {% if protein_target %}
       <td class="num-col">
         {% if meal.first_of_date and meal.day_pct is not none %}
-          <span class="{% if meal.day_pct >= 100 %}status-met{% elif meal.day_pct >= 75 %}status-near{% else %}status-low{% endif %}">{{ meal.day_pct|int }}%</span>
+          <span class="{% if meal.day_pct >= 100 %}status-met{% elif meal.day_pct >= 75 %}status-near{% else %}status-low{% endif %}" title="{% if meal.day_provisional %}Provisional — includes a meal not yet marked complete{% else %}Confirmed — all contributing meals are marked complete{% endif %}">{{ meal.day_pct|int }}%{% if meal.day_provisional %}<small class="muted">*</small>{% endif %}</span>
         {% elif meal.first_of_date %}
           <span class="muted">—</span>
         {% endif %}
@@ -130,6 +130,7 @@
     {% endfor %}
   </tbody>
 </table>
+<p class="muted"><small>* Day DCP / % goal includes a meal not yet marked complete — the total may change as you keep editing that meal.</small></p>
 
 {% else %}
 <p class="muted mt-2">

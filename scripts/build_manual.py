@@ -109,6 +109,10 @@ body {
     line-height: 1.4;
 }
 #toc-sidebar h2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.12em;
@@ -117,22 +121,55 @@ body {
     padding-bottom: 0.4rem;
     border-bottom: 1px solid var(--border);
 }
+#toc-collapse-all {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--toc-fg);
+    cursor: pointer;
+    font-size: 9px;
+    text-transform: none;
+    letter-spacing: normal;
+    padding: 1px 5px;
+    flex: none;
+}
+#toc-collapse-all:hover { background: var(--accent-light); color: var(--accent); }
 #toc-sidebar .toc { list-style: none; }
 #toc-sidebar .toc li { padding: 1px 0; }
 #toc-sidebar .toc a {
     color: var(--toc-fg);
     text-decoration: none;
     display: block;
-    padding: 2px 4px;
+    padding: 2px 4px 2px 0.9em;
+    text-indent: -0.9em;
     border-radius: 3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 #toc-sidebar .toc a:hover { color: var(--accent); background: var(--accent-light); }
-#toc-sidebar .toc ul { list-style: none; padding-left: 0; }
+#toc-sidebar .toc ul { list-style: none; padding-left: 0.85em; }
 #toc-sidebar .toc ul a { font-size: 11.5px; }
 #toc-sidebar .toc ul ul a { font-size: 11px; }
+
+/* Per-heading collapse toggle + collapsed state */
+#toc-sidebar .toc li.toc-has-children { position: relative; padding-left: 1.05em; }
+#toc-sidebar .toc li.toc-has-children > a { padding-left: 0; text-indent: 0; }
+#toc-sidebar .toc .toc-toggle {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 9px;
+    width: 1em;
+    padding: 0;
+    line-height: 1.4;
+}
+#toc-sidebar .toc .toc-toggle:hover { color: var(--accent); }
+#toc-sidebar .toc li.toc-collapsed > ul { display: none; }
 
 /* ── Main content ── */
 #content {
@@ -377,6 +414,61 @@ JS = """\
     });
     document.getElementById('btn-prev').addEventListener('click', function () { step(-1); });
     document.getElementById('btn-next').addEventListener('click', function () { step(1); });
+  });
+})();
+
+/* ── TOC collapse/expand ── */
+(function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    var root = document.querySelector('#toc-sidebar .toc > ul');
+    if (!root) return;
+
+    /* The doc title (h1) wraps everything in one outer <li>; the "main
+       headings" (h2 — Preface, Part 1, Part 2, ...) are its grandchildren.
+       Fall back to the root list itself if there's no such wrapper. */
+    var mainList = root.querySelector(':scope > li > ul') || root;
+    var mainLis = Array.prototype.filter.call(mainList.children, function (el) {
+      return el.tagName === 'LI';
+    });
+
+    mainLis.forEach(function (li) {
+      var childUl = li.querySelector(':scope > ul');
+      if (!childUl) return;
+      var a = li.querySelector(':scope > a');
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'toc-toggle';
+      btn.setAttribute('aria-label', 'Collapse or expand this section');
+      btn.textContent = '▾';
+      li.classList.add('toc-has-children');
+      li.insertBefore(btn, a);
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        var collapsed = li.classList.toggle('toc-collapsed');
+        btn.textContent = collapsed ? '▸' : '▾';
+      });
+    });
+
+    if (!mainLis.length) return;
+
+    var header = document.querySelector('#toc-sidebar h2');
+    var allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.id = 'toc-collapse-all';
+    allBtn.textContent = 'Collapse all';
+    header.appendChild(allBtn);
+
+    var allCollapsed = false;
+    allBtn.addEventListener('click', function () {
+      allCollapsed = !allCollapsed;
+      mainLis.forEach(function (li) {
+        if (!li.classList.contains('toc-has-children')) return;
+        li.classList.toggle('toc-collapsed', allCollapsed);
+        var btn = li.querySelector(':scope > .toc-toggle');
+        if (btn) btn.textContent = allCollapsed ? '▸' : '▾';
+      });
+      allBtn.textContent = allCollapsed ? 'Expand all' : 'Collapse all';
+    });
   });
 })();
 """
