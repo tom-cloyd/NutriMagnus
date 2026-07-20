@@ -14,6 +14,7 @@ import db as _db
 import profile as _profile
 import usda as _usda
 from .. import state
+from ..config import prefs as _prefs
 from ..services.annotations import maybe_prompt_gi
 from ..services.portions import _normalize_unit_display, _pick_portion
 from ..services.glycemic_load import compute_glycemic_load
@@ -256,9 +257,12 @@ def _menu_meals() -> bool:
     before_date: str | None = None
 
     while True:
+        sort = state.get_sort_pref("meals", "date")
+        if sort not in ("date", "name", "meal_bcp", "calories"):
+            sort = "date"
         with _db.get_db() as conn:
             meals = _db.meal_list_recent(
-                conn, limit=_MEALS_PAGE + 1, offset=offset, before_date=before_date
+                conn, limit=_MEALS_PAGE + 1, offset=offset, before_date=before_date, sort=sort
             )
             total_count = _db.meal_count_recent(conn, before_date=before_date)
         has_more = len(meals) > _MEALS_PAGE
@@ -286,11 +290,13 @@ def _menu_meals() -> bool:
             _t = _profile.compute_rda(_profile_obj).get("protein_g", (0.0,))[0]
             protein_target = _t if _t > 0 else None
 
+        _MEAL_SORT_LABELS = {"date": "Date", "name": "Name", "meal_bcp": "Meal DCP", "calories": "Calories"}
         title = "Meals & Log"
         if before_date:
             title += f"  [grey62]— from {before_date}[/grey62]"
         if protein_target:
             title += f"  [grey62]— daily DCP goal = {protein_target:.0f} grams[/grey62]"
+        title += f"  [grey62]— sorted by {_MEAL_SORT_LABELS[sort]}[/grey62]"
         section_title(title)
 
         _W_NAME = 24
@@ -387,6 +393,7 @@ def _menu_meals() -> bool:
             state.console.print("  [grey62]  a{id} ········  Analyze a meal or the full day  (e.g. a3)[/grey62]", highlight=False)
             state.console.print("  [grey62]  d{id} ········  Delete meal(s)  (e.g. d3  or  d3 5 7  or  d3-7)[/grey62]", highlight=False)
         state.console.print("  [grey62]  s ············  Search all meals for a food  (e.g. s, then food name at prompt)[/grey62]", highlight=False)
+        state.console.print("  [grey62]  o ············  Sort by  (date, name, meal DCP, or calories)[/grey62]", highlight=False)
         state.console.print("  [grey62]  c ············  Calculate DCP and calories (all meals and days / last 30 days / last 10 days)[/grey62]", highlight=False)
         if has_more:
             state.console.print("  [grey62]  mr ···········  Show next 15 older meals[/grey62]", highlight=False)
@@ -411,6 +418,19 @@ def _menu_meals() -> bool:
             continue
         if rl == "s":
             _safe_call(_do_meal_food_search)
+            continue
+        if rl == "o":
+            try:
+                choice = _prompt_with_options(
+                    "Sort by",
+                    [("1", "Date"), ("2", "Name"), ("3", "Meal DCP"), ("4", "Calories")],
+                    default={"date": "1", "name": "2", "meal_bcp": "3", "calories": "4"}.get(sort, "1"),
+                )
+            except Cancelled:
+                continue
+            new_sort = {"1": "date", "2": "name", "3": "meal_bcp", "4": "calories"}.get(choice, "date")
+            _prefs.set_sort_pref("meals", new_sort)
+            offset = 0
             continue
         if rl == "c":
             try:

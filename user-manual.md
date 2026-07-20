@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-19:0541* / Reading 2 hours, 17 minutes
+*Updated 2026-07-19:2113* / Reading 2 hours, 17 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -36,7 +36,11 @@ The five items in the top navigation bar correspond to the five major things you
 
 **Detailed how-to guides for each menu area follow later in this manual.** For output samples and screenshots, see the [Output samples](#outputSamples) section. If you prefer to learn by example before reading explanations, skip ahead to [Sample Workflows](#sample-workflows) at the end of this introduction — three annotated walkthroughs show the program in action from start to finish.
 
-### NutriMagnus addresses a very specific problem
+### NutriMagnus addresses two serious problems
+
+Thoughtful diet management requires trustworthy, specific data that is only to be found in research report summaries. Both access and use of this data requires use of computers. 
+
+Managing specific dietary problems presents even greater challenges. One such specific problem is management of protein intake in vegetarian and vegan diets, especially when a person is no longer young. NuMa is particularly suitable for management of this problem, but can address others as well, focusing on oxalate consumption, need for vitamins and or minerals, phytonutrient tracking, and more. 
 
 **Diet matters.** It is now well established that the crucial factors affecting physical and mental health are diet, sleep, exercise, social engagement, stress management, and avoidance of injurious and risky substances. Their relationships are complex and interacting. Relative to diet, research supports an emphasis on a "plant-predominant eating pattern". [^1] The fortunate thing about diet is that is something we act on immediately and effectively - but only if we have the information needed to make good choices.
 
@@ -118,7 +122,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 (If you have pantry items or analyzed recipes, they appear here too.) The suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
 
-**What you learned:** [NuMa](#gloss-numa) can tell you not just what is in a food but what is missing — and exactly what to add to fix it.
+**What you learned:** [NuMa](#gloss-numa) can tell you BOTH what is in a food AND what is missing — and exactly what to add to fix it.
 
 ---
 
@@ -766,7 +770,7 @@ The sections linked from analysis output are:
 
 #### Food Cache — Column Guide [cached]
 
-The CACHED FOODS list shows every food you have stored locally. Columns:
+The CACHED FOODS list shows every food you have stored locally, sorted by Name by default — type o to sort by Type, DIAAS, or GI estimate instead. Your choice is remembered and used as the default the next time you open the Food Cache, in both the terminal app and the web app. Columns:
 
     #       Row number. Use with a command letter to act on that food
             (see Commands below).
@@ -835,6 +839,7 @@ Commands (type the letter followed by the row number, e.g. v3, e12):
             claude.ai (free). Also i#,# for multiple rows. Type i alone to
             select every food in the current list that is missing AA data (✗).
     r       Read Claude's response — import the data saved in ~/claude_response.txt.
+    o       Sort by — Name, Type, DIAAS, or GI estimate.
     /text   Filter list by name or brand. Enter / alone to clear the filter.
     Enter   Re-display the full food list (clears any in-progress filter view).
 
@@ -994,7 +999,7 @@ See [DIAAS](#diaas) for [DIAAS](#gloss-diaas) background. See [digestible comple
 
 #### Meals and Log List [meals-list]
 
-The main Meals & Log screen lists your recent meals, 15 at a time.
+The main Meals & Log screen lists your recent meals, 15 at a time, sorted by date (most recent first) by default. Press o to change the sort order — Date, Name, Meal DCP, or Calories — your choice is remembered and used as the default the next time you open Meals & Log, in both the terminal app and the web app.
 
 Columns:
     ID              Meal ID. Use with commands: v3 view, a3 analyze,
@@ -1028,7 +1033,7 @@ saves its DCP and calories automatically.
 
 % profile goal requires a user profile (Settings -> User profile). Blank if no profile is set.
 
-Commands: n=new  v{id}=view/edit  a{id}=analyze  d{id}=delete   s=search history  c=calculate [DCP](#gloss-dcp) and calories  mr=next 15 older  ml=15 newer   d{YYYY-MM-DD}=jump to date
+Commands: n=new  v{id}=view/edit  a{id}=analyze  d{id}=delete   s=search history  o=sort  c=calculate [DCP](#gloss-dcp) and calories  mr=next 15 older  ml=15 newer   d{YYYY-MM-DD}=jump to date
 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein). See [daily nutrient goals](#goals) to see how your daily protein target is calculated.
 
@@ -1142,7 +1147,7 @@ See [meal protein digestibility](#meal-diaas) to see the digestibility table. Se
 
 #### Recipes List Table [recipes]
 
-Shows all your saved recipes. Displayed when you open Recipes -> Browse or Recipes -> Search, and after any recipe action.
+Shows all your saved recipes. Displayed when you open Recipes -> Browse or Recipes -> Search, and after any recipe action. Sorted by Last accessed by default; press o (not available while a search filter is active) to switch to Name or DCP/serving instead. Your choice is remembered and used as the default the next time you browse recipes, in both the terminal app and the web app.
 
 Columns:
     ID          Recipe ID. Use with commands: a{id} analyze, v{id}
@@ -1156,7 +1161,7 @@ Columns:
     Complete    Checkmark if you have marked the recipe finished.
     Created     Date the recipe was first saved.
 
-Commands: a{id}=analyze  v{id}=view/edit  d{id}=delete  c{id}=copy   x=new recipe  /text=filter by name  r=clear filter   n/p=next/prev page
+Commands: a{id}=analyze  v{id}=view/edit  d{id}=delete  c{id}=copy   x=new recipe  /text=filter by name  r=clear filter  o=sort   n/p=next/prev page
 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein).
 
@@ -1205,7 +1210,24 @@ Columns:
                              network call needed).
     Brand   Brand name for Branded and OFF entries.
 
+    Source  (Web app only.) Where the match came from:
+              Pantry     Already in your Pantry.
+              Cache      In your Food Cache, but not the Pantry.
+              Recipe     One of your saved recipes.
+              USDA       Not yet cached — from FoodData Central.
+              OFF        Not yet cached — from Open Food Facts.
+
 To select: type the row number. If the food is not yet in your cache, NutriMagnus fetches and saves it automatically.
+
+**Sort order (web app only).** Results can be ordered two ways — a dropdown above the results table lets you switch, and your choice is remembered as the default for next time:
+    Pantry, Cache, then Other   Groups results by where they came from
+                                (Pantry first, then Recipe, then Cache,
+                                then USDA/OFF); within each group, closer
+                                name matches sort first.
+    Best match to name          Ignores source entirely and ranks purely
+                                by how closely the name matches your
+                                search text — an exact match always
+                                appears first, regardless of source.
 
 See [Food Cache](#cached) for the [Food Cache](#gloss-food-cache) column guide. See [amino acid fetch workflow](#fetch) to learn how to get missing amino acid data via Claude AI.
 
@@ -1699,7 +1721,7 @@ The current ingredient list is printed after each addition. When you are done, p
 
 #### Browse, view, edit, copy, and delete recipes (Recipes → 2)
 
-Displays all your recipes sorted by most recently accessed. The table shows:
+Displays all your recipes, sorted by Last accessed by default — press `o` to switch to Name or DCP/serving instead; your choice is remembered as the default from then on, in both the terminal app and the web app. The table shows:
 
 | Column | Meaning |
 |---|---|
@@ -1721,6 +1743,7 @@ Displays all your recipes sorted by most recently accessed. The table shows:
 | `x` | Create a new recipe (same as Recipes → 1) |
 | `/text` | Filter all your recipes to those whose names contain `text` — e.g. `/soup` searches every saved recipe and shows only matches. Type `/` alone to clear the filter. |
 | `r` | Return to the most-recently-accessed view (clears any active filter) |
+| `o` | Change the sort order — Last accessed, Name, or DCP/serving (not available while a filter is active) |
 | `n` / `p` | Next / previous page when there are more than 20 recipes |
 | `b` / Enter | Done — back to the Recipes menu |
 
@@ -1913,6 +1936,8 @@ Choose **1**. At the "Search food or recipe" prompt, type a food name, [FDC ID](
 **Adding a recipe:** enter the number of servings you are logging (e.g. `1`, `0.5`, `1 1/2`). You can also enter a gram weight followed by `g` (e.g. `290 g`) — NutriMagnus calculates the equivalent serving count from the recipe's recorded total weight. If the recipe has no total weight on record, you are asked to supply it.
 
 The updated item list is shown after each addition. Add as many items as needed; press Enter or `b` to finish.
+
+**Web app:** the "Add Food or Recipe" search panel on a meal's page shows the same Source labels and sort-order dropdown ("Pantry, Cache, then Other" vs. "Best match to name") described in [USDA Food Search Results](#food-search) — your sort choice is shared with the standalone Food Search page and remembered across sessions.
 
 #### Editing and removing meal items
 

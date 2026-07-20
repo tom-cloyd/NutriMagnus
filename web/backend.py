@@ -201,6 +201,57 @@ def _save_prefs_file(updates: dict) -> None:
     _PREFS_FILE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
+def _resolve_sort(sort: str | None, pref_key: str, default: str, valid: set[str]) -> str:
+    """Resolve the sort choice for a list view: an explicit `sort` query param wins
+    and is remembered as the new default; otherwise fall back to the saved pref."""
+    prefs = _load_prefs_file()
+    if sort is None:
+        saved = prefs.get(pref_key, default)
+        return saved if saved in valid else default
+    if sort not in valid:
+        sort = default
+    if prefs.get(pref_key) != sort:
+        _save_prefs_file({pref_key: sort})
+    return sort
+
+
+_SEARCH_CATEGORY_RANK = {"pantry": 0, "recipe": 1, "cache": 2, "usda": 3, "off": 3}
+_SEARCH_SORT_MODES = {"grouped", "relevance"}
+
+
+def _search_relevance_key(name: str, query: str) -> tuple:
+    """Rank a result name by match quality against the search query — exact match
+    first, then prefix match, then by fraction of query words present, then by
+    how much shorter (closer) the name is, then alphabetically. Lower sorts first."""
+    nl = (name or "").lower()
+    ql = query.lower().strip()
+    query_words = ql.split()
+    hits = sum(1 for w in query_words if w in nl)
+    fraction_matched = hits / len(query_words) if query_words else 0.0
+    return (
+        0 if nl == ql else 1,
+        0 if nl.startswith(ql) else 1,
+        -fraction_matched,
+        len(nl),
+        nl,
+    )
+
+
+def _sort_search_results(results: list[dict], query: str, mode: str) -> list[dict]:
+    """Order search results either grouped by source category (pantry, recipe,
+    cache, then USDA/OFF), or by pure name-match quality regardless of category."""
+    if mode == "relevance":
+        return sorted(results, key=lambda r: _search_relevance_key(r["name"], query))
+    return sorted(
+        results,
+        key=lambda r: (_SEARCH_CATEGORY_RANK.get(r["source"], 9), _search_relevance_key(r["name"], query)),
+    )
+
+
+def _pantry_fdc_ids(conn) -> set[int]:
+    return {r["fdc_id"] for r in _db.pantry_list(conn) if r["fdc_id"]}
+
+
 def _current_diet_pref() -> str:
     """Return the saved dietary preference, validated, defaulting to 'all'."""
     pref = _load_prefs_file().get("diet_pref", "all")
@@ -666,19 +717,21 @@ async def index(request: Request):
     )
 
 
-async def _search_logic(request: Request, query: str, template: str, extra_ctx: dict | None = None):
+async def _search_logic(request: Request, query: str, template: str, extra_ctx: dict | None = None,
+                         sort: str | None = None):
     """Shared search logic for food search and analyze-portion pages."""
     query = query.strip()
     results = []
     error = None
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
 
     if query:
-        ql = query.lower()
-        query_words = ql.split()
+        query_words = query.lower().split()
         with _db.get_db() as conn:
             all_recipes = _db.recipe_list(conn)
             cached = _db.search_cached_foods(conn, query)
             annotations = _db.annotations_for_fdcids(conn, [row["fdc_id"] for row in cached])
+            pantry_ids = _pantry_fdc_ids(conn)
         seen_ids: set[int] = set()
         for row in cached:
             seen_ids.add(row["fdc_id"])
@@ -691,16 +744,13 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                 "name":      row["name"],
                 "data_type": row["data_type"],
                 "brand":     row["brand"] or "",
-                "source":    "cache",
+                "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
                 "gi":        round(ann["gi_estimate"]) if ann and ann["gi_estimate"] is not None else None,
                 "diaas":     round(ann["diaas_estimate"], 2) if ann and ann["diaas_estimate"] is not None else None,
                 "has_notes": bool(row["notes"]),
             })
-        matching_recipes = sorted(
-            [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)],
-            key=lambda r: (-sum(1 for w in query_words if w in r["name"].lower()), r["name"].lower()),
-        )
+        matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
         for r in matching_recipes:
             results.append({
                 "_type":     "recipe",
@@ -708,7 +758,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                 "name":      r["name"],
                 "data_type": "Recipe",
                 "brand":     "",
-                "source":    "local",
+                "source":    "recipe",
                 "aa":        "✓" if r["dcp_g"] is not None else "—",
                 "gi":        None,
                 "diaas":     None,
@@ -735,17 +785,20 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
             if not results:
                 error = f"USDA API unavailable: {exc}"
 
-    ctx = {"results": results, "query": query, "error": error}
+        results = _sort_search_results(results, query, sort)
+
+    ctx = {"results": results, "query": query, "error": error, "sort": sort}
     if extra_ctx:
         ctx.update(extra_ctx)
     return templates.TemplateResponse(request, template, ctx)
 
 
 @app.get("/food/search", response_class=HTMLResponse)
-async def food_search_get(request: Request, query: str = Query(default="")):
+async def food_search_get(request: Request, query: str = Query(default=""), sort: str | None = None):
     if query.strip():
-        return await _search_logic(request, query, "search.html")
-    return templates.TemplateResponse(request, "search.html", {"results": [], "query": ""})
+        return await _search_logic(request, query, "search.html", sort=sort)
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    return templates.TemplateResponse(request, "search.html", {"results": [], "query": "", "sort": sort})
 
 
 @app.post("/food/search", response_class=HTMLResponse)
@@ -1394,8 +1447,17 @@ async def food_compare_saved_delete(
     return RedirectResponse(url, status_code=303)
 
 
+_FOOD_CACHE_SORT_KEYS = {
+    "name":  lambda f: (f["name"] or "").lower(),
+    "type":  lambda f: ((f["data_type"] or "").lower(), (f["name"] or "").lower()),
+    "diaas": lambda f: (f["diaas"] is None, -(f["diaas"] or 0), (f["name"] or "").lower()),
+    "gi":    lambda f: (f["gi"] is None, -(f["gi"] or 0), (f["name"] or "").lower()),
+}
+
+
 @app.get("/food/cache", response_class=HTMLResponse)
-async def food_cache_get(request: Request, q: str = "", pruned: int = 0):
+async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None):
+    sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
     with _db.get_db() as conn:
         if q.strip():
             rows = _db.search_cached_foods(conn, q.strip())
@@ -1425,10 +1487,12 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0):
             "notes":          row["notes"] or "",
             "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
         })
+    foods.sort(key=_FOOD_CACHE_SORT_KEYS[sort])
     return templates.TemplateResponse(request, "food_cache.html", {
         "foods":  foods,
         "q":      q,
         "pruned": pruned,
+        "sort":   sort,
     })
 
 
@@ -2472,7 +2536,7 @@ def _refresh_day_pct_goal(meal_date: str, protein_target: float | None) -> None:
                 _db.meal_set_day_pct_goal(conn, dr["id"], pct)
 
 
-def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | None) -> dict:
+def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | None, sort: str = "date") -> dict:
     """Build template context for the meals list, including day DCP aggregates."""
     meals = [dict(m) for m in meals_rows]
     hidden = max(0, total - len(meals))
@@ -2520,18 +2584,23 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
         "today":          datetime.date.today().isoformat(),
         "date_filter":    before_date or "",
         "protein_target": protein_target,
+        "sort":           sort,
     }
 
 
+_MEALS_SORT_KEYS = {"date", "name", "meal_bcp", "calories"}
+
+
 @app.get("/meals", response_class=HTMLResponse)
-async def meals_list(request: Request, show_all: bool = False, date: str = ""):
+async def meals_list(request: Request, show_all: bool = False, date: str = "", sort: str | None = None):
+    sort = _resolve_sort(sort, "sort_meals", "date", _MEALS_SORT_KEYS)
     before_date = date.strip() or None
     limit = 1000 if show_all else 9
     with _db.get_db() as conn:
-        meals_rows = _db.meal_list_recent(conn, limit=limit, before_date=before_date)
+        meals_rows = _db.meal_list_recent(conn, limit=limit, before_date=before_date, sort=sort)
         total = _db.meal_count_recent(conn, before_date=before_date)
     return templates.TemplateResponse(request, "meals.html",
-                                      _meals_list_ctx(meals_rows, show_all, total, before_date))
+                                      _meals_list_ctx(meals_rows, show_all, total, before_date, sort))
 
 
 @app.post("/meals/compute-bcp", response_class=RedirectResponse)
@@ -2609,7 +2678,8 @@ async def meal_refresh_aa(meal_id: int):
 
 
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
-async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = ""):
+async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None):
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
         if not meal:
@@ -2636,12 +2706,10 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         with _db.get_db() as conn:
             all_recipes   = _db.recipe_list(conn)
             cached_rows   = _db.search_cached_foods(conn, clean_query)
+            pantry_ids    = _pantry_fdc_ids(conn)
         ql = q.lower()
         query_words = ql.split()
-        matching_recipes = sorted(
-            [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)],
-            key=lambda r: (-sum(1 for w in query_words if w in r["name"].lower()), r["name"].lower()),
-        )
+        matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
         for r in matching_recipes:
             search_results.append({
                 "_type":         "recipe",
@@ -2653,7 +2721,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                 "total_volume":  r["total_volume"],
                 "total_volume_unit": r["total_volume_unit"] or "ml",
                 "data_type":     "Recipe",
-                "source":        "local",
+                "source":        "recipe",
             })
 
         # Collect raw API results (double USDA search, same strategy as CLI)
@@ -2728,7 +2796,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                 "name":      row["name"],
                 "data_type": dtype,
                 "brand":     row["brand"] or "",
-                "source":    "cache",
+                "source":    "pantry" if fid in pantry_ids else "cache",
                 "off_code":  "",
                 "portions":  portions,
                 "aa":        _aa_status(fid, dtype, False),
@@ -2756,6 +2824,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                 "gi":        _ann_gi(fid),
                 "diaas":     _ann_diaas(fid),
             })
+
+        search_results = _sort_search_results(search_results, q, sort)
 
     rda = _load_rda()
     optimal = _load_optimal()
@@ -2845,6 +2915,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "item_antinutrients":  item_antinutrients,
         "oxalate":             oxalate,
         "q":                   q,
+        "sort":                sort,
         "search_results":      search_results,
         "today":               datetime.date.today().isoformat(),
         "has_profile":         rda is not None,
@@ -3406,7 +3477,8 @@ _RECIPE_SORT_KEYS = {
 
 
 @app.get("/recipes", response_class=HTMLResponse)
-async def recipes_list(request: Request, q: str = "", sort: str = "recent"):
+async def recipes_list(request: Request, q: str = "", sort: str | None = None):
+    sort = _resolve_sort(sort, "sort_recipes", "recent", set(_RECIPE_SORT_KEYS))
     with _db.get_db() as conn:
         total_count = _db.recipe_count(conn)
         all_recipes = [dict(r) for r in _db.recipe_list_recent(conn, limit=200)]
@@ -3414,8 +3486,6 @@ async def recipes_list(request: Request, q: str = "", sort: str = "recent"):
         ql = q.lower()
         words = ql.split()
         all_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in words)]
-    if sort not in _RECIPE_SORT_KEYS:
-        sort = "recent"
     reverse = sort in ("recent", "dcp")
     all_recipes.sort(key=_RECIPE_SORT_KEYS[sort], reverse=reverse)
     return templates.TemplateResponse(request, "recipes.html", {

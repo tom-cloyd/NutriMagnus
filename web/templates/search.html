@@ -24,10 +24,21 @@
 {% endif %}
 
 {% if results %}
-<p class="result-count">
-  {{ results|length }} result{% if results|length != 1 %}s{% endif %}
-  for <strong>{{ query }}</strong>
-</p>
+<div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+  <p class="result-count mb-0">
+    {{ results|length }} result{% if results|length != 1 %}s{% endif %}
+    for <strong>{{ query }}</strong>
+  </p>
+  <form method="get" action="/food/search" class="d-flex gap-2 align-items-center">
+    <input type="hidden" name="query" value="{{ query }}">
+    <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
+    <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
+      <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
+    </select>
+  </form>
+</div>
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>

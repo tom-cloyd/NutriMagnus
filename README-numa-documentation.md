@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-16:1844
+UPDATED: 2026-07-19:2113
 ---
 
 ## Table of Contents
@@ -623,7 +623,7 @@ The original monolithic `numa.py` was split into a `numa_app/` package (see `REA
 
 - **`numa.py`** — five lines: parse args with `argparse`, call `run_app()`. Uses stdlib only; no `typer`.
 - **`numa_app/main.py`** — top-level orchestration: `initialize_app()`, `print_startup_banner()`, `_run_menu()`, `run_app()`.
-- **`numa_app/state.py`** — shared mutable state: `AppContext` dataclass holding the `Console`, current theme, and dietary preference. Module-level aliases (`console`, `T`, `_current_theme_name`, `_diet_pref`) are kept for convenience; `sync_globals()` refreshes them when state changes.
+- **`numa_app/state.py`** — shared mutable state: `AppContext` dataclass holding the `Console`, current theme, dietary preference, and remembered list-sort choices. Module-level aliases (`console`, `T`, `_current_theme_name`, `_diet_pref`) are kept for convenience; `sync_globals()` refreshes them when state changes.
 - **`numa_app/config/`** — persistence for theme and dietary preferences.
 - **`numa_app/ui/`** — all terminal I/O primitives and rendering.
 - **`numa_app/services/`** — stateless helpers for food search, portion parsing, and report export.
@@ -654,7 +654,9 @@ Similarly, the three largest workflow files were split to keep each under 600 li
 
 ### `numa_app/state.py` — shared state
 
-`AppContext` is the single source of truth. `set_theme(name, theme_dict)` and `set_diet_pref(value)` are the only mutation points; both call `sync_globals()` to keep the module-level aliases in sync with the dataclass. All workflow modules import `state` and reference `state.T`, `state.console`, `state._diet_pref` directly. `_diet_pref` is a string: `"all"` | `"vegetarian"` | `"plant_only"`.
+`AppContext` is the single source of truth. `set_theme(name, theme_dict)`, `set_diet_pref(value)`, and `set_sort_pref(list_name, value)` are the only mutation points; all three call `sync_globals()` to keep the module-level aliases in sync with the dataclass. All workflow modules import `state` and reference `state.T`, `state.console`, `state._diet_pref` directly. `_diet_pref` is a string: `"all"` | `"vegetarian"` | `"plant_only"`.
+
+`AppContext.sort_prefs` is a dict remembering the last-chosen sort order per list view: `{"recipes": "recent", "food_cache": "name", "meals": "date"}`. Read with `state.get_sort_pref(list_name, default)`; workflow code updates it via `numa_app/config/prefs.py`'s `set_sort_pref(list_name, value)`, which also persists it to `prefs.json` immediately (keys `sort_recipes`, `sort_food_cache`, `sort_meals`) so the choice survives restarts. The web app (`web/backend.py`) reads/writes the same three keys in the same `prefs.json` via its own `_resolve_sort()` helper, so a sort choice made in one interface becomes the default in the other.
 
 ### `numa_app/ui/prompts.py` — input primitives
 
@@ -1193,7 +1195,9 @@ Renders the content of `home.md` (project root) as HTML. The markdown file is re
 
 #### `search.html`
 
-Food search results. Shows a results table with food name, data type, brand, and source badge (cache / usda / local). Each row links to `/food/{fdc_id}`. Used for both the Foods → Search page and as a reusable search partial.
+Food search results. Shows a results table with food name, data type, brand, and source badge (`pantry` / `cache` / `recipe` / `usda` / `off`). Each row links to `/food/{fdc_id}`. Used for both the Foods → Search page and as a reusable search partial.
+
+**Ranking.** Results can be ordered two ways, chosen via a dropdown and persisted per-user in `prefs.json` (key `sort_food_search`, default `"relevance"`; shared with the meal add-food panel in `meal.html`): `"relevance"` ranks purely by name-match quality (`_search_relevance_key()` in `web/backend.py` — exact match, then prefix match, then fraction of query words matched, then shortest name, then alphabetical), ignoring source; `"grouped"` sorts by source category first (`_SEARCH_CATEGORY_RANK`: pantry → recipe → cache → USDA/OFF), using the same relevance key as a tiebreaker within each group. Both modes are applied via the shared `_sort_search_results()` helper. A cached food is tagged `"pantry"` instead of `"cache"` when its `fdc_id` is present in the Pantry table (`_pantry_fdc_ids()`).
 
 #### `food_detail.html`
 
@@ -1302,7 +1306,7 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 | `~/.local/share/numa/numa.db` | SQLite database (foods cache, recipes, meals, pantry, DIAAS overrides) |
 | `~/.config/numa/config.json` | USDA API key |
 | `~/.config/numa/theme` | Saved color theme preference |
-| `~/.config/numa/prefs.json` | Dietary preferences (`diet_pref`: `"all"` / `"vegetarian"` / `"plant_only"`) |
+| `~/.local/share/numa/prefs.json` | Dietary preferences (`diet_pref`), editor command, and remembered list-sort choices (`sort_recipes`, `sort_food_cache`, `sort_meals`) — shared by the CLI and web app |
 | `~/.config/numa/profile.json` | User profile (age, sex, weight, height, activity level) |
 | `~/.numa/reports/` | Auto-saved nutrition reports (Markdown) — one file per analysis |
 | `~/.numa/user-requested-nutrition-reports/` | User-exported reports (txt, md, or html) |

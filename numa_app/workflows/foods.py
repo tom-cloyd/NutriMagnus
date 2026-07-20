@@ -10,6 +10,7 @@ from rich.table import Table
 from .. import state
 import db as _db
 import usda as _usda
+from ..config import prefs as _prefs
 from ..services.portions import _pick_portion, _parse_portion_input
 from ..services.search import _search_and_pick_food, _suggest_foundation_search, _fetch_food_from_result, _parse_hash_pick
 from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, _prompt_with_options, dot_cell, table_title, table_footer, help_footer
@@ -1494,13 +1495,28 @@ def _do_list_cached_foods() -> None:
         else:
             foods = list(all_foods)
 
+        fdc_ids = [f["fdc_id"] for f in foods]
+        with _db.get_db() as conn:
+            ann_map = _db.annotations_for_fdcids(conn, fdc_ids)
+
+        sort = state.get_sort_pref("food_cache", "name")
+        if sort not in ("name", "type", "diaas", "gi"):
+            sort = "name"
+
+        def _cache_sort_key(f):
+            if sort == "type":
+                return ((f["data_type"] or "").lower(), f["name"].lower())
+            if sort in ("diaas", "gi"):
+                ann = ann_map.get(f["fdc_id"])
+                val = ann[f"{sort}_estimate"] if ann else None
+                return (val is None, -(val or 0), f["name"].lower())
+            return (f["name"] or "").lower()
+
+        foods.sort(key=_cache_sort_key)
+
         s, e = state.T["success"], state.T["error"]
 
         if show_table:
-            fdc_ids = [f["fdc_id"] for f in foods]
-            with _db.get_db() as conn:
-                ann_map = _db.annotations_for_fdcids(conn, fdc_ids)
-
             _NAME_W  = 42
             _BRAND_W = 14
             tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
@@ -1531,13 +1547,15 @@ def _do_list_cached_foods() -> None:
                             dot_cell(f["brand"] or "", _BRAND_W),
                             c_cell, n_cell)
 
+            _SORT_LABELS = {"name": "Name", "type": "Type", "diaas": "DIAAS", "gi": "GI"}
+            sort_note = f"sorted by {_SORT_LABELS[sort]}"
             if filter_text:
                 table_title("CACHED FOODS",
                             f"[grey62]{len(foods)} match for '[bold]{filter_text}[/bold]' "
-                            f"({len(all_foods)} total) — enter / to clear filter[/grey62]")
+                            f"({len(all_foods)} total, {sort_note}) — enter / to clear filter[/grey62]")
             else:
                 table_title("CACHED FOODS",
-                            f"[grey62]{len(all_foods)} foods — enter /text to filter by name[/grey62]")
+                            f"[grey62]{len(all_foods)} foods, {sort_note} — enter /text to filter by name[/grey62]")
 
             state.console.print(tbl)
             table_footer(
@@ -1559,6 +1577,7 @@ def _do_list_cached_foods() -> None:
             state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [grey62](i alone = list foods missing AA data · i3  i1,4,7  iFDCID,FDCID · ?fetch)[/grey62]", highlight=False)
             state.console.print( "    [bold]r[/bold]    Read Claude response         [grey62](import ~/claude_response.txt)[/grey62]")
             state.console.print( "    [bold]l[/bold]    List  [grey62](re-display this table)[/grey62]")
+            state.console.print( "    [bold]o[/bold]    Sort by                      [grey62](name, type, DIAAS, or GI)[/grey62]")
             state.console.print( "    / to filter  ·  Enter=re-list  ·  b=back  m=main  q=quit", highlight=False)
             show_table = False
             if _pending_refresh:
@@ -1596,6 +1615,19 @@ def _do_list_cached_foods() -> None:
         if raw_lower == "q":
             raise SystemExit(0)
         if raw_lower == "l":
+            show_table = True
+            continue
+        if raw_lower == "o":
+            try:
+                choice = _prompt_with_options(
+                    "Sort by",
+                    [("1", "Name"), ("2", "Type"), ("3", "DIAAS"), ("4", "GI")],
+                    default={"name": "1", "type": "2", "diaas": "3", "gi": "4"}.get(sort, "1"),
+                )
+            except Cancelled:
+                continue
+            new_sort = {"1": "name", "2": "type", "3": "diaas", "4": "gi"}.get(choice, "name")
+            _prefs.set_sort_pref("food_cache", new_sort)
             show_table = True
             continue
         if raw.startswith("/"):

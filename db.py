@@ -662,6 +662,14 @@ def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
          total_weight, total_weight_unit or None,
          serving_size or None, 1 if complete else 0, recipe_id)
     )
+    conn.execute(
+        "UPDATE meal_items SET food_name=? WHERE item_type='recipe' AND recipe_id=?",
+        (name, recipe_id)
+    )
+    conn.execute(
+        "UPDATE recipe_ingredients SET food_name=? WHERE ref_recipe_id=?",
+        (name, recipe_id)
+    )
 
 
 def recipe_update_ingredient(conn: sqlite3.Connection, ingredient_id: int,
@@ -859,17 +867,27 @@ def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlit
     ).fetchall()
 
 
+_MEAL_SORT_ORDER_BY = {
+    "date":      "m.meal_date DESC, m.created_at DESC",
+    "name":      "m.name COLLATE NOCASE ASC, m.meal_date DESC",
+    "meal_bcp":  "m.bcp_g IS NULL, m.bcp_g DESC, m.meal_date DESC",
+    "calories":  "m.calories IS NULL, m.calories DESC, m.meal_date DESC",
+}
+
+
 def meal_list_recent(
     conn: sqlite3.Connection,
     limit: int = 9,
     offset: int = 0,
     before_date: str | None = None,
+    sort: str = "date",
 ) -> list[sqlite3.Row]:
-    """Return meals ordered most-recent first, with item count, for the picker UI."""
+    """Return meals ordered most-recent first (or by `sort`), with item count, for the picker UI."""
     where = "WHERE m.meal_date <= :before_date" if before_date else ""
     params: dict = {"limit": limit, "offset": offset}
     if before_date:
         params["before_date"] = before_date
+    order_by = _MEAL_SORT_ORDER_BY.get(sort, _MEAL_SORT_ORDER_BY["date"])
     return conn.execute(
         f"""
         SELECT m.*, COUNT(mi.id) AS item_count
@@ -877,7 +895,7 @@ def meal_list_recent(
         LEFT JOIN meal_items mi ON mi.meal_id = m.id
         {where}
         GROUP BY m.id
-        ORDER BY m.meal_date DESC, m.created_at DESC
+        ORDER BY {order_by}
         LIMIT :limit OFFSET :offset
         """,
         params,

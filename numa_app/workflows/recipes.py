@@ -14,13 +14,25 @@ from rich.table import Table
 import db as _db
 import usda as _usda
 from .. import state
+from ..config import prefs as _prefs
 from ..services.glycemic_load import compute_glycemic_load
 from ..services.portions import _normalize_unit_display, _ing_amount_display, _parse_portion_input, _pick_portion, _try_resolve_unknown_weight, _UNIT_TO_GRAMS, _VOLUME_TO_ML
 from ..services.recipe_nutrients import recipe_total_nutrients
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
 from ..services.reports import _offer_export
-from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, table_footer, table_title, help_footer
+from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _prompt_with_options, _safe_call, _show_menu, table_footer, table_title, help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
+
+_RECIPE_SORT_KEYS = {
+    "recent": lambda r: r["last_accessed_at"] or r["created_at"] or "",
+    "name":   lambda r: (r["name"] or "").lower(),
+    "dcp":    lambda r: r["dcp_g"] if r["dcp_g"] is not None else -1.0,
+}
+_RECIPE_SORT_LABELS = {
+    "recent": "Last accessed",
+    "name":   "Name",
+    "dcp":    "DCP/serving",
+}
 from ..ui.render import _print_complement_suggestions, _print_nutrient_table, _print_protein_completeness, _print_recipe_bioavailability
 
 def _parse_measure(raw: str) -> tuple[float | None, str | None]:
@@ -754,12 +766,15 @@ def _do_recipe_browse() -> None:
         total = len(all_recipes)
 
         if search_query is None:
+            sort = state.get_sort_pref("recipes", "recent")
+            if sort not in _RECIPE_SORT_KEYS:
+                sort = "recent"
             display = sorted(
                 all_recipes,
-                key=lambda r: r["last_accessed_at"] or r["created_at"] or "",
-                reverse=True,
+                key=_RECIPE_SORT_KEYS[sort],
+                reverse=(sort in ("recent", "dcp")),
             )
-            label = f"Most recently accessed  ({total} total)"
+            label = f"Sorted by {_RECIPE_SORT_LABELS[sort]}  ({total} total)"
         else:
             words = search_query.lower().split()
             scored = []
@@ -791,6 +806,8 @@ def _do_recipe_browse() -> None:
         nav_parts = ["/ to filter"]
         if search_query:
             nav_parts.append("r=recent")
+        else:
+            nav_parts.append("o=sort")
         if has_next:
             nav_parts.append("n=next")
         if has_prev:
@@ -823,6 +840,19 @@ def _do_recipe_browse() -> None:
             continue
         if raw == "r":
             search_query = None
+            offset = 0
+            continue
+        if raw == "o" and search_query is None:
+            try:
+                choice = _prompt_with_options(
+                    "Sort by",
+                    [("1", "Last accessed"), ("2", "Name"), ("3", "DCP/serving")],
+                    default={"recent": "1", "name": "2", "dcp": "3"}.get(sort, "1"),
+                )
+            except Cancelled:
+                continue
+            new_sort = {"1": "recent", "2": "name", "3": "dcp"}.get(choice, "recent")
+            _prefs.set_sort_pref("recipes", new_sort)
             offset = 0
             continue
 

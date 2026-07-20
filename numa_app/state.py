@@ -55,6 +55,9 @@ class AppContext:
     theme_name: str = "dark"
     theme: dict[str, str] = field(default_factory=lambda: THEMES["dark"].copy())
     diet_pref: str = "all"  # "all" | "vegetarian" | "plant_only"
+    sort_prefs: dict = field(default_factory=lambda: {
+        "recipes": "recent", "food_cache": "name", "meals": "date",
+    })
     theme_file: Path = field(default_factory=lambda: _platform_utils.get_config_dir() / "theme")
     prefs_file: Path = field(default_factory=lambda: _platform_utils.get_config_dir() / "prefs.json")
 
@@ -84,6 +87,15 @@ def set_theme(name: str, theme: dict[str, str]) -> None:
 
 def set_diet_pref(value: str) -> None:
     app_ctx.diet_pref = value
+    sync_globals()
+
+
+def get_sort_pref(list_name: str, default: str) -> str:
+    return app_ctx.sort_prefs.get(list_name, default)
+
+
+def set_sort_pref(list_name: str, value: str) -> None:
+    app_ctx.sort_prefs[list_name] = value
     sync_globals()
 
 

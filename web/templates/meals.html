@@ -26,6 +26,7 @@
 {# ── Filters / search ─────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap gap-3 mt-3 mb-2 align-items-end">
   <form method="get" action="/meals" class="d-flex gap-2 align-items-end">
+    <input type="hidden" name="sort" value="{{ sort }}">
     <div>
       <label class="form-label mb-1" for="date-filter">Show meals on or before</label>
       <input type="date" class="form-control form-control-sm" id="date-filter"
@@ -33,12 +34,25 @@
     </div>
     <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
     {% if date_filter %}
-    <a href="/meals" class="btn btn-sm btn-outline-secondary">Clear</a>
+    <a href="/meals?sort={{ sort }}" class="btn btn-sm btn-outline-secondary">Clear</a>
     {% endif %}
+  </form>
+  <form method="get" action="/meals" class="d-flex gap-2 align-items-end">
+    <input type="hidden" name="date" value="{{ date_filter }}">
+    <div>
+      <label class="form-label mb-1" for="meals-sort">Sort by</label>
+      <select class="form-select form-select-sm" id="meals-sort" name="sort"
+              onchange="this.form.submit()">
+        <option value="date"     {% if sort == "date"     %}selected{% endif %}>Date</option>
+        <option value="name"     {% if sort == "name"     %}selected{% endif %}>Name</option>
+        <option value="meal_bcp" {% if sort == "meal_bcp" %}selected{% endif %}>Meal DCP</option>
+        <option value="calories" {% if sort == "calories" %}selected{% endif %}>Calories</option>
+      </select>
+    </div>
   </form>
   <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
   <form method="post" action="/meals/compute-bcp" class="d-flex gap-2 align-items-end">
-    <input type="hidden" name="redirect_to" value="/meals{% if date_filter %}?date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
+    <input type="hidden" name="redirect_to" value="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
     <div>
       <label class="form-label mb-1" for="compute-scope">Calculate DCP and calories for</label>
       <select class="form-select form-select-sm" id="compute-scope" name="scope">
@@ -59,9 +73,9 @@
   {% if date_filter %}<span class="muted"> on or before {{ date_filter }}</span>{% endif %}
   {% if hidden > 0 %}
   — <strong>{{ hidden }} not shown</strong>
-  &nbsp;<a href="/meals?show_all=1{% if date_filter %}&date={{ date_filter }}{% endif %}">Show all {{ total }}</a>
+  &nbsp;<a href="/meals?show_all=1&sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}">Show all {{ total }}</a>
   {% elif show_all and total > 9 %}
-  &nbsp;<a href="/meals{% if date_filter %}?date={{ date_filter }}{% endif %}">Show recent 9 only</a>
+  &nbsp;<a href="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}">Show recent 9 only</a>
   {% endif %}
 </p>
 <table class="table table-sm table-hover">

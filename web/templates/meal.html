@@ -153,6 +153,7 @@
   {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
 
   <form method="get" action="/meal/{{ meal.id }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
     <div class="input-group mb-3 mt-2">
       <input type="text" class="form-control" name="q" value="{{ q }}"
              placeholder="Search foods or recipes…" autofocus>
@@ -161,6 +162,15 @@
   </form>
 
   {% if search_results %}
+  <form method="get" action="/meal/{{ meal.id }}" class="d-flex gap-2 align-items-center mb-2">
+    <input type="hidden" name="q" value="{{ q }}">
+    <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
+    <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
+      <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
+    </select>
+  </form>
   <table class="nutrient-table add-food-table">
     <thead>
       <tr>

@@ -40,6 +40,13 @@ def _load_prefs() -> None:
                 needs_migration_save = False
             setattr(state, "_editor_command", str(data.get("editor_command", "") or "").strip())
             setattr(state, "_display_program_settings", bool(data.get("display_program_settings", False)))
+            if data.get("sort_recipes") in ("recent", "name", "dcp"):
+                state.app_ctx.sort_prefs["recipes"] = data["sort_recipes"]
+            if data.get("sort_food_cache") in ("name", "type", "diaas", "gi"):
+                state.app_ctx.sort_prefs["food_cache"] = data["sort_food_cache"]
+            if data.get("sort_meals") in ("date", "name", "meal_bcp", "calories"):
+                state.app_ctx.sort_prefs["meals"] = data["sort_meals"]
+            state.sync_globals()
             if needs_migration_save:
                 _save_prefs()  # all state now loaded — safe to write new format
         except (json.JSONDecodeError, OSError):
@@ -60,12 +67,22 @@ def _save_prefs() -> None:
     data["diet_pref"] = state._diet_pref
     data["editor_command"] = str(getattr(state, "_editor_command", "") or "").strip()
     data["display_program_settings"] = bool(getattr(state, "_display_program_settings", False))
+    data["sort_recipes"] = state.app_ctx.sort_prefs.get("recipes", "recent")
+    data["sort_food_cache"] = state.app_ctx.sort_prefs.get("food_cache", "name")
+    data["sort_meals"] = state.app_ctx.sort_prefs.get("meals", "date")
 
     if not data["editor_command"]:
         data.pop("editor_command", None)
 
     _PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
     _PREFS_FILE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+
+
+def set_sort_pref(list_name: str, value: str) -> None:
+    """Update the remembered sort choice for a list view ('recipes', 'food_cache',
+    'meals') and persist it immediately so it's the default on next launch."""
+    state.set_sort_pref(list_name, value)
+    _save_prefs()
 
 
 def _ask_animal_foods_pref() -> None:

@@ -261,9 +261,14 @@ table {
   color: #92400e;
 }
 
-.source-local {
+.source-recipe {
   background: #d1fae5;
   color: #065f46;
+}
+
+.source-pantry {
+  background: #ede9fe;
+  color: #5b21b6;
 }
 
 /* ── Status indicators ───────────────────────────────────────────────── */

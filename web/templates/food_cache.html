@@ -12,17 +12,30 @@
 <h2>Food Cache {{ manual_link("cached") }}</h2>
 <p class="muted">All foods that have been loaded from USDA or Open Food Facts are stored here.</p>
 
-<form method="get" action="/food/cache" class="mb-3">
-
-  <div class="input-group" style="max-width:36rem">
-    <input type="text" class="form-control" name="q" value="{{ q or '' }}"
-           placeholder="Filter by name…" autofocus>
-    <button type="submit" class="btn btn-outline-secondary">Filter</button>
-    {% if q %}
-    <a href="/food/cache" class="btn btn-outline-secondary">Clear</a>
-    {% endif %}
-  </div>
-</form>
+<div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+  <form method="get" action="/food/cache">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <div class="input-group" style="max-width:36rem">
+      <input type="text" class="form-control" name="q" value="{{ q or '' }}"
+             placeholder="Filter by name…" autofocus>
+      <button type="submit" class="btn btn-outline-secondary">Filter</button>
+      {% if q %}
+      <a href="/food/cache?sort={{ sort }}" class="btn btn-outline-secondary">Clear</a>
+      {% endif %}
+    </div>
+  </form>
+  <form method="get" action="/food/cache">
+    <input type="hidden" name="q" value="{{ q or '' }}">
+    <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
+    <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      <option value="name"  {% if sort == "name"  %}selected{% endif %}>Name</option>
+      <option value="type"  {% if sort == "type"  %}selected{% endif %}>Type</option>
+      <option value="diaas" {% if sort == "diaas" %}selected{% endif %}>DIAAS</option>
+      <option value="gi"    {% if sort == "gi"    %}selected{% endif %}>GI estimate</option>
+    </select>
+  </form>
+</div>
 
 <p class="mb-3">
   <a href="/food/cache/prune" class="btn btn-sm btn-outline-secondary"
