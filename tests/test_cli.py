@@ -294,6 +294,39 @@ class TestFoodsMenu:
         with _db.get_db() as conn:
             assert _db.get_cached_food(conn, cached_food["fdcId"]) is not None
 
+    def test_archive_food_one_click_no_confirm_when_unreferenced(self, runner: NumaTestRunner, cached_food):
+        # cached_food is not referenced anywhere, so x1 archives with no confirmation prompt.
+        result = runner.invoke(input="1\n6\nx1\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Archived 1 food" in result.output
+        with _db.get_db() as conn:
+            row = _db.get_cached_food(conn, cached_food["fdcId"])
+        assert row["archived"] == 1
+
+    def test_archive_food_warns_when_referenced_but_still_completes(self, runner: NumaTestRunner, cached_food):
+        with _db.get_db() as conn:
+            _db.pantry_add(conn, cached_food["name"], cached_food["fdcId"])
+        result = runner.invoke(input="1\n6\nx1\ny\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Still referenced" in result.output
+        assert "Archived 1 food" in result.output
+        with _db.get_db() as conn:
+            row = _db.get_cached_food(conn, cached_food["fdcId"])
+        assert row["archived"] == 1
+
+    def test_show_archived_toggle_and_restore_one_click(self, runner: NumaTestRunner, cached_food):
+        from numa_app import state
+        state.set_list_filter("food_cache", False)
+        with _db.get_db() as conn:
+            _db.set_food_archived(conn, cached_food["fdcId"], True)
+        # s reveals the archived food; x1 restores it (one click, no confirm needed).
+        result = runner.invoke(input="1\n6\ns\nx1\ns\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Restored 1 food" in result.output
+        with _db.get_db() as conn:
+            row = _db.get_cached_food(conn, cached_food["fdcId"])
+        assert row["archived"] == 0
+
     def test_search_offers_portion_analysis_accept(self, runner: NumaTestRunner, monkeypatch):
         """After viewing per-100g nutrients, pressing y leads to scaled portion output."""
         _mock_api(monkeypatch)
@@ -340,6 +373,31 @@ class TestFoodsMenu:
         assert result.exit_code == 0
         assert "Unrecognized" in result.output or "recognised" in result.output.lower()
         assert "62" in result.output   # recovered and computed 31g × 2
+
+    def test_pantry_archive_one_click_and_restore(self, runner: NumaTestRunner, cached_food):
+        with _db.get_db() as conn:
+            pid = _db.pantry_add(conn, cached_food["name"], cached_food["fdcId"])
+        # Foods(1) → Pantry(7) → archive(x) → id → restore(x) → id → back → back → quit
+        result = runner.invoke(input=f"1\n7\nx\n{pid}\nx\n{pid}\nb\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Archived:" in result.output
+        assert "Restored:" in result.output
+        with _db.get_db() as conn:
+            row = _db.pantry_get(conn, pid)
+        assert row["archived"] == 0
+
+    def test_pantry_show_archived_toggle_hides_from_default_list(self, runner: NumaTestRunner, cached_food):
+        from numa_app import state
+        state.set_list_filter("pantry", False)
+        with _db.get_db() as conn:
+            pid = _db.pantry_add(conn, cached_food["name"], cached_food["fdcId"])
+            _db.set_pantry_archived(conn, pid, True)
+        result = runner.invoke(input="1\n7\nb\nb\nq\n")
+        assert result.exit_code == 0
+        assert "empty" in result.output.lower()
+        with _db.get_db() as conn:
+            visible = _db.pantry_list(conn)
+        assert visible == []
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +461,29 @@ class TestRecipesMenu:
             recipes = _db.recipe_list(conn)
         assert len(recipes) == 1
         assert recipes[0]["name"] == "Chicken Salad"
+
+    def test_archive_recipe_one_click_no_confirm_when_unreferenced(self, runner: NumaTestRunner):
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+        result = runner.invoke(input=f"2\n2\ny{rid}\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Archived: Soup" in result.output
+        with _db.get_db() as conn:
+            recipe = _db.recipe_get(conn, rid)
+        assert recipe["archived"] == 1
+
+    def test_show_archived_recipes_toggle_and_restore(self, runner: NumaTestRunner):
+        from numa_app import state
+        state.set_list_filter("recipes", False)
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            _db.set_recipe_archived(conn, rid, True)
+        result = runner.invoke(input=f"2\n2\ns\ny{rid}\nb\nq\n")
+        assert result.exit_code == 0
+        assert "Restored: Soup" in result.output
+        with _db.get_db() as conn:
+            recipe = _db.recipe_get(conn, rid)
+        assert recipe["archived"] == 0
 
     def test_create_recipe_saves_ingredients(self, runner: NumaTestRunner, monkeypatch, cached_food):
         _mock_api(monkeypatch)

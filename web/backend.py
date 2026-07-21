@@ -6,6 +6,7 @@ import datetime
 import json
 import re
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -215,6 +216,19 @@ def _resolve_sort(sort: str | None, pref_key: str, default: str, valid: set[str]
     return sort
 
 
+def _resolve_bool_pref(value: bool | None, pref_key: str, default: bool = False) -> bool:
+    """Resolve a sticky boolean list-view toggle (e.g. 'show archived'): an explicit
+    query param wins and is remembered as the new default; otherwise use the saved pref.
+    Shares prefs.json with the CLI's numa_app/config/prefs.py, so the choice is shared
+    between the CLI and the web app."""
+    prefs = _load_prefs_file()
+    if value is None:
+        return bool(prefs.get(pref_key, default))
+    if bool(prefs.get(pref_key, default)) != value:
+        _save_prefs_file({pref_key: value})
+    return value
+
+
 _SEARCH_CATEGORY_RANK = {"pantry": 0, "recipe": 1, "cache": 2, "usda": 3, "off": 3}
 _SEARCH_SORT_MODES = {"grouped", "relevance"}
 
@@ -257,7 +271,14 @@ def _current_diet_pref() -> str:
     pref = _load_prefs_file().get("diet_pref", "all")
     return pref if pref in _VALID_DIET_PREFS else "all"
 
-app = FastAPI(title="numa")
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    # Apply schema/migrations on web server startup — the web app is a separate
+    # process from the CLI and must not depend on the CLI having run first.
+    _db.init_db()
+    yield
+
+app = FastAPI(title="numa", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=_WEB_DIR / "templates")
 
@@ -1456,13 +1477,16 @@ _FOOD_CACHE_SORT_KEYS = {
 
 
 @app.get("/food/cache", response_class=HTMLResponse)
-async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None):
+async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
+                          show_archived: bool | None = None, archived: int = 0, restored: int = 0,
+                          still_used: int = 0):
     sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
+    show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
         if q.strip():
-            rows = _db.search_cached_foods(conn, q.strip())
+            rows = _db.search_cached_foods(conn, q.strip(), include_archived=show_archived)
         else:
-            rows = _db.list_cached_foods(conn)
+            rows = _db.list_cached_foods(conn, include_archived=show_archived)
         fdc_ids = [r["fdc_id"] for r in rows]
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
 
@@ -1486,13 +1510,18 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
             "diaas_saved":    diaas_saved is not None,
             "notes":          row["notes"] or "",
             "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
+            "archived":       bool(row["archived"]),
         })
     foods.sort(key=_FOOD_CACHE_SORT_KEYS[sort])
     return templates.TemplateResponse(request, "food_cache.html", {
-        "foods":  foods,
-        "q":      q,
-        "pruned": pruned,
-        "sort":   sort,
+        "foods":         foods,
+        "q":             q,
+        "pruned":        pruned,
+        "sort":          sort,
+        "show_archived": show_archived,
+        "archived":      archived,
+        "restored":      restored,
+        "still_used":    still_used,
     })
 
 
@@ -1501,6 +1530,24 @@ async def food_cache_delete(fdc_id: int = Form(...)):
     with _db.get_db() as conn:
         _db.delete_cached_food(conn, fdc_id)
     return RedirectResponse("/food/cache", status_code=303)
+
+
+@app.post("/food/cache/{fdc_id}/archive", response_class=RedirectResponse)
+async def food_cache_archive(fdc_id: int):
+    """Archive or restore a cached food — flips whichever state it's currently in."""
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+        if not cached:
+            return RedirectResponse("/food/cache", status_code=303)
+        newly_archived = not cached["archived"]
+        still_used = 0
+        if newly_archived:
+            refs = _db.food_references(conn, fdc_id)
+            still_used = int(bool(refs["pantry"] or refs["recipes"] or refs["meals"]))
+        _db.set_food_archived(conn, fdc_id, newly_archived)
+    flag = "archived=1" if newly_archived else "restored=1"
+    suffix = f"&still_used={still_used}" if newly_archived and still_used else ""
+    return RedirectResponse(f"/food/cache?{flag}{suffix}", status_code=303)
 
 
 @app.get("/food/cache/prune", response_class=HTMLResponse)
@@ -1643,10 +1690,13 @@ async def food_cache_refresh(request: Request, fdc_id: int):
                 "diaas":         ann["diaas_estimate"] if ann else None,
                 "notes":         row["notes"] or "",
                 "curator_notes": row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
+                "archived":      bool(row["archived"]),
             })
         return templates.TemplateResponse(request, "food_cache.html", {
             "foods":         foods,
             "q":             "",
+            "sort":          "name",
+            "show_archived": False,
             "refresh_error": f"Refresh failed for FDC {fdc_id}: {error}",
         })
     return RedirectResponse(f"/food/{fdc_id}?refreshed=1", status_code=303)
@@ -1654,9 +1704,11 @@ async def food_cache_refresh(request: Request, fdc_id: int):
 
 @app.get("/pantry", response_class=HTMLResponse)
 async def pantry_get(request: Request, added: str = "", linked: str = "",
-                      search: str = "", link_id: int = 0):
+                      search: str = "", link_id: int = 0,
+                      show_archived: bool | None = None, archived: int = 0, restored: int = 0):
+    show_archived = _resolve_bool_pref(show_archived, "show_archived_pantry")
     with _db.get_db() as conn:
-        rows = _db.pantry_list(conn)
+        rows = _db.pantry_list(conn, include_archived=show_archived)
         fdc_ids = [r["fdc_id"] for r in rows if r["fdc_id"]]
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
         items = []
@@ -1745,6 +1797,9 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
         "search_error": search_error,
         "link_id": link_id or None,
         "link_name": link_name,
+        "show_archived": show_archived,
+        "archived": archived,
+        "restored": restored,
     })
 
 
@@ -1814,6 +1869,19 @@ async def pantry_remove(pantry_id: int):
     with _db.get_db() as conn:
         _db.pantry_remove(conn, pantry_id)
     return RedirectResponse("/pantry", status_code=303)
+
+
+@app.post("/pantry/{pantry_id}/archive", response_class=RedirectResponse)
+async def pantry_archive(pantry_id: int):
+    """Archive or restore a pantry entry — flips whichever state it's currently in."""
+    with _db.get_db() as conn:
+        row = _db.pantry_get(conn, pantry_id)
+        if not row:
+            return RedirectResponse("/pantry", status_code=303)
+        newly_archived = not row["archived"]
+        _db.set_pantry_archived(conn, pantry_id, newly_archived)
+    flag = "archived=1" if newly_archived else "restored=1"
+    return RedirectResponse(f"/pantry?{flag}", status_code=303)
 
 
 @app.get("/food/custom-profiles", response_class=HTMLResponse)
@@ -3477,11 +3545,14 @@ _RECIPE_SORT_KEYS = {
 
 
 @app.get("/recipes", response_class=HTMLResponse)
-async def recipes_list(request: Request, q: str = "", sort: str | None = None):
+async def recipes_list(request: Request, q: str = "", sort: str | None = None,
+                        show_archived: bool | None = None, archived: int = 0,
+                        restored: int = 0, still_used: int = 0):
     sort = _resolve_sort(sort, "sort_recipes", "recent", set(_RECIPE_SORT_KEYS))
+    show_archived = _resolve_bool_pref(show_archived, "show_archived_recipes")
     with _db.get_db() as conn:
-        total_count = _db.recipe_count(conn)
-        all_recipes = [dict(r) for r in _db.recipe_list_recent(conn, limit=200)]
+        total_count = _db.recipe_count(conn, include_archived=show_archived)
+        all_recipes = [dict(r) for r in _db.recipe_list_recent(conn, limit=200, include_archived=show_archived)]
     if q:
         ql = q.lower()
         words = ql.split()
@@ -3493,6 +3564,10 @@ async def recipes_list(request: Request, q: str = "", sort: str | None = None):
         "total_count": total_count,
         "q": q,
         "sort": sort,
+        "show_archived": show_archived,
+        "archived": archived,
+        "restored": restored,
+        "still_used": still_used,
     })
 
 
@@ -3737,6 +3812,25 @@ async def recipe_delete_post(recipe_id: int):
     with _db.get_db() as conn:
         _db.recipe_delete(conn, recipe_id)
     return RedirectResponse("/recipes", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/archive", response_class=RedirectResponse)
+async def recipe_archive(recipe_id: int):
+    """Archive or restore a recipe — flips whichever state it's currently in."""
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+        newly_archived = not recipe["archived"]
+        still_used = 0
+        if newly_archived:
+            referencing = _db.recipe_referencing_subrecipe(conn, recipe_id)
+            refs = _db.recipe_references(conn, recipe_id)
+            still_used = int(bool(referencing or refs["meals"]))
+        _db.set_recipe_archived(conn, recipe_id, newly_archived)
+    flag = "archived=1" if newly_archived else "restored=1"
+    suffix = f"&still_used={still_used}" if newly_archived and still_used else ""
+    return RedirectResponse(f"/recipes?{flag}{suffix}", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/copy", response_class=RedirectResponse)

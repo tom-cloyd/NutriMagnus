@@ -278,6 +278,22 @@ def init_db() -> None:
             )
         """)
 
+        # Migrate: add archived flag to foods/pantry/recipes (reserve/hide-without-losing feature)
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE pantry ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
@@ -305,11 +321,12 @@ def get_cached_food(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None
     ).fetchone()
 
 
-def list_cached_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def list_cached_foods(conn: sqlite3.Connection, *, include_archived: bool = False) -> list[sqlite3.Row]:
+    archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-        "nutrients_json, notes, curator_notes "
-        "FROM foods ORDER BY name"
+        "nutrients_json, notes, curator_notes, archived "
+        f"FROM foods {archived_clause} ORDER BY name"
     ).fetchall()
 
 
@@ -319,12 +336,32 @@ def delete_cached_food(conn: sqlite3.Connection, fdc_id: int) -> bool:
     return cur.rowcount > 0
 
 
+def set_food_archived(conn: sqlite3.Connection, fdc_id: int, archived: bool) -> None:
+    """Archive (hide from search/complements/default lists, protect from prune) or restore a cached food."""
+    conn.execute("UPDATE foods SET archived = ? WHERE fdc_id = ?", (1 if archived else 0, fdc_id))
+
+
+def food_references(conn: sqlite3.Connection, fdc_id: int) -> dict[str, int]:
+    """Return counts of pantry entries, recipe ingredients, and meal items still referencing this food."""
+    pantry_n = conn.execute(
+        "SELECT COUNT(*) FROM pantry WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()[0]
+    recipe_n = conn.execute(
+        "SELECT COUNT(*) FROM recipe_ingredients WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()[0]
+    meal_n = conn.execute(
+        "SELECT COUNT(*) FROM meal_items WHERE item_type = 'food' AND fdc_id = ?", (fdc_id,)
+    ).fetchone()[0]
+    return {"pantry": pantry_n, "recipes": recipe_n, "meals": meal_n}
+
+
 def list_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool = False) -> list[sqlite3.Row]:
     """Return cache foods referenced by no pantry entry, recipe ingredient, or logged meal item.
 
     By default excludes user_drafted foods (custom profiles created manually,
     which often exist before they've been used anywhere) — pass
-    include_drafted=True to consider them for pruning too.
+    include_drafted=True to consider them for pruning too. Archived foods are
+    always excluded — archiving protects a food from being pruned.
     """
     drafted_clause = "" if include_drafted else "AND user_drafted = 0"
     return conn.execute(f"""
@@ -333,6 +370,7 @@ def list_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool 
         WHERE fdc_id NOT IN (SELECT fdc_id FROM pantry WHERE fdc_id IS NOT NULL)
           AND fdc_id NOT IN (SELECT fdc_id FROM recipe_ingredients)
           AND fdc_id NOT IN (SELECT fdc_id FROM meal_items WHERE item_type = 'food' AND fdc_id IS NOT NULL)
+          AND archived = 0
           {drafted_clause}
         ORDER BY name
     """).fetchall()
@@ -353,19 +391,20 @@ def prune_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool
     return unused
 
 
-def search_cached_foods(conn: sqlite3.Connection, query: str) -> list[sqlite3.Row]:
+def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archived: bool = False) -> list[sqlite3.Row]:
     words = query.split()
     if not words:
         return []
-    select = "SELECT fdc_id, name, data_type, brand, portions_json, notes FROM foods"
+    select = "SELECT fdc_id, name, data_type, brand, portions_json, notes, nutrients_json, archived FROM foods"
     params = [f"%{w}%" for w in words]
+    archived_clause = "" if include_archived else "AND archived = 0"
     # All-words match for the general cache
     and_cond = " AND ".join("name LIKE ?" for _ in words)
-    and_rows = conn.execute(f"{select} WHERE {and_cond} ORDER BY name", params).fetchall()
+    and_rows = conn.execute(f"{select} WHERE {and_cond} {archived_clause} ORDER BY name", params).fetchall()
     # Any-word match for user-drafted foods — so "vitamin d" finds "D3 50 mcg" etc.
     or_cond = " OR ".join("name LIKE ?" for _ in words)
     or_rows = conn.execute(
-        f"{select} WHERE user_drafted = 1 AND ({or_cond}) ORDER BY name", params
+        f"{select} WHERE user_drafted = 1 AND ({or_cond}) {archived_clause} ORDER BY name", params
     ).fetchall()
     seen = {r["fdc_id"] for r in and_rows}
     return list(and_rows) + [r for r in or_rows if r["fdc_id"] not in seen]
@@ -526,25 +565,44 @@ def recipe_set_saved_analysis(conn: sqlite3.Connection, recipe_id: int,
     )
 
 
-def recipe_count(conn: sqlite3.Connection) -> int:
-    return conn.execute("SELECT COUNT(*) FROM recipes").fetchone()[0]
+def recipe_count(conn: sqlite3.Connection, *, include_archived: bool = False) -> int:
+    archived_clause = "" if include_archived else "WHERE archived = 0"
+    return conn.execute(f"SELECT COUNT(*) FROM recipes {archived_clause}").fetchone()[0]
 
 
-def recipe_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def recipe_list(conn: sqlite3.Connection, *, include_archived: bool = False) -> list[sqlite3.Row]:
+    archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete,"
-        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit"
-        " FROM recipes ORDER BY name"
+        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived"
+        f" FROM recipes {archived_clause} ORDER BY name"
     ).fetchall()
 
 
-def recipe_list_recent(conn: sqlite3.Connection, limit: int = 20) -> list[sqlite3.Row]:
+def recipe_list_recent(conn: sqlite3.Connection, limit: int = 20, *, include_archived: bool = False) -> list[sqlite3.Row]:
+    archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete,"
-        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit"
-        " FROM recipes ORDER BY COALESCE(last_accessed_at, created_at) DESC LIMIT ?",
+        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived"
+        f" FROM recipes {archived_clause} ORDER BY COALESCE(last_accessed_at, created_at) DESC LIMIT ?",
         (limit,)
     ).fetchall()
+
+
+def set_recipe_archived(conn: sqlite3.Connection, recipe_id: int, archived: bool) -> None:
+    """Archive (hide from default lists/search) or restore a recipe."""
+    conn.execute("UPDATE recipes SET archived = ? WHERE id = ?", (1 if archived else 0, recipe_id))
+
+
+def recipe_references(conn: sqlite3.Connection, recipe_id: int) -> dict[str, int]:
+    """Return counts of sub-recipe references and logged meal items still referencing this recipe."""
+    subrecipe_n = conn.execute(
+        "SELECT COUNT(*) FROM recipe_ingredients WHERE ref_recipe_id = ?", (recipe_id,)
+    ).fetchone()[0]
+    meal_n = conn.execute(
+        "SELECT COUNT(*) FROM meal_items WHERE item_type = 'recipe' AND recipe_id = ?", (recipe_id,)
+    ).fetchone()[0]
+    return {"recipes": subrecipe_n, "meals": meal_n}
 
 
 def recipe_touch(conn: sqlite3.Connection, recipe_id: int) -> None:
@@ -1149,9 +1207,15 @@ def pantry_remove(conn: sqlite3.Connection, pantry_id: int) -> bool:
     return cur.rowcount > 0
 
 
-def pantry_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def set_pantry_archived(conn: sqlite3.Connection, pantry_id: int, archived: bool) -> None:
+    """Archive (hide from default list/complement candidates) or restore a pantry entry."""
+    conn.execute("UPDATE pantry SET archived = ? WHERE id = ?", (1 if archived else 0, pantry_id))
+
+
+def pantry_list(conn: sqlite3.Connection, *, include_archived: bool = False) -> list[sqlite3.Row]:
+    archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
-        "SELECT id, food_name, fdc_id, notes, added_at FROM pantry ORDER BY food_name"
+        f"SELECT id, food_name, fdc_id, notes, added_at, archived FROM pantry {archived_clause} ORDER BY food_name"
     ).fetchall()
 
 

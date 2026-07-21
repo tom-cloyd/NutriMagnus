@@ -34,6 +34,11 @@
       <option value="diaas" {% if sort == "diaas" %}selected{% endif %}>DIAAS</option>
       <option value="gi"    {% if sort == "gi"    %}selected{% endif %}>GI estimate</option>
     </select>
+    <div class="form-check form-check-inline ms-2">
+      <input type="checkbox" class="form-check-input" id="show_archived" name="show_archived"
+             value="1" {% if show_archived %}checked{% endif %} onchange="this.form.submit()">
+      <label class="form-check-label muted" for="show_archived"><small>Show archived</small></label>
+    </div>
   </form>
 </div>
 
@@ -44,6 +49,16 @@
 
 {% if pruned %}
 <div class="alert alert-success">Pruned {{ pruned }} unused food{% if pruned != 1 %}s{% endif %} from the cache.</div>
+{% endif %}
+
+{% if archived %}
+<div class="alert alert-success">
+  Archived.
+  {% if still_used %}<span class="muted">It's still used in a pantry entry, recipe, or logged meal — those keep working as before.</span>{% endif %}
+</div>
+{% endif %}
+{% if restored %}
+<div class="alert alert-success">Restored.</div>
 {% endif %}
 
 {% if refresh_error is defined and refresh_error %}
@@ -75,12 +90,13 @@
   </thead>
   <tbody>
     {% for food in foods %}
-    <tr>
+    <tr{% if food.archived %} class="text-muted"{% endif %}>
       <td class="muted" style="white-space:nowrap">
         {% if food.fdc_id < 0 %}OFF
         {% else %}{{ food.fdc_id }}{% endif %}
       </td>
       <td><a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
+        {% if food.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}
         {% if food.brand %}<br><small class="muted">{{ food.brand }}</small>{% endif %}
       </td>
       <td class="muted"><small>{{ food.data_type or "—" }}</small></td>
@@ -132,6 +148,12 @@
           </button>
         </form>
         {% endif %}
+        <form method="post" action="/food/cache/{{ food.fdc_id }}/archive" style="display:inline">
+          <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
+                  title="{% if food.archived %}Restore to normal use{% else %}Hide from search & complement suggestions, without losing it{% endif %}">
+            {% if food.archived %}Restore{% else %}Archive{% endif %}
+          </button>
+        </form>
         <form method="post" action="/food/cache/delete" style="display:inline">
           <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
           <button type="submit" class="btn btn-sm btn-outline-danger"
@@ -144,7 +166,7 @@
     {% endfor %}
   </tbody>
 </table>
-<p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a></small></p>
+<p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a> &middot; Archive hides a food from search and complement suggestions without losing it &mdash; archived foods are also protected from Prune</small></p>
 {% else %}
 <p>No foods in cache{% if q %} matching that filter{% endif %}.</p>
 {% endif %}

@@ -8,6 +8,7 @@ import db as _db
 import usda as _usda
 from rich.table import Table
 from .. import state
+from ..config import prefs as _prefs
 from ..services.annotations import maybe_prompt_gi
 from ..services.search import _search_and_pick_food, _suggest_foundation_search
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float
@@ -41,8 +42,9 @@ def _load_pantry_candidates() -> list[dict]:
 def _do_pantry_menu() -> None:
     """My Pantry submenu — manage protein sources on hand."""
     while True:
+        show_archived = state.get_list_filter("pantry")
         with _db.get_db() as conn:
-            rows = _db.pantry_list(conn)
+            rows = _db.pantry_list(conn, include_archived=show_archived)
         section_title("My Pantry — protein sources on hand")
         if not rows:
             state.console.print("  [grey62](empty — no foods added yet)[/grey62]")
@@ -55,6 +57,8 @@ def _do_pantry_menu() -> None:
             tbl.add_column("AA",   min_width=4)
             tbl.add_column("Food", min_width=_FOOD_W, max_width=_FOOD_W, no_wrap=True)
             tbl.add_column("Notes", min_width=20)
+            if show_archived:
+                tbl.add_column("ARCH", min_width=4, justify="center")
             for row in rows:
                 fdc_id = row["fdc_id"]
                 if fdc_id is None:
@@ -70,20 +74,26 @@ def _do_pantry_menu() -> None:
                             aa_cell = f"[{state.T['success']}]✓[/{state.T['success']}]"
                         else:
                             aa_cell = f"[{state.T['error']}]✗[/{state.T['error']}]"
-                tbl.add_row(str(row["id"]), _id_cell(fdc_id),
-                            aa_cell, dot_cell(row["food_name"], _FOOD_W), row["notes"] or "")
+                row_cells = [str(row["id"]), _id_cell(fdc_id),
+                            aa_cell, dot_cell(row["food_name"], _FOOD_W), row["notes"] or ""]
+                if show_archived:
+                    row_cells.append("[grey62]●[/grey62]" if row["archived"] else "")
+                tbl.add_row(*row_cells, style="dim" if row["archived"] else None)
             state.console.print(tbl)
             table_footer(
                 f"  {ID_KEY}",
                 f"  [grey62]AA: [{state.T['success']}]✓[/{state.T['success']}] amino acid data in cache  "
                 f"[{state.T['error']}]✗[/{state.T['error']}] none — research needed  "
-                f"[grey62]—[/grey62] name-only entry (add via USDA search)[/grey62]",
+                f"[grey62]—[/grey62] name-only entry (add via USDA search)"
+                f"{'  ·  ARCH = archived' if show_archived else ''}[/grey62]",
             )
-            help_footer("pantry")
+            help_footer("pantry", "archive")
             state.console.rule(style="grey50")
         state.console.print()
         state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Add a food")
         state.console.print(f"  [{state.T['accent']}]r.[/{state.T['accent']}] Remove a food")
+        state.console.print(f"  [{state.T['accent']}]x.[/{state.T['accent']}] Archive / restore a food  [grey62](hide from complement suggestions, reversible)[/grey62]")
+        state.console.print(f"  [{state.T['accent']}]s.[/{state.T['accent']}] {'Hide' if show_archived else 'Show'} archived  [grey62](toggle archived pantry entries in this list)[/grey62]")
         state.console.print(f"  [{state.T['accent']}]c.[/{state.T['accent']}] Go to Food Cache  [grey62](edit nutrients there)[/grey62]")
         state.console.print(f"  [grey62]b.[/grey62] Back to Foods menu")
         state.console.print(f"  [grey62]m.[/grey62] Return to main menu")
@@ -105,6 +115,10 @@ def _do_pantry_menu() -> None:
         elif choice == "r":
             if rows:
                 _safe_call(_do_pantry_remove)
+        elif choice == "x":
+            _safe_call(_do_pantry_archive_toggle)
+        elif choice == "s":
+            _prefs.set_list_filter("pantry", not show_archived)
         elif choice == "b":
             return
         elif choice == "m":
@@ -112,7 +126,7 @@ def _do_pantry_menu() -> None:
         elif choice == "q":
             raise SystemExit(0)
         elif choice != "":
-            state.console.print(f"[{state.T['warning']}]Please enter a valid option (a / e / r / b / m / q).[/{state.T['warning']}]")
+            state.console.print(f"[{state.T['warning']}]Please enter a valid option (a / r / x / s / c / b / m / q).[/{state.T['warning']}]")
 
 
 def _offer_custom_portions(fdc_id: int, food_name: str, existing_portions: list[dict]) -> None:
@@ -259,6 +273,28 @@ def _do_pantry_remove() -> None:
             return
         _db.pantry_remove(conn, pid)
     state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {row['food_name']}")
+
+
+def _do_pantry_archive_toggle() -> None:
+    """Archive or restore a pantry entry by its list ID (one command, flips current state)."""
+    try:
+        raw = _prompt("Pantry ID to archive/restore").strip()
+    except Cancelled:
+        return
+    try:
+        pid = int(raw)
+    except ValueError:
+        state.console.print(f"[{state.T['warning']}]Invalid ID.[/{state.T['warning']}]")
+        return
+    with _db.get_db() as conn:
+        row = _db.pantry_get(conn, pid)
+        if row is None:
+            state.console.print(f"[{state.T['warning']}]ID {pid} not found.[/{state.T['warning']}]")
+            return
+        newly_archived = not row["archived"]
+        _db.set_pantry_archived(conn, pid, newly_archived)
+    verb = "Archived" if newly_archived else "Restored"
+    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] {verb}: {row['food_name']}")
 
 
 

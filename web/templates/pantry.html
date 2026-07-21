@@ -18,6 +18,20 @@
 {% if linked %}
 <div class="alert alert-success">Pantry entry linked to USDA/Open Food Facts data.</div>
 {% endif %}
+{% if archived %}
+<div class="alert alert-success">Archived.</div>
+{% endif %}
+{% if restored %}
+<div class="alert alert-success">Restored.</div>
+{% endif %}
+
+<form method="get" action="/pantry" class="mb-2">
+  <div class="form-check">
+    <input type="checkbox" class="form-check-input" id="show_archived" name="show_archived"
+           value="1" {% if show_archived %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label muted" for="show_archived"><small>Show archived</small></label>
+  </div>
+</form>
 
 {% if link_id and link_name %}
 <div class="alert alert-info">
@@ -127,8 +141,10 @@
   </thead>
   <tbody>
     {% for item in items %}
-    <tr>
-      <td>{{ item.food_name }}</td>
+    <tr{% if item.archived %} class="text-muted"{% endif %}>
+      <td>{{ item.food_name }}
+        {% if item.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}
+      </td>
       <td>
         {% if item.fdc_id %}
         <a href="/food/{{ item.fdc_id }}" class="muted">{{ item.fdc_id }}</a>
@@ -165,6 +181,12 @@
           Link a food
         </a>
         {% endif %}
+        <form method="post" action="/pantry/{{ item.id }}/archive" style="display:inline">
+          <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
+                  title="{% if item.archived %}Restore to normal use{% else %}Hide from complement suggestions, without losing it{% endif %}">
+            {% if item.archived %}Restore{% else %}Archive{% endif %}
+          </button>
+        </form>
         <form method="post" action="/pantry/remove/{{ item.id }}" style="display:inline">
           <button type="submit" class="btn btn-sm btn-outline-danger"
                   onclick="return confirm('Remove {{ item.food_name | replace("'", "\\'") }} from pantry?')">
@@ -176,7 +198,7 @@
     {% endfor %}
   </tbody>
 </table>
-<p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a></small></p>
+<p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a> &middot; Archive hides an entry from complement suggestions without losing it</small></p>
 {% else %}
 <p>Your pantry is empty. Add some foods above.</p>
 {% endif %}

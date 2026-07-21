@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-19:2113* / Reading 2 hours, 17 minutes
+*Updated 2026-07-20:1702* / Reading 2 hours, 35 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -724,6 +724,7 @@ The sections linked from analysis output are:
 - [Amino acid scoring](#aa-scoring) — limiting-amino-acid [DIAAS](#gloss-diaas) scoring method
 - [Food annotation](#annotate) — annotate food picker table columns
 - [Antinutrients](#antinutrients) — what [antinutrients](#gloss-antinutrient) are and how they appear in output
+- [Archiving](#archive) — hiding foods, pantry entries, and recipes from everyday use without losing them
 - [Bioavailability](#bioavailability) — [DIAAS](#gloss-diaas) bioavailability table columns
 - [Food Cache](#cached) — [Food Cache](#gloss-food-cache) column guide
 - [Complement suggestions](#comp) — protein [complement food](#gloss-complement-food) suggestions
@@ -835,6 +836,9 @@ Commands (type the letter followed by the row number, e.g. v3, e12):
             any pantry entry, recipe ingredient, or logged meal item. Shows a
             preview list and asks for confirmation before deleting. User-drafted
             foods (created or edited by hand) are protected and never pruned.
+            Archived foods are also protected and never pruned.
+    x#      Archive or restore (also x#,# for multiple rows) — see [archiving](#archive).
+    s       Show/hide archived foods in this list.
     i#      Fetch missing data from Claude — generates a prompt you paste into
             claude.ai (free). Also i#,# for multiple rows. Type i alone to
             select every food in the current list that is missing AA data (✗).
@@ -846,6 +850,37 @@ Commands (type the letter followed by the row number, e.g. v3, e12):
 To refresh a corrupt or outdated cache entry: delete it with d#, then search for the food again — it will be re-fetched automatically.
 
 See [amino acid fetch workflow](#fetch) for step-by-step instructions on the i/r fetch workflow.
+
+
+#### Archiving [archive]
+
+Archiving lets you keep a food, pantry entry, or recipe without losing it, while hiding it from everyday use: default list views, food search results, and protein complement suggestions. It's meant for things you're not currently using but don't want to delete -- a seasonal ingredient, an old recipe you might revisit, a pantry item you've used up.
+
+Archiving is reversible with the same command, one entry (or a batch) at a time:
+
+    Food Cache   x# (or x#,# for multiple rows) archives or restores a food,
+                 based on whichever state it's currently in. s toggles
+                 whether archived foods are shown in the list at all.
+    My Pantry    x, then the row ID, archives or restores that pantry entry.
+                 s toggles visibility the same way.
+    Recipes      y{id} archives or restores a recipe (in Browse). s toggles
+                 visibility.
+
+What archiving does NOT do:
+
+    - It never deletes anything. An archived food/pantry entry/recipe still
+      exists and can be restored at any time with the same command.
+    - It never breaks existing references. A recipe that uses an archived
+      food as an ingredient still analyzes correctly; a meal that logged an
+      archived recipe still shows correctly. Archiving only affects whether
+      something shows up by default and whether it's offered for new use.
+    - Archived foods are protected from u (prune unused foods) in the Food
+      Cache -- archiving is meant to preserve data, so an archived-but-
+      unreferenced food is never swept up by pruning.
+
+If you try to archive a food or recipe that's still actively referenced elsewhere (a pantry entry, a recipe ingredient, a logged meal), NutriMagnus warns you first but lets you proceed -- the references keep working either way.
+
+This setting (which entries are archived, and whether each list shows them) is saved and persists across sessions.
 
 
 #### Nutrient Analysis Table [nutrients]
@@ -1151,7 +1186,7 @@ Shows all your saved recipes. Displayed when you open Recipes -> Browse or Recip
 
 Columns:
     ID          Recipe ID. Use with commands: a{id} analyze, v{id}
-                view/edit, d{id} delete, c{id} copy.
+                view/edit, d{id} delete, c{id} copy, y{id} archive/restore.
     Name        Recipe name.
     Servings    Number of servings. 0 means the recipe is analyzed by
                 total weight or volume rather than a serving count.
@@ -1160,8 +1195,10 @@ Columns:
                 yet computed or if no AA data was available.
     Complete    Checkmark if you have marked the recipe finished.
     Created     Date the recipe was first saved.
+    ARCH        Shown only when archived recipes are visible (s toggle) —
+                dot marks a recipe as archived. See [archiving](#archive).
 
-Commands: a{id}=analyze  v{id}=view/edit  d{id}=delete  c{id}=copy   x=new recipe  /text=filter by name  r=clear filter  o=sort   n/p=next/prev page
+Commands: a{id}=analyze  v{id}=view/edit  d{id}=delete  c{id}=copy  y{id}=archive/restore  x=new recipe  /text=filter by name  r=clear filter  o=sort  s=show/hide archived  n/p=next/prev page
 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein).
 
@@ -1318,6 +1355,8 @@ Columns:
                          Search for this food via Foods to add it properly.
     Food    Food name.
     Notes   Your optional note for this pantry entry.
+    ARCH    Shown only when archived entries are visible (s toggle) — dot
+            marks an entry as archived. See [archiving](#archive).
 
 (Web app only: My Pantry also shows Type, GI est., and DIAAS columns,
 matching the [Food Cache](#cached) list — see the DIAAS entry there for
@@ -1328,11 +1367,13 @@ adding a duplicate. This does not exist in the CLI yet; the CLI's `c`
 command only opens the Food Cache and does not attach a food to a
 name-only pantry entry.)
 
-Only pantry foods with [AA](#gloss-aa) data (checkmark) appear in complement suggestions. Name-only entries (--) and those without [AA](#gloss-aa) data (X) may still appear if their name matches a built-in complement table entry.
+Only pantry foods with [AA](#gloss-aa) data (checkmark) appear in complement suggestions. Name-only entries (--) and those without [AA](#gloss-aa) data (X) may still appear if their name matches a built-in complement table entry. Archived pantry entries never appear in complement suggestions.
 
 Commands:
     a   Add a food (USDA search or name-only).
     r   Remove a food from the pantry.
+    x   Archive or restore a food (enter its row ID) — see [archiving](#archive).
+    s   Show/hide archived entries in this list.
     c   Open the Food Cache to edit nutrients for a pantry food.
 
 See [complement suggestions](#comp) for how complement suggestions use your pantry.

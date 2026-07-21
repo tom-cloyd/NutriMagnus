@@ -65,7 +65,7 @@ _RECIPE_PAGE = 20
 _RNAME_W = 34
 
 
-def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> None:
+def _show_recipe_page(recipes: list, offset: int, label: str | None = None, show_archived: bool = False) -> None:
     page = recipes[offset : offset + _RECIPE_PAGE]
     subtitle = f"[grey62]{label}[/grey62]" if label else ""
     table_title("RECIPES", subtitle)
@@ -76,18 +76,24 @@ def _show_recipe_page(recipes: list, offset: int, label: str | None = None) -> N
     tbl.add_column("DCP/srv",  justify="right", min_width=9)
     tbl.add_column("Complete", justify="center", min_width=8)
     tbl.add_column("Created",  min_width=12)
+    if show_archived:
+        tbl.add_column("ARCH", justify="center", min_width=4)
     for r in page:
         dcp_str = f"{r['dcp_g']:.1f}g" if r["dcp_g"] is not None else "[grey62]NC[/grey62]"
         complete_str = "[green]✓[/green]" if r["complete"] else "[grey62]—[/grey62]"
         rname = r["name"][:_RNAME_W - 1]
         rdots = "·" * (_RNAME_W - len(rname) - 1)
-        tbl.add_row(str(r["id"]), f"[bold]{rname}[/bold] [grey62]{rdots}[/grey62]", str(r["servings"]), dcp_str, complete_str, r["created_at"])
+        row_cells = [str(r["id"]), f"[bold]{rname}[/bold] [grey62]{rdots}[/grey62]", str(r["servings"]), dcp_str, complete_str, r["created_at"]]
+        if show_archived:
+            row_cells.append("[grey62]●[/grey62]" if r["archived"] else "")
+        tbl.add_row(*row_cells, style="dim" if r["archived"] else None)
     state.console.print(tbl)
     if not label:
         state.console.print(f"  [grey62]Showing {offset + 1}–{offset + len(page)} of {len(recipes)}  (page size: {_RECIPE_PAGE})[/grey62]")
     table_footer("  [grey62]Complete ✓ = recipe is marked finished (all ingredients entered)[/grey62]",
-                 "  [grey62]DCP/srv  = digestible complete protein per serving  ·  NC = not computed[/grey62]")
-    help_footer("recipes")
+                 "  [grey62]DCP/srv  = digestible complete protein per serving  ·  NC = not computed"
+                 f"{'  ·  ARCH = archived' if show_archived else ''}[/grey62]")
+    help_footer("recipes", "archive")
 
 
 def _pick_recipe() -> dict | None:
@@ -757,9 +763,30 @@ def _do_recipe_browse() -> None:
     offset = 0
 
     while True:
+        show_archived = state.get_list_filter("recipes")
         with _db.get_db() as conn:
-            all_recipes = _db.recipe_list(conn)
+            all_recipes = _db.recipe_list(conn, include_archived=show_archived)
         if not all_recipes:
+            if not show_archived:
+                with _db.get_db() as conn:
+                    any_archived = bool(_db.recipe_list(conn, include_archived=True))
+                if any_archived:
+                    state.console.print(
+                        "[grey62]No recipes — all are archived. Type s to show them.[/grey62]"
+                    )
+                    try:
+                        raw = _prompt("").strip().lower()
+                    except Cancelled:
+                        return
+                    if raw == "s":
+                        _prefs.set_list_filter("recipes", True)
+                    elif raw == "m":
+                        raise ReturnToMain()
+                    elif raw == "q":
+                        raise SystemExit(0)
+                    elif raw == "b" or raw == "":
+                        return
+                    continue
             state.console.print("[grey62]No recipes saved yet.[/grey62]")
             return
 
@@ -801,7 +828,7 @@ def _do_recipe_browse() -> None:
         else:
             page_label = label
 
-        _show_recipe_page(display, offset, label=page_label)
+        _show_recipe_page(display, offset, label=page_label, show_archived=show_archived)
 
         nav_parts = ["/ to filter"]
         if search_query:
@@ -812,9 +839,10 @@ def _do_recipe_browse() -> None:
             nav_parts.append("n=next")
         if has_prev:
             nav_parts.append("p=prev")
+        nav_parts.append("s=" + ("hide archived" if show_archived else "show archived"))
         nav_parts.append("b=done")
         nav = "  ·  ".join(nav_parts)
-        state.console.print(f"  [grey62]Actions: v/e=view/edit  a=analyze  d=delete  c=copy  ·  x=develop new recipe  ·  {nav}[/grey62]", highlight=False)
+        state.console.print(f"  [grey62]Actions: v/e=view/edit  a=analyze  d=delete  c=copy  y=archive/restore  ·  x=develop new recipe  ·  {nav}[/grey62]", highlight=False)
         state.console.print(f"  [grey62](Enter action + ID, e.g. v3)[/grey62]", highlight=False)
 
         try:
@@ -842,6 +870,10 @@ def _do_recipe_browse() -> None:
             search_query = None
             offset = 0
             continue
+        if raw == "s":
+            _prefs.set_list_filter("recipes", not show_archived)
+            offset = 0
+            continue
         if raw == "o" and search_query is None:
             try:
                 choice = _prompt_with_options(
@@ -859,7 +891,7 @@ def _do_recipe_browse() -> None:
         if raw == "x":
             _safe_call(_do_recipe_create)
             continue
-        if len(raw) >= 2 and raw[0] in "evadc":
+        if len(raw) >= 2 and raw[0] in "evadcy":
             action = "v" if raw[0] == "e" else raw[0]
             id_str = raw[1:].strip()
         else:
@@ -888,6 +920,8 @@ def _do_recipe_browse() -> None:
             _safe_call(_do_recipe_delete, recipe)
         elif action == "c":
             _safe_call(_do_copy_recipe, recipe)
+        elif action == "y":
+            _safe_call(_do_recipe_archive_toggle, recipe)
 
 
 def _do_recipe_search() -> None:
@@ -1411,3 +1445,42 @@ def _do_recipe_delete(recipe=None) -> None:
         state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Deleted.")
     else:
         state.console.print("[grey62]Cancelled.[/grey62]")
+
+
+def _do_recipe_archive_toggle(recipe=None) -> None:
+    """Archive or restore a recipe (one command, flips current state)."""
+    if recipe is None:
+        recipe = _pick_recipe()
+    if recipe is None:
+        return
+    rid = recipe["id"]
+    newly_archived = not recipe["archived"]
+    if newly_archived:
+        with _db.get_db() as conn:
+            referencing = _db.recipe_referencing_subrecipe(conn, rid)
+            refs = _db.recipe_references(conn, rid)
+        if referencing or refs["meals"]:
+            parts = []
+            if referencing:
+                parts.append("used as a sub-recipe in: " + ", ".join(r["name"] for r in referencing))
+            if refs["meals"]:
+                parts.append(f"logged in {refs['meals']} meal item(s)")
+            state.console.print(
+                f"[{state.T['warning']}]⚠  Still referenced — {'; '.join(parts)}.[/{state.T['warning']}]"
+                f"\n  [grey62]They'll keep working — archiving only hides this recipe from "
+                f"default lists and search.[/grey62]"
+            )
+            try:
+                confirm = _prompt(
+                    f"Archive [{state.T['hi']}]{recipe['name']}[/{state.T['hi']}]?",
+                    choices=["y", "n"], default="y"
+                )
+            except Cancelled:
+                return
+            if confirm.lower() != "y":
+                state.console.print("[grey62]Cancelled.[/grey62]")
+                return
+    with _db.get_db() as conn:
+        _db.set_recipe_archived(conn, rid, newly_archived)
+    verb = "Archived" if newly_archived else "Restored"
+    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] {verb}: {recipe['name']}")

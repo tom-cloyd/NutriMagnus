@@ -19,6 +19,10 @@ _sections: dict[str, tuple[str, str]] | None = None
 # Common shortcuts → canonical anchor.
 _ALIASES: dict[str, str] = {
     "?":                    "help",
+    "archived":             "archive",
+    "archiving":            "archive",
+    "restore":              "archive",
+    "reserve":              "archive",
     "cache":                "cached",
     "food-cache":           "cached",
     "columns":              "cached",

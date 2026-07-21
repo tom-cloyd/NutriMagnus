@@ -485,3 +485,138 @@ class TestContextManager:
 
         rows = db_conn.execute("SELECT * FROM recipes WHERE name='Doomed'").fetchall()
         assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# Archiving (reserve area for foods / pantry / recipes)
+# ---------------------------------------------------------------------------
+
+class TestArchiving:
+    def test_archived_food_excluded_by_default(self):
+        with _db.get_db() as conn:
+            _db.cache_food(conn, 1, "Apple", "Foundation", None, 100.0, "g", {})
+            _db.cache_food(conn, 2, "Banana", "Foundation", None, 100.0, "g", {})
+            _db.set_food_archived(conn, 1, True)
+
+        with _db.get_db() as conn:
+            visible = _db.list_cached_foods(conn)
+            all_rows = _db.list_cached_foods(conn, include_archived=True)
+        assert {f["name"] for f in visible} == {"Banana"}
+        assert {f["name"] for f in all_rows} == {"Apple", "Banana"}
+
+    def test_food_archive_restore_roundtrip(self):
+        with _db.get_db() as conn:
+            _db.cache_food(conn, 1, "Apple", "Foundation", None, 100.0, "g", {})
+            _db.set_food_archived(conn, 1, True)
+        with _db.get_db() as conn:
+            row = _db.get_cached_food(conn, 1)
+        assert row["archived"] == 1
+
+        with _db.get_db() as conn:
+            _db.set_food_archived(conn, 1, False)
+        with _db.get_db() as conn:
+            row = _db.get_cached_food(conn, 1)
+            visible = _db.list_cached_foods(conn)
+        assert row["archived"] == 0
+        assert len(visible) == 1
+
+    def test_archived_food_still_resolves_by_fdc_id(self):
+        """Single-row lookup must never be filtered — existing references keep working."""
+        with _db.get_db() as conn:
+            _db.cache_food(conn, SAMPLE_FDC_ID, "Chicken breast", "SR Legacy",
+                           None, 100.0, "g", SAMPLE_NUTRIENTS)
+            _db.set_food_archived(conn, SAMPLE_FDC_ID, True)
+        with _db.get_db() as conn:
+            row = _db.get_cached_food(conn, SAMPLE_FDC_ID)
+        assert row is not None
+        assert row["name"] == "Chicken breast"
+
+    def test_archived_food_excluded_from_search(self):
+        with _db.get_db() as conn:
+            _db.cache_food(conn, 1, "Chicken breast", "SR Legacy", None, 100.0, "g", {})
+            _db.cache_food(conn, 2, "Chicken thigh", "SR Legacy", None, 100.0, "g", {})
+            _db.set_food_archived(conn, 1, True)
+
+        with _db.get_db() as conn:
+            results = _db.search_cached_foods(conn, "Chicken")
+        names = {r["name"] for r in results}
+        assert names == {"Chicken thigh"}
+
+    def test_food_references_counts_pantry_recipe_meal(self):
+        with _db.get_db() as conn:
+            _db.cache_food(conn, SAMPLE_FDC_ID, "Chicken breast", "SR Legacy",
+                           None, 100.0, "g", SAMPLE_NUTRIENTS)
+            _db.pantry_add(conn, "Chicken breast", fdc_id=SAMPLE_FDC_ID)
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            _db.recipe_add_ingredient(conn, rid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
+            mid = _db.meal_create(conn, "Lunch", "2025-03-15")
+            _db.meal_add_food(conn, mid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
+
+        with _db.get_db() as conn:
+            refs = _db.food_references(conn, SAMPLE_FDC_ID)
+        assert refs == {"pantry": 1, "recipes": 1, "meals": 1}
+
+    def test_archived_unreferenced_food_protected_from_prune(self):
+        with _db.get_db() as conn:
+            _db.cache_food(conn, 1, "Apple", "Foundation", None, 100.0, "g", {})
+            _db.set_food_archived(conn, 1, True)
+
+        with _db.get_db() as conn:
+            unused = _db.list_unused_cached_foods(conn)
+        assert unused == []
+
+        with _db.get_db() as conn:
+            deleted = _db.prune_unused_cached_foods(conn)
+        assert deleted == []
+        with _db.get_db() as conn:
+            assert _db.get_cached_food(conn, 1) is not None
+
+    def test_pantry_archive_restore_roundtrip(self):
+        with _db.get_db() as conn:
+            pid = _db.pantry_add(conn, "Tofu")
+            _db.set_pantry_archived(conn, pid, True)
+
+        with _db.get_db() as conn:
+            visible = _db.pantry_list(conn)
+            all_rows = _db.pantry_list(conn, include_archived=True)
+            row = _db.pantry_get(conn, pid)
+        assert visible == []
+        assert len(all_rows) == 1
+        assert row["archived"] == 1
+
+        with _db.get_db() as conn:
+            _db.set_pantry_archived(conn, pid, False)
+        with _db.get_db() as conn:
+            visible = _db.pantry_list(conn)
+        assert len(visible) == 1
+
+    def test_recipe_archive_restore_roundtrip(self):
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            _db.set_recipe_archived(conn, rid, True)
+
+        with _db.get_db() as conn:
+            visible = _db.recipe_list(conn)
+            all_rows = _db.recipe_list(conn, include_archived=True)
+        assert visible == []
+        assert len(all_rows) == 1
+        assert all_rows[0]["archived"] == 1
+
+        with _db.get_db() as conn:
+            _db.set_recipe_archived(conn, rid, False)
+        with _db.get_db() as conn:
+            visible = _db.recipe_list(conn)
+        assert len(visible) == 1
+        assert visible[0]["archived"] == 0
+
+    def test_recipe_references_counts_subrecipe_and_meal(self):
+        with _db.get_db() as conn:
+            sub_rid = _db.recipe_create(conn, "Sauce", "", 1, "")
+            main_rid = _db.recipe_create(conn, "Pasta", "", 2, "")
+            _db.recipe_add_ingredient(conn, main_rid, 0, "Sauce", 1.0, "recipe", ref_recipe_id=sub_rid)
+            mid = _db.meal_create(conn, "Dinner", "2025-03-15")
+            _db.meal_add_recipe(conn, mid, sub_rid, "Sauce", 1.0)
+
+        with _db.get_db() as conn:
+            refs = _db.recipe_references(conn, sub_rid)
+        assert refs == {"recipes": 1, "meals": 1}

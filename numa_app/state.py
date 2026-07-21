@@ -58,6 +58,9 @@ class AppContext:
     sort_prefs: dict = field(default_factory=lambda: {
         "recipes": "recent", "food_cache": "name", "meals": "date",
     })
+    list_filters: dict = field(default_factory=lambda: {
+        "recipes": False, "food_cache": False, "pantry": False,
+    })  # True = show archived rows in that list
     theme_file: Path = field(default_factory=lambda: _platform_utils.get_config_dir() / "theme")
     prefs_file: Path = field(default_factory=lambda: _platform_utils.get_config_dir() / "prefs.json")
 
@@ -96,6 +99,15 @@ def get_sort_pref(list_name: str, default: str) -> str:
 
 def set_sort_pref(list_name: str, value: str) -> None:
     app_ctx.sort_prefs[list_name] = value
+    sync_globals()
+
+
+def get_list_filter(list_name: str, default: bool = False) -> bool:
+    return app_ctx.list_filters.get(list_name, default)
+
+
+def set_list_filter(list_name: str, value: bool) -> None:
+    app_ctx.list_filters[list_name] = value
     sync_globals()
 
 

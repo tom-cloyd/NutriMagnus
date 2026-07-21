@@ -46,6 +46,12 @@ def _load_prefs() -> None:
                 state.app_ctx.sort_prefs["food_cache"] = data["sort_food_cache"]
             if data.get("sort_meals") in ("date", "name", "meal_bcp", "calories"):
                 state.app_ctx.sort_prefs["meals"] = data["sort_meals"]
+            if isinstance(data.get("show_archived_food_cache"), bool):
+                state.app_ctx.list_filters["food_cache"] = data["show_archived_food_cache"]
+            if isinstance(data.get("show_archived_pantry"), bool):
+                state.app_ctx.list_filters["pantry"] = data["show_archived_pantry"]
+            if isinstance(data.get("show_archived_recipes"), bool):
+                state.app_ctx.list_filters["recipes"] = data["show_archived_recipes"]
             state.sync_globals()
             if needs_migration_save:
                 _save_prefs()  # all state now loaded — safe to write new format
@@ -70,6 +76,9 @@ def _save_prefs() -> None:
     data["sort_recipes"] = state.app_ctx.sort_prefs.get("recipes", "recent")
     data["sort_food_cache"] = state.app_ctx.sort_prefs.get("food_cache", "name")
     data["sort_meals"] = state.app_ctx.sort_prefs.get("meals", "date")
+    data["show_archived_food_cache"] = state.app_ctx.list_filters.get("food_cache", False)
+    data["show_archived_pantry"] = state.app_ctx.list_filters.get("pantry", False)
+    data["show_archived_recipes"] = state.app_ctx.list_filters.get("recipes", False)
 
     if not data["editor_command"]:
         data.pop("editor_command", None)
@@ -82,6 +91,13 @@ def set_sort_pref(list_name: str, value: str) -> None:
     """Update the remembered sort choice for a list view ('recipes', 'food_cache',
     'meals') and persist it immediately so it's the default on next launch."""
     state.set_sort_pref(list_name, value)
+    _save_prefs()
+
+
+def set_list_filter(list_name: str, value: bool) -> None:
+    """Update the remembered 'show archived' toggle for a list view ('recipes',
+    'food_cache', 'pantry') and persist it immediately."""
+    state.set_list_filter(list_name, value)
     _save_prefs()
 
 

@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-19:2113
+UPDATED: 2026-07-20:2111
 ---
 
 ## Table of Contents
@@ -874,6 +874,8 @@ Contains the Foods menu dispatch and the search/analyze/convert/cached-food-view
 
 All persistence goes through a `get_db()` context manager that commits on clean exit and rolls back on exception. The database path is `~/.local/share/numa/numa.db`.
 
+**Schema migrations run from two independent entry points**: `numa_app/main.py`'s `initialize_app()` calls `_db.init_db()` for the CLI, and `web/backend.py`'s FastAPI `lifespan` handler (`_lifespan()`, wraps `app = FastAPI(..., lifespan=_lifespan)`) calls it again on web server startup. This is deliberate — the web server (`web/launcher.py`) is a **separate OS process** from the CLI, spawned via `subprocess.Popen` from `numa_app/main.py:_launch_web()`, and must not assume the CLI has run `init_db()` first. Before this was added, restarting only the web server (without a full CLI restart) against a database that predated a new migration would 500 with `sqlite3.OperationalError: no such column: ...` on any query touching the new column. `init_db()` is idempotent (every migration step is a guarded `ALTER TABLE ... ADD COLUMN` or `CREATE TABLE IF NOT EXISTS`), so calling it twice — once from the CLI, once from the web server — is safe and cheap.
+
 **Schema:**
 
 | Table                | Purpose                                              |
@@ -903,6 +905,16 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 | `meal_add_recipe(conn, meal_id, recipe_id, recipe_name, servings, unit="servings")` | `unit` parameter now configurable (was hardcoded to "servings") |
 
 All nutrient data is stored as a JSON blob in `foods.nutrients_json`, keyed by the same field names used throughout (`calories`, `protein_g`, `carbs_g`, etc.). This avoids schema migrations when nutrient tracking is expanded.
+
+**Archiving (`archived` column):** `foods`, `pantry`, and `recipes` each carry an `archived INTEGER NOT NULL DEFAULT 0` column (added via the same `ALTER TABLE ... ADD COLUMN` migration idiom as the rest of the schema — see `init_db()`). Archiving is the "reserve area" mechanism: it lets a user hide a row from default use without deleting it or risking foreign-key integrity, which ruled out the alternative of a literal second database file (recipes reference `fdc_id`, meals reference `recipe_id`, etc. — a second DB would require cross-database copies or ATTACHed joins to keep those relationships intact).
+
+- `list_cached_foods`, `search_cached_foods`, `pantry_list`, `recipe_list`, `recipe_list_recent` all take `include_archived: bool = False` — the default excludes archived rows, so every existing caller (including all of `web/backend.py`) got this filtering automatically without change.
+- Single-row lookups (`get_cached_food`, `expand_recipe_ingredients` in `recipe_nutrients.py`) are never filtered — an archived food/recipe still resolves correctly wherever it's already referenced (an existing recipe ingredient, a logged meal item).
+- `set_food_archived` / `set_pantry_archived` / `set_recipe_archived` flip the flag; the CLI commands that call them (`x#` in Food Cache, `x`+ID in Pantry, `y{id}` in Recipes Browse) reuse the current-state check as a toggle, so one command handles both archive and restore.
+- `food_references(conn, fdc_id)` / `recipe_references(conn, recipe_id)` return reference counts (pantry/recipes/meals) so the UI can warn — but not block — before archiving something still in active use.
+- `list_unused_cached_foods` / `prune_unused_cached_foods` always exclude archived rows: archiving is meant to protect data from being lost, so an archived-but-unreferenced food is never swept up by `u` (prune unused).
+- Per-list "show archived" visibility is a session/persisted preference, not a query default — `numa_app/state.py`'s `AppContext.list_filters` dict (`get_list_filter`/`set_list_filter`) mirrors the existing `sort_prefs` pattern exactly, and `numa_app/config/prefs.py` persists it (`show_archived_food_cache`/`show_archived_pantry`/`show_archived_recipes` keys in `prefs.json`) the same way sort choices are persisted. Any future per-list view-state toggle should follow this same two-layer (state.py get/set + config/prefs.py persisted wrapper) pattern.
+- **Web app parity**: `web/backend.py`'s `/food/cache`, `/pantry`, and `/recipes` GET routes accept a `show_archived` query param resolved via `_resolve_bool_pref()` (mirrors `_resolve_sort()`), and each has a `POST .../{{id}}/archive` route that flips the flag and redirects with `?archived=1`/`?restored=1` (plus `&still_used=1` when the item was still referenced) for a flash-banner message. Crucially, `_resolve_bool_pref` reads/writes the **same** `prefs.json` keys as the CLI's `numa_app/config/prefs.py`, so the "show archived" choice is shared between the CLI and the web app automatically. Unlike the CLI's interactive y/n confirmation before archiving something still referenced, the web flow archives immediately (one click, no JS-driven confirm dialog) and surfaces the "still referenced" warning as a post-action flash message instead of a pre-action prompt — same warn-but-never-block policy, simpler implementation given the app's plain-HTML-forms architecture (no fetch/AJAX anywhere in `web/`).
 
 ### `usda_api.py` — USDA HTTP client (~290 lines)
 

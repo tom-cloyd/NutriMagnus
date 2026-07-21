@@ -29,14 +29,29 @@
       <option value="name"   {% if sort == "name"   %}selected{% endif %}>Name</option>
       <option value="dcp"    {% if sort == "dcp"    %}selected{% endif %}>DCP/serving</option>
     </select>
+    <div class="form-check form-check-inline ms-2">
+      <input type="checkbox" class="form-check-input" id="show_archived" name="show_archived"
+             value="1" {% if show_archived %}checked{% endif %} onchange="this.form.submit()">
+      <label class="form-check-label muted" for="show_archived"><small>Show archived</small></label>
+    </div>
   </form>
   <form method="post" action="/recipes/compute-bcp">
-    <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}{% if sort %}{% if q %}&{% else %}?{% endif %}sort={{ sort }}{% endif %}">
+    <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}{% if sort %}{% if q %}&{% else %}?{% endif %}sort={{ sort }}{% endif %}{% if show_archived %}{% if q or sort %}&{% else %}?{% endif %}show_archived=1{% endif %}">
     <button type="submit" class="btn btn-sm btn-outline-secondary">Compute DCP for all complete recipes</button>
   </form>
   <a href="/recipes/broken-refs" class="btn btn-sm btn-outline-secondary">Broken recipe references</a>
   <small class="muted">DCP = digestible complete protein per serving · NC = not computed</small>
 </div>
+
+{% if archived %}
+<div class="alert alert-success">
+  Archived.
+  {% if still_used %}<span class="muted">It's still used as a sub-recipe or in a logged meal — those keep working as before.</span>{% endif %}
+</div>
+{% endif %}
+{% if restored %}
+<div class="alert alert-success">Restored.</div>
+{% endif %}
 
 {% if not recipes %}
   {% if q %}
@@ -60,9 +75,11 @@
   </thead>
   <tbody>
     {% for r in recipes %}
-    <tr>
+    <tr{% if r.archived %} class="text-muted"{% endif %}>
       <td class="muted">{{ r.id }}</td>
-      <td><a href="/recipe/{{ r.id }}"><strong>{{ r.name }}</strong></a></td>
+      <td><a href="/recipe/{{ r.id }}"><strong>{{ r.name }}</strong></a>
+        {% if r.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}
+      </td>
       <td class="muted"><small>{{ r.description or "—" }}</small></td>
       <td style="text-align:right">{{ r.servings }}</td>
       <td style="text-align:right">
@@ -76,6 +93,12 @@
         <a href="/recipe/{{ r.id }}/edit" class="btn btn-outline-secondary btn-sm">Edit</a>
         <form method="post" action="/recipe/{{ r.id }}/copy" style="display:inline">
           <button type="submit" class="btn btn-outline-secondary btn-sm">Copy</button>
+        </form>
+        <form method="post" action="/recipe/{{ r.id }}/archive" style="display:inline">
+          <button type="submit" class="btn btn-outline-secondary btn-sm"
+                  title="{% if r.archived %}Restore to normal use{% else %}Hide from default lists and search, without losing it{% endif %}">
+            {% if r.archived %}Restore{% else %}Archive{% endif %}
+          </button>
         </form>
         <form method="post" action="/recipe/{{ r.id }}/delete" style="display:inline"
               onsubmit="return confirm('Delete {{ r.name | replace("'","&#39;") }}?')">

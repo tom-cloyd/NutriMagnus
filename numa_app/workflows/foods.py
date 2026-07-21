@@ -1482,9 +1482,30 @@ def _do_list_cached_foods() -> None:
     _pending_refresh: tuple | None = None  # (fdc_id, cached_row) — set before redraw so table shows first
     daily_nutrients, rda, optimal, max_limits = _get_daily_context()
     while True:
+        show_archived = state.get_list_filter("food_cache")
         with _db.get_db() as conn:
-            all_foods = _db.list_cached_foods(conn)
+            all_foods = _db.list_cached_foods(conn, include_archived=show_archived)
         if not all_foods:
+            if not show_archived:
+                with _db.get_db() as conn:
+                    any_archived = bool(_db.list_cached_foods(conn, include_archived=True))
+                if any_archived:
+                    state.console.print(
+                        "[grey62]No foods cached — all are archived. Type s to show them.[/grey62]"
+                    )
+                    try:
+                        raw = _prompt("  Command", free_text=True).strip().lower()
+                    except Cancelled:
+                        return
+                    if raw == "s":
+                        _prefs.set_list_filter("food_cache", True)
+                    elif raw == "m":
+                        raise ReturnToMain()
+                    elif raw == "q":
+                        raise SystemExit(0)
+                    elif raw == "b" or raw == "":
+                        return
+                    continue
             state.console.print("[grey62]No foods cached yet.[/grey62]")
             return
 
@@ -1530,6 +1551,8 @@ def _do_list_cached_foods() -> None:
             tbl.add_column("BRAND", min_width=_BRAND_W)
             tbl.add_column("C",     min_width=3, justify="center")
             tbl.add_column("N",     min_width=3, justify="center")
+            if show_archived:
+                tbl.add_column("ARCH", min_width=4, justify="center")
             for i, f in enumerate(foods, 1):
                 nutrients = json.loads(f["nutrients_json"])
                 aa_cell = (f"[{s}]✓[/{s}]" if _usda.has_amino_acid_data(nutrients)
@@ -1541,27 +1564,32 @@ def _do_list_cached_foods() -> None:
                               if ann and ann["diaas_estimate"] is not None else "—")
                 c_cell = f"[{s}]✓[/{s}]" if f["notes"] else "—"
                 n_cell = f"[{s}]✓[/{s}]" if f["curator_notes"] else "—"
-                tbl.add_row(str(i), aa_cell, gi_cell, diaas_cell,
+                row_cells = [str(i), aa_cell, gi_cell, diaas_cell,
                             _id_cell(f["fdc_id"]),
                             dot_cell(f["name"], _NAME_W, bold=True), f["data_type"] or "",
                             dot_cell(f["brand"] or "", _BRAND_W),
-                            c_cell, n_cell)
+                            c_cell, n_cell]
+                if show_archived:
+                    row_cells.append("[grey62]●[/grey62]" if f["archived"] else "")
+                tbl.add_row(*row_cells, style="dim" if f["archived"] else None)
 
             _SORT_LABELS = {"name": "Name", "type": "Type", "diaas": "DIAAS", "gi": "GI"}
             sort_note = f"sorted by {_SORT_LABELS[sort]}"
+            archived_note = ", showing archived" if show_archived else ""
             if filter_text:
                 table_title("CACHED FOODS",
                             f"[grey62]{len(foods)} match for '[bold]{filter_text}[/bold]' "
-                            f"({len(all_foods)} total, {sort_note}) — enter / to clear filter[/grey62]")
+                            f"({len(all_foods)} total, {sort_note}{archived_note}) — enter / to clear filter[/grey62]")
             else:
                 table_title("CACHED FOODS",
-                            f"[grey62]{len(all_foods)} foods, {sort_note} — enter /text to filter by name[/grey62]")
+                            f"[grey62]{len(all_foods)} foods, {sort_note}{archived_note} — enter /text to filter by name[/grey62]")
 
             state.console.print(tbl)
             table_footer(
-                f"  [grey62]C = source/confidence note  ·  N = curator notes  ·  {ID_KEY}[/grey62]"
+                f"  [grey62]C = source/confidence note  ·  N = curator notes"
+                f"{'  ·  ARCH = archived' if show_archived else ''}  ·  {ID_KEY}[/grey62]"
             )
-            help_footer("food-cache")
+            help_footer("food-cache", "archive")
 
             state.console.print()
             state.console.print(f"  [{state.T['hi']}]Options:[/{state.T['hi']}]")
@@ -1574,6 +1602,8 @@ def _do_list_cached_foods() -> None:
             state.console.print( "    [bold]p[/bold]    Edit portions                [grey62](e.g. p3 — add cup/piece/custom weights)[/grey62]")
             state.console.print( "    [bold]d[/bold]    Delete from cache            [grey62](e.g. d3  d1,4,7)[/grey62]", highlight=False)
             state.console.print( "    [bold]u[/bold]    Prune unused foods           [grey62](not in any pantry entry, recipe, or meal)[/grey62]", highlight=False)
+            state.console.print( "    [bold]x[/bold]    Archive / restore            [grey62](e.g. x3  x1,4,7 — hide from search & complements, one click to undo · ?archive)[/grey62]", highlight=False)
+            state.console.print(f"    [bold]s[/bold]    {'Hide' if show_archived else 'Show'} archived            [grey62](toggle archived foods in this list)[/grey62]")
             state.console.print( "    [bold]i[/bold]    Fetch data from Claude       [grey62](i alone = list foods missing AA data · i3  i1,4,7  iFDCID,FDCID · ?fetch)[/grey62]", highlight=False)
             state.console.print( "    [bold]r[/bold]    Read Claude response         [grey62](import ~/claude_response.txt)[/grey62]")
             state.console.print( "    [bold]l[/bold]    List  [grey62](re-display this table)[/grey62]")
@@ -1591,12 +1621,12 @@ def _do_list_cached_foods() -> None:
                 state.console.print(
                     f"\n  [grey62]Cache — {len(foods)} of {len(all_foods)} foods"
                     f" · filter: '{filter_text}'"
-                    f" · v# c# n# a# e# f# p# d# i# r u · l=list · /filter · b=back[/grey62]"
+                    f" · v# c# n# a# e# f# p# d# x# i# r u s · l=list · /filter · b=back[/grey62]"
                 )
             else:
                 state.console.print(
                     f"\n  [grey62]Cache — {len(all_foods)} foods"
-                    f" · v# c# n# a# e# f# p# d# i# r u · l=list · /filter · b=back[/grey62]"
+                    f" · v# c# n# a# e# f# p# d# x# i# r u s · l=list · /filter · b=back[/grey62]"
                 )
 
         try:
@@ -1615,6 +1645,10 @@ def _do_list_cached_foods() -> None:
         if raw_lower == "q":
             raise SystemExit(0)
         if raw_lower == "l":
+            show_table = True
+            continue
+        if raw_lower == "s":
+            _prefs.set_list_filter("food_cache", not show_archived)
             show_table = True
             continue
         if raw_lower == "o":
@@ -1679,6 +1713,63 @@ def _do_list_cached_foods() -> None:
                         f"(some may have already been removed).[/{state.T['warning']}]"
                     )
                 show_table = True
+            continue
+
+        if cmd == "x" and rest:
+            nums = rest.replace(",", " ")
+            try:
+                indices = [int(p) - 1 for p in nums.split()]
+                if not indices:
+                    raise ValueError
+            except ValueError:
+                state.console.print(f"[{state.T['warning']}]Use x# or x#,# (e.g. x3  x1,4,7).[/{state.T['warning']}]")
+                continue
+            out_of_range = [i + 1 for i in indices if i < 0 or i >= len(foods)]
+            if out_of_range:
+                state.console.print(f"[{state.T['warning']}]Out of range: {out_of_range}[/{state.T['warning']}]")
+                continue
+            to_toggle = [foods[i] for i in indices]
+            to_archive = [f for f in to_toggle if not f["archived"]]
+            to_restore = [f for f in to_toggle if f["archived"]]
+            if to_archive:
+                with _db.get_db() as conn:
+                    refs = {f["fdc_id"]: _db.food_references(conn, f["fdc_id"]) for f in to_archive}
+                still_used = {
+                    f["name"]: r for f, r in ((f, refs[f["fdc_id"]]) for f in to_archive)
+                    if r["pantry"] or r["recipes"] or r["meals"]
+                }
+                if still_used:
+                    lines = "\n".join(
+                        f"  · {name} — pantry:{r['pantry']}  recipes:{r['recipes']}  meals:{r['meals']}"
+                        for name, r in still_used.items()
+                    )
+                    state.console.print(
+                        f"  [{state.T['warning']}]Still referenced:[/{state.T['warning']}]\n{lines}\n"
+                        f"  [grey62]They'll keep working — archiving only hides this food from "
+                        f"search & complement suggestions.[/grey62]"
+                    )
+                    try:
+                        confirm = _prompt("Proceed with archive?", default="y").strip().lower()
+                    except Cancelled:
+                        continue
+                    if confirm != "y":
+                        continue
+            with _db.get_db() as conn:
+                for f in to_archive:
+                    _db.set_food_archived(conn, f["fdc_id"], True)
+                for f in to_restore:
+                    _db.set_food_archived(conn, f["fdc_id"], False)
+            if to_archive:
+                state.console.print(
+                    f"  [{state.T['success']}]✓[/{state.T['success']}]  "
+                    f"Archived {len(to_archive)} food{'s' if len(to_archive) != 1 else ''}."
+                )
+            if to_restore:
+                state.console.print(
+                    f"  [{state.T['success']}]✓[/{state.T['success']}]  "
+                    f"Restored {len(to_restore)} food{'s' if len(to_restore) != 1 else ''}."
+                )
+            show_table = True
             continue
 
         if cmd == "u":

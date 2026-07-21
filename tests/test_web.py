@@ -37,6 +37,21 @@ def client() -> TestClient:
     return TestClient(backend.app)
 
 
+def test_web_app_self_migrates_without_cli(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression test: the web server used to depend on the CLI having called
+    db.init_db() first (they're separate processes). A web server launched on
+    its own against a brand-new or un-migrated database would 500 with
+    'no such column: archived' (or any other pending migration). The web app's
+    lifespan handler must run init_db() itself so it's self-sufficient."""
+    fresh_db = tmp_path / "never_touched_by_cli.db"
+    monkeypatch.setattr(_db, "_DB_PATH", fresh_db)
+    assert not fresh_db.exists()
+    with TestClient(backend.app) as fresh_client:
+        resp = fresh_client.get("/recipes")
+        assert resp.status_code == 200
+    assert fresh_db.exists()
+
+
 # GET routes that take no path params — smoke-test that each renders without error.
 _SMOKE_ROUTES = [
     "/",
@@ -468,6 +483,76 @@ def test_food_cache_prune_deletes_unreferenced(client: TestClient, cached_food, 
     ).fetchone() is None
 
 
+def test_food_cache_archive_hides_and_restore_reveals(client: TestClient, cached_food, db_conn) -> None:
+    fdc_id = cached_food["fdcId"]
+    resp = client.post(f"/food/cache/{fdc_id}/archive", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "archived=1" in resp.headers["location"]
+    assert db_conn.execute(
+        "SELECT archived FROM foods WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()["archived"] == 1
+
+    resp = client.get("/food/cache")
+    assert cached_food["name"] not in resp.text
+
+    resp = client.get("/food/cache?show_archived=1")
+    assert cached_food["name"] in resp.text
+    assert "Archived" in resp.text
+
+    resp = client.post(f"/food/cache/{fdc_id}/archive", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "restored=1" in resp.headers["location"]
+    assert db_conn.execute(
+        "SELECT archived FROM foods WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()["archived"] == 0
+
+    resp = client.get("/food/cache")
+    assert cached_food["name"] in resp.text
+
+
+def test_food_cache_search_by_query_renders(client: TestClient, cached_food) -> None:
+    """Regression test: search_cached_foods() previously omitted nutrients_json,
+    which crashed /food/cache?q=... with a 500 as soon as any result was returned."""
+    resp = client.get("/food/cache?q=chicken")
+    assert resp.status_code == 200
+    assert cached_food["name"] in resp.text
+
+
+def test_food_cache_archive_referenced_food_still_flags_still_used(client: TestClient, cached_food, db_conn) -> None:
+    fdc_id = cached_food["fdcId"]
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)", (cached_food["name"], fdc_id)
+    )
+    db_conn.commit()
+    resp = client.post(f"/food/cache/{fdc_id}/archive", follow_redirects=False)
+    assert "still_used=1" in resp.headers["location"]
+
+
+def test_pantry_archive_hides_and_restore_reveals(client: TestClient, cached_food, db_conn) -> None:
+    add_resp = client.post(
+        "/pantry/add", data={"food_name": cached_food["name"], "fdc_id": cached_food["fdcId"]},
+        follow_redirects=False,
+    )
+    assert add_resp.status_code == 303
+    pid = db_conn.execute("SELECT id FROM pantry").fetchone()["id"]
+
+    resp = client.post(f"/pantry/{pid}/archive", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "archived=1" in resp.headers["location"]
+
+    resp = client.get("/pantry")
+    assert cached_food["name"] not in resp.text
+
+    resp = client.get("/pantry?show_archived=1")
+    assert cached_food["name"] in resp.text
+    assert "Archived" in resp.text
+
+    resp = client.post(f"/pantry/{pid}/archive", follow_redirects=False)
+    assert "restored=1" in resp.headers["location"]
+    resp = client.get("/pantry")
+    assert cached_food["name"] in resp.text
+
+
 def test_food_compare_add(client: TestClient, cached_food) -> None:
     resp = client.post(
         "/food/compare/add", data={"fdc_id": cached_food["fdcId"]}, follow_redirects=False,
@@ -556,6 +641,32 @@ def test_recipe_delete_and_copy(client: TestClient, cached_food, db_conn) -> Non
     resp = client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
     assert resp.status_code == 303
     assert db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone() is None
+
+
+def test_recipe_archive_hides_and_restore_reveals(client: TestClient, db_conn) -> None:
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Soup", "servings": 1}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+
+    resp = client.post(f"/recipe/{recipe_id}/archive", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "archived=1" in resp.headers["location"]
+    assert db_conn.execute(
+        "SELECT archived FROM recipes WHERE id = ?", (recipe_id,)
+    ).fetchone()["archived"] == 1
+
+    resp = client.get("/recipes")
+    assert "Soup" not in resp.text
+
+    resp = client.get("/recipes?show_archived=1")
+    assert "Soup" in resp.text
+    assert "Archived" in resp.text
+
+    resp = client.post(f"/recipe/{recipe_id}/archive", follow_redirects=False)
+    assert "restored=1" in resp.headers["location"]
+    resp = client.get("/recipes")
+    assert "Soup" in resp.text
 
 
 def test_recreated_recipe_offers_relink_to_broken_refs(client: TestClient, db_conn) -> None:
