@@ -172,7 +172,9 @@ table {
   padding: 0.3rem 0.45rem;
 }
 
-/* Name column: left-aligned, wraps, guaranteed minimum width */
+/* Name column: left-aligned, wraps, guaranteed minimum width.
+   line-height tightened well below Bootstrap's 1.5 body default — wrapped
+   food/recipe names were reading as loosely spaced two-line blocks. */
 .add-food-table th:first-child,
 .add-food-table td:first-child {
   min-width: 180px;
@@ -181,6 +183,7 @@ table {
   padding-left: 0.45rem;
   white-space: normal;
   word-break: break-word;
+  line-height: 1.1;
 }
 
 /* Narrow metadata columns: shrink to content */
@@ -269,6 +272,16 @@ table {
 .source-pantry {
   background: #ede9fe;
   color: #5b21b6;
+}
+
+/* ── Food ID + source tag (single line, directly under the food/recipe name) ── */
+
+.food-id-tag {
+  font-size: 0.7rem;
+  line-height: 1.15;
+  color: #333;
+  display: block;
+  white-space: nowrap;
 }
 
 /* ── Status indicators ───────────────────────────────────────────────── */

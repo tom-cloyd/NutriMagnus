@@ -116,7 +116,7 @@
     <ul class="list-unstyled ms-3 mb-0">
       {% for it in m.meal_items %}
       <li class="muted" style="font-size:0.9em">
-        {{ it.food_name }}
+        {{ it.food_name }}{{ food_id_tag(it.fdc_id, recipe_id=it.recipe_id) }}
         &mdash;
         {% if it.unit %}{{ it.unit }}
         {% elif it.amount %}{{ it.amount | round(1) }}&thinsp;g
@@ -214,7 +214,7 @@
     <tbody>
       {% for ing in diaas.ing_rows %}
       <tr>
-        <td>{{ ing.food_name }}</td>
+        <td>{{ ing.food_name }}{{ food_id_tag(ing.fdc_id) }}</td>
         <td class="num-col">{{ ing.protein_g }}</td>
         <td class="num-col">
           {{ "%.2f"|format(ing.digestibility) }}
@@ -250,8 +250,8 @@
   {% macro suggest_card(s) %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1">
-      <strong>{{ s.name }}</strong>
-      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+      <strong>{{ s.name }}</strong>{{ food_id_tag(s.fdc_id) }}
+      {% if not s.fdc_id %}<small class="muted"> curated</small>{% endif %}
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
       {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
@@ -314,8 +314,7 @@
       {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
     </p>
     {% for f in p.foods %}
-    <p class="mb-1 ms-2"><strong>Add to day: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>
-      {% if f.fdc_id %}<small class="muted"> FDC {{ f.fdc_id }}</small>{% endif %}
+    <p class="mb-1 ms-2"><strong>Add to day: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>{{ food_id_tag(f.fdc_id) }}
       {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
     </p>
     {% endfor %}
@@ -353,7 +352,7 @@
     {% else %}
     <p class="muted">GL cannot be computed &mdash; missing GI annotations for:</p>
     <ul class="list-unstyled ms-2">
-      {% for name in gl.blockers %}<li><small>&#9888; {{ name }}</small></li>{% endfor %}
+      {% for name, b_fdc_id, b_recipe_id in gl.blockers %}<li><small>&#9888; {{ name }}{{ food_id_tag(b_fdc_id, recipe_id=b_recipe_id) }}</small></li>{% endfor %}
     </ul>
     {% endif %}
   </div>

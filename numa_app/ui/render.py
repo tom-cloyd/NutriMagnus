@@ -22,7 +22,7 @@ from ..services.portions import amount_note as _amount_note
 from ..services.portions import volume_hint as _volume_hint
 from ..services.rda_status import rda_status, limit_warning
 from ..services.diet_aware import b12_deficiency_note, iron_zinc_bioavailability_note
-from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer
+from ..ui.common import _id_cell, ID_KEY, dot_cell, table_title, section_title, table_footer, help_footer, food_id_tag
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 
@@ -158,6 +158,8 @@ def _print_nutrient_table(
     optimal: "dict | None" = None,
     max_limits: "dict[str, float] | None" = None,
     show_meal_pct: bool = True,
+    fdc_id: int | None = None,
+    recipe_id: int | None = None,
 ) -> None:
     """Render a rich table of nutrients grouped by category.
 
@@ -194,7 +196,7 @@ def _print_nutrient_table(
     ]
 
     sub = f"({per_label})" if per_label else ""
-    section_title(title, sub)
+    section_title(title + food_id_tag(fdc_id, recipe_id), sub)
 
     show_pct = daily_nutrients is not None and rda is not None
     show_optimal = show_pct and bool(optimal)
@@ -893,13 +895,6 @@ def _print_complement_suggestions(
         add_verb = "Add to meal"
         pair_verb = "Serve alongside"
 
-    def _source_str(s: dict) -> str:
-        if s.get("recipe_id"):
-            return f"  [grey62]Recipe #{s['recipe_id']}[/grey62]"
-        if s.get("fdc_id"):
-            return f"  [grey62]FDC {s['fdc_id']}[/grey62]"
-        return "  [grey62]curated[/grey62]"
-
     def _serving_hint(grams: float, serving_weight_g: float | None) -> str:
         if not serving_weight_g or serving_weight_g <= 0:
             return ""
@@ -912,7 +907,7 @@ def _print_complement_suggestions(
     def _show_suggestion(s: dict, label: str) -> None:
         diaas_str = f"  [grey62]DIAAS {s['diaas']:.2f}[/grey62]" if s.get("diaas") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}] "
-                      f"[bold]{s['name']}[/bold]{_source_str(s)}{diaas_str}")
+                      f"[bold]{s['name']}[/bold]{food_id_tag(s.get('fdc_id'), recipe_id=s.get('recipe_id'))}{diaas_str}")
         full_grams = s["grams"]
 
         if full_grams > _GRAD_THRESHOLD:
@@ -1052,7 +1047,8 @@ def _print_complement_suggestions(
         closed_str = f"  [{state.T['success']}]✓ closes all gaps[/{state.T['success']}]" \
             if p.get("gaps_closed") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}]  "
-                      f"[bold]{foods[0]['name']}[/bold]  +  [bold]{foods[1]['name']}[/bold]{closed_str}")
+                      f"[bold]{foods[0]['name']}[/bold]{food_id_tag(foods[0].get('fdc_id'), recipe_id=foods[0].get('recipe_id'))}"
+                      f"  +  [bold]{foods[1]['name']}[/bold]{food_id_tag(foods[1].get('fdc_id'), recipe_id=foods[1].get('recipe_id'))}{closed_str}")
         for f in foods:
             diaas_str = f"  [grey62]DIAAS {f['diaas']:.2f}[/grey62]" if f.get("diaas") else ""
             if f.get("recipe_id"):
@@ -1061,7 +1057,7 @@ def _print_complement_suggestions(
                 hint = _amount_note(f["grams"], f["name"])
             vol_str = f"  [grey62]({hint})[/grey62]" if hint else ""
             state.console.print(f"    {add_verb}: [bold]{f['grams']}g[/bold]{vol_str}  "
-                          f"[bold]{f['name']}[/bold]{_source_str(f)}{diaas_str}")
+                          f"[bold]{f['name']}[/bold]{food_id_tag(f.get('fdc_id'), recipe_id=f.get('recipe_id'))}{diaas_str}")
         # Show AA scores before → after for the top gaps.
         score_parts = []
         for (aa, orig_score, _), effect in zip(gaps[:3], _complements.aa_effects(p, gaps, digestibility=_digestibility)):
@@ -1142,10 +1138,9 @@ def _print_complement_suggestions(
         )
 
     def _show_diaas_improver(s: dict, label: str) -> None:
-        fdc_str = f"  [grey62]FDC {s['fdc_id']}[/grey62]" if s.get("fdc_id") else "  [grey62]curated[/grey62]"
         diaas_str = f"  [grey62]DIAAS {s['diaas']:.2f}[/grey62]" if s.get("diaas") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}] "
-                      f"[bold]{s['name']}[/bold]{fdc_str}{diaas_str}")
+                      f"[bold]{s['name']}[/bold]{food_id_tag(s.get('fdc_id'))}{diaas_str}")
         cur = s.get("current_diaas", 0.0)
         cur_color = state.T["warning"] if cur < 0.9 else state.T["success"]
         for step in s.get("steps", []):
@@ -1282,7 +1277,7 @@ def _print_complement_suggestions(
                     continue
                 step1, step2, gc_diaas = combo["step1"], combo["step2"], combo["gc_diaas"]
                 gc_name = step1["name"]
-                fdc_str = f"  [grey62]FDC {step1['fdc_id']}[/grey62]" if step1.get("fdc_id") else ""
+                fdc_str = food_id_tag(step1.get("fdc_id"), recipe_id=step1.get("recipe_id"))
                 vol1 = step1.get("amount_note")
                 vol1_str = f"  [grey62]({vol1})[/grey62]" if vol1 else ""
                 gc_color = state.T["warning"] if gc_diaas < 0.9 else state.T["success"]
@@ -1317,7 +1312,7 @@ def _print_complement_suggestions(
                 b_color = state.T["success"] if step2["new_diaas"] >= 0.9 else state.T["warning"]
                 vol2 = step2.get("amount_note")
                 vol2_str = f"  [grey62]({vol2})[/grey62]" if vol2 else ""
-                b_fdc = f"  [grey62]FDC {step2['fdc_id']}[/grey62]" if step2.get("fdc_id") else ""
+                b_fdc = food_id_tag(step2.get("fdc_id"), recipe_id=step2.get("recipe_id"))
                 state.console.print(
                     f"    Step 2 — {add_verb} [bold]{step2['grams']}g[/bold]{vol2_str}  "
                     f"[bold]{step2['name']}[/bold]{b_fdc}",

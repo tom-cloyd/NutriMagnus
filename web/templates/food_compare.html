@@ -129,7 +129,7 @@
       {% for e in entries %}
       <tr>
         <td class="muted"><small>{{ e.fdc_id if e.fdc_id > 0 else 'OFF' }}</small></td>
-        <td><a href="/food/{{ e.fdc_id }}">{{ e.name }}</a></td>
+        <td><a href="/food/{{ e.fdc_id }}">{{ e.name }}</a>{{ food_id_tag(e.fdc_id) }}</td>
         <td class="muted">{{ e.data_type }}</td>
         <td class="num-col" style="width:9rem">
           <input type="number" name="amounts_{{ e.fdc_id }}"
@@ -175,7 +175,7 @@
       <th class="compare-nutrient-col">Nutrient</th>
       {% for e in entries %}
       <th class="compare-val-col">
-        <span class="muted">{{ e.fdc_id if e.fdc_id > 0 else 'OFF' }}</span> / {{ e.name | truncate(28) }}<br>
+        {{ e.name | truncate(28) }}{{ food_id_tag(e.fdc_id) }}<br>
         <span class="muted">{{ e.amount }}g</span>
       </th>
       {% endfor %}

@@ -37,7 +37,7 @@
   </form>
   <form method="post" action="/recipes/compute-bcp">
     <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}{% if sort %}{% if q %}&{% else %}?{% endif %}sort={{ sort }}{% endif %}{% if show_archived %}{% if q or sort %}&{% else %}?{% endif %}show_archived=1{% endif %}">
-    <button type="submit" class="btn btn-sm btn-outline-secondary">Compute DCP for all complete recipes</button>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Recompute DCP for all recipes</button>
   </form>
   <a href="/recipes/broken-refs" class="btn btn-sm btn-outline-secondary">Broken recipe references</a>
   <small class="muted">DCP = digestible complete protein per serving · NC = not computed</small>
@@ -83,7 +83,7 @@
       <td class="muted"><small>{{ r.description or "—" }}</small></td>
       <td style="text-align:right">{{ r.servings }}</td>
       <td style="text-align:right">
-        {% if r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">NC</span>{% endif %}
+        {% if r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">NC (not computed)</span> {{ manual_link("recipes") }}{% endif %}
       </td>
       <td style="text-align:center">
         {% if r.complete %}<span class="status-met">&#10003;</span>{% else %}<span class="muted">—</span>{% endif %}

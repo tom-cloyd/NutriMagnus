@@ -29,7 +29,7 @@ class TestComputeGlycemicLoad:
             db_conn,
         )
         assert gl_total == 0.0
-        assert blockers == ["Rice"]
+        assert blockers == [("Rice", rice_food, None)]
 
     def test_food_item_with_gi_annotation_computes_gl(self, db_conn, rice_food):
         _db.set_food_annotation(db_conn, rice_food, gi_estimate=70.0, gi_no_prompt=False, diaas_estimate=None, diaas_no_prompt=False, prep_context=None)
@@ -61,7 +61,7 @@ class TestComputeGlycemicLoad:
             [{"kind": "recipe", "name": "Unanalyzed recipe", "amount": 1.0, "fdc_id": None, "recipe_id": rid}],
             db_conn,
         )
-        assert blockers == ["Unanalyzed recipe (no GL — analyze it first)"]
+        assert blockers == [("Unanalyzed recipe (no GL — analyze it first)", None, rid)]
 
     def test_mixed_items_accumulate_partial_total_alongside_blockers(self, db_conn, rice_food):
         _db.set_food_annotation(db_conn, rice_food, gi_estimate=70.0, gi_no_prompt=False, diaas_estimate=None, diaas_no_prompt=False, prep_context=None)
@@ -75,4 +75,4 @@ class TestComputeGlycemicLoad:
             db_conn,
         )
         assert gl_total == pytest.approx(19.6)
-        assert blockers == ["Unanalyzed recipe (no GL — analyze it first)"]
+        assert blockers == [("Unanalyzed recipe (no GL — analyze it first)", None, rid)]

@@ -162,9 +162,11 @@ class TestParseFood:
         assert result["nutrients"]["calories"] == pytest.approx(200.0)
 
     def test_handles_string_number_format(self):
-        """Abridged endpoint uses 'number' as a string for the nutrient ID."""
+        """Abridged endpoint uses 'number' as a string, in USDA's separate
+        'nutrient number' ID space (not nutrient.id) — "208" is calories there,
+        not "1008" (which is the nutrient.id scheme's calories key)."""
         response = self._make_usda_response([
-            {"number": "1008", "value": 300.0}
+            {"number": "208", "value": 300.0}
         ])
         result = _usda._parse_food(response)
         assert result["nutrients"]["calories"] == pytest.approx(300.0)

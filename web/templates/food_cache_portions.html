@@ -6,13 +6,13 @@
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
     <li class="breadcrumb-item"><a href="/food/cache">Food Cache</a></li>
-    <li class="breadcrumb-item"><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></li>
+    <li class="breadcrumb-item"><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a>{{ food_id_tag(food.fdc_id) }}</li>
     <li class="breadcrumb-item active" aria-current="page">Edit Portions</li>
   </ol>
 </nav>
 
 <h2>Edit Portions</h2>
-<p class="muted"><strong>{{ food.name }}</strong></p>
+<p class="muted"><strong>{{ food.name }}</strong>{{ food_id_tag(food.fdc_id) }}</p>
 <p>Custom portions let you enter amounts like <em>1 cup</em>, <em>1 slice</em>, or <em>2 T</em>
    on the food detail page instead of typing the gram weight. Each portion stores a gram equivalent.</p>
 

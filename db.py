@@ -516,6 +516,14 @@ def recipe_create(conn: sqlite3.Connection, name: str, description: str,
     return cur.lastrowid
 
 
+def _recipe_invalidate_dcp(conn: sqlite3.Connection, recipe_id: int) -> None:
+    """Clear a recipe's stored DCP so stale values aren't shown after an edit."""
+    conn.execute(
+        "UPDATE recipes SET dcp_g=NULL, dcp_computed_at=NULL WHERE id=?",
+        (recipe_id,)
+    )
+
+
 def recipe_add_ingredient(conn: sqlite3.Connection, recipe_id: int, fdc_id: int,
                           food_name: str, amount: float, unit: str,
                           notes: str | None = None,
@@ -525,6 +533,7 @@ def recipe_add_ingredient(conn: sqlite3.Connection, recipe_id: int, fdc_id: int,
         INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id, ref_recipe_deleted)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (recipe_id, fdc_id, food_name, amount, unit, notes or None, ref_recipe_id, 1 if ref_recipe_deleted else 0))
+    _recipe_invalidate_dcp(conn, recipe_id)
 
 
 def recipe_set_dcp(
@@ -728,19 +737,30 @@ def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
         "UPDATE recipe_ingredients SET food_name=? WHERE ref_recipe_id=?",
         (name, recipe_id)
     )
+    _recipe_invalidate_dcp(conn, recipe_id)
 
 
 def recipe_update_ingredient(conn: sqlite3.Connection, ingredient_id: int,
                              amount: float, unit: str, food_name: str,
                              notes: str | None = None) -> None:
+    row = conn.execute(
+        "SELECT recipe_id FROM recipe_ingredients WHERE id=?", (ingredient_id,)
+    ).fetchone()
     conn.execute(
         "UPDATE recipe_ingredients SET amount=?, unit=?, food_name=?, notes=? WHERE id=?",
         (amount, unit, food_name, notes or None, ingredient_id)
     )
+    if row:
+        _recipe_invalidate_dcp(conn, row["recipe_id"])
 
 
 def recipe_remove_ingredient(conn: sqlite3.Connection, ingredient_id: int) -> bool:
+    row = conn.execute(
+        "SELECT recipe_id FROM recipe_ingredients WHERE id=?", (ingredient_id,)
+    ).fetchone()
     cur = conn.execute("DELETE FROM recipe_ingredients WHERE id = ?", (ingredient_id,))
+    if row:
+        _recipe_invalidate_dcp(conn, row["recipe_id"])
     return cur.rowcount > 0
 
 
@@ -1137,6 +1157,12 @@ def search_meal_history(
 def meal_delete(conn: sqlite3.Connection, meal_id: int) -> bool:
     cur = conn.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
     return cur.rowcount > 0
+
+
+def meal_delete_by_date(conn: sqlite3.Connection, meal_date: str) -> int:
+    """Delete every meal on meal_date. Returns the number of meals deleted."""
+    cur = conn.execute("DELETE FROM meals WHERE meal_date = ?", (meal_date,))
+    return cur.rowcount
 
 
 def meal_set_complete(conn: sqlite3.Connection, meal_id: int, complete: bool) -> None:

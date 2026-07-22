@@ -6,6 +6,14 @@
   <h1>Welcome to NutriMagnus</h1>
   <p class="lead">A local nutritional analysis tool powered by USDA FoodData Central and Open Food Facts.</p>
   <p class="muted">Use the <strong>Foods</strong> menu above to search foods, analyze portions, compare nutrients, and more.</p>
+  <p class="muted mb-0"><small>
+    Dietary preferences: {{ diet_label }} — <a href="/settings">change via Settings</a><br>
+    {% if profile_label %}
+    Active profile: {{ profile_label }} — <a href="/settings">change via Settings</a>
+    {% else %}
+    Active profile: not set — <a href="/settings">configure under Settings</a>
+    {% endif %}
+  </small></p>
 </div>
 
 <article class="mt-4" style="max-width: 48rem;">

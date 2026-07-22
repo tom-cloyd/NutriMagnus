@@ -90,8 +90,8 @@
   {% macro suggest_card(s) %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1">
-      <strong>{{ s.name }}</strong>
-      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+      <strong>{{ s.name }}</strong>{{ food_id_tag(s.fdc_id) }}
+      {% if not s.fdc_id %}<small class="muted"> curated</small>{% endif %}
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
       {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
@@ -148,8 +148,7 @@
       {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
     </p>
     {% for f in p.foods %}
-    <p class="mb-1 ms-2"><strong>Add to upcoming meals: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>
-      {% if f.fdc_id %}<small class="muted"> FDC {{ f.fdc_id }}</small>{% endif %}
+    <p class="mb-1 ms-2"><strong>Add to upcoming meals: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>{{ food_id_tag(f.fdc_id) }}
       {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
     </p>
     {% endfor %}

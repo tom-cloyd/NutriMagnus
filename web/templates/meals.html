@@ -90,6 +90,7 @@
       <th class="num-col" title="Sum of DCP across all meals with computed data on this date (marked * if any meal isn't complete yet)">Day DCP</th>
       {% if protein_target %}<th class="num-col" title="Day DCP ÷ {{ protein_target|int }} g daily target">% goal</th>{% endif %}
       <th class="num-col">Calories</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -138,6 +139,17 @@
           <span class="muted">n/a</span>
         {% else %}
           <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if meal.first_of_date %}
+        <form method="post" action="/meals/delete-day" style="margin:0"
+              onsubmit="return confirm('Delete every meal on {{ meal.meal_date }}? This cannot be undone.')">
+          <input type="hidden" name="meal_date" value="{{ meal.meal_date }}">
+          <input type="hidden" name="redirect_to"
+                 value="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
+          <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete every meal on {{ meal.meal_date }}">Delete day</button>
+        </form>
         {% endif %}
       </td>
     </tr>

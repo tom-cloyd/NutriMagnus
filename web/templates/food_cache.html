@@ -95,7 +95,7 @@
         {% if food.fdc_id < 0 %}OFF
         {% else %}{{ food.fdc_id }}{% endif %}
       </td>
-      <td><a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
+      <td><a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>{{ food_id_tag(food.fdc_id) }}
         {% if food.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}
         {% if food.brand %}<br><small class="muted">{{ food.brand }}</small>{% endif %}
       </td>

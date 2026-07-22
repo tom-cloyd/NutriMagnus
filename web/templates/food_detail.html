@@ -384,8 +384,8 @@
 {% macro suggest_card(s, verb) %}
 <div class="card card-body mb-2 p-2" style="max-width:38rem">
   <p class="mb-1">
-    <strong>{{ s.name }}</strong>
-    {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+    <strong>{{ s.name }}</strong>{{ food_id_tag(s.fdc_id) }}
+    {% if not s.fdc_id %}<small class="muted"> curated</small>{% endif %}
     {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
     {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
   </p>
@@ -444,8 +444,7 @@
       {% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
     {% for f in p.foods %}
-    <p class="mb-1 ms-2"><strong>Serve alongside: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>
-      {% if f.fdc_id %}<small class="muted"> FDC {{ f.fdc_id }}</small>{% endif %}
+    <p class="mb-1 ms-2"><strong>Serve alongside: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>{{ food_id_tag(f.fdc_id) }}
       {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
     </p>
     {% endfor %}
@@ -472,8 +471,8 @@
   {% for s in complements.diaas_improvers %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1">
-      <strong>{{ s.name }}</strong>
-      {% if s.fdc_id %}<small class="muted"> FDC {{ s.fdc_id }}</small>{% else %}<small class="muted"> curated</small>{% endif %}
+      <strong>{{ s.name }}</strong>{{ food_id_tag(s.fdc_id) }}
+      {% if not s.fdc_id %}<small class="muted"> curated</small>{% endif %}
       {% if s.diaas %}<small class="muted"> &middot; own DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
     </p>
     {% if s.current_diaas is not none %}
@@ -509,8 +508,7 @@
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1 fw-semibold">Step 1 &mdash; close the gap</p>
     <p class="mb-1 ms-2">
-      <strong>{{ combo.step1.grams | round | int }}&thinsp;g{% if combo.step1.amount_note %} ({{ combo.step1.amount_note }}){% endif %} {{ combo.step1.name }}</strong>
-      {% if combo.step1.fdc_id %}<small class="muted"> FDC {{ combo.step1.fdc_id }}</small>{% endif %}
+      <strong>{{ combo.step1.grams | round | int }}&thinsp;g{% if combo.step1.amount_note %} ({{ combo.step1.amount_note }}){% endif %} {{ combo.step1.name }}</strong>{{ food_id_tag(combo.step1.fdc_id) }}
       {% if combo.step1.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step1.diaas) }}</small>{% endif %}
     </p>
     {% if combo.step1.aa_effects %}
@@ -524,8 +522,7 @@
     {% if combo.step2 %}
     <p class="mb-1 fw-semibold">Step 2 &mdash; boost digestibility</p>
     <p class="mb-1 ms-2">
-      <strong>{{ combo.step2.grams | round | int }}&thinsp;g{% if combo.step2.amount_note %} ({{ combo.step2.amount_note }}){% endif %} {{ combo.step2.name }}</strong>
-      {% if combo.step2.fdc_id %}<small class="muted"> FDC {{ combo.step2.fdc_id }}</small>{% endif %}
+      <strong>{{ combo.step2.grams | round | int }}&thinsp;g{% if combo.step2.amount_note %} ({{ combo.step2.amount_note }}){% endif %} {{ combo.step2.name }}</strong>{{ food_id_tag(combo.step2.fdc_id) }}
       {% if combo.step2.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step2.diaas) }}</small>{% endif %}
     </p>
     <p class="mb-1 ms-2 muted"><small>Meal DIAAS after Step 2: <span class="{% if combo.step2.new_diaas >= 0.9 %}status-met{% elif combo.step2.new_diaas >= 0.7 %}rda-near{% else %}rda-low{% endif %}">{{ "%.2f"|format(combo.step2.new_diaas) }}</span></small></p>

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-20:1702* / Reading 2 hours, 35 minutes
+*Updated 2026-07-21:1838* / Reading 2 hours, 35 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -546,6 +546,7 @@ When you set a user profile (Settings → User profile), NutriMagnus uses your a
 The comparison table ("Daily Intake vs. Recommended Values") shows how your logged meals for today compare to your targets.
 
 Columns:
+
     Nutrient    Name of the nutrient.
     Intake      How much you consumed today from all logged meals.
     Target      Your personalized daily goal for this nutrient.
@@ -720,47 +721,47 @@ Throughout this manual, **Learn more** links appear next to section headings and
 
 The sections linked from analysis output are:
 
-- [Essential amino acids](#aa) — [EAA](#gloss-eaa) reference and the nine indispensable amino acids
+- [Amino acid fetch workflow](#fetch) — fetching missing data with Claude AI
 - [Amino acid scoring](#aa-scoring) — limiting-amino-acid [DIAAS](#gloss-diaas) scoring method
-- [Food annotation](#annotate) — annotate food picker table columns
 - [Antinutrients](#antinutrients) — what [antinutrients](#gloss-antinutrient) are and how they appear in output
 - [Archiving](#archive) — hiding foods, pantry entries, and recipes from everyday use without losing them
 - [Bioavailability](#bioavailability) — [DIAAS](#gloss-diaas) bioavailability table columns
-- [Food Cache](#cached) — [Food Cache](#gloss-food-cache) column guide
 - [Complement suggestions](#comp) — protein [complement food](#gloss-complement-food) suggestions
-- [Protein completeness](#complete) — what makes a protein "complete"
-- [Digestible complete protein](#dcp) — [DCP](#gloss-dcp) concept and formula
+- [Daily nutrient goals](#goals) — how daily nutrient goals are calculated
 - [DCP cap](#dcp-cap) — why [DCP](#gloss-dcp) is sometimes capped below the [DIAAS](#gloss-diaas) projection
-- [Digestibility overrides](#dcp-overrides) — protein digestibility overrides table
 - [DIAAS](#diaas) — digestible indispensable amino acid score
 - [Diet-aware bioavailability and deficiency notes](#diet-bioavailability) — how dietary preference raises iron/zinc targets and flags low B12
 - [Dietary preferences](#diet) — dietary preferences setting
+- [Digestibility overrides](#dcp-overrides) — protein digestibility overrides table
+- [Digestible complete protein](#dcp) — [DCP](#gloss-dcp) concept and formula
 - [Drafted food profiles](#drafted-foods) — drafted food profiles list columns
+- [Essential amino acids](#aa) — [EAA](#gloss-eaa) reference and the nine indispensable amino acids
 - [FAO reference values](#fao) — [FAO](#gloss-fao) 2013 amino acid reference requirement
-- [Amino acid fetch workflow](#fetch) — fetching missing data with Claude AI
+- [Food annotation](#annotate) — annotate food picker table columns
+- [Food Cache](#cached) — [Food Cache](#gloss-food-cache) column guide
 - [Food comparison](#food-comparison) — food comparison table columns
 - [Food import](#food-import) — foods to import review table columns
 - [Food search](#food-search) — [USDA](#gloss-usda) food search results columns
 - [Food use in meals](#fooduse) — food use in meals analysis table and histogram columns
-- [Limiting amino acid](#gap) — amino acid gaps and how they are scored
+- [Glossary](#glossary) — abbreviations and key terms
 - [Glycemic index](#gi) — glycemic index background
 - [Glycemic load](#gl) — glycemic load concept and formula
-- [Glossary](#glossary) — abbreviations and key terms
 - [Glycemic output](#glycemic) — glycemic load output columns
-- [Daily nutrient goals](#goals) — how daily nutrient goals are calculated
 - [IAA ratios](#iaa-ratios) — meal amino acid ratios table columns
+- [Limiting amino acid](#gap) — amino acid gaps and how they are scored
+- [Maximum nutrient limits](#maxlimits) — custom per-day nutrient caps and the near-limit warning
+- [Meal history](#meal-history) — meal history search result tables
 - [Meal items](#meal-detail) — meal items table columns
 - [Meal protein digestibility](#meal-diaas) — meal protein digestibility analysis columns
-- [Meal history](#meal-history) — meal history search result tables
 - [Meals list](#meals-list) — Meals & Log list columns
-- [Maximum nutrient limits](#maxlimits) — custom per-day nutrient caps and the near-limit warning
 - [Missing amino acid profiles](#missing-aa) — missing amino acid profile warnings
-- [Nutrient analysis](#nutrients) — nutrient analysis table columns and groups
-- [N-Day nutrient trend](#trend) — averaging intake across logged days to catch chronic shortfalls
-- [Omega-3 fatty acids](#omega3) — ALA, EPA, DHA, and why only ALA has a Daily Goal
-- [Profile Optimal targets](#optimal) — custom per-nutrient targets above the standard RDA
-- [Oxalate data](#oxalate) — [oxalate](#gloss-oxalate) data source, enabling, matching, and limitations
 - [My Pantry](#pantry) — [My Pantry](#gloss-my-pantry) table columns
+- [N-Day nutrient trend](#trend) — averaging intake across logged days to catch chronic shortfalls
+- [Nutrient analysis](#nutrients) — nutrient analysis table columns and groups
+- [Omega-3 fatty acids](#omega3) — ALA, EPA, DHA, and why only ALA has a Daily Goal
+- [Oxalate data](#oxalate) — [oxalate](#gloss-oxalate) data source, enabling, matching, and limitations
+- [Profile Optimal targets](#optimal) — custom per-nutrient targets above the standard RDA
+- [Protein completeness](#complete) — what makes a protein "complete"
 - [Protein quality](#protein-quality) — single-food amino acid ratios table columns
 - [RDA](#rda) — daily intake vs. recommended values table
 - [Recipe ingredients](#recipe-ingredients) — recipe ingredient list columns
@@ -888,6 +889,7 @@ This setting (which entries are archived, and whether each list shows them) is s
 Shows the nutritional content of a food, recipe, or meal portion, grouped by category (Macronutrients, Minerals, Vitamins, [Phytonutrients](#gloss-phytonutrients)).
 
 Columns:
+
     Nutrient     Name of the nutrient.
     Amount       Value for the portion you entered.
     Unit         kcal for calories; g for macronutrients (protein, fat,
@@ -922,6 +924,7 @@ Shows how a food's amino acid profile compares to the [FAO](#gloss-fao) 2013 ref
 The header line tells you whether the protein is Complete (all nine essential amino acids at or above the [FAO](#gloss-fao) reference) or Incomplete (at least one is limiting), and which amino acid is most limiting.
 
 Columns:
+
     Amino Acid   Name, using FAO pair notation where applicable
                  (Met+Cys, Phe+Tyr).
     Raw ratio    Milligrams of this amino acid per gram of protein, divided
@@ -944,6 +947,7 @@ See [DIAAS](#diaas) for the [DIAAS](#gloss-diaas) concept. See [limiting amino a
 Step 1 of the meal [DIAAS](#gloss-diaas) calculation. Shows how much protein from each ingredient actually reaches your bloodstream -- before the [limiting amino acid](#gloss-limiting-amino-acid) penalty is applied.
 
 Columns:
+
     ID              USDA FDC ID, OFF, or usr. Type ?glossary for ID types.
     Food            Ingredient name.
     Food tot. gr.   Total grams of this ingredient in the meal (across all
@@ -977,6 +981,7 @@ Note: the "Total digestible protein" here is step 1 of a two-step method. Step 2
 Step 2 of the meal [DIAAS](#gloss-diaas) calculation. Shows the pooled amino acid supply across the whole meal, expressed as a ratio vs. the [FAO](#gloss-fao) 2013 reference.
 
 Columns:
+
     Amino Acid   Essential amino acid (FAO pair notation for Met+Cys and
                  Phe+Tyr).
     Ratio        Pooled digestible grams of this AA from all ingredients,
@@ -1004,6 +1009,7 @@ This section appears in two forms depending on context.
 #### SINGLE FOOD (labeled BIOAVAILABILITY)
 
 Shown when viewing a food with a saved [DIAAS](#gloss-diaas) estimate. Displays:
+
     - Protein digestibility score (literature DIAAS, 0.00-1.50 scale).
     - A bar proportional to the score.
     - Digestible protein in grams from this portion.
@@ -1016,6 +1022,7 @@ Shown when viewing a food with a saved [DIAAS](#gloss-diaas) estimate. Displays:
 #### RECIPE PER SERVING (labeled BIOAVAILABILITY -- PER SERVING)
 
 Per-ingredient table in recipe analysis. Columns:
+
     ID              FDC ID, OFF, or usr.
     Ingredient      Name.
     Serving         Grams of this ingredient in one recipe serving.
@@ -1037,6 +1044,7 @@ See [DIAAS](#diaas) for [DIAAS](#gloss-diaas) background. See [digestible comple
 The main Meals & Log screen lists your recent meals, 15 at a time, sorted by date (most recent first) by default. Press o to change the sort order — Date, Name, Meal DCP, or Calories — your choice is remembered and used as the default the next time you open Meals & Log, in both the terminal app and the web app.
 
 Columns:
+
     ID              Meal ID. Use with commands: v3 view, a3 analyze,
                     d3 delete.
     Date            Date of the meal (YYYY-MM-DD).
@@ -1078,6 +1086,7 @@ See [digestible complete protein](#dcp) for a full explanation of digestible [co
 Shows the foods and recipes logged in a single meal.
 
 Columns:
+
     ID        Item ID. Use this number with options 2 (Edit) and 3 (Remove)
               in the meal action loop.
     Amount    Portion recorded: grams for foods, or serving count for
@@ -1097,6 +1106,7 @@ whether to include all foods or only protein-containing foods
 (protein_g > 0 per 100g).
 
 Columns:
+
     ID          USDA FDC ID for foods. Blank for recipe rows.
     Food        Food or recipe name. Recipe rows are shown in bold.
     Kind        "recipe" for recipe rows, blank for individual foods.
@@ -1122,6 +1132,7 @@ splitting them across old and new names or dropping them.
 Shows the estimated glycemic load ([GL](#gloss-gl)) for a meal or recipe.
 
 The number displayed is the total [GL](#gloss-gl). Color coding:
+
     Green   10 or below (low glycemic impact).
     Yellow  11-19 (medium).
     Red     20 or above (high).
@@ -1166,10 +1177,12 @@ When a meal contains ingredients without amino acid data, NutriMagnus cannot inc
 NutriMagnus distinguishes two cases:
 
 Standalone meal ingredients: foods logged directly in the meal.
+
     These can often be replaced on the spot. NutriMagnus can search for
     a USDA Foundation or SR Legacy substitute with amino acid data.
 
 Inside a recipe: ingredients that are part of a recipe you logged.
+
     These must be fixed by editing that recipe (Recipes -> browse -> edit)
     and replacing the problematic ingredient there.
 
@@ -1185,14 +1198,24 @@ See [meal protein digestibility](#meal-diaas) to see the digestibility table. Se
 Shows all your saved recipes. Displayed when you open Recipes -> Browse or Recipes -> Search, and after any recipe action. Sorted by Last accessed by default; press o (not available while a search filter is active) to switch to Name or DCP/serving instead. Your choice is remembered and used as the default the next time you browse recipes, in both the terminal app and the web app.
 
 Columns:
+
     ID          Recipe ID. Use with commands: a{id} analyze, v{id}
                 view/edit, d{id} delete, c{id} copy, y{id} archive/restore.
     Name        Recipe name.
     Servings    Number of servings. 0 means the recipe is analyzed by
                 total weight or volume rather than a serving count.
-    DCP/srv     Digestible complete protein per serving (g). Requires at
-                least one full analysis run (a{id}). Shown as -- if not
-                yet computed or if no AA data was available.
+    DCP/srv     Digestible complete protein per serving (g). Recomputed and
+                saved automatically whenever the recipe or its ingredients
+                change — no separate analysis step is needed. Shown as
+                NC (not computed) if servings is 0, no ingredient has a
+                known weight, or an ingredient supplying a significant
+                share of the recipe's protein has no amino acid data.
+                Minor contributors missing amino acid data (spices, oil,
+                salt) don't block the calculation — only significant ones
+                do, since an approximate DCP is never saved as if it were
+                exact. In the web app, the "Compute DCP for all complete
+                recipes" button on the Recipes page recomputes every
+                recipe at once.
     Complete    Checkmark if you have marked the recipe finished.
     Created     Date the recipe was first saved.
     ARCH        Shown only when archived recipes are visible (s toggle) —
@@ -1208,6 +1231,7 @@ See [digestible complete protein](#dcp) for a full explanation of digestible [co
 Shows the current ingredients in a recipe during create, develop, or edit. Refreshes after each change so you can see the current state.
 
 Columns:
+
     #       Row number. Use with Remove (option 3) and Reorder (option 4)
             in the ingredient edit menu.
     Amount  Portion entered: e.g. "175g", "1 T", "2 servings".
@@ -1226,6 +1250,7 @@ Nested recipes (ID = recipe) have their nutrients scaled automatically from thei
 Listed after a food search. Combines matches from [USDA](#gloss-usda) FoodData Central, Open Food Facts, and your local [Food Cache](#gloss-food-cache).
 
 Columns:
+
     AA      Amino acid data status.
               checkmark    Confirmed in your local cache.
               ~checkmark   Likely available (Foundation/SR Legacy not yet
@@ -1257,6 +1282,7 @@ Columns:
 To select: type the row number. If the food is not yet in your cache, NutriMagnus fetches and saves it automatically.
 
 **Sort order (web app only).** Results can be ordered two ways — a dropdown above the results table lets you switch, and your choice is remembered as the default for next time:
+
     Pantry, Cache, then Other   Groups results by where they came from
                                 (Pantry first, then Recipe, then Cache,
                                 then USDA/OFF); within each group, closer
@@ -1290,6 +1316,7 @@ To run a comparison: Foods -> Compare foods side-by-side. You can save the food 
 Appears when you choose Foods -> Annotate a food. Pick a food from your cache to annotate.
 
 Columns:
+
     #       Row number. Type the number to select that food.
     Name    Food name.
     Type    USDA data category or OFF. Type ?food-search for type meanings.
@@ -1297,6 +1324,7 @@ Columns:
 Type /text to filter by food name (e.g. /tofu shows only tofu entries). Type / alone to clear the filter.
 
 After selecting a food, you can add or update:
+
     GI      Glycemic index (0-100). Type ?gi.
     DIAAS   Your protein quality estimate (0.00-1.50). Useful for packaged
             foods that lack amino acid data in USDA. Type ?diaas.
@@ -1310,6 +1338,7 @@ Annotations appear wherever that food is used: [Food Cache](#gloss-food-cache) l
 Appears when you run r (Read Claude response) from the [Food Cache](#gloss-food-cache) to import data from ~/claude_response.txt. Shows a preview so you can review before confirming the write.
 
 Columns:
+
     Name        Food name from the Claude response.
     FDC ID      USDA FDC ID if one was provided.
     Calories    Calorie value from the response (per 100 g).
@@ -1329,6 +1358,7 @@ For the full import workflow, see [amino acid fetch workflow](#fetch).
 Shows the custom food profiles you have created by hand -- products from a label, research table entries, or supplements not in [USDA](#gloss-usda) or Open Food Facts.
 
 Columns:
+
     #       Row number. Use to select a profile for viewing or editing.
     Name    Food name as you entered it.
     Note    Your optional source or description note.
@@ -1345,6 +1375,7 @@ To create a new custom profile: Foods -> Drafted Food Profiles -> Create. See [a
 Shows the protein sources you have flagged as currently on hand. The Pantry drives the complement advisor -- when NutriMagnus suggests foods to fill an amino acid gap, it checks your pantry first and shows matching foods in a "From your pantry" tier.
 
 Columns:
+
     #       Row number.
     ID      USDA FDC ID, OFF, or usr. -- for name-only entries.
     AA      Amino acid data status.
@@ -1370,6 +1401,7 @@ name-only pantry entry.)
 Only pantry foods with [AA](#gloss-aa) data (checkmark) appear in complement suggestions. Name-only entries (--) and those without [AA](#gloss-aa) data (X) may still appear if their name matches a built-in complement table entry. Archived pantry entries never appear in complement suggestions.
 
 Commands:
+
     a   Add a food (USDA search or name-only).
     r   Remove a food from the pantry.
     x   Archive or restore a food (enter its row ID) — see [archiving](#archive).
@@ -1384,6 +1416,7 @@ See [complement suggestions](#comp) for how complement suggestions use your pant
 Shows your custom true [ileal digestibility](#gloss-ileal-digestibility) coefficients. These values override the defaults NutriMagnus uses in meal-level [DIAAS](#gloss-diaas) calculations.
 
 Columns:
+
     Food name       Name of the food this override applies to (matched
                     case-insensitively against meal ingredients).
     Digestibility   Your custom coefficient (0.00-1.00). The fraction of
@@ -1395,6 +1428,7 @@ When an override is active for a meal ingredient, the Digestibility column in th
 Use overrides when you have found a published measured value for a food you eat regularly and it differs meaningfully from NutriMagnus's default. Values should come from primary literature ([ileal digestibility](#gloss-ileal-digestibility) studies), not from product labels or general nutrition sources.
 
 Commands:
+
     a   Add or update an override (enter food name, then coefficient).
     d   Delete an override.
 
@@ -2085,7 +2119,7 @@ The Settings menu (main menu option **5**) has eight options. The current value 
 
 Switches the display between available color themes (dark, light, etc.). The new theme takes effect immediately and is saved for future sessions. You can also change the theme from the command line with `/config` (see [help topics](#help) for the full list of slash commands).
 
-#### User profile (Settings → 2)
+#### User profile (Settings → 2) [profile-setup]
 
 Enter your personal details so NutriMagnus can compute daily calorie and nutrient targets specific to you:
 
@@ -2101,7 +2135,7 @@ Press Enter at any prompt to keep the current value. After saving, NutriMagnus i
 
 Your profile drives the personalized columns and comparisons that appear in meal, recipe, and daily-summary analyses. See [daily nutrient goals](#goals) for the exact formulas used. See [RDA](#rda) for background on where the reference values come from.
 
-#### View daily nutrient targets (Settings → 3)
+#### View daily nutrient targets (Settings → 3) [daily-targets]
 
 Displays the full table of personalized nutrient targets derived from your profile — calories, protein, carbohydrates, fiber, all minerals, and all vitamins. Each entry shows the goal type (minimum, target, or upper limit) and the computed value. Requires a profile to be set (Settings → 2).
 
@@ -2146,6 +2180,12 @@ Enter the food name exactly as it appears in your cache (the match is case-insen
 **2 — [USDA](#gloss-usda) API key:** enter your personal FoodData Central API key. Type `s` to display the currently stored key. A personal key gives you a much higher search rate limit than the shared DEMO_KEY fallback. Getting a free key takes about a minute — instructions are in the [Food data](#food-data) section.
 
 **3 — Storage location:** displays the full path to your NutriMagnus database file (`numa.db`). This is read-only; the path is set automatically when the program first runs and cannot be changed here.
+
+#### Web keyboard shortcuts [web-shortcuts]
+
+The web version supports single-key navigation using the underlined letter shown in each menu item and Settings section heading, pressed together with **Alt+Shift** (e.g. `Alt+Shift+F` opens Foods, `Alt+Shift+3` jumps to Dietary Preferences within Settings). This is a browser-side feature — it is unrelated to, and does not affect, anything stored in your NutriMagnus data.
+
+Shortcuts are on by default. Toggle them off from **Settings → Keyboard Shortcuts** if the underlines are distracting or the key combination conflicts with your browser or OS. The setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
 ---
 

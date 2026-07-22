@@ -105,7 +105,7 @@
         {% for r in rows %}
         <tr>
           <td class="muted">{% if r.fdc_id %}{{ r.fdc_id }}{% endif %}</td>
-          <td>{% if r.kind == "recipe" %}<strong>{{ r.name }}</strong>{% else %}{{ r.name }}{% endif %}</td>
+          <td>{% if r.kind == "recipe" %}<strong>{{ r.name }}</strong>{% else %}{{ r.name }}{% endif %}{{ food_id_tag(r.fdc_id, recipe_id=(r.recipe_id if r.kind == "recipe" else None)) }}</td>
           <td class="muted">
             {% if r.kind == "recipe" and r.deleted %}<span class="text-danger">recipe (deleted)</span>
             {% elif r.kind == "recipe" %}recipe

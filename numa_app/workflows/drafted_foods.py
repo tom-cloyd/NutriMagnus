@@ -14,7 +14,7 @@ import db as _db
 import usda as _usda
 from .. import state
 from ..services.search import _search_and_pick_food
-from ..ui.common import _id_cell, ID_KEY, _prompt_with_options, _show_menu, dot_cell, table_title, table_footer, help_footer
+from ..ui.common import _id_cell, ID_KEY, _prompt_with_options, _show_menu, dot_cell, table_title, table_footer, help_footer, food_id_tag
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
 
@@ -214,10 +214,10 @@ def _do_edit_cached_food(fdc_id: int, cached) -> None:
 
     per_label = f"per {unit_name}" if is_supplement else "per 100g"
     state.console.print(
-        f"\n  [{state.T['success']}]✓[/{state.T['success']}]  Profile updated: [bold]{name}[/bold]"
+        f"\n  [{state.T['success']}]✓[/{state.T['success']}]  Profile updated: [bold]{name}[/bold]{food_id_tag(fdc_id)}"
     )
     if nutrients:
-        _print_nutrient_table(nutrients, title=name, per_label=per_label)
+        _print_nutrient_table(nutrients, title=name, per_label=per_label, fdc_id=fdc_id)
 
 
 # ---------------------------------------------------------------------------
@@ -467,9 +467,11 @@ def _list_drafted_foods() -> list:
     tbl.add_column("#",    justify="right", min_width=3)
     tbl.add_column("Name", min_width=_NAME_W, max_width=_NAME_W, no_wrap=True)
     tbl.add_column("Note", min_width=24)
+    tbl.add_column("ID",   min_width=6)
     for i, r in enumerate(rows, 1):
-        tbl.add_row(str(i), dot_cell(r["name"], _NAME_W), r["notes"] or "")
+        tbl.add_row(str(i), dot_cell(r["name"], _NAME_W), r["notes"] or "", _id_cell(r["fdc_id"]))
     state.console.print(tbl)
+    table_footer(ID_KEY)
     help_footer("drafted-foods")
     return list(rows)
 
@@ -728,7 +730,7 @@ def _do_copy_cached_food() -> None:
         existing_portions = json.loads(pj)
 
     state.console.print(
-        f"\n  [grey62]Copying: [bold]{cached['name']}[/bold] — press Enter to keep each value.[/grey62]\n"
+        f"\n  [grey62]Copying: [bold]{cached['name']}[/bold]{food_id_tag(cached['fdc_id'])} — press Enter to keep each value.[/grey62]\n"
     )
 
     try:
@@ -796,7 +798,7 @@ def _do_copy_cached_food() -> None:
         f"\n  [{state.T['success']}]✓[/{state.T['success']}]  Draft saved: [bold]{name}[/bold]  (ID {new_fdc_id})"
     )
     if nutrients:
-        _print_nutrient_table(nutrients, title=name, per_label="per 100g")
+        _print_nutrient_table(nutrients, title=name, per_label="per 100g", fdc_id=new_fdc_id)
 
 
 def _do_drafted_foods_menu() -> None:
@@ -1038,6 +1040,6 @@ def _do_create_drafted_food() -> None:
             f"When logged in a meal, contributes exactly the values you entered.[/grey62]"
         )
     if nutrients:
-        _print_nutrient_table(nutrients, title=name, per_label=per_label)
+        _print_nutrient_table(nutrients, title=name, per_label=per_label, fdc_id=fdc_id)
 
 

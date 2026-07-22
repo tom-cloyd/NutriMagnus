@@ -22,7 +22,7 @@ from .. import state
 from ..services.portions import _normalize_unit_display, _parse_portion_input, _pick_portion, _try_resolve_unknown_weight, _UNIT_TO_GRAMS, _VOLUME_TO_ML
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
-from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, section_title, help_footer
+from ..ui.common import _id_cell, ID_KEY, _safe_call, _show_menu, section_title, help_footer, food_id_tag
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import (
     _print_complement_suggestions, _get_daily_context, _print_nutrient_table,
@@ -65,12 +65,12 @@ def _resolve_recipe_dcp_data(
 
     state.console.print(f"\n  [{state.T['warning']}]⚠  Missing data for digestible complete protein (DCP):[/{state.T['warning']}]")
     for ing in zero_weight:
-        state.console.print(f"    • {ing['food_name']} — weight unknown ({_normalize_unit_display(ing['unit'])})")
+        state.console.print(f"    • {ing['food_name']}{food_id_tag(ing['fdc_id'])} — weight unknown ({_normalize_unit_display(ing['unit'])})")
     if no_aa and not no_aa_ings:
         state.console.print("    • No amino acid profile available in USDA data for these ingredients.")
     if no_aa_ings:
         for s in no_aa_ings:
-            state.console.print(f"    • {s['name']} — no amino acid profile in USDA data")
+            state.console.print(f"    • {s['name']}{food_id_tag(s.get('fdc_id'))} — no amino acid profile in USDA data")
     state.console.print(
         f"  [grey62]If any flagged ingredient is not a significant protein source "
         f"(e.g. spices, oil, salt), its missing data can safely be ignored.[/grey62]"
@@ -126,7 +126,8 @@ def _resolve_recipe_dcp_data(
                     continue
                 suggested = _simplify_food_query(ing["food_name"].split(",")[0].strip())
                 state.console.print(
-                    f"\n  Replacing: [{state.T['accent']}]{ing['food_name']}[/{state.T['accent']}]\n"
+                    f"\n  Replacing: [{state.T['accent']}]{ing['food_name']}[/{state.T['accent']}]"
+                    f"{food_id_tag(ing['fdc_id'])}\n"
                     f"  [grey62]Suggested search: '{suggested}'[/grey62]"
                 )
                 try:
@@ -164,7 +165,7 @@ def _resolve_recipe_dcp_data(
                 with _db.get_db() as conn:
                     _db.recipe_remove_ingredient(conn, ing["id"])
                     _db.recipe_add_ingredient(conn, recipe_id, food["fdcId"], food["name"], grams, label)
-                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Replaced with: {food['name']}  {label}")
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Replaced with: {food['name']}{food_id_tag(food['fdcId'])}  {label}")
                 replaced_any = True
             if replaced_any:
                 return "rerun"
@@ -181,6 +182,7 @@ def _resolve_recipe_dcp_data(
             for ing in zero_weight:
                 vol_display = _normalize_unit_display(ing["unit"]).replace(" (weight not known)", "")
                 state.console.print(f"\n  [{state.T['accent']}]{ing['food_name']}[/{state.T['accent']}]"
+                              f"{food_id_tag(ing['fdc_id'])}"
                               f"  [grey62]({vol_display})[/grey62]")
                 try:
                     w_raw = _prompt("Weight in grams  (Enter=skip, b=back)", free_text=True).strip()
@@ -213,14 +215,14 @@ def _resolve_recipe_dcp_data(
                                     "has_aa": pc_ing.get("has_data", False),
                                     "limiting_aa": pc_ing.get("limiting_aa"),
                                 })
-                        notes.append(f"{ing['food_name']}: {grams:.0f}g (user-provided, not saved)")
+                        notes.append(f"{ing['food_name']}{food_id_tag(ing['fdc_id'])}: {grams:.0f}g (user-provided, not saved)")
                         approximate = True  # user-supplied value, not from DB
                     except ValueError:
                         approximate = True
-                        notes.append(f"{ing['food_name']}: skipped (invalid weight)")
+                        notes.append(f"{ing['food_name']}{food_id_tag(ing['fdc_id'])}: skipped (invalid weight)")
                 else:
                     approximate = True
-                    notes.append(f"{ing['food_name']}: excluded (weight not provided)")
+                    notes.append(f"{ing['food_name']}{food_id_tag(ing['fdc_id'])}: excluded (weight not provided)")
 
             if _back:
                 continue  # re-show the options menu
@@ -230,7 +232,7 @@ def _resolve_recipe_dcp_data(
         else:  # action == "c" — calculate anyway
             approximate = True
             for ing in zero_weight:
-                notes.append(f"{ing['food_name']}: excluded (weight not known)")
+                notes.append(f"{ing['food_name']}{food_id_tag(ing['fdc_id'])}: excluded (weight not known)")
             if no_aa:
                 notes.append("amino acid completeness: unknown — no AA data in USDA cache")
             return ingredient_stats, combined, True, notes
@@ -336,6 +338,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                             ingredient_stats.append({
                                 "name": ing["food_name"],
                                 "fdc_id": None,
+                                "recipe_id": ing["ref_recipe_id"],
                                 "amount_g": 100.0,      # normalization sentinel: DIAAS math = scaled * 100/100
                                 "display_g": None,       # render shows "—" in Serving column
                                 "protein_g": sub_protein,
@@ -580,7 +583,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             )
         else:
             # Partial AA gap: some ingredients have AA data, others don't
-            missing_aa_ings = [s["name"] for s in ingredient_stats
+            missing_aa_ings = [f"{s['name']}{food_id_tag(s.get('fdc_id'), inline=True)}" for s in ingredient_stats
                                if not s.get("has_aa") and s.get("protein_g", 0) >= 0.1]
             if missing_aa_ings:
                 names_str = ", ".join(missing_aa_ings)
@@ -654,8 +657,8 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             state.console.print(
                 f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
             )
-            for name in gl_blockers:
-                state.console.print(f"    [grey62]• {name}[/grey62]")
+            for name, b_fdc_id, b_recipe_id in gl_blockers:
+                state.console.print(f"    [grey62]• {name}[/grey62]{food_id_tag(b_fdc_id, b_recipe_id)}")
             state.console.print(
                 "  [grey62]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/grey62]"
             )
@@ -738,7 +741,8 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         export_sections: list[dict] = [
             {"type": "ingredient_list", "title": "Ingredients",
              "items": [{"food_name": i["food_name"], "amount": i["amount"],
-                        "unit": i["unit"]} for i in ingredients]},
+                        "unit": i["unit"], "fdc_id": i["fdc_id"],
+                        "recipe_id": i["ref_recipe_id"]} for i in ingredients]},
             {"type": "nutrient_table", "title": "Total recipe", "nutrients": combined,
              "per_label": export_per_label},
             {"type": "nutrient_table", "title": export_analysis_title,

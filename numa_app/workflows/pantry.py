@@ -12,7 +12,7 @@ from ..config import prefs as _prefs
 from ..services.annotations import maybe_prompt_gi
 from ..services.search import _search_and_pick_food, _suggest_foundation_search
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float
-from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY, dot_cell, section_title, table_footer, help_footer
+from ..ui.common import _safe_call, _prompt_with_options, _id_cell, ID_KEY, dot_cell, section_title, table_footer, help_footer, food_id_tag
 
 def _load_pantry_candidates() -> list[dict]:
     """
@@ -202,12 +202,12 @@ def _do_pantry_add() -> None:
                 data_type = food.get("dataType", "")
                 if data_type == "Branded":
                     state.console.print(
-                        f"\n  [{state.T['warning']}]{food['name']}: branded foods rarely include "
+                        f"\n  [{state.T['warning']}]{food['name']}{food_id_tag(food['fdcId'])}: branded foods rarely include "
                         f"amino acid data. A Foundation or SR Legacy equivalent will have complete data.[/{state.T['warning']}]"
                     )
                 else:
                     state.console.print(
-                        f"\n  [{state.T['warning']}]{food['name']}: no amino acid data.[/{state.T['warning']}]"
+                        f"\n  [{state.T['warning']}]{food['name']}{food_id_tag(food['fdcId'])}: no amino acid data.[/{state.T['warning']}]"
                     )
                 if not multi:
                     alt = _suggest_foundation_search(food)
@@ -225,7 +225,7 @@ def _do_pantry_add() -> None:
                 _db.pantry_add(conn, food_name, fdc_id=fdc_id, notes=notes)
             has_aa = _usda.has_amino_acid_data(food.get("nutrients") or {})
             aa_note = "" if has_aa else f"  [{state.T['warning']}](no AA data)[/{state.T['warning']}]"
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food_name}{aa_note}")
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food_name}{food_id_tag(fdc_id)}{aa_note}")
             if not multi:
                 try:
                     maybe_prompt_gi(fdc_id, food_name)
@@ -272,7 +272,7 @@ def _do_pantry_remove() -> None:
             state.console.print(f"[{state.T['warning']}]ID {pid} not found.[/{state.T['warning']}]")
             return
         _db.pantry_remove(conn, pid)
-    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {row['food_name']}")
+    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {row['food_name']}{food_id_tag(row['fdc_id'])}")
 
 
 def _do_pantry_archive_toggle() -> None:
@@ -294,7 +294,7 @@ def _do_pantry_archive_toggle() -> None:
         newly_archived = not row["archived"]
         _db.set_pantry_archived(conn, pid, newly_archived)
     verb = "Archived" if newly_archived else "Restored"
-    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] {verb}: {row['food_name']}")
+    state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] {verb}: {row['food_name']}{food_id_tag(row['fdc_id'])}")
 
 
 

@@ -18,9 +18,10 @@ from ..config import prefs as _prefs
 from ..services.glycemic_load import compute_glycemic_load
 from ..services.portions import _normalize_unit_display, _ing_amount_display, _parse_portion_input, _pick_portion, _try_resolve_unknown_weight, _UNIT_TO_GRAMS, _VOLUME_TO_ML
 from ..services.recipe_nutrients import recipe_total_nutrients
+from ..services import recipe_dcp as _recipe_dcp
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
 from ..services.reports import _offer_export
-from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _prompt_with_options, _safe_call, _show_menu, table_footer, table_title, help_footer
+from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _prompt_with_options, _safe_call, _show_menu, table_footer, table_title, help_footer, food_id_tag
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 
 _RECIPE_SORT_KEYS = {
@@ -271,12 +272,13 @@ def _compute_recipe_protein_summary(rid: int) -> tuple[float, float | None, bool
     return (raw_protein, dcp_g, minor_skipped)
 
 
-def _compute_recipe_gl(rid: int) -> tuple[float, list[str]]:
+def _compute_recipe_gl(rid: int) -> tuple[float, list[tuple[str, int | None, int | None]]]:
     """
     Compute glycemic load (GL) for the whole recipe.
     Returns (gl_whole_recipe, []) when all ingredients have GI annotations.
-    Returns (gl_partial, [blocker_names]) if any ingredient is missing GI data —
-    gl_partial only accounts for the ingredients that could be computed.
+    Returns (gl_partial, [(blocker_name, fdc_id, recipe_id)]) if any ingredient
+    is missing GI data — gl_partial only accounts for the ingredients that
+    could be computed.
     """
     with _db.get_db() as conn:
         ingredients = _db.recipe_get_ingredients(conn, rid)
@@ -499,6 +501,8 @@ def _do_recipe_display(recipe=None) -> None:
                 "amount_display": (_format_recipe_portion_label(ing["amount"], ing["ref_recipe_id"])
                                    if ing["ref_recipe_id"] else _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"])),
                 "notes": ing["notes"] or "",
+                "fdc_id": ing["fdc_id"],
+                "recipe_id": ing["ref_recipe_id"],
             }
             for ing in ingredients
         ]
@@ -673,7 +677,7 @@ def _do_recipe_develop(recipe=None) -> None:
                 with _db.get_db() as conn:
                     _db.recipe_add_ingredient(conn, rid, 0, sub_name, srvs, "servings", notes, ref_recipe_id=sub_rid)
                     _db.recipe_auto_weight(conn, rid)
-                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added recipe: {sub_name}  {_format_recipe_portion_label(srvs)}")
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added recipe: {sub_name}{food_id_tag(None, recipe_id=sub_rid)}  {_format_recipe_portion_label(srvs)}")
             else:
                 result = _pick_portion(food)
                 if result is None:
@@ -686,7 +690,7 @@ def _do_recipe_develop(recipe=None) -> None:
                 with _db.get_db() as conn:
                     _db.recipe_add_ingredient(conn, rid, food["fdcId"], food["name"], grams, label, notes)
                     _db.recipe_auto_weight(conn, rid)
-                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}{food_id_tag(food['fdcId'])}  {label}")
 
             ingredients_changed = True
             try:
@@ -719,7 +723,7 @@ def _do_recipe_develop(recipe=None) -> None:
             with _db.get_db() as conn:
                 _db.recipe_remove_ingredient(conn, ing["id"])
                 _db.recipe_auto_weight(conn, rid)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {ing['food_name']}")
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {ing['food_name']}{food_id_tag(ing['fdc_id'])}")
             ingredients_changed = True
             try:
                 if _prompt("Nutritional analysis?", choices=["y", "n"], default="y").lower() == "y":
@@ -733,10 +737,8 @@ def _do_recipe_develop(recipe=None) -> None:
             state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
 
     if ingredients_changed:
-        dcp = _compute_recipe_dcp(rid)
-        ts = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat() if dcp is not None else None
         with _db.get_db() as conn:
-            _db.recipe_set_dcp(conn, rid, dcp, ts)
+            _recipe_dcp.recompute_recipe_dcp(rid, conn)
 
     try:
         if _prompt("Edit procedure?", choices=["y", "n"], default="n").lower() == "y":

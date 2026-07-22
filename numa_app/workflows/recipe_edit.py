@@ -18,7 +18,8 @@ from ..services.portions import (
     _try_resolve_unknown_weight, _UNIT_TO_GRAMS, _VOLUME_TO_ML,
 )
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food
-from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, dot_cell, table_title, table_footer, help_footer
+from ..services import recipe_dcp as _recipe_dcp
+from ..ui.common import _id_cell, ID_KEY, _open_in_editor, _safe_call, _show_menu, dot_cell, table_title, table_footer, help_footer, food_id_tag
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
 from ..services.reports import _offer_export
@@ -157,6 +158,7 @@ def _do_recipe_edit(recipe=None) -> None:
             _db.recipe_update(conn, rid, name, desc, servings, recipe["instructions"] or "",
                               total_volume, total_volume_unit, total_weight, total_weight_unit,
                               serving_size, complete)
+            _recipe_dcp.recompute_recipe_dcp(rid, conn)
         state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Recipe details updated.")
 
     # If the user backed out during meta/vol/wt prompts, stop here — changes above are saved.
@@ -328,7 +330,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 with _db.get_db() as conn:
                     _db.recipe_add_ingredient(conn, rid, 0, sub_name, servings, "servings", notes, ref_recipe_id=sub_rid)
                     _db.recipe_auto_weight(conn, rid)
-                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added recipe: {sub_name}  {label}")
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added recipe: {sub_name}{food_id_tag(None, recipe_id=sub_rid)}  {label}")
                 ingredients_changed = True
             else:
                 result = _pick_portion(food)
@@ -342,7 +344,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 with _db.get_db() as conn:
                     _db.recipe_add_ingredient(conn, rid, food["fdcId"], food["name"], grams, label, notes)
                     _db.recipe_auto_weight(conn, rid)
-                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}{food_id_tag(food['fdcId'])}  {label}")
                 ingredients_changed = True
         elif choice == "2":
             if not ingredients:
@@ -434,7 +436,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 _db.recipe_update_ingredient(conn, ing["id"], grams, label, food_name_new,
                                              notes_new or None)
                 _db.recipe_auto_weight(conn, rid)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Updated: {food_name_new}  {label}")
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Updated: {food_name_new}{food_id_tag(ing['fdc_id'])}  {label}")
             ingredients_changed = True
         elif choice == "3":
             if not ingredients:
@@ -451,9 +453,12 @@ def _do_recipe_edit(recipe=None) -> None:
                 tbl2.add_column("#", justify="right", min_width=3)
                 tbl2.add_column("Amount", min_width=14)
                 tbl2.add_column("Food", min_width=_RFOOD_W2, max_width=_RFOOD_W2, no_wrap=True)
+                tbl2.add_column("ID", min_width=6)
                 for i, ing in enumerate(ingredients, 1):
-                    tbl2.add_row(str(i), _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"]), ing["food_name"])
+                    tbl2.add_row(str(i), _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"]), ing["food_name"],
+                                 _recipe_ing_id_cell(ing))
                 state.console.print(tbl2)
+                table_footer(ID_KEY)
                 help_footer("recipe-ingredients")
                 try:
                     raw_idx = _prompt("Ingredient # to remove  [grey62](d=done)[/grey62]", free_text=True).strip().lower()
@@ -477,7 +482,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 with _db.get_db() as conn:
                     _db.recipe_remove_ingredient(conn, ing["id"])
                     _db.recipe_auto_weight(conn, rid)
-                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {ing['food_name']}")
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {ing['food_name']}{food_id_tag(ing['fdc_id'])}")
                 ingredients_changed = True
         elif choice == "4":
             if len(ingredients) < 2:
@@ -532,6 +537,8 @@ def _do_recipe_edit(recipe=None) -> None:
                     "food_name": _ing["food_name"],
                     "amount_display": _amt,
                     "notes": _ing["notes"] or "",
+                    "fdc_id": _ing["fdc_id"],
+                    "recipe_id": _ing["ref_recipe_id"],
                 })
             # Ask whether to include nutrition summary
             try:
@@ -586,10 +593,8 @@ def _do_recipe_edit(recipe=None) -> None:
     # Edit instructions only when user chose 'd' (done), not 'b' (back)
     if not ingredients_done:
         if ingredients_changed:
-            dcp = _compute_recipe_dcp(rid)
-            ts = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat() if dcp is not None else None
             with _db.get_db() as conn:
-                _db.recipe_set_dcp(conn, rid, dcp, ts)
+                _recipe_dcp.recompute_recipe_dcp(rid, conn)
             gl, gl_blockers = _compute_recipe_gl(rid)
             with _db.get_db() as conn:
                 _db.recipe_set_gl(conn, rid, gl if not gl_blockers else None)

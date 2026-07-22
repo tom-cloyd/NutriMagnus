@@ -22,7 +22,7 @@ from ..services.meal_bcp import recipe_dcp_fallback
 from ..services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
-from ..ui.common import _prompt_with_options, _safe_call, _show_menu, dot_cell, table_title, section_title, help_footer
+from ..ui.common import _prompt_with_options, _safe_call, _show_menu, dot_cell, table_title, section_title, help_footer, food_id_tag, classify_food_id, _id_cell, ID_KEY, table_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_date, _ask_int, _prompt
 from ..ui.render import _print_complement_suggestions, _print_meal_diaas, _print_nutrient_table, _print_protein_adequacy
 from .recipes import _do_recipe_list, _format_recipe_portion_label, _parse_serving_amount
@@ -106,7 +106,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str], protein_by_nam
     replaced_any = False
     for item in affected:
         state.console.print(f"\n  [grey62]Next food missing AA data:[/grey62]"
-                      f"  [{state.T['accent']}]{item['food_name']}[/{state.T['accent']}]"
+                      f"  [{state.T['accent']}]{item['food_name']}[/{state.T['accent']}]{food_id_tag(item.get('fdc_id'))}"
                       f"  [grey62]({_normalize_unit_display(item['unit'])})[/grey62]")
         suggested = _simplify_food_query(item["food_name"].split(",")[0].strip())
         state.console.print(f"  [grey62]Searching SR Legacy + Foundation for: '{suggested}'[/grey62]")
@@ -158,7 +158,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str], protein_by_nam
 
         aa_tag = (f"[{state.T['success']}]✓ has AA data[/{state.T['success']}]" if has_aa
                   else f"[{state.T['warning']}]⚠ no AA data[/{state.T['warning']}]")
-        state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Replaced with: {food['name']}  {label}  {aa_tag}")
+        state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Replaced with: {food['name']}{food_id_tag(food['fdcId'])}  {label}  {aa_tag}")
         replaced_any = True
 
     if replaced_any:
@@ -398,6 +398,7 @@ def _menu_meals() -> bool:
         if has_more:
             state.console.print("  [grey62]  mr ···········  Show next 15 older meals[/grey62]", highlight=False)
         state.console.print("  [grey62]  d{YYYY-MM-DD}   Jump to meals on or before a date  (e.g. d2025-03-15)[/grey62]", highlight=False)
+        state.console.print("  [grey62]  dd{YYYY-MM-DD}  Delete every meal on a date  (e.g. dd2025-03-15)[/grey62]", highlight=False)
         state.console.print("  [grey62]  b / m / q ····  Back · Main menu · Quit[/grey62]", highlight=False)
 
         try:
@@ -483,6 +484,18 @@ def _menu_meals() -> bool:
                 _safe_call(_open_meal_view, meal["id"])
             else:
                 _safe_call(_open_meal_analyze, meal["id"])
+            continue
+        if len(rl) >= 3 and rl[:2] == "dd":
+            day_suffix = raw[2:].strip()
+            if not _is_date_str(day_suffix):
+                state.console.print(f"[{state.T['warning']}]Enter dd{{YYYY-MM-DD}} to delete every meal on a date (e.g. dd2025-03-15).[/{state.T['warning']}]")
+                continue
+            with _db.get_db() as conn:
+                day_meals = _db.meal_list_by_date(conn, day_suffix)
+            if not day_meals:
+                state.console.print(f"[grey62]No meals found on {day_suffix}.[/grey62]")
+                continue
+            _safe_call(_do_meal_delete_multiple, [m["id"] for m in day_meals])
             continue
         if len(rl) >= 2 and rl[0] == "d":
             suffix = raw[1:].strip()
@@ -691,7 +704,7 @@ def _meal_add_items(meal_id: int) -> None:
             else:
                 with _db.get_db() as conn:
                     _db.meal_add_recipe(conn, meal_id, rid, rname, servings, unit=portion_label)
-                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {rname}  {portion_label}")
+                state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {rname}{food_id_tag(None, recipe_id=rid)}  {portion_label}")
             _print_meal_items(meal_id, meal_name)
             _print_meal_protein_summary(meal_id)
 
@@ -707,7 +720,7 @@ def _meal_add_items(meal_id: int) -> None:
                 notes = None
             with _db.get_db() as conn:
                 _db.meal_add_food(conn, meal_id, food["fdcId"], food["name"], grams, label, notes)
-            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}  {label}")
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Added: {food['name']}{food_id_tag(food['fdcId'])}  {label}")
             try:
                 maybe_prompt_gi(food["fdcId"], food["name"])
             except Cancelled:
@@ -845,24 +858,24 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
             if it["item_type"] == "recipe":
                 unit = it["unit"] or ""
                 amount_label = unit if unit and unit != "servings" else _format_recipe_portion_label(float(it["amount"]))
+                id_tag = food_id_tag(None, recipe_id=it.get("recipe_id"))
                 if recipe_deleted[it["id"]]:
                     flag = " (recipe deleted)"
                     fname = it["food_name"][:max(1, _MITEM_W - len(flag))]
-                    name_cell = f"{fname}[{state.T['error']}]{flag}[/{state.T['error']}]"
+                    name_cell = f"{fname}[{state.T['error']}]{flag}[/{state.T['error']}]{id_tag}"
                 else:
                     fname = it["food_name"][:_MITEM_W - 1]
                     fdots = "·" * (_MITEM_W - len(fname) - 1)
-                    name_cell = f"{fname} [grey62]{fdots}[/grey62]"
+                    name_cell = f"{fname} [grey62]{fdots}[/grey62]{id_tag}"
             else:
                 unit = it["unit"] or "g"
                 if unit == "g":
                     amount_label = f"{it['amount']:g} g"
                 else:
                     amount_label = _normalize_unit_display(unit)
-                fdc_str = str(it['fdc_id'])
-                visible_len = len(fdc_str) + 2 + len(it['food_name'])
-                fdots = "·" * max(0, _MITEM_W - visible_len - 1)
-                name_cell = f"[grey62]{fdc_str}[/grey62]  {it['food_name']} [grey62]{fdots}[/grey62]"
+                fname = it["food_name"][:_MITEM_W - 1]
+                fdots = "·" * (_MITEM_W - len(fname) - 1)
+                name_cell = f"{fname} [grey62]{fdots}[/grey62]{food_id_tag(it['fdc_id'])}"
             tbl.add_row(str(it["id"]), amount_label, name_cell)
         state.console.print(tbl)
         help_footer("meal-detail")
@@ -954,7 +967,7 @@ def _compute_meal_ingredient_list(meal_id: int, force_refresh: bool = False) -> 
     return result
 
 
-def _compute_meal_gl(meal_id: int) -> tuple[float, list[str]]:
+def _compute_meal_gl(meal_id: int) -> tuple[float, list[tuple[str, int | None, int | None]]]:
     """Compute glycemic load for a meal. Returns (gl_total, blockers).
     blockers is empty if GL is fully computable; non-empty means incomplete GI data."""
     with _db.get_db() as conn:
@@ -1033,8 +1046,8 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
         state.console.print(
             f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
         )
-        for name in gl_blockers:
-            state.console.print(f"    [grey62]• {name}[/grey62]")
+        for name, b_fdc_id, b_recipe_id in gl_blockers:
+            state.console.print(f"    [grey62]• {name}[/grey62]{food_id_tag(b_fdc_id, b_recipe_id)}")
         state.console.print(
             "  [grey62]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/grey62]"
         )
@@ -1074,7 +1087,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                                           silent_if_complete=True, base_diaas=day_diaas)
 
         gl_total_day = 0.0
-        gl_blockers_day: list[str] = []
+        gl_blockers_day: list[tuple[str, int | None, int | None]] = []
         for m in today_meals:
             gl, bl = _compute_meal_gl(m["id"])
             if not bl:
@@ -1086,9 +1099,9 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                 f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
             )
             seen: set[str] = set()
-            for name in gl_blockers_day:
+            for name, b_fdc_id, b_recipe_id in gl_blockers_day:
                 if name not in seen:
-                    state.console.print(f"    [grey62]• {name}[/grey62]")
+                    state.console.print(f"    [grey62]• {name}[/grey62]{food_id_tag(b_fdc_id, b_recipe_id)}")
                     seen.add(name)
             state.console.print(
                 "  [grey62]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/grey62]"
@@ -1223,7 +1236,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
                                    if cur_amount and cur_amount > 0 and cur_unit and cur_unit != "—"
                                    else "—")
                     notes_display = f"  [grey62]Note: {cur_notes}[/grey62]" if cur_notes else ""
-                    state.console.print(f"\n  [grey62]Editing:[/grey62] [bold]{cur_name}[/bold]  {amt_display}{notes_display}")
+                    state.console.print(f"\n  [grey62]Editing:[/grey62] [bold]{cur_name}[/bold]{food_id_tag(cur_fdc_id)}  {amt_display}{notes_display}")
                     state.console.print(f"  [{state.T['accent']}]f.[/{state.T['accent']}] Change food (search by new name)")
                     state.console.print(f"  [{state.T['accent']}]a.[/{state.T['accent']}] Change amount")
                     state.console.print(f"  [{state.T['accent']}]n.[/{state.T['accent']}] Edit note")
@@ -1258,7 +1271,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
                         cur_fdc_id = new_food["fdcId"]
                         cur_name   = new_food["name"]
                         changed = True
-                        state.console.print(f"  [grey62]Food set to: {cur_name}[/grey62]")
+                        state.console.print(f"  [grey62]Food set to: {cur_name}{food_id_tag(cur_fdc_id)}[/grey62]")
                     elif sub == "a":
                         with _db.get_db() as conn:
                             cached = _db.get_cached_food(conn, cur_fdc_id)
@@ -1286,7 +1299,7 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
                                               cur_name, cur_amount, cur_unit,
                                               cur_notes or None)
                     _recompute_and_store_meal_bcp(meal_id, meal_date)
-                    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Saved: {cur_name}  "
+                    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Saved: {cur_name}{food_id_tag(cur_fdc_id)}  "
                                   f"{_normalize_unit_display(cur_unit)}")
             _print_meal_items(meal_id, meal_name)
 
@@ -1497,7 +1510,7 @@ def _analyze_day(meals: list, meal_date: str) -> None:
         _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True,
                                       base_diaas=meal_diaas)
     gl_total_day = 0.0
-    gl_blockers_day: list[str] = []
+    gl_blockers_day: list[tuple[str, int | None, int | None]] = []
     for m in meals:
         gl, bl = _compute_meal_gl(m["id"])
         if not bl:
@@ -1509,9 +1522,9 @@ def _analyze_day(meals: list, meal_date: str) -> None:
             f"  [{state.T['warning']}]Not available — GI annotation missing for:[/{state.T['warning']}]"
         )
         seen: set[str] = set()
-        for name in gl_blockers_day:
+        for name, b_fdc_id, b_recipe_id in gl_blockers_day:
             if name not in seen:
-                state.console.print(f"    [grey62]• {name}[/grey62]")
+                state.console.print(f"    [grey62]• {name}[/grey62]{food_id_tag(b_fdc_id, b_recipe_id)}")
                 seen.add(name)
         state.console.print(
             "  [grey62]Annotate foods under Foods → View / edit / delete cached foods → pick food → Annotate.[/grey62]"
@@ -1546,6 +1559,7 @@ def _print_meal_history_flat(rows: list, query: str, deleted_recipe_ids: set[int
     tbl.add_column("Date",    min_width=10, no_wrap=True)
     tbl.add_column("Meal",    min_width=_W_MEAL, max_width=_W_MEAL, no_wrap=True)
     tbl.add_column("Food / Recipe", min_width=_W_FOOD, max_width=_W_FOOD, no_wrap=True)
+    tbl.add_column("Food ID", min_width=6)
     tbl.add_column("Portion", min_width=12, justify="right")
     tbl.add_column("Notes",   min_width=_W_NOTE, max_width=_W_NOTE, no_wrap=True)
     for r in rows:
@@ -1561,21 +1575,27 @@ def _print_meal_history_flat(rows: list, query: str, deleted_recipe_ids: set[int
             name_cell = f"[bold]{r['food_name']}[/bold] [grey62](recipe)[/grey62]"
         else:
             name_cell = f"[bold]{r['food_name']}[/bold]"
-        tbl.add_row(f"[grey62]{r['meal_id']}[/grey62]", r["meal_date"], r["meal_name"], name_cell, portion, notes)
+        if is_recipe:
+            id_cell_str = f"[grey62]{r['recipe_id']}[/grey62]" if r["recipe_id"] else ""
+        else:
+            id_cell_str = _id_cell(r["fdc_id"])
+        tbl.add_row(f"[grey62]{r['meal_id']}[/grey62]", r["meal_date"], r["meal_name"], name_cell, id_cell_str, portion, notes)
     state.console.print(tbl)
+    table_footer(ID_KEY)
     help_footer("meal-history")
 
 
 def _print_meal_history_summary(rows: list, deleted_recipe_ids: set[int] = frozenset()) -> None:
     from collections import defaultdict
-    groups: dict[str, list] = defaultdict(list)
+    groups: dict[tuple, list] = defaultdict(list)
     for r in rows:
-        groups[r["food_name"]].append(r)
+        groups[(r["food_name"], r["fdc_id"])].append(r)
 
     _W_FOOD = 34
     table_title("MEAL HISTORY — SUMMARY")
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("Food / Recipe", min_width=_W_FOOD, max_width=_W_FOOD, no_wrap=True)
+    tbl.add_column("Food ID", min_width=6)
     tbl.add_column("Times", min_width=5,  justify="right")
     tbl.add_column("Total", min_width=10, justify="right")
     tbl.add_column("First", min_width=10)
@@ -1587,7 +1607,7 @@ def _print_meal_history_summary(rows: list, deleted_recipe_ids: set[int] = froze
         reverse=True,
     )
     s = state.T["success"]
-    for food_name, items in sorted_groups:
+    for (food_name, _fdc_id), items in sorted_groups:
         is_recipe  = items[0]["item_type"] == "recipe"
         is_deleted = is_recipe and items[0]["recipe_id"] in deleted_recipe_ids
         dates      = sorted(r["meal_date"] for r in items)
@@ -1596,15 +1616,19 @@ def _print_meal_history_summary(rows: list, deleted_recipe_ids: set[int] = froze
             fname = food_name[:max(1, _W_FOOD - len(flag))]
             total_str  = "[grey62]—[/grey62]"
             name_cell  = f"[bold]{fname}[/bold][{state.T['error']}]{flag}[/{state.T['error']}]"
+            id_cell_str = f"[grey62]{items[0]['recipe_id']}[/grey62]" if items[0]["recipe_id"] else ""
         elif is_recipe:
             total_str  = "[grey62]—[/grey62]"
             name_cell  = f"[bold]{food_name}[/bold] [grey62](recipe)[/grey62]"
+            id_cell_str = f"[grey62]{items[0]['recipe_id']}[/grey62]" if items[0]["recipe_id"] else ""
         else:
             total_g   = sum(r["amount"] for r in items if r["amount"])
             total_str = f"[{s}]{total_g:.0f} g[/{s}]" if total_g else "[grey62]—[/grey62]"
             name_cell = f"[bold]{food_name}[/bold]"
-        tbl.add_row(name_cell, str(len(items)), total_str, dates[0], dates[-1])
+            id_cell_str = _id_cell(_fdc_id)
+        tbl.add_row(name_cell, id_cell_str, str(len(items)), total_str, dates[0], dates[-1])
     state.console.print(tbl)
+    table_footer(ID_KEY)
     help_footer("meal-history")
 
 

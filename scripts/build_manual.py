@@ -105,7 +105,7 @@ body {
     padding: 1.25rem 0.75rem 1.5rem 0.5rem;
     border-right: 1px solid var(--border);
     background: var(--bg);
-    font-size: 12.5px;
+    font-size: 14.5px;
     line-height: 1.4;
 }
 #toc-sidebar h2 {
@@ -113,7 +113,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 0.5em;
-    font-size: 10px;
+    font-size: 11.5px;
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--muted);
@@ -149,8 +149,8 @@ body {
 }
 #toc-sidebar .toc a:hover { color: var(--accent); background: var(--accent-light); }
 #toc-sidebar .toc ul { list-style: none; padding-left: 0.85em; }
-#toc-sidebar .toc ul a { font-size: 11.5px; }
-#toc-sidebar .toc ul ul a { font-size: 11px; }
+#toc-sidebar .toc ul a { font-size: 13.5px; }
+#toc-sidebar .toc ul ul a { font-size: 13px; }
 
 /* Per-heading collapse toggle + collapsed state */
 #toc-sidebar .toc li.toc-has-children { position: relative; padding-left: 1.05em; }

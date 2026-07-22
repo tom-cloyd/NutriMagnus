@@ -8,6 +8,7 @@
 <details open>
   <summary data-ak="1"><u class="ak">1</u>. <strong>Your Profile</strong>
     {% if profile %}<span class="muted"> — used to calculate personalised RDA targets</span>{% endif %}
+    {{ manual_link("profile-setup") }}
   </summary>
 
   {% if saved == 'profile' %}
@@ -106,6 +107,7 @@
 <details>
   <summary data-ak="2"><u class="ak">2</u>. <strong>Your Computed Daily Targets</strong>
     <span class="muted"> — derived from your profile above</span>
+    {{ manual_link("daily-targets") }}
   </summary>
   {% if rda_rows %}
   <p class="muted mt-1"><small>
@@ -147,6 +149,7 @@
 <details>
   <summary data-ak="3"><u class="ak">3</u>. <strong>Dietary Preferences</strong>
     <span class="muted"> — used for protein complement suggestions</span>
+    {{ manual_link("diet") }}
   </summary>
 
   {% if saved == 'diet' %}
@@ -170,6 +173,7 @@
 <details>
   <summary data-ak="4"><u class="ak">4</u>. <strong>Keyboard Shortcuts</strong>
     <span class="muted"> — browser access keys (Firefox)</span>
+    {{ manual_link("web-shortcuts") }}
   </summary>
   <div class="row mt-2 g-3">
     <div class="col-auto">
@@ -206,6 +210,7 @@
 <details>
   <summary data-ak="5"><u class="ak">5</u>. <strong>USDA API Key</strong>
     <span class="muted"> — for higher search rate limits</span>
+    {{ manual_link("food-data") }}
   </summary>
 
   {% if saved == 'api_key' %}

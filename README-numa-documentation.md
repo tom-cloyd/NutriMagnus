@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-20:2111
+UPDATED: 2026-07-21:0440
 ---
 
 ## Table of Contents
@@ -98,6 +98,8 @@ numa/
       rda_status.py                — shared RDA/limit percent-of-target classification (CLI + web): rda_status()
       recipe_nutrients.py          — shared recursive recipe-ingredient expansion (CLI + web):
                                      expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
+      recipe_dcp.py                 — shared auto-recompute of a recipe's per-serving DCP (CLI + web):
+                                     recompute_recipe_dcp()
       reports.py                   — export rendering support
       search.py                    — _search_and_pick_food(), _suggest_foundation_search()
     workflows/
@@ -811,7 +813,7 @@ Contains the menu dispatch (`_menu_recipes`), all shared helper functions used b
 | Function | Purpose |
 |---|---|
 | `_do_recipe_browse()` | Browse workflow: shows 20 most-recently-accessed recipes; supports inline `v/x/a/d/c<id>` actions, `s`=search, `r`=recent. Each action stamps `last_accessed_at` via `recipe_touch()`. |
-| `_do_recipe_develop(recipe=None)` | Develop workflow: iterative add/remove ingredients with optional nutritional analysis after each change; prompts for procedure on exit; recomputes and saves DCP if ingredients changed. Accepts optional pre-selected recipe (used by Browse `x<id>`). |
+| `_do_recipe_develop(recipe=None)` | Develop workflow: iterative add/remove ingredients with optional nutritional analysis after each change; prompts for procedure on exit; calls `recipe_dcp.recompute_recipe_dcp()` if ingredients changed. Accepts optional pre-selected recipe (used by Browse `x<id>`). |
 | `_do_recipe_display(recipe=None)` | Text view: name, ingredients, procedure; ends with `e=edit  b/Enter=done` prompt — pressing `e` chains directly into `_do_recipe_edit`. Accepts optional pre-selected recipe. |
 | `_do_recipe_delete(recipe=None)` | Delete with confirmation. Accepts optional pre-selected recipe. |
 | `_do_copy_recipe(recipe=None)` | Copy recipe under a new name. Accepts optional pre-selected recipe. |
@@ -821,7 +823,7 @@ Key shared helpers imported by `recipe_analysis.py` and `recipe_edit.py`:
 | Function | Purpose |
 |---|---|
 | `_pick_recipe()` | Search/list recipes, return selected recipe dict |
-| `_compute_recipe_dcp(rid)` | Compute digestible complete protein (g) for a whole recipe from cached ingredient data |
+| `_compute_recipe_dcp(rid)` | Compute digestible complete protein (g) for a whole recipe from cached ingredient data — used for live display only (e.g. `_compute_recipe_protein_summary`'s ingredient-list DCP line); not persisted. The value saved to `recipes.dcp_g` always goes through `recipe_dcp.recompute_recipe_dcp()` instead, which is per-serving. |
 | `_augment_aa_from_curated(nutrients, stats)` | Add AA data from the curated complement table for ingredients that lack USDA AA profiles |
 | `_parse_serving_amount(raw)` | Parse a serving count string (int, fraction, decimal) |
 | `_format_recipe_portion_label(servings)` | Format a portion label ("1 serving", "2 servings", etc.) |
@@ -840,7 +842,7 @@ Also contains `_recipe_weight_to_g()` and `_recipe_vol_to_ml()` — unit convert
 
 ### `numa_app/workflows/recipe_edit.py` — edit recipe workflow (~355 lines)
 
-Contains `_do_recipe_edit()` (menu option 4 "Edit recipe"). Supports back-navigation through metadata fields (name → description → servings → total volume → total weight → procedure), ingredient-level editing (amount, unit, food name, notes), ingredient replacement via USDA search, reordering, and deletion. Recomputes DCP after any ingredient change.
+Contains `_do_recipe_edit()` (menu option 4 "Edit recipe"). Supports back-navigation through metadata fields (name → description → servings → total volume → total weight → procedure), ingredient-level editing (amount, unit, food name, notes), ingredient replacement via USDA search, reordering, and deletion. Calls `recipe_dcp.recompute_recipe_dcp()` after any metadata or ingredient change.
 
 ### `numa_app/workflows/foods.py` — Foods menu (~365 lines)
 
@@ -891,7 +893,7 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 
 `recipes.total_volume` / `recipes.total_volume_unit` and `recipes.total_weight` / `recipes.total_weight_unit` store the user-entered batch size (e.g. 4.0 / "cups", 800.0 / "g"). Both pairs are nullable — either or both may be omitted. Added via `ALTER TABLE` migration so existing databases are upgraded automatically on first run.
 
-`recipes.dcp_g` stores the digestible complete protein (grams, whole recipe) computed at last view. It is `NULL` when the recipe has never been viewed, when the calculation was approximate (user-provided data), or when amino acid data was unavailable. The recipe list shows DCP per serving when this value is present.
+`recipes.dcp_g` stores the digestible complete protein **per serving**, kept in sync automatically: `numa_app/services/recipe_dcp.py`'s `recompute_recipe_dcp()` recomputes and persists it after any recipe or ingredient edit in both the CLI (`recipe_edit.py`, `recipes.py` develop flow) and web app (`web/backend.py` recipe/ingredient POST routes), and `db.py`'s mutating recipe functions (`recipe_update`, `recipe_add/update/remove_ingredient`) clear it to `NULL` as a fallback in case some caller doesn't. It is `NULL` (shown as `NC` — not computed) when servings is 0, no ingredient has weight, or a *significant* protein-contributing ingredient (≥1 g and ≥5% of total recipe protein) is missing amino acid data; a best-guess/approximate value is never persisted. Minor protein contributors missing amino acid data (spices, oil, salt) are excluded from the calculation rather than blocking it. The web app's "Compute DCP for all complete recipes" button (`/recipes/compute-bcp`) also calls this same function across every recipe, regardless of its `complete` flag.
 
 `recipes.last_accessed_at` stores the ISO 8601 UTC timestamp of the last time the recipe was opened via any workflow action (view/edit/develop/analyze/copy). It is `NULL` for recipes that have never been accessed. Added via `ALTER TABLE` migration. Used by `recipe_list_recent()` to order the Browse view; falls back to `created_at` for recipes with no access timestamp.
 

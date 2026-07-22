@@ -2,14 +2,20 @@
 export.py — Render numa nutrient reports to plain text, markdown, or HTML fragment.
 
 Each report is a list of typed section dicts:
-  {"type": "nutrient_table",          "title": str, "nutrients": dict, "per_label": str}
+  {"type": "nutrient_table",          "title": str, "nutrients": dict, "per_label": str,
+                                       "fdc_id": int|None, "recipe_id": int|None}
   {"type": "protein_completeness",    "nutrients": dict}
-  {"type": "bioavailability",         "food_name": str, "nutrients": dict}
+  {"type": "bioavailability",         "food_name": str, "nutrients": dict,
+                                       "fdc_id": int|None, "recipe_id": int|None}
   {"type": "ingredient_list",         "title": str, "items": list[dict]}
-    item keys: food_name, amount, unit
+    item keys: food_name, amount, unit, fdc_id (optional), recipe_id (optional)
   {"type": "recipe_bioavailability",  "ingredient_stats": list[dict], "total_protein": float, "meal_result": dict|None}
-    stat keys: name, amount_g, protein_g, diaas, has_aa, limiting_aa, nutrients_100g
+    stat keys: name, amount_g, protein_g, diaas, has_aa, limiting_aa, nutrients_100g,
+               fdc_id (optional), recipe_id (optional)
   {"type": "complement_suggestions",  "nutrients": dict, "base_diaas": float|None}
+    suggestion dict keys (from usda.suggest_complements): includes fdc_id, recipe_id (optional)
+  {"type": "recipe_card", ...}
+    item keys: food_name, amount_display, notes, fdc_id (optional), recipe_id (optional)
 
 Formats: "txt", "md", "html"
 Docs: README-numa-documentation.md, Project Structure
@@ -20,6 +26,31 @@ import re
 from datetime import date
 
 import usda as _usda
+from numa_app.ui.common import classify_food_id
+
+
+def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None, fmt: str = "txt",
+                  *, inline: bool = False) -> str:
+    """Return the '(#id, SOURCE)' annotation identifying a displayed food/recipe name.
+
+    md and html render it on its own line under the name (via <br> / a block
+    <span> respectively) without breaking their surrounding markup, so no
+    inline flag is needed for them. txt has no such safe line-break mechanism:
+    a raw "\\n" corrupts fixed-width table rows and heading underline math.
+    txt defaults (inline=False) to stacking the tag on its own line, which is
+    safe for free-form lines; pass inline=True at fixed-width table rows and
+    underlined headings to keep the tag on the same line instead.
+    """
+    classified = classify_food_id(fdc_id, recipe_id)
+    if classified is None:
+        return ""
+    id_str, source = classified
+    text = f"(#{id_str}, {source})"
+    if fmt == "html":
+        return f' <span style="font-size:0.75em;line-height:1.15;color:#333;display:block">{text}</span>'
+    if fmt == "md":
+        return f" <br>{text}"
+    return f" {text}" if inline else f"\n    {text}"
 
 # Nutrient groups — mirrors _print_nutrient_table in numa.py
 _GROUPS: list[tuple[str, list[str]]] = [
@@ -106,7 +137,9 @@ def _nutrient_rows(nutrients: dict[str, float]) -> list[tuple[str, list[tuple[st
 
 
 def _render_nutrient_table_txt(title: str, nutrients: dict[str, float],
-                               per_label: str = "") -> str:
+                               per_label: str = "", fdc_id: int | None = None,
+                               recipe_id: int | None = None) -> str:
+    title = title + _food_id_tag(fdc_id, recipe_id, fmt="txt", inline=True)
     heading = title if not per_label else f"{title}  ({per_label})"
     lines = [heading.upper(), "=" * min(len(heading), 60)]
     for group, rows in _nutrient_rows(nutrients):
@@ -117,7 +150,9 @@ def _render_nutrient_table_txt(title: str, nutrients: dict[str, float],
 
 
 def _render_nutrient_table_md(title: str, nutrients: dict[str, float],
-                              per_label: str = "") -> str:
+                              per_label: str = "", fdc_id: int | None = None,
+                              recipe_id: int | None = None) -> str:
+    title = title + _food_id_tag(fdc_id, recipe_id, fmt="md")
     heading = title if not per_label else f"{title}  *({per_label})*"
     lines = [f"## {heading}"]
     for group, rows in _nutrient_rows(nutrients):
@@ -127,7 +162,9 @@ def _render_nutrient_table_md(title: str, nutrients: dict[str, float],
 
 
 def _render_nutrient_table_html(title: str, nutrients: dict[str, float],
-                                per_label: str = "") -> str:
+                                per_label: str = "", fdc_id: int | None = None,
+                                recipe_id: int | None = None) -> str:
+    title = title + _food_id_tag(fdc_id, recipe_id, fmt="html")
     sub = f" <em>({per_label})</em>" if per_label else ""
     lines = [f"<h2>{title}{sub}</h2>"]
     for group, rows in _nutrient_rows(nutrients):
@@ -205,12 +242,15 @@ def _render_protein_completeness_html(nutrients: dict[str, float]) -> str:
 # Section renderers — bioavailability
 # ---------------------------------------------------------------------------
 
-def _render_bioavailability_txt(food_name: str, nutrients: dict[str, float]) -> str:
+def _render_bioavailability_txt(food_name: str, nutrients: dict[str, float],
+                                 fdc_id: int | None = None,
+                                 recipe_id: int | None = None) -> str:
     diaas = _usda.get_diaas(food_name)
     flags = _usda.get_antinutrient_flags(food_name)
     if diaas is None and not flags:
         return ""
-    lines = ["BIOAVAILABILITY", "=" * 18]
+    tag = _food_id_tag(fdc_id, recipe_id, fmt="txt", inline=True)
+    lines = [f"BIOAVAILABILITY — {food_name}{tag}", "=" * min(18 + len(food_name) + 2, 70)]
     if diaas is not None:
         raw = nutrients.get("protein_g", 0.0)
         adj = raw * diaas
@@ -224,12 +264,15 @@ def _render_bioavailability_txt(food_name: str, nutrients: dict[str, float]) -> 
     return "\n".join(lines)
 
 
-def _render_bioavailability_md(food_name: str, nutrients: dict[str, float]) -> str:
+def _render_bioavailability_md(food_name: str, nutrients: dict[str, float],
+                                fdc_id: int | None = None,
+                                recipe_id: int | None = None) -> str:
     diaas = _usda.get_diaas(food_name)
     flags = _usda.get_antinutrient_flags(food_name)
     if diaas is None and not flags:
         return ""
-    lines = ["## Bioavailability"]
+    tag = _food_id_tag(fdc_id, recipe_id, fmt="md")
+    lines = [f"## Bioavailability — {food_name}{tag}"]
     if diaas is not None:
         raw = nutrients.get("protein_g", 0.0)
         adj = raw * diaas
@@ -243,12 +286,15 @@ def _render_bioavailability_md(food_name: str, nutrients: dict[str, float]) -> s
     return "\n".join(lines)
 
 
-def _render_bioavailability_html(food_name: str, nutrients: dict[str, float]) -> str:
+def _render_bioavailability_html(food_name: str, nutrients: dict[str, float],
+                                  fdc_id: int | None = None,
+                                  recipe_id: int | None = None) -> str:
     diaas = _usda.get_diaas(food_name)
     flags = _usda.get_antinutrient_flags(food_name)
     if diaas is None and not flags:
         return ""
-    lines = ["<h2>Bioavailability</h2>"]
+    tag = _food_id_tag(fdc_id, recipe_id, fmt="html")
+    lines = [f"<h2>Bioavailability — {food_name}{tag}</h2>"]
     if diaas is not None:
         raw = nutrients.get("protein_g", 0.0)
         adj = raw * diaas
@@ -274,19 +320,25 @@ def _render_bioavailability_html(food_name: str, nutrients: dict[str, float]) ->
 def _render_ingredient_list_txt(title: str, items: list[dict]) -> str:
     lines = [f"{title.upper()}", "=" * min(len(title), 60)]
     for item in items:
-        lines.append(f"  • {item['food_name']}  {item['amount']} {item['unit']}")
+        tag = _food_id_tag(item.get("fdc_id"), item.get("recipe_id"), fmt="txt")
+        lines.append(f"  • {item['food_name']}{tag}  {item['amount']} {item['unit']}")
     return "\n".join(lines)
 
 
 def _render_ingredient_list_md(title: str, items: list[dict]) -> str:
     lines = [f"## {title}"]
     for item in items:
-        lines.append(f"- {item['food_name']}  —  {item['amount']} {item['unit']}")
+        tag = _food_id_tag(item.get("fdc_id"), item.get("recipe_id"), fmt="md")
+        lines.append(f"- {item['food_name']}{tag}  —  {item['amount']} {item['unit']}")
     return "\n".join(lines)
 
 
 def _render_ingredient_list_html(title: str, items: list[dict]) -> str:
-    rows = [(item["food_name"], str(item["amount"]), item["unit"]) for item in items]
+    rows = [
+        (item["food_name"] + _food_id_tag(item.get("fdc_id"), item.get("recipe_id"), fmt="html"),
+         str(item["amount"]), item["unit"])
+        for item in items
+    ]
     return (
         f"<h2>{title}</h2>\n"
         + _html_table(("Ingredient", "Amount", "Unit"), rows)
@@ -339,7 +391,8 @@ def _bio_rows(
         else:
             lim_label = "— (complete)" if s.get("has_aa") else "—"
 
-        rows.append((s["name"][:30], amount_str, f"{p:.1f}g", coeff_str, lim_label, f"{dig:.1f}g"))
+        rows.append((s["name"][:30], amount_str, f"{p:.1f}g", coeff_str, lim_label, f"{dig:.1f}g",
+                     s.get("fdc_id"), s.get("recipe_id")))
     return rows, total_protein, total_digestible
 
 
@@ -352,8 +405,9 @@ def _render_recipe_bioavailability_txt(
     lines = ["BIOAVAILABILITY — PER SERVING", "=" * 34]
     lines.append(f"  {'Ingredient':<30}  {'Serving':>8}  {'Crude protein':>13}  {'Digestibility':>13}  {'Limiting IAA':<18}  {'Digestible':>10}")
     lines.append(f"  {'-' * 96}")
-    for name, amt, prot, coeff, lim, dig in rows:
-        lines.append(f"  {name:<30}  {amt:>8}  {prot:>8}  {coeff:>13}  {lim:<18}  {dig:>7}")
+    for name, amt, prot, coeff, lim, dig, fdc_id, recipe_id in rows:
+        name_tagged = name + _food_id_tag(fdc_id, recipe_id, fmt="txt", inline=True)
+        lines.append(f"  {name_tagged:<30}  {amt:>8}  {prot:>8}  {coeff:>13}  {lim:<18}  {dig:>7}")
     if meal_result and meal_result.get("diaas") is not None:
         dcp = meal_result.get("digestible_complete_protein_g") or 0.0
         limiting = meal_result.get("limiting_label") or ""
@@ -374,8 +428,9 @@ def _render_recipe_bioavailability_md(
     lines = ["## Bioavailability — per serving", ""]
     lines.append("| Ingredient | Amount | Protein | Digestibility | Limiting IAA | Digestible |")
     lines.append("|:-----------|-------:|--------:|--------------:|:-------------|----------:|")
-    for name, amt, prot, coeff, lim, dig in rows:
-        lines.append(f"| {name} | {amt} | {prot} | {coeff} | {lim} | {dig} |")
+    for name, amt, prot, coeff, lim, dig, fdc_id, recipe_id in rows:
+        name_tagged = name + _food_id_tag(fdc_id, recipe_id, fmt="md")
+        lines.append(f"| {name_tagged} | {amt} | {prot} | {coeff} | {lim} | {dig} |")
     lines.append("")
     if meal_result and meal_result.get("diaas") is not None:
         dcp = meal_result.get("digestible_complete_protein_g") or 0.0
@@ -397,9 +452,10 @@ def _render_recipe_bioavailability_html(
     header = ("Ingredient", "Amount", "Protein", "Digestibility", "Limiting IAA", "Digestible")
     th = "".join(f"<th>{h}</th>" for h in header)
     body_rows = []
-    for name, amt, prot, coeff, lim, dig in rows:
+    for name, amt, prot, coeff, lim, dig, fdc_id, recipe_id in rows:
+        name_tagged = name + _food_id_tag(fdc_id, recipe_id, fmt="html")
         body_rows.append(
-            f"    <tr><td>{name}</td><td>{amt}</td><td>{prot}</td>"
+            f"    <tr><td>{name_tagged}</td><td>{amt}</td><td>{prot}</td>"
             f"<td>{coeff}</td><td>{lim}</td><td>{dig}</td></tr>"
         )
     if meal_result and meal_result.get("diaas") is not None:
@@ -455,7 +511,8 @@ def _render_complement_suggestions_txt(nutrients: dict[str, float],
 
     for i, s in enumerate(general_suggs[:5], 1):
         diaas_str = f"  (DIAAS {s['diaas']:.2f})" if s.get("diaas") else ""
-        lines.append(f"  Option {i}: {s['name']}{diaas_str}")
+        id_tag = _food_id_tag(s.get("fdc_id"), s.get("recipe_id"), fmt="txt")
+        lines.append(f"  Option {i}: {s['name']}{id_tag}{diaas_str}")
         lines.append(f"    Add: {s['grams']}g")
         score_parts = []
         for aa, orig_score, _ in gaps[:3]:
@@ -498,7 +555,8 @@ def _render_complement_suggestions_md(nutrients: dict[str, float],
 
     for i, s in enumerate(general_suggs[:5], 1):
         diaas_str = f"  *(DIAAS {s['diaas']:.2f})*" if s.get("diaas") else ""
-        lines.append(f"### Option {i}: {s['name']}{diaas_str}")
+        id_tag = _food_id_tag(s.get("fdc_id"), s.get("recipe_id"), fmt="md")
+        lines.append(f"### Option {i}: {s['name']}{id_tag}{diaas_str}")
         lines.append(f"- **Add:** {s['grams']}g")
         score_parts = []
         for aa, orig_score, _ in gaps[:3]:
@@ -544,6 +602,7 @@ def _render_complement_suggestions_html(nutrients: dict[str, float],
 
     for i, s in enumerate(general_suggs[:5], 1):
         diaas_str = f" <em>(DIAAS {s['diaas']:.2f})</em>" if s.get("diaas") else ""
+        id_tag = _food_id_tag(s.get("fdc_id"), s.get("recipe_id"), fmt="html")
         score_parts = []
         for aa, orig_score, _ in gaps[:3]:
             new_score = s["new_scores"].get(aa, orig_score)
@@ -554,7 +613,7 @@ def _render_complement_suggestions_html(nutrients: dict[str, float],
         total_dig = base_digestible + dig
         lines.append(
             f'<div class="complement-option">'
-            f"<h3>Option {i}: {s['name']}{diaas_str}</h3>"
+            f"<h3>Option {i}: {s['name']}{id_tag}{diaas_str}</h3>"
             f"<ul>"
             f"<li><strong>Add:</strong> {s['grams']}g</li>"
             f"<li><strong>Effect:</strong> {' · '.join(score_parts)}</li>"
@@ -600,7 +659,8 @@ def _render_recipe_card_txt(title: str, description: str, servings: int,
     lines += ["", "INGREDIENTS", "-" * 12]
     for item in items:
         note = f"  ({item['notes']})" if item.get("notes") else ""
-        lines.append(f"  • {item['amount_display']}  {item['food_name']}{note}")
+        id_tag = _food_id_tag(item.get("fdc_id"), item.get("recipe_id"), fmt="txt")
+        lines.append(f"  • {item['amount_display']}  {item['food_name']}{id_tag}{note}")
     lines += ["", "PROCEDURE", "-" * 9]
     lines.append(procedure.strip() if procedure and procedure.strip() else "(none given)")
     return "\n".join(lines)
@@ -620,7 +680,8 @@ def _render_recipe_card_md(title: str, description: str, servings: int,
     lines += ["", "## Ingredients", ""]
     for item in items:
         note = f"  *({item['notes']})*" if item.get("notes") else ""
-        lines.append(f"- {item['amount_display']}  {item['food_name']}{note}")
+        id_tag = _food_id_tag(item.get("fdc_id"), item.get("recipe_id"), fmt="md")
+        lines.append(f"- {item['amount_display']}  {item['food_name']}{id_tag}{note}")
     lines += ["", "## Procedure", ""]
     lines.append(procedure.strip() if procedure and procedure.strip() else "*(none given)*")
     return "\n".join(lines)
@@ -640,7 +701,8 @@ def _render_recipe_card_html(title: str, description: str, servings: int,
     lines.append("<h2>Ingredients</h2><ul>")
     for item in items:
         note = f" <em>({item['notes']})</em>" if item.get("notes") else ""
-        lines.append(f"  <li>{item['amount_display']}  {item['food_name']}{note}</li>")
+        id_tag = _food_id_tag(item.get("fdc_id"), item.get("recipe_id"), fmt="html")
+        lines.append(f"  <li>{item['amount_display']}  {item['food_name']}{id_tag}{note}</li>")
     lines.append("</ul>")
     lines.append("<h2>Procedure</h2>")
     proc = procedure.strip() if procedure and procedure.strip() else None
@@ -716,10 +778,11 @@ def _render_recipe_nutrition_brief_html(nutrients: dict[str, float],
 _RENDERERS = {
     "txt": {
         "nutrient_table":              lambda s: _render_nutrient_table_txt(
-                                           s["title"], s["nutrients"], s.get("per_label", "")),
+                                           s["title"], s["nutrients"], s.get("per_label", ""),
+                                           s.get("fdc_id"), s.get("recipe_id")),
         "protein_completeness":        lambda s: _render_protein_completeness_txt(s["nutrients"]),
         "bioavailability":             lambda s: _render_bioavailability_txt(
-                                           s["food_name"], s["nutrients"]),
+                                           s["food_name"], s["nutrients"], s.get("fdc_id"), s.get("recipe_id")),
         "ingredient_list":             lambda s: _render_ingredient_list_txt(
                                            s["title"], s["items"]),
         "recipe_bioavailability":      lambda s: _render_recipe_bioavailability_txt(
@@ -734,10 +797,11 @@ _RENDERERS = {
     },
     "md": {
         "nutrient_table":              lambda s: _render_nutrient_table_md(
-                                           s["title"], s["nutrients"], s.get("per_label", "")),
+                                           s["title"], s["nutrients"], s.get("per_label", ""),
+                                           s.get("fdc_id"), s.get("recipe_id")),
         "protein_completeness":        lambda s: _render_protein_completeness_md(s["nutrients"]),
         "bioavailability":             lambda s: _render_bioavailability_md(
-                                           s["food_name"], s["nutrients"]),
+                                           s["food_name"], s["nutrients"], s.get("fdc_id"), s.get("recipe_id")),
         "ingredient_list":             lambda s: _render_ingredient_list_md(
                                            s["title"], s["items"]),
         "recipe_bioavailability":      lambda s: _render_recipe_bioavailability_md(
@@ -752,10 +816,11 @@ _RENDERERS = {
     },
     "html": {
         "nutrient_table":              lambda s: _render_nutrient_table_html(
-                                           s["title"], s["nutrients"], s.get("per_label", "")),
+                                           s["title"], s["nutrients"], s.get("per_label", ""),
+                                           s.get("fdc_id"), s.get("recipe_id")),
         "protein_completeness":        lambda s: _render_protein_completeness_html(s["nutrients"]),
         "bioavailability":             lambda s: _render_bioavailability_html(
-                                           s["food_name"], s["nutrients"]),
+                                           s["food_name"], s["nutrients"], s.get("fdc_id"), s.get("recipe_id")),
         "ingredient_list":             lambda s: _render_ingredient_list_html(
                                            s["title"], s["items"]),
         "recipe_bioavailability":      lambda s: _render_recipe_bioavailability_html(

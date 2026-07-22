@@ -77,6 +77,71 @@ NUTRIENT_MAP: dict[int, tuple[str, str, str]] = {
     1221: ("aa_histidine_g",    "Histidine",          "g"),
 }
 
+# USDA's food/{fdcId} detail endpoint 404s for a subset of otherwise-valid,
+# searchable FDC records (a USDA API bug, confirmed against several Foundation
+# foods — not predictable from dataType or ID range). get_food_detail() retries
+# those with format=abridged, which works for the same records but reports
+# nutrients under a completely different "nutrient number" scheme (e.g. "501"
+# for Tryptophan) than the nutrient.id scheme NUTRIENT_MAP is keyed on (1210
+# for Tryptophan) — the two ID spaces are unrelated and must not be conflated.
+# Values below were confirmed empirically against live abridged responses.
+NUTRIENT_NUMBER_MAP: dict[str, str] = {
+    "208": "calories",
+    "203": "protein_g",
+    "205": "carbs_g",
+    "204": "fat_g",
+    "291": "fiber_g",
+    "269.3": "sugar_g",
+    "606": "saturated_fat_g",
+    "645": "mono_fat_g",
+    "646": "poly_fat_g",
+    "851": "omega3_ala_mg",
+    "629": "omega3_epa_mg",
+    "621": "omega3_dha_mg",
+    "675": "omega6_la_mg",
+    "301": "calcium_mg",
+    "303": "iron_mg",
+    "304": "magnesium_mg",
+    "305": "phosphorus_mg",
+    "306": "potassium_mg",
+    "307": "sodium_mg",
+    "309": "zinc_mg",
+    "314": "iodine_mcg",
+    "317": "selenium_mcg",
+    "320": "vitamin_a_mcg",
+    "401": "vitamin_c_mg",
+    "328": "vitamin_d_mcg",
+    "323": "vitamin_e_mg",
+    "430": "vitamin_k_mcg",
+    "404": "thiamin_mg",
+    "405": "riboflavin_mg",
+    "406": "niacin_mg",
+    "415": "b6_mg",
+    "417": "folate_mcg",
+    "418": "b12_mcg",
+    "321": "beta_carotene_mcg",
+    "322": "alpha_carotene_mcg",
+    "337": "lycopene_mcg",
+    "338": "lutein_zeaxanthin_mcg",
+    "421": "choline_mg",
+    # Amino acids
+    "501": "aa_tryptophan_g",
+    "502": "aa_threonine_g",
+    "503": "aa_isoleucine_g",
+    "504": "aa_leucine_g",
+    "505": "aa_lysine_g",
+    "506": "aa_methionine_g",
+    "526": "aa_cystine_g",       # reported as "Cysteine" in this scheme
+    "508": "aa_phenylalanine_g",
+    "509": "aa_tyrosine_g",
+    "510": "aa_valine_g",
+    "512": "aa_histidine_g",
+    # beta_sitosterol_mg / isoflavones_mg have no confirmed number-scheme
+    # equivalent (not present as single summed values in sampled abridged
+    # responses) — left unmapped; harmless since these foods are otherwise
+    # totally inaccessible today.
+}
+
 # Essential amino acids (those humans cannot synthesize)
 ESSENTIAL_AMINO_ACIDS = [
     "aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
@@ -237,8 +302,17 @@ def get_food_detail(fdc_id: int) -> dict:
     Fetch full nutrient detail for one food. Returns a normalized dict with:
         fdcId, name, dataType, brand, servingSize, servingUnit,
         householdServing, nutrients (our key → value mapping)
+
+    A subset of valid, searchable FDC records 404 on this default (full)
+    endpoint — a USDA API bug, confirmed against several Foundation foods.
+    When that happens, retry with format=abridged, which works for the same
+    records and still carries full nutrient data including amino acids (see
+    NUTRIENT_NUMBER_MAP for why that response needs separate parsing).
     """
-    data = _get(f"food/{fdc_id}", {})
+    try:
+        data = _get(f"food/{fdc_id}", {})
+    except USDAError:
+        data = _get(f"food/{fdc_id}", {"format": "abridged"})
     return _parse_food(data)
 
 
@@ -255,35 +329,33 @@ def _parse_food(data: dict) -> dict:
 
     nutrients: dict[str, float] = {}
 
-    # USDA returns nutrients as a list of objects; key format varies by endpoint
+    # USDA returns nutrients as a list of objects; key format varies by endpoint.
+    # The detailed/full endpoint nests nutrient.id (NUTRIENT_MAP); the abridged
+    # endpoint instead gives a "number" string in a completely different ID
+    # space (NUTRIENT_NUMBER_MAP) — these must not be conflated (see its docstring).
+    _OMEGA_IDS = {1404, 1278, 1272, 1269}
+    _OMEGA_KEYS = {"omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"}
     raw_nutrients = data.get("foodNutrients", [])
     for item in raw_nutrients:
-        # abridged endpoint uses "number" (string) as the nutrient ID
-        nutrient_id = None
-        if "nutrient" in item:
-            # detailed endpoint
-            nutrient_id = item["nutrient"].get("id")
-        elif "nutrientId" in item:
-            nutrient_id = item["nutrientId"]
-        elif "number" in item:
-            try:
-                nutrient_id = int(item["number"])
-            except (ValueError, TypeError):
-                pass
-
-        if nutrient_id is None:
-            continue
-
         value = item.get("value") or item.get("amount")
         if value is None:
             continue
+        val = float(value)
 
-        if nutrient_id in NUTRIENT_MAP:
-            key = NUTRIENT_MAP[nutrient_id][0]
-            val = float(value)
-            # USDA reports omega fatty acids in g; store in mg to match display units
-            if nutrient_id in {1404, 1278, 1272, 1269}:
+        key = None
+        if "nutrient" in item or "nutrientId" in item:
+            nid = item["nutrient"].get("id") if "nutrient" in item else item["nutrientId"]
+            if nid in NUTRIENT_MAP:
+                key = NUTRIENT_MAP[nid][0]
+                # USDA reports omega fatty acids in g; store in mg to match display units
+                if nid in _OMEGA_IDS:
+                    val *= 1000
+        elif "number" in item:
+            key = NUTRIENT_NUMBER_MAP.get(item["number"])
+            if key in _OMEGA_KEYS:
                 val *= 1000
+
+        if key:
             nutrients[key] = val
 
     portions = []

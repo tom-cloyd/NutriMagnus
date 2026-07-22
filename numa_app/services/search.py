@@ -13,7 +13,7 @@ import db as _db
 import usda as _usda
 import openfoodfacts as _off
 from .. import state
-from ..ui.common import _id_cell, ID_KEY, table_title, help_footer
+from ..ui.common import _id_cell, ID_KEY, table_title, help_footer, food_id_tag
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _hint
 
 
@@ -401,6 +401,9 @@ def _search_and_pick_food(
     if not _ensure_api_key():
         return None
 
+    with _db.get_db() as conn:
+        _pantry_ids = {r["fdc_id"] for r in _db.pantry_list(conn) if r["fdc_id"]}
+
     query: str | None = initial_query
     full_search: bool = False  # set True only when user types 'a ' prefix
     _instant_recipes_offered = False  # fire once per call, not on re-searches
@@ -587,10 +590,11 @@ def _search_and_pick_food(
             # restricted (e.g. Foundation only), filter by type so off-type cached
             # foods aren't offered. Incomplete entries (null portions_json) are shown
             # too — they trigger a USDA refetch on selection.
-            _complete_cache = [
-                r for r in cache_results
-                if (data_types is None or r.get("dataType") in data_types)
-            ]
+            _complete_cache = sorted(
+                (r for r in cache_results
+                 if (data_types is None or r.get("dataType") in data_types)),
+                key=lambda r: r.get("fdcId") not in _pantry_ids,  # pantry items first
+            )
 
             _bg_results: list[dict] = []
             _bg_exc: list[Exception] = []
@@ -670,7 +674,7 @@ def _search_and_pick_food(
                         _dcp_hint = f"  [grey62]DCP ✓[/grey62]" if _rr["dcp_g"] is not None else ""
                         state.console.print(
                             f"    [{state.T['accent']}]R{_ri}.[/{state.T['accent']}]"
-                            f" [bold]{_rr['name']}[/bold]{_dcp_hint}",
+                            f" [bold]{_rr['name']}[/bold]{food_id_tag(None, recipe_id=_rr['id'])}{_dcp_hint}",
                             highlight=False,
                         )
                     state.console.print(
@@ -907,6 +911,7 @@ def _search_and_pick_food(
 
         if brand_in_query:
             results = sorted(deduped, key=lambda f: (
+                f.get("fdcId") not in _pantry_ids,
                 not f.get("_from_cache"),
                 not _ann_has_data(f),
                 -_word_score(f),
@@ -914,6 +919,7 @@ def _search_and_pick_food(
             ))
         else:
             results = sorted(deduped, key=lambda f: (
+                f.get("fdcId") not in _pantry_ids,
                 not f.get("_from_cache"),
                 not _ann_has_data(f),
                 _data_tier(f),
@@ -941,7 +947,7 @@ def _search_and_pick_food(
             aa_cell = (f"[{state.T['success']}]✓[/{state.T['success']}]"
                        if r["dcp_g"] is not None
                        else "[grey62]—[/grey62]")
-            row = [f"R{i}", aa_cell, "", "", "", "", _srch_cell(r["name"]), "Recipe", _brand_cell("")]
+            row = [f"R{i}", aa_cell, "", "", "", _id_cell(r["id"]), _srch_cell(r["name"]), "Recipe", _brand_cell("")]
             tbl.add_row(*row)
 
         branded_count = 0

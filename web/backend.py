@@ -33,6 +33,7 @@ from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
 from numa_app.services.rda_status import rda_status, limit_warning
 from numa_app.services.diet_aware import b12_deficiency_note, iron_zinc_bioavailability_note
 from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
+from numa_app.services import recipe_dcp as _recipe_dcp
 
 _WEB_DIR    = Path(__file__).parent
 _MANUAL     = _WEB_DIR.parent / "user-manual.html"
@@ -229,7 +230,7 @@ def _resolve_bool_pref(value: bool | None, pref_key: str, default: bool = False)
     return value
 
 
-_SEARCH_CATEGORY_RANK = {"pantry": 0, "recipe": 1, "cache": 2, "usda": 3, "off": 3}
+_SEARCH_CATEGORY_RANK = {"pantry": 0, "cache": 1, "recipe": 2, "usda": 2, "off": 2}
 _SEARCH_SORT_MODES = {"grouped", "relevance"}
 
 
@@ -295,6 +296,18 @@ def _manual_link(anchor: str, text: str = "Learn more") -> str:
     )
 
 templates.env.globals["manual_link"] = _manual_link
+
+def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
+    """Render the '(#id, SOURCE)' annotation shown on its own line under a food/recipe name."""
+    from markupsafe import Markup, escape
+    from numa_app.ui.common import classify_food_id
+    classified = classify_food_id(fdc_id, recipe_id)
+    if classified is None:
+        return ""
+    id_str, source = classified
+    return Markup(f'<span class="food-id-tag">(#{escape(id_str)}, {escape(source)})</span>')
+
+templates.env.globals["food_id_tag"] = _food_id_tag
 
 # ---------------------------------------------------------------------------
 # Nutrient display groups (ordered for presentation)
@@ -733,8 +746,22 @@ def _food_complement_section(food_name: str, nutrients: dict) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    diet_pref = _current_diet_pref()
+    diet_label = _DIET_LABELS.get(diet_pref, diet_pref)
+    profile = _profile.load_profile()
+    profile_label = None
+    if profile:
+        profile_label = (
+            f"{profile.name} — age {profile.age}, {profile.sex}, "
+            f"{_profile.format_weight(profile.weight_kg, profile.weight_unit)}, "
+            f"{_profile.format_height(profile.height_cm, profile.height_unit)}, "
+            f"{_profile.ACTIVITY_LABELS.get(profile.activity_level, profile.activity_level)}"
+        )
     return templates.TemplateResponse(
-        request, "home.html", {"home_body": _render_home_md(), "version": VERSION}
+        request, "home.html", {
+            "home_body": _render_home_md(), "version": VERSION,
+            "diet_label": diet_label, "profile_label": profile_label,
+        }
     )
 
 
@@ -744,7 +771,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
     query = query.strip()
     results = []
     error = None
-    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
 
     if query:
         query_words = query.lower().split()
@@ -818,7 +845,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
 async def food_search_get(request: Request, query: str = Query(default=""), sort: str | None = None):
     if query.strip():
         return await _search_logic(request, query, "search.html", sort=sort)
-    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
     return templates.TemplateResponse(request, "search.html", {"results": [], "query": "", "sort": sort})
 
 
@@ -887,9 +914,11 @@ async def food_analyze_recipe_portion_post(
             else:
                 amt_str = ing["unit"] or f"{ing['amount']:g} g"
             display_ingredients.append({
-                "food_name":  ing["food_name"],
-                "amount_str": amt_str,
-                "notes":      ing["notes"] or "",
+                "food_name":      ing["food_name"],
+                "amount_str":     amt_str,
+                "notes":          ing["notes"] or "",
+                "fdc_id":         ing["fdc_id"],
+                "ref_recipe_id":  ing["ref_recipe_id"],
             })
             if not ing["fdc_id"]:
                 continue
@@ -944,6 +973,7 @@ async def food_convert_get(request: Request, q: str = ""):
         q = q.strip()
         with _db.get_db() as conn:
             cached = _db.search_cached_foods(conn, q)
+            pantry_ids = _pantry_fdc_ids(conn)
         seen: set[int] = set()
         for row in cached:
             seen.add(row["fdc_id"])
@@ -952,7 +982,7 @@ async def food_convert_get(request: Request, q: str = ""):
                 "name":        row["name"],
                 "data_type":   row["data_type"],
                 "brand":       row["brand"] or "",
-                "source":      "cache",
+                "source":      "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 "convert_url": f"/food/convert/{row['fdc_id']}",
             })
         try:
@@ -985,6 +1015,7 @@ async def food_convert_get(request: Request, q: str = ""):
                     "source":      "recipe",
                     "convert_url": f"/food/convert/recipe/{r['id']}",
                 })
+        search_results = _sort_search_results(search_results, q, "grouped")
     return templates.TemplateResponse(request, "food_convert.html", {
         "query":          q,
         "search_results": search_results,
@@ -1293,6 +1324,7 @@ async def food_compare_get(
     if search:
         with _db.get_db() as conn:
             cached = _db.search_cached_foods(conn, search)
+            pantry_ids = _pantry_fdc_ids(conn)
         seen: set[int] = set(id_list)  # exclude already-added foods
         for row in cached:
             if row["fdc_id"] not in seen:
@@ -1302,7 +1334,7 @@ async def food_compare_get(
                     "name":      row["name"],
                     "data_type": row["data_type"],
                     "brand":     row["brand"] or "",
-                    "source":    "cache",
+                    "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 })
         try:
             for food in _usda.search_foods(search):
@@ -1319,6 +1351,7 @@ async def food_compare_get(
         except Exception as exc:
             if not search_results:
                 search_error = f"USDA API unavailable: {exc}"
+        search_results = _sort_search_results(search_results, search, "grouped")
 
     with _db.get_db() as conn:
         saved_lists = _db.saved_comparison_list(conn)
@@ -1733,6 +1766,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
     search_results: list[dict] = []
     search_error: str | None = None
     if search:
+        pantry_ids = {i["fdc_id"] for i in items if i["fdc_id"]}
         with _db.get_db() as conn:
             cached = _db.search_cached_foods(conn, search)
         seen: set[int] = set()
@@ -1746,7 +1780,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
                 "name":      row["name"],
                 "data_type": row["data_type"] or "",
                 "brand":     row["brand"] or "",
-                "source":    "cache",
+                "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 "off_code":  "",
                 "aa":        "✓" if _usda.has_amino_acid_data(nuts) else "✗",
             })
@@ -1785,6 +1819,8 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
                     })
         except Exception:
             pass
+
+        search_results = _sort_search_results(search_results, search, "grouped")
 
     link_name = next((i["food_name"] for i in items if i["id"] == link_id), None) if link_id else None
 
@@ -2747,7 +2783,7 @@ async def meal_refresh_aa(meal_id: int):
 
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
 async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None):
-    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
         if not meal:
@@ -3021,7 +3057,7 @@ async def meal_add_food(
             if _off.is_off_id(fdc_id) and off_code:
                 detail = _off.lookup_by_barcode(off_code)
                 if not detail:
-                    return _redirect()
+                    return _redirect(error=f'Could not look up "{food_name or fdc_id}" on Open Food Facts.')
             else:
                 detail = _usda.get_food_detail(fdc_id)
             with _db.get_db() as conn:
@@ -3035,8 +3071,8 @@ async def meal_add_food(
             food_name = food_name or detail["name"]
             with _db.get_db() as conn:
                 cached = _db.get_cached_food(conn, fdc_id)
-        except Exception:
-            return _redirect()
+        except Exception as e:
+            return _redirect(error=f'Could not fetch details for "{food_name or fdc_id}": {e}')
 
     name = food_name or (cached["name"] if cached else "Unknown food")
     portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
@@ -3142,6 +3178,13 @@ async def meal_delete_post(meal_id: int):
     with _db.get_db() as conn:
         _db.meal_delete(conn, meal_id)
     return RedirectResponse("/meals", status_code=303)
+
+
+@app.post("/meals/delete-day", response_class=RedirectResponse)
+async def meals_delete_day_post(meal_date: str = Form(...), redirect_to: str = Form("/meals")):
+    with _db.get_db() as conn:
+        _db.meal_delete_by_date(conn, meal_date)
+    return RedirectResponse(redirect_to, status_code=303)
 
 
 @app.post("/meal/{meal_id}/update/{item_id}", response_class=RedirectResponse)
@@ -3511,29 +3554,18 @@ async def settings_nutrient_target_load_defaults():
 
 @app.post("/recipes/compute-bcp", response_class=RedirectResponse)
 async def recipes_compute_bcp(redirect_to: str = Form("/recipes")):
-    """Recompute and persist DCP/serving for all complete recipes."""
+    """Recompute and persist DCP/serving for every recipe with resolvable data.
+
+    Recipes missing amino acid data on a significant ingredient, or with 0
+    servings, are left as NC — that reflects a real data gap, not a bug."""
     with _db.get_db() as conn:
         all_recipes = [dict(r) for r in _db.recipe_list_recent(conn, limit=10000)]
-    now_utc = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     for recipe in all_recipes:
-        if not recipe["complete"]:
-            continue
-        rid = recipe["id"]
         with _db.get_db() as conn:
-            diaas_ings = _flatten_recipe_diaas_ingredients(rid, conn, 1.0)
-            diaas_result = None
-            if diaas_ings:
-                try:
-                    diaas_result = _diaas.meal_level_diaas(diaas_ings, conn)
-                except Exception:
-                    pass
-        dcp_g = None
-        if diaas_result and diaas_result.get("diaas") is not None:
-            raw = diaas_result.get("digestible_complete_protein_g")
-            if raw is not None:
-                dcp_g = round(raw, 2)
-        with _db.get_db() as conn:
-            _db.recipe_set_dcp(conn, rid, dcp_g, now_utc if dcp_g is not None else None)
+            try:
+                _recipe_dcp.recompute_recipe_dcp(recipe["id"], conn)
+            except Exception:
+                pass
     return RedirectResponse(redirect_to, status_code=303)
 
 
@@ -3733,6 +3765,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
     if q:
         with _db.get_db() as conn:
             cached = _db.search_cached_foods(conn, q)
+            pantry_ids = _pantry_fdc_ids(conn)
         seen: set[int] = set()
         for row in cached:
             seen.add(row["fdc_id"])
@@ -3742,7 +3775,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 "name":      row["name"],
                 "data_type": row["data_type"],
                 "brand":     row["brand"] or "",
-                "source":    "cache",
+                "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 "portions":  portions,
             })
         try:
@@ -3760,6 +3793,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                     })
         except Exception:
             pass
+        search_results = _sort_search_results(search_results, q, "grouped")
 
     return templates.TemplateResponse(request, "recipe_edit.html", {
         "recipe":             dict(recipe),
@@ -3804,6 +3838,7 @@ async def recipe_edit_post(
             total_weight=tw, total_weight_unit=total_weight_unit if tw else None,
             complete=bool(complete),
         )
+        _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return RedirectResponse(f"/recipe/{recipe_id}/edit?saved=1", status_code=303)
 
 
@@ -3855,6 +3890,7 @@ async def recipe_copy_post(recipe_id: int):
                 ref_recipe_id=ing["ref_recipe_id"],
                 ref_recipe_deleted=bool(ing["ref_recipe_deleted"]),
             )
+        _recipe_dcp.recompute_recipe_dcp(new_id, conn)
     return RedirectResponse(f"/recipe/{new_id}/edit", status_code=303)
 
 
@@ -3905,6 +3941,7 @@ async def recipe_ingredient_add(
     with _db.get_db() as conn:
         _db.recipe_add_ingredient(conn, recipe_id, fdc_id, name, grams, msg,
                                    notes.strip() or None)
+        _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return _redirect()
 
 
@@ -3912,6 +3949,7 @@ async def recipe_ingredient_add(
 async def recipe_ingredient_remove(recipe_id: int, ing_id: int):
     with _db.get_db() as conn:
         _db.recipe_remove_ingredient(conn, ing_id)
+        _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
 
 
@@ -3955,6 +3993,7 @@ async def recipe_ingredient_edit(
     with _db.get_db() as conn:
         _db.recipe_update_ingredient(conn, ing_id, grams, label,
                                       food_name.strip(), notes.strip() or None)
+        _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return _redirect()
 
 
@@ -4242,7 +4281,7 @@ async def analysis_food_use(
                 seen.add(key)
                 entry = agg.setdefault(key, {
                     "name": name, "fdc_id": fdc_id, "kind": kind, "has_protein": has_protein,
-                    "deleted": deleted, "meal_ids": set(), "days": set(),
+                    "deleted": deleted, "recipe_id": recipe_id, "meal_ids": set(), "days": set(),
                 })
                 entry["meal_ids"].add(meal_id)
                 entry["days"].add(meal["meal_date"])
@@ -4259,13 +4298,14 @@ async def analysis_food_use(
     rows_sorted = sorted(rows_all, key=sort_keys.get(sort, sort_keys["frequency"]))
     max_days = len(rows_sorted[0]["days"]) if rows_sorted else 0
     result_rows = [{
-        "fdc_id":  r["fdc_id"],
-        "name":    r["name"],
-        "kind":    r["kind"],
-        "deleted": r["deleted"],
-        "days":    len(r["days"]),
-        "meals":   len(r["meal_ids"]),
-        "pct":     round(len(r["days"]) / max_days * 100, 0) if max_days else 0,
+        "fdc_id":    r["fdc_id"],
+        "name":      r["name"],
+        "kind":      r["kind"],
+        "deleted":   r["deleted"],
+        "recipe_id": r["recipe_id"],
+        "days":      len(r["days"]),
+        "meals":     len(r["meal_ids"]),
+        "pct":       round(len(r["days"]) / max_days * 100, 0) if max_days else 0,
     } for r in rows_sorted]
 
     return templates.TemplateResponse(request, "analysis_food_use.html", {
