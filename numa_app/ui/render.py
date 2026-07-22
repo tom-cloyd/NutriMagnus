@@ -620,6 +620,11 @@ def _print_meal_diaas(
                 f"  [grey62]This is a problem only if significant protein exists in {food_word}.[/grey62]",
                 highlight=False,
             )
+            if len(result["missing_aa_names"]) > n_missing:
+                state.console.print(
+                    "  [grey62]Foods with no protein are omitted from this list.[/grey62]",
+                    highlight=False,
+                )
 
     if result["estimate_sources"]:
         est_with_protein = [s for s in result["estimate_sources"] if protein_by_name.get(s, 0.0) >= 0.1]

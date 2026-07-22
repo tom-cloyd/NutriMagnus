@@ -583,8 +583,9 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             )
         else:
             # Partial AA gap: some ingredients have AA data, others don't
-            missing_aa_ings = [f"{s['name']}{food_id_tag(s.get('fdc_id'), inline=True)}" for s in ingredient_stats
-                               if not s.get("has_aa") and s.get("protein_g", 0) >= 0.1]
+            no_aa_ings = [s for s in ingredient_stats if not s.get("has_aa")]
+            missing_aa_ings = [f"{s['name']}{food_id_tag(s.get('fdc_id'), inline=True)}" for s in no_aa_ings
+                               if s.get("protein_g", 0) >= 0.1]
             if missing_aa_ings:
                 names_str = ", ".join(missing_aa_ings)
                 state.console.print(
@@ -593,6 +594,11 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                     f"\n    [grey62]{names_str}[/grey62]",
                     highlight=False,
                 )
+                if len(no_aa_ings) > len(missing_aa_ings):
+                    state.console.print(
+                        "  [grey62]Foods with no protein are omitted from this list.[/grey62]",
+                        highlight=False,
+                    )
 
         # Protein adequacy — merged with DCP result and DIAAS explanation (step 5)
         profile = _profile.load_profile()

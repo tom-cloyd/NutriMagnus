@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-21:1838* / Reading 2 hours, 35 minutes
+*Updated 2026-07-22:1129* / Reading 2 hours, 55 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -20,6 +20,18 @@
 
 ---
 
+### Which part of this manual do I need?
+
+Almost everyone using NutriMagnus today opens it in a web browser. If that's you, this manual is organized so you can ignore the command-line material entirely:
+
+- Read **Part 1** (Introduction) and **Part 2** (Core nutrition concepts) — these apply no matter how you use the program.
+- Read **Part 3** (Reading Your Results) whenever you want to know what a column or table means — it's the same reference whether you're looking at the web app or the terminal.
+- Read **Part 4 — Using the Web App** for how to actually operate NutriMagnus.
+- **Skip Part 5 — Using the Command Line.** It documents a separate, developer-oriented way of running the program from a terminal. If you didn't open a terminal to start NutriMagnus, none of Part 5 applies to you.
+- Parts 6 and 7 (Essential resources, Appendices) apply to everyone.
+
+---
+
 ## Part 1 — Introduction to NutriMagnus, a tool for intelligent eating: what you can do with this tool and why it matters
 
 ---
@@ -34,7 +46,7 @@ The five items in the top navigation bar correspond to the five major things you
 - **Analysis** — A growing set of preset analyses. **Daily summary - [DCP](#gloss-dcp) and goals**: combined nutrient totals for today or any past date, compared against personalized [RDA](#gloss-rda) targets, plus a list of recent days with meals. **Food use in meals**: rank which foods were used across a chosen set of date ranges and/or meals, with a frequency histogram.
 - **Settings** — Set your color theme, personal profile (age, sex, weight, height, activity level), dietary preferences, editor command, and advanced options including your [USDA](#gloss-usda) API key and protein digestibility overrides.
 
-**Detailed how-to guides for each menu area follow later in this manual.** For output samples and screenshots, see the [Output samples](#outputSamples) section. If you prefer to learn by example before reading explanations, skip ahead to [Sample Workflows](#sample-workflows) at the end of this introduction — three annotated walkthroughs show the program in action from start to finish.
+**Detailed how-to guides for each menu area follow later in this manual.** For output samples and screenshots, see the [Output samples](#outputSamples) section. If you prefer to learn by example before reading explanations, skip ahead to [Sample Workflows](#sample-workflows) at the end of this introduction — it points you to a set of annotated walkthroughs for whichever version of the program you use.
 
 ### NutriMagnus addresses two serious problems
 
@@ -92,81 +104,14 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 ---
 
-### Sample Workflows {#sample-workflows}
+### Sample Workflows [sample-workflows]
 
-**Three examples showing NutriMagnus in action, end to end.** Each workflow is self-contained. You do not need to read Part 2 (nutrition concepts) or Part 3 (reference) first — terms are briefly explained in place. The three examples are chosen to show progressively richer use of the program's data sources.
+**If you'd prefer to learn by example before reading explanations,** fully worked, step-by-step walkthroughs are provided later in this manual:
 
-**Use this as a tutorial!** With [NuMa](#gloss-numa) open in your browser, work through any of the following workflows step by step, paying close attention to the step instructions and what appears on your screen. You will become familiar with the program quickly doing this.
+- **Using the web app?** See [Sample Workflows](#sample-workflows-web) in Part 4.
+- **Using the command line?** See [Sample Workflows](#sample-workflows-cli) in Part 5.
 
-**How to navigate:** [NuMa](#gloss-numa) has a navigation bar at the top of every page. **Foods** opens a dropdown menu with nine options, and **Analysis** opens a dropdown with the Daily summary and Food use in meals pages. **Recipes**, **Meals & Log**, and **Settings** are single-click links. Clicking the NutriMagnus logo at the far left always returns you to the home page.
-
----
-
-#### Workflow 1 — Looking up a single food and finding its protein gaps
-
-**What this shows:** how to search for a food, read its nutrient profile, and get automatic protein complement suggestions drawn from the built-in protein source list.
-
-**Step 1 — Open the Foods menu.** Click **Foods** in the top navigation bar. A dropdown appears with nine numbered items.
-
-**Step 2 — Search for a food.** Click **2. Analyze a food portion**. A search box appears. Type `brown rice cooked` and click **Search**. [NuMa](#gloss-numa) queries [USDA](#gloss-usda) FoodData Central and returns a ranked list of matches. Click the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
-
-**Step 3 — Choose a portion.** The food detail page opens. Near the top you will see a portion input field. Type `1 cup` (or select it from the named portions dropdown if it appears) and click **Recalculate nutrients**.
-
-**Step 4 — Read the nutrient table.** The page now shows the full nutrient profile scaled to your chosen portion. Click the **Nutritional Analysis** section header to expand it — you will see macronutrients, minerals, vitamins, and amino acids.
-
-**Step 5 — Read the protein quality section.** Click **Protein Quality** to expand it. [NuMa](#gloss-numa) shows a per-amino-acid score table. Brown rice is low in lysine — its lysine score will be well below 1.0 (the [FAO](#gloss-fao) reference floor). This is the [limiting amino acid](#gloss-limiting-amino-acid).
-
-**Step 6 — Read the complement suggestions.** Click **Complement Suggestions** to expand it. Because a gap exists, [NuMa](#gloss-numa) shows foods that can close it. The header line tells you what was considered — for example:
-
-    Considered: built-in list of ~30 common protein sources.
-
-(If you have pantry items or analyzed recipes, they appear here too.) The suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
-
-**What you learned:** [NuMa](#gloss-numa) can tell you BOTH what is in a food AND what is missing — and exactly what to add to fix it.
-
----
-
-#### Workflow 2 — Analyzing a meal with pantry items as complement candidates
-
-**What this shows:** how recording your own protein sources in the Pantry makes complement suggestions personal and practical, drawing on foods you actually have.
-
-**Step 1 — Add a food to your Pantry.** Click **Foods** in the navigation bar, then click **7. [My Pantry](#gloss-my-pantry)**. On the Pantry page, type `hemp seeds` in the Food name field and click **Add to pantry**. [NuMa](#gloss-numa) searches for the food and saves it. This takes about thirty seconds.
-
-**Step 2 — Create a meal.** Click **Meals & Log** in the navigation bar. Click **New meal** and give it a name (e.g., "Lunch today"). The meal page opens with a search box. Type `brown rice cooked`, click **Search**, then click the matching food and enter `1 cup` as the portion. Repeat with `black beans cooked` at `½ cup`. Both foods now appear in the meal's item list.
-
-**Step 3 — View the meal's nutrition analysis.** Scroll down on the meal page. The **Nutritional Analysis**, **Protein Analysis ([DIAAS](#gloss-diaas))**, and **Complement Suggestions** sections are collapsed by default — click each header to expand it. [NuMa](#gloss-numa) aggregates the nutrients across both foods and shows a combined profile.
-
-**Step 4 — Read the protein analysis section.** Rice and beans together improve each other's amino acid profile significantly — this is protein complementarity in action. The combined score will be higher than either food alone.
-
-**Step 5 — Read the complement suggestions.** The header now reads something like:
-
-    Considered: 1 pantry item, built-in list of ~30 common protein sources.
-
-Hemp seeds — your pantry item — will appear in the suggestions if they qualify as a gap closer for this particular meal. Because the suggestion is drawn from your pantry, it reflects a food you actually have, not just a theoretical option.
-
-**What you learned:** Building even a small pantry of protein sources you keep on hand transforms complement suggestions from generic advice into a practical shopping and cooking guide.
-
----
-
-#### Workflow 3 — Using an analyzed recipe as a complement candidate
-
-**What this shows:** how recipes you have analyzed become available as complement options for other foods and meals, so [NuMa](#gloss-numa) can suggest "add a serving of your lentil soup" rather than just "add lentils."
-
-**Step 1 — Create and analyze a recipe.** Click **Recipes** in the navigation bar, then click **New recipe**. Give it a name such as "Lentil soup" and fill in the servings count. On the recipe edit page, add ingredients one at a time — for example, lentils (200 g), onion (80 g), garlic (10 g), and vegetable broth (500 g). Click **Save**. The recipe detail page opens; its **Nutritional Analysis** and **[Complete Protein](#gloss-complete-protein) Analysis** sections are computed automatically. Click those section headers to expand them and see the full protein profile and [DCP](#gloss-dcp).
-
-**Step 2 — Look up a food with protein gaps.** Click **Foods** in the navigation bar, then click **2. Analyze a food portion**. Search for `corn tortilla`. Click the result, then enter `46 g` (about 2 tortillas) in the portion field and click **Recalculate nutrients**. Expand **Protein Quality** — corn is low in lysine and tryptophan.
-
-**Step 3 — Read the complement suggestions.** Expand the **Complement Suggestions** section. The header now reads something like:
-
-    Considered: 1 analyzed recipe, built-in list of ~30 common protein sources.
-
-Your lentil soup recipe appears as a candidate. [NuMa](#gloss-numa) shows how many grams of the recipe (and approximately how many servings) would close the gaps in the corn tortillas. The suggestion might read: "Add to food above: 180 g  (0.9 servings)."
-
-**Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen. A fully populated pantry and recipe collection will produce a header like:
-
-    Considered: 6 pantry items, 4 analyzed recipes, built-in list of ~30 common protein sources.
-
-**What you learned:** [NuMa](#gloss-numa)'s suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
+Each set of walkthroughs is self-contained — you don't need to read Part 2 or Part 3 first.
 
 ---
 
@@ -683,37 +628,114 @@ Your [dietary preference](#diet) setting (Settings → Dietary preferences) is u
 
 Both of these are general population guidance based on your stated preference, not personalized medical advice -- if you have a diagnosed deficiency or absorption condition, follow your clinician's specific recommendations instead.
 
+### How NutriMagnus scores meal and recipe protein quality [protein-scoring]
 
-## Part 3 — Using NutriMagnus
-### Installation
+(This section explains the meal-level method. For background on single-food [DIAAS](#gloss-diaas) and how amino acid ratios work, see [Appendix A](#appendix-a).)
 
-#### Windows
+Single-food analysis and meal-level analysis use different methods. For a single food, NutriMagnus computes a [DIAAS](#gloss-diaas) score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the [FAO](#gloss-fao)'s endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
 
-Note: the Windows version is coming soon. When available, installation will be as follows:
+#### Why meals need their own calculation
 
-1. Go to https://codeberg.org/Tom_Cloyd/NutriMagnus/releases/latest
-2. Click **nutrimagnus.exe** to download it
-3. Double-click the downloaded file to launch the program
+A food that is short in one amino acid can be rescued by a companion food that supplies it generously — but only if you account for both foods together. A calculation that scores each food separately and then averages the scores misses this complementarity. The pooled method captures it correctly: amino acids from every ingredient in the meal are counted together before any ratio is computed.
 
-No installation steps are required — the program runs directly from the downloaded file. If Windows displays a security warning ("Windows protected your PC"), click **More info** then **Run anyway**. This warning appears because the program is not yet signed with a commercial certificate; it is safe to proceed.
+#### The method, step by step
 
-#### Linux
+NutriMagnus applies this procedure for each of the nine essential amino acids. For the paired amino acids [Met+Cys](#gloss-met-cys) and [Phe+Tyr](#gloss-phe-tyr), both members of the pair are combined before scoring, following [FAO](#gloss-fao) practice.
 
-1. Go to https://codeberg.org/Tom_Cloyd/NutriMagnus/releases/latest
-2. Click **nutrimagnus** to download it
-3. Open a terminal and navigate to your Downloads folder:
+**For each ingredient in the meal:**
 
-        cd ~/Downloads
+Step 1. Determine the amino acid content in grams for the actual portion eaten. [USDA](#gloss-usda) data is per 100 g; NutriMagnus scales to the weight you entered.
 
-4. Make the file runnable (one-time step):
+Step 2. Multiply each amino acid amount by the food's true [ileal digestibility](#gloss-ileal-digestibility) coefficient — a number between 0 and 1 representing the fraction that actually reaches your bloodstream. The result is the digestible grams of that amino acid from this ingredient.
 
-        chmod +x nutrimagnus
+    Digestible AA (g) = raw AA in portion (g) × digestibility coefficient
 
-5. Launch the program:
+[Digestibility coefficients](#gloss-digestibility-coefficient) come from published literature and are looked up automatically. Eggs and dairy sit near 1.0; whole legumes are typically in the 0.79–0.85 range; most grains and seeds fall between 0.79 and 0.88.
 
-        ./nutrimagnus
+**Then, across all ingredients:**
+
+Step 3. Sum the digestible grams of each essential amino acid across every ingredient. This gives nine pooled totals — one per essential amino acid.
+
+Step 4. For each amino acid, compute the ratio of the pooled digestible total to the [FAO](#gloss-fao) reference requirement for the total protein in the meal:
+
+    Ratio = pooled digestible AA (g) ÷ (FAO reference value × total meal protein in g)
+
+A ratio of 1.0 means the meal exactly meets the [FAO](#gloss-fao) target for that amino acid. A ratio of 0.80 means it supplies 80% of the target — a 20% shortfall.
+
+Step 5. The lowest ratio across all nine essential amino acids is the meal's [DIAAS](#gloss-diaas) score. The amino acid with that lowest ratio is the [limiting amino acid](#gloss-limiting-amino-acid).
+
+#### From DIAAS to digestible complete protein
+
+    Digestible complete protein (g) = total meal protein (g) × min(DIAAS, 1.0)
+
+If a meal contains 40 g of total protein and a [DIAAS](#gloss-diaas) of 0.82, NutriMagnus reports 32.8 g of digestible [complete protein](#gloss-complete-protein). The remaining 7.2 g cannot be efficiently incorporated into tissue — the [limiting amino acid](#gloss-limiting-amino-acid) is exhausted before the rest of the protein can be used.
+
+#### A worked example — two ingredients, two amino acids
+
+To keep the arithmetic readable, only lysine and [Met+Cys](#gloss-met-cys) are shown. The full calculation runs the same steps for all nine essential amino acids.
+
+**The meal:**
+
+    150 g cooked lentils:    13.5 g protein    lysine 0.94 g    Met+Cys 0.25 g    digestibility 0.83
+     50 g pumpkin seeds:     12.3 g protein    lysine 0.49 g    Met+Cys 0.42 g    digestibility 0.85
+
+Lentils are rich in lysine but short in [Met+Cys](#gloss-met-cys). Pumpkin seeds supply more [Met+Cys](#gloss-met-cys). Together they cover each other's gap.
+
+**Steps 1–2 — digestible [AA](#gloss-aa) per ingredient:**
+
+    Lentils:        digestible lysine   = 0.94 × 0.83 = 0.780 g
+                    digestible Met+Cys  = 0.25 × 0.83 = 0.208 g
+
+    Pumpkin seeds:  digestible lysine   = 0.49 × 0.85 = 0.417 g
+                    digestible Met+Cys  = 0.42 × 0.85 = 0.357 g
+
+**Step 3 — pool across ingredients:**
+
+    Pooled lysine   = 0.780 + 0.417 = 1.197 g
+    Pooled Met+Cys  = 0.208 + 0.357 = 0.565 g
+
+**Step 4 — compute ratios (total meal protein = 13.5 + 12.3 = 25.8 g):**
+
+The [FAO](#gloss-fao) reference values are 48 mg of lysine and 23 mg of [Met+Cys](#gloss-met-cys) per gram of protein.
+
+    FAO target for lysine   = 48 ÷ 1000 × 25.8 = 1.238 g
+    FAO target for Met+Cys  = 23 ÷ 1000 × 25.8 = 0.593 g
+
+    Ratio for lysine   = 1.197 ÷ 1.238 = 0.97
+    Ratio for Met+Cys  = 0.565 ÷ 0.593 = 0.95
+
+**Step 5 — [DIAAS](#gloss-diaas) = lowest ratio:**
+
+    DIAAS = 0.95    (Met+Cys is the limiting amino acid)
+
+**Digestible [complete protein](#gloss-complete-protein):**
+
+    25.8 g × 0.95 = 24.5 g digestible complete protein
+
+Neither food alone would produce this result — lentils score poorly on [Met+Cys](#gloss-met-cys) when analyzed individually, but pumpkin seeds supply enough to bring the combined score to 0.95.
+
+#### A note about missing amino acid data
+
+Not every food in the [USDA](#gloss-usda) database has a complete amino acid profile. When an ingredient is missing that data, NutriMagnus runs the meal-level [DIAAS](#gloss-diaas) calculation using only the ingredients for which data exists, and flags the result as an estimate. The digestible [complete protein](#gloss-complete-protein) figure is then computed against only the protein that comes from those data-complete ingredients — so the result remains meaningful rather than artificially inflated.
+
+##### Filling missing AA profiles at analysis time
+
+When a meal contains ingredients without amino acid data, NutriMagnus tells you how many are affected and distinguishes two situations:
+
+- **Inside a recipe**: the ingredient is part of a recipe you logged as a meal item. Fix these by opening the recipe's ingredient editor and replacing or re-fetching the ingredient there.
+- **Standalone meal ingredients**: foods you logged directly to the meal (not inside a recipe). These can be replaced on the spot: NutriMagnus asks whether you want to search for a substitute.
+
+If you say yes, for each affected ingredient the program opens a focused search of [USDA](#gloss-usda) SR Legacy and Foundation foods — the datasets most likely to include full amino acid profiles. The **[AA](#gloss-aa)** column in the results (✓ or ✗) shows at a glance which options have the data you need. Choosing a replacement updates that ingredient for the current analysis. Press Enter to skip an ingredient and leave it excluded from the calculation.
+
+##### Why the first analysis of a meal can be slow
+
+When you analyze a meal for the first time, you may see a "Fetching amino acid data…" message with a brief wait — sometimes several seconds. This is normal. NutriMagnus is going online to download complete amino acid information for each food in the meal that doesn't already have it saved locally. Once downloaded, the data is stored on your computer, so the next time you analyze the same meal it will be fast.
 
 ---
+
+## Part 3 — Reading Your Results
+
+This part explains what the columns, tables, and analysis screens mean. It applies equally whether you're looking at the web app or the command-line version.
 
 ### Getting help [help]
 
@@ -1436,6 +1458,207 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ---
 
+## Part 4 — Using the Web App
+
+This is the part almost everyone needs. NutriMagnus's web app runs in your ordinary browser — there is nothing to install and no command line involved.
+
+### Opening NutriMagnus
+
+Launch NutriMagnus the way it was set up on your computer — a desktop icon, an Applications-menu entry, or a shortcut someone set up for you. It opens automatically in your browser, normally at `http://127.0.0.1:8000`. If the page doesn't load right away, wait a few seconds and reload — the program is still starting up.
+
+### Finding your way around
+
+Every page has the same navigation bar across the top: **NutriMagnus** (takes you home), **Foods**, **Recipes**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
+
+If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual). Turn this on or off in **Settings → Keyboard Shortcuts**.
+
+Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form.
+
+### Sample Workflows [sample-workflows-web]
+
+**Two examples showing NutriMagnus in action, end to end.** Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
+
+**Use this as a tutorial!** With NutriMagnus open in your browser, work through either workflow step by step, paying close attention to what appears on your screen.
+
+---
+
+#### Workflow 1 — Looking up a single food and finding its protein gaps
+
+**What this shows:** how to search for a food, read its nutrient profile, and get automatic protein complement suggestions drawn from the built-in protein source list.
+
+**Step 1 — Open the Foods menu.** Click **Foods** in the top navigation bar. A dropdown appears with nine numbered items.
+
+**Step 2 — Search for a food.** Click **2. Analyze a food portion**. A search box appears. Type `brown rice cooked` and click **Search**. NutriMagnus queries [USDA](#gloss-usda) FoodData Central and returns a ranked list of matches. Click the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
+
+**Step 3 — Choose a portion.** The food detail page opens. Near the top you will see a portion input field. Type `1 cup` (or select it from the named portions dropdown if it appears) and click **Recalculate nutrients**.
+
+**Step 4 — Read the nutrient table.** The page now shows the full nutrient profile scaled to your chosen portion. Click the **Nutritional Analysis** section header to expand it — you will see macronutrients, minerals, vitamins, and amino acids.
+
+**Step 5 — Read the protein quality section.** Click **Protein Quality** to expand it. NutriMagnus shows a per-amino-acid score table. Brown rice is low in lysine — its lysine score will be well below 1.0 (the [FAO](#gloss-fao) reference floor). This is the [limiting amino acid](#gloss-limiting-amino-acid).
+
+**Step 6 — Read the complement suggestions.** Click **Protein Complement Suggestions** to expand it. Because a gap exists, NutriMagnus lists the amino acid(s) you're short on under **Gaps**, then shows foods that can close them under a **Suggestions** heading (or **Other options** if pantry items also qualified — see Step 5 of Workflow 2). Suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
+
+**What you learned:** NutriMagnus can tell you BOTH what is in a food AND what is missing — and exactly what to add to fix it.
+
+---
+
+#### Workflow 2 — Analyzing a meal with pantry items as complement candidates
+
+**What this shows:** how recording your own protein sources in the Pantry makes complement suggestions personal and practical, drawing on foods you actually have.
+
+**Step 1 — Add a food to your Pantry.** Click **Foods** in the navigation bar, then click **7. My Pantry**. On the Pantry page, type `hemp seeds` into the search box under "Add a pantry item — search for full amino acid data" and click **Search**. A results table appears — click **Add to pantry** next to the best match. (The separate "Quick add by name only" box further down the page skips the search and saves just the name, with no nutrient data — use it only when you can't find a match.)
+
+**Step 2 — Create a meal.** Click **Meals & Log** in the navigation bar. Click **New Meal**, give it a name (e.g., "Lunch today"), and a date. The meal page opens with a search box. Type `brown rice cooked`, click **Search**, then click the matching food and enter `1 cup` as the portion. Repeat with `black beans cooked` at `½ cup`. Both foods now appear in the meal's item list.
+
+**Step 3 — View the meal's nutrition analysis.** Scroll down on the meal page. The **Nutritional Analysis**, **Meal-Level Protein Analysis**, and **Protein Complement Suggestions** sections are collapsed by default — click each header to expand it. NutriMagnus aggregates the nutrients across both foods and shows a combined profile.
+
+**Step 4 — Read the protein analysis section.** Rice and beans together improve each other's amino acid profile significantly — this is protein complementarity in action. The combined score will be higher than either food alone.
+
+**Step 5 — Read the complement suggestions.** Because you now have a pantry item, the suggestions are organized into two headings: **From your pantry & recipes** (hemp seeds will appear here if it qualifies as a gap-closer for this meal) and **Other options** (the same built-in list from Workflow 1). Suggestions drawn from your pantry reflect a food you actually have, not just a theoretical option.
+
+**What you learned:** Building even a small pantry of protein sources you keep on hand transforms complement suggestions from generic advice into a practical shopping and cooking guide.
+
+---
+
+#### Workflow 3 — Using an analyzed recipe as a complement candidate
+
+**What this shows:** how recipes you have analyzed become available as complement options for other foods and meals, so NutriMagnus can suggest "add 250 g of your lentil soup" rather than just "add lentils."
+
+**Step 1 — Create and analyze a recipe.** Click **Recipes** in the navigation bar, then click **New recipe**. Give it a name such as "Lentil soup" and fill in the servings count. On the recipe edit page, add ingredients one at a time — for example, lentils (200 g), onion (80 g), garlic (10 g), and vegetable broth (500 g). Save the recipe details, then add each ingredient via the ingredient search box. The recipe detail page shows its Nutritional Analysis and [Complete Protein](#gloss-complete-protein) Analysis, computed automatically. Expand those sections to see the full protein profile and [DCP](#gloss-dcp).
+
+**Step 2 — Look up a food with protein gaps.** Click **Foods** in the navigation bar, then click **2. Analyze a food portion**. Search for `corn tortilla`. Click the result, then enter `46 g` (about 2 tortillas) in the portion field and click **Recalculate nutrients**. Expand **Protein Quality** — corn is low in lysine and tryptophan.
+
+**Step 3 — Read the complement suggestions.** Expand **Protein Complement Suggestions**. Under **From your pantry & recipes**, your lentil soup recipe appears as a candidate, tagged `(#id, Recipe)` next to its name so you can tell it apart from a plain food. NutriMagnus shows how many grams of the recipe would close the gaps in the corn tortillas — for example, "Serve alongside: 180 g."
+
+**Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen — each qualifying recipe or pantry item appears as its own candidate card under **From your pantry & recipes**.
+
+**What you learned:** NutriMagnus's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
+
+---
+
+### Using the Foods menu
+
+#### Search (Foods → Search)
+
+Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12-digit barcode. Results are checked against your local [Food Cache](#gloss-food-cache) and pantry first — a match there appears instantly with no network call — then against [USDA](#gloss-usda) FoodData Central and Open Food Facts. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
+
+#### Analyze a food portion / Analyze a saved recipe portion
+
+Shortcuts into Search that take you straight to entering an amount once you've picked a food or recipe, rather than seeing the per-100g view first.
+
+#### Convert
+
+A pure unit-conversion tool — search for a food, then type any amount (`3 oz`, `1/4 cup`, `150 g`) to see its gram/mL equivalent and the closest named portion size. No nutrient analysis is shown here; use Search for that.
+
+#### Compare
+
+Add up to eight foods (checkboxes in the search results) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
+
+#### Food Cache
+
+Every food NutriMagnus has ever fetched from USDA or Open Food Facts lives here — see the [Food Cache column guide](#cached) in Part 3 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete**. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using.
+
+#### My Pantry
+
+Foods you keep on hand — see [My Pantry](#pantry) in Part 3 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search, or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**).
+
+#### Custom food profiles
+
+Create a food NutriMagnus doesn't already have — a homemade dish, a supplement, or a product with an incomplete database entry. Either start from scratch, or **copy a cached food as a draft** and edit its nutrients from there. See [Entering custom foods and dietary supplements](#custom-foods) below.
+
+#### Annotate
+
+A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](#gloss-diaas) estimate, prep-context notes, or check "don't ask again" for a specific nutrient. NutriMagnus also opens this automatically as a follow-up prompt right after certain actions when data is missing — you can skip it for now or skip it permanently for that food.
+
+### Opening a food's detail page
+
+A food's page shows, in order: **Protein Summary** (DCP), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or SR Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
+
+### Using the Recipes menu
+
+The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted.
+
+- **New recipe** — a short form (name, description, servings, total yield) that drops you straight into editing.
+- **Edit** — a details form plus an ingredients table. Add an ingredient by searching, then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
+- **Detail** — mirrors a food's detail page (Protein Summary, Ingredients, Procedure, Nutritional Analysis, [Complete Protein Analysis](#meal-diaas) with per-ingredient digestibility, Missing AA Profiles, Complement Suggestions, Glycemic Load, Anti-nutrients), plus a servings field to re-analyze at a different batch size. **Print/save recipe** opens a stripped-down, print-friendly version in a new tab.
+
+### Using the Meals & Log menu
+
+The **Meals & Log** page has a **New Meal** form at the top (name + date), filters for date and sort order, a **Search meal history** link for full-text search across everything you've ever logged, and a batch button to calculate DCP and calories for all meals, or just the last 10 or 30 days. The list itself shows each meal's completeness, item count, Meal DCP, Day DCP (combined across all meals on that date), % of your daily goal, and calories.
+
+Open a meal to add foods or recipes (search box at top — for a recipe you can log the whole thing or just individual ingredients), edit or remove items inline, mark the meal complete/incomplete, rename it or change its date, or merge it with other meals logged the same day. Below the item list: [Nutritional Analysis](#nutrients), [Meal-Level Protein Analysis](#meal-diaas) (with a **Refresh from USDA** button if amino acid data needs updating), Missing AA Profiles, Complement Suggestions, Glycemic Load, and Anti-nutrients.
+
+If more than one meal is logged on the same date, **Analyze full day** rolls all of them into one combined analysis — total nutrients, pooled protein quality, and complement suggestions across everything you ate that day.
+
+### Using the Analysis menu
+
+- **Daily summary** — a table of recent days with Day DCP and % of goal; pick a date to see that day's full analysis (same sections as the full-day meal view). From here, follow the **N-day nutrient trend** link to see 7/14/30-day averages — useful for catching a chronic shortfall that a single good or bad day would hide.
+- **Food use in meals** — see how often you've eaten a given food or recipe. Choose either a date range or a specific list of meal IDs, optionally limit results to protein-containing foods, and get a sortable table with a visual frequency bar.
+
+### Using the Settings menu
+
+Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets), **Computed Daily Targets** (read-only, derived from your profile), **Dietary Preferences** (affects complement suggestions and [B12/iron/zinc guidance](#diet-bioavailability)), **Keyboard Shortcuts**, **USDA API Key** (raises the search rate limit well above the shared demo key's), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), and **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults).
+
+#### Computed Daily Targets [daily-targets-web]
+
+This section of Settings shows the full table of personalized nutrient targets computed from your profile — calories, protein, carbohydrates, fiber, every tracked mineral, and every tracked vitamin — each labeled with its goal type (minimum, target, or upper limit). See [daily nutrient goals](#goals) for the formulas behind these numbers, and [RDA](#rda) for where the underlying reference values come from.
+
+This table is read-only and updates automatically whenever you change **Your Profile**, just above it. If the table looks empty or the numbers seem off, check that your profile (age, sex, weight, height, activity level) is filled in first.
+
+### Entering custom foods and dietary supplements [custom-foods]
+
+#### Custom food profiles
+
+When a food isn't in USDA or Open Food Facts — or the entry you found is incomplete — go to **Foods → Custom food profiles → Create** (or copy an existing cached food as a starting point). Fill in whichever fields you have data for: basic macros are always asked for; minerals, vitamins, amino acids, and phytonutrients are optional. Once saved, the food appears in every search and can be used in meals and recipes exactly like any other food. Edit or delete a custom profile from the same **Custom food profiles** page at any time.
+
+#### Dietary supplements — tablets, capsules, softgels
+
+Supplement labels give amounts per tablet, not per 100 g. To enter one, create a custom food profile as above, and set the serving size to **1** with a unit of `tablet`, `capsule`, `softgel`, or similar — then enter the nutrient amounts exactly as printed on the label. Logging "1 [unit]" in a meal will then add exactly those label amounts to your totals, no weighing involved.
+
+**Tip:** try a barcode search first. Many supplement products are already in Open Food Facts with complete data, saving you the manual entry.
+
+### A note on amino acid data
+
+Unlike the command-line version, the web app doesn't require you to run a separate import step to fetch missing amino acid data. New foods are cached automatically the first time they turn up in a search, comparison, or pantry lookup. If a food is still missing amino acid data, you'll see a **Refresh** button (Food Cache) or a **Refresh from USDA** link (a meal's Protein Analysis section) to re-fetch it, and wherever data is missing you'll usually see a suggestion to search for a Foundation or SR Legacy equivalent instead. You can also enter GI or DIAAS estimates yourself via **Foods → Annotate**.
+
+---
+
+---
+
+## Part 5 — Using the Command Line
+
+This part is for developers and advanced users who run NutriMagnus from a terminal (`./numa.py` or a downloaded `nutrimagnus` binary) instead of a browser. **If you use the web app, you can skip this entire part** — the web app has its own equivalent workflows, documented in Part 4.
+
+### Installation
+
+#### Windows
+
+Note: the Windows version is coming soon. When available, installation will be as follows:
+
+1. Go to https://codeberg.org/Tom_Cloyd/NutriMagnus/releases/latest
+2. Click **nutrimagnus.exe** to download it
+3. Double-click the downloaded file to launch the program
+
+No installation steps are required — the program runs directly from the downloaded file. If Windows displays a security warning ("Windows protected your PC"), click **More info** then **Run anyway**. This warning appears because the program is not yet signed with a commercial certificate; it is safe to proceed.
+
+#### Linux
+
+1. Go to https://codeberg.org/Tom_Cloyd/NutriMagnus/releases/latest
+2. Click **nutrimagnus** to download it
+3. Open a terminal and navigate to your Downloads folder:
+
+        cd ~/Downloads
+
+4. Make the file runnable (one-time step):
+
+        chmod +x nutrimagnus
+
+5. Launch the program:
+
+        ./nutrimagnus
+
+---
+
 ### Menu navigation
 
 These conventions apply at every prompt throughout the program — menus, search results, ID entry, portion sizing, and ingredient loops. You are never required to finish a flow before you can leave it.
@@ -1451,6 +1674,82 @@ These conventions apply at every prompt throughout the program — menus, search
 | ↑ / ↓ | Cycle through input history at any free-text prompt |
 
 `b`, `m`, and `q` are accepted at every prompt. Ctrl+C and Escape are caught silently and treated as "back" — they never crash or exit the program unexpectedly.
+
+---
+
+### Sample Workflows [sample-workflows-cli]
+
+**Three examples showing NutriMagnus in action, end to end, from the terminal.** Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
+
+**Use this as a tutorial!** With NutriMagnus running (`./numa.py`), work through any of the following workflows step by step, comparing what you see on screen to the instructions below.
+
+---
+
+#### Workflow 1 — Looking up a single food and finding its protein gaps
+
+**What this shows:** how to search for a food, read its nutrient profile, and get automatic protein complement suggestions drawn from the built-in protein source list.
+
+**Step 1 — Open the Foods menu.** At the main menu, type `1` for **Foods**.
+
+**Step 2 — Search for a food.** Type `2` for **Analyze a food portion**. At the search prompt, type `brown rice cooked` and press Enter. NutriMagnus queries [USDA](#gloss-usda) FoodData Central and shows a ranked list of matches. Pick the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
+
+**Step 3 — Choose a portion.** At the portion prompt, type `1 cup`.
+
+**Step 4 — Read the nutrient table.** NutriMagnus prints the full nutrient profile scaled to your chosen portion — macronutrients, minerals, vitamins, and amino acids.
+
+**Step 5 — Read the protein quality section.** Below the nutrient table, NutriMagnus prints a per-amino-acid score table. Brown rice is low in lysine — its lysine score will be well below 1.0 (the [FAO](#gloss-fao) reference floor). This is the [limiting amino acid](#gloss-limiting-amino-acid).
+
+**Step 6 — Read the complement suggestions.** NutriMagnus prints a Protein Complement Suggestions block automatically whenever a gap exists. The first line tells you what was considered:
+
+    Considered: built-in list of ~30 common protein sources.
+
+(If you have pantry items or analyzed recipes, they appear here too — see Workflows 2 and 3.) Suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
+
+**What you learned:** NutriMagnus can tell you BOTH what is in a food AND what is missing — and exactly what to add to fix it.
+
+---
+
+#### Workflow 2 — Analyzing a meal with pantry items as complement candidates
+
+**What this shows:** how recording your own protein sources in the Pantry makes complement suggestions personal and practical, drawing on foods you actually have.
+
+**Step 1 — Add a food to your Pantry.** At the main menu type `1` for **Foods**, then `7` for **My pantry**. Choose the option to add a food via [USDA](#gloss-usda) search (rather than name-only entry, which skips nutrient data), then search for `hemp seeds` and pick the best match.
+
+**Step 2 — Create a meal.** From the main menu, type `3` for **Meals & Log**, then `n` for a new meal. Give it a name (e.g., "Lunch today") and a date. Add `brown rice cooked` at `1 cup`, then add `black beans cooked` at `½ cup`. Both foods now appear in the meal's item list.
+
+**Step 3 — View the meal's nutrition analysis.** Choose to analyze the meal. NutriMagnus aggregates the nutrients across both foods and prints a combined profile, including a Meal-Level Protein Analysis section.
+
+**Step 4 — Read the protein analysis section.** Rice and beans together improve each other's amino acid profile significantly — this is protein complementarity in action. The combined score will be higher than either food alone.
+
+**Step 5 — Read the complement suggestions.** The first line now reads:
+
+    Considered: 1 pantry item, built-in list of ~30 common protein sources.
+
+Hemp seeds — your pantry item — will appear in the suggestions if it qualifies as a gap closer for this meal. Because the suggestion is drawn from your pantry, it reflects a food you actually have, not just a theoretical option.
+
+**What you learned:** Building even a small pantry of protein sources you keep on hand transforms complement suggestions from generic advice into a practical shopping and cooking guide.
+
+---
+
+#### Workflow 3 — Using an analyzed recipe as a complement candidate
+
+**What this shows:** how recipes you have analyzed become available as complement options for other foods and meals, so NutriMagnus can suggest "add a serving of your lentil soup" rather than just "add lentils." (The web app has an equivalent workflow — see [Workflow 3](#sample-workflows-web) in Part 4.)
+
+**Step 1 — Create and analyze a recipe.** At the main menu type `2` for **Recipes**, then `1` for **Create new recipe**. Name it "Lentil soup" and set the servings count. Add ingredients one at a time — for example, lentils (200 g), onion (80 g), garlic (10 g), and vegetable broth (500 g). Once saved, view the recipe to see its Nutritional Analysis and [Complete Protein](#gloss-complete-protein) Analysis, computed automatically, including the recipe's [DCP](#gloss-dcp).
+
+**Step 2 — Look up a food with protein gaps.** At the main menu type `1` for **Foods**, then `2` for **Analyze a food portion**. Search for `corn tortilla`, pick the result, and enter `46 g` (about 2 tortillas) as the portion. In the Protein Quality section, corn is low in lysine and tryptophan.
+
+**Step 3 — Read the complement suggestions.** The first line now reads:
+
+    Considered: 1 analyzed recipe, built-in list of ~30 common protein sources.
+
+Your lentil soup recipe appears as a candidate. NutriMagnus shows how many grams of the recipe (and approximately how many servings) would close the gaps in the corn tortillas. The suggestion might read: "Add to food above: 180 g  (0.9 servings)."
+
+**Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen. A fully populated pantry and recipe collection will produce a line like:
+
+    Considered: 6 pantry items, 4 analyzed recipes, built-in list of ~30 common protein sources.
+
+**What you learned:** NutriMagnus's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
 
 ---
 
@@ -1748,7 +2047,7 @@ Described under [Food data — where it comes from and how it is stored](#food-d
 
 #### Custom food profiles (Foods → 8)
 
-Described under [Entering custom foods and dietary supplements](#custom-foods).
+Described under [Entering custom foods and dietary supplements](#custom-foods-cli).
 
 #### Annotate a food (Foods → 9)
 
@@ -2307,7 +2606,7 @@ This is the best fit when you have a single label or research figure to type in 
 
 ---
 
-### Entering custom foods and dietary supplements [custom-foods]
+### Entering custom foods and dietary supplements [custom-foods-cli]
 
 #### Custom (drafted) food profiles
 
@@ -2347,135 +2646,7 @@ When you later log "1 tablet" in a meal, those exact amounts are added to your n
 
 If you created a supplement entry before this feature was added, open it via **Foods → 7. Drafted Food Profiles → 3. Edit**. At the start of the edit session, the program asks "Is this a supplement?" — answer yes, confirm the unit name, and the existing nutrient values are preserved. The supplement portion is added automatically so the entry works correctly going forward.
 
-### How NutriMagnus scores meal and recipe protein quality [protein-scoring]
-
-(This section explains the meal-level method. For background on single-food [DIAAS](#gloss-diaas) and how amino acid ratios work, see [Appendix A](#appendix-a).)
-
-Single-food analysis and meal-level analysis use different methods. For a single food, NutriMagnus computes a [DIAAS](#gloss-diaas) score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the [FAO](#gloss-fao)'s endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
-
-#### Why meals need their own calculation
-
-A food that is short in one amino acid can be rescued by a companion food that supplies it generously — but only if you account for both foods together. A calculation that scores each food separately and then averages the scores misses this complementarity. The pooled method captures it correctly: amino acids from every ingredient in the meal are counted together before any ratio is computed.
-
-#### The method, step by step
-
-NutriMagnus applies this procedure for each of the nine essential amino acids. For the paired amino acids [Met+Cys](#gloss-met-cys) and [Phe+Tyr](#gloss-phe-tyr), both members of the pair are combined before scoring, following [FAO](#gloss-fao) practice.
-
-**For each ingredient in the meal:**
-
-Step 1. Determine the amino acid content in grams for the actual portion eaten. [USDA](#gloss-usda) data is per 100 g; NutriMagnus scales to the weight you entered.
-
-Step 2. Multiply each amino acid amount by the food's true [ileal digestibility](#gloss-ileal-digestibility) coefficient — a number between 0 and 1 representing the fraction that actually reaches your bloodstream. The result is the digestible grams of that amino acid from this ingredient.
-
-    Digestible AA (g) = raw AA in portion (g) × digestibility coefficient
-
-[Digestibility coefficients](#gloss-digestibility-coefficient) come from published literature and are looked up automatically. Eggs and dairy sit near 1.0; whole legumes are typically in the 0.79–0.85 range; most grains and seeds fall between 0.79 and 0.88.
-
-**Then, across all ingredients:**
-
-Step 3. Sum the digestible grams of each essential amino acid across every ingredient. This gives nine pooled totals — one per essential amino acid.
-
-Step 4. For each amino acid, compute the ratio of the pooled digestible total to the [FAO](#gloss-fao) reference requirement for the total protein in the meal:
-
-    Ratio = pooled digestible AA (g) ÷ (FAO reference value × total meal protein in g)
-
-A ratio of 1.0 means the meal exactly meets the [FAO](#gloss-fao) target for that amino acid. A ratio of 0.80 means it supplies 80% of the target — a 20% shortfall.
-
-Step 5. The lowest ratio across all nine essential amino acids is the meal's [DIAAS](#gloss-diaas) score. The amino acid with that lowest ratio is the [limiting amino acid](#gloss-limiting-amino-acid).
-
-#### From DIAAS to digestible complete protein
-
-    Digestible complete protein (g) = total meal protein (g) × min(DIAAS, 1.0)
-
-If a meal contains 40 g of total protein and a [DIAAS](#gloss-diaas) of 0.82, NutriMagnus reports 32.8 g of digestible [complete protein](#gloss-complete-protein). The remaining 7.2 g cannot be efficiently incorporated into tissue — the [limiting amino acid](#gloss-limiting-amino-acid) is exhausted before the rest of the protein can be used.
-
-#### A worked example — two ingredients, two amino acids
-
-To keep the arithmetic readable, only lysine and [Met+Cys](#gloss-met-cys) are shown. The full calculation runs the same steps for all nine essential amino acids.
-
-**The meal:**
-
-    150 g cooked lentils:    13.5 g protein    lysine 0.94 g    Met+Cys 0.25 g    digestibility 0.83
-     50 g pumpkin seeds:     12.3 g protein    lysine 0.49 g    Met+Cys 0.42 g    digestibility 0.85
-
-Lentils are rich in lysine but short in [Met+Cys](#gloss-met-cys). Pumpkin seeds supply more [Met+Cys](#gloss-met-cys). Together they cover each other's gap.
-
-**Steps 1–2 — digestible [AA](#gloss-aa) per ingredient:**
-
-    Lentils:        digestible lysine   = 0.94 × 0.83 = 0.780 g
-                    digestible Met+Cys  = 0.25 × 0.83 = 0.208 g
-
-    Pumpkin seeds:  digestible lysine   = 0.49 × 0.85 = 0.417 g
-                    digestible Met+Cys  = 0.42 × 0.85 = 0.357 g
-
-**Step 3 — pool across ingredients:**
-
-    Pooled lysine   = 0.780 + 0.417 = 1.197 g
-    Pooled Met+Cys  = 0.208 + 0.357 = 0.565 g
-
-**Step 4 — compute ratios (total meal protein = 13.5 + 12.3 = 25.8 g):**
-
-The [FAO](#gloss-fao) reference values are 48 mg of lysine and 23 mg of [Met+Cys](#gloss-met-cys) per gram of protein.
-
-    FAO target for lysine   = 48 ÷ 1000 × 25.8 = 1.238 g
-    FAO target for Met+Cys  = 23 ÷ 1000 × 25.8 = 0.593 g
-
-    Ratio for lysine   = 1.197 ÷ 1.238 = 0.97
-    Ratio for Met+Cys  = 0.565 ÷ 0.593 = 0.95
-
-**Step 5 — [DIAAS](#gloss-diaas) = lowest ratio:**
-
-    DIAAS = 0.95    (Met+Cys is the limiting amino acid)
-
-**Digestible [complete protein](#gloss-complete-protein):**
-
-    25.8 g × 0.95 = 24.5 g digestible complete protein
-
-Neither food alone would produce this result — lentils score poorly on [Met+Cys](#gloss-met-cys) when analyzed individually, but pumpkin seeds supply enough to bring the combined score to 0.95.
-
-#### A note about missing amino acid data
-
-Not every food in the [USDA](#gloss-usda) database has a complete amino acid profile. When an ingredient is missing that data, NutriMagnus runs the meal-level [DIAAS](#gloss-diaas) calculation using only the ingredients for which data exists, and flags the result as an estimate. The digestible [complete protein](#gloss-complete-protein) figure is then computed against only the protein that comes from those data-complete ingredients — so the result remains meaningful rather than artificially inflated.
-
-##### Filling missing AA profiles at analysis time
-
-When a meal contains ingredients without amino acid data, NutriMagnus tells you how many are affected and distinguishes two situations:
-
-- **Inside a recipe**: the ingredient is part of a recipe you logged as a meal item. Fix these by editing the recipe directly (Recipes → browse → edit ingredients) and replacing or re-fetching the ingredient there.
-- **Standalone meal ingredients**: foods you logged directly to the meal (not inside a recipe). These can be replaced on the spot: NutriMagnus asks whether you want to search for a substitute.
-
-If you say yes, for each affected ingredient the program opens a focused search of [USDA](#gloss-usda) SR Legacy and Foundation foods — the datasets most likely to include full amino acid profiles. The **[AA](#gloss-aa)** column in the results (✓ or ✗) shows at a glance which options have the data you need. Choosing a replacement updates that ingredient for the current analysis. Press Enter to skip an ingredient and leave it excluded from the calculation.
-
-##### Why the first analysis of a meal can be slow
-
-When you analyze a meal for the first time, you may see a "Fetching amino acid data…" message with a brief wait — sometimes several seconds. This is normal. NutriMagnus is going online to download complete amino acid information for each food in the meal that doesn't already have it saved locally. Once downloaded, the data is stored on your computer, so the next time you analyze the same meal it will be fast.
-
----
-
-### *Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
-
-(Under development)
-
-#### The program crashes unexpectedly
-
-
-#### You don't understand how to respond to a prompt
-
-
-#### You know what you want to do but can't see how to do it
-
-
-#### How to contact help
-
-Do not be reluctant in any way to do this. When you're having a problem the cause most like is NOT you! So, contacting us gives us essential information needed to make things better for you and also for every other user. We very much want to hear from you if you have a problem.
-
-1. Text Tom at 435-272-3332. Plainly state that you are having a problem with the program. A brief statement of the problem is all I need. With your phone number I can call you back and get complete details of what I need to know to resolve your problem. I will generally call you back immediately. If a better time is available, let me know.
-
-2. For non-urgent problems - which generally are improvements you'd like to see - you can also email me. Provide screenshots, if you think that would help. ALWAYS TEXT ME IF YOU SEND AN EMAIL, as I do not check my email daily, and yours easily can get lost in the 100s I get every day.
-
----
-
-## Part 4 — Essential resources
+## Part 6 — Essential resources
 
 ---
 
@@ -2551,7 +2722,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **CGM**{: #gloss-cgm}  —  Continuous Glucose Monitoring. A wearable device that measures blood glucose every few minutes. Discussed in [Appendix C](#appendix-c) as the most accurate way to track individual glycemic response.
 
-**CLI**{: #gloss-cli}  —  Command-Line Interface. A text-based program you operate by typing commands and reading text output. NutriMagnus currently runs as a CLI; a graphical interface (GUI) is planned for a future phase.
+**CLI**{: #gloss-cli}  —  Command-Line Interface. A text-based program you operate by typing commands and reading text output. NutriMagnus's original interface, still available for developers and advanced users (see Part 5, "Using the Command Line"). Most users today use the web app instead.
 
 **Complete protein**{: #gloss-complete-protein}  —  A protein source that supplies all nine essential amino acids at or above FAO reference levels after digestibility adjustment. See [protein completeness](#complete).
 
@@ -2581,7 +2752,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **GL**{: #gloss-gl}  —  Glycemic Load. A measure of glycemic impact that combines GI with the actual amount of carbohydrate in a serving. More useful than GI alone for real-world meal comparisons. See [glycemic load](#gl).
 
-**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface. Planned for a future phase of NutriMagnus; the CLI will remain available.
+**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NutriMagnus's web app provides (see Part 4, "Using the Web App"). The CLI remains available for developers and advanced users.
 
 **Ileal digestibility**{: #gloss-ileal-digestibility}  —  The fraction of an amino acid absorbed by the end of the small intestine (ileum). DIAAS uses true ileal digestibility, which is more accurate than fecal digestibility for measuring protein available to the body.
 
@@ -2617,9 +2788,32 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 Under development.
 
+### *Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
+
+(Under development)
+
+#### The program crashes unexpectedly
+
+
+#### You don't understand how to respond to a prompt
+
+
+#### You know what you want to do but can't see how to do it
+
+
+#### How to contact help
+
+Do not be reluctant in any way to do this. When you're having a problem the cause most like is NOT you! So, contacting us gives us essential information needed to make things better for you and also for every other user. We very much want to hear from you if you have a problem.
+
+1. Text Tom at 435-272-3332. Plainly state that you are having a problem with the program. A brief statement of the problem is all I need. With your phone number I can call you back and get complete details of what I need to know to resolve your problem. I will generally call you back immediately. If a better time is available, let me know.
+
+2. For non-urgent problems - which generally are improvements you'd like to see - you can also email me. Provide screenshots, if you think that would help. ALWAYS TEXT ME IF YOU SEND AN EMAIL, as I do not check my email daily, and yours easily can get lost in the 100s I get every day.
+
 ---
 
-## Part 5 — Appendices
+---
+
+## Part 7 — Appendices
 
 ---
 

@@ -732,7 +732,7 @@ def _food_complement_section(food_name: str, nutrients: dict) -> dict:
     digestibility = diaas if diaas is not None else 1.0
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
-    pantry = _web_pantry_candidates()
+    pantry = _web_pantry_candidates() + _web_recipe_candidates()
     return _complements.build_complement_display(
         nutrients, pantry, diet_pref=diet_pref,
         digestibility=digestibility, base_food_name=food_name,
@@ -960,7 +960,7 @@ async def food_analyze_recipe_portion_post(
         "has_profile":        rda is not None,
         "has_optimal":        bool(optimal),
         "protein_adequacy":   _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":        _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe"),
+        "complements":        _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe", exclude_recipe_id=recipe_id),
         "gl":                 _recipe_gl_web(recipe_id, recipe_servings, servings),
     })
 
@@ -2364,6 +2364,13 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
     aa_p = diaas_result.get("aa_protein_g") or total_p
     dcp_g = round(diaas_result.get("digestible_complete_protein_g") or 0, 1)
     eff_pct = round(min(score, 1.0) * 100, 0)
+    protein_by_name = {
+        ing.get("food_name", ""): ing.get("protein_g", 0.0)
+        for ing in diaas_result.get("ingredients", [])
+    }
+    all_missing = diaas_result.get("missing_aa_names", [])
+    missing_with_protein = [n for n in all_missing if protein_by_name.get(n, 0.0) >= 0.1]
+    omitted_zero_protein_missing = len(missing_with_protein) < len(all_missing)
     return {
         "score":           round(score, 3),
         "total_protein_g": round(total_p, 1),
@@ -2374,7 +2381,8 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
         "iaa_rows":        iaa_rows,
         "ing_rows":        ing_rows,
         "omitted_low_protein": omitted_low_protein,
-        "missing":         diaas_result.get("missing_aa_names", []),
+        "missing":         missing_with_protein,
+        "omitted_zero_protein_missing": omitted_zero_protein_missing,
         "has_complete":    diaas_result.get("has_complete_data", False),
         "phe_tyr_gap":     diaas_result.get("phe_tyr_gap", False),
     }
@@ -2421,22 +2429,77 @@ def _web_pantry_candidates() -> list[dict]:
         return []
 
 
+def _web_recipe_candidates(exclude_recipe_id: int | None = None) -> list[dict]:
+    """Return analyzed recipes as complement-suggestion candidates.
+
+    Mirrors numa_app.ui.render._load_recipe_candidates. `exclude_recipe_id` leaves
+    a recipe out of its own candidate list when suggesting complements for that
+    same recipe.
+    """
+    try:
+        with _db.get_db() as conn:
+            rows = conn.execute(
+                "SELECT id, name, servings, dcp_g, total_weight, total_weight_unit, nutrients_json"
+                " FROM recipes WHERE nutrients_json IS NOT NULL"
+            ).fetchall()
+    except Exception:
+        return []
+
+    candidates: list[dict] = []
+    for row in rows:
+        if exclude_recipe_id is not None and row["id"] == exclude_recipe_id:
+            continue
+        try:
+            nutrients = json.loads(row["nutrients_json"])
+        except Exception:
+            continue
+        if not nutrients:
+            continue
+
+        servings = row["servings"] or 1
+        try:
+            total_weight = float(row["total_weight"]) if row["total_weight"] else None
+        except Exception:
+            total_weight = None
+        serving_weight_g = (total_weight / servings) if total_weight else None
+
+        diaas_val: float | None = None
+        dcp_g = row["dcp_g"]
+        if dcp_g and serving_weight_g and nutrients.get("protein_g", 0) > 0:
+            protein_per_serving = nutrients["protein_g"] * serving_weight_g / 100
+            if protein_per_serving > 0:
+                diaas_val = min(1.0, dcp_g / protein_per_serving)
+
+        candidates.append({
+            "name": row["name"],
+            "fdc_id": None,
+            "recipe_id": row["id"],
+            "nutrients": nutrients,
+            "diaas": diaas_val,
+            "serving_weight_g": serving_weight_g,
+        })
+    return candidates
+
+
 def _complement_suggestions(
     aa_nutrients: dict,
     diaas_score: float | None,
     context: str = "meal",
+    exclude_recipe_id: int | None = None,
 ) -> dict:
     """Build complement suggestion data. Returns no_data sentinel if AA data unavailable.
 
     context: "meal", "daily", "food", or "recipe" — controls the max serving cap
         for DIAAS-booster steps (120 g for meal/daily/food, 300 g for recipe).
+    exclude_recipe_id: when context is "recipe", pass that recipe's own id so it
+        never appears as a complement candidate for itself.
 
     Uses digestibility=1.0 for gap analysis, matching CLI meal context behaviour:
     the meal DIAAS is a pooled value and must not be re-applied as a per-food multiplier.
     """
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
-    pantry = _web_pantry_candidates()
+    pantry = _web_pantry_candidates() + _web_recipe_candidates(exclude_recipe_id)
     max_improver_grams = 300 if context == "recipe" else 120
     return _complements.build_complement_display(
         aa_nutrients, pantry, diet_pref=diet_pref,
@@ -3691,7 +3754,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits) if scaled else [],
         "diaas":                    diaas_display,
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":              _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe"),
+        "complements":              _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe", exclude_recipe_id=recipe_id),
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
         "has_optimal":        bool(optimal),

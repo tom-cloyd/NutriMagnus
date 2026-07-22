@@ -4,10 +4,12 @@ CLI (recipes.py, recipe_edit.py) and web (backend.py) after any recipe or
 ingredient edit, and by the web app's bulk "Compute DCP" action.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/recipe_dcp.py — recipe DCP auto-recompute"
 """
+import json
 from datetime import datetime, timezone
 
 import db as _db
 import diaas as _diaas
+import usda as _usda
 
 from .recipe_nutrients import expand_recipe_ingredients
 
@@ -38,7 +40,7 @@ def recompute_recipe_dcp(recipe_id: int, conn) -> float | None:
         return None
     servings = float(recipe["servings"] or 0)
     if servings <= 0:
-        _db.recipe_set_dcp(conn, recipe_id, None)
+        _clear_recipe_dcp_and_nutrients(conn, recipe_id)
         return None
 
     leaves = expand_recipe_ingredients(recipe_id, conn, portion_factor=1.0 / servings)
@@ -52,13 +54,13 @@ def recompute_recipe_dcp(recipe_id: int, conn) -> float | None:
         for leaf in leaves if leaf["grams"] > 0
     ]
     if not diaas_ingredients:
-        _db.recipe_set_dcp(conn, recipe_id, None)
+        _clear_recipe_dcp_and_nutrients(conn, recipe_id)
         return None
 
     result = _diaas.meal_level_diaas(diaas_ingredients, conn)
     dcp_g = result.get("digestible_complete_protein_g")
     if dcp_g is None:
-        _db.recipe_set_dcp(conn, recipe_id, None)
+        _clear_recipe_dcp_and_nutrients(conn, recipe_id)
         return None
 
     total_protein_g = result.get("total_protein_g", 0.0)
@@ -76,4 +78,41 @@ def recompute_recipe_dcp(recipe_id: int, conn) -> float | None:
     dcp_g = round(dcp_g, 2)
     now_utc = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat()
     _db.recipe_set_dcp(conn, recipe_id, dcp_g, now_utc)
+    _save_recipe_nutrients_100g(recipe_id, conn)
     return dcp_g
+
+
+def _clear_recipe_dcp_and_nutrients(conn, recipe_id: int) -> None:
+    """Clear both DCP and cached nutrients so a stale profile never lingers
+    as a complement-suggestion candidate once a recipe becomes uncomputable."""
+    _db.recipe_set_dcp(conn, recipe_id, None)
+    try:
+        _db.recipe_save_nutrients(conn, recipe_id, None)
+    except Exception:
+        pass
+
+
+def _save_recipe_nutrients_100g(recipe_id: int, conn) -> None:
+    """Cache the recipe's whole-batch per-100g nutrient profile.
+
+    This is what makes an analyzed recipe eligible to appear as a protein
+    complement candidate elsewhere (CLI and web share the same
+    `recipes.nutrients_json` column, read by _load_recipe_candidates /
+    _web_recipe_candidates). Best-effort — failure here must never affect
+    the DCP value already saved above.
+    """
+    try:
+        whole_batch_leaves = expand_recipe_ingredients(recipe_id, conn, portion_factor=1.0)
+        total_weight_g = sum(leaf["grams"] for leaf in whole_batch_leaves if leaf["grams"] > 0)
+        if total_weight_g <= 0:
+            return
+        total = {}
+        for leaf in whole_batch_leaves:
+            if leaf["grams"] <= 0:
+                continue
+            scaled = _usda.scale_nutrients(leaf["nutrients_100g"], leaf["grams"], base_size=100.0)
+            total = _usda.sum_nutrients(total, scaled)
+        per_100g = _usda.scale_nutrients(total, 100.0, base_size=total_weight_g)
+        _db.recipe_save_nutrients(conn, recipe_id, json.dumps(per_100g))
+    except Exception:
+        pass

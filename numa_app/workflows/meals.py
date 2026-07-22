@@ -83,6 +83,11 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str], protein_by_nam
         + standalone_names,
         highlight=False,
     )
+    if pbn and len(all_affected) > len(affected):
+        state.console.print(
+            "  [grey62]Foods with no protein are omitted from this list.[/grey62]",
+            highlight=False,
+        )
     help_footer("missing-aa")
     try:
         go = _prompt(
