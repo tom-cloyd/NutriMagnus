@@ -90,6 +90,9 @@
       <th class="num-col" title="Sum of DCP across all meals with computed data on this date (marked * if any meal isn't complete yet)">Day DCP</th>
       {% if protein_target %}<th class="num-col" title="Day DCP ÷ {{ protein_target|int }} g daily target">% goal</th>{% endif %}
       <th class="num-col">Calories</th>
+      {% for col in meal_nutrient_cols %}
+      <th class="num-col">{{ col.label }}</th>
+      {% endfor %}
       <th></th>
     </tr>
   </thead>
@@ -141,6 +144,17 @@
           <span class="muted">—</span>
         {% endif %}
       </td>
+      {% for col in meal_nutrient_cols %}
+      <td class="num-col">
+        {% if meal.nutrient_values[col.key] is not none %}
+          {{ meal.nutrient_values[col.key] }}
+        {% elif meal.bcp_computed_at %}
+          <span class="muted">n/a</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+      {% endfor %}
       <td>
         {% if meal.first_of_date %}
         <form method="post" action="/meals/delete-day" style="margin:0"
@@ -157,6 +171,7 @@
   </tbody>
 </table>
 <p class="muted"><small>* Day DCP / % goal includes a meal not yet marked complete — the total may change as you keep editing that meal.</small></p>
+<p class="muted"><small>Track your own nutrients here — <a href="/settings#meal-list-nutrients">Settings &rarr; Meals &amp; Log columns</a></small></p>
 
 {% else %}
 <p class="muted mt-2">

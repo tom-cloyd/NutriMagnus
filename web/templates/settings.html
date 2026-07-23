@@ -196,6 +196,8 @@
         <li><kbd>4</kbd> — Keyboard Shortcuts</li>
         <li><kbd>5</kbd> — USDA API Key</li>
         <li><kbd>6</kbd> — Protein Digestibility Overrides</li>
+        <li><kbd>7</kbd> — Nutrient Targets</li>
+        <li><kbd>8</kbd> — Meals &amp; Log Columns</li>
       </ul>
     </div>
   </div>
@@ -368,6 +370,43 @@
   {% else %}
   <p class="muted mt-2"><small>Set up your profile above to configure nutrient targets.</small></p>
   {% endif %}
+</details>
+
+{# ── 8. Meals & Log columns ──────────────────────────────────────────── #}
+<details id="meal-list-nutrients">
+  <summary data-ak="8"><u class="ak">8</u>. <strong>Meals &amp; Log columns</strong>
+    <span class="muted"> — extra nutrients shown as columns on the Meals &amp; Log list</span>
+    {{ manual_link("meal-columns") }}
+  </summary>
+
+  {% if saved == 'meal_nutrients' %}
+  <p class="status-met mt-2"><strong>&#10003; Meals &amp; Log columns saved.</strong></p>
+  {% endif %}
+
+  <p class="mt-2 muted"><small>
+    Give each nutrient you want shown a position (1 = leftmost, up to {{ meal_list_nutrients_max }}).
+    Leave blank to hide it. Calories is always shown and isn't listed here.
+  </small></p>
+  <form method="post" action="/settings/meal-nutrients">
+    <table class="table table-sm table-hover mt-2" style="max-width:500px">
+      <thead class="table-light">
+        <tr><th>Nutrient</th><th class="text-end" style="width:6rem">Position</th></tr>
+      </thead>
+      <tbody>
+        {% for row in meal_list_nutrient_rows %}
+        <tr>
+          <td>{{ row.label }} <span class="muted">({{ row.unit }})</span></td>
+          <td class="text-end">
+            <input type="number" class="form-control form-control-sm" name="pos_{{ row.key }}"
+                   min="1" max="{{ meal_list_nutrients_max }}" style="width:5rem;display:inline-block"
+                   value="{{ row.position if row.position is not none else '' }}">
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save</button>
+  </form>
 </details>
 
 <script>

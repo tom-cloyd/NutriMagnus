@@ -569,6 +569,82 @@ def _do_nutrient_targets() -> None:
                 _profile.save_profile(profile)
 
 
+def _do_meal_list_nutrients() -> None:
+    """Pick which extra nutrient columns show on the Meals & Log list, and their order."""
+    from ..services.meal_list_columns import MAX_MEAL_LIST_NUTRIENTS
+
+    while True:
+        state.console.print()
+        table_title("Meals & Log columns",
+                     f"pick up to {MAX_MEAL_LIST_NUTRIENTS} extra nutrients to show as columns"
+                     " (Calories is always shown)")
+        current = state.app_ctx.meal_list_nutrients
+        if current:
+            from ..services.meal_list_columns import label_for
+            state.console.print(
+                "  [grey62]Current:[/grey62] " + ", ".join(label_for(k) for k in current),
+                highlight=False,
+            )
+        else:
+            state.console.print("  [grey62]Current: none selected[/grey62]")
+
+        idx = 1
+        numbered: dict[str, str] = {}
+        for group_name, keys in _NUTRIENT_TARGET_GROUPS:
+            present = [k for k in keys if k != "calories"]
+            if not present:
+                continue
+            state.console.print(f"\n  [{state.T['hi']}]{group_name}[/{state.T['hi']}]")
+            for key in present:
+                label, unit = _usda.nutrient_label(key)
+                state.console.print(
+                    f"    [{state.T['accent']}]{idx:>2}[/{state.T['accent']}]  {label} ({unit})",
+                    highlight=False,
+                )
+                numbered[str(idx)] = key
+                idx += 1
+
+        help_footer("meal-columns")
+        state.console.print()
+        try:
+            choice = _prompt(
+                "Numbers in display order, space or comma separated  "
+                "[grey62](Enter/b=back, c=clear all)[/grey62]",
+                default="",
+            ).strip()
+        except Cancelled:
+            return
+        if not choice or choice.lower() in ("b", "m", "q"):
+            return
+        if choice.lower() == "c":
+            prefs_config.set_meal_list_nutrients([])
+            state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Cleared.")
+            continue
+
+        tokens = [t for t in choice.replace(",", " ").split() if t]
+        keys: list[str] = []
+        bad: list[str] = []
+        for t in tokens:
+            key = numbered.get(t)
+            if key is None:
+                bad.append(t)
+            elif key not in keys:
+                keys.append(key)
+        if bad:
+            state.console.print(
+                f"[{state.T['warning']}]Unrecognized number(s): {', '.join(bad)}[/{state.T['warning']}]"
+            )
+            continue
+        if len(keys) > MAX_MEAL_LIST_NUTRIENTS:
+            state.console.print(
+                f"[{state.T['warning']}]Pick at most {MAX_MEAL_LIST_NUTRIENTS} — "
+                f"you chose {len(keys)}.[/{state.T['warning']}]"
+            )
+            continue
+        prefs_config.set_meal_list_nutrients(keys)
+        state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Saved.")
+
+
 def _do_dietary_prefs() -> None:
     """Set the dietary preference for protein complement suggestions."""
     current_label = _DIET_LABELS.get(state._diet_pref, state._diet_pref)
@@ -727,6 +803,7 @@ def _menu_settings() -> bool:
             ("7", f"Display program settings at launch  (current setting: {launch_status})"),
             ("8", "Advanced settings  [grey62](API key, storage, protein overrides)[/grey62]"),
             ("9", f"Nutrient targets  [grey62](Profile Optimal targets and custom max limits, {len(p.optimal_targets) + len(p.max_limits) if p else 0} set)[/grey62]"),
+            ("10", f"Meals & Log columns  [grey62]({len(state.app_ctx.meal_list_nutrients)} extra nutrient(s) shown)[/grey62]"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
         ])
@@ -754,6 +831,8 @@ def _menu_settings() -> bool:
             _safe_call(_menu_advanced_settings)
         elif choice == "9":
             _safe_call(_do_nutrient_targets)
+        elif choice == "10":
+            _safe_call(_do_meal_list_nutrients)
         elif choice == "m":
             return True
         elif choice == "q":

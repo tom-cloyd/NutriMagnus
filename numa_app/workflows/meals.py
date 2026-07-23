@@ -19,6 +19,7 @@ from ..services.annotations import maybe_prompt_gi
 from ..services.portions import _normalize_unit_display, _pick_portion
 from ..services.glycemic_load import compute_glycemic_load
 from ..services.meal_bcp import recipe_dcp_fallback
+from ..services.meal_list_columns import label_for as _ml_label_for, format_value as _ml_format_value
 from ..services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
 from ..services.search import _refresh_cache_if_missing_aa, _search_and_pick_food, _simplify_food_query
 from ..services.reports import _offer_export
@@ -233,7 +234,7 @@ def _recompute_and_store_meal_bcp(meal_id: int, meal_date: str) -> None:
     nutrients = _compute_meal_nutrients(meal_id)
     calories = nutrients.get("calories") if nutrients else None
     with _db.get_db() as conn:
-        _db.meal_set_bcp(conn, meal_id, bcp, calories)
+        _db.meal_set_bcp(conn, meal_id, bcp, calories, nutrients)
     profile = _profile.load_profile()
     protein_target = None
     if profile:
@@ -305,6 +306,7 @@ def _menu_meals() -> bool:
         section_title(title)
 
         _W_NAME = 24
+        extra_nutrients = state.app_ctx.meal_list_nutrients
         if page:
             tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
             tbl.add_column("ID",       justify="right",  min_width=4)
@@ -316,6 +318,8 @@ def _menu_meals() -> bool:
             tbl.add_column("Day DCP",      justify="right",  min_width=7)
             tbl.add_column("% profile goal", justify="left",  min_width=13)
             tbl.add_column("Calories",     justify="right",  min_width=8)
+            for _nkey in extra_nutrients:
+                tbl.add_column(_ml_label_for(_nkey), justify="right", min_width=8)
             s = state.T["success"]
             dates_seen: set[str] = set()
             for m in page:
@@ -355,6 +359,17 @@ def _menu_meals() -> bool:
                 else:
                     day_bcp_cell = ""
                     goal_cell = ""
+                extra_cells = []
+                if extra_nutrients:
+                    snapshot_raw = m["nutrients_snapshot_json"]
+                    snapshot = json.loads(snapshot_raw) if snapshot_raw else None
+                    for _nkey in extra_nutrients:
+                        if snapshot is not None and snapshot.get(_nkey) is not None:
+                            extra_cells.append(_ml_format_value(_nkey, snapshot[_nkey]))
+                        elif m["bcp_computed_at"] is not None:
+                            extra_cells.append("[grey62]n/a[/grey62]")
+                        else:
+                            extra_cells.append("[grey62]—[/grey62]")
                 tbl.add_row(
                     str(m["id"]),
                     m["meal_date"],
@@ -365,6 +380,7 @@ def _menu_meals() -> bool:
                     day_bcp_cell,
                     goal_cell,
                     calories_cell,
+                    *extra_cells,
                 )
             state.console.print(tbl)
             state.console.print(
@@ -375,7 +391,11 @@ def _menu_meals() -> bool:
                 "  [grey62]* Day DCP / % goal includes a meal not yet marked complete — may change[/grey62]",
                 highlight=False,
             )
-            help_footer("meals-list")
+            state.console.print(
+                "  [grey62]Track your own nutrients here — Settings → Meals & Log columns[/grey62]",
+                highlight=False,
+            )
+            help_footer("meals-list", "meal-columns")
         elif offset == 0 and before_date is None:
             state.console.print("  [grey62]No meals logged yet.[/grey62]")
         else:
@@ -470,7 +490,7 @@ def _menu_meals() -> bool:
                     nutrients = _compute_meal_nutrients(m["id"])
                     calories = nutrients.get("calories") if nutrients else None
                     with _db.get_db() as conn:
-                        _db.meal_set_bcp(conn, m["id"], bcp, calories)
+                        _db.meal_set_bcp(conn, m["id"], bcp, calories, nutrients)
             # Update Day DCP totals for all affected dates.
             affected_dates = {m["meal_date"] for m in to_compute}
             for _d in affected_dates:
@@ -1024,7 +1044,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
 
     # Persist the calculated DCP and calories so they show up on Meals & Log.
     with _db.get_db() as conn:
-        _db.meal_set_bcp(conn, meal_id, _dcp_g, nutrients.get("calories"))
+        _db.meal_set_bcp(conn, meal_id, _dcp_g, nutrients.get("calories"), nutrients)
     protein_target = rda.get("protein_g", (0.0,))[0] if rda else None
     _refresh_day_pct_goal(meal_date, protein_target if protein_target else None)
 

@@ -2684,7 +2684,7 @@ def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
     with _db.get_db() as conn:
         if bcp_g is None:
             bcp_g = recipe_dcp_fallback(meal_id, conn)
-        _db.meal_set_bcp(conn, meal_id, bcp_g, calories)
+        _db.meal_set_bcp(conn, meal_id, bcp_g, calories, total_nutrients)
     return bcp_g
 
 
@@ -2707,6 +2707,19 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
     """Build template context for the meals list, including day DCP aggregates."""
     meals = [dict(m) for m in meals_rows]
     hidden = max(0, total - len(meals))
+
+    # Extra user-chosen nutrient columns (shared prefs.json with the CLI).
+    from numa_app.services.meal_list_columns import (
+        sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, format_value as _meal_format_value,
+    )
+    nutrient_keys = _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
+    meal_nutrient_cols = [{"key": k, "label": _meal_label_for(k)} for k in nutrient_keys]
+    for m in meals:
+        snapshot = json.loads(m["nutrients_snapshot_json"]) if m.get("nutrients_snapshot_json") else None
+        m["nutrient_values"] = {
+            k: (_meal_format_value(k, snapshot[k]) if snapshot and snapshot.get(k) is not None else None)
+            for k in nutrient_keys
+        }
 
     # Build day DCP totals from persisted bcp_g (any meal with a computed
     # value counts — DCP is auto-saved as items are added, regardless of
@@ -2752,6 +2765,7 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
         "date_filter":    before_date or "",
         "protein_target": protein_target,
         "sort":           sort,
+        "meal_nutrient_cols": meal_nutrient_cols,
     }
 
 
@@ -3478,6 +3492,16 @@ async def settings_get(request: Request, saved: str = ""):
                     "limit":   profile.max_limits.get(key),
                 })
 
+    from numa_app.services.meal_list_columns import AVAILABLE_NUTRIENTS, MAX_MEAL_LIST_NUTRIENTS
+    saved_meal_nutrients = _load_prefs_file().get("meal_list_nutrients", [])
+    meal_list_nutrient_rows = [
+        {
+            "key": key, "label": label, "unit": unit,
+            "position": (saved_meal_nutrients.index(key) + 1) if key in saved_meal_nutrients else None,
+        }
+        for key, label, unit in AVAILABLE_NUTRIENTS
+    ]
+
     return templates.TemplateResponse(request, "settings.html", {
         "profile":              profile,
         "rda_rows":             rda_rows,
@@ -3490,6 +3514,8 @@ async def settings_get(request: Request, saved: str = ""):
         "diaas_overrides":      diaas_overrides,
         "nutrient_target_rows": nutrient_target_rows,
         "diet_bioavailability_note": iron_zinc_bioavailability_note(diet_pref),
+        "meal_list_nutrient_rows": meal_list_nutrient_rows,
+        "meal_list_nutrients_max": MAX_MEAL_LIST_NUTRIENTS,
     })
 
 
@@ -3613,6 +3639,26 @@ async def settings_nutrient_target_load_defaults():
             profile.optimal_targets[key] = val
     _profile.save_profile(profile)
     return RedirectResponse("/settings?saved=nutrient_target_defaults", status_code=303)
+
+
+@app.post("/settings/meal-nutrients", response_class=RedirectResponse)
+async def settings_meal_nutrients_post(request: Request):
+    """Save the ordered list of extra nutrient columns for the Meals & Log list.
+    Shares prefs.json with the CLI's numa_app.workflows.settings._do_meal_list_nutrients()."""
+    from numa_app.services.meal_list_columns import AVAILABLE_NUTRIENTS, sanitize as _sanitize_meal_nutrients
+    form = await request.form()
+    positioned: list[tuple[int, str]] = []
+    for key, _label, _unit in AVAILABLE_NUTRIENTS:
+        raw = str(form.get(f"pos_{key}", "")).strip()
+        if raw:
+            try:
+                positioned.append((int(raw), key))
+            except ValueError:
+                pass
+    positioned.sort(key=lambda pair: pair[0])
+    keys = _sanitize_meal_nutrients([key for _, key in positioned])
+    _save_prefs_file({"meal_list_nutrients": keys})
+    return RedirectResponse("/settings?saved=meal_nutrients#meal-list-nutrients", status_code=303)
 
 
 @app.post("/recipes/compute-bcp", response_class=RedirectResponse)

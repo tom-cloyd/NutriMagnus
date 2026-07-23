@@ -43,6 +43,23 @@ def nutrient_target_menu_index(key: str) -> str:
     raise KeyError(f"{key!r} not found in _NUTRIENT_TARGET_GROUPS")
 
 
+def meal_column_menu_index(key: str) -> str:
+    """Return the 1-based menu index (as a string) for `key` in the Settings ->
+    Meals & Log columns picker, computed from the live group definitions
+    (same groups as nutrient_target_menu_index, minus 'calories' which that
+    screen doesn't offer)."""
+    from numa_app.workflows.settings import _NUTRIENT_TARGET_GROUPS
+    idx = 1
+    for _group_name, keys in _NUTRIENT_TARGET_GROUPS:
+        for k in keys:
+            if k == "calories":
+                continue
+            if k == key:
+                return str(idx)
+            idx += 1
+    raise KeyError(f"{key!r} not found in meal-columns picker")
+
+
 # ---------------------------------------------------------------------------
 # Sample data
 # ---------------------------------------------------------------------------

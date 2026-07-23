@@ -52,6 +52,11 @@ def _load_prefs() -> None:
                 state.app_ctx.list_filters["pantry"] = data["show_archived_pantry"]
             if isinstance(data.get("show_archived_recipes"), bool):
                 state.app_ctx.list_filters["recipes"] = data["show_archived_recipes"]
+            if isinstance(data.get("meal_list_nutrients"), list):
+                from ..services.meal_list_columns import sanitize as _sanitize_meal_nutrients
+                state.app_ctx.meal_list_nutrients = _sanitize_meal_nutrients(
+                    [str(k) for k in data["meal_list_nutrients"]]
+                )
             state.sync_globals()
             if needs_migration_save:
                 _save_prefs()  # all state now loaded — safe to write new format
@@ -79,6 +84,7 @@ def _save_prefs() -> None:
     data["show_archived_food_cache"] = state.app_ctx.list_filters.get("food_cache", False)
     data["show_archived_pantry"] = state.app_ctx.list_filters.get("pantry", False)
     data["show_archived_recipes"] = state.app_ctx.list_filters.get("recipes", False)
+    data["meal_list_nutrients"] = state.app_ctx.meal_list_nutrients
 
     if not data["editor_command"]:
         data.pop("editor_command", None)
@@ -98,6 +104,14 @@ def set_list_filter(list_name: str, value: bool) -> None:
     """Update the remembered 'show archived' toggle for a list view ('recipes',
     'food_cache', 'pantry') and persist it immediately."""
     state.set_list_filter(list_name, value)
+    _save_prefs()
+
+
+def set_meal_list_nutrients(keys: list[str]) -> None:
+    """Update the ordered list of extra nutrients shown as columns in Meals & Log
+    (CLI and web share this pref via prefs.json) and persist it immediately."""
+    from ..services.meal_list_columns import sanitize as _sanitize_meal_nutrients
+    state.set_meal_list_nutrients(_sanitize_meal_nutrients(keys))
     _save_prefs()
 
 

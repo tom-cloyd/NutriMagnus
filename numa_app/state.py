@@ -61,6 +61,7 @@ class AppContext:
     list_filters: dict = field(default_factory=lambda: {
         "recipes": False, "food_cache": False, "pantry": False,
     })  # True = show archived rows in that list
+    meal_list_nutrients: list = field(default_factory=list)  # ordered NUTRIENT_MAP keys
     theme_file: Path = field(default_factory=lambda: _platform_utils.get_config_dir() / "theme")
     prefs_file: Path = field(default_factory=lambda: _platform_utils.get_config_dir() / "prefs.json")
 
@@ -108,6 +109,11 @@ def get_list_filter(list_name: str, default: bool = False) -> bool:
 
 def set_list_filter(list_name: str, value: bool) -> None:
     app_ctx.list_filters[list_name] = value
+    sync_globals()
+
+
+def set_meal_list_nutrients(keys: list[str]) -> None:
+    app_ctx.meal_list_nutrients = list(keys)
     sync_globals()
 
 

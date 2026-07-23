@@ -83,6 +83,8 @@ _ALIASES: dict[str, str] = {
     "bioavail":             "bioavailability",
     "meals":                "meals-list",
     "log":                  "meals-list",
+    "meal-nutrients":       "meal-columns",
+    "extra-nutrients":      "meal-columns",
     "meal-items":           "meal-detail",
     "history":              "meal-history",
     "missing":              "missing-aa",

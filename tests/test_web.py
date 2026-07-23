@@ -376,6 +376,68 @@ def test_settings_nutrient_target_load_defaults_skips_customized(client: TestCli
     assert profile.optimal_targets["omega3_epa_mg"] == 250.0
 
 
+def test_settings_meal_nutrients_save_and_render(client: TestClient, cached_food) -> None:
+    """Saving Sodium at position 1 in Settings shows it as a column on /meals."""
+    resp = client.post(
+        "/settings/meal-nutrients", data={"pos_sodium_mg": "1"}, follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    prefs_data = json.loads(backend._PREFS_FILE.read_text())
+    assert prefs_data["meal_list_nutrients"] == ["sodium_mg"]
+
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    assert "Meals &amp; Log columns" in resp.text
+
+    client.post(
+        "/meals/create", data={"name": "Dinner", "meal_date": "2026-07-11"}, follow_redirects=False,
+    )
+    resp = client.get("/meals")
+    assert resp.status_code == 200
+    assert "Sodium" in resp.text
+
+
+def test_settings_meal_nutrients_caps_and_orders(client: TestClient) -> None:
+    """Positions are sanitized (unknown/duplicate/over-cap) and applied in order."""
+    from numa_app.services.meal_list_columns import MAX_MEAL_LIST_NUTRIENTS
+    client.post(
+        "/settings/meal-nutrients",
+        data={"pos_fiber_g": "1", "pos_sodium_mg": "2"},
+        follow_redirects=False,
+    )
+    prefs_data = json.loads(backend._PREFS_FILE.read_text())
+    assert prefs_data["meal_list_nutrients"] == ["fiber_g", "sodium_mg"]
+    assert len(prefs_data["meal_list_nutrients"]) <= MAX_MEAL_LIST_NUTRIENTS
+
+
+def test_meal_nutrient_column_shows_computed_value(client: TestClient, cached_food, db_conn) -> None:
+    """After a meal is analyzed (its detail page visited), the chosen nutrient
+    column shows the persisted snapshot value on /meals rather than n/a or —."""
+    client.post("/settings/meal-nutrients", data={"pos_sodium_mg": "1"}, follow_redirects=False)
+
+    resp = client.post(
+        "/meals/create", data={"name": "Dinner", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+    # Visiting the meal detail page computes and persists the nutrient snapshot
+    # (same as _compute_and_store_meal_bcp does for bcp_g/calories).
+    client.get(f"/meal/{meal_id}")
+
+    row = db_conn.execute("SELECT nutrients_snapshot_json FROM meals WHERE id = ?", (meal_id,)).fetchone()
+    assert row["nutrients_snapshot_json"] is not None
+    snapshot = json.loads(row["nutrients_snapshot_json"])
+    assert snapshot["sodium_mg"] == pytest.approx(74.0 * 1.5)
+
+    resp = client.get("/meals")
+    assert "111" in resp.text
+
+
 def test_summary_trend_no_meals(client: TestClient) -> None:
     resp = client.get("/summary/trend")
     assert resp.status_code == 200

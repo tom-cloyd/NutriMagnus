@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-22:1129* / Reading 2 hours, 55 minutes
+*Updated 2026-07-22:1717* / Reading 2 hours, 55 minutes
 
 <!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
 
@@ -16,7 +16,7 @@
 
 **Both the program and its accompanying *User Manual* are an ongoing project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review; it is an advanced first draft.
 
-**User feedback is highly valued.** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is the best measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
+**User feedback is highly valued.** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
 
 ---
 
@@ -776,6 +776,7 @@ The sections linked from analysis output are:
 - [Meal items](#meal-detail) — meal items table columns
 - [Meal protein digestibility](#meal-diaas) — meal protein digestibility analysis columns
 - [Meals list](#meals-list) — Meals & Log list columns
+- [Meals & Log columns](#meal-columns) — choosing extra nutrient columns for the Meals & Log list
 - [Missing amino acid profiles](#missing-aa) — missing amino acid profile warnings
 - [My Pantry](#pantry) — [My Pantry](#gloss-my-pantry) table columns
 - [N-Day nutrient trend](#trend) — averaging intake across logged days to catch chronic shortfalls
@@ -1086,6 +1087,9 @@ Columns:
                     topmost row for each date only.
     Calories        Calories for this meal alone.
 
+You can add up to 6 more nutrient columns of your own choosing — see
+[Meals & Log columns](#meal-columns).
+
 [DCP](#gloss-dcp) and Calories values start as -- and are computed on demand.
 Analyzing a meal (option 4 in the meal action loop, or command a{id}) also
 saves its DCP and calories automatically.
@@ -1101,6 +1105,22 @@ saves its DCP and calories automatically.
 Commands: n=new  v{id}=view/edit  a{id}=analyze  d{id}=delete   s=search history  o=sort  c=calculate [DCP](#gloss-dcp) and calories  mr=next 15 older  ml=15 newer   d{YYYY-MM-DD}=jump to date
 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein). See [daily nutrient goals](#goals) to see how your daily protein target is calculated.
+
+
+#### Meals & Log Columns [meal-columns]
+
+The Meals & Log list always shows Calories, plus up to 6 more nutrients you
+choose yourself — e.g. Sodium, Fiber, Vitamin D, or any amino acid.
+
+To choose them: Settings -> Meals & Log columns (CLI), or Settings -> section
+8 "Meals & Log columns" (web app). Pick each nutrient's position (1 =
+leftmost); leave a nutrient's position blank to hide it. This choice is saved
+to prefs.json and shared between the terminal app and the web app.
+
+Values for these columns come from the same computed snapshot as [DCP](#gloss-dcp)
+and Calories, so they show -- until computed and n/a if the ingredient data
+doesn't cover that nutrient. Press c on the Meals & Log screen (or Analyze a
+meal) to compute them.
 
 
 #### Meal Items Table [meal-detail]

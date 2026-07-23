@@ -35,6 +35,7 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SOURCE = PROJECT_ROOT / "user-manual.md"
 OUTPUT = PROJECT_ROOT / "user-manual.html"
+PAGE_TITLE = "NutriMagnus User Manual"
 
 # Matches a markdown heading that ends with a [short-anchor] tag.
 # Groups: (hashes, title_text, anchor)
@@ -108,6 +109,17 @@ body {
     font-size: 14.5px;
     line-height: 1.4;
 }
+#toc-sidebar .toc-page-title {
+    display: block;
+    font-size: 15.5px;
+    font-weight: 700;
+    color: var(--heading);
+    text-decoration: none;
+    padding: 0.1rem 0.2rem 0.6rem;
+    margin-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+}
+#toc-sidebar .toc-page-title:hover { color: var(--accent); }
 #toc-sidebar h2 {
     display: flex;
     align-items: center;
@@ -479,13 +491,14 @@ HTML_TEMPLATE = """\
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NutriMagnus User Manual</title>
+<title>{title}</title>
 <style>
 {css}
 </style>
 </head>
 <body>
 <nav id="toc-sidebar" aria-label="Table of contents">
+  <a class="toc-page-title" href="#content">{title}</a>
   <div id="search-box">
     <input id="search-input" type="search" placeholder="Search manual…"
            autocomplete="off" spellcheck="false">
@@ -531,7 +544,7 @@ def main() -> None:
     body = md.convert(processed)
     toc_html = md.toc  # populated after convert(); sidebar version
 
-    html = HTML_TEMPLATE.format(css=CSS, toc=toc_html, body=body, js=JS)
+    html = HTML_TEMPLATE.format(css=CSS, toc=toc_html, body=body, js=JS, title=PAGE_TITLE)
     OUTPUT.write_text(html, encoding="utf-8")
 
     size_kb = OUTPUT.stat().st_size / 1024

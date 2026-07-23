@@ -249,7 +249,8 @@ def init_db() -> None:
             )
         """)
 
-        for _col in ("bcp_g REAL", "bcp_computed_at TEXT", "day_pct_goal REAL", "calories REAL"):
+        for _col in ("bcp_g REAL", "bcp_computed_at TEXT", "day_pct_goal REAL", "calories REAL",
+                     "nutrients_snapshot_json TEXT"):
             try:
                 conn.execute(f"ALTER TABLE meals ADD COLUMN {_col}")
             except sqlite3.OperationalError:
@@ -1181,10 +1182,12 @@ def meal_set_date(conn: sqlite3.Connection, meal_id: int, new_date: str) -> None
 
 
 def meal_set_bcp(conn: sqlite3.Connection, meal_id: int, bcp_g: float | None,
-                 calories: float | None = None) -> None:
+                 calories: float | None = None,
+                 nutrients: dict[str, float] | None = None) -> None:
     conn.execute(
-        "UPDATE meals SET bcp_g=?, calories=?, bcp_computed_at=datetime('now') WHERE id=?",
-        (bcp_g, calories, meal_id),
+        "UPDATE meals SET bcp_g=?, calories=?, bcp_computed_at=datetime('now'), "
+        "nutrients_snapshot_json=? WHERE id=?",
+        (bcp_g, calories, json.dumps(nutrients) if nutrients is not None else None, meal_id),
     )
 
 

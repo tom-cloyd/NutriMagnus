@@ -46,6 +46,7 @@ from tests.conftest import (
     SAMPLE_SEARCH_RESULTS,
     NumaTestRunner,
     nutrient_target_menu_index,
+    meal_column_menu_index,
 )
 
 
@@ -720,6 +721,43 @@ class TestMealsMenu:
         assert "bioavailable" in result.output
         assert "digestible" in result.output
 
+    def test_meal_set_bcp_stores_nutrients_snapshot(self, db_conn):
+        """meal_set_bcp persists the full nutrients dict as nutrients_snapshot_json."""
+        with _db.get_db() as conn:
+            mid = _db.meal_create(conn, "Test", "2025-04-01")
+        _db.meal_set_bcp(db_conn, mid, 24.5, 210.0, {"protein_g": 30.0, "sodium_mg": 74.0})
+        db_conn.commit()
+        row = _db.meal_get(db_conn, mid)
+        snapshot = json.loads(row["nutrients_snapshot_json"])
+        assert snapshot == {"protein_g": 30.0, "sodium_mg": 74.0}
+
+    def test_extra_nutrient_column_shown_when_selected(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """Choosing a nutrient in Settings adds it as a column with a computed value."""
+        from numa_app import state
+        monkeypatch.setattr(state.app_ctx, "meal_list_nutrients", ["sodium_mg"])
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        # a1=analyze meal ID 1 to compute+store the nutrient snapshot;
+        # n = decline "Refresh AA data from USDA?" prompt at end of analysis
+        runner.invoke(input="3\na1\nn\nb\nq\n")
+        result = runner.invoke(input="3\nb\nq\n")
+        assert "Sodium" in result.output
+        assert "74" in result.output
+
+    def test_extra_nutrient_column_absent_when_none_selected(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """No extra columns render when meal_list_nutrients is empty (the default)."""
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="3\nb\nq\n")
+        assert "Sodium" not in result.output
+
+    def test_meal_list_columns_reminder_footer(self, runner: NumaTestRunner, monkeypatch, cached_food):
+        """The meals list points users at Settings to configure extra columns."""
+        _mock_api(monkeypatch)
+        runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
+        result = runner.invoke(input="3\nb\nq\n")
+        assert "Meals & Log columns" in result.output
+
     def _setup_complete_meal(self, runner, monkeypatch, date="2025-03-15", name="Lunch"):
         """Helper: create a meal with 100 g chicken and mark it complete."""
         _mock_api(monkeypatch)
@@ -1155,6 +1193,64 @@ class TestNutrientTargetsSettings:
         assert result.exit_code == 0
         assert "40" in result.output   # age
         assert "female" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Settings — Meals & Log columns picker
+# ---------------------------------------------------------------------------
+
+class TestMealListNutrientsSettings:
+    @pytest.fixture(autouse=True)
+    def _reset_meal_list_nutrients(self):
+        """meal_list_nutrients lives on the process-wide state.app_ctx singleton,
+        not the per-test temp DB/prefs — reset it around each test so choices
+        made in one test can't leak into the next."""
+        from numa_app import state
+        state.app_ctx.meal_list_nutrients = []
+        yield
+        state.app_ctx.meal_list_nutrients = []
+
+    def test_option_visible_in_settings(self, runner: NumaTestRunner):
+        result = runner.invoke(input="5\nb\nq\n")
+        assert result.exit_code == 0
+        assert "meals & log columns" in result.output.lower()
+
+    def test_pick_nutrient_saves_pref(self, runner: NumaTestRunner):
+        from numa_app import state
+        idx = meal_column_menu_index("sodium_mg")
+        # Settings(5) → Meals & Log columns(10) → pick sodium → back(b) → back(b) → q
+        result = runner.invoke(input=f"5\n10\n{idx}\nb\nb\nq\n")
+        assert result.exit_code == 0
+        assert state.app_ctx.meal_list_nutrients == ["sodium_mg"]
+
+    def test_pick_two_nutrients_preserves_order(self, runner: NumaTestRunner):
+        from numa_app import state
+        idx_sodium = meal_column_menu_index("sodium_mg")
+        idx_fiber = meal_column_menu_index("fiber_g")
+        result = runner.invoke(input=f"5\n10\n{idx_fiber} {idx_sodium}\nb\nb\nq\n")
+        assert result.exit_code == 0
+        assert state.app_ctx.meal_list_nutrients == ["fiber_g", "sodium_mg"]
+
+    def test_clear_selection(self, runner: NumaTestRunner):
+        from numa_app import state
+        idx = meal_column_menu_index("sodium_mg")
+        runner.invoke(input=f"5\n10\n{idx}\nb\nb\nq\n")
+        result = runner.invoke(input="5\n10\nc\nb\nb\nq\n")
+        assert result.exit_code == 0
+        assert state.app_ctx.meal_list_nutrients == []
+
+    def test_too_many_nutrients_rejected(self, runner: NumaTestRunner):
+        from numa_app import state
+        from numa_app.services.meal_list_columns import MAX_MEAL_LIST_NUTRIENTS
+        idxs = " ".join(
+            meal_column_menu_index(k) for k in
+            ["protein_g", "carbs_g", "fiber_g", "sodium_mg", "calcium_mg", "iron_mg", "zinc_mg"]
+        )
+        assert MAX_MEAL_LIST_NUTRIENTS < 7
+        result = runner.invoke(input=f"5\n10\n{idxs}\nb\nb\nq\n")
+        assert result.exit_code == 0
+        assert "at most" in result.output.lower()
+        assert state.app_ctx.meal_list_nutrients == []
 
 
 # ---------------------------------------------------------------------------
