@@ -7,7 +7,8 @@
 {% block sidebar_nav %}
 {% if date_detail %}
 <aside class="analysis-sidebar">
-  <div class="sb-title">{{ date_detail }}</div>
+  <a class="sb-page-title" href="#analysis-content">{{ date_detail }}</a>
+  <div class="sb-title">Contents</div>
   <ul class="sb-list">
     <li class="sb-item"><a class="sb-toggle" href="#sec-meals">Meals</a></li>
     {% if diaas %}

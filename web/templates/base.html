@@ -135,7 +135,7 @@
   {# Analysis pages override layout_class + sidebar_nav blocks to get two-column layout #}
   <div class="{% block layout_class %}container{% endblock %}">
     {% block sidebar_nav %}{% endblock %}
-    <main class="{% block main_class %}{% endblock %}">
+    <main class="{% block main_class %}{% endblock %}" id="analysis-content">
       {% block content %}{% endblock %}
     </main>
   </div>
