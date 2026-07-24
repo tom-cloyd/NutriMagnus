@@ -1,4 +1,4 @@
-.PHONY: devserver build vm-setup build-windows upload-windows release-windows clean
+.PHONY: devserver build release-linux vm-setup build-windows upload-windows release-windows clean
 
 # ── Linux build ───────────────────────────────────────────────────────────────
 devserver: build
@@ -6,6 +6,13 @@ devserver: build
 
 build:
 	.venv/bin/pyinstaller --onefile --name nutrimagnus numa.py
+
+# ── Linux: create a Codeberg release and upload the binary ───────────────────
+# Normally done automatically by .forgejo/workflows/release.yml on every push
+# to main; this is the same script, for manual/local use (e.g. testing a
+# release without waiting on CI). Requires CODEBERG_TOKEN in the environment.
+release-linux: build
+	python3 scripts/create_release.py
 
 # ── Windows: first-time VM setup (run once after importing the dev VM) ────────
 # Starts an HTTP server so the Windows VM can download the SSH key and setup script,

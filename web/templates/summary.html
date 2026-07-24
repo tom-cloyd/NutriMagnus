@@ -40,21 +40,28 @@
            value="{{ date_detail or today }}"
            onchange="window.location='/summary/'+this.value">
   </div>
-  <a href="/summary/trend" class="btn btn-sm btn-outline-secondary">N-day nutrient trend</a>
+  <a href="/summary/trend" class="btn btn-sm btn-outline-secondary">Multiday nutrient trend</a>
 </div>
 
 {# ── Recent days table ────────────────────────────────────────────────── #}
+{% set show_pct_col = day_rows|selectattr('pct_goal', 'none')|list|length < day_rows|length %}
 <details {% if not date_detail %}open{% endif %}>
-  <summary><strong>Recent Days with Meals</strong>
-    {% if protein_target %}<small class="muted ms-2"> — DCP goal: {{ protein_target|int }} g/day</small>{% endif %}
-  </summary>
+  <summary><strong>Recent Days with Meals</strong></summary>
   {% if day_rows %}
-  <table class="table table-sm table-hover mt-2" style="max-width:34rem">
+  <div style="overflow-x:auto">
+  <table class="table table-sm table-hover mt-2" style="width:auto">
     <thead class="table-light">
       <tr>
         <th>Date</th>
-        <th class="num-col">Day DCP</th>
-        {% if protein_target %}<th class="num-col">% goal</th>{% endif %}
+        <th class="num-col" style="white-space:nowrap">Day DCP</th>
+        {% if show_pct_col %}
+        <th class="num-col" title="That date's own protein target">Goal</th>
+        <th class="num-col" title="Day DCP ÷ that date's own protein target">% goal</th>
+        {% endif %}
+        {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
+        {% for col in day_nutrient_cols %}
+        <th class="num-col">{{ col.label }}</th>
+        {% endfor %}
         <th class="num-col">Meals</th>
         <th></th>
       </tr>
@@ -63,14 +70,17 @@
       {% for r in day_rows %}
       <tr{% if r.meal_date == date_detail %} class="table-active"{% endif %}>
         <td>{{ r.meal_date }}</td>
-        <td class="num-col">
+        <td class="num-col" style="white-space:nowrap">
           {% if r.day_bcp is not none %}
           <span class="status-met">{{ "%.1f"|format(r.day_bcp) }} g</span>
           {% else %}
           <span class="muted">—</span>
           {% endif %}
         </td>
-        {% if protein_target %}
+        {% if show_pct_col %}
+        <td class="num-col">
+          {% if r.goal is not none %}{{ r.goal|int }}&thinsp;g{% else %}<span class="muted">—</span>{% endif %}
+        </td>
         <td class="num-col">
           {% if r.pct_goal is not none %}
           <span class="{% if r.pct_goal >= 100 %}status-met{% elif r.pct_goal >= 75 %}status-near{% else %}status-low{% endif %}">{{ r.pct_goal|int }}%</span>
@@ -79,16 +89,25 @@
           {% endif %}
         </td>
         {% endif %}
+        {% if show_profile_col %}
+        <td><small class="muted">{{ r.profile_name or "—" }}</small></td>
+        {% endif %}
+        {% for col in day_nutrient_cols %}
+        <td class="num-col">
+          {% if r.nutrient_values[col.key] is not none %}{{ r.nutrient_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endfor %}
         <td class="num-col muted">{{ r.complete_count }}</td>
         <td><a href="/summary/{{ r.meal_date }}" class="btn btn-sm btn-link p-0">Analyze</a></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
   <p class="muted"><small>
     DCP = bioavailable (digestible) complete protein &middot;
     — = not yet computed (open a meal and click <em>Compute DCP</em> from the <a href="/meals">Meals</a> page)
-    {% if not protein_target %}&middot; Set a profile in <a href="/settings">Settings</a> to see % goal{% endif %}
+    {% if not show_pct_col %}&middot; Set a profile in <a href="/settings">Settings</a> to see your daily protein goal{% endif %}
   </small></p>
   {% else %}
   <p class="muted mt-2">No meals logged yet.</p>
@@ -105,6 +124,26 @@
   </ol>
 </nav>
 <h3>{{ date_detail }}{% if date_detail == today %} <small class="muted">(today)</small>{% endif %}</h3>
+{% if day_profile_name %}
+<p class="muted mb-2">
+  <small>
+    Profile: {{ day_profile_name }}{% if day_profile_overridden %} (manually set){% endif %}
+    {% if all_profile_names|length > 1 %}
+    <details class="d-inline-block ms-1">
+      <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Change</summary>
+      <form method="post" action="/summary/{{ date_detail }}/profile" class="d-inline-flex gap-1 mt-1">
+        <select name="profile_name" class="form-select form-select-sm" style="width:auto">
+          {% for nm in all_profile_names %}
+          <option value="{{ nm }}" {% if nm == day_profile_name %}selected{% endif %}>{{ nm }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-primary">Use this profile for {{ date_detail }}</button>
+      </form>
+    </details>
+    {% endif %}
+  </small>
+</p>
+{% endif %}
 
 <div id="sec-meals" class="mb-3">
   <strong>{{ meals | length }} meal{{ 's' if meals | length != 1 else '' }}:</strong>

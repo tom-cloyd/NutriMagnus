@@ -15,10 +15,11 @@ from rich.rule import Rule
 from . import state
 from .config.prefs import _PREFS_FILE, _ask_animal_foods_pref, _load_prefs, _DIET_LABELS
 from .config.theme import _detect_terminal_theme, _load_theme, _save_theme, _theme_source
+from .services import day_profile as _day_profile
 from .ui.common import _safe_call
 from .ui.prompts import Cancelled, ReturnToMain, _prompt, _load_input_history
 from .workflows.foods import _menu_foods
-from .workflows.meals import _menu_meals
+from .workflows.meals import _menu_meals, _recompute_and_store_meal_bcp, _refresh_day_pct_goal
 from .workflows.settings import _menu_settings
 from .workflows.recipes import _menu_recipes
 from .workflows.analysis import _menu_analysis
@@ -204,7 +205,29 @@ def initialize_app(*, theme: str | None = None, api_key: str | None = None) -> b
         state.set_theme(actual, state.THEMES[actual])
 
     _db.init_db()
+    # Load prefs (sets state._diet_pref) before any recompute below, so the
+    # day_pct_goal a backfill computes reflects the user's actual saved diet
+    # preference rather than the module-level default.
     _load_prefs()
+    with _db.get_db() as conn:
+        _day_profile.backfill_missing_day_profiles(conn)
+        missing_snapshot_meals = _db.meals_missing_nutrient_snapshot(conn)
+    # One-time backfill: meals whose bcp_g/calories predate the per-meal
+    # nutrient snapshot (added for the Meals & Log / Daily Summary extra
+    # columns feature) never got one written, so those columns show blank
+    # for every day except ones recomputed since. Self-limiting — meals
+    # already backfilled are excluded by the query above on future starts.
+    for _meal in missing_snapshot_meals:
+        _recompute_and_store_meal_bcp(_meal["id"], _meal["meal_date"])
+    with _db.get_db() as conn:
+        missing_pct_dates = _db.dates_missing_day_pct_goal(conn)
+    # Same idea for day_pct_goal: dates whose bcp_g predates day_pct_goal
+    # counting meals not marked complete (a web-app-only bug fixed alongside
+    # this) never got a value stored — matters if the DB is shared with the
+    # web app. _refresh_day_pct_goal itself already covers every meal on the
+    # date, not just the one that happened to trigger it.
+    for _meal_date in missing_pct_dates:
+        _refresh_day_pct_goal(_meal_date)
     _load_input_history()
     if not _PREFS_FILE.exists() or "diet_pref" not in _PREFS_FILE.read_text():
         _ask_animal_foods_pref()

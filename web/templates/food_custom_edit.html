@@ -16,6 +16,59 @@
 {% if saved %}
 <div class="alert alert-success">Profile saved. <a href="/food/{{ food.fdc_id }}">View food detail</a></div>
 {% endif %}
+{% if aa_applied == "ok" %}
+<div class="alert alert-success">Amino acids estimated and saved below — see the Notes field for the source and scale factor.</div>
+{% elif aa_applied == "error" %}
+<div class="alert alert-danger">Couldn't estimate: the selected source food has no usable amino acid or protein data.</div>
+{% elif aa_applied == "source_fetch_failed" %}
+<div class="alert alert-danger">Couldn't fetch the selected source food's details. Try again or pick a different food.</div>
+{% endif %}
+
+{# ── Estimate amino acids from another food ── #}
+<details class="mb-4" {% if aa_source_q %}open{% endif %} style="max-width:44rem">
+  <summary><strong>Estimate amino acids from another food</strong></summary>
+  <p class="muted mt-2 mb-2">
+    <small>Search your Food Cache for a food with amino acid data, then apply it here —
+    values are scaled to this food's own protein content, not copied raw.</small>
+  </p>
+  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="d-flex gap-2 mb-2">
+    <input type="text" class="form-control form-control-sm" name="aa_source_q" value="{{ aa_source_q }}"
+           placeholder="Search cached foods…" style="max-width:22rem">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
+  </form>
+  {% if aa_source_q and not aa_source_results %}
+  <p class="muted"><small>No cached foods match "{{ aa_source_q }}".</small></p>
+  {% elif aa_source_results %}
+  <table class="table table-sm table-hover">
+    <thead class="table-light">
+      <tr>
+        <th title="Amino acid data">AA</th>
+        <th>Food</th>
+        <th>Type</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in aa_source_results %}
+      <tr>
+        <td>
+          {% if r.has_aa %}<span class="status-met" title="Has amino acid data">&#10003;</span>
+          {% else %}<span class="text-danger" title="No amino acid data">&#10007;</span>{% endif %}
+        </td>
+        <td>{{ r.name }} <small class="muted">(#{{ r.fdc_id }})</small></td>
+        <td class="muted">{{ r.data_type }}</td>
+        <td>
+          <form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/copy-aa" style="margin:0">
+            <input type="hidden" name="source_fdc_id" value="{{ r.fdc_id }}">
+            <button type="submit" class="btn btn-sm btn-primary" {% if not r.has_aa %}disabled{% endif %}>Use as source</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</details>
 
 <form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/edit">
 

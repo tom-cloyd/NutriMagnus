@@ -705,13 +705,15 @@ class TestMealsMenu:
         assert bcp > 0.0
 
     def test_bcp_columns_shown_in_table(self, runner: NumaTestRunner, monkeypatch, cached_food):
-        """Meal DCP and Day DCP column headers always appear in the meals list."""
+        """Meal DCP and Day DCP column headers always appear in the meals list
+        (stacked across two lines, e.g. 'Meal' above 'DCP', to save width)."""
         _mock_api(monkeypatch)
         runner.invoke(input="3\nn\n2025-03-15\nLunch\n1\nchicken\n1\n100 g\n\nd\nb\nq\n")
         result = runner.invoke(input="3\nb\nq\n")
         assert result.exit_code == 0
-        assert "Meal DCP" in result.output
-        assert "Day DCP" in result.output
+        assert "Meal" in result.output
+        assert "Day" in result.output
+        assert result.output.count("DCP") >= 2
 
     def test_bcp_footer_explains_abbreviation(self, runner: NumaTestRunner, monkeypatch, cached_food):
         """Footer below the table explains what DCP means and that p recomputes."""
@@ -975,6 +977,16 @@ class TestSettingsMenu:
         assert result.exit_code == 0
         assert "saved" in result.output.lower()
         assert config_file.exists()
+
+    def test_set_search_boost_page_size(self, runner: NumaTestRunner, tmp_path, monkeypatch):
+        config_file = tmp_path / "config.json"
+        monkeypatch.setattr(_usda_api, "_CONFIG_FILE", config_file)
+        # Settings: 8 (Advanced) → 4 (search result depth) → 0 (no cap) → b → b → q
+        result = runner.invoke(input="5\n8\n4\n0\nb\nb\nq\n")
+        assert result.exit_code == 0
+        assert "saved" in result.output.lower()
+        import json
+        assert json.loads(config_file.read_text())["search_boost_page_size"] == 0
 
     def test_change_theme(self, runner: NumaTestRunner, tmp_path, monkeypatch):
         from numa_app.config import theme as _theme_mod

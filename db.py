@@ -279,6 +279,16 @@ def init_db() -> None:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS day_profile (
+                meal_date    TEXT PRIMARY KEY,
+                profile_name TEXT NOT NULL,
+                profile_json TEXT NOT NULL,
+                pinned_at    TEXT DEFAULT (datetime('now')),
+                overridden   INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+
         # Migrate: add archived flag to foods/pantry/recipes (reserve/hide-without-losing feature)
         try:
             conn.execute("ALTER TABLE foods ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
@@ -924,8 +934,15 @@ def day_bcp_cache_set(conn: sqlite3.Connection, meal_date: str, dcp_g: float) ->
 def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlite3.Row]:
     """Return recent meal dates with aggregated DCP data.
 
-    Columns: meal_date, day_bcp (NULL if no complete meals have bcp_g computed),
-    complete_count (number of complete meals that day).
+    Columns: meal_date, day_bcp (NULL if no meal that day has bcp_g computed
+    yet — this counts every meal with a computed value, not just ones marked
+    complete: DCP is auto-saved as items are added, so an in-progress meal
+    already contributes to the day total, same as the day-detail page's own
+    pooled DIAAS analysis and the CLI's day summary), complete_count (number
+    of complete meals that day, shown separately as a progress indicator —
+    unrelated to whether day_bcp has a value), day_pct_goal (the
+    %-of-profile-goal value already stored per meal by refresh_day_pct_goal —
+    every meal on a date shares the same value, so MAX just picks it up).
     Prefers the pooled day-level DCP from day_bcp_cache when available.
     """
     return conn.execute(
@@ -933,9 +950,10 @@ def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlit
         SELECT
             m.meal_date,
             COALESCE(c.dcp_g,
-                SUM(CASE WHEN m.complete = 1 AND m.bcp_g IS NOT NULL THEN m.bcp_g END)
+                SUM(CASE WHEN m.bcp_g IS NOT NULL THEN m.bcp_g END)
             ) AS day_bcp,
-            COUNT(CASE WHEN m.complete = 1 THEN 1 END) AS complete_count
+            COUNT(CASE WHEN m.complete = 1 THEN 1 END) AS complete_count,
+            MAX(m.day_pct_goal) AS day_pct_goal
         FROM meals m
         LEFT JOIN day_bcp_cache c ON c.meal_date = m.meal_date
         GROUP BY m.meal_date
@@ -944,6 +962,36 @@ def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlit
         """,
         (limit,),
     ).fetchall()
+
+
+def day_profile_get(conn: sqlite3.Connection, meal_date: str) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM day_profile WHERE meal_date = ?", (meal_date,)
+    ).fetchone()
+
+
+def day_profile_upsert(conn: sqlite3.Connection, meal_date: str, profile_name: str,
+                        profile_json: str, overridden: bool = False) -> None:
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO day_profile
+            (meal_date, profile_name, profile_json, pinned_at, overridden)
+        VALUES (?, ?, ?, datetime('now'), ?)
+        """,
+        (meal_date, profile_name, profile_json, int(overridden)),
+    )
+
+
+def day_profile_dates_missing(conn: sqlite3.Connection) -> list[str]:
+    """Distinct meal_dates that have meals but no day_profile row yet."""
+    return [
+        r["meal_date"] for r in conn.execute(
+            """
+            SELECT DISTINCT meal_date FROM meals
+            WHERE meal_date NOT IN (SELECT meal_date FROM day_profile)
+            """
+        ).fetchall()
+    ]
 
 
 _MEAL_SORT_ORDER_BY = {
@@ -1018,6 +1066,32 @@ def meal_list_complete_since(conn: sqlite3.Connection, since_date: str) -> list[
         "SELECT * FROM meals WHERE complete = 1 AND meal_date >= ? ORDER BY id",
         (since_date,),
     ).fetchall()
+
+
+def meals_missing_nutrient_snapshot(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Meals with at least one item but no nutrients_snapshot_json — meals
+    whose bcp_g/calories were computed (or the meal predates the snapshot
+    column's meaning) before the per-meal nutrient snapshot existed, so the
+    Meals & Log / Daily Summary extra-column feature has nothing to show for
+    them. Used for a one-time startup backfill."""
+    return conn.execute(
+        "SELECT DISTINCT m.* FROM meals m "
+        "JOIN meal_items mi ON mi.meal_id = m.id "
+        "WHERE m.nutrients_snapshot_json IS NULL"
+    ).fetchall()
+
+
+def dates_missing_day_pct_goal(conn: sqlite3.Connection) -> list[str]:
+    """Dates with at least one meal that has bcp_g computed but no
+    day_pct_goal stored — from before day_pct_goal counted meals not marked
+    complete (or a meal that simply hasn't triggered a refresh yet). Used for
+    a one-time startup backfill alongside meals_missing_nutrient_snapshot."""
+    return [
+        row["meal_date"] for row in conn.execute(
+            "SELECT DISTINCT meal_date FROM meals "
+            "WHERE bcp_g IS NOT NULL AND day_pct_goal IS NULL"
+        ).fetchall()
+    ]
 
 
 def meal_get(conn: sqlite3.Connection, meal_id: int) -> sqlite3.Row | None:

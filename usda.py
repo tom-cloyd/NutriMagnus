@@ -7,10 +7,13 @@
 from usda_api import (       # noqa: F401
     NUTRIENT_MAP,
     ESSENTIAL_AMINO_ACIDS,
+    ALL_AMINO_ACIDS,
     AA_REFERENCE_MG_PER_G_PROTEIN,
     USDAError,
     get_api_key,
     set_api_key,
+    get_search_boost_page_size,
+    set_search_boost_page_size,
     search_foods,
     get_food_detail,
     _parse_food,             # used by tests

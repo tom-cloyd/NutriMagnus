@@ -163,6 +163,47 @@
   }, true);
   </script>
   <script>
+  // Remember the last search you ran on a "stateful" page (marked with
+  // data-persist-search on its search <form>) so that leaving to look
+  // something up elsewhere and coming straight back — with a plain link,
+  // not the browser Back button — restores your results instead of making
+  // you re-type the search. A "Reset search" control (data-reset-search)
+  // forgets it and returns to the page's clean default state.
+  (function () {
+    if (!document.querySelector('form[data-persist-search]')) return;
+    var KEY = 'numa_search_q:' + window.location.pathname;
+    var params = new URLSearchParams(window.location.search);
+
+    if (!params.has('q')) {
+      var saved = sessionStorage.getItem(KEY);
+      if (saved) {
+        var url = new URL(window.location.href);
+        url.searchParams.set('q', saved);
+        window.location.replace(url.toString());
+        return; // navigating away — nothing below matters for this load
+      }
+    } else if (params.get('q')) {
+      sessionStorage.setItem(KEY, params.get('q'));
+    } else {
+      // Explicitly searched for nothing (cleared the box and submitted) —
+      // respect that instead of silently bringing the old search back.
+      sessionStorage.removeItem(KEY);
+    }
+
+    document.querySelectorAll('[data-reset-search]').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.preventDefault();
+        sessionStorage.removeItem(KEY);
+        // Breadcrumb links (e.g. "Meals") carry their own destination —
+        // follow it. The in-page "Reset search" button has href="#", so
+        // it just reloads this page with the search cleared.
+        var href = el.getAttribute('href');
+        window.location.href = (href && href !== '#') ? href : window.location.pathname;
+      });
+    });
+  })();
+  </script>
+  <script>
   (function () {
     var STORAGE_KEY = 'numa_accesskeys';
     var enabled = localStorage.getItem(STORAGE_KEY) !== 'false';

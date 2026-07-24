@@ -477,7 +477,7 @@ def _do_compare_foods() -> None:
                         continue
                     import json as _json2
                     nuts_100g = _json2.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
-                    portions = _json2.loads(cached["portions_json"]) if cached["portions_json"] else []
+                    portions = _json2.loads(cached["portions_json"] or "[]") or []
                     food_stub = {
                         "fdcId": fid, "name": cached["name"],
                         "dataType": cached["data_type"] or "",
@@ -881,7 +881,7 @@ def _do_dout(id_str: str) -> None:
         if cached:
             source = "cache"
             nutrients = json.loads(cached["nutrients_json"])
-            portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+            portions = json.loads(cached["portions_json"] or "[]") or []
             entry = {
                 "fdc_id":            fdc_id,
                 "name":              cached["name"],

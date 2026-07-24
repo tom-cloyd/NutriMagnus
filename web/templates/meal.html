@@ -90,7 +90,7 @@
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="/meals">Meals</a></li>
+    <li class="breadcrumb-item"><a href="/meals" data-reset-search title="Back to the meals list (clears any in-progress search on this meal)">Meals</a></li>
     <li class="breadcrumb-item active" aria-current="page">{{ meal.name }}</li>
   </ol>
 </nav>
@@ -153,12 +153,13 @@
   <summary><strong>Add Food or Recipe</strong></summary>
   {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
 
-  <form method="get" action="/meal/{{ meal.id }}">
+  <form method="get" action="/meal/{{ meal.id }}" data-persist-search>
     <input type="hidden" name="sort" value="{{ sort }}">
     <div class="input-group mb-3 mt-2">
       <input type="text" class="form-control" name="q" value="{{ q }}"
              placeholder="Search foods or recipes…" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
+      {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
     </div>
   </form>
 

@@ -24,6 +24,7 @@
 {% endif %}
 
 {% if results %}
+{% set unconfirmed = results|selectattr("aa", "equalto", "~✓")|list %}
 <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
   <p class="result-count mb-0">
     {{ results|length }} result{% if results|length != 1 %}s{% endif %}
@@ -39,9 +40,26 @@
     </select>
   </form>
 </div>
+<form method="post" action="/food/confirm-aa" id="confirm-aa-form">
+  <input type="hidden" name="query" value="{{ query }}">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  {% if unconfirmed %}
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
+      Fetch full details for selected
+    </button>
+    <small class="muted">Confirms whether a <span class="text-warning">~✓</span> food really has amino acid data — search results don't carry nutrient data, only the food's name and type, so this is a guess until fetched.</small>
+  </div>
+  {% endif %}
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>
+      {% if unconfirmed %}
+      <th style="width:2rem">
+        <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
+               aria-label="Select all unconfirmed">
+      </th>
+      {% endif %}
       <th class="muted" style="width:6rem">ID</th>
       <th title="Amino acid data">AA</th>
       <th title="Glycemic index (annotated)">GI</th>
@@ -56,6 +74,14 @@
   <tbody>
     {% for food in results %}
     <tr>
+      {% if unconfirmed %}
+      <td>
+        {% if food.aa == "~✓" %}
+        <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
+               aria-label="Select {{ food.name }} to fetch full details">
+        {% endif %}
+      </td>
+      {% endif %}
       <td class="muted"><small>
         {% if food._type == "recipe" %}—
         {% elif food.fdc_id > 0 %}{{ food.fdc_id }}
@@ -63,7 +89,7 @@
       </small></td>
       <td>
         {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
-        {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
+        {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
         {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
         {% else %}<span class="muted">—</span>{% endif %}
       </td>
@@ -84,6 +110,29 @@
     {% endfor %}
   </tbody>
 </table>
+</form>
+{% if unconfirmed %}
+<script>
+(function () {
+  var form = document.getElementById('confirm-aa-form');
+  if (!form) return;
+  var boxes = Array.prototype.slice.call(form.querySelectorAll('[data-confirm-aa-checkbox]'));
+  var submitBtn = form.querySelector('[data-confirm-aa-submit]');
+  var selectAll = form.querySelector('[data-confirm-aa-select-all]');
+
+  function refresh() {
+    submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
+  }
+  boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      boxes.forEach(function (b) { b.checked = selectAll.checked; });
+      refresh();
+    });
+  }
+})();
+</script>
+{% endif %}
 {% elif query %}
 <p>No results for <strong>{{ query }}</strong>.</p>
 {% endif %}

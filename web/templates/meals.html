@@ -50,9 +50,22 @@
       </select>
     </div>
   </form>
-  <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
+  <form method="get" action="/meals" class="d-flex gap-2 align-items-end">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="date" value="{{ date_filter }}">
+    <div>
+      <label class="form-label mb-1" for="meals-limit">Number of meals to show</label>
+      <input type="number" min="1" class="form-control form-control-sm" id="meals-limit"
+             name="limit" value="{{ limit }}" style="width:6rem">
+    </div>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Show</button>
+  </form>
+  <div>
+    <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
+    <div><small class="muted">Find every meal that contains a given food, e.g. "tofu"</small></div>
+  </div>
   <form method="post" action="/meals/compute-bcp" class="d-flex gap-2 align-items-end">
-    <input type="hidden" name="redirect_to" value="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
+    <input type="hidden" name="redirect_to" value="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}&limit={{ limit }}">
     <div>
       <label class="form-label mb-1" for="compute-scope">Calculate DCP and calories for</label>
       <select class="form-select form-select-sm" id="compute-scope" name="scope">
@@ -72,10 +85,7 @@
   Showing {{ meals|length }} of {{ total }} meal{% if total != 1 %}s{% endif %}
   {% if date_filter %}<span class="muted"> on or before {{ date_filter }}</span>{% endif %}
   {% if hidden > 0 %}
-  — <strong>{{ hidden }} not shown</strong>
-  &nbsp;<a href="/meals?show_all=1&sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}">Show all {{ total }}</a>
-  {% elif show_all and total > 9 %}
-  &nbsp;<a href="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}">Show recent 9 only</a>
+  — <strong>{{ hidden }} not shown</strong> <span class="muted">(raise "Number of meals to show" above to see more)</span>
   {% endif %}
 </p>
 <table class="table table-sm table-hover">
@@ -86,10 +96,11 @@
       <th>Date</th>
       <th class="text-center">Complete</th>
       <th class="num-col">Items</th>
-      <th class="num-col" title="Digestible Complete Protein for this meal">Meal DCP</th>
-      <th class="num-col" title="Sum of DCP across all meals with computed data on this date (marked * if any meal isn't complete yet)">Day DCP</th>
-      {% if protein_target %}<th class="num-col" title="Day DCP ÷ {{ protein_target|int }} g daily target">% goal</th>{% endif %}
       <th class="num-col">Calories</th>
+      <th class="num-col" title="Digestible Complete Protein for this meal">Meal<br>DCP</th>
+      <th class="num-col" title="Sum of DCP across all meals with computed data on this date (marked * if any meal isn't complete yet)">Day<br>DCP</th>
+      {% if show_pct_col %}<th class="num-col" title="Day DCP ÷ that date's own protein target">%<br>goal</th>{% endif %}
+      {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
       {% for col in meal_nutrient_cols %}
       <th class="num-col">{{ col.label }}</th>
       {% endfor %}
@@ -111,6 +122,15 @@
       </td>
       <td class="num-col">{{ meal.item_count }}</td>
       <td class="num-col">
+        {% if meal.calories is not none %}
+          {{ "%.0f"|format(meal.calories) }}
+        {% elif meal.bcp_computed_at %}
+          <span class="muted">n/a</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td class="num-col">
         {% if meal.bcp_g is not none %}
           <span class="status-met">{{ "%.1f"|format(meal.bcp_g) }}</span>
         {% elif meal.bcp_computed_at %}
@@ -126,7 +146,7 @@
           <span class="muted">—</span>
         {% endif %}
       </td>
-      {% if protein_target %}
+      {% if show_pct_col %}
       <td class="num-col">
         {% if meal.first_of_date and meal.day_pct is not none %}
           <span class="{% if meal.day_pct >= 100 %}status-met{% elif meal.day_pct >= 75 %}status-near{% else %}status-low{% endif %}" title="{% if meal.day_provisional %}Provisional — includes a meal not yet marked complete{% else %}Confirmed — all contributing meals are marked complete{% endif %}">{{ meal.day_pct|int }}%{% if meal.day_provisional %}<small class="muted">*</small>{% endif %}</span>
@@ -135,15 +155,13 @@
         {% endif %}
       </td>
       {% endif %}
-      <td class="num-col">
-        {% if meal.calories is not none %}
-          {{ "%.0f"|format(meal.calories) }}
-        {% elif meal.bcp_computed_at %}
-          <span class="muted">n/a</span>
-        {% else %}
-          <span class="muted">—</span>
+      {% if show_profile_col %}
+      <td>
+        {% if meal.first_of_date %}
+          <small class="muted">{{ meal.day_profile_name or "—" }}</small>
         {% endif %}
       </td>
+      {% endif %}
       {% for col in meal_nutrient_cols %}
       <td class="num-col">
         {% if meal.nutrient_values[col.key] is not none %}
@@ -161,7 +179,7 @@
               onsubmit="return confirm('Delete every meal on {{ meal.meal_date }}? This cannot be undone.')">
           <input type="hidden" name="meal_date" value="{{ meal.meal_date }}">
           <input type="hidden" name="redirect_to"
-                 value="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}{% if show_all %}&show_all=1{% endif %}">
+                 value="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}&limit={{ limit }}">
           <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete every meal on {{ meal.meal_date }}">Delete day</button>
         </form>
         {% endif %}

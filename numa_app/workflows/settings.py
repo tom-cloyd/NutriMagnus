@@ -16,7 +16,7 @@ from ..config.prefs import _save_prefs, _DIET_LABELS
 from ..config import theme as theme_config
 from ..config.theme import _change_theme
 from ..ui.common import _safe_call, _show_menu, table_title, table_footer, help_footer, _prompt_with_options
-from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float
+from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _ask_float, _ask_int
 from ..ui.render import _print_rda_targets
 
 # Nutrients offered for Profile Optimal / max-limit configuration in Settings —
@@ -747,10 +747,13 @@ def _menu_advanced_settings() -> None:
     while True:
         _key = _usda.get_api_key()
         key_status = f"{_key[:8]}...{_key[-4:]}" if _key else "[bold yellow]not set[/bold yellow]"
+        _boost_size = _usda.get_search_boost_page_size()
+        boost_status = "no cap — all hits" if _boost_size == 0 else str(_boost_size)
         _show_menu("Advanced settings", [
             ("1", "Protein digestibility overrides  (for DIAAS calculation)"),
             ("2", f"USDA API key  ({key_status})  [grey62]· s = show full[/grey62]"),
             ("3", f"Storage location: {_db.get_db_path()}"),
+            ("4", f"Search result depth  (current setting: {boost_status})"),
             ("b", "Back to previous menu"),
             ("m", "Return to main menu"),
             ("q", "Quit"),
@@ -765,6 +768,8 @@ def _menu_advanced_settings() -> None:
             _safe_call(_do_set_api_key)
         elif choice == "3":
             state.console.print(f"  Storage location: {_db.get_db_path()}", highlight=False)
+        elif choice == "4":
+            _safe_call(_do_search_boost_page_size)
         elif choice == "b":
             return
         elif choice == "m":
@@ -839,6 +844,26 @@ def _menu_settings() -> bool:
             return False
         else:
             state.console.print(f"[{state.T['warning']}]Please enter a valid option.[/{state.T['warning']}]")
+
+def _do_search_boost_page_size() -> None:
+    current = _usda.get_search_boost_page_size()
+    state.console.print(
+        "  When searching USDA without restricting to a data type, the app also runs a "
+        "Foundation/SR Legacy-only pass so plain/raw foods (the ones most likely to carry "
+        "amino-acid data) aren't buried under branded or prepared-dish results."
+    )
+    state.console.print(f"  Current cap: [grey62]{'no cap — all hits' if current == 0 else current}[/grey62]")
+    val = _ask_int("New cap  [grey62](0 = no cap, i.e. all hits)[/grey62]", default=current)
+    if val is None:
+        state.console.print("[grey62]Unchanged.[/grey62]")
+        return
+    try:
+        _usda.set_search_boost_page_size(val)
+    except ValueError as e:
+        state.console.print(f"[{state.T['error']}]{e}[/{state.T['error']}]")
+        return
+    state.console.print(f"[{state.T['success']}]✓[/{state.T['success']}] Search result depth saved.")
+
 
 def _do_set_api_key() -> None:
     current = _usda.get_api_key()

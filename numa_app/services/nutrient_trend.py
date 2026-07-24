@@ -1,6 +1,6 @@
 """
 nutrient_trend.py — shared multi-day nutrient averaging, used by CLI
-(workflows/summary.py) and web (backend.py) for the N-day nutrient trend view.
+(workflows/summary.py) and web (backend.py) for the multiday nutrient trend view.
 
 Single-day summaries only ever show a snapshot; a nutrient that's chronically
 low (B12, iron, iodine, vitamin D) over many days is invisible if you only

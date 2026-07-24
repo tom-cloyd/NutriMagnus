@@ -20,6 +20,27 @@
   </form>
 </div>
 
+{% if day_profile_name %}
+<p class="muted mb-2">
+  <small>
+    Profile: {{ day_profile_name }}{% if day_profile_overridden %} (manually set){% endif %}
+    {% if all_profile_names|length > 1 %}
+    <details class="d-inline-block ms-1">
+      <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Change</summary>
+      <form method="post" action="/meal/{{ from_meal_id }}/day/profile" class="d-inline-flex gap-1 mt-1">
+        <select name="profile_name" class="form-select form-select-sm" style="width:auto">
+          {% for nm in all_profile_names %}
+          <option value="{{ nm }}" {% if nm == day_profile_name %}selected{% endif %}>{{ nm }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-primary">Use this profile for {{ meal_date }}</button>
+      </form>
+    </details>
+    {% endif %}
+  </small>
+</p>
+{% endif %}
+
 {# ── Meals on this date ───────────────────────────────────────────────── #}
 <div class="mb-3">
   <strong>{{ meals | length }} meal{{ 's' if meals | length != 1 else '' }} on this date:</strong>

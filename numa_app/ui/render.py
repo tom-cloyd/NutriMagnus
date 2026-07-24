@@ -493,7 +493,7 @@ def _print_meal_diaas(
     total_grams = 0.0
     total_protein = 0.0
     total_dig_p = 0.0
-    for ing in sorted((i for i in result["ingredients"] if i["protein_g"] >= 0.1), key=lambda x: x["food_name"].lower()):
+    for ing in sorted((i for i in result["ingredients"] if i["protein_g"] >= 1.0), key=lambda x: x["food_name"].lower()):
         p = ing["protein_g"]
         d = ing["digestibility"]
         dig_p = p * d  # digestibility applies regardless of whether AA data is present
@@ -603,7 +603,7 @@ def _print_meal_diaas(
     }
 
     if result["missing_aa_names"]:
-        with_protein = [n for n in result["missing_aa_names"] if protein_by_name.get(n, 0.0) >= 0.1]
+        with_protein = [n for n in result["missing_aa_names"] if protein_by_name.get(n, 0.0) >= 1.0]
         if with_protein:
             n_missing = len(with_protein)
             state.console.print(
@@ -627,7 +627,7 @@ def _print_meal_diaas(
                 )
 
     if result["estimate_sources"]:
-        est_with_protein = [s for s in result["estimate_sources"] if protein_by_name.get(s, 0.0) >= 0.1]
+        est_with_protein = [s for s in result["estimate_sources"] if protein_by_name.get(s, 0.0) >= 1.0]
         if est_with_protein:
             state.console.print(
                 "\n  [grey62]  Digestibility estimated (literature average) for:[/grey62]",

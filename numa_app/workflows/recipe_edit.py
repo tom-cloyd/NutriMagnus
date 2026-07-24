@@ -392,7 +392,7 @@ def _do_recipe_edit(recipe=None) -> None:
                 "servingSize": cached["serving_size"],
                 "servingUnit": cached["serving_unit"],
                 "nutrients": json.loads(cached["nutrients_json"]),
-                "portions":  json.loads(cached["portions_json"]) if cached["portions_json"] else [],
+                "portions":  json.loads(cached["portions_json"] or "[]") or [],
             }
             try:
                 food_name_new = _prompt(

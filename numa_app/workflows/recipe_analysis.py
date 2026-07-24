@@ -56,7 +56,7 @@ def _resolve_recipe_dcp_data(
         and ing["id"] not in (resolved_ing_ids or set())
     ]
     no_aa_ings  = [s for s in ingredient_stats if not s.get("has_aa", True)
-                   and s.get("protein_g", 0) >= 0.1]
+                   and s.get("protein_g", 0) >= 1.0]
     pc          = _usda.protein_completeness(combined)
     no_aa       = not pc.get("has_data")
 
@@ -354,7 +354,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                     _refresh_cache_if_missing_aa(ing["fdc_id"])
                     with _db.get_db() as conn:
                         cached = _db.get_cached_food(conn, ing["fdc_id"])
-                    portions = json.loads(cached["portions_json"]) if cached else []
+                    portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
                     unit_str = ing["unit"].replace(" (weight not known)", "").strip()
                     result = _parse_portion_input(unit_str, portions, food_name=ing["food_name"])
                     if result is not None:
@@ -585,7 +585,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             # Partial AA gap: some ingredients have AA data, others don't
             no_aa_ings = [s for s in ingredient_stats if not s.get("has_aa")]
             missing_aa_ings = [f"{s['name']}{food_id_tag(s.get('fdc_id'), inline=True)}" for s in no_aa_ings
-                               if s.get("protein_g", 0) >= 0.1]
+                               if s.get("protein_g", 0) >= 1.0]
             if missing_aa_ings:
                 names_str = ", ".join(missing_aa_ings)
                 state.console.print(

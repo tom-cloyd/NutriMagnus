@@ -1,0 +1,39 @@
+name: Release Linux build
+
+# Builds the Linux binary and publishes it as a new Codeberg release on every
+# push to main, so a fresh download is always available without a separate
+# manual "cut a release" step. Requires a CODEBERG_TOKEN secret (repo write
+# scope) configured in this repo's Settings -> Actions -> Secrets.
+#
+# If version.py wasn't bumped this push, the release tag already exists and
+# scripts/create_release.py exits cleanly with no error — not every push is
+# expected to produce a new release, only ones that changed VERSION.
+#
+# The Windows build stays manual (make build-windows && make upload-windows)
+# since it requires a local Windows VM; it attaches to whatever release is
+# newest, so it will land on releases this workflow publishes.
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: docker
+    container:
+      image: python:3.12-slim
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          pip install --no-cache-dir -r requirements.txt pyinstaller==6.21.0
+
+      - name: Build Linux binary
+        run: pyinstaller --onefile --name nutrimagnus numa.py
+
+      - name: Create release and upload binary
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: python3 scripts/create_release.py

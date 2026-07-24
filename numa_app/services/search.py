@@ -604,8 +604,14 @@ def _search_and_pick_food(
                 try:
                     found = _usda.search_foods(api_query, data_types=data_types)
                     if data_types is None:
+                        # USDA's own relevance ranking can bury plain/raw
+                        # preparations (the ones with real amino-acid data,
+                        # e.g. "Potatoes, flesh and skin, raw") ~20 deep for a
+                        # common single-word query. Cap is user-configurable
+                        # (Settings → Advanced); 0 means no cap.
                         generic = _usda.search_foods(
-                            api_query, data_types=["Foundation", "SR Legacy"], page_size=8
+                            api_query, data_types=["Foundation", "SR Legacy"],
+                            page_size=_usda.get_search_boost_page_size(),
                         )
                         generic_ids = {x["fdcId"] for x in generic}
                         found = generic + [x for x in found if x["fdcId"] not in generic_ids]
@@ -799,11 +805,16 @@ def _search_and_pick_food(
                 with state.console.status(f"[grey62]Searching {label}...[/grey62]", spinner="dots"):
                     api_results = _usda.search_foods(api_query, data_types=data_types)
                     # For default (unrestricted) searches the USDA API ranks by its own relevance
-                    # score, which buries Foundation/SR Legacy under many branded results.
-                    # Fetch them explicitly and prepend so they always appear.
+                    # score, which buries Foundation/SR Legacy under many branded results — and
+                    # even within Foundation/SR Legacy alone, plain/raw preparations (the ones
+                    # with real amino-acid data) can rank ~20 deep for a common single-word query
+                    # (e.g. "Potatoes, flesh and skin, raw" for "potato"). Fetch them explicitly
+                    # and prepend so they always appear; the result cap is user-configurable
+                    # (Settings → Advanced), with 0 meaning no cap.
                     if data_types is None:
                         generic = _usda.search_foods(
-                            api_query, data_types=["Foundation", "SR Legacy"], page_size=8
+                            api_query, data_types=["Foundation", "SR Legacy"],
+                            page_size=_usda.get_search_boost_page_size(),
                         )
                         generic_ids = {r["fdcId"] for r in generic}
                         api_results = generic + [r for r in api_results if r["fdcId"] not in generic_ids]

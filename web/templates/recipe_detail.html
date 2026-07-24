@@ -261,7 +261,7 @@
   {% else %}
   <p class="muted mt-2">No procedure entered yet.</p>
   {% endif %}
-  <details class="mt-3">
+  <details class="mt-3" id="procedure-details">
     <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer;display:inline-block">
       {% if recipe.instructions %}Edit procedure{% else %}Add procedure{% endif %}
     </summary>
@@ -275,6 +275,18 @@
       </form>
     </div>
   </details>
+  <script>
+  // Once opened, clicking the summary again must not silently collapse the
+  // form and discard whatever the user has typed but not yet saved — only
+  // Save (or navigating away) should close it.
+  (function () {
+    var d = document.getElementById('procedure-details');
+    if (!d) return;
+    d.querySelector('summary').addEventListener('click', function (e) {
+      if (d.open) e.preventDefault();
+    });
+  })();
+  </script>
 </section>
 
 {# ── Nutritional Analysis ─────────────────────────────────────────────── #}

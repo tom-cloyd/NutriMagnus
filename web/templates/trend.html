@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}NutriMagnus — N-Day Nutrient Trend{% endblock %}
+{% block title %}NutriMagnus — Multiday Nutrient Trend{% endblock %}
 {% block layout_class %}container{% endblock %}
 
 {% block content %}
-<h2>N-Day Nutrient Trend {{ manual_link("goals") }}</h2>
+<h2>Multiday Nutrient Trend {{ manual_link("goals") }}</h2>
 <p class="muted">
   Average daily nutrient intake across the days you actually logged meals in the window below —
   a single day's summary can't show a chronic shortfall (e.g. low B12 or iron) the way a trend across
@@ -21,6 +21,14 @@
 {% else %}
 <p class="muted"><small>Averaging over {{ num_days }} logged day(s) out of the last {{ days }} calendar day(s) ({{ start }} to {{ end }}).</small></p>
 
+{% if differing_profile_dates %}
+<p class="rda-no-profile">
+  RDA targets below reflect your '{{ end_profile_name }}' profile (as of {{ end }});
+  {{ differing_profile_dates|length }} day(s) in this window used a different profile at the time:
+  {{ differing_profile_dates|join(', ') }}
+</p>
+{% endif %}
+
 {% if not has_profile %}
 <p class="rda-no-profile">
   No personal profile set up &mdash; RDA % targets not shown.
@@ -33,6 +41,21 @@
 {% endif %}
 {% if diet_notes and diet_notes.b12 %}
 <p class="rda-over"><small>&#9888; {{ diet_notes.b12 }} {{ manual_link("diet-bioavailability") }}</small></p>
+{% endif %}
+
+{# Lead with DCP, not raw protein — raw protein overstates what the body can
+   actually use, and that gap is exactly what this view exists to catch. #}
+{% if avg_dcp is not none %}
+<div class="protein-summary-card {% if avg_dcp_pct is not none and avg_dcp_pct >= 100 %}psc-complete{% else %}psc-incomplete{% endif %} mb-3">
+  <div class="ps-metric">
+    <div class="ps-label">Average Day DCP <small class="muted">(over {{ avg_dcp_days }} day(s) with computed DCP)</small></div>
+    <div class="ps-value">{{ avg_dcp }}&thinsp;g
+      {% if avg_dcp_pct is not none %}<small class="muted">— {{ avg_dcp_pct|int }}% of daily target ({{ protein_target }}&thinsp;g)</small>{% endif %}
+    </div>
+  </div>
+</div>
+{% elif has_profile %}
+<p class="muted"><small>DCP not yet computed for any day in this window — raw protein below is not a substitute; use "Calculate DCP and calories" on the <a href="/meals">Meals</a> page.</small></p>
 {% endif %}
 
 {% for section in nutrient_sections %}

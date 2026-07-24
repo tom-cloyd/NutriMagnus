@@ -1,10 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-22:1717* / Reading 2 hours, 55 minutes
-
-<!--  the following preface is what appears also on the WEB version home page, accessed in home.md. -->
-
-## Preface
+*Updated 2026-07-23:2006* / Reading 2 hours, 55 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet.
 
@@ -16,13 +12,22 @@
 
 **Both the program and its accompanying *User Manual* are an ongoing project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review; it is an advanced first draft.
 
-**User feedback is highly valued.** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
+**User feedback is highly valued, so please give us yours!** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
+
+**How to come up with feedback:** First, any thoughts you wish to share are welcome. We know what is useful to us, but can't
+react at all if you share. If in doubt, just do it! We'll be grateful. Of particular interest to us:
+
+1. Inconveniences: you notice that something seems a bit difficult to do, or you see a simpler or quicker way to do it.
+2. Missing or incomplete information: Sometimes updates and changes do not go out to every part of the program as they should, and you see a gap in the information provided.
+3. Outright nonsense: you look at program output and think "that can't be right" or maybe you just feel doubtful about it.
 
 ---
 
-### Which part of this manual do I need?
+## How to read this Manual
 
-Almost everyone using NutriMagnus today opens it in a web browser. If that's you, this manual is organized so you can ignore the command-line material entirely:
+NutriMagnus comes to you in two versions. one runs in a browser (the "Web App" version) and the other runs in a terminal (the CLI - command line interface - version). The browser version offers a more customary interface, while the CLI version offers speed and information density. Ideally you will try both, but most people should begin with the web version.
+
+Since almost everyone using NutriMagnus will open it in a web browser, this manual is organized so you can ignore the command-line material entirely:
 
 - Read **Part 1** (Introduction) and **Part 2** (Core nutrition concepts) — these apply no matter how you use the program.
 - Read **Part 3** (Reading Your Results) whenever you want to know what a column or table means — it's the same reference whether you're looking at the web app or the terminal.
@@ -562,20 +567,35 @@ NutriMagnus calculates personalized daily nutrient goals from your user profile 
 
 Nutrients without established [DRIs](#gloss-dri) ([phytonutrients](#gloss-phytonutrients), amino acids) have no goal shown. The "% today" column and "Daily goal" column are blank for those rows.
 
-See [RDA](#rda) for a general overview of where these values come from. If the standard RDA isn't the number you actually want to hit for a given nutrient, see [Profile Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits). A single day's numbers are only a snapshot -- see [N-Day Nutrient Trend](#trend) for how to spot a shortfall that persists across many days.
+See [RDA](#rda) for a general overview of where these values come from. If the standard RDA isn't the number you actually want to hit for a given nutrient, see [Profile Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits). A single day's numbers are only a snapshot -- see [Multiday Nutrient Trend](#trend) for how to spot a shortfall that persists across many days.
 
 
-### N-Day Nutrient Trend [trend]
+### Multiday Nutrient Trend [trend]
 
 Every other RDA comparison in NutriMagnus -- food, recipe, meal, daily summary -- looks at a single day. That's the right window for "did today's meals cover me," but it's the wrong window for a nutrient that's chronically a little short: one low day is unremarkable, but the same shortfall repeated for two weeks straight is exactly the kind of pattern a single-day view can never show you, because you'd have to remember and compare each day yourself.
 
-**Access it from Analysis → Daily Summary → N-day nutrient trend** (CLI) or the **"N-day nutrient trend"** button on the Daily Summary page (web). Choose a window -- last 7, 14, or 30 days -- and NutriMagnus averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Profile Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
+**Access it from Analysis → Daily Summary → Multiday nutrient trend** (CLI) or the **"Multiday nutrient trend"** button on the Daily Summary page (web). Choose a window -- last 7, 14, or 30 days -- and NutriMagnus averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Profile Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
 
 **Only logged days count.** If you ask for a 30-day trend but only logged meals on 12 of those days, the average is computed over those 12 days -- unlogged days are treated as "no data," not as a zero-intake day. Diluting the average with days you simply didn't track would understate your real intake and could hide the exact shortfall this view exists to surface. The screen tells you how many logged days went into the average (e.g. "Averaging over 12 logged day(s) out of the last 30").
 
 This is the same B12/iron/zinc-aware analysis described in [Diet-Aware Bioavailability and Deficiency Notes](#diet-bioavailability) -- a trend view is often where a B12 or iron pattern actually becomes visible, since a single low day rarely triggers concern on its own.
 
 **Multi-day protein complementarity.** Below the nutrient comparison, the trend view also pools every amino-acid-containing food logged across the window's days and runs the same [complement suggestion](#comp) analysis normally shown for a single day -- but framed for forward planning ("Add to upcoming meals" rather than "Add to your day"), since the gap it found accumulated across several days, not one meal you can still fix. A gap that only shows up when pooled across the whole window -- rather than in any single day's suggestions -- is exactly the kind of small, persistent shortfall this view is meant to catch.
+
+
+### Per-Day Profile Tracking [day-profile]
+
+Your profile isn't fixed forever -- weight, activity level, or even which named profile is active can change over time (illness, travel, a deliberate weight change). But your logged meals stay put. If a past day's DCP and RDA comparisons always used *today's* profile, an old day could silently get re-scored against numbers that weren't true of you back then.
+
+**Each logged day is pinned to whichever profile was active the first time a meal was saved for that date.** That pin is a full snapshot -- your age, weight, activity level, and targets as they were that day -- not just a name. So if you later edit that profile's numbers (or switch which profile is active), days already logged keep comparing against the numbers that were true when you logged them. Only a day that has never had a meal saved for it — or one you explicitly reassign — will pick up a different profile.
+
+**Where you see it.** If you maintain more than one named profile, a **Profile** column/line appears next to each day: on the Meals & Log list, the Recent Days list, and the Daily Summary / full-day view (CLI and web). With only one profile configured, this column is hidden since there's nothing to distinguish.
+
+**Changing a day's profile.** Sometimes the automatic pin doesn't match reality -- illness or travel rarely starts exactly at midnight. Open that day's summary (CLI: Analysis → Daily Summary → a specific date, then answer "y" to *Change the profile used for this date?*; web: the **Change** control next to "Profile:" on the day's Summary or Full Day page) and pick a different saved profile. The day is marked "(manually set)" afterward and its DCP/RDA numbers recompute immediately against the new pin.
+
+**Multiday trend.** The [Multiday Nutrient Trend](#trend) view spans many days at once, so it scores against the profile pinned to the *most recent* day in the window (today, for the usual "last N days"). If any day inside the window was pinned to a different profile, a note discloses which dates and profile differed, rather than silently blending two profiles' targets into one average.
+
+**Existing data.** If you're upgrading from a version of NutriMagnus that didn't have this feature, every day you'd already logged gets pinned to whichever profile is active the first time you open NutriMagnus after upgrading -- you don't need to open or edit anything for this to happen.
 
 
 ### Omega-3 Fatty Acids [omega3]
@@ -783,6 +803,7 @@ The sections linked from analysis output are:
 - [Nutrient analysis](#nutrients) — nutrient analysis table columns and groups
 - [Omega-3 fatty acids](#omega3) — ALA, EPA, DHA, and why only ALA has a Daily Goal
 - [Oxalate data](#oxalate) — [oxalate](#gloss-oxalate) data source, enabling, matching, and limitations
+- [Per-day profile tracking](#day-profile) — how a logged day stays pinned to the profile active when it was saved, and how to change it
 - [Profile Optimal targets](#optimal) — custom per-nutrient targets above the standard RDA
 - [Protein completeness](#complete) — what makes a protein "complete"
 - [Protein quality](#protein-quality) — single-food amino acid ratios table columns
@@ -994,7 +1015,7 @@ Columns:
     up-arrow user    You set a custom value (Settings -> Advanced ->
             Digestibility overrides). Type ?dcp-overrides.
 
-The totals row sums ingredient weight, crude protein, and digestible protein across all ingredients.
+Ingredients contributing less than 1 g of protein are omitted from this table as negligible; the totals row sums only the ingredients shown.
 
 Note: the "Total digestible protein" here is step 1 of a two-step method. Step 2 (the [DIAAS](#gloss-diaas) limiting-amino-acid penalty) reduces it further. See [amino acid scoring](#aa-scoring) for the full step-by-step method. See [DIAAS](#diaas) for background on [DIAAS](#gloss-diaas) and true [ileal digestibility](#gloss-ileal-digestibility).
 
@@ -1228,7 +1249,7 @@ Inside a recipe: ingredients that are part of a recipe you logged.
     These must be fixed by editing that recipe (Recipes -> browse -> edit)
     and replacing the problematic ingredient there.
 
-Safe to ignore when the affected food contributes negligible protein (garnish, spice, small amount of fruit). Matters when the food is a significant protein source in your meal.
+Safe to ignore when the affected food contributes negligible protein (garnish, spice, small amount of fruit). Matters when the food is a significant protein source in your meal. Foods contributing less than 1 g of protein are treated as negligible and left off this list entirely (a footnote tells you when items were omitted this way).
 
 The [DIAAS](#gloss-diaas) calculation runs on whichever ingredients do have [AA](#gloss-aa) data. The result is flagged as an estimate, and the [DCP](#gloss-dcp) figure reflects only the protein from data-complete ingredients.
 
@@ -1250,13 +1271,15 @@ Columns:
                 saved automatically whenever the recipe or its ingredients
                 change — no separate analysis step is needed. Shown as
                 NC (not computed) if servings is 0, no ingredient has a
-                known weight, or an ingredient supplying a significant
-                share of the recipe's protein has no amino acid data.
-                Minor contributors missing amino acid data (spices, oil,
-                salt) don't block the calculation — only significant ones
-                do, since an approximate DCP is never saved as if it were
-                exact. In the web app, the "Compute DCP for all complete
-                recipes" button on the Recipes page recomputes every
+                known weight, or an ingredient with 1 g or more of protein
+                has no amino acid data. Minor contributors missing amino
+                acid data (under 1 g of protein — spices, oil, salt, a
+                trace of chocolate) don't block the calculation — only
+                significant ones do, since an approximate DCP is never
+                saved as if it were exact. The 1 g floor is absolute: it
+                doesn't matter what fraction of the recipe's total protein
+                that 1 g represents. In the web app, the "Compute DCP for
+                all complete recipes" button on the Recipes page recomputes every
                 recipe at once.
     Complete    Checkmark if you have marked the recipe finished.
     Created     Date the recipe was first saved.
@@ -1298,6 +1321,16 @@ Columns:
               ~checkmark   Likely available (Foundation/SR Legacy not yet
                            fetched); confirmed on selection.
               X            No amino acid data.
+
+    Search results carry only a food's name and type — USDA's search API
+    doesn't return nutrient values, so "~checkmark" is a guess, not a fact.
+    Opening a food's page (or adding it to a meal/recipe) fetches and caches
+    its full details, which is when "~checkmark" turns into a confirmed
+    checkmark or X. On the web app, you can also check a batch of "~checkmark"
+    results directly from the search list: tick their checkboxes (or the
+    header checkbox to select all of them) and click "Fetch full details for
+    selected" — this avoids fetching every uncached result on every search,
+    which would cost one USDA API call per result.
     GI      Your saved glycemic index estimate, if any. Type ?gi.
     DIAAS   Your saved DIAAS estimate, if any. Type ?diaas.
     CONF.   Checkmark if a confidence/source note is saved. View with c#
@@ -1411,6 +1444,8 @@ To edit nutrient data: Foods -> [Food Cache](#gloss-food-cache), find the food, 
 
 To create a new custom profile: Foods -> Drafted Food Profiles -> Create. See [amino acid fetch workflow](#fetch) for an alternative way to get missing data (e.g. amino acid data from Claude AI for foods not in [USDA](#gloss-usda)).
 
+**Estimating amino acids by copying from another food.** Whenever you're prompted for a food's amino acid profile (creating a drafted profile, copying a cached food, or editing any food's data), a third option lets you search for and pick a similar food that already has amino acid data, instead of typing values in or pasting from literature. The picked food's amino acids are **scaled to match this food's own protein content** (not copied raw) — a food with less protein than the source gets proportionally less amino acid content, and vice versa — the same scaling already used by hand in this app's built-in curated foods (e.g. amino acids scaled between fresh and dried okara). A note documenting the source food and scale factor is suggested automatically for the Note field. On the web app, the same picker appears as an "Estimate amino acids from another food" panel on the custom-profile edit page ([Custom Food Profiles](#custom-foods)); editing any food's data this way marks it user-drafted, same as any other edit.
+
 
 #### My Pantry Table [pantry]
 
@@ -1493,6 +1528,8 @@ Every page has the same navigation bar across the top: **NutriMagnus** (takes yo
 If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual). Turn this on or off in **Settings → Keyboard Shortcuts**.
 
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form.
+
+**Search boxes remember your last search.** On a meal's "Add Food or Recipe" search and a recipe's "Add Ingredient" search, if you follow a link away to look something up elsewhere and then come straight back to that exact page, your last search and its results are restored automatically — you don't have to retype it. This only applies to a plain link back to the page (the browser's own Back button already preserves it); it's scoped per page, so it never leaks a search from one meal into another. Click **Reset search** (shown next to the search box whenever a search is active) to clear it and return to the page's default, empty-search state.
 
 ### Sample Workflows [sample-workflows-web]
 
@@ -1612,12 +1649,12 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 
 ### Using the Analysis menu
 
-- **Daily summary** — a table of recent days with Day DCP and % of goal; pick a date to see that day's full analysis (same sections as the full-day meal view). From here, follow the **N-day nutrient trend** link to see 7/14/30-day averages — useful for catching a chronic shortfall that a single good or bad day would hide.
+- **Daily summary** — a table of recent days with Day DCP and % of goal; pick a date to see that day's full analysis (same sections as the full-day meal view). From here, follow the **Multiday nutrient trend** link to see 7/14/30-day averages — useful for catching a chronic shortfall that a single good or bad day would hide.
 - **Food use in meals** — see how often you've eaten a given food or recipe. Choose either a date range or a specific list of meal IDs, optionally limit results to protein-containing foods, and get a sortable table with a visual frequency bar.
 
 ### Using the Settings menu
 
-Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets), **Computed Daily Targets** (read-only, derived from your profile), **Dietary Preferences** (affects complement suggestions and [B12/iron/zinc guidance](#diet-bioavailability)), **Keyboard Shortcuts**, **USDA API Key** (raises the search rate limit well above the shared demo key's), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), and **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults).
+Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets), **Computed Daily Targets** (read-only, derived from your profile), **Dietary Preferences** (affects complement suggestions and [B12/iron/zinc guidance](#diet-bioavailability)), **Keyboard Shortcuts**, **USDA API Key** (raises the search rate limit well above the shared demo key's; also has the **search result depth** setting, which controls how many Foundation/SR Legacy results are fetched so plain/raw foods with amino acid data aren't buried under branded or prepared-dish matches — 0 means no cap), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), and **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults).
 
 #### Computed Daily Targets [daily-targets-web]
 
@@ -2490,7 +2527,7 @@ When enabled, NutriMagnus prints the current color theme, dietary preference, an
 
 #### Advanced settings (Settings → 8)
 
-Contains three sub-options.
+Contains four sub-options.
 
 **1 — Protein digestibility overrides:** lets you set a custom true [ileal digestibility](#gloss-ileal-digestibility) coefficient (a number from 0.00 to 1.00) for any specific food, overriding the default value NutriMagnus uses in meal-level [DIAAS](#gloss-diaas) calculations. This is for cases where you have found a published study with a measured value for a food you eat regularly.
 
@@ -2499,6 +2536,8 @@ Enter the food name exactly as it appears in your cache (the match is case-insen
 **2 — [USDA](#gloss-usda) API key:** enter your personal FoodData Central API key. Type `s` to display the currently stored key. A personal key gives you a much higher search rate limit than the shared DEMO_KEY fallback. Getting a free key takes about a minute — instructions are in the [Food data](#food-data) section.
 
 **3 — Storage location:** displays the full path to your NutriMagnus database file (`numa.db`). This is read-only; the path is set automatically when the program first runs and cannot be changed here.
+
+**4 — Search result depth:** whenever a food search isn't restricted to one data type, NutriMagnus also runs a second, Foundation/SR Legacy-only pass so plain/raw foods — the ones most likely to carry [amino acid](#gloss-aa) data — aren't buried under branded products or prepared dishes (USDA's own relevance ranking can otherwise push something like "Potatoes, flesh and skin, raw" 15–20 results deep for a plain "potato" search). This setting controls how many results that second pass fetches; the default of 25 is enough for most searches. Set it higher if you still don't see the food you expect, or to `0` for no cap at all (every matching result USDA returns in one page). A higher number means a slightly slower search.
 
 #### Web keyboard shortcuts [web-shortcuts]
 
@@ -2684,6 +2723,8 @@ If you created a supplement entry before this feature was added, open it via **F
 3. Enter it in NutriMagnus under **Settings → Advanced settings → [USDA](#gloss-usda) API key**. Type **s** at that prompt to display your current key if you need to retrieve it.
 
 Your key is stored on your computer only. Once set, all food searches use your personal key with a much higher rate limit.
+
+**Search result depth.** USDA's own search ranking sometimes buries the plain/raw version of a food — the one most likely to carry [amino acid](#gloss-aa) data — well below branded products or prepared dishes matching the same words. NutriMagnus compensates with a second, unrestricted-depth search pass; **Settings → Advanced settings → Search result depth** controls how deep it goes (default 25, or `0` for no cap).
 
 Every food in these online tables has a unique ID number — think of it as a product code that identifies that one food and nothing else.
 

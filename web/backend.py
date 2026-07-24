@@ -23,6 +23,8 @@ import openfoodfacts as _off
 import profile as _profile
 import usda as _usda
 from numa_app.services import complements as _complements
+from numa_app.services import day_profile as _day_profile
+from numa_app.services import aa_estimate as _aa_estimate
 from numa_app.services.glycemic_load import compute_glycemic_load
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
@@ -277,6 +279,23 @@ async def _lifespan(app: FastAPI):
     # Apply schema/migrations on web server startup — the web app is a separate
     # process from the CLI and must not depend on the CLI having run first.
     _db.init_db()
+    with _db.get_db() as conn:
+        _day_profile.backfill_missing_day_profiles(conn)
+        missing_snapshot_meals = _db.meals_missing_nutrient_snapshot(conn)
+    # One-time backfill: meals whose bcp_g/calories predate the per-meal
+    # nutrient snapshot (added for the Meals & Log / Daily Summary extra
+    # columns feature) never got one written, so those columns show blank
+    # for every day except ones recomputed since. Self-limiting — meals
+    # already backfilled are excluded by the query above on future starts.
+    for _meal in missing_snapshot_meals:
+        _compute_and_store_meal_bcp(_meal["id"])
+    with _db.get_db() as conn:
+        missing_pct_dates = _db.dates_missing_day_pct_goal(conn)
+    # Same idea for day_pct_goal: dates computed before it counted meals not
+    # marked complete never got a value stored, so "% goal" shows blank on
+    # the Daily Summary Recent Days table even though Day DCP now has one.
+    for _meal_date in missing_pct_dates:
+        _refresh_day_pct_goal(_meal_date)
     yield
 
 app = FastAPI(title="numa", lifespan=_lifespan)
@@ -422,9 +441,15 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
     return sections
 
 
-def _load_rda() -> dict | None:
-    """Load the user profile and return computed RDA dict, or None if no profile set."""
-    profile = _profile.load_profile()
+def _load_rda(profile=None) -> dict | None:
+    """Load the user profile and return computed RDA dict, or None if no profile set.
+
+    Pass an explicit `profile` (e.g. from day_profile.get_profile_for_date)
+    when scoring a specific logged date — otherwise this falls back to
+    whatever profile is active right now, which is only correct for
+    profile-less contexts (recipe/food analysis has no date to pin)."""
+    if profile is None:
+        profile = _profile.load_profile()
     if profile is None:
         return None
     return _profile.compute_rda(profile, diet_pref=_current_diet_pref())
@@ -446,17 +471,19 @@ def _diet_aware_daily_notes(nutrients: dict, rda: dict | None) -> dict:
     }
 
 
-def _load_optimal() -> dict | None:
+def _load_optimal(profile=None) -> dict | None:
     """Load the user profile and return computed Profile Optimal dict, or None if no profile set."""
-    profile = _profile.load_profile()
+    if profile is None:
+        profile = _profile.load_profile()
     if profile is None:
         return None
     return _profile.compute_optimal(profile)
 
 
-def _load_max_limits() -> dict | None:
+def _load_max_limits(profile=None) -> dict | None:
     """Load the user profile and return configured max limits, or None if no profile set."""
-    profile = _profile.load_profile()
+    if profile is None:
+        profile = _profile.load_profile()
     if profile is None:
         return None
     return _profile.get_max_limits(profile)
@@ -813,7 +840,20 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                 "has_notes": False,
             })
         try:
-            for food in _usda.search_foods(query):
+            # Double USDA search (same strategy as the meal add-food panel
+            # and CLI search): USDA's own relevance ranking for a query like
+            # "potato" buries plain/raw preparations (which carry real
+            # amino-acid data) below tangential matches like "Bread, potato"
+            # or "Potato chips" — e.g. "Potatoes, flesh and skin, raw" ranks
+            # ~20th for the query "potato". The Foundation/SR Legacy-only
+            # pass's result cap (Settings → Advanced) must be deep enough to
+            # reach that; 0 there means no cap at all.
+            foundation = _usda.search_foods(query, data_types=["Foundation", "SR Legacy"],
+                                             page_size=_usda.get_search_boost_page_size())
+            general = _usda.search_foods(query)
+            found_ids = {f["fdcId"] for f in foundation}
+            usda_combined = foundation + [f for f in general if f["fdcId"] not in found_ids]
+            for food in usda_combined:
                 fid = food.get("fdcId")
                 if fid and fid not in seen_ids:
                     seen_ids.add(fid)
@@ -858,6 +898,46 @@ async def food_search_post(request: Request, query: str = Form("")):
 async def search(request: Request, query: str = Form("")):
     """Legacy alias — same as POST /food/search."""
     return await _search_logic(request, query, "search.html")
+
+
+@app.post("/food/confirm-aa", response_class=RedirectResponse)
+async def food_confirm_aa(
+    fdc_ids: list[int] = Form(...),
+    query: str = Form(""),
+    sort: str = Form(""),
+):
+    """Fetch and cache full USDA details for the selected search-result foods,
+    so their amino-acid badge changes from the coarse '~✓' guess (search
+    results carry no nutrient data, only name/type) to a confirmed ✓ or ✗ —
+    without fetching details for every uncached result in the list, which
+    would cost one USDA API call per result on every search."""
+    for fdc_id in fdc_ids:
+        if fdc_id <= 0:
+            continue
+        with _db.get_db() as conn:
+            cached = _db.get_cached_food(conn, fdc_id)
+        if cached:
+            continue
+        try:
+            detail = _usda.get_food_detail(fdc_id)
+        except Exception:
+            continue
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn, fdc_id=detail["fdcId"], name=detail["name"],
+                data_type=detail.get("dataType", ""),
+                brand=detail.get("brand"),
+                serving_size=detail.get("servingSize"),
+                serving_unit=detail.get("servingUnit"),
+                nutrients=detail.get("nutrients", {}),
+                portions=detail.get("portions", []),
+            )
+
+    from urllib.parse import urlencode
+    params = {"query": query}
+    if sort:
+        params["sort"] = sort
+    return RedirectResponse(f"/food/search?{urlencode(params)}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -1036,7 +1116,7 @@ async def food_convert_detail(
         cached = _db.get_cached_food(conn, fdc_id)
 
     if cached:
-        portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+        portions = json.loads(cached["portions_json"] or "[]") or []
         food_data = {"fdc_id": cached["fdc_id"], "name": cached["name"], "brand": cached["brand"] or ""}
     else:
         try:
@@ -1606,7 +1686,7 @@ async def food_cache_portions_get(request: Request, fdc_id: int):
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
         return RedirectResponse("/food/cache", status_code=303)
-    portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+    portions = json.loads(cached["portions_json"] or "[]") or []
     return templates.TemplateResponse(request, "food_cache_portions.html", {
         "food":     {"fdc_id": cached["fdc_id"], "name": cached["name"]},
         "portions": portions,
@@ -1626,7 +1706,7 @@ async def food_cache_portions_add(
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
         return RedirectResponse("/food/cache", status_code=303)
-    portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+    portions = json.loads(cached["portions_json"] or "[]") or []
     error = None
     try:
         gw = float(gram_weight)
@@ -1643,7 +1723,7 @@ async def food_cache_portions_add(
             _db.update_food_portions(conn, fdc_id, portions)
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
-    portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+    portions = json.loads(cached["portions_json"] or "[]") or []
     return templates.TemplateResponse(request, "food_cache_portions.html", {
         "food":     {"fdc_id": fdc_id, "name": cached["name"]},
         "portions": portions,
@@ -1662,7 +1742,7 @@ async def food_cache_portions_delete(
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
         return RedirectResponse("/food/cache", status_code=303)
-    portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+    portions = json.loads(cached["portions_json"] or "[]") or []
     if 0 <= portion_index < len(portions):
         portions.pop(portion_index)
         with _db.get_db() as conn:
@@ -1966,11 +2046,21 @@ async def food_custom_profiles_delete(fdc_id: int):
 
 
 @app.get("/food/custom-profiles/{fdc_id}/edit", response_class=HTMLResponse)
-async def food_custom_profiles_edit_get(request: Request, fdc_id: int):
+async def food_custom_profiles_edit_get(request: Request, fdc_id: int, aa_source_q: str = Query(default=""),
+                                        aa_applied: str = Query(default="")):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
-    if not cached:
-        return RedirectResponse("/food/custom-profiles", status_code=303)
+        if not cached:
+            return RedirectResponse("/food/custom-profiles", status_code=303)
+        aa_source_results = []
+        if aa_source_q.strip():
+            aa_source_results = [
+                dict(r) for r in _db.search_cached_foods(conn, aa_source_q.strip())
+                if r["fdc_id"] != fdc_id
+            ]
+            for r in aa_source_results:
+                n = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
+                r["has_aa"] = _usda.has_amino_acid_data(n)
     nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
     field_groups = [
         {
@@ -1986,6 +2076,9 @@ async def food_custom_profiles_edit_get(request: Request, fdc_id: int):
         "food": dict(cached),
         "field_groups": field_groups,
         "saved": False,
+        "aa_source_q": aa_source_q.strip(),
+        "aa_source_results": aa_source_results,
+        "aa_applied": aa_applied,
     })
 
 
@@ -2048,7 +2141,65 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
         "food": dict(updated),
         "field_groups": field_groups,
         "saved": True,
+        "aa_source_q": "",
+        "aa_source_results": [],
+        "aa_applied": "",
     })
+
+
+@app.post("/food/custom-profiles/{fdc_id}/copy-aa", response_class=RedirectResponse)
+async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(...)):
+    """Estimate this food's amino acid profile by scaling a source food's AA
+    values to this food's own protein content (see numa_app/services/aa_estimate.py).
+    Marks the target user_drafted=True, same as any other in-place edit."""
+    with _db.get_db() as conn:
+        target = _db.get_cached_food(conn, fdc_id)
+        if not target:
+            return RedirectResponse("/food/custom-profiles", status_code=303)
+        source = _db.get_cached_food(conn, source_fdc_id)
+
+    if not source:
+        try:
+            detail = _usda.get_food_detail(source_fdc_id)
+        except Exception:
+            return RedirectResponse(
+                f"/food/custom-profiles/{fdc_id}/edit?aa_applied=source_fetch_failed", status_code=303
+            )
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn, fdc_id=detail["fdcId"], name=detail["name"],
+                data_type=detail.get("dataType", ""),
+                brand=detail.get("brand"),
+                serving_size=detail.get("servingSize"),
+                serving_unit=detail.get("servingUnit"),
+                nutrients=detail.get("nutrients", {}),
+                portions=detail.get("portions", []),
+            )
+            source = _db.get_cached_food(conn, source_fdc_id)
+
+    target_nutrients = json.loads(target["nutrients_json"]) if target["nutrients_json"] else {}
+    source_nutrients = json.loads(source["nutrients_json"]) if source["nutrients_json"] else {}
+    updated, factor, err = _aa_estimate.estimate_aa(target_nutrients, source_nutrients)
+    if err:
+        return RedirectResponse(
+            f"/food/custom-profiles/{fdc_id}/edit?aa_applied=error", status_code=303
+        )
+
+    portions_json = target["portions_json"]
+    portions: list[dict] = json.loads(portions_json) if portions_json and portions_json != "null" else []
+    note = _aa_estimate.source_note(source["name"], source_fdc_id, factor)
+    with _db.get_db() as conn:
+        _db.update_cached_food_profile(
+            conn, fdc_id, target["name"], updated,
+            data_type=target["data_type"] or "User Drafted",
+            brand=target["brand"],
+            serving_size=target["serving_size"],
+            serving_unit=target["serving_unit"],
+            portions=portions,
+            notes=note,
+            user_drafted=True,
+        )
+    return RedirectResponse(f"/food/custom-profiles/{fdc_id}/edit?aa_applied=ok", status_code=303)
 
 
 @app.post("/food/custom-profiles/copy/{fdc_id}", response_class=RedirectResponse)
@@ -2191,7 +2342,7 @@ async def food_detail(
 
     if cached:
         nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
-        portions = json.loads(cached["portions_json"]) if cached["portions_json"] else []
+        portions = json.loads(cached["portions_json"] or "[]") or []
         food = {
             "fdc_id":        cached["fdc_id"],
             "name":          cached["name"],
@@ -2345,7 +2496,7 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
     omitted_low_protein = False
     for ing in diaas_result.get("ingredients", []):
         p = ing.get("protein_g", 0.0)
-        if p < 0.1:
+        if p < 1.0:
             omitted_low_protein = True
             continue
         d = ing.get("digestibility", 1.0)
@@ -2369,7 +2520,7 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
         for ing in diaas_result.get("ingredients", [])
     }
     all_missing = diaas_result.get("missing_aa_names", [])
-    missing_with_protein = [n for n in all_missing if protein_by_name.get(n, 0.0) >= 0.1]
+    missing_with_protein = [n for n in all_missing if protein_by_name.get(n, 0.0) >= 1.0]
     omitted_zero_protein_missing = len(missing_with_protein) < len(all_missing)
     return {
         "score":           round(score, 3),
@@ -2688,22 +2839,29 @@ def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
     return bcp_g
 
 
-def _refresh_day_pct_goal(meal_date: str, protein_target: float | None) -> None:
-    """Recompute day_pct_goal for every complete meal on meal_date from stored bcp_g."""
+def _refresh_day_pct_goal(meal_date: str) -> None:
+    """Recompute day_pct_goal for every meal on meal_date from stored bcp_g,
+    against the profile pinned to that date (not whatever is active now).
+
+    Includes meals not yet marked complete — DCP is auto-saved as items are
+    added, so an in-progress meal already contributes to the day total
+    (matches the CLI, the day-detail page's own pooled DIAAS analysis, and
+    db.meal_dates_with_bcp's day_bcp aggregate used by the Daily Summary
+    Recent Days table)."""
     with _db.get_db() as conn:
         date_rows = _db.meal_list_by_date(conn, meal_date)
-    vals = [r["bcp_g"] for r in date_rows if r["complete"] and r["bcp_g"] is not None]
+        protein_target = _day_profile.protein_target_for_date(conn, meal_date, diet_pref=_current_diet_pref())
+    vals = [r["bcp_g"] for r in date_rows if r["bcp_g"] is not None]
     if not vals or not protein_target:
         pct = None
     else:
         pct = round(sum(vals) / protein_target * 100, 1)
     for dr in date_rows:
-        if dr["complete"]:
-            with _db.get_db() as conn:
-                _db.meal_set_day_pct_goal(conn, dr["id"], pct)
+        with _db.get_db() as conn:
+            _db.meal_set_day_pct_goal(conn, dr["id"], pct)
 
 
-def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | None, sort: str = "date") -> dict:
+def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None, sort: str = "date") -> dict:
     """Build template context for the meals list, including day DCP aggregates."""
     meals = [dict(m) for m in meals_rows]
     hidden = max(0, total - len(meals))
@@ -2729,19 +2887,33 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
     dates_in_page = {m["meal_date"] for m in meals}
     day_bcp: dict[str, float | None] = {}
     day_provisional: dict[str, bool] = {}
+    # Each date's % goal is scored against the profile pinned to *that* date,
+    # not whatever profile is active now — dates in the same page can span a
+    # profile switch.
+    day_protein_target: dict[str, float | None] = {}
+    day_profile_name: dict[str, str | None] = {}
+    diet_pref = _current_diet_pref()
     for d in dates_in_page:
         with _db.get_db() as conn:
             date_rows = _db.meal_list_by_date(conn, d)
+            day_protein_target[d] = _day_profile.protein_target_for_date(conn, d, diet_pref=diet_pref)
+            dp_row = _db.day_profile_get(conn, d)
+        day_profile_name[d] = dp_row["profile_name"] if dp_row else None
         contributing = [r for r in date_rows if r["bcp_g"] is not None]
         vals = [r["bcp_g"] for r in contributing]
         day_bcp[d] = round(sum(vals), 1) if vals else None
         day_provisional[d] = any(not r["complete"] for r in contributing)
 
-    # Profile protein target for % goal column
-    rda = _load_rda()
-    protein_target: float | None = None
-    if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
-        protein_target = rda["protein_g"][0]
+    show_profile_col = len(_profile.list_profiles()) > 1
+    show_pct_col = any(v is not None for v in day_protein_target.values())
+    # Cosmetic header figure only ("goal = N g/day") — per-row math always
+    # uses each date's own target above, not this.
+    header_protein_target = _load_rda()
+    header_protein_target = (
+        header_protein_target["protein_g"][0]
+        if header_protein_target and header_protein_target.get("protein_g") and header_protein_target["protein_g"][0] > 0
+        else None
+    )
 
     # Tag each meal with first-of-date flag so template can place Day DCP correctly
     seen_dates: set[str] = set()
@@ -2751,8 +2923,10 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
         seen_dates.add(d)
         m["day_bcp"] = day_bcp.get(d)
         m["day_provisional"] = day_provisional.get(d, False)
-        if protein_target and day_bcp.get(d) is not None:
-            m["day_pct"] = round(day_bcp[d] / protein_target * 100, 0)  # type: ignore[operator]
+        m["day_profile_name"] = day_profile_name.get(d)
+        target = day_protein_target.get(d)
+        if target and day_bcp.get(d) is not None:
+            m["day_pct"] = round(day_bcp[d] / target * 100, 0)  # type: ignore[operator]
         else:
             m["day_pct"] = None
 
@@ -2760,11 +2934,13 @@ def _meals_list_ctx(meals_rows, show_all: bool, total: int, before_date: str | N
         "meals":          meals,
         "total":          total,
         "hidden":         hidden,
-        "show_all":       show_all,
+        "limit":          limit,
         "today":          datetime.date.today().isoformat(),
         "date_filter":    before_date or "",
-        "protein_target": protein_target,
         "sort":           sort,
+        "protein_target": header_protein_target,
+        "show_pct_col":   show_pct_col,
+        "show_profile_col": show_profile_col,
         "meal_nutrient_cols": meal_nutrient_cols,
     }
 
@@ -2773,15 +2949,15 @@ _MEALS_SORT_KEYS = {"date", "name", "meal_bcp", "calories"}
 
 
 @app.get("/meals", response_class=HTMLResponse)
-async def meals_list(request: Request, show_all: bool = False, date: str = "", sort: str | None = None):
+async def meals_list(request: Request, limit: int = 9, date: str = "", sort: str | None = None):
     sort = _resolve_sort(sort, "sort_meals", "date", _MEALS_SORT_KEYS)
     before_date = date.strip() or None
-    limit = 1000 if show_all else 9
+    limit = max(1, limit)
     with _db.get_db() as conn:
         meals_rows = _db.meal_list_recent(conn, limit=limit, before_date=before_date, sort=sort)
         total = _db.meal_count_recent(conn, before_date=before_date)
     return templates.TemplateResponse(request, "meals.html",
-                                      _meals_list_ctx(meals_rows, show_all, total, before_date, sort))
+                                      _meals_list_ctx(meals_rows, limit, total, before_date, sort))
 
 
 @app.post("/meals/compute-bcp", response_class=RedirectResponse)
@@ -2801,14 +2977,12 @@ async def meals_compute_bcp(redirect_to: str = Form("/meals"), scope: str = Form
     for meal in to_compute:
         _compute_and_store_meal_bcp(meal["id"])
 
-    rda = _load_rda()
-    protein_target: float | None = None
-    if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
-        protein_target = rda["protein_g"][0]
-
+    # Each affected date is scored against its own pinned profile, not
+    # whatever profile is active now — a bulk recompute spanning many days
+    # must not silently reattribute old days to today's profile.
     affected_dates = {meal["meal_date"] for meal in to_compute}
     for meal_date in affected_dates:
-        _refresh_day_pct_goal(meal_date, protein_target)
+        _refresh_day_pct_goal(meal_date)
 
     return RedirectResponse(redirect_to, status_code=303)
 
@@ -2822,6 +2996,7 @@ async def meal_create(
     meal_date = meal_date.strip() or datetime.date.today().isoformat()
     with _db.get_db() as conn:
         meal_id = _db.meal_create(conn, name, meal_date)
+        _day_profile.ensure_day_profile(conn, meal_date)
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
@@ -2916,7 +3091,13 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
 
         try:
             general = _usda.search_foods(api_query)
-            foundation = _usda.search_foods(api_query, data_types=["Foundation", "SR Legacy"], page_size=8)
+            # USDA's own relevance ranking can bury plain/raw preparations
+            # (the ones with real amino-acid data) ~20 deep for a common
+            # single-word query — see _search_logic for the "potato" case
+            # that exposed this. The result cap is user-configurable
+            # (Settings → Advanced); 0 means no cap.
+            foundation = _usda.search_foods(api_query, data_types=["Foundation", "SR Legacy"],
+                                             page_size=_usda.get_search_boost_page_size())
             found_ids = {f["fdcId"] for f in foundation}
             usda_combined = foundation + [f for f in general if f["fdcId"] not in found_ids]
             raw_api.extend(usda_combined)
@@ -2970,7 +3151,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         # Cached foods first
         for row in cached_rows:
             fid = row["fdc_id"]
-            portions = json.loads(row["portions_json"]) if row["portions_json"] else []
+            portions = json.loads(row["portions_json"] or "[]") or []
             dtype = row["data_type"] or ""
             search_results.append({
                 "fdc_id":    fid,
@@ -3008,9 +3189,11 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
 
         search_results = _sort_search_results(search_results, q, sort)
 
-    rda = _load_rda()
-    optimal = _load_optimal()
-    max_limits = _load_max_limits()
+    with _db.get_db() as conn:
+        day_profile_obj = _day_profile.get_profile_for_date(conn, meal["meal_date"])
+    rda = _load_rda(day_profile_obj)
+    optimal = _load_optimal(day_profile_obj)
+    max_limits = _load_max_limits(day_profile_obj)
 
     # Compute daily totals (this meal + siblings) for the day total % column
     daily_nutrients: dict | None = None
@@ -3033,8 +3216,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     # Persist the calculated DCP and calories so they show up on Meals & Log.
     _compute_and_store_meal_bcp(meal_id)
     if meal["complete"]:
-        protein_target = rda["protein_g"][0] if rda and rda.get("protein_g") and rda["protein_g"][0] > 0 else None
-        _refresh_day_pct_goal(meal["meal_date"], protein_target)
+        _refresh_day_pct_goal(meal["meal_date"])
 
     aa_nutrients   = _meal_aa_nutrients(meal_id)
     gl_total, gl_blockers = _compute_gl(meal_id)
@@ -3119,12 +3301,17 @@ async def meal_add_food(
     from urllib.parse import quote, urlencode
 
     def _redirect(error: str | None = None) -> RedirectResponse:
-        params = {}
-        if q:
-            params["q"] = q
         if error:
-            params["add_error"] = error
-        qs = f"?{urlencode(params)}" if params else ""
+            params = {"add_error": error}
+            if q:
+                params["q"] = q
+        else:
+            # Explicit empty q= (not simply omitted) tells the persist-search
+            # JS in base.html to forget the saved query instead of restoring
+            # it from sessionStorage — otherwise the search panel would
+            # reappear right after a successful add.
+            params = {"q": ""}
+        qs = f"?{urlencode(params)}"
         return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
 
     with _db.get_db() as conn:
@@ -3152,7 +3339,7 @@ async def meal_add_food(
             return _redirect(error=f'Could not fetch details for "{food_name or fdc_id}": {e}')
 
     name = food_name or (cached["name"] if cached else "Unknown food")
-    portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
+    portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
     raw = portion_str.strip() or "100 g"
     grams, error_msg = _parse_portion_str(raw, portions, name)
     if not grams:
@@ -3160,8 +3347,12 @@ async def meal_add_food(
     with _db.get_db() as conn:
         _db.meal_add_food(conn, meal_id, fdc_id, name, grams, "g")
     if _gi_prompt_needed(fdc_id):
+        # next= carries an explicit empty q= (not simply omitted) so that,
+        # once the annotate flow redirects back to the meal page, the
+        # persist-search JS in base.html forgets the saved query instead of
+        # restoring the stale search-results panel.
         return RedirectResponse(
-            f"/food/annotate/{fdc_id}?next={quote(f'/meal/{meal_id}')}", status_code=303
+            f"/food/annotate/{fdc_id}?next={quote(f'/meal/{meal_id}?q=')}", status_code=303
         )
     return _redirect()
 
@@ -3215,7 +3406,9 @@ async def meal_add_recipe_item(
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         with _db.get_db() as conn:
             _db.meal_add_recipe(conn, meal_id, recipe_id, name, servings, unit=unit)
-    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+    # Explicit empty q= tells the persist-search JS in base.html to forget
+    # the saved query instead of restoring it from sessionStorage.
+    return RedirectResponse(f"/meal/{meal_id}?q=", status_code=303)
 
 
 @app.post("/meal/{meal_id}/remove/{item_id}", response_class=RedirectResponse)
@@ -3275,12 +3468,16 @@ async def meal_update_item_post(
     from urllib.parse import urlencode
 
     def _redirect(error: str | None = None) -> RedirectResponse:
-        params = {}
-        if q:
-            params["q"] = q
         if error:
-            params["add_error"] = error
-        qs = f"?{urlencode(params)}" if params else ""
+            params = {"add_error": error}
+            if q:
+                params["q"] = q
+        else:
+            # Explicit empty q= tells the persist-search JS in base.html to
+            # forget the saved query instead of restoring it — otherwise the
+            # search panel reappears right after a successful edit.
+            params = {"q": ""}
+        qs = f"?{urlencode(params)}"
         return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
 
     with _db.get_db() as conn:
@@ -3301,7 +3498,7 @@ async def meal_update_item_post(
     else:
         with _db.get_db() as conn:
             cached = _db.get_cached_food(conn, item["fdc_id"]) if item["fdc_id"] else None
-        portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
+        portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
         grams, error_msg = _parse_portion_str(amount.strip(), portions, item["food_name"])
         if grams:
             with _db.get_db() as conn:
@@ -3337,6 +3534,7 @@ async def meal_merge_post(meal_id: int, request: Request):
 
     with _db.get_db() as conn:
         new_mid = _db.meal_create(conn, new_name, meal_date)
+        _day_profile.ensure_day_profile(conn, meal_date)
         for m in meals_to_merge:
             _db.meal_copy_items(conn, m["id"], new_mid)
 
@@ -3439,9 +3637,12 @@ async def meal_day_view(request: Request, meal_id: int):
         all_gl_blockers.extend(gl_blockers)
     gl_total = None if any_gl_none else round(gl_total_sum, 1)
 
-    rda = _load_rda()
-    optimal = _load_optimal()
-    max_limits = _load_max_limits()
+    with _db.get_db() as conn:
+        day_profile_obj = _day_profile.get_profile_for_date(conn, meal_date)
+        day_profile_row = _db.day_profile_get(conn, meal_date)
+    rda = _load_rda(day_profile_obj)
+    optimal = _load_optimal(day_profile_obj)
+    max_limits = _load_max_limits(day_profile_obj)
     return templates.TemplateResponse(request, "meal_day.html", {
         "meal_date":         meal_date,
         "meals":             meals,
@@ -3454,7 +3655,24 @@ async def meal_day_view(request: Request, meal_id: int):
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
+        "day_profile_name":  day_profile_row["profile_name"] if day_profile_row else None,
+        "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
+        "all_profile_names": _profile.list_profiles(),
     })
+
+
+@app.post("/meal/{meal_id}/day/profile", response_class=RedirectResponse)
+async def meal_day_profile_override(meal_id: int, profile_name: str = Form(...)):
+    """Reassign which profile this meal's date is scored against — for when
+    illness/travel/a profile switch didn't line up with the calendar day."""
+    with _db.get_db() as conn:
+        meal = _db.meal_get(conn, meal_id)
+        if not meal:
+            return RedirectResponse("/meals", status_code=303)
+        meal_date = meal["meal_date"]
+        _day_profile.set_day_profile_override(conn, meal_date, profile_name)
+    _refresh_day_pct_goal(meal_date)
+    return RedirectResponse(f"/meal/{meal_id}/day", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -3473,6 +3691,7 @@ async def settings_get(request: Request, saved: str = ""):
             rda_rows.append({"label": label, "value": round(val, 1),
                               "unit": unit, "rda_type": rda_type})
     api_key = _usda.get_api_key()
+    search_boost_page_size = _usda.get_search_boost_page_size()
     with _db.get_db() as conn:
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
 
@@ -3511,6 +3730,7 @@ async def settings_get(request: Request, saved: str = ""):
         "diet_pref":            diet_pref,
         "diet_labels":          _DIET_LABELS,
         "api_key":              api_key,
+        "search_boost_page_size": search_boost_page_size,
         "diaas_overrides":      diaas_overrides,
         "nutrient_target_rows": nutrient_target_rows,
         "diet_bioavailability_note": iron_zinc_bioavailability_note(diet_pref),
@@ -3566,6 +3786,14 @@ async def settings_diet_post(diet_pref: str = Form(...)):
 async def settings_api_key_post(api_key: str = Form("")):
     _usda.set_api_key(api_key.strip())
     return RedirectResponse("/settings?saved=api_key", status_code=303)
+
+
+@app.post("/settings/search-boost", response_class=RedirectResponse)
+async def settings_search_boost_post(search_boost_page_size: int = Form(...)):
+    if search_boost_page_size >= 0:
+        _usda.set_search_boost_page_size(search_boost_page_size)
+        return RedirectResponse("/settings?saved=search_boost", status_code=303)
+    return RedirectResponse("/settings", status_code=303)
 
 
 @app.post("/settings/diaas-override", response_class=RedirectResponse)
@@ -3878,7 +4106,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         seen: set[int] = set()
         for row in cached:
             seen.add(row["fdc_id"])
-            portions = json.loads(row["portions_json"]) if row["portions_json"] else []
+            portions = json.loads(row["portions_json"] or "[]") or []
             search_results.append({
                 "fdc_id":    row["fdc_id"],
                 "name":      row["name"],
@@ -4043,7 +4271,7 @@ async def recipe_ingredient_add(
             return _redirect()
 
     name = food_name or (cached["name"] if cached else "Unknown food")
-    portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
+    portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
     grams, msg = _parse_portion_str(portion_str.strip() or "100 g", portions, name)
     if grams is None:
         return _redirect(error=msg)
@@ -4051,7 +4279,11 @@ async def recipe_ingredient_add(
         _db.recipe_add_ingredient(conn, recipe_id, fdc_id, name, grams, msg,
                                    notes.strip() or None)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
-    return _redirect()
+    # Successful add: explicit empty q= (not simply omitted) tells the
+    # persist-search JS in base.html to forget the saved query instead of
+    # restoring it from sessionStorage — otherwise the search panel would
+    # reappear right after the add.
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?q=", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/remove", response_class=RedirectResponse)
@@ -4074,12 +4306,15 @@ async def recipe_ingredient_edit(
     from urllib.parse import urlencode
 
     def _redirect(error: str | None = None) -> RedirectResponse:
-        params = {}
-        if q:
-            params["q"] = q
         if error:
-            params["error"] = error
-        qs = f"?{urlencode(params)}" if params else ""
+            params = {"error": error}
+            if q:
+                params["q"] = q
+        else:
+            # Explicit empty q= tells the persist-search JS in base.html to
+            # forget the saved query instead of restoring it.
+            params = {"q": ""}
+        qs = f"?{urlencode(params)}"
         return RedirectResponse(f"/recipe/{recipe_id}/edit{qs}", status_code=303)
 
     with _db.get_db() as conn:
@@ -4095,7 +4330,7 @@ async def recipe_ingredient_edit(
         except ValueError:
             return _redirect(error="Enter a number of servings.")
     else:
-        portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
+        portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
         grams, label = _parse_portion_str(portion_str.strip(), portions, food_name.strip())
         if grams is None:
             return _redirect(error=label)
@@ -4155,7 +4390,7 @@ async def recipe_print(request: Request, recipe_id: int):
 
 @app.get("/summary/trend", response_class=HTMLResponse)
 async def summary_trend(request: Request, days: int = Query(7)):
-    """N-day average nutrient intake vs. RDA — surfaces chronic shortfalls
+    """Multiday average nutrient intake vs. RDA — surfaces chronic shortfalls
     (B12, iron, iodine, vitamin D, ...) a single day's snapshot can't. Mirrors
     numa_app.workflows.summary._do_nutrient_trend()."""
     if days not in (7, 14, 30):
@@ -4168,6 +4403,7 @@ async def summary_trend(request: Request, days: int = Query(7)):
         meals = _db.meal_list_by_date_range(conn, start.isoformat(), end.isoformat())
         daily_totals: dict[str, dict[str, float]] = {}
         all_ingredients: list = []
+        day_dcp: dict[str, float] = {}
         for meal in meals:
             _, nutrients, ingredients = _meal_expand_for_diaas(meal["id"], conn)
             if nutrients:
@@ -4175,12 +4411,33 @@ async def summary_trend(request: Request, days: int = Query(7)):
                 for key, val in nutrients.items():
                     day[key] = day.get(key, 0.0) + val
             all_ingredients.extend(ingredients)
+            if meal["bcp_g"] is not None:
+                day_dcp[meal["meal_date"]] = day_dcp.get(meal["meal_date"], 0.0) + meal["bcp_g"]
 
     avg_nutrients, num_days = average_from_daily_totals(daily_totals)
 
-    rda = _load_rda()
-    optimal = _load_optimal()
-    max_limits = _load_max_limits()
+    # RDA targets reflect the profile pinned to the *end* of the window
+    # (today, for the common "last N days" case). If any logged day used a
+    # different profile at the time, disclose it rather than silently
+    # blending profiles into one average.
+    with _db.get_db() as conn:
+        end_profile_obj = _day_profile.get_profile_for_date(conn, end.isoformat())
+        end_profile_row = _db.day_profile_get(conn, end.isoformat())
+        differing_dates = sorted(
+            d for d in daily_totals
+            if (_db.day_profile_get(conn, d) or {"profile_name": None})["profile_name"]
+            != (end_profile_row["profile_name"] if end_profile_row else None)
+        )
+    rda = _load_rda(end_profile_obj)
+    optimal = _load_optimal(end_profile_obj)
+    max_limits = _load_max_limits(end_profile_obj)
+
+    # Lead with DCP, not raw protein — raw protein overstates what the body
+    # can actually use, and that gap is exactly what this view exists to
+    # catch over a chronic window, not just a single day.
+    protein_target = rda["protein_g"][0] if rda and rda.get("protein_g") and rda["protein_g"][0] > 0 else None
+    avg_dcp = round(sum(day_dcp.values()) / len(day_dcp), 1) if day_dcp else None
+    avg_dcp_pct = round(avg_dcp / protein_target * 100, 0) if avg_dcp is not None and protein_target else None
 
     # Pool amino acids across the whole window (not averaged — see
     # numa_app.workflows.summary._do_nutrient_trend for why pooled totals and
@@ -4203,7 +4460,47 @@ async def summary_trend(request: Request, days: int = Query(7)):
         "has_optimal":       bool(optimal),
         "diet_notes":        _diet_aware_daily_notes(avg_nutrients, rda) if num_days else {},
         "complements":       _complement_suggestions(aa_nutrients, None, context="daily") if aa_nutrients else None,
+        "end_profile_name":  end_profile_row["profile_name"] if end_profile_row else None,
+        "differing_profile_dates": differing_dates,
+        "avg_dcp":           avg_dcp,
+        "avg_dcp_pct":       avg_dcp_pct,
+        "avg_dcp_days":      len(day_dcp),
+        "protein_target":    protein_target,
     })
+
+
+def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict]]:
+    """Recent-days sidebar rows: % goal read from the stored day_pct_goal
+    (already scored against whichever profile was pinned to that date), plus
+    that date's profile name and its own goal in grams — never a single
+    page-wide profile/target, since different days can be pinned to
+    different profiles with different targets. Also attaches the user's
+    chosen extra nutrient columns (shared with Meals & Log), aggregated per
+    day rather than per meal."""
+    from numa_app.services.meal_list_columns import (
+        sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, day_nutrient_values,
+    )
+    show_profile = len(_profile.list_profiles()) > 1
+    nutrient_keys = _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
+    day_rows = []
+    for r in rows:
+        d = r["meal_date"]
+        bcp = r["day_bcp"]
+        profile_name = None
+        if show_profile:
+            dp = _db.day_profile_get(conn, d)
+            profile_name = dp["profile_name"] if dp else None
+        goal = _day_profile.protein_target_for_date(conn, d, diet_pref=_current_diet_pref())
+        day_rows.append({
+            "meal_date":      d,
+            "day_bcp":        round(bcp, 1) if bcp is not None else None,
+            "goal":           round(goal, 0) if goal else None,
+            "pct_goal":       r["day_pct_goal"],
+            "complete_count": r["complete_count"],
+            "profile_name":   profile_name,
+            "nutrient_values": day_nutrient_values(conn, d, nutrient_keys),
+        })
+    return day_rows, [{"key": k, "label": _meal_label_for(k)} for k in nutrient_keys]
 
 
 @app.get("/summary", response_class=HTMLResponse)
@@ -4211,26 +4508,12 @@ async def summary_index(request: Request):
     """Summary landing: recent-days table + date picker."""
     with _db.get_db() as conn:
         rows = _db.meal_dates_with_bcp(conn, limit=30)
-
-    rda = _load_rda()
-    protein_target: float | None = None
-    if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
-        protein_target = rda["protein_g"][0]
-
-    day_rows = []
-    for r in rows:
-        bcp = r["day_bcp"]
-        pct = round(bcp / protein_target * 100, 0) if (bcp is not None and protein_target) else None
-        day_rows.append({
-            "meal_date":     r["meal_date"],
-            "day_bcp":       round(bcp, 1) if bcp is not None else None,
-            "pct_goal":      pct,
-            "complete_count": r["complete_count"],
-        })
+        day_rows, day_nutrient_cols = _build_day_rows(rows, conn)
 
     return templates.TemplateResponse(request, "summary.html", {
         "day_rows":       day_rows,
-        "protein_target": protein_target,
+        "day_nutrient_cols": day_nutrient_cols,
+        "show_profile_col": len(_profile.list_profiles()) > 1,
         "today":          datetime.date.today().isoformat(),
         "date_detail":    None,
     })
@@ -4274,30 +4557,22 @@ async def summary_date(request: Request, meal_date: str):
         all_gl_blockers.extend(gl_blockers)
     gl_total = None if any_gl_none else round(gl_total_sum, 1)
 
-    rda = _load_rda()
-    optimal = _load_optimal()
-    max_limits = _load_max_limits()
+    with _db.get_db() as conn:
+        day_profile_obj = _day_profile.get_profile_for_date(conn, meal_date)
+        day_profile_row = _db.day_profile_get(conn, meal_date)
+    rda = _load_rda(day_profile_obj)
+    optimal = _load_optimal(day_profile_obj)
+    max_limits = _load_max_limits(day_profile_obj)
 
     # Recent days for sidebar
     with _db.get_db() as conn:
         rows = _db.meal_dates_with_bcp(conn, limit=14)
-    protein_target: float | None = None
-    if rda and rda.get("protein_g") and rda["protein_g"][0] > 0:
-        protein_target = rda["protein_g"][0]
-    day_rows = []
-    for r in rows:
-        bcp = r["day_bcp"]
-        pct = round(bcp / protein_target * 100, 0) if (bcp is not None and protein_target) else None
-        day_rows.append({
-            "meal_date":      r["meal_date"],
-            "day_bcp":        round(bcp, 1) if bcp is not None else None,
-            "pct_goal":       pct,
-            "complete_count": r["complete_count"],
-        })
+        day_rows, day_nutrient_cols = _build_day_rows(rows, conn)
 
     return templates.TemplateResponse(request, "summary.html", {
         "day_rows":          day_rows,
-        "protein_target":    protein_target,
+        "day_nutrient_cols": day_nutrient_cols,
+        "show_profile_col":  len(_profile.list_profiles()) > 1,
         "today":             datetime.date.today().isoformat(),
         "date_detail":       meal_date,
         "meals":             meals,
@@ -4309,8 +4584,20 @@ async def summary_date(request: Request, meal_date: str):
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
+        "day_profile_name":       day_profile_row["profile_name"] if day_profile_row else None,
+        "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
+        "all_profile_names":      _profile.list_profiles(),
         "diet_notes":        _diet_aware_daily_notes(combined_nutrients, rda) if combined_nutrients else {},
     })
+
+
+@app.post("/summary/{meal_date}/profile", response_class=RedirectResponse)
+async def summary_date_profile_override(meal_date: str, profile_name: str = Form(...)):
+    """Reassign which profile meal_date is scored against."""
+    with _db.get_db() as conn:
+        _day_profile.set_day_profile_override(conn, meal_date, profile_name)
+    _refresh_day_pct_goal(meal_date)
+    return RedirectResponse(f"/summary/{meal_date}", status_code=303)
 
 
 @app.get("/analysis/food-use", response_class=HTMLResponse)

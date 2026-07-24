@@ -149,6 +149,11 @@ ESSENTIAL_AMINO_ACIDS = [
     "aa_histidine_g",
 ]
 
+# All tracked amino acids, essential + conditionally non-essential (cystine,
+# tyrosine) — used when copying/estimating a food's full AA profile, as
+# opposed to ESSENTIAL_AMINO_ACIDS which is used for scoring/completeness.
+ALL_AMINO_ACIDS = ESSENTIAL_AMINO_ACIDS + ["aa_cystine_g", "aa_tyrosine_g"]
+
 # FAO 2013 adult reference pattern (mg of IAA per g of total protein)
 # Source: FAO Food and Nutrition Paper 92 (2013), Table 6.
 # Met+Cys and Phe+Tyr are combined pairs per DIAAS methodology.
@@ -188,6 +193,25 @@ def get_api_key() -> str | None:
 def set_api_key(key: str) -> None:
     cfg = _load_config()
     cfg["api_key"] = "".join(c for c in key if c.isprintable()).strip()
+    _save_config(cfg)
+
+
+_DEFAULT_SEARCH_BOOST_PAGE_SIZE = 25
+
+
+def get_search_boost_page_size() -> int:
+    """Result cap for the Foundation/SR Legacy 'boost' pass that guarantees
+    plain/raw foods (the ones USDA usually has amino-acid data for) aren't
+    buried below tangential matches. 0 means no cap — see _USDA_MAX_PAGE_SIZE."""
+    val = _load_config().get("search_boost_page_size", _DEFAULT_SEARCH_BOOST_PAGE_SIZE)
+    return val if isinstance(val, int) and val >= 0 else _DEFAULT_SEARCH_BOOST_PAGE_SIZE
+
+
+def set_search_boost_page_size(n: int) -> None:
+    if n < 0:
+        raise ValueError("search_boost_page_size must be 0 or a positive integer")
+    cfg = _load_config()
+    cfg["search_boost_page_size"] = n
     _save_config(cfg)
 
 
@@ -249,6 +273,12 @@ def _alias_matches(query: str) -> list[dict]:
     return matches
 
 
+# USDA FoodData Central's documented ceiling on the "pageSize" query param —
+# requesting more than this in one call is rejected, so it's also what
+# page_size=0 ("get all hits") resolves to.
+_USDA_MAX_PAGE_SIZE = 200
+
+
 def search_foods(query: str, page_size: int = 15,
                  data_types: list[str] | None = None) -> list[dict]:
     """
@@ -259,13 +289,18 @@ def search_foods(query: str, page_size: int = 15,
     Post-filters results so that every word in the query appears in the food
     description (case-insensitive). Fetches extra results to compensate for
     items removed by the filter.
+
+    page_size=0 means "no cap" — return every match from a single page,
+    capped only by _USDA_MAX_PAGE_SIZE (the API's own per-request ceiling).
     """
     if data_types is None:
         data_types = ["Foundation", "SR Legacy", "Branded"]
+    uncapped = page_size == 0
+    api_page_size = _USDA_MAX_PAGE_SIZE if uncapped else min(page_size * 3, _USDA_MAX_PAGE_SIZE)
     params = {
         "query": query,
         "dataType": ",".join(data_types),
-        "pageSize": page_size * 3,
+        "pageSize": api_page_size,
         "pageNumber": 1,
     }
     data = _get("foods/search", params)
@@ -283,7 +318,7 @@ def search_foods(query: str, page_size: int = 15,
 
     query_words = query.lower().split()
     if not query_words:
-        return all_results[:page_size]
+        return all_results if uncapped else all_results[:page_size]
 
     def _score(food: dict) -> int:
         desc = food.get("description", "").lower()
@@ -294,7 +329,8 @@ def search_foods(query: str, page_size: int = 15,
     # If any result matches all words use strict threshold; otherwise allow within 1 of best
     threshold = len(query_words) if best == len(query_words) else max(1, best - 1)
     filtered = [f for f in scored if _score(f) >= threshold]
-    return (filtered or scored)[:page_size]
+    result = filtered or scored
+    return result if uncapped else result[:page_size]
 
 
 def get_food_detail(fdc_id: int) -> dict:

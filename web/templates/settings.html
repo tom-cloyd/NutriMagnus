@@ -234,6 +234,23 @@
     <button type="submit" name="api_key" value="" class="btn btn-outline-secondary btn-sm ms-1">Clear key</button>
     {% endif %}
   </form>
+
+  {% if saved == 'search_boost' %}
+  <p class="status-met mt-2"><strong>&#10003; Search result depth saved.</strong></p>
+  {% endif %}
+
+  <p class="mt-3 muted"><small>When a search isn't restricted to one data type, the app also runs a
+  Foundation/SR Legacy-only pass so plain/raw foods (the ones most likely to carry amino-acid data)
+  aren't buried under branded or prepared-dish results. This sets how many of those results it fetches.</small></p>
+
+  <form method="post" action="/settings/search-boost" class="mt-2">
+    <div class="mb-2" style="max-width:200px">
+      <label class="form-label">Search result depth <span class="muted">(0 = no cap, all hits)</span></label>
+      <input type="number" min="0" step="1" class="form-control" name="search_boost_page_size"
+             value="{{ search_boost_page_size }}">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+  </form>
 </details>
 
 {# ── 6. Protein digestibility overrides ───────────────────────────────── #}

@@ -45,9 +45,16 @@ numa_app/
     render.py        — _print_nutrient_table, _print_protein_completeness, _print_bioavailability,
                        _print_recipe_bioavailability, _print_rda_comparison
   services/
+    aa_estimate.py   — estimate a food's AA profile by scaling another food's
+                       AA values to its own protein content (CLI + web):
+                       estimate_aa(), source_note()
     annotations.py   — GI/DIAAS annotation prompts for foods
     complements.py   — shared complement-suggestion math (CLI + web): aa_effects(),
                        two_step_combo(), build_complement_display()
+    day_profile.py   — per-day profile pinning (CLI + web): get_profile_for_date(),
+                       ensure_day_profile(), backfill_missing_day_profiles(),
+                       set_day_profile_override(), protein_target_for_date() —
+                       required entry point for any date-scoped profile lookup
     glycemic_load.py — shared GL aggregation (CLI + web): compute_glycemic_load()
     meal_bcp.py      — shared meal-DCP fallback (CLI + web): recipe_dcp_fallback()
     portions.py      — _parse_portion_input(), _pick_portion()

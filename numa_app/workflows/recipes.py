@@ -212,7 +212,7 @@ def _compute_recipe_protein_summary(rid: int) -> tuple[float, float | None, bool
     """Return (raw_protein_g, dcp_g, minor_skipped) for an entire recipe, including nested sub-recipes.
     raw_protein_g is 0.0 if no ingredient data is cached.
     dcp_g is None when AA profile data is unavailable for any significant ingredient with protein.
-    minor_skipped is True when one or more low-protein ingredients (<1 g and <5% of total) lacked
+    minor_skipped is True when one or more low-protein ingredients (<1 g) lacked
     DIAAS data and were excluded from the DCP calculation rather than blocking it."""
     with _db.get_db() as conn:
         ingredients = _db.recipe_get_ingredients(conn, rid)
@@ -262,7 +262,7 @@ def _compute_recipe_protein_summary(rid: int) -> tuple[float, float | None, bool
         if d["diaas_contrib"] is not None:
             total_digestible += d["diaas_contrib"]
         else:
-            is_minor = p < 1.0 and (raw_protein > 0 and p / raw_protein < 0.05)
+            is_minor = p < 1.0
             if is_minor:
                 minor_skipped = True
             else:

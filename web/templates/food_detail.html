@@ -81,6 +81,7 @@
 
 <div class="mb-2">
   <h2>{{ food.name }}</h2>
+  {{ food_id_tag(food.fdc_id) }}
   <p class="muted">
     {% if food.brand %}{{ food.brand }} &middot; {% endif %}
     {{ food.data_type }}

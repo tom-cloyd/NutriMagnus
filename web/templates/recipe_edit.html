@@ -4,7 +4,7 @@
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
-    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item"><a href="/recipes" data-reset-search title="Back to the recipes list (clears any in-progress search on this recipe)">Recipes</a></li>
     <li class="breadcrumb-item"><a href="/recipe/{{ recipe.id }}">{{ recipe.name }}</a></li>
     <li class="breadcrumb-item active" aria-current="page">Edit</li>
   </ol>
@@ -217,12 +217,13 @@
     <details id="add-ingredient-section" {% if q %}open{% endif %}>
       <summary><strong>Add Ingredient</strong></summary>
 
-      <form method="get" action="/recipe/{{ recipe.id }}/edit">
-        <div class="input-group mb-3 mt-2" style="max-width:28rem">
+      <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search>
+        <div class="input-group mb-1 mt-2" style="max-width:28rem">
           <input type="text" class="form-control" name="q" value="{{ q }}"
                  placeholder="Search foods…" autofocus>
           <button type="submit" class="btn btn-primary">Search</button>
         </div>
+        {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
       </form>
 
       {% if search_results %}

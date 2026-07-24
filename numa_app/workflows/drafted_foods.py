@@ -14,6 +14,7 @@ import db as _db
 import usda as _usda
 from .. import state
 from ..services.search import _search_and_pick_food
+from ..services.aa_estimate import estimate_aa, source_note
 from ..ui.common import _id_cell, ID_KEY, _prompt_with_options, _show_menu, dot_cell, table_title, table_footer, help_footer, food_id_tag
 from ..ui.prompts import Cancelled, ReturnToMain, _ask_int, _prompt
 from ..ui.render import _print_nutrient_table
@@ -168,16 +169,18 @@ def _do_edit_cached_food(fdc_id: int, cached) -> None:
             f"\n  [{state.T['hi']}]Supplement mode:[/{state.T['hi']}]"
             f" enter values per [bold]{unit_name}[/bold] (as shown on the label)."
         )
+    _note_hint: dict = {}
     nutrients = _prompt_nutrients(
         existing_nutrients,
         unit_label=unit_name if is_supplement else "100g",
+        note_out=_note_hint,
     )
 
     # Note
     try:
         notes = _prompt(
             "Note  [grey62](Enter to keep, '-' to clear)[/grey62]",
-            default=cached["notes"] or ""
+            default=_note_hint.get("suggested") or cached["notes"] or ""
         ).strip()
     except Cancelled:
         notes = cached["notes"] or ""
@@ -476,11 +479,15 @@ def _list_drafted_foods() -> list:
     return list(rows)
 
 
-def _prompt_nutrients(existing: dict | None = None, unit_label: str = "100g") -> dict:
+def _prompt_nutrients(existing: dict | None = None, unit_label: str = "100g",
+                       note_out: dict | None = None) -> dict:
     """
     Interactively prompt for nutrient values (per 100 g, or per serving if unit_label set).
     existing: pre-fill from this dict if provided (e.g. loaded from USDA cache).
     unit_label: display label for the denominator — "100g" for foods, "tablet" etc. for supplements.
+    note_out: if provided, populated with note_out["suggested"] when the amino-acid
+        section copies data from another food, so the caller's Note prompt can
+        default to a source citation instead of the food's prior note.
     Returns a nutrients dict (may be partial if user exits early via Ctrl+C or 'b').
     Raises ReturnToMain if user types 'm'. Raises SystemExit on 'q'.
     """
@@ -603,13 +610,14 @@ def _prompt_nutrients(existing: dict | None = None, unit_label: str = "100g") ->
     )
     state.console.print("  [grey62]1[/grey62]  Enter values one-by-one (g per 100g food)")
     state.console.print("  [grey62]2[/grey62]  Bulk import from literature (g per 100g protein — auto-converted)")
+    state.console.print("  [grey62]3[/grey62]  Copy/estimate from another food (search & pick — scaled to this food's protein)")
     state.console.print("  [grey62]n[/grey62]  Skip")
     while True:
         try:
-            aa_choice = _prompt("  Choice", choices=["1", "2", "n"], default="n").strip().lower()
+            aa_choice = _prompt("  Choice", choices=["1", "2", "3", "n"], default="n").strip().lower()
         except Cancelled:
             aa_choice = "n"
-        if aa_choice in ("1", "2", "n"):
+        if aa_choice in ("1", "2", "3", "n"):
             break
     if aa_choice == "1":
         state.console.print(f"\n  [{state.T['accent']}]— Amino acids (g per 100g food) —[/{state.T['accent']}]")
@@ -620,6 +628,31 @@ def _prompt_nutrients(existing: dict | None = None, unit_label: str = "100g") ->
     elif aa_choice == "2":
         bulk_result = _bulk_import_aa(nutrients.get("protein_g"))
         nutrients.update(bulk_result)
+    elif aa_choice == "3":
+        if not nutrients.get("protein_g"):
+            state.console.print(
+                f"  [{state.T['warning']}]Enter this food's protein (g per 100g) in Basic nutrients "
+                f"first — needed to scale the copied amino acids.[/{state.T['warning']}]"
+            )
+        else:
+            state.console.print(f"\n  [{state.T['accent']}]Search for a food to copy amino acids from:[/{state.T['accent']}]")
+            try:
+                source_food = _search_and_pick_food(show_aa_status=True)
+            except Cancelled:
+                source_food = None
+            if source_food and source_food.get("_type") != "recipe":
+                updated, factor, err = estimate_aa(nutrients, source_food.get("nutrients") or {})
+                if err:
+                    state.console.print(f"  [{state.T['warning']}]{err}[/{state.T['warning']}]")
+                else:
+                    nutrients.update({k: v for k, v in updated.items() if k in _usda.ALL_AMINO_ACIDS})
+                    state.console.print(
+                        f"  [{state.T['success']}]✓[/{state.T['success']}] Copied amino acids from "
+                        f"[bold]{source_food['name']}[/bold]{food_id_tag(source_food.get('fdcId'))}, "
+                        f"scaled ×{factor:.2f} for this food's protein content."
+                    )
+                    if note_out is not None:
+                        note_out["suggested"] = source_note(source_food["name"], source_food.get("fdcId"), factor)
 
     # --- Phytonutrients (optional) ---
     if not _ask_section(
@@ -769,12 +802,13 @@ def _do_copy_cached_food() -> None:
     except Cancelled:
         serving_unit = cached["serving_unit"]
 
-    nutrients = _prompt_nutrients(existing_nutrients)
+    _note_hint: dict = {}
+    nutrients = _prompt_nutrients(existing_nutrients, note_out=_note_hint)
 
     try:
         notes = _prompt(
             "Note  [grey62](Enter to keep, '-' to clear)[/grey62]",
-            default=cached["notes"] or ""
+            default=_note_hint.get("suggested") or cached["notes"] or ""
         ).strip()
     except Cancelled:
         notes = cached["notes"] or ""
@@ -984,16 +1018,18 @@ def _do_create_drafted_food() -> None:
             serving_unit = None
 
     # Nutrients
+    _note_hint: dict = {}
     nutrients = _prompt_nutrients(
         existing_nutrients if existing_nutrients else None,
         unit_label=unit_name if is_supplement else "100g",
+        note_out=_note_hint,
     )
 
     # Note
     try:
         notes = _prompt(
             "Note  [grey62](document your sources/assumptions — optional)[/grey62]",
-            default=""
+            default=_note_hint.get("suggested", "")
         ).strip() or None
     except Cancelled:
         notes = None
