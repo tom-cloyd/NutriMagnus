@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-23:2138* / Reading 2 hours, 55 minutes
+*Updated 2026-07-24:1513* / Reading 2 hours, 55 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet.
 
@@ -12,7 +12,7 @@
 
 **Both the program and its accompanying *User Manual* are an ongoing project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review; it is an advanced first draft.
 
-**User feedback is highly valued, so please give us yours!** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` in the subject line, please!
+**User feedback is highly valued, so please give us yours!** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` or `NuMa` in the subject line, please!
 
 **How to come up with feedback:** First, any thoughts you wish to share are welcome. We know what is useful to us, but can't
 react at all if you share. If in doubt, just do it! We'll be grateful. Of particular interest to us:
@@ -25,14 +25,14 @@ react at all if you share. If in doubt, just do it! We'll be grateful. Of partic
 
 ## How to read this Manual
 
-NutriMagnus comes to you in two versions. one runs in a browser (the "Web App" version) and the other runs in a terminal (the CLI - command line interface - version). The browser version offers a more customary interface, while the CLI version offers speed and information density. Ideally you will try both, but most people should begin with the web version.
+NuMa comes to you in two versions. one runs in a browser (the "Web App" version) and the other runs in a terminal (the CLI - command line interface - version). The browser version offers a more customary interface, while the CLI version offers speed and information density. Ideally you will try both, but most people should begin with the web version.
 
-Since almost everyone using NutriMagnus will open it in a web browser, this manual is organized so you can ignore the command-line material entirely:
+Since almost everyone using NuMa will open it in a web browser, this manual is organized so you can ignore the command-line material entirely:
 
 - Read **Part 1** (Introduction) and **Part 2** (Core nutrition concepts) — these apply no matter how you use the program.
 - Read **Part 3** (Reading Your Results) whenever you want to know what a column or table means — it's the same reference whether you're looking at the web app or the terminal.
-- Read **Part 4 — Using the Web App** for how to actually operate NutriMagnus.
-- **Skip Part 5 — Using the Command Line.** It documents a separate, developer-oriented way of running the program from a terminal. If you didn't open a terminal to start NutriMagnus, none of Part 5 applies to you.
+- Read **Part 4 — Using the Web App** for how to actually operate NuMa.
+- **Skip Part 5 — Using the Command Line.** It documents a separate, developer-oriented way of running the program from a terminal. If you didn't open a terminal to start NuMa, none of Part 5 applies to you.
 - Parts 6 and 7 (Essential resources, Appendices) apply to everyone.
 
 ---
@@ -71,7 +71,7 @@ There are 9 protein building blocks (amino acids) that human bodies cannot make 
 
 Consider someone building a brick wall. Suppose they order a bag of cement and 500 bricks. It is likely that they will run out of cement before they run out of bricks. This is the limitation problem that is inherent in plant-based diets. While the needed amino acids do not need to all be present in a single food, or recipe, or meal, they do need to be present in approximately any given 24-hour period if the amino acid limitation problem is to be avoided. So, one way or another, one needs to tend to the issue of what is missing and where to find replacements to add it to one's diet in time.
 
-**NutriMagnus handles gracefully the tricky problem of managing plant-based proteins.** Few people know which foods have missing essential amino acids ([EAAs](#gloss-eaa)) or which have the needed excess [EAAs](#gloss-eaa) which would make them a good complement to eat with other foods lacking enough of those [EAAS](#gloss-eaa) in the same 24-hour period.
+**NuMa handles gracefully the tricky problem of managing plant-based proteins.** Few people know which foods have missing essential amino acids ([EAAs](#gloss-eaa)) or which have the needed excess [EAAs](#gloss-eaa) which would make them a good complement to eat with other foods lacking enough of those [EAAS](#gloss-eaa) in the same 24-hour period.
 
 Beyond the problem of ingesting the right mix of amino acids, there are two other related dietary protein problems to be addressed:
 
@@ -89,9 +89,9 @@ There is very little discussion of the problem in the mass media. So, it is up t
 
 These are technical problems that are beyond the ability of ordinary people to solve well. An easy-to-use, freely available computer program will go far toward solving this problem. This is what this project is about.
 
-Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the rich features and readily modifiable design that I want. The NutriMagnus program addresses both problems in detail. It also suggests complementary foods that can be combined with a food or recipe or meal to create [complete proteins](#gloss-complete-protein) in one's diet.
+Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the rich features and readily modifiable design that I want. The NuMa program addresses both problems in detail. It also suggests complementary foods that can be combined with a food or recipe or meal to create [complete proteins](#gloss-complete-protein) in one's diet.
 
-NutriMagnus has been under intense development and is still being developed. Over time, new users will expertience unanticipated needs and the program can be further developed to meet them. This is one reason why [reporting problems](#feedback) is so important - feedback drives program development.
+NuMa has been under intense development and is still being developed. Over time, new users will expertience unanticipated needs and the program can be further developed to meet them. This is one reason why [reporting problems](#feedback) is so important - feedback drives program development.
 
 Very recently, a Windows version of the program has been developed. It will soon be available for download and user trials. 
 
@@ -128,14 +128,14 @@ Amino acids are the building blocks of protein. Nine of them are "essential", fo
 
 > Histidine, Isoleucine, Leucine, Lysine, Methionine, Phenylalanine, Threonine, Tryptophan, Valine
 
-Two others — Cystine and Tyrosine — can be made from Methionine and Phenylalanine respectively. NutriMagnus evaluates [Met+Cys](#gloss-met-cys) and [Phe+Tyr](#gloss-phe-tyr) as combined pairs when scoring protein quality, following [FAO](#gloss-fao) 2013 guidelines.
+Two others — Cystine and Tyrosine — can be made from Methionine and Phenylalanine respectively. NuMa evaluates [Met+Cys](#gloss-met-cys) and [Phe+Tyr](#gloss-phe-tyr) as combined pairs when scoring protein quality, following [FAO](#gloss-fao) 2013 guidelines.
 
 See [Protein Completeness](#complete) and [Amino Acid Gaps](#gap) for how completeness is scored and what a gap means.
 
 
 ### Protein Complement Suggestions [comp]
 
-When amino acid gaps are detected, NutriMagnus suggests foods that can improve the protein quality of the base food or meal. Two separate tiers are shown, and they use different methods:
+When amino acid gaps are detected, NuMa suggests foods that can improve the protein quality of the base food or meal. Two separate tiers are shown, and they use different methods:
 
 #### TIER 1 — GAP CLOSERS
 
@@ -188,7 +188,7 @@ Data sources: your pantry (Foods → [My Pantry](#gloss-my-pantry)) and any reci
 
 ### Two-step combinations [comb]
 
-After the gap-closer and [DIAAS](#gloss-diaas)-boosting sections, NutriMagnus offers to show two-step combinations. Each combination pairs one of the top gap-closers (Step 1) with the best [DIAAS](#gloss-diaas)-booster for the resulting protein pool (Step 2).
+After the gap-closer and [DIAAS](#gloss-diaas)-boosting sections, NuMa offers to show two-step combinations. Each combination pairs one of the top gap-closers (Step 1) with the best [DIAAS](#gloss-diaas)-booster for the resulting protein pool (Step 2).
 
 Why two steps? A gap-closer fixes amino acid balance but may not raise digestibility. A [DIAAS](#gloss-diaas)-booster raises digestibility but cannot close a specific amino acid gap on its own. Together they address both problems: Step 1 corrects the [limiting amino acid](#gloss-limiting-amino-acid); Step 2 raises the overall [DIAAS](#gloss-diaas) of the now-balanced pool, increasing digestible [complete protein](#gloss-complete-protein) ([DCP](#gloss-dcp)) further.
 
@@ -222,9 +222,9 @@ It is more meaningful than raw grams of protein because it accounts for:
 
 A food with 30 g of protein but a [DIAAS](#gloss-diaas) of 0.70 and several amino acid gaps contributes less usable protein than those numbers suggest. [DCP](#gloss-dcp) captures that.
 
-[DCP](#gloss-dcp) is also called "bioavailable complete protein" or "usable protein" in nutrition literature — these terms mean the same thing. NutriMagnus uses [DCP](#gloss-dcp) throughout.
+[DCP](#gloss-dcp) is also called "bioavailable complete protein" or "usable protein" in nutrition literature — these terms mean the same thing. NuMa uses [DCP](#gloss-dcp) throughout.
 
-NutriMagnus shows [DCP](#gloss-dcp) in the bioavailability section of food and recipe analysis. See also [DIAAS](#diaas) and [Protein Completeness](#complete).
+NuMa shows [DCP](#gloss-dcp) in the bioavailability section of food and recipe analysis. See also [DIAAS](#diaas) and [Protein Completeness](#complete).
 
 
 ### DIAAS — Digestible Indispensable Amino Acid Score [diaas]
@@ -235,11 +235,11 @@ Animal proteins typically score 1.0 or above. Most plant proteins score below 1.
 
 A note on terminology: the [FAO](#gloss-fao) uses the term "indispensable amino acids" (IAA) where this manual uses "essential amino acids" ([EAA](#gloss-eaa)) — both refer to the same nine amino acids. The "I" in [DIAAS](#gloss-diaas) stands for "Indispensable."
 
-NutriMagnus uses [DIAAS](#gloss-diaas) to calculate digestible [complete protein](#gloss-complete-protein) ([DCP](#gloss-dcp)), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#dcp).
+NuMa uses [DIAAS](#gloss-diaas) to calculate digestible [complete protein](#gloss-complete-protein) ([DCP](#gloss-dcp)), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#dcp).
 
 #### Estimating DIAAS by hand for a packaged food [diaas-estimate-table]
 
-Branded/packaged products often have no amino acid data at all, so NutriMagnus can't compute [DIAAS](#gloss-diaas) automatically — you record a point estimate instead via the [DIAAS](#gloss-diaas) estimate [Food Annotation](#gloss-food-annotation) (Foods → Annotate a food, or the `diaas_estimate` field if importing manually — see [Getting missing amino acid data](#custom-foods)). [DIAAS](#gloss-diaas) is mostly a property of the *protein source*, not the specific product, so the same point estimate is reusable across many products built from that ingredient. This table of published point estimates by dominant protein source is a starting reference, not a substitute for a real measured value if one is available:
+Branded/packaged products often have no amino acid data at all, so NuMa can't compute [DIAAS](#gloss-diaas) automatically — you record a point estimate instead via the [DIAAS](#gloss-diaas) estimate [Food Annotation](#gloss-food-annotation) (Foods → Annotate a food, or the `diaas_estimate` field if importing manually — see [Getting missing amino acid data](#custom-foods)). [DIAAS](#gloss-diaas) is mostly a property of the *protein source*, not the specific product, so the same point estimate is reusable across many products built from that ingredient. This table of published point estimates by dominant protein source is a starting reference, not a substitute for a real measured value if one is available:
 
     Protein source        DIAAS       Limiting AA                Note
     --------------------  ----------  -------------------------  ------------------------------
@@ -249,7 +249,7 @@ Branded/packaged products often have no amino acid data at all, so NutriMagnus c
     Oats (dehulled)        0.77       Lysine                     Better than most cereals
     Sunflower seed          ~0.60     Lysine                     Usually a minor contributor
 
-For a product where one ingredient supplies essentially all the protein (e.g. a wheat cracker where the oil contributes negligible protein), use that ingredient's row directly. For a product with two meaningful protein sources (e.g. a wheat+pea cracker), weight the estimate by each ingredient's share of total protein grams — the same complementary-protein logic used elsewhere in NutriMagnus's [meal-level DIAAS](#dcp) pooling. Document your reasoning (source ingredient, any blending math) in the food's Confidence Note or notes field so it can be reviewed or revised later — see the Triscuit entry in `import_foods.py` for a worked example.
+For a product where one ingredient supplies essentially all the protein (e.g. a wheat cracker where the oil contributes negligible protein), use that ingredient's row directly. For a product with two meaningful protein sources (e.g. a wheat+pea cracker), weight the estimate by each ingredient's share of total protein grams — the same complementary-protein logic used elsewhere in NuMa's [meal-level DIAAS](#dcp) pooling. Document your reasoning (source ingredient, any blending math) in the food's Confidence Note or notes field so it can be reviewed or revised later — see the Triscuit entry in `import_foods.py` for a worked example.
 
 
 ### Limiting-Amino-Acid Scoring [aa-scoring]
@@ -277,7 +277,7 @@ See also [DIAAS](#diaas), [digestible complete protein](#dcp), [limiting amino a
 
 ### Why DCP Is Sometimes Capped Below the DIAAS Projection [dcp-cap]
 
-The short version: the [DIAAS](#gloss-diaas) formula can project a Digestible [Complete Protein](#gloss-complete-protein) value that is mathematically higher than the protein your body actually absorbed. When that happens, NutriMagnus caps [DCP](#gloss-dcp) at the absorbed-protein ceiling, because you cannot use more protein than you took in.
+The short version: the [DIAAS](#gloss-diaas) formula can project a Digestible [Complete Protein](#gloss-complete-protein) value that is mathematically higher than the protein your body actually absorbed. When that happens, NuMa caps [DCP](#gloss-dcp) at the absorbed-protein ceiling, because you cannot use more protein than you took in.
 
 #### Why this happens
 
@@ -339,7 +339,7 @@ See also [DIAAS](#diaas), [digestible complete protein](#dcp), [amino acid scori
 
 The [FAO](#gloss-fao) (Food and Agriculture Organization of the United Nations) published a reference amino acid scoring pattern in 2013 that defines the minimum amounts of each essential amino acid per gram of protein needed to meet adult human requirements.
 
-NutriMagnus uses this pattern as the benchmark for all protein quality scoring: completeness, gaps, and complement calculations. A score of **1.0** for an amino acid means the food exactly meets the [FAO](#gloss-fao) reference for that amino acid; above 1.0 exceeds it; below 1.0 falls short.
+NuMa uses this pattern as the benchmark for all protein quality scoring: completeness, gaps, and complement calculations. A score of **1.0** for an amino acid means the food exactly meets the [FAO](#gloss-fao) reference for that amino acid; above 1.0 exceeds it; below 1.0 falls short.
 
 The [FAO](#gloss-fao) 2013 pattern replaced an older 1991 standard and is the current international reference for protein quality assessment.
 
@@ -353,16 +353,16 @@ Gaps are sorted from most-limiting to least:
     Score     Status                                    Complement suggestion?
     --------  ----------------------------------------  ----------------------
     >= 1.0    Meets FAO reference -- complete           No
-    0.95-0.99 Near-adequate -- practical gap too small  No (NutriMagnus floor)
+    0.95-0.99 Near-adequate -- practical gap too small  No (NuMa floor)
     0.70-0.94 Gap present                               Yes
     < 0.70    Significant gap -- high priority          Yes
 
-NutriMagnus generates complement suggestions only for scores below 0.95, not below the [FAO](#gloss-fao) floor of 1.0. A gap of 0.98 would suggest "add 1 g" -- not useful. The 0.95 floor filters those out.
+NuMa generates complement suggestions only for scores below 0.95, not below the [FAO](#gloss-fao) floor of 1.0. A gap of 0.98 would suggest "add 1 g" -- not useful. The 0.95 floor filters those out.
 
 - **Methionine** is the most commonly [limiting amino acid](#gloss-limiting-amino-acid) in plant-based diets.
 - **Lysine** is the most commonly limiting in grain-heavy diets.
 
-See [Protein Complement Suggestions](#comp) for how NutriMagnus suggests foods to close gaps.
+See [Protein Complement Suggestions](#comp) for how NuMa suggests foods to close gaps.
 
 
 ### Antinutrients [antinutrients]
@@ -379,7 +379,7 @@ Plants produce these compounds as a natural defense: against insects, fungi, and
 
 **Phytates** (phytic acid). Found in legumes, whole grains, nuts, and seeds. Phytate binds tightly to minerals — especially iron, zinc, calcium, and magnesium — forming a complex the body cannot easily absorb. A meal of lentils or whole-wheat bread may contain all the iron the label shows, but much of it may pass through unabsorbed if phytate is high. The effect depends on the rest of the meal: vitamin C consumed at the same meal significantly counteracts phytate's effect on iron. Preparation methods that consistently reduce phytate: soaking legumes or grains overnight before cooking; sprouting; fermentation (sourdough bread reduces phytate by 50-90%; tempeh and other fermented soy products have low phytate).
 
-**[Oxalates](#gloss-oxalate)**. Found at high levels in spinach, Swiss chard, beet greens, rhubarb, and almonds; at moderate levels in many other plant foods. [Oxalates](#gloss-oxalate) bind calcium in the gut, meaning the calcium shown on a food label for spinach is largely unavailable — absorption rates can be as low as 5%, versus 30% for dairy calcium. For most people this is simply a reason not to rely on spinach as a calcium source, not a reason to avoid it. For people prone to calcium-[oxalate](#gloss-oxalate) kidney stones, total dietary [oxalate](#gloss-oxalate) matters more directly. See [oxalate data](#oxalate) for the detailed data NutriMagnus tracks on this.
+**[Oxalates](#gloss-oxalate)**. Found at high levels in spinach, Swiss chard, beet greens, rhubarb, and almonds; at moderate levels in many other plant foods. [Oxalates](#gloss-oxalate) bind calcium in the gut, meaning the calcium shown on a food label for spinach is largely unavailable — absorption rates can be as low as 5%, versus 30% for dairy calcium. For most people this is simply a reason not to rely on spinach as a calcium source, not a reason to avoid it. For people prone to calcium-[oxalate](#gloss-oxalate) kidney stones, total dietary [oxalate](#gloss-oxalate) matters more directly. See [oxalate data](#oxalate) for the detailed data NuMa tracks on this.
 
 **Lectins** and **trypsin inhibitors**. Found in raw legumes (beans, lentils, chickpeas, soybeans). Lectins interfere with the gut lining; trypsin inhibitors block a key digestive enzyme. Raw kidney beans contain enough lectin to cause acute food poisoning. Cooking completely solves the problem: full boiling for at least 10 minutes destroys both lectins and trypsin inhibitors. Canned beans are already safe. Tofu and tempeh are also safe because both involve prolonged heat treatment or fermentation. This is the one [antinutrient](#gloss-antinutrient) on this list that is not just about partial reduction — with raw legumes, proper cooking is required.
 
@@ -405,7 +405,7 @@ When you view a food with known [antinutrient](#gloss-antinutrient) concerns, a 
     Vitamin bioavailability problem — niacin is bound, not usable unless nixtamalized
     Nixtamalized forms are fine: tortilla, masa, hominy
 
-These notes appear only for foods where NutriMagnus has a curated flag — the list is not exhaustive, and absence of a note does not mean a food is free of [antinutrients](#gloss-antinutrient).
+These notes appear only for foods where NuMa has a curated flag — the list is not exhaustive, and absence of a note does not mean a food is free of [antinutrients](#gloss-antinutrient).
 
 #### What these notes do not mean
 
@@ -416,27 +416,27 @@ The practical message is: soak legumes, prefer sourdough or sprouted grains when
 
 ### Oxalate Data [oxalate]
 
-[Oxalates](#gloss-oxalate) are one of the [antinutrients](#gloss-antinutrient) discussed in [antinutrients](#antinutrients). The section here covers the detailed data NutriMagnus tracks and how to use it. For general background on what [oxalates](#gloss-oxalate) are and how they compare to other [antinutrients](#gloss-antinutrient), read [antinutrients](#antinutrients) first.
+[Oxalates](#gloss-oxalate) are one of the [antinutrients](#gloss-antinutrient) discussed in [antinutrients](#antinutrients). The section here covers the detailed data NuMa tracks and how to use it. For general background on what [oxalates](#gloss-oxalate) are and how they compare to other [antinutrients](#gloss-antinutrient), read [antinutrients](#antinutrients) first.
 
 [Oxalates](#gloss-oxalate) (oxalic acid) bind calcium in the gut, reducing its absorption from high-[oxalate](#gloss-oxalate) foods. They are found at very high levels in spinach, Swiss chard, beet greens, and rhubarb, and at notable levels in almonds and some other nuts. For most people the main consequence is that these foods are poor calcium sources despite their labels. For anyone prone to calcium-[oxalate](#gloss-oxalate) kidney stones, total dietary [oxalate](#gloss-oxalate) matters more directly.
 
-NutriMagnus includes the Harvard T.H. Chan School of Public Health [oxalate](#gloss-oxalate) table (433 foods, November 2023 edition), credited to Dr. John Knight of the University of Alabama School of Medicine. This data is optional and disabled by default.
+NuMa includes the Harvard T.H. Chan School of Public Health [oxalate](#gloss-oxalate) table (433 foods, November 2023 edition), credited to Dr. John Knight of the University of Alabama School of Medicine. This data is optional and disabled by default.
 
 To enable it: Settings -> [Oxalate](#gloss-oxalate) data (option 5) -> y.
 
-Once enabled, after you view a food (Foods -> Search and view) or analyze a recipe, NutriMagnus will look up the food in the Harvard table. Three outcomes are possible:
+Once enabled, after you view a food (Foods -> Search and view) or analyze a recipe, NuMa will look up the food in the Harvard table. Three outcomes are possible:
 
 1. The food has already been linked to an [oxalate](#gloss-oxalate) record — the value is displayed immediately. No prompt appears.
 
-2. The food is new — NutriMagnus searches for similar names and presents up to five candidates ranked by name similarity. You choose a number, n (none apply), or s (skip for now). If you choose a match, you confirm it with y. That link is saved and will never prompt again.
+2. The food is new — NuMa searches for similar names and presents up to five candidates ranked by name similarity. You choose a number, n (none apply), or s (skip for now). If you choose a match, you confirm it with y. That link is saved and will never prompt again.
 
 3. If you previously confirmed no match (n), the food is silently skipped.
 
 #### Important limitations
 
-- [Oxalate](#gloss-oxalate) values in the Harvard table are reported per serving, not per 100 g. For foods measured in ounces (fish, nuts, meat), NutriMagnus automatically converts to per-100g. For foods measured in cups, pieces, or tablespoons, only the per-serving value is available. Volumetric servings cannot be converted to per-100g without knowing the food's density — that conversion must be done manually if needed.
+- [Oxalate](#gloss-oxalate) values in the Harvard table are reported per serving, not per 100 g. For foods measured in ounces (fish, nuts, meat), NuMa automatically converts to per-100g. For foods measured in cups, pieces, or tablespoons, only the per-serving value is available. Volumetric servings cannot be converted to per-100g without knowing the food's density — that conversion must be done manually if needed.
 
-- For recipe analysis, NutriMagnus sums [oxalate](#gloss-oxalate) only for ingredients where a per-100g value is available. Volumetric-only items are excluded from the total and noted as such.
+- For recipe analysis, NuMa sums [oxalate](#gloss-oxalate) only for ingredients where a per-100g value is available. Volumetric-only items are excluded from the total and noted as such.
 
 - [Oxalate](#gloss-oxalate) content varies with preparation method (cooking reduces [oxalate](#gloss-oxalate) in spinach, for example) and growing conditions. All values should be treated as estimates.
 
@@ -451,9 +451,9 @@ The glycemic index ([GI](#gloss-gi)) measures how quickly a carbohydrate-contain
 
 [GI](#gloss-gi) is shown in the nutrient summary when data is available. It is most useful for comparing foods within the same category — for example, choosing between types of bread or rice. Keep in mind that [GI](#gloss-gi) describes a food eaten alone; combining foods in a meal (especially adding fat, protein, or fiber) physiologically blunts the blood glucose response to the carbohydrates present, by slowing gastric emptying and glucose absorption. However, this effect is not fully captured by glycemic load ([GL](#gloss-gl)) — see [Glycemic Load](#gl) for why.
 
-NutriMagnus displays [GI](#gloss-gi) for reference only and does not use it in protein quality calculations.
+NuMa displays [GI](#gloss-gi) for reference only and does not use it in protein quality calculations.
 
-**Where [GI](#gloss-gi) values come from.** [GI](#gloss-gi) is not part of the [USDA](#gloss-usda) or Open Food Facts data NutriMagnus otherwise relies on — it has to be entered by hand, food by food, via [Food annotation](#annotate). To get you started, `import_gi_seed.py` (in the program folder) seeds [GI](#gloss-gi) values for ~60 common foods from a free, published reference table: Foster-Powell, Holt & Brand-Miller, "International table of glycemic index and glycemic load values: 2008," *Diabetes Care* 31(12):2281–3 (Creative Commons licensed). Run `python3 import_gi_seed.py` for a dry-run report of which cached foods match by name, or `--apply` to write the exact matches; anything ambiguous is listed for you to confirm by hand instead of being guessed at, since the source table uses generic food names ("Lentils") while your cache holds specific [USDA](#gloss-usda)/[OFF](#gloss-off) entries ("Lentils, raw"). Beyond this seed set, [GI](#gloss-gi) values for foods you use regularly are best added as you go — when you add a food to your Pantry or a meal for the first time, NutriMagnus will offer to prompt you for its [GI](#gloss-gi) value.
+**Where [GI](#gloss-gi) values come from.** [GI](#gloss-gi) is not part of the [USDA](#gloss-usda) or Open Food Facts data NuMa otherwise relies on — it has to be entered by hand, food by food, via [Food annotation](#annotate). To get you started, `import_gi_seed.py` (in the program folder) seeds [GI](#gloss-gi) values for ~60 common foods from a free, published reference table: Foster-Powell, Holt & Brand-Miller, "International table of glycemic index and glycemic load values: 2008," *Diabetes Care* 31(12):2281–3 (Creative Commons licensed). Run `python3 import_gi_seed.py` for a dry-run report of which cached foods match by name, or `--apply` to write the exact matches; anything ambiguous is listed for you to confirm by hand instead of being guessed at, since the source table uses generic food names ("Lentils") while your cache holds specific [USDA](#gloss-usda)/[OFF](#gloss-off) entries ("Lentils, raw"). Beyond this seed set, [GI](#gloss-gi) values for foods you use regularly are best added as you go — when you add a food to your Pantry or a meal for the first time, NuMa will offer to prompt you for its [GI](#gloss-gi) value.
 
 
 ### Glycemic Load [gl]
@@ -482,16 +482,16 @@ A food can have a high [GI](#gloss-gi) but a low [GL](#gloss-gl) if the serving 
 | 11–19 | Medium |
 | 20 or above | High |
 
-NutriMagnus displays [GL](#gloss-gl) in the nutrient summary alongside [GI](#gloss-gi) when carbohydrate data is available. Like [GI](#gloss-gi), it is shown for reference and does not affect protein quality calculations.
+NuMa displays [GL](#gloss-gl) in the nutrient summary alongside [GI](#gloss-gi) when carbohydrate data is available. Like [GI](#gloss-gi), it is shown for reference and does not affect protein quality calculations.
 
 For a discussion of how [GL](#gloss-gl) compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix C: GL and Blood Glucose Comparison](#appendix-c).
 
 
 ### Recommended Dietary Allowances [rda]
 
-[RDA](#gloss-rda) values in NutriMagnus come from the Dietary Reference Intakes ([DRI](#gloss-dri)) published by the U.S. National Academies of Sciences. They represent the average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group.
+[RDA](#gloss-rda) values in NuMa come from the Dietary Reference Intakes ([DRI](#gloss-dri)) published by the U.S. National Academies of Sciences. They represent the average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group.
 
-When you set a user profile (Settings → User profile), NutriMagnus uses your age, sex, weight, height, and activity level to estimate personalized targets. The calorie estimate uses the Mifflin-St Jeor equation with an activity multiplier. The protein target uses 0.8 g per kg body weight as a baseline minimum.
+When you set a user profile (Settings → User profile), NuMa uses your age, sex, weight, height, and activity level to estimate personalized targets. The calorie estimate uses the Mifflin-St Jeor equation with an activity multiplier. The protein target uses 0.8 g per kg body weight as a baseline minimum.
 
 The comparison table ("Daily Intake vs. Recommended Values") shows how your logged meals for today compare to your targets.
 
@@ -514,7 +514,7 @@ See [daily nutrient goals](#goals) for a full explanation of how each goal is ca
 
 ### Daily Nutrient Goals [goals]
 
-NutriMagnus calculates personalized daily nutrient goals from your user profile (Settings → User profile). Each goal is one of three types:
+NuMa calculates personalized daily nutrient goals from your user profile (Settings → User profile). Each goal is one of three types:
 
     Minimum  — RDA or Adequate Intake (AI): the daily amount needed to
                meet the requirements of most healthy adults.
@@ -556,7 +556,7 @@ NutriMagnus calculates personalized daily nutrient goals from your user profile 
 #### Omega-3 ALA (minimum)
     1600 mg/day men, 1100 mg/day women — Adequate Intake for alpha-linolenic
     acid (ALA), the plant-sourced omega-3. See [Omega-3 Fatty Acids](#omega3)
-    for why this is the only omega-3 with an official goal in NutriMagnus.
+    for why this is the only omega-3 with an official goal in NuMa.
 
 #### Minerals and vitamins
     All use age- and sex-specific values from the Dietary Reference
@@ -572,9 +572,9 @@ See [RDA](#rda) for a general overview of where these values come from. If the s
 
 ### Multiday Nutrient Trend [trend]
 
-Every other RDA comparison in NutriMagnus -- food, recipe, meal, daily summary -- looks at a single day. That's the right window for "did today's meals cover me," but it's the wrong window for a nutrient that's chronically a little short: one low day is unremarkable, but the same shortfall repeated for two weeks straight is exactly the kind of pattern a single-day view can never show you, because you'd have to remember and compare each day yourself.
+Every other RDA comparison in NuMa -- food, recipe, meal, daily summary -- looks at a single day. That's the right window for "did today's meals cover me," but it's the wrong window for a nutrient that's chronically a little short: one low day is unremarkable, but the same shortfall repeated for two weeks straight is exactly the kind of pattern a single-day view can never show you, because you'd have to remember and compare each day yourself.
 
-**Access it from Analysis → Daily Summary → Multiday nutrient trend** (CLI) or the **"Multiday nutrient trend"** button on the Daily Summary page (web). Choose a window -- last 7, 14, or 30 days -- and NutriMagnus averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Profile Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
+**Access it from Analysis → Daily Summary → Multiday nutrient trend** (CLI) or the **"Multiday nutrient trend"** button on the Daily Summary page (web). Choose a window -- last 7, 14, or 30 days -- and NuMa averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Profile Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
 
 **Only logged days count.** If you ask for a 30-day trend but only logged meals on 12 of those days, the average is computed over those 12 days -- unlogged days are treated as "no data," not as a zero-intake day. Diluting the average with days you simply didn't track would understate your real intake and could hide the exact shortfall this view exists to surface. The screen tells you how many logged days went into the average (e.g. "Averaging over 12 logged day(s) out of the last 30").
 
@@ -595,27 +595,27 @@ Your profile isn't fixed forever -- weight, activity level, or even which named 
 
 **Multiday trend.** The [Multiday Nutrient Trend](#trend) view spans many days at once, so it scores against the profile pinned to the *most recent* day in the window (today, for the usual "last N days"). If any day inside the window was pinned to a different profile, a note discloses which dates and profile differed, rather than silently blending two profiles' targets into one average.
 
-**Existing data.** If you're upgrading from a version of NutriMagnus that didn't have this feature, every day you'd already logged gets pinned to whichever profile is active the first time you open NutriMagnus after upgrading -- you don't need to open or edit anything for this to happen.
+**Existing data.** If you're upgrading from a version of NuMa that didn't have this feature, every day you'd already logged gets pinned to whichever profile is active the first time you open NuMa after upgrading -- you don't need to open or edit anything for this to happen.
 
 
 ### Omega-3 Fatty Acids [omega3]
 
-NutriMagnus tracks four omega fatty acids: ALA, EPA, and DHA (all omega-3), and linoleic acid (omega-6). Only one of these four -- ALA -- has an official Adequate Intake, so it's the only one that appears as a Daily Goal: 1600 mg/day for men, 1100 mg/day for women.
+NuMa tracks four omega fatty acids: ALA, EPA, and DHA (all omega-3), and linoleic acid (omega-6). Only one of these four -- ALA -- has an official Adequate Intake, so it's the only one that appears as a Daily Goal: 1600 mg/day for men, 1100 mg/day for women.
 
 **Why not a goal for EPA and DHA directly?** No U.S. Dietary Reference Intake exists for EPA or DHA intake on their own -- the official guidance covers only total ALA. This matters because ALA is not itself the fatty acid your body mostly uses; it has to be converted into EPA and then DHA, and that conversion is inefficient -- commonly cited at only around 5-10% for EPA, and considerably less for DHA. Two people can hit the same ALA target and land in very different places on EPA/DHA status depending on the rest of their diet, genetics, and sex (conversion tends to be somewhat more efficient in women).
 
 **Why this matters especially for plant-based eaters.** Direct dietary EPA and DHA come almost entirely from fish, algae, and other seafood. If ALA (from flax, chia, walnuts, hemp, canola and soy oils) is your only omega-3 source, meeting the ALA goal is necessary but may not be sufficient -- your actual EPA/DHA status depends on that inefficient conversion step. Common ways to address this without animal fish: algae-oil supplements (a direct EPA/DHA source independent of the ALA conversion pathway), or simply logging ALA-rich foods generously since the target itself already assumes real-world conversion losses are ahead of it.
 
-**Setting your own EPA+DHA target.** Because there's no official DRI to compute automatically, NutriMagnus can't put a Daily Goal on the EPA or DHA rows the way it does for ALA. If you want to track against a target anyway -- clinical guidance in the 250-500 mg/day combined EPA+DHA range is common -- set one yourself as a [Profile Optimal target](#optimal) for `omega3_epa_mg` and/or `omega3_dha_mg` in Settings → Nutrient targets.
+**Setting your own EPA+DHA target.** Because there's no official DRI to compute automatically, NuMa can't put a Daily Goal on the EPA or DHA rows the way it does for ALA. If you want to track against a target anyway -- clinical guidance in the 250-500 mg/day combined EPA+DHA range is common -- set one yourself as a [Profile Optimal target](#optimal) for `omega3_epa_mg` and/or `omega3_dha_mg` in Settings → Nutrient targets.
 
 Linoleic acid (omega-6) is tracked for completeness but has no established goal or known deficiency risk in a typical diet -- most diets, plant-based or not, comfortably exceed the AI for it.
 
 
 ### Profile Optimal Targets [optimal]
 
-The standard RDA is a population-wide minimum or average -- it is not always the number that matters most for you. The clearest example is Vitamin D: the RDA is 15-20 mcg/day, but many clinicians recommend a substantially higher daily intake for older adults specifically. Rather than change what "RDA" means, NutriMagnus lets you set your own **Optimal target** for any nutrient, on top of the standard RDA, and tracks both side by side.
+The standard RDA is a population-wide minimum or average -- it is not always the number that matters most for you. The clearest example is Vitamin D: the RDA is 15-20 mcg/day, but many clinicians recommend a substantially higher daily intake for older adults specifically. Rather than change what "RDA" means, NuMa lets you set your own **Optimal target** for any nutrient, on top of the standard RDA, and tracks both side by side.
 
-Configure Optimal targets in **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web). Pick a nutrient, enter your target amount in that nutrient's usual unit, and save. Leave the field blank and save again to clear it. This works for any nutrient NutriMagnus tracks -- not just ones with a standard RDA. Amino acids, EPA/DHA, and [phytonutrients](#gloss-phytonutrients) have no official [DRI](#gloss-dri) but are still valid Optimal target or [max limit](#maxlimits) candidates; amino acids in particular are more accurately evaluated by the app's [DIAAS](#diaas)-based protein quality scoring (which accounts for total protein intake), so a flat daily gram target here is a coarser measure than that -- useful mainly if you want a simple standalone tripwire for one specific amino acid.
+Configure Optimal targets in **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web). Pick a nutrient, enter your target amount in that nutrient's usual unit, and save. Leave the field blank and save again to clear it. This works for any nutrient NuMa tracks -- not just ones with a standard RDA. Amino acids, EPA/DHA, and [phytonutrients](#gloss-phytonutrients) have no official [DRI](#gloss-dri) but are still valid Optimal target or [max limit](#maxlimits) candidates; amino acids in particular are more accurately evaluated by the app's [DIAAS](#diaas)-based protein quality scoring (which accounts for total protein intake), so a flat daily gram target here is a coarser measure than that -- useful mainly if you want a simple standalone tripwire for one specific amino acid.
 
 **Loading recommended targets.** Typing values in from scratch is a lot to ask, so the Nutrient targets screen offers a **"load recommended optimal targets"** action (`l` in the CLI, a button in the web version) that fills in a small curated set of commonly-cited targets -- currently Vitamin D and combined EPA+DHA (split evenly) -- for any of those nutrients you haven't already customized yourself. These are general population guidance, not personalized medical advice, and every value it loads can still be reviewed and adjusted individually afterward. See [Omega-3 Fatty Acids](#omega3) for why EPA/DHA specifically has no official DRI to compute automatically.
 
@@ -626,14 +626,14 @@ Optimal targets are per-nutrient, not per-day -- there is no single "optimal pro
 
 ### Maximum Nutrient Limits [maxlimits]
 
-Separate from the built-in Tolerable Upper Intake Level that already caps sodium in the standard RDA calculation, NutriMagnus tracks two more tiers of daily maximum:
+Separate from the built-in Tolerable Upper Intake Level that already caps sodium in the standard RDA calculation, NuMa tracks two more tiers of daily maximum:
 
-- **Built-in safe upper limits.** A handful of nutrients carry a real risk of harm from chronic excess, most often from supplementing rather than food alone: iron, zinc, vitamin A, vitamin B6, iodine, and selenium. NutriMagnus applies the standard adult Tolerable Upper Intake Level for these automatically -- no setup required. You'll see them listed as "Built-in safe upper limits" on the Daily Nutrient Targets screen (**Settings → View goals**, CLI, or the equivalent web page).
+- **Built-in safe upper limits.** A handful of nutrients carry a real risk of harm from chronic excess, most often from supplementing rather than food alone: iron, zinc, vitamin A, vitamin B6, iodine, and selenium. NuMa applies the standard adult Tolerable Upper Intake Level for these automatically -- no setup required. You'll see them listed as "Built-in safe upper limits" on the Daily Nutrient Targets screen (**Settings → View goals**, CLI, or the equivalent web page).
 - **Your own custom max limits.** On top of (or instead of) the built-in defaults, you can set your own personal daily maximum for any nutrient -- useful if your situation calls for a stricter cap than the general guideline, or a cap on a nutrient that has no standard upper limit at all. A custom limit you set always takes precedence over the built-in default for that nutrient.
 
 Configure your own max limits in the same place as Optimal targets: **Settings → Nutrient targets** (CLI) or **Settings → 7. Nutrient Targets** (web).
 
-Once a max limit is active for a nutrient -- whether it's a built-in default or one you set yourself -- NutriMagnus watches your logged intake for the day. When today's total for that nutrient reaches 90% of the limit, the nutrient's row is highlighted yellow; at or over 100% of the limit, it turns red. This check applies to your **day total**, not to any single meal or food in isolation -- a max limit is a daily budget, and a single meal being close to it isn't itself meaningful without knowing the rest of the day.
+Once a max limit is active for a nutrient -- whether it's a built-in default or one you set yourself -- NuMa watches your logged intake for the day. When today's total for that nutrient reaches 90% of the limit, the nutrient's row is highlighted yellow; at or over 100% of the limit, it turns red. This check applies to your **day total**, not to any single meal or food in isolation -- a max limit is a daily budget, and a single meal being close to it isn't itself meaningful without knowing the rest of the day.
 
 The max-limit warning is independent of the Optimal target feature -- you can set one, the other, both, or neither for any given nutrient.
 
@@ -642,9 +642,9 @@ The max-limit warning is independent of the Optimal target feature -- you can se
 
 Your [dietary preference](#diet) setting (Settings → Dietary preferences) is used for more than filtering protein complement suggestions -- it also shapes two parts of your daily RDA comparison, because a vegetarian or plant-based diet changes not just *what* nutrients you're likely getting, but how much of certain ones your body can actually use.
 
-**Iron and zinc targets are raised on vegetarian and plant-based settings.** Absorbable iron comes in two forms: heme iron (from meat, fish, and poultry, absorbed efficiently) and non-heme iron (from plants, absorbed far less efficiently, and further blocked by phytate in legumes and grains -- see [Antinutrients](#antinutrients)). Zinc absorption is reduced by the same phytate. Rather than silently under-representing this, NutriMagnus raises the iron RDA by 1.8x[^4][^5] and the zinc RDA by 1.5x[^4][^6] when your dietary preference is set to Vegetarian or Plant-based only -- figures drawn from the Institute of Medicine's Dietary Reference Intake report and the NIH Office of Dietary Supplements' fact sheets for these two minerals. This appears as a normal, higher Daily Goal on the RDA comparison and Daily Nutrient Targets screens, with an explanatory note alongside it. Setting your preference back to "All animal foods" returns both targets to their standard values.
+**Iron and zinc targets are raised on vegetarian and plant-based settings.** Absorbable iron comes in two forms: heme iron (from meat, fish, and poultry, absorbed efficiently) and non-heme iron (from plants, absorbed far less efficiently, and further blocked by phytate in legumes and grains -- see [Antinutrients](#antinutrients)). Zinc absorption is reduced by the same phytate. Rather than silently under-representing this, NuMa raises the iron RDA by 1.8x[^4][^5] and the zinc RDA by 1.5x[^4][^6] when your dietary preference is set to Vegetarian or Plant-based only -- figures drawn from the Institute of Medicine's Dietary Reference Intake report and the NIH Office of Dietary Supplements' fact sheets for these two minerals. This appears as a normal, higher Daily Goal on the RDA comparison and Daily Nutrient Targets screens, with an explanatory note alongside it. Setting your preference back to "All animal foods" returns both targets to their standard values.
 
-**A B12 warning appears for the Plant-based only setting when intake is low.** Vitamin B12 is almost exclusively animal-sourced[^7] -- unlike most nutrient shortfalls, a persistently low B12 reading on a fully plant-based diet isn't something more food logging or dietary variety fixes; it typically means a B12 supplement or B12-fortified food is needed.[^7] NutriMagnus shows this warning only when your dietary preference is Plant-based only *and* today's B12 intake is under 50% of the RDA -- vegetarians (who still eat dairy and eggs) aren't flagged, since those foods are a legitimate B12 source and an occasional low day isn't a structural gap the way it is for a fully plant-based diet. The 50% figure is NutriMagnus's own conservative trigger for surfacing the warning, not a clinical diagnostic threshold -- an actual B12 deficiency is properly diagnosed by a blood test (serum B12, methylmalonic acid, or homocysteine), not by a single day's logged intake.
+**A B12 warning appears for the Plant-based only setting when intake is low.** Vitamin B12 is almost exclusively animal-sourced[^7] -- unlike most nutrient shortfalls, a persistently low B12 reading on a fully plant-based diet isn't something more food logging or dietary variety fixes; it typically means a B12 supplement or B12-fortified food is needed.[^7] NuMa shows this warning only when your dietary preference is Plant-based only *and* today's B12 intake is under 50% of the RDA -- vegetarians (who still eat dairy and eggs) aren't flagged, since those foods are a legitimate B12 source and an occasional low day isn't a structural gap the way it is for a fully plant-based diet. The 50% figure is NuMa's own conservative trigger for surfacing the warning, not a clinical diagnostic threshold -- an actual B12 deficiency is properly diagnosed by a blood test (serum B12, methylmalonic acid, or homocysteine), not by a single day's logged intake.
 
 Both of these are general population guidance based on your stated preference, not personalized medical advice -- if you have a diagnosed deficiency or absorption condition, follow your clinician's specific recommendations instead.
 
@@ -652,7 +652,7 @@ Both of these are general population guidance based on your stated preference, n
 
 (This section explains the meal-level method. For background on single-food [DIAAS](#gloss-diaas) and how amino acid ratios work, see [Appendix A](#appendix-a).)
 
-Single-food analysis and meal-level analysis use different methods. For a single food, NutriMagnus computes a [DIAAS](#gloss-diaas) score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the [FAO](#gloss-fao)'s endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
+Single-food analysis and meal-level analysis use different methods. For a single food, NuMa computes a [DIAAS](#gloss-diaas) score directly from that food's amino acid profile and digestibility. For a recipe or logged meal, it uses the [FAO](#gloss-fao)'s endorsed method for mixed-food meals: it pools the digestible amino acids across all ingredients before scoring. The two approaches answer different questions and will give different results.
 
 #### Why meals need their own calculation
 
@@ -660,11 +660,11 @@ A food that is short in one amino acid can be rescued by a companion food that s
 
 #### The method, step by step
 
-NutriMagnus applies this procedure for each of the nine essential amino acids. For the paired amino acids [Met+Cys](#gloss-met-cys) and [Phe+Tyr](#gloss-phe-tyr), both members of the pair are combined before scoring, following [FAO](#gloss-fao) practice.
+NuMa applies this procedure for each of the nine essential amino acids. For the paired amino acids [Met+Cys](#gloss-met-cys) and [Phe+Tyr](#gloss-phe-tyr), both members of the pair are combined before scoring, following [FAO](#gloss-fao) practice.
 
 **For each ingredient in the meal:**
 
-Step 1. Determine the amino acid content in grams for the actual portion eaten. [USDA](#gloss-usda) data is per 100 g; NutriMagnus scales to the weight you entered.
+Step 1. Determine the amino acid content in grams for the actual portion eaten. [USDA](#gloss-usda) data is per 100 g; NuMa scales to the weight you entered.
 
 Step 2. Multiply each amino acid amount by the food's true [ileal digestibility](#gloss-ileal-digestibility) coefficient — a number between 0 and 1 representing the fraction that actually reaches your bloodstream. The result is the digestible grams of that amino acid from this ingredient.
 
@@ -688,7 +688,7 @@ Step 5. The lowest ratio across all nine essential amino acids is the meal's [DI
 
     Digestible complete protein (g) = total meal protein (g) × min(DIAAS, 1.0)
 
-If a meal contains 40 g of total protein and a [DIAAS](#gloss-diaas) of 0.82, NutriMagnus reports 32.8 g of digestible [complete protein](#gloss-complete-protein). The remaining 7.2 g cannot be efficiently incorporated into tissue — the [limiting amino acid](#gloss-limiting-amino-acid) is exhausted before the rest of the protein can be used.
+If a meal contains 40 g of total protein and a [DIAAS](#gloss-diaas) of 0.82, NuMa reports 32.8 g of digestible [complete protein](#gloss-complete-protein). The remaining 7.2 g cannot be efficiently incorporated into tissue — the [limiting amino acid](#gloss-limiting-amino-acid) is exhausted before the rest of the protein can be used.
 
 #### A worked example — two ingredients, two amino acids
 
@@ -736,20 +736,20 @@ Neither food alone would produce this result — lentils score poorly on [Met+Cy
 
 #### A note about missing amino acid data
 
-Not every food in the [USDA](#gloss-usda) database has a complete amino acid profile. When an ingredient is missing that data, NutriMagnus runs the meal-level [DIAAS](#gloss-diaas) calculation using only the ingredients for which data exists, and flags the result as an estimate. The digestible [complete protein](#gloss-complete-protein) figure is then computed against only the protein that comes from those data-complete ingredients — so the result remains meaningful rather than artificially inflated.
+Not every food in the [USDA](#gloss-usda) database has a complete amino acid profile. When an ingredient is missing that data, NuMa runs the meal-level [DIAAS](#gloss-diaas) calculation using only the ingredients for which data exists, and flags the result as an estimate. The digestible [complete protein](#gloss-complete-protein) figure is then computed against only the protein that comes from those data-complete ingredients — so the result remains meaningful rather than artificially inflated.
 
 ##### Filling missing AA profiles at analysis time
 
-When a meal contains ingredients without amino acid data, NutriMagnus tells you how many are affected and distinguishes two situations:
+When a meal contains ingredients without amino acid data, NuMa tells you how many are affected and distinguishes two situations:
 
 - **Inside a recipe**: the ingredient is part of a recipe you logged as a meal item. Fix these by opening the recipe's ingredient editor and replacing or re-fetching the ingredient there.
-- **Standalone meal ingredients**: foods you logged directly to the meal (not inside a recipe). These can be replaced on the spot: NutriMagnus asks whether you want to search for a substitute.
+- **Standalone meal ingredients**: foods you logged directly to the meal (not inside a recipe). These can be replaced on the spot: NuMa asks whether you want to search for a substitute.
 
 If you say yes, for each affected ingredient the program opens a focused search of [USDA](#gloss-usda) SR Legacy and Foundation foods — the datasets most likely to include full amino acid profiles. The **[AA](#gloss-aa)** column in the results (✓ or ✗) shows at a glance which options have the data you need. Choosing a replacement updates that ingredient for the current analysis. Press Enter to skip an ingredient and leave it excluded from the calculation.
 
 ##### Why the first analysis of a meal can be slow
 
-When you analyze a meal for the first time, you may see a "Fetching amino acid data…" message with a brief wait — sometimes several seconds. This is normal. NutriMagnus is going online to download complete amino acid information for each food in the meal that doesn't already have it saved locally. Once downloaded, the data is stored on your computer, so the next time you analyze the same meal it will be fast.
+When you analyze a meal for the first time, you may see a "Fetching amino acid data…" message with a brief wait — sometimes several seconds. This is normal. NuMa is going online to download complete amino acid information for each food in the meal that doesn't already have it saved locally. Once downloaded, the data is stored on your computer, so the next time you analyze the same meal it will be fast.
 
 ---
 
@@ -861,7 +861,7 @@ The CACHED FOODS list shows every food you have stored locally, sorted by Name b
               Survey (FNDDS) — Foods as eaten, used in national dietary surveys.
               Branded        — Manufacturer-submitted data for packaged products.
               OFF            — Open Food Facts (community-contributed).
-              User Drafted   — Created or edited by hand in NutriMagnus.
+              User Drafted   — Created or edited by hand in NuMa.
 
     BRAND   Brand owner, for Branded and OFF foods.
 
@@ -923,7 +923,7 @@ What archiving does NOT do:
       Cache -- archiving is meant to preserve data, so an archived-but-
       unreferenced food is never swept up by pruning.
 
-If you try to archive a food or recipe that's still actively referenced elsewhere (a pantry entry, a recipe ingredient, a logged meal), NutriMagnus warns you first but lets you proceed -- the references keep working either way.
+If you try to archive a food or recipe that's still actively referenced elsewhere (a pantry entry, a recipe ingredient, a logged meal), NuMa warns you first but lets you proceed -- the references keep working either way.
 
 This setting (which entries are archived, and whether each list shows them) is saved and persists across sessions.
 
@@ -1239,13 +1239,13 @@ Note: only foods and recipes logged directly as meal items appear here. Ingredie
 
 #### Missing Amino Acid Profiles [missing-aa]
 
-When a meal contains ingredients without amino acid data, NutriMagnus cannot include them in the [pooled DIAAS](#gloss-pooled-diaas) calculation. This section lists the affected ingredients and describes your options.
+When a meal contains ingredients without amino acid data, NuMa cannot include them in the [pooled DIAAS](#gloss-pooled-diaas) calculation. This section lists the affected ingredients and describes your options.
 
-NutriMagnus distinguishes two cases:
+NuMa distinguishes two cases:
 
 Standalone meal ingredients: foods logged directly in the meal.
 
-    These can often be replaced on the spot. NutriMagnus can search for
+    These can often be replaced on the spot. NuMa can search for
     a USDA Foundation or SR Legacy substitute with amino acid data.
 
 Inside a recipe: ingredients that are part of a recipe you logged.
@@ -1358,7 +1358,7 @@ Columns:
               USDA       Not yet cached — from FoodData Central.
               OFF        Not yet cached — from Open Food Facts.
 
-To select: type the row number. If the food is not yet in your cache, NutriMagnus fetches and saves it automatically.
+To select: type the row number. If the food is not yet in your cache, NuMa fetches and saves it automatically.
 
 **Sort order (web app only).** Results can be ordered two ways — a dropdown above the results table lets you switch, and your choice is remembered as the default for next time:
 
@@ -1453,7 +1453,7 @@ To create a new custom profile: Foods -> Drafted Food Profiles -> Create. See [a
 
 #### My Pantry Table [pantry]
 
-Shows the protein sources you have flagged as currently on hand. The Pantry drives the complement advisor -- when NutriMagnus suggests foods to fill an amino acid gap, it checks your pantry first and shows matching foods in a "From your pantry" tier.
+Shows the protein sources you have flagged as currently on hand. The Pantry drives the complement advisor -- when NuMa suggests foods to fill an amino acid gap, it checks your pantry first and shows matching foods in a "From your pantry" tier.
 
 Columns:
 
@@ -1494,7 +1494,7 @@ See [complement suggestions](#comp) for how complement suggestions use your pant
 
 #### Protein Digestibility Overrides [dcp-overrides]
 
-Shows your custom true [ileal digestibility](#gloss-ileal-digestibility) coefficients. These values override the defaults NutriMagnus uses in meal-level [DIAAS](#gloss-diaas) calculations.
+Shows your custom true [ileal digestibility](#gloss-ileal-digestibility) coefficients. These values override the defaults NuMa uses in meal-level [DIAAS](#gloss-diaas) calculations.
 
 Columns:
 
@@ -1506,7 +1506,7 @@ Columns:
 
 When an override is active for a meal ingredient, the Digestibility column in the Meal Protein Digestibility table shows the value with an "up-arrow user" suffix, distinguishing it from estimated or literature defaults.
 
-Use overrides when you have found a published measured value for a food you eat regularly and it differs meaningfully from NutriMagnus's default. Values should come from primary literature ([ileal digestibility](#gloss-ileal-digestibility) studies), not from product labels or general nutrition sources.
+Use overrides when you have found a published measured value for a food you eat regularly and it differs meaningfully from NuMa's default. Values should come from primary literature ([ileal digestibility](#gloss-ileal-digestibility) studies), not from product labels or general nutrition sources.
 
 Commands:
 
@@ -1519,15 +1519,15 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 4 — Using the Web App
 
-This is the part almost everyone needs. NutriMagnus's web app runs in your ordinary browser — there is nothing to install and no command line involved.
+This is the part almost everyone needs. NuMa's web app runs in your ordinary browser — there is nothing to install and no command line involved.
 
 ### Opening NutriMagnus
 
-Launch NutriMagnus the way it was set up on your computer — a desktop icon, an Applications-menu entry, or a shortcut someone set up for you. It opens automatically in your browser, normally at `http://127.0.0.1:8000`. If the page doesn't load right away, wait a few seconds and reload — the program is still starting up.
+Launch NuMa the way it was set up on your computer — a desktop icon, an Applications-menu entry, or a shortcut someone set up for you. It opens automatically in your browser, normally at `http://127.0.0.1:8000`. If the page doesn't load right away, wait a few seconds and reload — the program is still starting up.
 
 ### Finding your way around
 
-Every page has the same navigation bar across the top: **NutriMagnus** (takes you home), **Foods**, **Recipes**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
+Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
 
 If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual). Turn this on or off in **Settings → Keyboard Shortcuts**.
 
@@ -1541,9 +1541,9 @@ There's no time limit on this — it holds for as long as your browser tab stays
 
 ### Sample Workflows [sample-workflows-web]
 
-**Two examples showing NutriMagnus in action, end to end.** Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
+**Two examples showing NuMa in action, end to end.** Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
 
-**Use this as a tutorial!** With NutriMagnus open in your browser, work through either workflow step by step, paying close attention to what appears on your screen.
+**Use this as a tutorial!** With NuMa open in your browser, work through either workflow step by step, paying close attention to what appears on your screen.
 
 ---
 
@@ -1553,17 +1553,17 @@ There's no time limit on this — it holds for as long as your browser tab stays
 
 **Step 1 — Open the Foods menu.** Click **Foods** in the top navigation bar. A dropdown appears with nine numbered items.
 
-**Step 2 — Search for a food.** Click **2. Analyze a food portion**. A search box appears. Type `brown rice cooked` and click **Search**. NutriMagnus queries [USDA](#gloss-usda) FoodData Central and returns a ranked list of matches. Click the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
+**Step 2 — Search for a food.** Click **2. Analyze a food portion**. A search box appears. Type `brown rice cooked` and click **Search**. NuMa queries [USDA](#gloss-usda) FoodData Central and returns a ranked list of matches. Click the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
 
 **Step 3 — Choose a portion.** The food detail page opens. Near the top you will see a portion input field. Type `1 cup` (or select it from the named portions dropdown if it appears) and click **Recalculate nutrients**.
 
 **Step 4 — Read the nutrient table.** The page now shows the full nutrient profile scaled to your chosen portion. Click the **Nutritional Analysis** section header to expand it — you will see macronutrients, minerals, vitamins, and amino acids.
 
-**Step 5 — Read the protein quality section.** Click **Protein Quality** to expand it. NutriMagnus shows a per-amino-acid score table. Brown rice is low in lysine — its lysine score will be well below 1.0 (the [FAO](#gloss-fao) reference floor). This is the [limiting amino acid](#gloss-limiting-amino-acid).
+**Step 5 — Read the protein quality section.** Click **Protein Quality** to expand it. NuMa shows a per-amino-acid score table. Brown rice is low in lysine — its lysine score will be well below 1.0 (the [FAO](#gloss-fao) reference floor). This is the [limiting amino acid](#gloss-limiting-amino-acid).
 
-**Step 6 — Read the complement suggestions.** Click **Protein Complement Suggestions** to expand it. Because a gap exists, NutriMagnus lists the amino acid(s) you're short on under **Gaps**, then shows foods that can close them under a **Suggestions** heading (or **Other options** if pantry items also qualified — see Step 5 of Workflow 2). Suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
+**Step 6 — Read the complement suggestions.** Click **Protein Complement Suggestions** to expand it. Because a gap exists, NuMa lists the amino acid(s) you're short on under **Gaps**, then shows foods that can close them under a **Suggestions** heading (or **Other options** if pantry items also qualified — see Step 5 of Workflow 2). Suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
 
-**What you learned:** NutriMagnus can tell you BOTH what is in a food AND what is missing — and exactly what to add to fix it.
+**What you learned:** NuMa can tell you BOTH what is in a food AND what is missing — and exactly what to add to fix it.
 
 ---
 
@@ -1575,7 +1575,7 @@ There's no time limit on this — it holds for as long as your browser tab stays
 
 **Step 2 — Create a meal.** Click **Meals & Log** in the navigation bar. Click **New Meal**, give it a name (e.g., "Lunch today"), and a date. The meal page opens with a search box. Type `brown rice cooked`, click **Search**, then click the matching food and enter `1 cup` as the portion. Repeat with `black beans cooked` at `½ cup`. Both foods now appear in the meal's item list.
 
-**Step 3 — View the meal's nutrition analysis.** Scroll down on the meal page. The **Nutritional Analysis**, **Meal-Level Protein Analysis**, and **Protein Complement Suggestions** sections are collapsed by default — click each header to expand it. NutriMagnus aggregates the nutrients across both foods and shows a combined profile.
+**Step 3 — View the meal's nutrition analysis.** Scroll down on the meal page. The **Nutritional Analysis**, **Meal-Level Protein Analysis**, and **Protein Complement Suggestions** sections are collapsed by default — click each header to expand it. NuMa aggregates the nutrients across both foods and shows a combined profile.
 
 **Step 4 — Read the protein analysis section.** Rice and beans together improve each other's amino acid profile significantly — this is protein complementarity in action. The combined score will be higher than either food alone.
 
@@ -1587,17 +1587,17 @@ There's no time limit on this — it holds for as long as your browser tab stays
 
 #### Workflow 3 — Using an analyzed recipe as a complement candidate
 
-**What this shows:** how recipes you have analyzed become available as complement options for other foods and meals, so NutriMagnus can suggest "add 250 g of your lentil soup" rather than just "add lentils."
+**What this shows:** how recipes you have analyzed become available as complement options for other foods and meals, so NuMa can suggest "add 250 g of your lentil soup" rather than just "add lentils."
 
 **Step 1 — Create and analyze a recipe.** Click **Recipes** in the navigation bar, then click **New recipe**. Give it a name such as "Lentil soup" and fill in the servings count. On the recipe edit page, add ingredients one at a time — for example, lentils (200 g), onion (80 g), garlic (10 g), and vegetable broth (500 g). Save the recipe details, then add each ingredient via the ingredient search box. The recipe detail page shows its Nutritional Analysis and [Complete Protein](#gloss-complete-protein) Analysis, computed automatically. Expand those sections to see the full protein profile and [DCP](#gloss-dcp).
 
 **Step 2 — Look up a food with protein gaps.** Click **Foods** in the navigation bar, then click **2. Analyze a food portion**. Search for `corn tortilla`. Click the result, then enter `46 g` (about 2 tortillas) in the portion field and click **Recalculate nutrients**. Expand **Protein Quality** — corn is low in lysine and tryptophan.
 
-**Step 3 — Read the complement suggestions.** Expand **Protein Complement Suggestions**. Under **From your pantry & recipes**, your lentil soup recipe appears as a candidate, tagged `(#id, Recipe)` next to its name so you can tell it apart from a plain food. NutriMagnus shows how many grams of the recipe would close the gaps in the corn tortillas — for example, "Serve alongside: 180 g."
+**Step 3 — Read the complement suggestions.** Expand **Protein Complement Suggestions**. Under **From your pantry & recipes**, your lentil soup recipe appears as a candidate, tagged `(#id, Recipe)` next to its name so you can tell it apart from a plain food. NuMa shows how many grams of the recipe would close the gaps in the corn tortillas — for example, "Serve alongside: 180 g."
 
 **Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen — each qualifying recipe or pantry item appears as its own candidate card under **From your pantry & recipes**.
 
-**What you learned:** NutriMagnus's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
+**What you learned:** NuMa's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
 
 ---
 
@@ -1621,7 +1621,7 @@ Add up to eight foods (checkboxes in the search results) and set a gram amount f
 
 #### Food Cache
 
-Every food NutriMagnus has ever fetched from USDA or Open Food Facts lives here — see the [Food Cache column guide](#cached) in Part 3 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete**. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using.
+Every food NuMa has ever fetched from USDA or Open Food Facts lives here — see the [Food Cache column guide](#cached) in Part 3 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete**. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using.
 
 #### My Pantry
 
@@ -1629,11 +1629,11 @@ Foods you keep on hand — see [My Pantry](#pantry) in Part 3 for the column gui
 
 #### Custom food profiles
 
-Create a food NutriMagnus doesn't already have — a homemade dish, a supplement, or a product with an incomplete database entry. Either start from scratch, or **copy a cached food as a draft** and edit its nutrients from there. See [Entering custom foods and dietary supplements](#custom-foods) below.
+Create a food NuMa doesn't already have — a homemade dish, a supplement, or a product with an incomplete database entry. Either start from scratch, or **copy a cached food as a draft** and edit its nutrients from there. See [Entering custom foods and dietary supplements](#custom-foods) below.
 
 #### Annotate
 
-A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](#gloss-diaas) estimate, prep-context notes, or check "don't ask again" for a specific nutrient. NutriMagnus also opens this automatically as a follow-up prompt right after certain actions when data is missing — you can skip it for now or skip it permanently for that food.
+A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](#gloss-diaas) estimate, prep-context notes, or check "don't ask again" for a specific nutrient. NuMa also opens this automatically as a follow-up prompt right after certain actions when data is missing — you can skip it for now or skip it permanently for that food.
 
 ### Opening a food's detail page
 
@@ -1692,7 +1692,7 @@ Unlike the command-line version, the web app doesn't require you to run a separa
 
 ## Part 5 — Using the Command Line
 
-This part is for developers and advanced users who run NutriMagnus from a terminal (`./numa.py` or a downloaded `nutrimagnus` binary) instead of a browser. **If you use the web app, you can skip this entire part** — the web app has its own equivalent workflows, documented in Part 4.
+This part is for developers and advanced users who run NuMa from a terminal (`./numa.py` or a downloaded `nutrimagnus` binary) instead of a browser. **If you use the web app, you can skip this entire part** — the web app has its own equivalent workflows, documented in Part 4.
 
 ### Installation
 
@@ -1744,9 +1744,9 @@ These conventions apply at every prompt throughout the program — menus, search
 
 ### Sample Workflows [sample-workflows-cli]
 
-**Three examples showing NutriMagnus in action, end to end, from the terminal.** Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
+**Three examples showing NuMa in action, end to end, from the terminal.** Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
 
-**Use this as a tutorial!** With NutriMagnus running (`./numa.py`), work through any of the following workflows step by step, comparing what you see on screen to the instructions below.
+**Use this as a tutorial!** With NuMa running (`./numa.py`), work through any of the following workflows step by step, comparing what you see on screen to the instructions below.
 
 ---
 
@@ -1756,21 +1756,21 @@ These conventions apply at every prompt throughout the program — menus, search
 
 **Step 1 — Open the Foods menu.** At the main menu, type `1` for **Foods**.
 
-**Step 2 — Search for a food.** Type `2` for **Analyze a food portion**. At the search prompt, type `brown rice cooked` and press Enter. NutriMagnus queries [USDA](#gloss-usda) FoodData Central and shows a ranked list of matches. Pick the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
+**Step 2 — Search for a food.** Type `2` for **Analyze a food portion**. At the search prompt, type `brown rice cooked` and press Enter. NuMa queries [USDA](#gloss-usda) FoodData Central and shows a ranked list of matches. Pick the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
 
 **Step 3 — Choose a portion.** At the portion prompt, type `1 cup`.
 
-**Step 4 — Read the nutrient table.** NutriMagnus prints the full nutrient profile scaled to your chosen portion — macronutrients, minerals, vitamins, and amino acids.
+**Step 4 — Read the nutrient table.** NuMa prints the full nutrient profile scaled to your chosen portion — macronutrients, minerals, vitamins, and amino acids.
 
-**Step 5 — Read the protein quality section.** Below the nutrient table, NutriMagnus prints a per-amino-acid score table. Brown rice is low in lysine — its lysine score will be well below 1.0 (the [FAO](#gloss-fao) reference floor). This is the [limiting amino acid](#gloss-limiting-amino-acid).
+**Step 5 — Read the protein quality section.** Below the nutrient table, NuMa prints a per-amino-acid score table. Brown rice is low in lysine — its lysine score will be well below 1.0 (the [FAO](#gloss-fao) reference floor). This is the [limiting amino acid](#gloss-limiting-amino-acid).
 
-**Step 6 — Read the complement suggestions.** NutriMagnus prints a Protein Complement Suggestions block automatically whenever a gap exists. The first line tells you what was considered:
+**Step 6 — Read the complement suggestions.** NuMa prints a Protein Complement Suggestions block automatically whenever a gap exists. The first line tells you what was considered:
 
     Considered: built-in list of ~30 common protein sources.
 
 (If you have pantry items or analyzed recipes, they appear here too — see Workflows 2 and 3.) Suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
 
-**What you learned:** NutriMagnus can tell you BOTH what is in a food AND what is missing — and exactly what to add to fix it.
+**What you learned:** NuMa can tell you BOTH what is in a food AND what is missing — and exactly what to add to fix it.
 
 ---
 
@@ -1782,7 +1782,7 @@ These conventions apply at every prompt throughout the program — menus, search
 
 **Step 2 — Create a meal.** From the main menu, type `3` for **Meals & Log**, then `n` for a new meal. Give it a name (e.g., "Lunch today") and a date. Add `brown rice cooked` at `1 cup`, then add `black beans cooked` at `½ cup`. Both foods now appear in the meal's item list.
 
-**Step 3 — View the meal's nutrition analysis.** Choose to analyze the meal. NutriMagnus aggregates the nutrients across both foods and prints a combined profile, including a Meal-Level Protein Analysis section.
+**Step 3 — View the meal's nutrition analysis.** Choose to analyze the meal. NuMa aggregates the nutrients across both foods and prints a combined profile, including a Meal-Level Protein Analysis section.
 
 **Step 4 — Read the protein analysis section.** Rice and beans together improve each other's amino acid profile significantly — this is protein complementarity in action. The combined score will be higher than either food alone.
 
@@ -1798,7 +1798,7 @@ Hemp seeds — your pantry item — will appear in the suggestions if it qualifi
 
 #### Workflow 3 — Using an analyzed recipe as a complement candidate
 
-**What this shows:** how recipes you have analyzed become available as complement options for other foods and meals, so NutriMagnus can suggest "add a serving of your lentil soup" rather than just "add lentils." (The web app has an equivalent workflow — see [Workflow 3](#sample-workflows-web) in Part 4.)
+**What this shows:** how recipes you have analyzed become available as complement options for other foods and meals, so NuMa can suggest "add a serving of your lentil soup" rather than just "add lentils." (The web app has an equivalent workflow — see [Workflow 3](#sample-workflows-web) in Part 4.)
 
 **Step 1 — Create and analyze a recipe.** At the main menu type `2` for **Recipes**, then `1` for **Create new recipe**. Name it "Lentil soup" and set the servings count. Add ingredients one at a time — for example, lentils (200 g), onion (80 g), garlic (10 g), and vegetable broth (500 g). Once saved, view the recipe to see its Nutritional Analysis and [Complete Protein](#gloss-complete-protein) Analysis, computed automatically, including the recipe's [DCP](#gloss-dcp).
 
@@ -1808,13 +1808,13 @@ Hemp seeds — your pantry item — will appear in the suggestions if it qualifi
 
     Considered: 1 analyzed recipe, built-in list of ~30 common protein sources.
 
-Your lentil soup recipe appears as a candidate. NutriMagnus shows how many grams of the recipe (and approximately how many servings) would close the gaps in the corn tortillas. The suggestion might read: "Add to food above: 180 g  (0.9 servings)."
+Your lentil soup recipe appears as a candidate. NuMa shows how many grams of the recipe (and approximately how many servings) would close the gaps in the corn tortillas. The suggestion might read: "Add to food above: 180 g  (0.9 servings)."
 
 **Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen. A fully populated pantry and recipe collection will produce a line like:
 
     Considered: 6 pantry items, 4 analyzed recipes, built-in list of ~30 common protein sources.
 
-**What you learned:** NutriMagnus's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
+**What you learned:** NuMa's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
 
 ---
 
@@ -1974,7 +1974,7 @@ After the per-100g display, you are asked whether to analyze a specific portion.
 
 #### Analyze a food portion (Foods → 2)
 
-Works like Foods → 1 but goes directly to portion analysis after you select a food — no separate confirmation is needed. After you choose a serving size, NutriMagnus shows the full nutrient table scaled to that portion, together with protein completeness, bioavailability data, and complement suggestions if any amino acids fall short.
+Works like Foods → 1 but goes directly to portion analysis after you select a food — no separate confirmation is needed. After you choose a serving size, NuMa shows the full nutrient table scaled to that portion, together with protein completeness, bioavailability data, and complement suggestions if any amino acids fall short.
 
 Saved recipes are included in the search results. When you pick a recipe, you enter a number of servings instead of a weight, and the recipe's nutrients are scaled accordingly.
 
@@ -1999,13 +1999,13 @@ Search for a food, then type an amount. A few examples:
 
 The space between number and unit is always optional: `2T`, `0.25c`, `150g`, and `3oz` work exactly like their spaced equivalents. For the full list of recognized units and input formats, see [Appendix I](#portion-formats).
 
-NutriMagnus looks up the food's density and returns the gram equivalent. If no density data is available for that food and measure, it asks you to weigh your portion and enter the result manually.
+NuMa looks up the food's density and returns the gram equivalent. If no density data is available for that food and measure, it asks you to weigh your portion and enter the result manually.
 
 You can convert multiple amounts for the same food in a row — the prompt repeats until you press Enter or `b`.
 
 #### Compare foods side-by-side (Foods → 5)
 
-Select up to eight foods (or recipe portions) and NutriMagnus displays them in a single side-by-side table. All nutrient groups are shown — macronutrients, minerals, vitamins, [phytonutrients](#gloss-phytonutrients), and amino acids — with the highest value in each row highlighted in green.
+Select up to eight foods (or recipe portions) and NuMa displays them in a single side-by-side table. All nutrient groups are shown — macronutrients, minerals, vitamins, [phytonutrients](#gloss-phytonutrients), and amino acids — with the highest value in each row highlighted in green.
 
 **Adding foods to the comparison:**
 
@@ -2034,7 +2034,7 @@ Some foods in your cache are missing amino acid data (shown as ✗ in the [AA](#
         i30,67       (two foods — rows 30 and 67)
         i            (all foods in the current list that show ✗)
 
-    NutriMagnus writes a prompt to ~/claude_prompt.txt and tells you its
+    NuMa writes a prompt to ~/claude_prompt.txt and tells you its
     full path. (`~` in that file pathname indicates that the file belong
     in the root of your computer's user account file system.)
 
@@ -2066,14 +2066,14 @@ Some foods in your cache are missing amino acid data (shown as ✗ in the [AA](#
 
         ~/claude_response.txt
 
-    NutriMagnus handles both fenced (```json ...) and bare JSON formats.
+    NuMa handles both fenced (```json ...) and bare JSON formats.
     Any explanatory notes Claude adds after the data are saved automatically
     as curator notes (viewable with n# in the cache list).
 
 #### Step 4 — Import the data
 
-    Return to NutriMagnus, go to Foods → Food Cache, and type r.
-    NutriMagnus reads ~/claude_response.txt, shows you a review table
+    Return to NuMa, go to Foods → Food Cache, and type r.
+    NuMa reads ~/claude_response.txt, shows you a review table
     (food name, calories, protein, and how many of the 11 amino acids
     were found), and asks for confirmation before writing anything.
 
@@ -2095,7 +2095,7 @@ Notes:
 - For a packaged product where you're reading a Nutrition Facts label
   yourself, you don't need to convert per-serving values to per-100g by
   hand. Use "serving_size_g" and "nutrition_per_serving" instead of the
-  flat per-100g keys — NutriMagnus does the conversion for you. See
+  flat per-100g keys — NuMa does the conversion for you. See
   "Adding a brand-new packaged product" below for a full example.
 
 For full context and annotated examples, see 'Getting missing amino acid data' in the user manual (HTML version: #food-cache-fetch-workflow).
@@ -2148,7 +2148,7 @@ You are prompted for the recipe header, then its ingredients, and finally its pr
 | Total weight | Optional, e.g. `800 g` or `1.5 lb`. Used to compute per-100g figures when servings = 0. |
 | Mark as complete? | Whether the ingredient list is finished. Shown in the recipe list table. |
 
-**Ingredient loop:** after the header is saved, you enter ingredients one by one. At each "Search food or recipe" prompt, type a food name, [FDC ID](#gloss-fdc-id), or barcode. Other saved recipes are also searchable and can be nested as ingredients — NutriMagnus scales their nutrients automatically from their serving counts.
+**Ingredient loop:** after the header is saved, you enter ingredients one by one. At each "Search food or recipe" prompt, type a food name, [FDC ID](#gloss-fdc-id), or barcode. Other saved recipes are also searchable and can be nested as ingredients — NuMa scales their nutrients automatically from their serving counts.
 
 For each ingredient:
 1. Choose a portion (weight, volume, or a [USDA](#gloss-usda) standard portion listed for that food — see [Appendix I](#portion-formats) for all accepted formats).
@@ -2199,7 +2199,7 @@ When done with the ingredient list, you can proceed to edit the procedure in the
 
 #### Exporting a recipe
 
-Press `x` at the ingredient list menu to export the current recipe to a file. NutriMagnus asks whether to include a per-serving nutrition summary, then immediately saves a Markdown file and shows you exactly where it went:
+Press `x` at the ingredient list menu to export the current recipe to a file. NuMa asks whether to include a per-serving nutrition summary, then immediately saves a Markdown file and shows you exactly where it went:
 
 ```
 Report saved → /home/yourname/.numa/reports/My_Recipe_2026-06-21.md
@@ -2271,19 +2271,19 @@ You are then offered the option to save an additional copy in plain text (`.txt`
 
 **Where files are saved:**
 
-All auto-saved reports go to `~/.numa/reports/`. If you export an additional copy (txt/md/html), it goes to `~/.numa/user-requested-nutrition-reports/`. NutriMagnus always prints the full file path so you know exactly where to find it.
+All auto-saved reports go to `~/.numa/reports/`. If you export an additional copy (txt/md/html), it goes to `~/.numa/user-requested-nutrition-reports/`. NuMa always prints the full file path so you know exactly where to find it.
 
 The [DCP](#gloss-dcp) figure in the nutrition summary comes from the most recent analysis run (`a` key or Recipes → 4). If you have never analyzed the recipe, that row shows "not computed — run analysis first."
 
 #### Develop a recipe (Recipes → 3)
 
-Use this when you want to refine a recipe's ingredient list with nutritional feedback at each step. After each ingredient is added or removed, NutriMagnus asks whether you want a fresh analysis — answer **y** and the full nutrient table and [DCP](#gloss-dcp) calculation appear immediately so you can make informed ingredient decisions.
+Use this when you want to refine a recipe's ingredient list with nutritional feedback at each step. After each ingredient is added or removed, NuMa asks whether you want a fresh analysis — answer **y** and the full nutrient table and [DCP](#gloss-dcp) calculation appear immediately so you can make informed ingredient decisions.
 
 Add ingredients the same way as in Create (food name, [FDC ID](#gloss-fdc-id), barcode, or another recipe). Remove an ingredient by typing its row number. When you are satisfied with the ingredient list, press `d` to proceed to the procedure editor.
 
 #### Analyze a recipe portion (Recipes → 4)
 
-Select a recipe, then enter a number of servings. NutriMagnus shows a full nutritional analysis:
+Select a recipe, then enter a number of servings. NuMa shows a full nutritional analysis:
 
 - Total recipe nutrients and per-serving nutrients (or per-100g / per-cup when servings = 0)
 - Digestible [complete protein](#gloss-complete-protein) ([DCP](#gloss-dcp)) per serving, saved to the recipe for the recipe list
@@ -2372,7 +2372,7 @@ Choose **1**. At the "Search food or recipe" prompt, type a food name, [FDC ID](
 
 **Adding a food:** after picking the food, choose a portion (weight, volume, or a [USDA](#gloss-usda) standard portion — see [Appendix I](#portion-formats) for all accepted formats). You are then offered an optional note field — a short label like "with skin" or "boiled". Press Enter to skip.
 
-**Adding a recipe:** enter the number of servings you are logging (e.g. `1`, `0.5`, `1 1/2`). You can also enter a gram weight followed by `g` (e.g. `290 g`) — NutriMagnus calculates the equivalent serving count from the recipe's recorded total weight. If the recipe has no total weight on record, you are asked to supply it.
+**Adding a recipe:** enter the number of servings you are logging (e.g. `1`, `0.5`, `1 1/2`). You can also enter a gram weight followed by `g` (e.g. `290 g`) — NuMa calculates the equivalent serving count from the recipe's recorded total weight. If the recipe has no total weight on record, you are asked to supply it.
 
 The updated item list is shown after each addition. Add as many items as needed; press Enter or `b` to finish.
 
@@ -2400,11 +2400,11 @@ Choose **4** from the meal action loop, or type `a{id}` from the main meal list.
 The analysis shows:
 
 - Full nutrient table. If you have a user profile set, a "% of today's total" column shows how this meal contributes to your daily intake.
-- Meal-level [pooled DIAAS](#gloss-pooled-diaas) and digestible [complete protein](#gloss-complete-protein) (see [How NutriMagnus scores meal and recipe protein quality](#protein-scoring) for the method).
+- Meal-level [pooled DIAAS](#gloss-pooled-diaas) and digestible [complete protein](#gloss-complete-protein) (see [How NuMa scores meal and recipe protein quality](#protein-scoring) for the method).
 - Complement suggestions if amino acid gaps are present.
 - Glycemic load for the meal (if [GI](#gloss-gi) annotations are set for all foods).
 
-**Missing amino acid data:** if the meal includes foods without amino acid profiles that appear to be meaningful protein sources, NutriMagnus tells you how many are affected and which are inside logged recipes (fix those by editing the recipe) versus standalone meal items (those can be replaced on the spot via a focused Foundation Foods search). You can also skip the fix entirely — the analysis still runs using whichever foods do have [AA](#gloss-aa) data.
+**Missing amino acid data:** if the meal includes foods without amino acid profiles that appear to be meaningful protein sources, NuMa tells you how many are affected and which are inside logged recipes (fix those by editing the recipe) versus standalone meal items (those can be replaced on the spot via a focused Foundation Foods search). You can also skip the fix entirely — the analysis still runs using whichever foods do have [AA](#gloss-aa) data.
 
 **Refreshing [AA](#gloss-aa) data:** at the end of the analysis you are offered the option to go online and fetch the latest amino acid data from [USDA](#gloss-usda) for any foods that were missing it. The data is saved to your cache, and the next analysis of the same meal will be faster and more complete.
 
@@ -2485,7 +2485,7 @@ Switches the display between available color themes (dark, light, etc.). The new
 
 #### User profile (Settings → 2) [profile-setup]
 
-Enter your personal details so NutriMagnus can compute daily calorie and nutrient targets specific to you:
+Enter your personal details so NuMa can compute daily calorie and nutrient targets specific to you:
 
 | Prompt | Format |
 |---|---|
@@ -2495,7 +2495,7 @@ Enter your personal details so NutriMagnus can compute daily calorie and nutrien
 | Height | As cm (`178 cm`) or feet-and-inches (`5'10"`) |
 | Activity level | 1 = sedentary through 5 = very active (a numbered list is shown) |
 
-Press Enter at any prompt to keep the current value. After saving, NutriMagnus immediately shows your estimated calorie target and minimum protein requirement.
+Press Enter at any prompt to keep the current value. After saving, NuMa immediately shows your estimated calorie target and minimum protein requirement.
 
 Your profile drives the personalized columns and comparisons that appear in meal, recipe, and daily-summary analyses. See [daily nutrient goals](#goals) for the exact formulas used. See [RDA](#rda) for background on where the reference values come from.
 
@@ -2515,41 +2515,41 @@ This setting controls which protein sources appear in complement suggestions and
 
 The setting is saved between sessions and applies to both the interactive complement display and any exported reports.
 
-**Important — this setting also filters food search results.** If your preference is set to "plant-based only" or "vegetarian", foods outside that category will not appear anywhere in NutriMagnus — not in food searches, not in search results within recipes or meals, and not in any lookup by name or [FDC ID](#gloss-fdc-id). If you search for a food and get no results, check whether your dietary preference setting is silently excluding it. To look up any food regardless of category, temporarily switch to "All animal foods" under Settings, do your search, then switch back.
+**Important — this setting also filters food search results.** If your preference is set to "plant-based only" or "vegetarian", foods outside that category will not appear anywhere in NuMa — not in food searches, not in search results within recipes or meals, and not in any lookup by name or [FDC ID](#gloss-fdc-id). If you search for a food and get no results, check whether your dietary preference setting is silently excluding it. To look up any food regardless of category, temporarily switch to "All animal foods" under Settings, do your search, then switch back.
 
 #### Oxalate data (Settings → 5)
 
-Enables or disables Harvard [oxalate](#gloss-oxalate) data lookup for individual foods and recipes. Disabled by default. When enabled, NutriMagnus checks the Harvard T.H. Chan School of Public Health [oxalate](#gloss-oxalate) table (433 foods) whenever you view a food or analyze a recipe. See [oxalate data](#oxalate) for a full explanation of the matching process, limitations, and data source.
+Enables or disables Harvard [oxalate](#gloss-oxalate) data lookup for individual foods and recipes. Disabled by default. When enabled, NuMa checks the Harvard T.H. Chan School of Public Health [oxalate](#gloss-oxalate) table (433 foods) whenever you view a food or analyze a recipe. See [oxalate data](#oxalate) for a full explanation of the matching process, limitations, and data source.
 
 Requires an active user profile. The toggle shows "on" or "off" next to the menu item, and notes if [oxalate](#gloss-oxalate).db is not found (run `python build_oxalate_db.py` from the application directory if so).
 
 #### Editor command (Settings → 6)
 
-Sets the text editor that opens when you edit the Procedure field of a recipe (in Create, Develop, or Browse → edit). If not set, NutriMagnus uses the system default — the program named in your `$VISUAL` or `$EDITOR` environment variable.
+Sets the text editor that opens when you edit the Procedure field of a recipe (in Create, Develop, or Browse → edit). If not set, NuMa uses the system default — the program named in your `$VISUAL` or `$EDITOR` environment variable.
 
 Enter any command your shell can run, for example `nano`, `vim`, or `code --wait` (VS Code in wait mode). To clear back to the system default, type `-`.
 
 #### Display settings at program launch (Settings → 7)
 
-When enabled, NutriMagnus prints the current color theme, dietary preference, and user profile at the top of the screen each time it starts. This provides a quick confirmation of your active configuration without having to open Settings. Turn it off if you find it clutters the opening screen.
+When enabled, NuMa prints the current color theme, dietary preference, and user profile at the top of the screen each time it starts. This provides a quick confirmation of your active configuration without having to open Settings. Turn it off if you find it clutters the opening screen.
 
 #### Advanced settings (Settings → 8)
 
 Contains four sub-options.
 
-**1 — Protein digestibility overrides:** lets you set a custom true [ileal digestibility](#gloss-ileal-digestibility) coefficient (a number from 0.00 to 1.00) for any specific food, overriding the default value NutriMagnus uses in meal-level [DIAAS](#gloss-diaas) calculations. This is for cases where you have found a published study with a measured value for a food you eat regularly.
+**1 — Protein digestibility overrides:** lets you set a custom true [ileal digestibility](#gloss-ileal-digestibility) coefficient (a number from 0.00 to 1.00) for any specific food, overriding the default value NuMa uses in meal-level [DIAAS](#gloss-diaas) calculations. This is for cases where you have found a published study with a measured value for a food you eat regularly.
 
-Enter the food name exactly as it appears in your cache (the match is case-insensitive). NutriMagnus shows you the value it would use without an override. Enter your coefficient and an optional source note. Existing overrides are listed in a table; use `d` to delete one.
+Enter the food name exactly as it appears in your cache (the match is case-insensitive). NuMa shows you the value it would use without an override. Enter your coefficient and an optional source note. Existing overrides are listed in a table; use `d` to delete one.
 
 **2 — [USDA](#gloss-usda) API key:** enter your personal FoodData Central API key. Type `s` to display the currently stored key. A personal key gives you a much higher search rate limit than the shared DEMO_KEY fallback. Getting a free key takes about a minute — instructions are in the [Food data](#food-data) section.
 
-**3 — Storage location:** displays the full path to your NutriMagnus database file (`numa.db`). This is read-only; the path is set automatically when the program first runs and cannot be changed here.
+**3 — Storage location:** displays the full path to your NuMa database file (`numa.db`). This is read-only; the path is set automatically when the program first runs and cannot be changed here.
 
-**4 — Search result depth:** whenever a food search isn't restricted to one data type, NutriMagnus also runs a second, Foundation/SR Legacy-only pass so plain/raw foods — the ones most likely to carry [amino acid](#gloss-aa) data — aren't buried under branded products or prepared dishes (USDA's own relevance ranking can otherwise push something like "Potatoes, flesh and skin, raw" 15–20 results deep for a plain "potato" search). This setting controls how many results that second pass fetches; the default of 25 is enough for most searches. Set it higher if you still don't see the food you expect, or to `0` for no cap at all (every matching result USDA returns in one page). A higher number means a slightly slower search.
+**4 — Search result depth:** whenever a food search isn't restricted to one data type, NuMa also runs a second, Foundation/SR Legacy-only pass so plain/raw foods — the ones most likely to carry [amino acid](#gloss-aa) data — aren't buried under branded products or prepared dishes (USDA's own relevance ranking can otherwise push something like "Potatoes, flesh and skin, raw" 15–20 results deep for a plain "potato" search). This setting controls how many results that second pass fetches; the default of 25 is enough for most searches. Set it higher if you still don't see the food you expect, or to `0` for no cap at all (every matching result USDA returns in one page). A higher number means a slightly slower search.
 
 #### Web keyboard shortcuts [web-shortcuts]
 
-The web version supports single-key navigation using the underlined letter shown in each menu item and Settings section heading, pressed together with **Alt+Shift** (e.g. `Alt+Shift+F` opens Foods, `Alt+Shift+3` jumps to Dietary Preferences within Settings). This is a browser-side feature — it is unrelated to, and does not affect, anything stored in your NutriMagnus data.
+The web version supports single-key navigation using the underlined letter shown in each menu item and Settings section heading, pressed together with **Alt+Shift** (e.g. `Alt+Shift+F` opens Foods, `Alt+Shift+3` jumps to Dietary Preferences within Settings). This is a browser-side feature — it is unrelated to, and does not affect, anything stored in your NuMa data.
 
 Shortcuts are on by default. Toggle them off from **Settings → Keyboard Shortcuts** if the underlines are distracting or the key combination conflicts with your browser or OS. The setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
@@ -2557,15 +2557,15 @@ Shortcuts are on by default. Toggle them off from **Settings → Keyboard Shortc
 
 ### Getting missing amino acid data — and importing new foods — into your cache
 
-Many foods in the [USDA](#gloss-usda) database — particularly branded products and older SR Legacy entries — have complete macronutrient data but no amino acid values. NutriMagnus marks these with ✗ in the [AA](#gloss-aa) column of the [Food Cache](#gloss-food-cache) list. Without amino acid data, protein completeness scores and the meal-level [DIAAS](#gloss-diaas) calculation cannot include that food.
+Many foods in the [USDA](#gloss-usda) database — particularly branded products and older SR Legacy entries — have complete macronutrient data but no amino acid values. NuMa marks these with ✗ in the [AA](#gloss-aa) column of the [Food Cache](#gloss-food-cache) list. Without amino acid data, protein completeness scores and the meal-level [DIAAS](#gloss-diaas) calculation cannot include that food.
 
-The same three methods below also work for adding a food that isn't in your cache at all — a packaged product you've read the Nutrition Facts label for, or a research figure you've sourced yourself. All three accept a food's nutrients either as flat per-100g values, or (new) as a serving size plus per-serving values straight off a label — NutriMagnus converts the label numbers to per-100g for you, so you never have to do that arithmetic by hand.
+The same three methods below also work for adding a food that isn't in your cache at all — a packaged product you've read the Nutrition Facts label for, or a research figure you've sourced yourself. All three accept a food's nutrients either as flat per-100g values, or (new) as a serving size plus per-serving values straight off a label — NuMa converts the label numbers to per-100g for you, so you never have to do that arithmetic by hand.
 
 ---
 
 #### Method 1 — Ask Claude AI (the interactive workflow)
 
-This is the built-in route, available directly inside NutriMagnus. It takes about two minutes per batch of foods and requires only a free claude.ai account. For a compact in-program reminder of these steps, see [amino acid fetch workflow](#fetch) from the [Food Cache](#gloss-food-cache) screen.
+This is the built-in route, available directly inside NuMa. It takes about two minutes per batch of foods and requires only a free claude.ai account. For a compact in-program reminder of these steps, see [amino acid fetch workflow](#fetch) from the [Food Cache](#gloss-food-cache) screen.
 
 **Where to find it:** Foods → 5. View cached / saved foods. The `i` and `r` commands appear in the option list below the food table.
 
@@ -2577,7 +2577,7 @@ From the [Food Cache](#gloss-food-cache) list, type `i` followed immediately by 
     i30,67        two foods (rows 30 and 67)
     i             every food in the current list that shows ✗
 
-NutriMagnus builds a detailed data-request prompt and saves it to:
+NuMa builds a detailed data-request prompt and saves it to:
 
     ~/claude_prompt.txt
 
@@ -2612,9 +2612,9 @@ Overwrite any previous version of that file completely.
 
 **Step 4 — Import the data.**
 
-Return to NutriMagnus, go to Foods → 5. View cached / saved foods, and type `r`.
+Return to NuMa, go to Foods → 5. View cached / saved foods, and type `r`.
 
-NutriMagnus reads the file, validates each food record, and shows you a review table — food name, calories, protein, and how many of the 11 amino acids were found. You confirm before anything is written. After a successful import the food's [AA](#gloss-aa) column changes from ✗ to ✓.
+NuMa reads the file, validates each food record, and shows you a review table — food name, calories, protein, and how many of the 11 amino acids were found. You confirm before anything is written. After a successful import the food's [AA](#gloss-aa) column changes from ✗ to ✓.
 
 Any explanatory notes or caveats that Claude added after the data are saved automatically as curator notes, visible with `n#` in the cache list.
 
@@ -2637,7 +2637,7 @@ Any explanatory notes or caveats that Claude added after the data are saved auto
 }
 ```
 
-NutriMagnus converts `nutrition_per_serving` to per-100g automatically and records the conversion factor in the confidence note. You can mix this shape with the normal flat per-100g shape across foods in the same response file.
+NuMa converts `nutrition_per_serving` to per-100g automatically and records the conversion factor in the confidence note. You can mix this shape with the normal flat per-100g shape across foods in the same response file.
 
 ---
 
@@ -2645,11 +2645,11 @@ NutriMagnus converts `nutrition_per_serving` to per-100g automatically and recor
 
 If you have sourced nutrient data directly from published literature — amino acid assay papers, authoritative food composition tables, or similar — and you want those figures to stay in your cache permanently, use `import_foods.py` instead of the Claude workflow.
 
-This is a Python script in the NutriMagnus project folder. You add food records directly to its `_FOODS` list (each record is a Python dict with the food's name, [FDC ID](#gloss-fdc-id), data type, and nutrient values), then run:
+This is a Python script in the NuMa project folder. You add food records directly to its `_FOODS` list (each record is a Python dict with the food's name, [FDC ID](#gloss-fdc-id), data type, and nutrient values), then run:
 
     python import_foods.py
 
-All records in the list are written into your cache immediately. The script marks each imported food as user-protected, so NutriMagnus will never silently overwrite the data with a fresh copy from [USDA](#gloss-usda) — even if you search for that food again later. Re-running the script is always safe: existing entries are updated in place, not duplicated.
+All records in the list are written into your cache immediately. The script marks each imported food as user-protected, so NuMa will never silently overwrite the data with a fresh copy from [USDA](#gloss-usda) — even if you search for that food again later. Re-running the script is always safe: existing entries are updated in place, not duplicated.
 
 As with Method 1, an entry can give `"serving_size_g"` and `"nutrition_per_serving"` instead of a flat `"nutrients"` dict when your source is a product label rather than a per-100g reference — the script converts it for you.
 
@@ -2661,12 +2661,12 @@ Use the Claude workflow for exploratory or one-off data gathering where interact
 
 The quickest route for a single food, and the one requiring the least setup: no menu navigation, no editing a Python file.
 
-1. Create a `food_imports` folder in the NutriMagnus project folder (if it doesn't already exist) and save one JSON file per food in it — any filename, e.g. `triscuit.json`. Each file holds exactly one food record, in the same shape as a Claude-response block (see the example under Method 1): `name`, `fdc_id`, `fdc_type`, optional `source`/`confidence_note`, and either flat per-100g nutrient keys or `serving_size_g` + `nutrition_per_serving`.
+1. Create a `food_imports` folder in the NuMa project folder (if it doesn't already exist) and save one JSON file per food in it — any filename, e.g. `triscuit.json`. Each file holds exactly one food record, in the same shape as a Claude-response block (see the example under Method 1): `name`, `fdc_id`, `fdc_type`, optional `source`/`confidence_note`, and either flat per-100g nutrient keys or `serving_size_g` + `nutrition_per_serving`.
 2. Run:
 
        python import_json_folder.py
 
-3. NutriMagnus lists every food found, with calories, protein, and amino-acid count, and asks for one `y`/`N` confirmation before writing anything.
+3. NuMa lists every food found, with calories, protein, and amino-acid count, and asks for one `y`/`N` confirmation before writing anything.
 4. On confirmation, each food is written to your cache (user-protected, same as Method 2) and its file is moved into `food_imports/imported/` so the drop folder only ever shows pending work.
 
 This is the best fit when you have a single label or research figure to type in by hand and don't want to touch any Python source — write the JSON, run the script, done. Use Method 2 instead once you're accumulating enough records that you want them tracked together as a readable, version-controlled list.
@@ -2694,7 +2694,7 @@ You can list, edit, or delete custom profiles from **Foods → 7. Drafted Food P
 
 #### Dietary supplements — tablets, capsules, softgels
 
-Vitamins, minerals, and other supplement tablets are sold in per-tablet amounts, not per-100g amounts. NutriMagnus handles this with **supplement mode**: the program stores the per-tablet values internally in a way that means logging "1 tablet" in a meal contributes exactly the amounts on the label — no weighing required.
+Vitamins, minerals, and other supplement tablets are sold in per-tablet amounts, not per-100g amounts. NuMa handles this with **supplement mode**: the program stores the per-tablet values internally in a way that means logging "1 tablet" in a meal contributes exactly the amounts on the label — no weighing required.
 
 **How to create a supplement entry:**
 
@@ -2719,51 +2719,51 @@ If you created a supplement entry before this feature was added, open it via **F
 
 ### Food data — where it comes from and how it is stored [food-data]
 
-**Two large online tables** are NutriMagnus's primary sources of food information:
+**Two large online tables** are NuMa's primary sources of food information:
 
-- **[USDA](#gloss-usda) FoodData Central** — the U.S. government's nutrition database, covering hundreds of thousands of whole foods, ingredients, and branded products. This is NutriMagnus's primary source. ([FoodData Central FAQ](https://fdc.nal.usda.gov/faq/))
+- **[USDA](#gloss-usda) FoodData Central** — the U.S. government's nutrition database, covering hundreds of thousands of whole foods, ingredients, and branded products. This is NuMa's primary source. ([FoodData Central FAQ](https://fdc.nal.usda.gov/faq/))
 - **Open Food Facts** — a community-maintained database of packaged and processed food products, especially useful for branded items not found in the [USDA](#gloss-usda) table. ([Open Food Facts](https://world.openfoodfacts.org/discover))
 
-**[USDA](#gloss-usda) API key.** NutriMagnus accesses FoodData Central through [USDA](#gloss-usda)'s public API. Without a personal key it falls back to a shared demonstration key (DEMO_KEY) that has a tight rate limit — heavy use by any user can exhaust it and cause searches to fail temporarily. Getting your own key is free and takes about a minute:
+**[USDA](#gloss-usda) API key.** NuMa accesses FoodData Central through [USDA](#gloss-usda)'s public API. Without a personal key it falls back to a shared demonstration key (DEMO_KEY) that has a tight rate limit — heavy use by any user can exhaust it and cause searches to fail temporarily. Getting your own key is free and takes about a minute:
 
 1. Go to https://fdc.nal.usda.gov/api-key-signup and enter your name and email.
 2. [USDA](#gloss-usda) emails you a key immediately.
-3. Enter it in NutriMagnus under **Settings → Advanced settings → [USDA](#gloss-usda) API key**. Type **s** at that prompt to display your current key if you need to retrieve it.
+3. Enter it in NuMa under **Settings → Advanced settings → [USDA](#gloss-usda) API key**. Type **s** at that prompt to display your current key if you need to retrieve it.
 
 Your key is stored on your computer only. Once set, all food searches use your personal key with a much higher rate limit.
 
-**Search result depth.** USDA's own search ranking sometimes buries the plain/raw version of a food — the one most likely to carry [amino acid](#gloss-aa) data — well below branded products or prepared dishes matching the same words. NutriMagnus compensates with a second, unrestricted-depth search pass; **Settings → Advanced settings → Search result depth** controls how deep it goes (default 25, or `0` for no cap).
+**Search result depth.** USDA's own search ranking sometimes buries the plain/raw version of a food — the one most likely to carry [amino acid](#gloss-aa) data — well below branded products or prepared dishes matching the same words. NuMa compensates with a second, unrestricted-depth search pass; **Settings → Advanced settings → Search result depth** controls how deep it goes (default 25, or `0` for no cap).
 
 Every food in these online tables has a unique ID number — think of it as a product code that identifies that one food and nothing else.
 
-**Your [Food Cache](#gloss-food-cache)** is a table stored on your own computer. When you search for a food, NutriMagnus checks your [Food Cache](#gloss-food-cache) first and shows any matches in a fast **[Food cache](#gloss-food-cache)** table before going online. Any food you have looked up before will be there and can be selected instantly, without a network call. If the food is not yet in your cache, the program searches both online tables and shows you a combined list of matches. When you select a food from that list, NutriMagnus saves a copy of its nutrient data in your [Food Cache](#gloss-food-cache) automatically. Over time, most of the foods you normally eat will be in your [Food Cache](#gloss-food-cache) for quick retrieval.
+**Your [Food Cache](#gloss-food-cache)** is a table stored on your own computer. When you search for a food, NuMa checks your [Food Cache](#gloss-food-cache) first and shows any matches in a fast **[Food cache](#gloss-food-cache)** table before going online. Any food you have looked up before will be there and can be selected instantly, without a network call. If the food is not yet in your cache, the program searches both online tables and shows you a combined list of matches. When you select a food from that list, NuMa saves a copy of its nutrient data in your [Food Cache](#gloss-food-cache) automatically. Over time, most of the foods you normally eat will be in your [Food Cache](#gloss-food-cache) for quick retrieval.
 
-**Edit protection.** Any food you edit manually — through Foods → 6. [Food Cache](#gloss-food-cache) — is marked as user-modified. NutriMagnus will never silently overwrite a user-modified food with a fresh copy from [USDA](#gloss-usda), even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself.
+**Edit protection.** Any food you edit manually — through Foods → 6. [Food Cache](#gloss-food-cache) — is marked as user-modified. NuMa will never silently overwrite a user-modified food with a fresh copy from [USDA](#gloss-usda), even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself.
 
-**Omega fatty acid tracking.** NutriMagnus tracks four individual omega fatty acids — ALA (plant-based omega-3, found in flaxseed, walnuts, chia), EPA and DHA (marine omega-3, found in fish and seafood), and linoleic acid (the main omega-6, found in vegetable oils and nuts). These appear in the nutrient table whenever [USDA](#gloss-usda) data is available. Foods already in your cache that predate this feature are updated automatically the first time you access them — no action needed on your part.
+**Omega fatty acid tracking.** NuMa tracks four individual omega fatty acids — ALA (plant-based omega-3, found in flaxseed, walnuts, chia), EPA and DHA (marine omega-3, found in fish and seafood), and linoleic acid (the main omega-6, found in vegetable oils and nuts). These appear in the nutrient table whenever [USDA](#gloss-usda) data is available. Foods already in your cache that predate this feature are updated automatically the first time you access them — no action needed on your part.
 
 Food enters your [Food Cache](#gloss-food-cache) in four ways:
 
 1. **From [USDA](#gloss-usda)** — you search, find a match, and select it. It is instantly saved into your [Food Cache](#gloss-food-cache).
 2. **From Open Food Facts** — same process; the food is saved the moment you pick it.
-3. **By barcode** — at any food search prompt, type the 12-digit UPC-A or 13-digit EAN barcode printed on the product (digits only; spaces and hyphens are ignored). NutriMagnus looks the product up on Open Food Facts by barcode, shows you the product name and brand, and asks whether to use it. This is the fastest way to add packaged foods and dietary supplements — many have an Open Food Facts entry but no [USDA](#gloss-usda) record.
+3. **By barcode** — at any food search prompt, type the 12-digit UPC-A or 13-digit EAN barcode printed on the product (digits only; spaces and hyphens are ignored). NuMa looks the product up on Open Food Facts by barcode, shows you the product name and brand, and asks whether to use it. This is the fastest way to add packaged foods and dietary supplements — many have an Open Food Facts entry but no [USDA](#gloss-usda) record.
 4. **By hand** — you create a custom food profile yourself, entering nutrient values from a product label or research source. These entries go straight into your [Food Cache](#gloss-food-cache) without coming from any online source.
 
-In every case, NutriMagnus saves the food's original ID number alongside its data. That ID is the key that allows everything else in the program to refer back to a specific food unambiguously.
+In every case, NuMa saves the food's original ID number alongside its data. That ID is the key that allows everything else in the program to refer back to a specific food unambiguously.
 
 **[Food Annotations](#gloss-food-annotation)** are a second table on your computer. They hold extra information you choose to add about a specific food — information that does not exist in either online table:
 
 - **Glycemic index ([GI](#gloss-gi))** — how quickly a food raises blood sugar (scale 0–100). Neither [USDA](#gloss-usda) nor Open Food Facts provides [GI](#gloss-gi) values, so if you have a figure from a research table or a product source, you can record it here.
-- **[DIAAS](#gloss-diaas) estimate** — a protein quality score (scale 0–1.5). NutriMagnus can calculate this automatically for whole foods that have complete amino acid data. For packaged foods where that data is absent, you can record a known [DIAAS](#gloss-diaas) figure here instead — see [Estimating DIAAS by hand for a packaged food](#diaas-estimate-table) for a quick-reference table by protein source.
+- **[DIAAS](#gloss-diaas) estimate** — a protein quality score (scale 0–1.5). NuMa can calculate this automatically for whole foods that have complete amino acid data. For packaged foods where that data is absent, you can record a known [DIAAS](#gloss-diaas) figure here instead — see [Estimating DIAAS by hand for a packaged food](#diaas-estimate-table) for a quick-reference table by protein source.
 - **A preparation note** — a short reminder such as "boiled 20 minutes" or "soaked overnight."
 
 Each annotation is linked to one specific food in your [Food Cache](#gloss-food-cache) by that food's ID number. This means two things: you can only annotate a food that is already in your cache, and if you ever remove a food from your cache, its annotation is removed with it automatically.
 
-**Your Recipes** are stored in their own table on your computer. Each recipe holds a list of ingredients, and each ingredient is linked to a specific entry in your [Food Cache](#gloss-food-cache) — by that food's ID. NutriMagnus handles this link automatically: when you add an ingredient to a recipe, it searches your cache and the online tables exactly as it would for any other food search, and caches the result if it isn't stored yet.
+**Your Recipes** are stored in their own table on your computer. Each recipe holds a list of ingredients, and each ingredient is linked to a specific entry in your [Food Cache](#gloss-food-cache) — by that food's ID. NuMa handles this link automatically: when you add an ingredient to a recipe, it searches your cache and the online tables exactly as it would for any other food search, and caches the result if it isn't stored yet.
 
 A recipe can also include another recipe as one of its ingredients, allowing you to build complex dishes from simpler prepared components. When you log a meal, you can add a portion of a recipe — or a portion of a recipe-within-a-recipe — exactly as you would add a single food.
 
-**[My Pantry](#gloss-my-pantry)** is a short personal list of protein sources you currently have on hand — tofu, lentils, Greek yogurt, and so on. It is a separate table used for one specific purpose: when NutriMagnus suggests foods to fill a protein gap in your diet, it checks your pantry first and moves those foods to the top of the suggestion list. This way the program recommends things you can actually use right now, rather than foods you would need to go and buy.
+**[My Pantry](#gloss-my-pantry)** is a short personal list of protein sources you currently have on hand — tofu, lentils, Greek yogurt, and so on. It is a separate table used for one specific purpose: when NuMa suggests foods to fill a protein gap in your diet, it checks your pantry first and moves those foods to the top of the suggestion list. This way the program recommends things you can actually use right now, rather than foods you would need to go and buy.
 
 **How these lists relate — and where to edit.**
 
@@ -2777,13 +2777,13 @@ This means: if you edit a food's nutrients in the [Food Cache](#gloss-food-cache
 
 ### Glossary [glossary]
 
-Abbreviations and key terms used in NutriMagnus output and this manual.
+Abbreviations and key terms used in NuMa output and this manual.
 
 ---
 
 **AA**{: #gloss-aa}  —  Amino acid. The molecular building blocks of all proteins. See [essential amino acids](#aa).
 
-**AI**  —  Adequate Intake. A nutrient reference value used when a full RDA cannot be established; considered sufficient for most healthy people. Used for fiber in NutriMagnus. See [RDA](#rda).
+**AI**  —  Adequate Intake. A nutrient reference value used when a full RDA cannot be established; considered sufficient for most healthy people. Used for fiber in NuMa. See [RDA](#rda).
 
 **Antinutrient**{: #gloss-antinutrient}  —  A naturally occurring plant compound that partially blocks the absorption or use of a nutrient. Common examples: phytates (reduce mineral absorption), oxalates (reduce calcium absorption), lectins (interfere with digestion in raw legumes), bound niacin in corn. All can be reduced by appropriate preparation. See [antinutrients](#antinutrients).
 
@@ -2791,7 +2791,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **CGM**{: #gloss-cgm}  —  Continuous Glucose Monitoring. A wearable device that measures blood glucose every few minutes. Discussed in [Appendix C](#appendix-c) as the most accurate way to track individual glycemic response.
 
-**CLI**{: #gloss-cli}  —  Command-Line Interface. A text-based program you operate by typing commands and reading text output. NutriMagnus's original interface, still available for developers and advanced users (see Part 5, "Using the Command Line"). Most users today use the web app instead.
+**CLI**{: #gloss-cli}  —  Command-Line Interface. A text-based program you operate by typing commands and reading text output. NuMa's original interface, still available for developers and advanced users (see Part 5, "Using the Command Line"). Most users today use the web app instead.
 
 **Complete protein**{: #gloss-complete-protein}  —  A protein source that supplies all nine essential amino acids at or above FAO reference levels after digestibility adjustment. See [protein completeness](#complete).
 
@@ -2801,15 +2801,15 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **DIAAS**{: #gloss-diaas}  —  Digestible Indispensable Amino Acid Score. A score from 0 to 1.5+ measuring how much of a food's protein the body can actually use, accounting for digestibility and amino acid completeness. 1.0 = meets the FAO reference exactly; above 1.0 = excellent; below 1.0 = one or more amino acids are limiting. See [DIAAS](#diaas).
 
-**Digestibility coefficient**{: #gloss-digestibility-coefficient}  —  A number between 0 and 1 representing the fraction of a nutrient that reaches the bloodstream after digestion. NutriMagnus uses true ileal digestibility values from published literature. Eggs and dairy sit near 1.0; whole legumes are typically 0.79–0.85.
+**Digestibility coefficient**{: #gloss-digestibility-coefficient}  —  A number between 0 and 1 representing the fraction of a nutrient that reaches the bloodstream after digestion. NuMa uses true ileal digestibility values from published literature. Eggs and dairy sit near 1.0; whole legumes are typically 0.79–0.85.
 
-**DRI**{: #gloss-dri}  —  Dietary Reference Intakes. The system of nutritional reference values published by the U.S. National Academies of Sciences; the source for RDAs, AIs, and upper intake levels used in NutriMagnus.
+**DRI**{: #gloss-dri}  —  Dietary Reference Intakes. The system of nutritional reference values published by the U.S. National Academies of Sciences; the source for RDAs, AIs, and upper intake levels used in NuMa.
 
 **EAA**{: #gloss-eaa}  —  Essential Amino Acid. One of nine amino acids the human body cannot make and must get from food every day: Histidine, Isoleucine, Leucine, Lysine, Methionine, Phenylalanine, Threonine, Tryptophan, Valine. See [essential amino acids](#aa).
 
-**FAO**{: #gloss-fao}  —  Food and Agriculture Organization of the United Nations. The body that published the 2013 amino acid reference standard used for all protein quality scoring in NutriMagnus. See [FAO reference values](#fao).
+**FAO**{: #gloss-fao}  —  Food and Agriculture Organization of the United Nations. The body that published the 2013 amino acid reference standard used for all protein quality scoring in NuMa. See [FAO reference values](#fao).
 
-**FDC**{: #gloss-fdc}  —  FoodData Central. The USDA's online nutrition database and NutriMagnus's primary food data source. Each food has a unique numeric FDC ID. Website: https://fdc.nal.usda.gov/
+**FDC**{: #gloss-fdc}  —  FoodData Central. The USDA's online nutrition database and NuMa's primary food data source. Each food has a unique numeric FDC ID. Website: https://fdc.nal.usda.gov/
 
 **FDC ID**{: #gloss-fdc-id}  —  The unique numeric identifier assigned to each food entry in USDA FoodData Central. You can enter an FDC ID directly at any "Search food or recipe" prompt instead of typing a name.
 
@@ -2821,7 +2821,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **GL**{: #gloss-gl}  —  Glycemic Load. A measure of glycemic impact that combines GI with the actual amount of carbohydrate in a serving. More useful than GI alone for real-world meal comparisons. See [glycemic load](#gl).
 
-**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NutriMagnus's web app provides (see Part 4, "Using the Web App"). The CLI remains available for developers and advanced users.
+**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NuMa's web app provides (see Part 4, "Using the Web App"). The CLI remains available for developers and advanced users.
 
 **Ileal digestibility**{: #gloss-ileal-digestibility}  —  The fraction of an amino acid absorbed by the end of the small intestine (ileum). DIAAS uses true ileal digestibility, which is more accurate than fecal digestibility for measuring protein available to the body.
 
@@ -2829,19 +2829,19 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **Met+Cys**{: #gloss-met-cys}  —  Methionine + Cystine. These two amino acids are scored as a combined pair in DIAAS calculations, following FAO 2013 guidelines, because the body can convert Methionine into Cystine.
 
-**My Pantry**{: #gloss-my-pantry}  —  A personal list of protein sources you currently have on hand. NutriMagnus checks this list first when suggesting complement foods, so suggestions reflect what you can actually use.
+**My Pantry**{: #gloss-my-pantry}  —  A personal list of protein sources you currently have on hand. NuMa checks this list first when suggesting complement foods, so suggestions reflect what you can actually use.
 
 **NuMa**{: #gloss-numa}  —  NutriMagnus. The abbreviated name used throughout this manual.
 
-**OFF**{: #gloss-off}  —  Open Food Facts. A community-maintained database of packaged and branded food products; NutriMagnus's secondary data source. Website: https://world.openfoodfacts.org/
+**OFF**{: #gloss-off}  —  Open Food Facts. A community-maintained database of packaged and branded food products; NuMa's secondary data source. Website: https://world.openfoodfacts.org/
 
-**Oxalate**{: #gloss-oxalate}  —  A naturally occurring compound (oxalic acid / oxalate ion) found in many plant foods, especially spinach, beets, nuts, and chocolate. At high dietary levels it can promote calcium-oxalate kidney stones in susceptible individuals. NutriMagnus can optionally display oxalate content using the Harvard T.H. Chan School of Public Health reference table. Enable it under Settings → Oxalate data. See [oxalate data](#oxalate).
+**Oxalate**{: #gloss-oxalate}  —  A naturally occurring compound (oxalic acid / oxalate ion) found in many plant foods, especially spinach, beets, nuts, and chocolate. At high dietary levels it can promote calcium-oxalate kidney stones in susceptible individuals. NuMa can optionally display oxalate content using the Harvard T.H. Chan School of Public Health reference table. Enable it under Settings → Oxalate data. See [oxalate data](#oxalate).
 
 **Phe+Tyr**{: #gloss-phe-tyr}  —  Phenylalanine + Tyrosine. Scored as a combined pair in DIAAS calculations because the body can convert Phenylalanine into Tyrosine.
 
-**Phytonutrients**{: #gloss-phytonutrients}  —  Plant-derived bioactive compounds tracked by NutriMagnus where USDA data exists: beta-carotene, alpha-carotene, lycopene, lutein/zeaxanthin, choline, beta-sitosterol, and isoflavones.
+**Phytonutrients**{: #gloss-phytonutrients}  —  Plant-derived bioactive compounds tracked by NuMa where USDA data exists: beta-carotene, alpha-carotene, lycopene, lutein/zeaxanthin, choline, beta-sitosterol, and isoflavones.
 
-**Pooled DIAAS**{: #gloss-pooled-diaas}  —  The meal-level protein quality score computed by summing digestible amino acids across all ingredients before scoring. This captures how foods complement each other in a way that single-food DIAAS cannot. See the section "How NutriMagnus scores meal and recipe protein quality."
+**Pooled DIAAS**{: #gloss-pooled-diaas}  —  The meal-level protein quality score computed by summing digestible amino acids across all ingredients before scoring. This captures how foods complement each other in a way that single-food DIAAS cannot. See the section "How NuMa scores meal and recipe protein quality."
 
 **RDA**{: #gloss-rda}  —  Recommended Dietary Allowance. The average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group. See [RDA](#rda).
 
@@ -2849,7 +2849,7 @@ Abbreviations and key terms used in NutriMagnus output and this manual.
 
 **TID**{: #gloss-tid} —  
 
-**USDA**{: #gloss-usda}  —  United States Department of Agriculture. The U.S. government body that publishes FoodData Central, NutriMagnus's primary food data source.
+**USDA**{: #gloss-usda}  —  United States Department of Agriculture. The U.S. government body that publishes FoodData Central, NuMa's primary food data source.
 
 **usr**{: #gloss-usr}  —  User-drafted. Appears in ingredient ID columns to indicate a food whose nutrient profile you created or edited by hand, rather than one retrieved from USDA or Open Food Facts.
 
@@ -3289,7 +3289,7 @@ In practice, combining a gap closer (e.g., sesame tahini) with a [DIAAS](#gloss-
 
 THE REFERENCE VALUES
 
-NutriMagnus uses two slightly different reference sets:
+NuMa uses two slightly different reference sets:
 
 Gap-closer tier: usda_api.AA_REFERENCE_MG_PER_G_PROTEIN — [Met+Cys](#gloss-met-cys) = 22 mg/g, Lysine = 45 mg/g, Leucine = 59 mg/g
 
@@ -3319,7 +3319,7 @@ WEIGHT UNITS
 
 VOLUME UNITS
 
-NutriMagnus converts volume to grams via the food's recorded density. If density is unknown for a food, it asks you to supply the weight manually. Common dried herbs and spices (pepper flakes, cinnamon, cumin, oregano, garlic powder, and dozens more) have built-in density estimates, since these are almost always measured by the teaspoon or tablespoon rather than weighed — including a generic fallback for any USDA "Spices, ..." entry not individually itemized.
+NuMa converts volume to grams via the food's recorded density. If density is unknown for a food, it asks you to supply the weight manually. Common dried herbs and spices (pepper flakes, cinnamon, cumin, oregano, garlic powder, and dozens more) have built-in density estimates, since these are almost always measured by the teaspoon or tablespoon rather than weighed — including a generic fallback for any USDA "Spices, ..." entry not individually itemized.
 
     c  cup  cups                cups  (1 c = 236.6 ml)
     T  tbsp  tablespoon  tablespoons    tablespoons  (1 T = 14.8 ml)
@@ -3358,14 +3358,14 @@ For all weight and volume units, the space between the number and unit is option
 
 VOLUME WITH EXPLICIT WEIGHT
 
-When you know both the volume measure and the exact gram weight, you can supply both on one line. NutriMagnus records the weight and labels the entry with the volume for readability:
+When you know both the volume measure and the exact gram weight, you can supply both on one line. NuMa records the weight and labels the entry with the volume for readability:
 
     2 T 30g         →  30 g  (labeled "30 g (2 T)")
     1/4 c 60 g      →  60 g  (labeled "60 g (1/4 c)")
 
 BARE NUMBER
 
-A bare number with no unit is assumed to be grams, but NutriMagnus always asks for confirmation before storing it.
+A bare number with no unit is assumed to be grams, but NuMa always asks for confirmation before storing it.
 
 ### Appendix J: Worked validation example — meal-level DIAAS for pinto beans + quinoa [appendix-j]
 
@@ -3668,4 +3668,4 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 [^6]: National Institutes of Health, Office of Dietary Supplements. *Zinc: Fact Sheet for Health Professionals*. https://ods.od.nih.gov/factsheets/Zinc-HealthProfessional/ — states that "the zinc requirements for vegetarians may be as much as 50% higher than for those who eat meat" because of the reduced bioavailability of zinc from plant-based diets.
 
-[^7]: National Institutes of Health, Office of Dietary Supplements. *Vitamin B12: Fact Sheet for Health Professionals*. https://ods.od.nih.gov/factsheets/VitaminB12-HealthProfessional/ — vitamin B12 occurs naturally only in animal foods. See also Melina, V., Craig, W., & Levin, S. (2016). Position of the Academy of Nutrition and Dietetics: Vegetarian Diets. *Journal of the Academy of Nutrition and Dietetics, 116*(12), 1970–1980. https://doi.org/10.1016/j.jand.2016.09.025 — recommends that vegans obtain vitamin B12 routinely from fortified foods or a supplement, since no reliable unfortified plant source exists. Neither source specifies a "50% of RDA" cutoff for a single day's intake; that trigger is NutriMagnus's own design choice (see main text).
+[^7]: National Institutes of Health, Office of Dietary Supplements. *Vitamin B12: Fact Sheet for Health Professionals*. https://ods.od.nih.gov/factsheets/VitaminB12-HealthProfessional/ — vitamin B12 occurs naturally only in animal foods. See also Melina, V., Craig, W., & Levin, S. (2016). Position of the Academy of Nutrition and Dietetics: Vegetarian Diets. *Journal of the Academy of Nutrition and Dietetics, 116*(12), 1970–1980. https://doi.org/10.1016/j.jand.2016.09.025 — recommends that vegans obtain vitamin B12 routinely from fortified foods or a supplement, since no reliable unfortified plant source exists. Neither source specifies a "50% of RDA" cutoff for a single day's intake; that trigger is NuMa's own design choice (see main text).
