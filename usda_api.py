@@ -316,7 +316,7 @@ def search_foods(query: str, page_size: int = 15,
     if not all_results:
         return []
 
-    query_words = query.lower().split()
+    query_words = [w for w in query.lower().split() if not w.isdigit()]
     if not query_words:
         return all_results if uncapped else all_results[:page_size]
 

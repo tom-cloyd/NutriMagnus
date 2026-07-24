@@ -242,7 +242,7 @@ def _search_relevance_key(name: str, query: str) -> tuple:
     how much shorter (closer) the name is, then alphabetically. Lower sorts first."""
     nl = (name or "").lower()
     ql = query.lower().strip()
-    query_words = ql.split()
+    query_words = [w for w in ql.split() if not w.isdigit()]
     hits = sum(1 for w in query_words if w in nl)
     fraction_matched = hits / len(query_words) if query_words else 0.0
     return (
@@ -263,6 +263,88 @@ def _sort_search_results(results: list[dict], query: str, mode: str) -> list[dic
         results,
         key=lambda r: (_SEARCH_CATEGORY_RANK.get(r["source"], 9), _search_relevance_key(r["name"], query)),
     )
+
+
+def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str, sort: str) -> list[dict]:
+    """USDA + Open Food Facts search: 2-3 blocking network calls. Callers on
+    the web should run this out-of-band from the initial page render (see
+    /meal/{meal_id}/search-api-results) so cached results aren't stuck
+    waiting behind slow external APIs."""
+    raw_api: list[dict] = []
+    try:
+        general = _usda.search_foods(api_query)
+        # USDA's own relevance ranking can bury plain/raw preparations
+        # (the ones with real amino-acid data) ~20 deep for a common
+        # single-word query — see _search_logic for the "potato" case
+        # that exposed this. The result cap is user-configurable
+        # (Settings → Advanced); 0 means no cap.
+        foundation = _usda.search_foods(api_query, data_types=["Foundation", "SR Legacy"],
+                                         page_size=_usda.get_search_boost_page_size())
+        found_ids = {f["fdcId"] for f in foundation}
+        raw_api.extend(foundation + [f for f in general if f["fdcId"] not in found_ids])
+    except Exception:
+        pass
+
+    try:
+        for food in _off.search_foods(api_query, page_size=6):
+            name_lower = food.get("description", "").lower()
+            if not any(name_lower == f.get("description", "").lower() for f in raw_api):
+                raw_api.append(food)
+    except Exception:
+        pass
+
+    candidate_ids = [f["fdcId"] for f in raw_api if isinstance(f.get("fdcId"), int)]
+    with _db.get_db() as conn:
+        annotations = _db.annotations_for_fdcids(conn, candidate_ids)
+        cached_nutrients: dict[int, str | None] = {}
+        for fid in candidate_ids:
+            row = _db.get_cached_food(conn, fid)
+            if row:
+                cached_nutrients[fid] = row["nutrients_json"]
+
+    def _aa_status(fdc_id: int, data_type: str, from_off: bool) -> str:
+        if from_off:
+            return "✗"
+        nuts_json = cached_nutrients.get(fdc_id)
+        if nuts_json:
+            return "✓" if _usda.has_amino_acid_data(json.loads(nuts_json)) else "✗"
+        if data_type in ("Foundation", "SR Legacy"):
+            return "~✓"
+        return "✗"
+
+    def _ann_gi(fdc_id: int) -> str:
+        ann = annotations.get(fdc_id)
+        if ann and ann["gi_estimate"] is not None:
+            return str(int(round(ann["gi_estimate"])))
+        return ""
+
+    def _ann_diaas(fdc_id: int) -> str:
+        ann = annotations.get(fdc_id)
+        if ann and ann["diaas_estimate"] is not None:
+            return f"{ann['diaas_estimate']:.2f}"
+        return ""
+
+    results = []
+    for food in raw_api:
+        fid = food.get("fdcId")
+        if not fid or fid in exclude_ids:
+            continue
+        exclude_ids.add(fid)
+        from_off = bool(food.get("_from_off"))
+        dtype = "Open Food Facts" if from_off else food.get("dataType", "")
+        results.append({
+            "fdc_id":    fid,
+            "name":      food.get("description", ""),
+            "data_type": dtype,
+            "brand":     food.get("brandOwner") or food.get("brandName") or "",
+            "source":    "off" if from_off else "usda",
+            "off_code":  food.get("_off_code", "") if from_off else "",
+            "portions":  [],
+            "aa":        _aa_status(fid, dtype, from_off),
+            "gi":        _ann_gi(fid),
+            "diaas":     _ann_diaas(fid),
+        })
+    return _sort_search_results(results, q, sort)
 
 
 def _pantry_fdc_ids(conn) -> set[int]:
@@ -3080,55 +3162,20 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                 "source":        "recipe",
             })
 
-        # Collect raw API results (double USDA search, same strategy as CLI)
-        seen: set[int] = set()
-        cache_fdc_ids: set[int] = set()
-        raw_api: list[dict] = []
-
-        for row in cached_rows:
-            cache_fdc_ids.add(row["fdc_id"])
-            seen.add(row["fdc_id"])
-
-        try:
-            general = _usda.search_foods(api_query)
-            # USDA's own relevance ranking can bury plain/raw preparations
-            # (the ones with real amino-acid data) ~20 deep for a common
-            # single-word query — see _search_logic for the "potato" case
-            # that exposed this. The result cap is user-configurable
-            # (Settings → Advanced); 0 means no cap.
-            foundation = _usda.search_foods(api_query, data_types=["Foundation", "SR Legacy"],
-                                             page_size=_usda.get_search_boost_page_size())
-            found_ids = {f["fdcId"] for f in foundation}
-            usda_combined = foundation + [f for f in general if f["fdcId"] not in found_ids]
-            raw_api.extend(usda_combined)
-        except Exception:
-            pass
-
-        try:
-            for food in _off.search_foods(api_query, page_size=6):
-                name_lower = food.get("description", "").lower()
-                if not any(name_lower == f.get("description", "").lower() for f in raw_api):
-                    raw_api.append(food)
-        except Exception:
-            pass
-
-        # Bulk-fetch annotations for all candidate fdc_ids
-        all_candidate_ids = (
-            list(cache_fdc_ids)
-            + [f["fdcId"] for f in raw_api if isinstance(f.get("fdcId"), int)]
-        )
+        # Cached foods only — fast, local DB. External USDA/OFF results are
+        # fetched separately by the browser (GET /meal/{meal_id}/search-api-
+        # results) so a repeat food already in the cache renders instantly
+        # instead of waiting on 2-3 blocking USDA/OFF API round-trips.
+        cache_fdc_ids = {row["fdc_id"] for row in cached_rows}
         with _db.get_db() as conn:
-            annotations = _db.annotations_for_fdcids(conn, all_candidate_ids)
-            # Also load cached nutrient records for AA-status computation
+            annotations = _db.annotations_for_fdcids(conn, list(cache_fdc_ids))
             cached_nutrients: dict[int, str | None] = {}
-            for fid in all_candidate_ids:
+            for fid in cache_fdc_ids:
                 row = _db.get_cached_food(conn, fid)
                 if row:
                     cached_nutrients[fid] = row["nutrients_json"]
 
-        def _aa_status(fdc_id: int, data_type: str, from_off: bool) -> str:
-            if from_off:
-                return "✗"
+        def _aa_status(fdc_id: int, data_type: str) -> str:
             nuts_json = cached_nutrients.get(fdc_id)
             if nuts_json:
                 return "✓" if _usda.has_amino_acid_data(json.loads(nuts_json)) else "✗"
@@ -3148,7 +3195,6 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                 return f"{ann['diaas_estimate']:.2f}"
             return ""
 
-        # Cached foods first
         for row in cached_rows:
             fid = row["fdc_id"]
             portions = json.loads(row["portions_json"] or "[]") or []
@@ -3161,28 +3207,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                 "source":    "pantry" if fid in pantry_ids else "cache",
                 "off_code":  "",
                 "portions":  portions,
-                "aa":        _aa_status(fid, dtype, False),
-                "gi":        _ann_gi(fid),
-                "diaas":     _ann_diaas(fid),
-            })
-
-        # API results not already in cache
-        for food in raw_api:
-            fid = food.get("fdcId")
-            if not fid or fid in seen:
-                continue
-            seen.add(fid)
-            from_off = bool(food.get("_from_off"))
-            dtype = "Open Food Facts" if from_off else food.get("dataType", "")
-            search_results.append({
-                "fdc_id":    fid,
-                "name":      food.get("description", ""),
-                "data_type": dtype,
-                "brand":     food.get("brandOwner") or food.get("brandName") or "",
-                "source":    "off" if from_off else "usda",
-                "off_code":  food.get("_off_code", "") if from_off else "",
-                "portions":  [],
-                "aa":        _aa_status(fid, dtype, from_off),
+                "aa":        _aa_status(fid, dtype),
                 "gi":        _ann_gi(fid),
                 "diaas":     _ann_diaas(fid),
             })
@@ -3286,6 +3311,32 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "has_day_pct":         daily_nutrients is not None,
         "sibling_meals":       sibling_meals,
         "add_error":           add_error,
+    })
+
+
+@app.get("/meal/{meal_id}/search-api-results", response_class=HTMLResponse)
+async def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None):
+    """Fetched by JS on the meal page after the initial (cache-only) render —
+    returns just the USDA/OFF result rows as an HTML fragment, so slow
+    external API calls never block cached foods from appearing instantly."""
+    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
+    q = q.strip()
+    results: list[dict] = []
+    if q:
+        _clean_words = [w for w in q.lower().split() if w not in _SEARCH_META_WORDS]
+        clean_query = " ".join(_clean_words) if _clean_words else q
+        _api_words = [w for w in clean_query.split() if w not in _SEARCH_PREP_WORDS]
+        api_query = " ".join(_api_words) if _api_words else clean_query
+
+        with _db.get_db() as conn:
+            cached_rows = _db.search_cached_foods(conn, clean_query)
+        exclude_ids = {row["fdc_id"] for row in cached_rows}
+        results = _external_food_search_results(api_query, exclude_ids, q, sort)
+
+    return templates.TemplateResponse(request, "_add_food_api_rows.html", {
+        "meal_id": meal_id,
+        "results": results,
+        "q":       q,
     })
 
 

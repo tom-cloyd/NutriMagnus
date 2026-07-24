@@ -1,0 +1,126 @@
+{% macro add_food_row(meal_id, food, q) %}
+      <tr class="food-meta-row">
+        <td><strong>{{ food.name }}</strong>
+          {% if food.data_type or food.brand %}<br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>{% endif %}
+        </td>
+        <td class="col-aa">
+          {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+          {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
+          {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+          {% endif %}
+        </td>
+        <td class="col-gi"><small>{{ food.gi or '' }}</small></td>
+        <td class="col-diaas"><small>{{ food.diaas or '' }}</small></td>
+        <td class="col-id muted"><small>{% if food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% elif food.recipe_id %}{{ food.recipe_id }}{% endif %}</small></td>
+        <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+      </tr>
+      <tr class="add-food-form-row">
+        <td colspan="6">
+          {% if food._type == "recipe" %}
+          {% set rid = food.recipe_id %}
+          <form method="post" action="/meal/{{ meal_id }}/add-recipe" class="add-food-form">
+            <input type="hidden" name="recipe_id" value="{{ rid }}">
+            <input type="hidden" name="recipe_name" value="{{ food.name }}">
+
+            {# ── What to add ── #}
+            <div class="d-flex flex-wrap gap-3 align-items-center mb-2">
+              <div>
+                <span class="muted" style="font-size:0.85rem">Add as:</span>
+                <div class="form-check form-check-inline ms-1">
+                  <input class="form-check-input" type="radio" name="mode" id="mode_recipe_{{ rid }}"
+                         value="recipe" checked>
+                  <label class="form-check-label" for="mode_recipe_{{ rid }}">Whole recipe</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" name="mode" id="mode_ing_{{ rid }}"
+                         value="ingredients">
+                  <label class="form-check-label" for="mode_ing_{{ rid }}">Individual ingredients</label>
+                </div>
+              </div>
+            </div>
+
+            {# ── How much ── radios always visible; only the active input is shown #}
+            <div class="mb-1">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="amount_mode"
+                       id="amr-srv-{{ rid }}" value="servings" checked
+                       onchange="recipeAmtSwitch('{{ rid }}', this.value)">
+                <label class="form-check-label" for="amr-srv-{{ rid }}">
+                  Servings
+                  <span class="muted" style="font-size:0.8rem">({{ food.servings | int if food.servings == food.servings | int else food.servings }} total)</span>
+                </label>
+              </div>
+              {% if food.total_weight %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="amount_mode"
+                       id="amr-wt-{{ rid }}" value="weight"
+                       onchange="recipeAmtSwitch('{{ rid }}', this.value)">
+                <label class="form-check-label" for="amr-wt-{{ rid }}">
+                  By weight
+                  <span class="muted" style="font-size:0.8rem">({{ food.total_weight | round(1) }}&thinsp;{{ food.total_weight_unit }} total)</span>
+                </label>
+              </div>
+              {% endif %}
+              {% if food.total_volume %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="amount_mode"
+                       id="amr-vol-{{ rid }}" value="volume"
+                       onchange="recipeAmtSwitch('{{ rid }}', this.value)">
+                <label class="form-check-label" for="amr-vol-{{ rid }}">
+                  By volume
+                  <span class="muted" style="font-size:0.8rem">({{ food.total_volume | round(1) }}&thinsp;{{ food.total_volume_unit }} total)</span>
+                </label>
+              </div>
+              {% endif %}
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+              <div id="inp-panel-srv-{{ rid }}" class="input-group" style="width:14rem">
+                <input type="number" class="form-control form-control-sm"
+                       name="servings" value="1" min="0.01" max="999" step="0.01">
+                <span class="input-group-text">srv</span>
+              </div>
+              {% if food.total_weight %}
+              <div id="inp-panel-wt-{{ rid }}" class="input-group" style="width:14rem;display:none">
+                <input type="number" class="form-control form-control-sm" id="inp-wt-{{ rid }}"
+                       name="amount_value_weight" min="0.1" max="99999" step="0.1">
+                <span class="input-group-text">{{ food.total_weight_unit }}</span>
+              </div>
+              {% endif %}
+              {% if food.total_volume %}
+              <div id="inp-panel-vol-{{ rid }}" class="input-group" style="width:14rem;display:none">
+                <input type="number" class="form-control form-control-sm" id="inp-vol-{{ rid }}"
+                       name="amount_value_volume" min="0.1" max="99999" step="0.1">
+                <span class="input-group-text">{{ food.total_volume_unit }}</span>
+              </div>
+              {% endif %}
+              <button type="submit" class="btn btn-primary btn-sm">Add to meal</button>
+            </div>
+          </form>
+          {% else %}
+          <form method="post" action="/meal/{{ meal_id }}/add" class="add-food-form">
+            <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+            <input type="hidden" name="food_name" value="{{ food.name }}">
+            <input type="hidden" name="off_code" value="{{ food.off_code or '' }}">
+            <input type="hidden" name="q" value="{{ q }}">
+            <div class="d-flex flex-wrap align-items-center gap-3">
+              <div class="input-group" style="width:26rem">
+                <input type="text" class="form-control form-control-sm" name="portion_str"
+                       placeholder="e.g. 150 g, 2 oz, 1/4 cup, p1, 6 p1"
+                       aria-label="Amount" required>
+                <button type="submit" class="btn btn-primary btn-sm">Add to meal</button>
+              </div>
+              <div style="font-size:0.8rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
+            </div>
+            {% if food.portions %}
+            <div class="mt-1"><small class="muted">
+              Portions:
+              {% for p in food.portions %}
+              <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+              {% endfor %}
+            </small></div>
+            {% endif %}
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+{% endmacro %}

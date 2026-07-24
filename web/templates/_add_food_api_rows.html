@@ -1,0 +1,2 @@
+{% import "_add_food_row.html" as _sr %}
+{% for food in results %}{{ _sr.add_food_row(meal_id, food, q) }}{% endfor %}

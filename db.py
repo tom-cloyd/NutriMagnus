@@ -406,14 +406,18 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
     words = query.split()
     if not words:
         return []
+    # Bare-digit words (e.g. the "1" in "coffee 1") match almost any dosage or
+    # serving-size substring — excluding them from the OR match keeps unrelated
+    # user-drafted foods like "B12 5000mcg" from surfacing for "coffee 1".
+    match_words = [w for w in words if not w.isdigit()] or words
     select = "SELECT fdc_id, name, data_type, brand, portions_json, notes, nutrients_json, archived FROM foods"
-    params = [f"%{w}%" for w in words]
+    params = [f"%{w}%" for w in match_words]
     archived_clause = "" if include_archived else "AND archived = 0"
     # All-words match for the general cache
-    and_cond = " AND ".join("name LIKE ?" for _ in words)
+    and_cond = " AND ".join("name LIKE ?" for _ in match_words)
     and_rows = conn.execute(f"{select} WHERE {and_cond} {archived_clause} ORDER BY name", params).fetchall()
     # Any-word match for user-drafted foods — so "vitamin d" finds "D3 50 mcg" etc.
-    or_cond = " OR ".join("name LIKE ?" for _ in words)
+    or_cond = " OR ".join("name LIKE ?" for _ in match_words)
     or_rows = conn.execute(
         f"{select} WHERE user_drafted = 1 AND ({or_cond}) {archived_clause} ORDER BY name", params
     ).fetchall()

@@ -55,10 +55,12 @@
     <input type="hidden" name="date" value="{{ date_filter }}">
     <div>
       <label class="form-label mb-1" for="meals-limit">Number of meals to show</label>
-      <input type="number" min="1" class="form-control form-control-sm" id="meals-limit"
-             name="limit" value="{{ limit }}" style="width:6rem">
+      <div class="d-flex gap-2">
+        <input type="number" min="1" class="form-control form-control-sm" id="meals-limit"
+               name="limit" value="{{ limit }}" style="width:5rem">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Show</button>
+      </div>
     </div>
-    <button type="submit" class="btn btn-sm btn-outline-secondary">Show</button>
   </form>
   <div>
     <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>

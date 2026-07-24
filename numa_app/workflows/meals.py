@@ -113,7 +113,7 @@ def _fix_meal_aa_profiles(meal_id: int, missing_names: list[str], protein_by_nam
     replaced_any = False
     for item in affected:
         state.console.print(f"\n  [grey62]Next food missing AA data:[/grey62]"
-                      f"  [{state.T['accent']}]{item['food_name']}[/{state.T['accent']}]{food_id_tag(item.get('fdc_id'))}"
+                      f"  [{state.T['accent']}]{item['food_name']}[/{state.T['accent']}]{food_id_tag(item['fdc_id'])}"
                       f"  [grey62]({_normalize_unit_display(item['unit'])})[/grey62]")
         suggested = _simplify_food_query(item["food_name"].split(",")[0].strip())
         state.console.print(f"  [grey62]Searching SR Legacy + Foundation for: '{suggested}'[/grey62]")
@@ -883,7 +883,7 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
             if it["item_type"] == "recipe":
                 unit = it["unit"] or ""
                 amount_label = unit if unit and unit != "servings" else _format_recipe_portion_label(float(it["amount"]))
-                id_tag = food_id_tag(None, recipe_id=it.get("recipe_id"))
+                id_tag = food_id_tag(None, recipe_id=it["recipe_id"])
                 if recipe_deleted[it["id"]]:
                     flag = " (recipe deleted)"
                     fname = it["food_name"][:max(1, _MITEM_W - len(flag))]
