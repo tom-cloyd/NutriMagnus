@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-23:2006* / Reading 2 hours, 55 minutes
+*Updated 2026-07-23:2138* / Reading 2 hours, 55 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet.
 
@@ -642,9 +642,9 @@ The max-limit warning is independent of the Optimal target feature -- you can se
 
 Your [dietary preference](#diet) setting (Settings → Dietary preferences) is used for more than filtering protein complement suggestions -- it also shapes two parts of your daily RDA comparison, because a vegetarian or plant-based diet changes not just *what* nutrients you're likely getting, but how much of certain ones your body can actually use.
 
-**Iron and zinc targets are raised on vegetarian and plant-based settings.** Absorbable iron comes in two forms: heme iron (from meat, fish, and poultry, absorbed efficiently) and non-heme iron (from plants, absorbed far less efficiently, and further blocked by phytate in legumes and grains -- see [Antinutrients](#antinutrients)). Zinc absorption is reduced by the same phytate. Rather than silently under-representing this, NutriMagnus raises the iron RDA by 1.8x and the zinc RDA by 1.5x when your dietary preference is set to Vegetarian or Plant-based only -- figures commonly cited by the NIH Office of Dietary Supplements and Institute of Medicine for these patterns. This appears as a normal, higher Daily Goal on the RDA comparison and Daily Nutrient Targets screens, with an explanatory note alongside it. Setting your preference back to "All animal foods" returns both targets to their standard values.
+**Iron and zinc targets are raised on vegetarian and plant-based settings.** Absorbable iron comes in two forms: heme iron (from meat, fish, and poultry, absorbed efficiently) and non-heme iron (from plants, absorbed far less efficiently, and further blocked by phytate in legumes and grains -- see [Antinutrients](#antinutrients)). Zinc absorption is reduced by the same phytate. Rather than silently under-representing this, NutriMagnus raises the iron RDA by 1.8x[^4][^5] and the zinc RDA by 1.5x[^4][^6] when your dietary preference is set to Vegetarian or Plant-based only -- figures drawn from the Institute of Medicine's Dietary Reference Intake report and the NIH Office of Dietary Supplements' fact sheets for these two minerals. This appears as a normal, higher Daily Goal on the RDA comparison and Daily Nutrient Targets screens, with an explanatory note alongside it. Setting your preference back to "All animal foods" returns both targets to their standard values.
 
-**A B12 warning appears for the Plant-based only setting when intake is low.** Vitamin B12 is almost exclusively animal-sourced -- unlike most nutrient shortfalls, a persistently low B12 reading on a fully plant-based diet isn't something more food logging or dietary variety fixes; it typically means a B12 supplement or B12-fortified food is needed. NutriMagnus shows this warning only when your dietary preference is Plant-based only *and* today's B12 intake is under 50% of the RDA -- vegetarians (who still eat dairy and eggs) aren't flagged, since those foods are a legitimate B12 source and an occasional low day isn't a structural gap the way it is for a fully plant-based diet.
+**A B12 warning appears for the Plant-based only setting when intake is low.** Vitamin B12 is almost exclusively animal-sourced[^7] -- unlike most nutrient shortfalls, a persistently low B12 reading on a fully plant-based diet isn't something more food logging or dietary variety fixes; it typically means a B12 supplement or B12-fortified food is needed.[^7] NutriMagnus shows this warning only when your dietary preference is Plant-based only *and* today's B12 intake is under 50% of the RDA -- vegetarians (who still eat dairy and eggs) aren't flagged, since those foods are a legitimate B12 source and an occasional low day isn't a structural gap the way it is for a fully plant-based diet. The 50% figure is NutriMagnus's own conservative trigger for surfacing the warning, not a clinical diagnostic threshold -- an actual B12 deficiency is properly diagnosed by a blood test (serum B12, methylmalonic acid, or homocysteine), not by a single day's logged intake.
 
 Both of these are general population guidance based on your stated preference, not personalized medical advice -- if you have a diagnosed deficiency or absorption condition, follow your clinician's specific recommendations instead.
 
@@ -1143,6 +1143,10 @@ and Calories, so they show -- until computed and n/a if the ingredient data
 doesn't cover that nutrient. Press c on the Meals & Log screen (or Analyze a
 meal) to compute them.
 
+The same chosen columns also appear on the Daily Summary's Recent Days table
+(Analysis -> Daily Summary), aggregated per day instead of per meal -- so a
+day's Sodium column, for example, is the sum of every meal logged that day.
+
 
 #### Meal Items Table [meal-detail]
 
@@ -1529,7 +1533,11 @@ If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Sh
 
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form.
 
-**Search boxes remember your last search.** On a meal's "Add Food or Recipe" search and a recipe's "Add Ingredient" search, if you follow a link away to look something up elsewhere and then come straight back to that exact page, your last search and its results are restored automatically — you don't have to retype it. This only applies to a plain link back to the page (the browser's own Back button already preserves it); it's scoped per page, so it never leaks a search from one meal into another. Click **Reset search** (shown next to the search box whenever a search is active) to clear it and return to the page's default, empty-search state.
+#### Search boxes remember your last search [search-memory]
+
+On a meal's "Add Food or Recipe" search and a recipe's "Add Ingredient" search, if you follow a link away to look something up elsewhere and then come straight back to that exact page, your last search and its results are restored automatically — you don't have to retype it. This only applies to a plain link back to the page (the browser's own Back button already preserves it); it's scoped per page, so it never leaks a search from one meal into another.
+
+There's no time limit on this — it holds for as long as your browser tab stays open, not just for a moment after you step away. Three things return you to the page's clean, empty-search state instead: clicking **Reset search** (shown next to the search box whenever a search is active), following the **Meals** or **Recipes** breadcrumb link back to the list, or closing the browser tab. The **Meals & Log** link in the main navigation bar, by contrast, leaves your search exactly as it was — that's the "I just stepped away for a moment" case this feature exists for.
 
 ### Sample Workflows [sample-workflows-web]
 
@@ -3597,6 +3605,55 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 ---
 
+### Appendix K: Recent program updates log
+
+## July 23
+
+* LOGGED DAYS KEEP THE USER PROFILE IN FORCE WHEN THEY WERE LOGGED -  Analysis > Daily Summary - Each logged day now remains compared against whichever profile was active when you logged it, not whatever profile is active today — switching profiles for illness, travel, or a weight change no longer silently rescores your past days. You can also manually reassign which profile a specific day is compared against. [learn more...](user-manual.md#day-profile)
+* RECENT DAYS SHOW YOUR DAILY DCP GOAL AND YOUR CHOSEN NUTRIENT COLUMNS -  Analysis > Daily Summary: Recent Days - Each day now shows its own protein (DCP) goal in grams, not just a percentage, and shows the same extra nutrient columns you chose for the Meals & Log list. [learn more...](user-manual.md#meal-columns)
+* CHOOSE HOW MANY MEALS TO SHOW; CLEARER MEALS & LOG COLUMNS -  Meals & Log - Choose exactly how many meals to show via a number box, in place of the old "show all"/"show recent 9" toggle; Calories now appears before the DCP columns; column headers are stacked to fit more on screen; the "Search meal history" link now explains what it searches. [learn more...](user-manual.md#meals-list)
+* MULTIDAY NUTRIENT TREND NOW LEADS WITH YOUR DCP AVERAGE -  Analysis > Multiday Nutrient Trend - This average-over-time view now leads with your average Digestible Complete Protein (DCP) instead of raw protein, since raw protein alone overstates what your body can actually use. [learn more...](user-manual.md#trend)
+* SEARCH BOXES REMEMBER YOUR LAST SEARCH -  Meals & Log: Add Food or Recipe search / Recipes: Add Ingredient search (web) - If you follow a link away to look something up and come straight back, your last search and its results are restored automatically; a new "Reset search" button clears it back to the page's default.
+* CONFIRM AMINO ACID DATA FOR SEARCH RESULTS ON DEMAND -  Foods: Search (web) - You can select foods showing the uncertain "~✓" amino-acid badge and click "Fetch full details for selected" to confirm, on demand, whether they truly have amino acid data. [learn more...](user-manual.md#food-search)
+* ESTIMATE AMINO ACIDS BY COPYING FROM ANOTHER FOOD -  Foods: Drafted Food Profiles / Food Cache edit (CLI); Custom Food Profiles edit (web) - When entering a food's amino acid data, you can now search for and pick a similar food to copy amino acids from instead of typing them in by hand — values are scaled automatically to match the food's own protein content, and a note documenting the source is suggested for you. [learn more...](user-manual.md#drafted-foods)
+* SEARCH RESULTS FOR RAW/WHOLE FOODS NO LONGER GET BURIED BEHIND BRANDED PRODUCTS -  Foods: Search / Meals & Log: Add Food or Recipe / Recipes: Add Ingredient (CLI + web) - USDA's own search ranking can bury a plain food like "Potatoes, flesh and skin, raw" — the version most likely to carry amino acid data — under branded and prepared-dish matches for the same word; the app now searches deeper to find them, and how deep is configurable in Settings > Advanced settings (0 = no limit). [learn more...](user-manual.md#food-data)
+* CLICKING "MEALS" OR "RECIPES" IN THE BREADCRUMB NOW STARTS A FRESH SEARCH -  Meals & Log / Recipes: Edit (web) - Following the breadcrumb back to the list now clears your remembered search, so you land on a clean page; using the top "Meals & Log" menu link still brings your search back whenever you return to it. [learn more...](user-manual.md#search-memory)
+* DAILY SUMMARY'S CHOSEN NUTRIENT COLUMNS NOW SHOW DATA FOR EVERY DAY -  Analysis > Daily Summary: Recent Days (CLI + web) - Fixed a bug where your chosen extra nutrient columns only had data for the couple of days you'd most recently opened; all logged days now show their numbers. [learn more...](user-manual.md#meal-columns)
+
+## July 22 
+
+* CHOOSE YOUR OWN EXTRA NUTRIENT COLUMNS FOR MEALS & LOG -  Meals & Log - You can now choose up to 6 extra nutrient columns, and their order, to show on the Meals & Log list, in both the terminal app and the web app. [learn more...](user-manual.md#meal-columns)
+* SEE EACH FOOD OR RECIPE'S ID AND DATA SOURCE AT A GLANCE -  Foods / Recipes / Meals & Log - Every food and recipe name shown anywhere in the program now displays its ID number and data source (USDA, Open Food Facts, user-drafted, or recipe) right underneath it, so you can always trace what you're looking at back to its source.
+* RECIPE PROTEIN COMPLETENESS RECALCULATES AUTOMATICALLY -  Recipes - A recipe's protein completeness (DCP) is now recalculated automatically whenever you change its ingredients or servings, instead of only when you explicitly ask for it.
+* MANUAL NOW SPLIT INTO WEB APP AND COMMAND LINE PARTS -  Manual - The manual is now split into separate Web App and Command Line parts, so web users (most users) no longer have to read past command-line-only instructions. [learn more...](user-manual.md#how-to-read-this-manual)
+
+## July 20 
+
+* ARCHIVE FOODS, PANTRY ENTRIES, AND RECIPES YOU'RE NOT USING -  Foods / My Pantry / Recipes - You can now archive (reserve) a food, pantry entry, or recipe to hide it from search, complement suggestions, and everyday lists without deleting it or breaking anything that still references it — one click in the web app (Archive/Restore button, plus a Show Archived checkbox), or one command in the terminal app. [learn more...](user-manual.md#archive)
+
+## July 19 
+
+* IRON, ZINC, AND B12 GUIDANCE ADAPTS TO YOUR DIETARY PREFERENCE -  Analysis / Settings - If your dietary preference is set to vegetarian or plant-based, your iron and zinc daily targets are now automatically raised to reflect their lower absorption from plant foods, with an explanatory note; a warning also appears if your logged vitamin B12 intake is critically low on a plant-only diet. [learn more...](user-manual.md#diet-bioavailability)
+* TRACK NUTRIENT TRENDS OVER 7, 14, OR 30 DAYS -  Analysis > Multiday Nutrient Trend - New view: average your nutrient intake over the last 7, 14, or 30 days against your targets, to catch a chronic shortfall that a single day's numbers would hide. [learn more...](user-manual.md#trend)
+* IODINE AND SELENIUM NOW TRACKED ALONGSIDE YOUR OTHER MINERALS -  Settings > Nutrient Targets - Iodine and selenium are now tracked alongside your other minerals throughout the program.
+* LOAD RECOMMENDED NUTRIENT TARGETS WITH ONE CLICK; SAFETY LIMITS APPLY AUTOMATICALLY -  Settings > Nutrient Targets - A new "load recommended optimal targets" action fills in sensible defaults (e.g. Vitamin D, EPA+DHA) for any nutrient you haven't already customized; built-in safe upper limits (iron, zinc, vitamin A, B6, iodine, selenium) now apply automatically even where you haven't set a personal max. [learn more...](user-manual.md#optimal)
+* MY PANTRY NOW MATCHES FOOD CACHE COLUMNS; LINK A NAME-ONLY ENTRY TO REAL DATA -  My Pantry / Food Cache (web) - My Pantry now shows Type, AA, GI, and DIAAS columns matching the Food Cache; a new "Link a food" action lets you attach a name-only pantry entry to a searched food instead of creating a duplicate. [learn more...](user-manual.md#pantry)
+
+## July 16 
+
+* ANALYZING A MEAL NOW AUTO-SAVES ITS DCP AND CALORIES; ONE CALCULATE COMMAND FOR ALL/30/10 DAYS -  Meals & Log - Analyzing a meal now automatically saves its computed DCP and calories instead of only displaying them; a single Calculate command replaces the old p-command, letting you compute DCP and calories for all meals, the last 30 days, or the last 10 days at once. [learn more...](user-manual.md#meals-list)
+
+## July 15 
+
+* SET A PERSONAL TARGET ABOVE THE RDA, PLUS A DAILY SAFETY CAP, FOR ANY NUTRIENT -  Settings > Nutrient Targets - You can now set a personal target above the standard RDA for any nutrient (e.g. more vitamin D than the population minimum) and/or a personal daily safety cap — tracked alongside RDA everywhere nutrients are shown, with a warning color when your intake is near or over your cap. [learn more...](user-manual.md#optimal)
+* UNSAVED FORM CHANGES NOW WARN YOU BEFORE YOU NAVIGATE AWAY -  Web app - Any editable form now warns you if you try to navigate away with unsaved changes, and shows a colored Save button when something's been edited.
+* NEW DIAAS-BY-PROTEIN-SOURCE QUICK-REFERENCE TABLE IN THE MANUAL -  Manual - Added a DIAAS-by-protein-source quick-reference table for hand-estimating a packaged food's protein quality when it has no amino acid data. [learn more...](user-manual.md#diaas-estimate-table)
+* FIND AND RELINK BROKEN RECIPE REFERENCES -  Recipes - A recipe ingredient that points to a food or recipe no longer in your cache (a "broken reference") can now be found and relinked, from a new Broken Recipe References list.
+* FOOD USE IN MEALS NOW GROUPS CORRECTLY BY RECIPE, EVEN AFTER A RENAME -  Analysis > Food Use in Meals - Frequency-of-use history now groups correctly by recipe, so renaming a recipe no longer splits its history into two separate entries. [learn more...](user-manual.md#fooduse)
+* VOLUME AMOUNTS FOR DRIED HERBS AND SPICES NO LONGER REJECTED -  Foods - Entering a volume amount (e.g. teaspoons) for dried herbs and spices like red pepper flakes is no longer rejected for lack of density data.
+
+---
+
 ### Notes
 
 [^1]: Lippman, D., Stump, M., Veazey, E., Guimarães, S. T., Rosenfeld, R., Kelly, J. H., Ornish, D., & Katz, D. L. (2024). Foundations of Lifestyle Medicine and its Evolution. *Mayo Clinic Proceedings: Innovations, Quality & Outcomes, 8(1)*, 97–111. https://doi.org/10.1016/j.mayocpiqo.2023.11.004
@@ -3604,3 +3661,11 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 [^2]: U.S. Department of Agriculture, Agricultural Research Service. (2019). *FoodData Central*. https://fdc.nal.usda.gov/
 
 [^3]: Open Food Facts contributors. (2012). *Open Food Facts*. https://world.openfoodfacts.org/
+
+[^4]: Institute of Medicine (US) Panel on Micronutrients. (2001). *Dietary Reference Intakes for Vitamin A, Vitamin K, Arsenic, Boron, Chromium, Copper, Iodine, Iron, Manganese, Molybdenum, Nickel, Silicon, Vanadium, and Zinc*. National Academies Press. https://doi.org/10.17226/10026 — the underlying Dietary Reference Intake report establishing that non-heme iron and phytate-inhibited zinc from plant foods are absorbed less efficiently than from mixed/omnivorous diets; the basis for the NIH fact-sheet figures below.
+
+[^5]: National Institutes of Health, Office of Dietary Supplements. *Iron: Fact Sheet for Health Professionals*. https://ods.od.nih.gov/factsheets/Iron-HealthProfessional/ — states that because vegetarian diets contain no heme iron and their non-heme iron is less bioavailable, "the RDA for vegetarians is 1.8 times higher than for people who eat meat."
+
+[^6]: National Institutes of Health, Office of Dietary Supplements. *Zinc: Fact Sheet for Health Professionals*. https://ods.od.nih.gov/factsheets/Zinc-HealthProfessional/ — states that "the zinc requirements for vegetarians may be as much as 50% higher than for those who eat meat" because of the reduced bioavailability of zinc from plant-based diets.
+
+[^7]: National Institutes of Health, Office of Dietary Supplements. *Vitamin B12: Fact Sheet for Health Professionals*. https://ods.od.nih.gov/factsheets/VitaminB12-HealthProfessional/ — vitamin B12 occurs naturally only in animal foods. See also Melina, V., Craig, W., & Levin, S. (2016). Position of the Academy of Nutrition and Dietetics: Vegetarian Diets. *Journal of the Academy of Nutrition and Dietetics, 116*(12), 1970–1980. https://doi.org/10.1016/j.jand.2016.09.025 — recommends that vegans obtain vitamin B12 routinely from fortified foods or a supplement, since no reliable unfortified plant source exists. Neither source specifies a "50% of RDA" cutoff for a single day's intake; that trigger is NutriMagnus's own design choice (see main text).

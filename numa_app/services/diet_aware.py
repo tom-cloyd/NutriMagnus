@@ -21,6 +21,12 @@ def b12_deficiency_note(diet_pref: str, b12_pct_of_rda: float) -> str | None:
     the foods you're already eating." Scoped to plant_only only — vegetarians
     still have dairy and eggs as a B12 source, so an ordinary low-B12 day for
     that group is more likely just an off day, not a structural diet gap.
+
+    The 50% cutoff is this app's own conservative warning trigger, not a
+    cited clinical threshold — actual B12 deficiency is diagnosed by blood
+    test, not logged dietary intake. See user-manual.md Notes [^7] for the
+    (real, cited) claims this note does make: B12 is animal-only, and vegans
+    should get it from fortified food or a supplement.
     """
     if diet_pref != "plant_only":
         return None

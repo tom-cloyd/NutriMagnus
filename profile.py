@@ -320,6 +320,8 @@ def bmr(profile: UserProfile) -> float:
 # lacto-ovo vegetarians still lack heme iron, and legumes/grains (the shared
 # staple across both patterns) are the primary source of the phytate effect
 # on zinc, not meat's absence specifically.
+# Sources: IOM (2001) DRI report for iron/zinc; NIH ODS Iron and Zinc Health
+# Professional Fact Sheets — see user-manual.md Notes [^4][^5][^6].
 _DIET_AWARE_RDA_MULTIPLIERS: dict[str, dict[str, float]] = {
     "vegetarian": {"iron_mg": 1.8, "zinc_mg": 1.5},
     "plant_only": {"iron_mg": 1.8, "zinc_mg": 1.5},
