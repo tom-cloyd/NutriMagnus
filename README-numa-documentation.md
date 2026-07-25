@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-23:2006
+UPDATED: 2026-07-24:2310
 ---
 
 ## Table of Contents
@@ -540,7 +540,7 @@ Then across all ingredients:
 
 3. Pool the digestible IAA grams for each of the nine essential amino acids.
 4. Divide each pooled total by the FAO 2013 adult reference (mg/g protein) applied to the meal's total protein.
-5. The composite DIAAS is the ratio of the most limiting IAA. **Digestible complete protein** = total protein × min(composite DIAAS, 1.0).
+5. The composite DIAAS is the ratio of the most limiting IAA. **Digestible complete protein** = protein from AA-analyzed ingredients × min(composite DIAAS, 1.0), **capped** at the digestibility-weighted absorbed protein from those same ingredients (`aa_dig_protein_g` in `diaas.py`) — the raw multiplication can otherwise project more complete protein than was physically absorbed, when the limiting amino acid is concentrated in a higher-digestibility ingredient than the meal's average. See [DCP cap](user-manual.html#dcp-cap) for the full worked example.
 
 This is the methodology from FAO Food and Nutrition Paper 92 (2013).
 
@@ -1293,7 +1293,7 @@ Full meal view and edit page. Sections (all collapsible with `<details>`):
 - **Add Food or Recipe**: food search form + results table; foods add by gram weight, recipes add by serving count
 - **Items**: table with food name link, amount, notes, per-item Edit (inline collapsible form for amount + notes) and Remove buttons
 - **Merge meals**: shown when other meals exist on the same date; checkboxes to select which meals to merge, name input, delete-originals option
-- **Protein Quality (DIAAS)**: meal-level DIAAS score, total protein, digestible complete protein, limiting amino acid, per-AA ratio table
+- **Protein Quality (DIAAS)**: meal-level DIAAS score, total protein, digestible complete protein, limiting amino acid, per-AA ratio table. When DCP is capped (see [DCP cap](user-manual.html#dcp-cap)), the derivation line shows the uncapped projection and the capped result instead of a plain `raw protein × DIAAS` equation — matching the CLI's `dcp_was_capped` explanation (`_build_diaas_display()` in `web/backend.py`).
 - **Total Nutrients**: grouped nutrient table with RDA % colour-coded by target type
 
 #### `meal_day.html`

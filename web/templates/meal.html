@@ -240,6 +240,12 @@
     </div>
     {% if diaas.score is not none %}
     <div class="ps-derivation">
+      {% if diaas.dcp_was_capped %}
+      {{ diaas.aa_protein_g }}&thinsp;g raw &times; DIAAS&thinsp;{{ "%.3f"|format(diaas.score) }}
+      = {{ diaas.uncapped_dcp_g }}&thinsp;g, capped to <strong>{{ diaas.dcp_g }}&thinsp;g DCP</strong>
+      (absorbed-protein ceiling{% if diaas.avg_digestibility is not none %}, avg. digestibility {{ "%.2f"|format(diaas.avg_digestibility) }}{% endif %})
+      {{ manual_link("dcp-cap") }}
+      {% else %}
       {% if diaas.aa_protein_g and diaas.aa_protein_g < diaas.total_protein_g - 0.05 %}
       {{ diaas.aa_protein_g }}&thinsp;g raw (from AA-analyzed foods)
       {% else %}
@@ -247,6 +253,7 @@
       {% endif %}
       &times; DIAAS&thinsp;{{ "%.3f"|format(diaas.score) }}
       = <strong>{{ diaas.dcp_g }}&thinsp;g DCP</strong>
+      {% endif %}
     </div>
     {% endif %}
   </div>
@@ -552,7 +559,11 @@
     {% if diaas.dcp_g is not none %}
     <p>
       <strong style="color:#dc2626">Digestible complete protein: {{ diaas.dcp_g }}&thinsp;g</strong>
-      {% if diaas.aa_protein_g and diaas.aa_protein_g < diaas.total_protein_g - 0.05 %}
+      {% if diaas.dcp_was_capped %}
+      <span class="muted">&nbsp;= {{ diaas.aa_protein_g }}&thinsp;g raw &times; {{ "%.3f"|format(diaas.score) }} DIAAS
+        = {{ diaas.uncapped_dcp_g }}&thinsp;g, capped to {{ diaas.dcp_g }}&thinsp;g (absorbed-protein ceiling{% if diaas.avg_digestibility is not none %}, avg. digestibility {{ "%.2f"|format(diaas.avg_digestibility) }}{% endif %})</span>
+      {{ manual_link("dcp-cap") }}
+      {% elif diaas.aa_protein_g and diaas.aa_protein_g < diaas.total_protein_g - 0.05 %}
       <span class="muted">&nbsp;= {{ diaas.aa_protein_g }}&thinsp;g raw (from AA-analyzed foods) &times; {{ "%.3f"|format(diaas.score) }} DIAAS</span>
       {% else %}
       <span class="muted">&nbsp;= {{ diaas.total_protein_g }}&thinsp;g raw protein &times; {{ "%.3f"|format(diaas.score) }} DIAAS</span>

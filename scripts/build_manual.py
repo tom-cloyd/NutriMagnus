@@ -183,6 +183,14 @@ body {
 #toc-sidebar .toc .toc-toggle:hover { color: var(--accent); }
 #toc-sidebar .toc li.toc-collapsed > ul { display: none; }
 
+/* Currently-visible section, kept in sync with scroll position */
+#toc-sidebar .toc a.toc-current {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
+}
+
 /* ── Main content ── */
 #content {
     flex: 1;
@@ -481,6 +489,74 @@ JS = """\
       });
       allBtn.textContent = allCollapsed ? 'Expand all' : 'Collapse all';
     });
+  });
+})();
+
+/* ── TOC scroll-spy: highlight the section currently on screen ── */
+(function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    var headings = Array.prototype.slice.call(
+      document.querySelectorAll('#content h1[id], #content h2[id], #content h3[id], #content h4[id]')
+    );
+    if (!headings.length) return;
+
+    var tocLinks = {};
+    document.querySelectorAll('#toc-sidebar .toc a[href^="#"]').forEach(function (a) {
+      var id = decodeURIComponent(a.getAttribute('href').slice(1));
+      tocLinks[id] = a;
+    });
+
+    var current = null;
+    var OFFSET = 100; /* px from top of viewport treated as the "reading line" */
+
+    function expandAncestors(link) {
+      var li = link.closest('li');
+      while (li) {
+        var parentLi = li.parentElement && li.parentElement.closest('li.toc-collapsed');
+        if (!parentLi) break;
+        parentLi.classList.remove('toc-collapsed');
+        var btn = parentLi.querySelector(':scope > .toc-toggle');
+        if (btn) btn.textContent = '▾';
+        li = parentLi;
+      }
+    }
+
+    function activate(id) {
+      if (id === current || !tocLinks[id]) return;
+      if (current && tocLinks[current]) tocLinks[current].classList.remove('toc-current');
+      current = id;
+      var link = tocLinks[id];
+      link.classList.add('toc-current');
+      expandAncestors(link);
+      link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function update() {
+      var activeId = headings[0].id;
+      for (var i = 0; i < headings.length; i++) {
+        if (headings[i].getBoundingClientRect().top <= OFFSET) {
+          activeId = headings[i].id;
+        } else {
+          break;
+        }
+      }
+      /* Near the bottom of the page, force the last heading active even if
+         its top never crosses OFFSET (happens with a short final section). */
+      if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) {
+        activeId = headings[headings.length - 1].id;
+      }
+      activate(activeId);
+    }
+
+    var ticking = false;
+    window.addEventListener('scroll', function () {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () { update(); ticking = false; });
+    }, { passive: true });
+    window.addEventListener('resize', update);
+
+    update();
   });
 })();
 """

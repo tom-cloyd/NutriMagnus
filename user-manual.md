@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-24:1513* / Reading 2 hours, 55 minutes
+*Updated 2026-07-24:2347* / Reading 2 hours, 55 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet.
 
@@ -331,6 +331,8 @@ A capped [DCP](#gloss-dcp) is actually good news about amino acid quality. It me
 Compare this to an uncapped [DCP](#gloss-dcp) that is well below absorbed protein: the gap between them represents protein you absorbed but cannot fully use for tissue synthesis because the [limiting amino acid](#gloss-limiting-amino-acid) ran out first. That is the more common and more concerning situation.
 
 The average digestibility shown in the cap note is the weighted average of per-ingredient [digestibility coefficients](#gloss-digestibility-coefficient), weighted by protein content. Each coefficient comes from the curated lookup table or category estimate described in [meal protein digestibility](#meal-diaas).
+
+This cap note appears in both interfaces: the CLI's meal and daily-summary protein-adequacy views, and the web app's meal, full-day, recipe, and daily-summary DIAAS sections.
 
 See also [DIAAS](#diaas), [digestible complete protein](#dcp), [amino acid scoring](#aa-scoring).
 
@@ -3607,9 +3609,14 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 ### Appendix K: Recent program updates log
 
-## July 23
+#### July 24
 
-* LOGGED DAYS KEEP THE USER PROFILE IN FORCE WHEN THEY WERE LOGGED -  Analysis > Daily Summary - Each logged day now remains compared against whichever profile was active when you logged it, not whatever profile is active today — switching profiles for illness, travel, or a weight change no longer silently rescores your past days. You can also manually reassign which profile a specific day is compared against. [learn more...](user-manual.md#day-profile)
+* WEB APP'S DIGESTIBLE COMPLETE PROTEIN EXPLANATION NOW MATCHES THE CLI WHEN IT'S CAPPED -  Meals & Log / Full Day / Recipes / Daily Summary (web) - When DCP is capped at your absorbed-protein ceiling, the web app now shows the same "capped" breakdown the terminal app already showed, instead of a plain raw-protein-times-DIAAS equation that no longer added up. A new "Learn more" link takes you straight to the explanation below. [learn more...](user-manual.md#dcp-cap)
+* MANUAL'S TABLE OF CONTENTS NOW HIGHLIGHTS WHERE YOU ARE -  Manual (web) - The sidebar contents list now highlights the section you're currently reading as you scroll, and automatically expands a collapsed section if that's where you land, so you can always see the larger context of what's on screen.
+
+#### July 23
+
+* LOGGED DAYS KEEP THE USER PROFILE ACTIVE AT THE TIME THEY WERE LOGGED -  Analysis > Daily Summary - Each logged day now remains compared against whichever profile was active when you logged it, not whatever profile is active today — switching profiles for illness, travel, or a weight change no longer silently rescores your past days. You can also manually reassign which profile a specific day is compared against. [learn more...](user-manual.md#day-profile)
 * RECENT DAYS SHOW YOUR DAILY DCP GOAL AND YOUR CHOSEN NUTRIENT COLUMNS -  Analysis > Daily Summary: Recent Days - Each day now shows its own protein (DCP) goal in grams, not just a percentage, and shows the same extra nutrient columns you chose for the Meals & Log list. [learn more...](user-manual.md#meal-columns)
 * CHOOSE HOW MANY MEALS TO SHOW; CLEARER MEALS & LOG COLUMNS -  Meals & Log - Choose exactly how many meals to show via a number box, in place of the old "show all"/"show recent 9" toggle; Calories now appears before the DCP columns; column headers are stacked to fit more on screen; the "Search meal history" link now explains what it searches. [learn more...](user-manual.md#meals-list)
 * MULTIDAY NUTRIENT TREND NOW LEADS WITH YOUR DCP AVERAGE -  Analysis > Multiday Nutrient Trend - This average-over-time view now leads with your average Digestible Complete Protein (DCP) instead of raw protein, since raw protein alone overstates what your body can actually use. [learn more...](user-manual.md#trend)
@@ -3620,18 +3627,18 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 * CLICKING "MEALS" OR "RECIPES" IN THE BREADCRUMB NOW STARTS A FRESH SEARCH -  Meals & Log / Recipes: Edit (web) - Following the breadcrumb back to the list now clears your remembered search, so you land on a clean page; using the top "Meals & Log" menu link still brings your search back whenever you return to it. [learn more...](user-manual.md#search-memory)
 * DAILY SUMMARY'S CHOSEN NUTRIENT COLUMNS NOW SHOW DATA FOR EVERY DAY -  Analysis > Daily Summary: Recent Days (CLI + web) - Fixed a bug where your chosen extra nutrient columns only had data for the couple of days you'd most recently opened; all logged days now show their numbers. [learn more...](user-manual.md#meal-columns)
 
-## July 22 
+#### July 22
 
 * CHOOSE YOUR OWN EXTRA NUTRIENT COLUMNS FOR MEALS & LOG -  Meals & Log - You can now choose up to 6 extra nutrient columns, and their order, to show on the Meals & Log list, in both the terminal app and the web app. [learn more...](user-manual.md#meal-columns)
 * SEE EACH FOOD OR RECIPE'S ID AND DATA SOURCE AT A GLANCE -  Foods / Recipes / Meals & Log - Every food and recipe name shown anywhere in the program now displays its ID number and data source (USDA, Open Food Facts, user-drafted, or recipe) right underneath it, so you can always trace what you're looking at back to its source.
 * RECIPE PROTEIN COMPLETENESS RECALCULATES AUTOMATICALLY -  Recipes - A recipe's protein completeness (DCP) is now recalculated automatically whenever you change its ingredients or servings, instead of only when you explicitly ask for it.
 * MANUAL NOW SPLIT INTO WEB APP AND COMMAND LINE PARTS -  Manual - The manual is now split into separate Web App and Command Line parts, so web users (most users) no longer have to read past command-line-only instructions. [learn more...](user-manual.md#how-to-read-this-manual)
 
-## July 20 
+#### July 20
 
 * ARCHIVE FOODS, PANTRY ENTRIES, AND RECIPES YOU'RE NOT USING -  Foods / My Pantry / Recipes - You can now archive (reserve) a food, pantry entry, or recipe to hide it from search, complement suggestions, and everyday lists without deleting it or breaking anything that still references it — one click in the web app (Archive/Restore button, plus a Show Archived checkbox), or one command in the terminal app. [learn more...](user-manual.md#archive)
 
-## July 19 
+#### July 19
 
 * IRON, ZINC, AND B12 GUIDANCE ADAPTS TO YOUR DIETARY PREFERENCE -  Analysis / Settings - If your dietary preference is set to vegetarian or plant-based, your iron and zinc daily targets are now automatically raised to reflect their lower absorption from plant foods, with an explanatory note; a warning also appears if your logged vitamin B12 intake is critically low on a plant-only diet. [learn more...](user-manual.md#diet-bioavailability)
 * TRACK NUTRIENT TRENDS OVER 7, 14, OR 30 DAYS -  Analysis > Multiday Nutrient Trend - New view: average your nutrient intake over the last 7, 14, or 30 days against your targets, to catch a chronic shortfall that a single day's numbers would hide. [learn more...](user-manual.md#trend)
@@ -3639,11 +3646,11 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 * LOAD RECOMMENDED NUTRIENT TARGETS WITH ONE CLICK; SAFETY LIMITS APPLY AUTOMATICALLY -  Settings > Nutrient Targets - A new "load recommended optimal targets" action fills in sensible defaults (e.g. Vitamin D, EPA+DHA) for any nutrient you haven't already customized; built-in safe upper limits (iron, zinc, vitamin A, B6, iodine, selenium) now apply automatically even where you haven't set a personal max. [learn more...](user-manual.md#optimal)
 * MY PANTRY NOW MATCHES FOOD CACHE COLUMNS; LINK A NAME-ONLY ENTRY TO REAL DATA -  My Pantry / Food Cache (web) - My Pantry now shows Type, AA, GI, and DIAAS columns matching the Food Cache; a new "Link a food" action lets you attach a name-only pantry entry to a searched food instead of creating a duplicate. [learn more...](user-manual.md#pantry)
 
-## July 16 
+#### July 16
 
 * ANALYZING A MEAL NOW AUTO-SAVES ITS DCP AND CALORIES; ONE CALCULATE COMMAND FOR ALL/30/10 DAYS -  Meals & Log - Analyzing a meal now automatically saves its computed DCP and calories instead of only displaying them; a single Calculate command replaces the old p-command, letting you compute DCP and calories for all meals, the last 30 days, or the last 10 days at once. [learn more...](user-manual.md#meals-list)
 
-## July 15 
+#### July 15
 
 * SET A PERSONAL TARGET ABOVE THE RDA, PLUS A DAILY SAFETY CAP, FOR ANY NUTRIENT -  Settings > Nutrient Targets - You can now set a personal target above the standard RDA for any nutrient (e.g. more vitamin D than the population minimum) and/or a personal daily safety cap — tracked alongside RDA everywhere nutrients are shown, with a warning color when your intake is near or over your cap. [learn more...](user-manual.md#optimal)
 * UNSAVED FORM CHANGES NOW WARN YOU BEFORE YOU NAVIGATE AWAY -  Web app - Any editable form now warns you if you try to navigate away with unsaved changes, and shows a colored Save button when something's been edited.

@@ -2595,8 +2595,13 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
             "src_tag":              src_tag,
         })
     aa_p = diaas_result.get("aa_protein_g") or total_p
-    dcp_g = round(diaas_result.get("digestible_complete_protein_g") or 0, 1)
+    raw_dcp = diaas_result.get("digestible_complete_protein_g") or 0
+    dcp_g = round(raw_dcp, 1)
     eff_pct = round(min(score, 1.0) * 100, 0)
+    aa_dig_p = diaas_result.get("aa_dig_protein_g")
+    uncapped_dcp = aa_p * min(score, 1.0)
+    dcp_was_capped = aa_dig_p is not None and raw_dcp < uncapped_dcp - 0.05
+    avg_digestibility = (aa_dig_p / aa_p) if (dcp_was_capped and aa_p > 0) else None
     protein_by_name = {
         ing.get("food_name", ""): ing.get("protein_g", 0.0)
         for ing in diaas_result.get("ingredients", [])
@@ -2610,6 +2615,9 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
         "aa_protein_g":    round(aa_p, 1),
         "dcp_g":           dcp_g,
         "eff_pct":         eff_pct,
+        "dcp_was_capped":  dcp_was_capped,
+        "uncapped_dcp_g":  round(uncapped_dcp, 1),
+        "avg_digestibility": round(avg_digestibility, 2) if avg_digestibility is not None else None,
         "limiting_label":  diaas_result.get("limiting_label"),
         "iaa_rows":        iaa_rows,
         "ing_rows":        ing_rows,
