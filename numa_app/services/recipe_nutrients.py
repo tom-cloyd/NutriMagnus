@@ -62,6 +62,68 @@ def expand_recipe_ingredients(
     return result
 
 
+def atomic_recipe_ingredients(
+    recipe_id: int,
+    conn,
+    *,
+    portion_factor: float = 1.0,
+) -> list[dict]:
+    """Expand a recipe into food-level dicts for DIAAS/digestibility pooling —
+    direct ingredients expand as usual, but a sub-recipe ingredient is kept as
+    ONE atomic food using its own already-computed whole-batch nutrient
+    profile, rather than decomposed into its raw ingredients.
+
+    A sub-recipe is often deliberately built from complementary foods to raise
+    its own DCP (e.g. a nut butter blended with a seed to fill its limiting
+    amino acid). Recursively flattening it for an outer recipe's digestibility
+    breakdown would hide that complementarity behind tiny per-component
+    protein amounts and misattribute its digestible protein to whichever raw
+    ingredient happens to dominate its weight — "recipes taken as a whole" is
+    the correct model here, matching the CLI's original recipe-view treatment.
+
+    Returns [{"food_name", "fdc_id", "recipe_id", "nutrients_100g", "grams"}, ...]
+    — fdc_id is None for a sub-recipe entry, recipe_id is None for a direct food.
+    Use expand_recipe_ingredients() instead when you need raw-leaf totals (e.g.
+    summing calories/vitamins/minerals, where grouping makes no difference).
+    """
+    result: list[dict] = []
+    for ing in _db.recipe_get_ingredients(conn, recipe_id):
+        if ing["ref_recipe_deleted"]:
+            continue
+        if ing["ref_recipe_id"]:
+            sub = _db.recipe_get(conn, ing["ref_recipe_id"])
+            sub_servings = float(sub["servings"] or 1) if sub else 0.0
+            if not sub or sub_servings <= 0:
+                continue
+            sub_total = recipe_total_nutrients(ing["ref_recipe_id"], conn)
+            scale = float(ing["amount"]) / sub_servings * portion_factor
+            scaled = {k: v * scale for k, v in sub_total.items()}
+            if scaled.get("protein_g", 0.0) <= 0:
+                continue
+            result.append({
+                "food_name":      ing["food_name"],
+                "fdc_id":         None,
+                "recipe_id":      ing["ref_recipe_id"],
+                "nutrients_100g": scaled,
+                "grams":          100.0,
+            })
+        elif ing["fdc_id"]:
+            cached = _db.get_cached_food(conn, ing["fdc_id"])
+            if not cached or not cached["nutrients_json"]:
+                continue
+            nuts_100g = json.loads(cached["nutrients_json"])
+            if not nuts_100g:
+                continue
+            result.append({
+                "food_name":      ing["food_name"],
+                "fdc_id":         ing["fdc_id"],
+                "recipe_id":      None,
+                "nutrients_100g": nuts_100g,
+                "grams":          float(ing["amount"]) * portion_factor,
+            })
+    return result
+
+
 def recipe_total_nutrients(
     recipe_id: int,
     conn,

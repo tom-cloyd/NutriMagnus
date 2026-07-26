@@ -176,7 +176,7 @@
                          class="form-control form-control-sm" style="width:14rem" required>
                 </div>
                 {% if not ing.ref_recipe_id %}
-                <div style="font-size:0.75rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp &middot; p1, 6&thinsp;p1 (USDA preset)</div>
+                <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp &middot; p1, 6&thinsp;p1 (USDA preset)</div>
                 {% endif %}
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0 text-nowrap">Name</label>
@@ -233,6 +233,7 @@
           <tr>
             <th>Food</th>
             <th class="col-id">ID#</th>
+            <th title="Amino acid data">AA</th>
             <th class="col-source">Source</th>
             <th colspan="2">Amount &rarr; Add</th>
           </tr>
@@ -246,8 +247,32 @@
               <br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
               {% endif %}
             </td>
-            <td class="col-id muted"><small>{% if food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% endif %}</small></td>
+            <td class="col-id muted"><small>{% if food._type == "recipe" %}{{ food.recipe_id }}{% elif food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% endif %}</small></td>
+            <td>
+              {% if food._type == "recipe" %}<span class="muted">—</span>
+              {% elif food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+              {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
+              {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
             <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+            {% if food._type == "recipe" %}
+            <td colspan="2">
+              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add-recipe" class="add-food-form">
+                <input type="hidden" name="ref_recipe_id" value="{{ food.recipe_id }}">
+                <input type="hidden" name="recipe_name" value="{{ food.name }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                <div class="input-group" style="max-width:20rem">
+                  <input type="number" class="form-control" name="servings" value="1"
+                         min="0.01" max="999" step="0.01" aria-label="Servings" required>
+                  <span class="input-group-text">serving{% if food.servings != 1 %}s{% endif %}
+                    <small class="muted ms-1">({{ food.servings | round(2) }} total)</small>
+                  </span>
+                  <button type="submit" class="btn btn-primary">Add to recipe</button>
+                </div>
+              </form>
+            </td>
+            {% else %}
             <td colspan="2">
               <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add" class="add-food-form">
                 <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
@@ -263,13 +288,14 @@
                 {% endif %}
                 <div class="input-group" style="max-width:28rem">
                   <input type="text" class="form-control" name="portion_str"
-                         placeholder="e.g. 150 g, 2 oz, 1/4 cup, p1, 6 p1"
+                         placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1, 6 p1"
                          aria-label="Amount" required>
                   <button type="submit" class="btn btn-primary">Add to recipe</button>
                 </div>
-                <div style="font-size:0.8rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
+                <div style="font-size:0.8rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
               </form>
             </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>

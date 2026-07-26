@@ -34,7 +34,9 @@ from version import VERSION
 from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
 from numa_app.services.rda_status import rda_status, limit_warning
 from numa_app.services.diet_aware import b12_deficiency_note, iron_zinc_bioavailability_note
-from numa_app.services.recipe_nutrients import best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients
+from numa_app.services.recipe_nutrients import (
+    atomic_recipe_ingredients, best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients,
+)
 from numa_app.services import recipe_dcp as _recipe_dcp
 
 _WEB_DIR    = Path(__file__).parent
@@ -232,7 +234,8 @@ def _resolve_bool_pref(value: bool | None, pref_key: str, default: bool = False)
     return value
 
 
-_SEARCH_CATEGORY_RANK = {"pantry": 0, "cache": 1, "recipe": 2, "usda": 2, "off": 2}
+_SEARCH_CATEGORY_RANK = {"pantry": 0, "cache": 1, "recipe": 2, "usda": 3, "off": 3}
+_SEARCH_LOCAL_SOURCES = {"pantry", "cache", "recipe"}
 _SEARCH_SORT_MODES = {"grouped", "relevance"}
 
 
@@ -256,9 +259,18 @@ def _search_relevance_key(name: str, query: str) -> tuple:
 
 def _sort_search_results(results: list[dict], query: str, mode: str) -> list[dict]:
     """Order search results either grouped by source category (pantry, recipe,
-    cache, then USDA/OFF), or by pure name-match quality regardless of category."""
+    cache, then USDA/OFF), or by pure name-match quality regardless of category.
+    Local sources (pantry/cache/recipe) always sort ahead of external USDA/OFF
+    results in either mode — "Best match to name" only controls ordering within
+    each of those two tiers, not whether local results can be pushed below them."""
     if mode == "relevance":
-        return sorted(results, key=lambda r: _search_relevance_key(r["name"], query))
+        return sorted(
+            results,
+            key=lambda r: (
+                0 if r["source"] in _SEARCH_LOCAL_SOURCES else 1,
+                _search_relevance_key(r["name"], query),
+            ),
+        )
     return sorted(
         results,
         key=lambda r: (_SEARCH_CATEGORY_RANK.get(r["source"], 9), _search_relevance_key(r["name"], query)),
@@ -2538,13 +2550,14 @@ def _recipe_nutrients_per_serving(recipe_id: int, conn) -> dict:
 
 
 def _flatten_recipe_diaas_ingredients(recipe_id: int, conn, target_servings: float) -> list[dict]:
-    """Recursively expand a recipe's ingredients into food-level dicts for DIAAS.
+    """Build food-level dicts for a recipe's DIAAS pooling, treating any
+    sub-recipe ingredient as one atomic food (see atomic_recipe_ingredients).
     target_servings: how many servings of this recipe to account for."""
     recipe = _db.recipe_get(conn, recipe_id)
     if not recipe:
         return []
     recipe_servings = float(recipe["servings"] or 1)
-    return expand_recipe_ingredients(recipe_id, conn, portion_factor=target_servings / recipe_servings)
+    return atomic_recipe_ingredients(recipe_id, conn, portion_factor=target_servings / recipe_servings)
 
 
 def _build_diaas_display(diaas_result: dict | None) -> dict | None:
@@ -2578,7 +2591,7 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
     omitted_low_protein = False
     for ing in diaas_result.get("ingredients", []):
         p = ing.get("protein_g", 0.0)
-        if p < 1.0:
+        if p < 0.1:
             omitted_low_protein = True
             continue
         d = ing.get("digestibility", 1.0)
@@ -2588,6 +2601,7 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
         ing_rows.append({
             "food_name":            ing.get("food_name", ""),
             "fdc_id":               ing.get("fdc_id"),
+            "recipe_id":            ing.get("recipe_id"),
             "protein_g":            round(p, 1),
             "digestibility":        round(d, 2),
             "digestible_protein_g": round(dig_p, 1),
@@ -4160,12 +4174,29 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
     search_results = []
     if q:
         with _db.get_db() as conn:
+            all_recipes = _db.recipe_list(conn)
             cached = _db.search_cached_foods(conn, q)
             pantry_ids = _pantry_fdc_ids(conn)
+        ql = q.lower()
+        query_words = ql.split()
+        matching_recipes = [
+            r for r in all_recipes
+            if r["id"] != recipe_id and any(w in r["name"].lower() for w in query_words)
+        ]
+        for r in matching_recipes:
+            search_results.append({
+                "_type":     "recipe",
+                "recipe_id": r["id"],
+                "name":      r["name"],
+                "servings":  float(r["servings"] or 1),
+                "data_type": "Recipe",
+                "source":    "recipe",
+            })
         seen: set[int] = set()
         for row in cached:
             seen.add(row["fdc_id"])
             portions = json.loads(row["portions_json"] or "[]") or []
+            nutrients = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
             search_results.append({
                 "fdc_id":    row["fdc_id"],
                 "name":      row["name"],
@@ -4173,19 +4204,22 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 "brand":     row["brand"] or "",
                 "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 "portions":  portions,
+                "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
             })
         try:
             for food in _usda.search_foods(q):
                 fid = food.get("fdcId")
                 if fid and fid not in seen:
                     seen.add(fid)
+                    dtype = food.get("dataType", "")
                     search_results.append({
                         "fdc_id":    fid,
                         "name":      food.get("description", ""),
-                        "data_type": food.get("dataType", ""),
+                        "data_type": dtype,
                         "brand":     food.get("brandOwner") or food.get("brandName") or "",
                         "source":    "usda",
                         "portions":  [],
+                        "aa":        "~✓" if dtype in ("Foundation", "SR Legacy") else "✗",
                     })
         except Exception:
             pass
@@ -4342,6 +4376,41 @@ async def recipe_ingredient_add(
     # persist-search JS in base.html to forget the saved query instead of
     # restoring it from sessionStorage — otherwise the search panel would
     # reappear right after the add.
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?q=", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/ingredient/add-recipe", response_class=RedirectResponse)
+async def recipe_ingredient_add_recipe(
+    recipe_id: int,
+    ref_recipe_id: int = Form(...),
+    recipe_name: str = Form(""),
+    servings: float = Form(1.0),
+    notes: str = Form(""),
+    q: str = Form(""),
+):
+    from urllib.parse import urlencode
+
+    def _redirect(error: str | None = None) -> RedirectResponse:
+        params = {}
+        if q:
+            params["q"] = q
+        if error:
+            params["error"] = error
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/recipe/{recipe_id}/edit{qs}", status_code=303)
+
+    if ref_recipe_id == recipe_id or servings <= 0:
+        return _redirect(error="Invalid recipe ingredient.")
+    with _db.get_db() as conn:
+        sub = _db.recipe_get(conn, ref_recipe_id)
+        if not sub:
+            return _redirect(error="Recipe not found.")
+        name = recipe_name or sub["name"]
+        unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
+        _db.recipe_add_ingredient(conn, recipe_id, 0, name, servings, unit,
+                                   notes.strip() or None, ref_recipe_id=ref_recipe_id)
+        _db.recipe_auto_weight(conn, recipe_id)
+        _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return RedirectResponse(f"/recipe/{recipe_id}/edit?q=", status_code=303)
 
 

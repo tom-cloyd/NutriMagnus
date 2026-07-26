@@ -88,14 +88,20 @@
               </li>
             </ul>
           </li>
+          {# Quick-return chip: only shown by JS once there's a remembered Foods
+             page to jump back to (e.g. "food 52" after you've navigated away to
+             Recipes). The Foods dropdown above is unchanged either way. #}
+          <li class="nav-item d-flex align-items-center">
+            <a href="#" id="foods-quick-return" class="nav-quick-return d-none"></a>
+          </li>
 
           <li class="nav-item">
-            <a class="nav-link {% if path.startswith('/recipes') %}active{% endif %}"
-               href="/recipes" data-ak="r"><u class="ak">R</u>ecipes</a>
+            <a class="nav-link {% if path.startswith('/recipes') or path.startswith('/recipe/') %}active{% endif %}"
+               href="/recipes" data-ak="r" data-section="recipes"><u class="ak">R</u>ecipes</a>
           </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/meal') %}active{% endif %}"
-               href="/meals" data-ak="m"><u class="ak">M</u>eals &amp; Log</a>
+               href="/meals" data-ak="m" data-section="meals"><u class="ak">M</u>eals &amp; Log</a>
           </li>
           {# ── Analysis dropdown ── #}
           <li class="nav-item dropdown">
@@ -121,11 +127,11 @@
           </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/settings') %}active{% endif %}"
-               href="/settings" data-ak="s"><u class="ak">S</u>ettings</a>
+               href="/settings" data-ak="s" data-section="settings"><u class="ak">S</u>ettings</a>
           </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/manual') %}active{% endif %}"
-               href="/manual" data-ak="a">M<u class="ak">a</u>nual</a>
+               href="/manual" data-ak="a" data-section="manual">M<u class="ak">a</u>nual</a>
           </li>
         </ul>
       </div>
@@ -170,20 +176,25 @@
   // you re-type the search. A "Reset search" control (data-reset-search)
   // forgets it and returns to the page's clean default state.
   (function () {
-    if (!document.querySelector('form[data-persist-search]')) return;
+    var form = document.querySelector('form[data-persist-search]');
+    if (!form) return;
+    // The query param name defaults to "q"; pages whose search field uses a
+    // different name (e.g. food search's "query") set it as the attribute
+    // value: data-persist-search="query".
+    var PARAM = form.getAttribute('data-persist-search') || 'q';
     var KEY = 'numa_search_q:' + window.location.pathname;
     var params = new URLSearchParams(window.location.search);
 
-    if (!params.has('q')) {
+    if (!params.has(PARAM)) {
       var saved = sessionStorage.getItem(KEY);
       if (saved) {
         var url = new URL(window.location.href);
-        url.searchParams.set('q', saved);
+        url.searchParams.set(PARAM, saved);
         window.location.replace(url.toString());
         return; // navigating away — nothing below matters for this load
       }
-    } else if (params.get('q')) {
-      sessionStorage.setItem(KEY, params.get('q'));
+    } else if (params.get(PARAM)) {
+      sessionStorage.setItem(KEY, params.get(PARAM));
     } else {
       // Explicitly searched for nothing (cleared the box and submitted) —
       // respect that instead of silently bringing the old search back.
@@ -201,6 +212,95 @@
         window.location.href = (href && href !== '#') ? href : window.location.pathname;
       });
     });
+  })();
+  </script>
+  <script>
+  // Remember the last page you were on within each main-nav section (Recipes,
+  // Meals & Log, Settings, Manual) so clicking that section's nav link
+  // returns you to exactly where you left off — e.g. the specific recipe
+  // you were editing — instead of always jumping to the section's list/
+  // landing page. Foods and Analysis are dropdown menus whose items are
+  // each a deliberate, specific destination (Search, Compare, Daily summary,
+  // …) rather than one generic section page, so their dropdown click behavior
+  // is deliberately left alone — overriding those clicks would send the user
+  // somewhere other than the specific item they picked. Food Search's own
+  // results persist separately (see the data-persist-search block above).
+  // Foods still gets a *last page visited* remembered (below) purely so the
+  // separate quick-return chip next to the Foods menu has something to point
+  // at — it just isn't wired to override the dropdown itself.
+  (function () {
+    var SECTIONS = [
+      ['recipes',  /^\/recipe/],
+      ['meals',    /^\/meal/],
+      ['settings', /^\/settings/],
+      ['manual',   /^\/manual/],
+      ['foods',    /^\/food|^\/pantry/],
+    ];
+    function sectionFor(path) {
+      for (var i = 0; i < SECTIONS.length; i++) {
+        if (SECTIONS[i][1].test(path)) return SECTIONS[i][0];
+      }
+      return null;
+    }
+    var here = sectionFor(window.location.pathname);
+    if (here) {
+      var pageLabel = document.title.replace(/^NutriMagnus\s*(—|-)\s*/, '').trim() || document.title;
+      sessionStorage.setItem('numa_last:' + here, window.location.pathname + window.location.search);
+      sessionStorage.setItem('numa_last_label:' + here, pageLabel);
+
+      // If this landing was the result of a memory-restore redirect (not a
+      // click the user aimed at this specific page), flag it so the page's
+      // own breadcrumb — "Recipes › Weekday Chili" etc. — can call itself out
+      // as "you were brought back here" and offer an obvious way past it.
+      // Consumed on first read: a plain reload or a deliberate visit to the
+      // same URL afterwards won't keep re-showing it.
+      var memKey = 'numa_via_memory:' + here;
+      if (sessionStorage.getItem(memKey) === '1') {
+        sessionStorage.removeItem(memKey);
+        var crumb = document.querySelector('nav[aria-label="breadcrumb"]');
+        if (crumb) {
+          crumb.classList.add('via-memory');
+          var firstLink = crumb.querySelector('.breadcrumb-item:first-child a');
+          if (firstLink) {
+            var crumbLabel = firstLink.textContent.trim();
+            var pill = document.createElement('a');
+            pill.href = firstLink.getAttribute('href');
+            pill.className = 'via-memory-escape';
+            pill.textContent = '✕ All ' + crumbLabel.toLowerCase();
+            pill.title = 'Brought back to where you left off — click for the full ' + crumbLabel.toLowerCase() + ' list instead';
+            crumb.appendChild(pill);
+          }
+        }
+      }
+    }
+    document.querySelectorAll('nav.navbar [data-section]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        var key = a.getAttribute('data-section');
+        var last = sessionStorage.getItem('numa_last:' + key);
+        if (last && last !== a.getAttribute('href')) {
+          e.preventDefault();
+          sessionStorage.setItem('numa_via_memory:' + key, '1');
+          window.location.href = last;
+        }
+      });
+    });
+
+    // Foods quick-return chip: purely additive, doesn't touch the Foods
+    // dropdown. Shown whenever there's a remembered Foods page and you're
+    // not already on one — e.g. "↩ Salmon, Atlantic, raw" after you've
+    // wandered off to look at a recipe.
+    var chip = document.getElementById('foods-quick-return');
+    if (chip && here !== 'foods') {
+      var foodsUrl = sessionStorage.getItem('numa_last:foods');
+      var foodsLabel = sessionStorage.getItem('numa_last_label:foods');
+      if (foodsUrl) {
+        chip.href = foodsUrl;
+        var shortLabel = foodsLabel && foodsLabel.length > 28 ? foodsLabel.slice(0, 27) + '…' : foodsLabel;
+        chip.textContent = '↩ ' + (shortLabel || 'Foods');
+        chip.title = 'Back to ' + (foodsLabel || 'where you left off in Foods');
+        chip.classList.remove('d-none');
+      }
+    }
   })();
   </script>
   <script>

@@ -100,7 +100,7 @@
 
 {# ── Header ───────────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-  <h2 class="mb-0">{{ recipe.name }}</h2>
+  <h2 class="mb-0">{{ recipe.name }}{{ food_id_tag(None, recipe_id=recipe.id) }}</h2>
   {% if recipe.complete %}
   <span class="badge bg-success">&#10003; Complete</span>
   {% else %}
@@ -366,7 +366,10 @@
     <tbody>
       {% for ing in diaas.ing_rows %}
       <tr>
-        <td>{{ ing.food_name }}{{ food_id_tag(ing.fdc_id) }}</td>
+        <td>
+          {% if ing.recipe_id %}<a href="/recipe/{{ ing.recipe_id }}">{{ ing.food_name }}</a>{{ food_id_tag(None, recipe_id=ing.recipe_id) }}
+          {% else %}{{ ing.food_name }}{{ food_id_tag(ing.fdc_id) }}{% endif %}
+        </td>
         <td class="num-col">{{ ing.protein_g }}</td>
         <td class="num-col">
           {{ "%.2f"|format(ing.digestibility) }}

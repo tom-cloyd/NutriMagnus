@@ -101,13 +101,13 @@
 <div class="portion-form">
   <p class="portion-label">
     <strong>Recalculate all nutrient values for a different amount:</strong>
-    type any amount (e.g. <code>3 oz</code>, <code>1/4 cup</code>, <code>150 g</code>, <code>2 T</code>){% if portions %} or choose a preset{% endif %}.
+    type any amount (e.g. <code>150</code> for grams, <code>3 oz</code>, <code>1/4 cup</code>, <code>2 T</code>){% if portions %} or choose a preset{% endif %}.
   </p>
   <form method="get" action="/food/{{ food.fdc_id }}">
     <div class="portion-input-row">
       <input type="text" name="portion_str" id="amount-input"
              value="{{ portion_str }}"
-             placeholder="e.g. 100 g, 3 oz, 1 cup"
+             placeholder="e.g. 100 (= grams), 3 oz, 1 cup"
              aria-label="Portion amount" class="form-control portion-amount-input"
              style="max-width:13rem">
       {% if portions %}

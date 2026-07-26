@@ -63,6 +63,32 @@ details[open] > summary::before {
   color: #ffd84d !important;   /* lighter gold on hover/active */
 }
 
+/* Quick-return chip next to the Foods dropdown — only unhidden by JS once
+   there's a remembered Foods page (see base.html). Filled gold pill reads
+   as distinct from the plain-text nav links either side of it. */
+.nav-quick-return {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1a3a6b !important;
+  background: #ffd84d;
+  border-radius: 999px;
+  padding: 0.18rem 0.65rem;
+  margin-left: -0.4rem;
+  text-decoration: none;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-quick-return:hover,
+.nav-quick-return:focus {
+  background: #fff;
+  color: #1a3a6b !important;
+}
+
 /* ── Navbar brand ────────────────────────────────────────────────────── */
 
 /* Access key underlines: visible only when shortcuts are enabled */
@@ -401,6 +427,46 @@ table {
 nav[aria-label="breadcrumb"] {
   font-size: 1em;
   margin-bottom: 0.4rem;
+}
+
+/* Shown only when the main nav (Recipes/Meals/Settings/Manual) redirected
+   the user back to where they left off, instead of that section's default
+   list page — see the data-section script in base.html. Calls out that
+   this landing was automatic and gives an explicit way past it. */
+nav[aria-label="breadcrumb"].via-memory {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  background: #fff6df;
+  border: 1px solid #e6ac00;
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+}
+
+nav[aria-label="breadcrumb"].via-memory .breadcrumb {
+  margin-bottom: 0;
+}
+
+.via-memory-escape {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #7a5600;
+  background: #fff;
+  border: 1px solid #e6ac00;
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.via-memory-escape:hover,
+.via-memory-escape:focus {
+  background: #ffefc2;
+  color: #5c4100;
 }
 
 /* ── Page title block (replaces hgroup) ──────────────────────────────── */

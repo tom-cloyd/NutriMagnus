@@ -467,6 +467,14 @@ JS = """\
         var collapsed = li.classList.toggle('toc-collapsed');
         btn.textContent = collapsed ? '▸' : '▾';
       });
+      /* Clicking the heading text itself also expands a collapsed section
+         (in addition to navigating to it) so it doesn't look "stuck" shut. */
+      a.addEventListener('click', function () {
+        if (li.classList.contains('toc-collapsed')) {
+          li.classList.remove('toc-collapsed');
+          btn.textContent = '▾';
+        }
+      });
     });
 
     if (!mainLis.length) return;

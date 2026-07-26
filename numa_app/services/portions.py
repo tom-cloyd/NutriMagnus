@@ -440,13 +440,12 @@ def _pick_portion(
     state.console.print(f"\n  Food: [{state.T['hi']}]{food['name']}{brand_str}[/{state.T['hi']}]")
 
     state.console.print("  [grey62]Enter an amount, for example: 150 g, 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)[/grey62]")
+    state.console.print("  [grey62]A bare number will be treated as grams (you'll confirm). Add a unit for other measures.[/grey62]")
     if portions:
         state.console.print("  [grey62]USDA portions (use pN or NUMBER pN):[/grey62]")
         for i, p in enumerate(portions, 1):
             state.console.print(f"    [grey62]p{i}[/grey62]  {p['description']} [{p['gram_weight']:.4g}g]")
         state.console.print("  [grey62]  e.g. 'p1' for one portion, '2 p1' for two[/grey62]")
-    else:
-        state.console.print("  [grey62]A bare number will be treated as grams (you'll confirm). Add a unit for other measures.[/grey62]")
     if current:
         state.console.print(
             f"  Current: [{state.T['default_hint']}]{current}[/{state.T['default_hint']}]"

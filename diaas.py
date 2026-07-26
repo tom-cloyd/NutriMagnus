@@ -258,6 +258,7 @@ def meal_level_diaas(
             ingredient_results.append({
                 "food_name":     food_name,
                 "fdc_id":        ing.get("fdc_id"),
+                "recipe_id":     ing.get("recipe_id"),
                 "grams":         grams,
                 "protein_g":     protein_g,
                 "digestibility": dig,
@@ -284,6 +285,7 @@ def meal_level_diaas(
         ingredient_results.append({
             "food_name":       food_name,
             "fdc_id":          ing.get("fdc_id"),
+            "recipe_id":       ing.get("recipe_id"),
             "grams":           grams,
             "protein_g":       protein_g,
             "digestibility":   dig,

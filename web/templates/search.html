@@ -11,12 +11,13 @@
 
 <h2>Food Search {{ manual_link("food-search") }}</h2>
 
-<form method="post" action="/food/search">
+<form method="get" action="/food/search" data-persist-search="query">
   <div class="input-group mb-3">
     <input type="text" class="form-control" name="query" value="{{ query }}"
            placeholder="e.g. salmon, oat bran, lentils" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
+  {% if query %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
 </form>
 
 {% if error %}
@@ -83,7 +84,7 @@
       </td>
       {% endif %}
       <td class="muted"><small>
-        {% if food._type == "recipe" %}—
+        {% if food._type == "recipe" %}{{ food.recipe_id }}
         {% elif food.fdc_id > 0 %}{{ food.fdc_id }}
         {% else %}OFF{% endif %}
       </small></td>

@@ -11,7 +11,7 @@ import db as _db
 import diaas as _diaas
 import usda as _usda
 
-from .recipe_nutrients import expand_recipe_ingredients
+from .recipe_nutrients import atomic_recipe_ingredients, expand_recipe_ingredients
 
 
 # An ingredient missing amino acid data blocks DCP unless its own protein
@@ -25,7 +25,10 @@ _MINOR_PROTEIN_G = 1.0
 
 
 def recompute_recipe_dcp(recipe_id: int, conn) -> float | None:
-    """Recompute and persist a recipe's per-serving DCP, or clear it to NC.
+    """Recompute and persist a recipe's per-serving DCP, or clear it to NC —
+    then cascade the same recompute up to every recipe that uses this one as
+    a sub-recipe ingredient (directly or transitively), so a change deep in a
+    nested recipe is never left silently stale in its ancestors.
 
     Ingredients missing amino acid data are excluded from the digestible
     total rather than blocking the whole calculation, as long as each one's
@@ -33,10 +36,34 @@ def recompute_recipe_dcp(recipe_id: int, conn) -> float | None:
     ingredient with 1 g or more of protein is missing amino acid data, no
     value is saved — an approximate/best-guess DCP is never silently
     persisted.
-    Returns the saved value, or None if the recipe isn't computable right now
-    (0 servings, no weighed ingredients, or missing amino acid data on a
-    significant protein source).
+    Returns the saved value for `recipe_id` itself (not its ancestors), or
+    None if that recipe isn't computable right now (0 servings, no weighed
+    ingredients, or missing amino acid data on a significant protein source).
     """
+    own_result = _recompute_single_recipe_dcp(recipe_id, conn)
+    _cascade_to_ancestors(recipe_id, conn, seen={recipe_id})
+    return own_result
+
+
+def _cascade_to_ancestors(recipe_id: int, conn, *, seen: set[int]) -> None:
+    """Recompute every recipe that references `recipe_id` as a sub-recipe
+    ingredient, then their own referencing recipes, and so on. `seen` guards
+    against re-visiting a recipe (diamond-shaped references) or looping
+    forever if a reference cycle ever exists."""
+    for row in _db.recipe_referencing_subrecipe(conn, recipe_id):
+        parent_id = row["id"]
+        if parent_id in seen:
+            continue
+        seen.add(parent_id)
+        _recompute_single_recipe_dcp(parent_id, conn)
+        _cascade_to_ancestors(parent_id, conn, seen=seen)
+
+
+def _recompute_single_recipe_dcp(recipe_id: int, conn) -> float | None:
+    """Recompute and persist just this recipe's own per-serving DCP (no
+    cascade). A sub-recipe ingredient is pooled as one atomic food using its
+    own already-computed nutrient profile rather than decomposed into its raw
+    ingredients — see atomic_recipe_ingredients() for why."""
     recipe = _db.recipe_get(conn, recipe_id)
     if not recipe:
         return None
@@ -45,7 +72,7 @@ def recompute_recipe_dcp(recipe_id: int, conn) -> float | None:
         _clear_recipe_dcp_and_nutrients(conn, recipe_id)
         return None
 
-    leaves = expand_recipe_ingredients(recipe_id, conn, portion_factor=1.0 / servings)
+    leaves = atomic_recipe_ingredients(recipe_id, conn, portion_factor=1.0 / servings)
     diaas_ingredients = [
         {
             "food_name":      leaf["food_name"],
