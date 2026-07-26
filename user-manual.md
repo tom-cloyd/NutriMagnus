@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-24:2347* / Reading 2 hours, 55 minutes
+*Updated 2026-07-26:0535* / Reading 2 hours, 55 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet.
 
@@ -1537,9 +1537,11 @@ Most detail pages (a food, a recipe, a meal) show a collapsible outline down the
 
 #### Search boxes remember your last search [search-memory]
 
-On a meal's "Add Food or Recipe" search and a recipe's "Add Ingredient" search, if you follow a link away to look something up elsewhere and then come straight back to that exact page, your last search and its results are restored automatically — you don't have to retype it. This only applies to a plain link back to the page (the browser's own Back button already preserves it); it's scoped per page, so it never leaks a search from one meal into another.
+On a meal's "Add Food or Recipe" search, a recipe's "Add Ingredient" search, and the Foods: Search page, if you follow a link away to look something up elsewhere and then come straight back to that exact page, your last search and its results are restored automatically — you don't have to retype it. This only applies to a plain link back to the page (the browser's own Back button already preserves it); it's scoped per page, so it never leaks a search from one meal into another.
 
-There's no time limit on this — it holds for as long as your browser tab stays open, not just for a moment after you step away. Three things return you to the page's clean, empty-search state instead: clicking **Reset search** (shown next to the search box whenever a search is active), following the **Meals** or **Recipes** breadcrumb link back to the list, or closing the browser tab. The **Meals & Log** link in the main navigation bar, by contrast, leaves your search exactly as it was — that's the "I just stepped away for a moment" case this feature exists for.
+There's no time limit on this — it holds for as long as your browser tab stays open, not just for a moment after you step away. Clicking **Reset search** (shown next to the search box whenever a search is active) or closing the browser tab clears it back to the page's clean, empty-search state.
+
+The main navigation bar goes further than any one page: clicking **Recipes**, **Meals & Log**, **Settings**, or **Manual** returns you to the exact page you were last on in that section — e.g. the specific recipe you were editing, search and all — instead of always landing on its list page. When that memory is what brought you back, the page's breadcrumb is highlighted, with a one-click "All recipes" / "All meals" link in case you actually wanted the plain list. **Foods** is a drop-down of separate destinations (Search, Compare, Pantry, and more), so it works a little differently: a small "↩" quick-return link appears next to it whenever there's a food you've viewed, showing that food's name, so you can jump back to it in one click after wandering off elsewhere. Following a breadcrumb link (e.g. **Recipes** at the top of a recipe page) back to the list always starts fresh, clearing any remembered search or position.
 
 ### Sample Workflows [sample-workflows-web]
 
@@ -1641,9 +1643,11 @@ A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](
 
 A food's page shows, in order: **Protein Summary** (DCP), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or SR Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
 
-### Using the Recipes menu
+### Using the Recipes menu [recipes-menu-web]
 
 The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted.
+
+Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically (CLI + web) — you don't need **Recompute DCP for all recipes** just because you changed one recipe. If that recipe is itself used as a sub-recipe ingredient inside one or more other recipes, saving it now also automatically recalculates DCP for every recipe that uses it, directly or through another sub-recipe in between — so a change to a foundational recipe (say, a lentil sauce used in three different dinners) is never left stale in whatever depends on it. **Recompute DCP for all recipes** is still worth running after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
 
 - **New recipe** — a short form (name, description, servings, total yield) that drops you straight into editing.
 - **Edit** — a details form plus an ingredients table. Add an ingredient by searching, then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
@@ -3367,7 +3371,7 @@ When you know both the volume measure and the exact gram weight, you can supply 
 
 BARE NUMBER
 
-A bare number with no unit is assumed to be grams, but NuMa always asks for confirmation before storing it.
+A bare number with no unit is assumed to be grams. The command-line app always asks you to confirm before storing it; the web app applies it immediately, and each amount field's example text now says so directly.
 
 ### Appendix J: Worked validation example — meal-level DIAAS for pinto beans + quinoa [appendix-j]
 
@@ -3608,6 +3612,17 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 ---
 
 ### Appendix K: Recent program updates log
+
+#### July 25
+
+* RECIPE INGREDIENT SEARCH SHOWS AMINO ACID STATUS ON THE WEB, MATCHING THE TERMINAL APP -  Recipes: Add Ingredient (web) - The search results table for adding a recipe ingredient now shows the AA column already used everywhere else, so you can spot amino-acid data availability before adding a food. [learn more...](user-manual.md#food-search)
+* FOODS SEARCH RESULTS PERSIST WHEN YOU STEP AWAY AND COME BACK -  Foods: Search (web) - Like the meal and recipe "add" searches already did, leaving to check something else and returning to Foods: Search now restores your last query and results instead of starting over. [learn more...](user-manual.md#search-memory)
+* MAIN NAVIGATION REMEMBERS WHERE YOU WERE, PER SECTION -  Recipes / Meals & Log / Settings / Manual (web) - Clicking one of these in the top navigation now returns you to the exact page you were last on in that section — e.g. the specific recipe you were editing — instead of always jumping to its list page. When that memory is what brought you back, the page's breadcrumb is highlighted with a one-click "All recipes"/"All meals" link back to the plain list. [learn more...](user-manual.md#search-memory)
+* A QUICK-RETURN LINK APPEARS NEXT TO FOODS WHEN THERE'S SOMEWHERE TO GO BACK TO -  Foods (web) - Foods is a drop-down of separate destinations, so it doesn't jump back the same way — instead, a small "↩" link appears next to it whenever you've viewed a food, showing that food's name, so you can return to it in one click after wandering off to Recipes or Meals & Log. [learn more...](user-manual.md#search-memory)
+* AMOUNT FIELDS NOW SAY DIRECTLY THAT A PLAIN NUMBER MEANS GRAMS -  Foods / Recipes / Meals & Log (CLI + web) - Every place you type a portion amount now states, right there, that entering just a number with no unit is read as grams — previously this was true but unstated. [learn more...](user-manual.md#portion-formats)
+* A RECIPE'S PROTEIN SCORE NOW UPDATES ITS PARENT RECIPES TOO -  Recipes - Changing a recipe that's used as an ingredient inside other recipes now recalculates DCP for those parent recipes as well, not just the one you edited directly — so a nested recipe's protein score is never left stale in whatever uses it. [learn more...](user-manual.md#recipes-menu-web)
+* SUB-RECIPE INGREDIENTS ARE SCORED AS A WHOLE, NOT BROKEN BACK INTO THEIR RAW INGREDIENTS -  Recipes - When a recipe is used as an ingredient in another recipe, its protein-quality (DIAAS/DCP) contribution is now based on its own already-computed nutrient profile as a single item, instead of being decomposed back into its raw ingredients — so a sub-recipe deliberately built to complement its own limiting amino acid (e.g. a nut butter blended with a seed) gets credit for that pairing instead of it being hidden.
+* MANUAL'S TABLE OF CONTENTS: CLICKING A COLLAPSED SECTION'S TITLE ALSO OPENS IT -  Manual (web) - Clicking a collapsed section's heading text in the sidebar contents now expands it in addition to taking you there, so it never looks "stuck" shut.
 
 #### July 24
 
