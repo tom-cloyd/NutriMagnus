@@ -98,7 +98,7 @@
 
 {# ── Meal header ──────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-  <h2 class="mb-0">{{ meal.name }} <small class="text-muted fw-normal" style="font-size:0.6em">{{ meal.meal_date }}</small></h2>
+  <h2 class="mb-0">{{ meal.name }} <small class="text-muted fw-normal" style="font-size:0.6em">{{ meal.meal_date }} (#{{ meal.id }})</small></h2>
   {% if meal.complete %}
   <span class="badge bg-success">&#10003; Complete</span>
   {% else %}
@@ -940,6 +940,28 @@ function recipeAmtSwitch(rid, mode) {
   details.addEventListener('toggle', focusFirst);
   // Also run immediately if already open on page load (e.g. after a search)
   focusFirst();
+})();
+</script>
+<script>
+(function () {
+  // If you arrived here from Food Use in Meals (clicking a meal ID in that
+  // table), offer a one-click way back to the exact search results you were
+  // looking at — reuses the same breadcrumb-pill styling as the nav-memory
+  // escape hatch, since it's the same "you were brought here, here's the
+  // way back" idea.
+  var ref = document.referrer;
+  if (!ref || ref.indexOf('/analysis/food-use') === -1) return;
+  var crumbList = document.querySelector('nav[aria-label="breadcrumb"] .breadcrumb');
+  if (!crumbList) return;
+  var pill = document.createElement('a');
+  pill.href = ref;
+  pill.className = 'via-memory-escape ms-2';
+  pill.textContent = '↩ Back to analysis';
+  pill.title = 'Return to the Food Use in Meals search you came from';
+  var li = document.createElement('li');
+  li.className = 'breadcrumb-item';
+  li.appendChild(pill);
+  crumbList.appendChild(li);
 })();
 </script>
 {% endblock %}

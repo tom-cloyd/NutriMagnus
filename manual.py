@@ -134,6 +134,13 @@ _ALIASES: dict[str, str] = {
     "n-day":                "trend",
     "weekly-average":       "trend",
     "chronic-shortfall":    "trend",
+    "plot":                 "nutrient-plot",
+    "line-plot":            "nutrient-plot",
+    "chart":                "nutrient-plot",
+    "svg":                  "plot-file-formats",
+    "png":                  "plot-file-formats",
+    "file-formats":         "plot-file-formats",
+    "vector-image":         "plot-file-formats",
 }
 
 

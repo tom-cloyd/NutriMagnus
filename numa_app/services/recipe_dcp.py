@@ -101,7 +101,12 @@ def _recompute_single_recipe_dcp(recipe_id: int, conn) -> float | None:
             _db.recipe_set_dcp(conn, recipe_id, None)
             return None
 
-    dcp_g = round(dcp_g, 2)
+    # Store at full precision — every reader formats to 1 decimal at display
+    # time (e.g. f"{dcp_g:.1f}"). Pre-rounding here to 2 decimals caused a
+    # double-rounding bug: a value like 33.05058 stored as round(x, 2) becomes
+    # the float 33.05, which is actually 33.049999999999997 in binary, so
+    # formatting it to 1 decimal gave 33.0 instead of the correct 33.1 that
+    # rounding the raw value straight to 1 decimal produces.
     now_utc = datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat()
     _db.recipe_set_dcp(conn, recipe_id, dcp_g, now_utc)
     _save_recipe_nutrients_100g(recipe_id, conn)

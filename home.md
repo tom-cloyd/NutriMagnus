@@ -1,4 +1,4 @@
-***NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet.
+**NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet.
 
 **Eating is fundamentally about survival, for we must constantly support and replace the cells in our body.** Most of the cells in our body persist for a shorter span than we do. During their lifespan they do their work using available materials. Eventually they must be replaced by new cells, constructed again from available materials.
 

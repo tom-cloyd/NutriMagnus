@@ -90,7 +90,7 @@
     </div>
   </div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover" style="max-width:52rem">
+    <table class="table table-sm table-hover" style="max-width:76rem">
       <thead class="table-light">
         <tr>
           <th>ID</th>
@@ -99,6 +99,7 @@
           <th class="num-col">Days used</th>
           <th class="num-col">Meals</th>
           <th style="min-width:14rem">Frequency</th>
+          <th style="min-width:24rem">Meal IDs</th>
         </tr>
       </thead>
       <tbody>
@@ -117,6 +118,9 @@
             <div class="progress" role="progressbar" aria-label="Days used" aria-valuenow="{{ r.pct|int }}" aria-valuemin="0" aria-valuemax="100" style="height:1rem">
               <div class="progress-bar" style="width: {{ r.pct|int }}%"></div>
             </div>
+          </td>
+          <td class="muted">
+            {% for mid in r.meal_ids %}<a href="/meal/{{ mid }}">{{ mid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
           </td>
         </tr>
         {% endfor %}

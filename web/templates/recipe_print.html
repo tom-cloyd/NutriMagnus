@@ -47,9 +47,7 @@
 </div>
 
 <h1>{{ recipe.name }}</h1>
-<p class="meta">{{ recipe.servings }} serving{% if recipe.servings != 1 %}s{% endif %}
-  {% if recipe.total_weight %}&nbsp;&middot;&nbsp;{{ recipe.total_weight }}&thinsp;{{ recipe.total_weight_unit or 'g' }} total yield{% endif %}
-</p>
+<p class="meta">(Recipe #{{ recipe.id }}, {{ recipe.servings }} serving{% if recipe.servings != 1 %}s{% endif %}{% if recipe.dcp_g is not none %}, {{ "%.1f"|format(recipe.dcp_g) }}&thinsp;g DCP{% endif %}{% if recipe.total_weight %}, {{ recipe.total_weight }}&thinsp;{{ recipe.total_weight_unit or 'g' }} total yield{% endif %})</p>
 {% if recipe.description %}
 <p class="description">{{ recipe.description }}</p>
 {% endif %}

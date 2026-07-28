@@ -11,7 +11,10 @@ from rich.table import Table
 from .. import state
 from ..services.nutrient_trend import average_from_daily_totals
 from ..services import day_profile as _day_profile
-from ..services.meal_list_columns import label_for as _ml_label_for, day_nutrient_values as _ml_day_nutrient_values
+from ..services.meal_list_columns import (
+    label_for as _ml_label_for, day_nutrient_values as _ml_day_nutrient_values,
+    MANDATORY_DAY_COLUMNS, MANDATORY_DAY_KEYS,
+)
 from ..ui.common import _safe_call, _show_menu, _prompt_with_options, section_title, table_footer, help_footer
 from ..ui.prompts import Cancelled, _ask_date, _prompt
 from ..ui.render import _print_complement_suggestions, _print_meal_diaas, _print_nutrient_table, _print_protein_adequacy, _print_rda_comparison
@@ -166,8 +169,11 @@ def _do_list_recent_days() -> None:
     show_profile = len(_profile.list_profiles()) > 1
     profile_names: dict[str, str | None] = {}
     goal_grams: dict[str, float | None] = {}
-    extra_keys = state.app_ctx.meal_list_nutrients
+    # Drop any mandatory key also picked as a Meals & Log column — Recent
+    # Days already shows it via its own fixed column below.
+    extra_keys = [k for k in state.app_ctx.meal_list_nutrients if k not in MANDATORY_DAY_KEYS]
     nutrient_values: dict[str, dict[str, str | None]] = {}
+    mandatory_values: dict[str, dict[str, str | None]] = {}
     with _db.get_db() as conn:
         for row in rows:
             d = row["meal_date"]
@@ -175,6 +181,7 @@ def _do_list_recent_days() -> None:
                 dp = _db.day_profile_get(conn, d)
                 profile_names[d] = dp["profile_name"] if dp else None
             goal_grams[d] = _day_profile.protein_target_for_date(conn, d, diet_pref=state._diet_pref)
+            mandatory_values[d] = _ml_day_nutrient_values(conn, d, MANDATORY_DAY_KEYS)
             if extra_keys:
                 nutrient_values[d] = _ml_day_nutrient_values(conn, d, extra_keys)
 
@@ -182,6 +189,8 @@ def _do_list_recent_days() -> None:
     tbl = Table(show_header=True, header_style=state.T["accent_plain"], box=None, padding=(0, 1))
     tbl.add_column("Date",    min_width=12)
     tbl.add_column("Day DCP", justify="right", min_width=11)
+    for key, label, _tip in MANDATORY_DAY_COLUMNS:
+        tbl.add_column(label, justify="right", min_width=8)
     if show_pct:
         tbl.add_column("Goal",   justify="right", min_width=7)
         tbl.add_column("% goal", justify="right", min_width=7)
@@ -205,6 +214,9 @@ def _do_list_recent_days() -> None:
         goal_cell = f"{goal:.0f} g" if goal else "[grey62]--[/grey62]"
 
         cells = [d, bcp_cell]
+        for key in MANDATORY_DAY_KEYS:
+            val = mandatory_values.get(d, {}).get(key)
+            cells.append(val if val is not None else "[grey62]--[/grey62]")
         if show_pct:
             cells.append(goal_cell)
             cells.append(pct_cell)
@@ -216,7 +228,8 @@ def _do_list_recent_days() -> None:
         tbl.add_row(*cells)
 
     state.console.print(tbl)
-    footer_lines = ["  [grey62]DCP = bioavailable complete protein  ·  -- = not yet computed[/grey62]"]
+    footer_lines = ["  [grey62]DCP = bioavailable complete protein  ·  Protein = raw, not digestibility-adjusted  ·  "
+                    "Carbs = carbohydrates (sugars, starches)  ·  -- = not yet computed[/grey62]"]
     if show_pct:
         footer_lines.append("  [grey62]Goal = that day's own protein target  ·  % goal = Day DCP ÷ Goal (see ?day-profile)[/grey62]")
     else:

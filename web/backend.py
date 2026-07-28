@@ -4,6 +4,7 @@ Docs: README-numa-documentation.md, Architecture: "web/ — Local web app"
 """
 import datetime
 import json
+import math
 import re
 import sys
 from contextlib import asynccontextmanager
@@ -12,8 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import markdown as _md
-from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Form, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -235,8 +236,31 @@ def _resolve_bool_pref(value: bool | None, pref_key: str, default: bool = False)
 
 
 _SEARCH_CATEGORY_RANK = {"pantry": 0, "cache": 1, "recipe": 2, "usda": 3, "off": 3}
-_SEARCH_LOCAL_SOURCES = {"pantry", "cache", "recipe"}
 _SEARCH_SORT_MODES = {"grouped", "relevance"}
+
+# Matches plotting.MAX_SERIES — the nutrient-plot picker can't offer more
+# lines than the fixed categorical color palette has colors for.
+MAX_PLOT_NUTRIENTS = 8
+
+# Day DCP isn't a NUTRIENT_MAP entry (it's a separately computed/stored
+# column, not part of a meal's nutrient snapshot), so the Nutrient Plot
+# picker treats it as a pseudo-nutrient with its own key.
+_DCP_PLOT_KEY = "dcp"
+_DCP_PLOT_LABEL = "Day DCP (g)"
+
+# The "highlighted" nutrient (user-selectable, defaults to Day DCP if
+# chosen) always draws in this fixed red and solid, so the one figure
+# everything else is usually compared against stands out — regardless of
+# which nutrient that is this time. In grayscale mode it's still the one
+# solid line; everything else switches to a dash pattern instead of color.
+_HIGHLIGHT_COLOR = "#e34948"
+
+
+def _plot_label_for(key: str) -> str:
+    if key == _DCP_PLOT_KEY:
+        return _DCP_PLOT_LABEL
+    from numa_app.services.meal_list_columns import label_for as _nutrient_label_for
+    return _nutrient_label_for(key)
 
 
 def _search_relevance_key(name: str, query: str) -> tuple:
@@ -258,18 +282,21 @@ def _search_relevance_key(name: str, query: str) -> tuple:
 
 
 def _sort_search_results(results: list[dict], query: str, mode: str) -> list[dict]:
-    """Order search results either grouped by source category (pantry, recipe,
-    cache, then USDA/OFF), or by pure name-match quality regardless of category.
-    Local sources (pantry/cache/recipe) always sort ahead of external USDA/OFF
-    results in either mode — "Best match to name" only controls ordering within
-    each of those two tiers, not whether local results can be pushed below them."""
+    """Order search results either grouped by source category (pantry/cache,
+    recipe, then USDA/OFF), or by pure name-match quality regardless of category.
+    Cache always sorts ahead of recipes, which always sort ahead of external
+    USDA/OFF results, in either mode — "Best match to name" only controls
+    ordering within each of those three tiers, never across them."""
     if mode == "relevance":
+        def _relevance_tier(source: str) -> int:
+            if source in ("pantry", "cache"):
+                return 0
+            if source == "recipe":
+                return 1
+            return 2
         return sorted(
             results,
-            key=lambda r: (
-                0 if r["source"] in _SEARCH_LOCAL_SOURCES else 1,
-                _search_relevance_key(r["name"], query),
-            ),
+            key=lambda r: (_relevance_tier(r["source"]), _search_relevance_key(r["name"], query)),
         )
     return sorted(
         results,
@@ -4597,19 +4624,440 @@ async def summary_trend(request: Request, days: int = Query(7)):
     })
 
 
-def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict]]:
+def _nutrient_plot_params(conn, nutrients: list[str], days_back: str | None, anchor_date: str | None):
+    """Shared by the plot page and its image endpoint: validate the chosen
+    nutrient keys (capped to the plotting palette's 8 colors) and resolve
+    which logged dates fall in range. days_back blank/absent/<=0 means "all
+    logged days"; otherwise it's the N days ending at anchor_date (default:
+    the most recent logged day). days_back arrives as a string (not int)
+    because the "blank = all days" form field submits "" when empty, which
+    FastAPI's query validation rejects outright for an int-typed param."""
+    valid_keys = {key for key, _label, _unit in _usda.NUTRIENT_MAP.values()} | {_DCP_PLOT_KEY}
+    chosen = [k for k in nutrients if k in valid_keys][:MAX_PLOT_NUTRIENTS]
+
+    all_dates = sorted(r["meal_date"] for r in _db.meal_dates_with_bcp(conn, limit=1_000_000))
+
+    try:
+        days_back_n = int(days_back) if days_back else None
+    except ValueError:
+        days_back_n = None
+
+    if days_back_n and days_back_n > 0:
+        anchor = anchor_date or (all_dates[-1] if all_dates else datetime.date.today().isoformat())
+        anchor_d = datetime.date.fromisoformat(anchor)
+        start_d = anchor_d - datetime.timedelta(days=days_back_n - 1)
+        dates = [d for d in all_dates if start_d.isoformat() <= d <= anchor_d.isoformat()]
+    else:
+        anchor = anchor_date or (all_dates[-1] if all_dates else "")
+        dates = all_dates
+
+    return chosen, dates, anchor
+
+
+def _plot_variance(values: list[float]) -> float:
+    vals = [v for v in values if not math.isnan(v)]
+    if len(vals) < 2:
+        return 0.0
+    m = sum(vals) / len(vals)
+    return sum((v - m) ** 2 for v in vals) / len(vals)
+
+
+def _plot_stdev(values: list[float]) -> float:
+    return math.sqrt(_plot_variance(values))
+
+
+def _default_plot_scale_factor(series: list[dict]) -> float:
+    """Auto scale factor: the most-variable series' standard deviation
+    divided by the least-variable series'. Dividing the more-variable
+    series' values by this factor brings its spread down to roughly match
+    the smallest, so neither a small-scale nutrient (e.g. Protein) nor a
+    large-scale one (e.g. Carbohydrate) flattens into a barely-visible line
+    next to the other. This is the Nutrient Plot page's "Scale factor"
+    field default — the user can type their own instead."""
+    if len(series) < 2:
+        return 1.0
+    stds = [_plot_stdev(s["y"]) for s in series]
+    positive = [v for v in stds if v > 0]
+    if len(positive) < 2:
+        return 1.0
+    return round(max(positive) / min(positive), 1)
+
+
+def _fmt_plot_factor(factor: float) -> str:
+    return str(int(factor)) if factor == int(factor) else f"{factor:g}"
+
+
+def _parse_plot_factor(raw: str | None) -> float | None:
+    if not raw:
+        return None
+    try:
+        v = float(raw)
+    except ValueError:
+        return None
+    return v if v > 0 else None
+
+
+def _apply_plot_scale_factor(series: list[dict], factor: float) -> list[dict]:
+    """Step 1. Divide every series except the least-variable one (the
+    reference — left at its natural scale) by `factor`, noting it in that
+    series' own legend label. See _default_plot_scale_factor for the auto
+    default. A single shared factor can't perfectly equalize more than two
+    series at once — see _default_individual_factors (step 2) for the
+    per-nutrient top-up this sets up for."""
+    if len(series) < 2 or not factor or factor == 1:
+        return series
+    stds = [_plot_stdev(s["y"]) for s in series]
+    reference_i = stds.index(min(stds))
+    scaled = []
+    for i, s in enumerate(series):
+        if i == reference_i:
+            scaled.append(s)
+        else:
+            scaled.append({**s, "y": [v / factor for v in s["y"]],
+                            "label": f"{s['label']} ÷{_fmt_plot_factor(factor)}", "scaled": True})
+    return scaled
+
+
+def _default_individual_factors(series: list[dict]) -> dict[str, float]:
+    """Step 2, run after step 1's global factor is already applied. A
+    single shared factor can still leave one nutrient nearly flat if its
+    own variance is far below the chart's most-variable nutrient — dividing
+    two things down to roughly the same level doesn't help a third that's
+    smaller than both. Set a variance floor at 25% of the largest variance
+    among the (already step-1-scaled) series; any series still under it
+    gets its own individual multiplier on top, to bring its variance up to
+    that floor. Returns {nutrient_key: multiplier} — 1.0 where no boost is
+    needed. This is each nutrient's own "factor_<key>" field default on the
+    Nutrient Plot page; the user can type their own instead."""
+    variances = {s["key"]: _plot_variance(s["y"]) for s in series}
+    max_var = max(variances.values()) if variances else 0.0
+    floor = 0.25 * max_var
+    factors = {}
+    for key, v in variances.items():
+        factors[key] = round(math.sqrt(floor / v), 1) if 0 < v < floor else 1.0
+    return factors
+
+
+def _apply_individual_factors(series: list[dict], factors: dict[str, float]) -> list[dict]:
+    """Step 2's application: multiply each series by its own factor (see
+    _default_individual_factors) on top of whatever step 1 already did to
+    it. A multiplier > 1 boosts an otherwise-flat nutrient's visible
+    variability; noted in its legend label alongside any step-1 note."""
+    out = []
+    for s in series:
+        k = factors.get(s["key"], 1.0)
+        if not k or k == 1.0:
+            out.append(s)
+        else:
+            out.append({**s, "y": [v * k for v in s["y"]],
+                         "label": f"{s['label']} ×{_fmt_plot_factor(k)}", "scaled": True})
+    return out
+
+
+def _nutrient_plot_factor_params(query_params, chosen: list[str]) -> dict[str, str]:
+    """Raw (unparsed) factor_<key> query values actually present, keyed by
+    nutrient key — used both to resolve step 2's effective per-nutrient
+    factors and to prefill the plot page's per-nutrient input fields."""
+    return {k: query_params.get(f"factor_{k}", "") for k in chosen}
+
+
+def _resolve_highlight(chosen: list[str], highlight: str | None) -> str | None:
+    """Which chosen nutrient draws highlighted (fixed red and solid in
+    color mode; the one solid line, everything else dashed, in grayscale
+    mode). Defaults to Day DCP when it's among the chosen nutrients;
+    otherwise no forced highlight — every series just auto-cycles."""
+    if highlight and highlight in chosen:
+        return highlight
+    return _DCP_PLOT_KEY if _DCP_PLOT_KEY in chosen else None
+
+
+def _nutrient_plot_raw_series(conn, chosen: list[str], dates: list[str],
+                               highlight_key: str | None) -> list[dict]:
+    from numa_app.services.meal_list_columns import day_nutrient_values
+
+    plain_keys = [k for k in chosen if k != _DCP_PLOT_KEY]
+    day_values = {d: day_nutrient_values(conn, d, plain_keys) for d in dates} if plain_keys else {}
+    dcp_by_date: dict[str, float | None] = {}
+    if _DCP_PLOT_KEY in chosen:
+        dcp_by_date = {r["meal_date"]: r["day_bcp"] for r in _db.meal_dates_with_bcp(conn, limit=1_000_000)}
+
+    series = []
+    for key in chosen:
+        y = []
+        for d in dates:
+            v = dcp_by_date.get(d) if key == _DCP_PLOT_KEY else day_values[d][key]
+            y.append(float(v) if v is not None else float("nan"))
+        s = {"key": key, "x": dates, "y": y, "label": _plot_label_for(key)}
+        if key == highlight_key:
+            s["color"] = _HIGHLIGHT_COLOR
+            s["highlight"] = True
+        series.append(s)
+    return series
+
+
+DEFAULT_SMOOTHING_DAYS = 3
+
+
+def _parse_smoothing_window(raw: str | None) -> int:
+    """Smoothing window in days. Missing/blank/invalid falls back to the
+    3-day default (the plot page always pre-fills the field with a concrete
+    number, so blank only really happens on a bare first visit); 0 or 1
+    means no smoothing — the original, unsmoothed data."""
+    if raw is None:
+        return DEFAULT_SMOOTHING_DAYS
+    try:
+        n = int(raw)
+    except ValueError:
+        return DEFAULT_SMOOTHING_DAYS
+    return max(n, 0)
+
+
+def _apply_smoothing(series: list[dict], window: int) -> list[dict]:
+    """Trailing moving average: each point becomes the average of itself
+    and up to (window - 1) preceding points, using fewer at the very start
+    of the series and skipping gap days (nan) rather than treating them as
+    zero. window <= 1 returns the series unchanged. Runs before the scale
+    factor steps, so scaling is calibrated to what's actually displayed."""
+    if window <= 1:
+        return series
+    smoothed = []
+    for s in series:
+        y = s["y"]
+        new_y = []
+        for i in range(len(y)):
+            chunk = [v for v in y[max(0, i - window + 1):i + 1] if not math.isnan(v)]
+            new_y.append(sum(chunk) / len(chunk) if chunk else float("nan"))
+        smoothed.append({**s, "y": new_y})
+    return smoothed
+
+
+_GENERIC_PLOT_YLABEL = "Value (see legend for units)"
+
+
+def _nutrient_plot_ylabel(chosen: list[str], series: list[dict]) -> str:
+    # A single shared unit is only a meaningful axis label if nothing was
+    # rescaled — a rescaled series is no longer in that unit, even though
+    # every chosen nutrient nominally shares it (e.g. Fiber (g) plotted
+    # alongside a much larger Total Fat (g) that got divided down).
+    if any(s.get("scaled") for s in series):
+        return _GENERIC_PLOT_YLABEL
+    units = {unit for key, _label, unit in _usda.NUTRIENT_MAP.values() if key in chosen}
+    if _DCP_PLOT_KEY in chosen:
+        units.add("g")
+    return units.pop() if len(units) == 1 else _GENERIC_PLOT_YLABEL
+
+
+def _nutrient_plot_default_title(dates: list[str]) -> str:
+    return f"Key nutrients, {dates[0]} to {dates[-1]}" if dates else "Key nutrients"
+
+
+def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | None,
+                       scale_factor: str | None, title: str | None,
+                       highlight: str | None, grayscale: bool, smoothing: int,
+                       nutrient_factors: dict[str, str] | None = None) -> str:
+    from urllib.parse import urlencode
+    params = [("nutrients", k) for k in chosen]
+    if days_back:
+        params.append(("days_back", days_back))
+        if anchor:
+            params.append(("anchor_date", anchor))
+    if scale_factor:
+        params.append(("scale_factor", scale_factor))
+    if title:
+        params.append(("title", title))
+    if highlight:
+        params.append(("highlight", highlight))
+    if grayscale:
+        params.append(("grayscale", "1"))
+    params.append(("smoothing", str(smoothing)))
+    for key, val in (nutrient_factors or {}).items():
+        if val:
+            params.append((f"factor_{key}", val))
+    return urlencode(params)
+
+
+@app.get("/summary/nutrient-plot", response_class=HTMLResponse)
+async def nutrient_plot_page(
+    request: Request,
+    nutrients: list[str] = Query([]),
+    days_back: str | None = Query(None),
+    anchor_date: str | None = Query(None),
+    scale_factor: str | None = Query(None),
+    title: str | None = Query(None),
+    highlight: str | None = Query(None),
+    grayscale: bool = Query(False),
+    smoothing: str | None = Query(None),
+):
+    """Line plot of one or more Daily Summary nutrients over a chosen set of
+    days — reuses the same per-day nutrient totals as the Recent Days table
+    and the extra-column picker (numa_app.services.meal_list_columns)."""
+    from numa_app.services.meal_list_columns import plot_nutrient_choices
+
+    smoothing_n = _parse_smoothing_window(smoothing)
+
+    with _db.get_db() as conn:
+        chosen, dates, anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date)
+        has_plot = bool(chosen) and bool(dates)
+        highlight_key = _resolve_highlight(chosen, highlight) if has_plot else None
+        raw_series = _nutrient_plot_raw_series(conn, chosen, dates, highlight_key) if has_plot else []
+
+    raw_series = _apply_smoothing(raw_series, smoothing_n)
+
+    # scale_factor (step 1) is a "blank means auto" field, same convention
+    # as Days back above it: the input's own value stays empty unless the
+    # user actually typed an override, so the field re-syncs to a freshly
+    # computed default (e.g. after changing which nutrients/days are
+    # plotted) instead of echoing back a stale number forever. The
+    # placeholder shows what "blank" currently resolves to. Step 2's
+    # per-nutrient factor_<key> fields follow the identical convention.
+    user_factor = _parse_plot_factor(scale_factor)
+    default_factor = _default_plot_scale_factor(raw_series) if raw_series else None
+    effective_factor = user_factor or default_factor or 1.0
+    factor_str = _fmt_plot_factor(effective_factor)
+    step1_series = _apply_plot_scale_factor(raw_series, effective_factor) if raw_series else []
+
+    raw_factor_params = _nutrient_plot_factor_params(request.query_params, chosen)
+    auto_individual = _default_individual_factors(step1_series) if step1_series else {}
+    effective_individual = {
+        k: (_parse_plot_factor(raw_factor_params.get(k)) or auto_individual.get(k, 1.0))
+        for k in chosen
+    }
+    individual_factor_strs = {k: _fmt_plot_factor(v) for k, v in effective_individual.items()}
+
+    effective_title = title.strip() if title and title.strip() else _nutrient_plot_default_title(dates)
+
+    qs = (_nutrient_plot_qs(chosen, days_back, anchor, factor_str, effective_title,
+                             highlight_key, grayscale, smoothing_n, individual_factor_strs)
+          if has_plot else "")
+
+    available = [(_DCP_PLOT_KEY, _DCP_PLOT_LABEL)] + plot_nutrient_choices()
+    nutrient_factor_rows = [{
+        "key":         k,
+        "label":       _plot_label_for(k),
+        "value":       raw_factor_params.get(k, ""),
+        "placeholder": _fmt_plot_factor(auto_individual.get(k, 1.0)),
+    } for k in chosen]
+
+    return templates.TemplateResponse(request, "nutrient_plot.html", {
+        "available_nutrients": [{"key": k, "label": lbl} for k, lbl in available],
+        "chosen":     chosen,
+        "days_back":  days_back or "",
+        "anchor_date": anchor,
+        "dates":      dates,
+        "has_plot":   has_plot,
+        "qs":         qs,
+        "max_nutrients": MAX_PLOT_NUTRIENTS,
+        "scale_factor": scale_factor if user_factor else "",
+        "scale_factor_placeholder": _fmt_plot_factor(default_factor) if default_factor else "auto",
+        "nutrient_factor_rows": nutrient_factor_rows,
+        "title":      effective_title,
+        "highlight":  highlight_key,
+        "grayscale":  grayscale,
+        "smoothing":  smoothing_n,
+    })
+
+
+@app.get("/summary/nutrient-plot/image")
+async def nutrient_plot_image(
+    request: Request,
+    nutrients: list[str] = Query([]),
+    days_back: str | None = Query(None),
+    anchor_date: str | None = Query(None),
+    scale_factor: str | None = Query(None),
+    title: str | None = Query(None),
+    highlight: str | None = Query(None),
+    grayscale: bool = Query(False),
+    smoothing: str | None = Query(None),
+    fmt: str = Query("png"),
+    download: bool = Query(False),
+):
+    from numa_app.services.plotting import line_plot_image
+
+    image_format = "svg" if fmt == "svg" else "png"
+
+    with _db.get_db() as conn:
+        chosen, dates, _anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date)
+        if not chosen or not dates:
+            raise HTTPException(status_code=404, detail="No nutrients or days selected")
+        highlight_key = _resolve_highlight(chosen, highlight)
+        raw_series = _nutrient_plot_raw_series(conn, chosen, dates, highlight_key)
+
+    raw_series = _apply_smoothing(raw_series, _parse_smoothing_window(smoothing))
+
+    factor = _parse_plot_factor(scale_factor) or _default_plot_scale_factor(raw_series)
+    step1_series = _apply_plot_scale_factor(raw_series, factor)
+
+    raw_factor_params = _nutrient_plot_factor_params(request.query_params, chosen)
+    auto_individual = _default_individual_factors(step1_series)
+    effective_individual = {
+        k: (_parse_plot_factor(raw_factor_params.get(k)) or auto_individual.get(k, 1.0))
+        for k in chosen
+    }
+    series = _apply_individual_factors(step1_series, effective_individual)
+
+    plot_title = title.strip() if title and title.strip() else _nutrient_plot_default_title(dates)
+    plot_ylabel = _nutrient_plot_ylabel(chosen, series)
+
+    image_bytes = line_plot_image(series, xlabel="Date", ylabel=plot_ylabel,
+                                   title=plot_title, image_format=image_format, grayscale=grayscale,
+                                   hide_y_values=(plot_ylabel == _GENERIC_PLOT_YLABEL))
+    media_type = "image/svg+xml" if image_format == "svg" else "image/png"
+    headers = ({"Content-Disposition": f'attachment; filename="numa-nutrient-plot.{image_format}"'}
+               if download else {})
+    return Response(content=image_bytes, media_type=media_type, headers=headers)
+
+
+@app.get("/summary/nutrient-plot/print", response_class=HTMLResponse)
+async def nutrient_plot_print(
+    request: Request,
+    nutrients: list[str] = Query([]),
+    days_back: str | None = Query(None),
+    anchor_date: str | None = Query(None),
+    scale_factor: str | None = Query(None),
+    title: str | None = Query(None),
+    highlight: str | None = Query(None),
+    grayscale: bool = Query(False),
+    smoothing: str | None = Query(None),
+):
+    with _db.get_db() as conn:
+        chosen, dates, anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date)
+    if not chosen or not dates:
+        return RedirectResponse("/summary/nutrient-plot", status_code=303)
+
+    highlight_key = _resolve_highlight(chosen, highlight)
+    raw_factor_params = _nutrient_plot_factor_params(request.query_params, chosen)
+    effective_title = title.strip() if title and title.strip() else _nutrient_plot_default_title(dates)
+    qs = _nutrient_plot_qs(chosen, days_back, anchor, scale_factor, effective_title,
+                            highlight_key, grayscale, _parse_smoothing_window(smoothing), raw_factor_params)
+
+    return templates.TemplateResponse(request, "nutrient_plot_print.html", {
+        "labels":     [_plot_label_for(k) for k in chosen],
+        "start_date": dates[0],
+        "end_date":   dates[-1],
+        "title":      effective_title,
+        "qs":         qs,
+    })
+
+
+def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
     """Recent-days sidebar rows: % goal read from the stored day_pct_goal
     (already scored against whichever profile was pinned to that date), plus
     that date's profile name and its own goal in grams — never a single
     page-wide profile/target, since different days can be pinned to
     different profiles with different targets. Also attaches the user's
     chosen extra nutrient columns (shared with Meals & Log), aggregated per
-    day rather than per meal."""
+    day rather than per meal, plus the mandatory Protein/Calories/Carbs/Fiber
+    columns every Recent Days row always shows."""
     from numa_app.services.meal_list_columns import (
         sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, day_nutrient_values,
+        MANDATORY_DAY_COLUMNS, MANDATORY_DAY_KEYS,
     )
     show_profile = len(_profile.list_profiles()) > 1
-    nutrient_keys = _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
+    # Drop any mandatory key the user separately picked as a Meals & Log
+    # column (that picker still allows it) — Recent Days already shows it,
+    # via its own fixed column below, so it would otherwise appear twice.
+    nutrient_keys = [k for k in _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
+                     if k not in MANDATORY_DAY_KEYS]
     day_rows = []
     for r in rows:
         d = r["meal_date"]
@@ -4624,11 +5072,12 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict]]:
             "day_bcp":        round(bcp, 1) if bcp is not None else None,
             "goal":           round(goal, 0) if goal else None,
             "pct_goal":       r["day_pct_goal"],
-            "complete_count": r["complete_count"],
             "profile_name":   profile_name,
+            "mandatory_values": day_nutrient_values(conn, d, MANDATORY_DAY_KEYS),
             "nutrient_values": day_nutrient_values(conn, d, nutrient_keys),
         })
-    return day_rows, [{"key": k, "label": _meal_label_for(k)} for k in nutrient_keys]
+    mandatory_day_cols = [{"key": k, "label": lbl, "title": tip} for k, lbl, tip in MANDATORY_DAY_COLUMNS]
+    return day_rows, [{"key": k, "label": _meal_label_for(k)} for k in nutrient_keys], mandatory_day_cols
 
 
 @app.get("/summary", response_class=HTMLResponse)
@@ -4636,11 +5085,12 @@ async def summary_index(request: Request):
     """Summary landing: recent-days table + date picker."""
     with _db.get_db() as conn:
         rows = _db.meal_dates_with_bcp(conn, limit=30)
-        day_rows, day_nutrient_cols = _build_day_rows(rows, conn)
+        day_rows, day_nutrient_cols, mandatory_day_cols = _build_day_rows(rows, conn)
 
     return templates.TemplateResponse(request, "summary.html", {
         "day_rows":       day_rows,
         "day_nutrient_cols": day_nutrient_cols,
+        "mandatory_day_cols": mandatory_day_cols,
         "show_profile_col": len(_profile.list_profiles()) > 1,
         "today":          datetime.date.today().isoformat(),
         "date_detail":    None,
@@ -4695,10 +5145,11 @@ async def summary_date(request: Request, meal_date: str):
     # Recent days for sidebar
     with _db.get_db() as conn:
         rows = _db.meal_dates_with_bcp(conn, limit=14)
-        day_rows, day_nutrient_cols = _build_day_rows(rows, conn)
+        day_rows, day_nutrient_cols, mandatory_day_cols = _build_day_rows(rows, conn)
 
     return templates.TemplateResponse(request, "summary.html", {
         "day_rows":          day_rows,
+        "mandatory_day_cols": mandatory_day_cols,
         "day_nutrient_cols": day_nutrient_cols,
         "show_profile_col":  len(_profile.list_profiles()) > 1,
         "today":             datetime.date.today().isoformat(),
@@ -4830,6 +5281,7 @@ async def analysis_food_use(
         "days":      len(r["days"]),
         "meals":     len(r["meal_ids"]),
         "pct":       round(len(r["days"]) / max_days * 100, 0) if max_days else 0,
+        "meal_ids":  sorted(r["meal_ids"]),
     } for r in rows_sorted]
 
     return templates.TemplateResponse(request, "analysis_food_use.html", {

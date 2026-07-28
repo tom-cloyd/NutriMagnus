@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — Meals{% endblock %}
 
+{% macro col_header(label) %}{% set parts = label.rsplit(' (', 1) %}{{ parts[0] }}{% if parts|length > 1 %}<br><small class="muted">({{ parts[1] }}</small>{% endif %}{% endmacro %}
+
 {% block content %}
 <h2>Meals &amp; Log {{ manual_link("meals-list") }}</h2>
 
@@ -8,15 +10,15 @@
   <summary><strong>New Meal</strong></summary>
   <form method="post" action="/meals/create" class="mt-2">
     <div class="row g-3 mb-3">
-      <div class="col">
+      <div class="col-auto">
         <label class="form-label" for="meal-name">Name</label>
         <input type="text" class="form-control" id="meal-name" name="name"
-               placeholder="Breakfast, Lunch…" autofocus>
+               placeholder="Breakfast, Lunch…" autofocus style="width: 12rem;">
       </div>
-      <div class="col">
+      <div class="col-auto">
         <label class="form-label" for="meal-date">Date</label>
         <input type="date" class="form-control" id="meal-date" name="meal_date"
-               value="{{ today }}">
+               value="{{ today }}" style="width: 9.5rem;">
       </div>
     </div>
     <button type="submit" class="btn btn-primary">Create Meal</button>
@@ -104,7 +106,7 @@
       {% if show_pct_col %}<th class="num-col" title="Day DCP ÷ that date's own protein target">%<br>goal</th>{% endif %}
       {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
       {% for col in meal_nutrient_cols %}
-      <th class="num-col">{{ col.label }}</th>
+      <th class="num-col" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>
       {% endfor %}
       <th></th>
     </tr>

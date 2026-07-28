@@ -28,6 +28,8 @@
 {% endif %}
 {% endblock %}
 
+{% macro col_header(label) %}{% set parts = label.rsplit(' (', 1) %}{{ parts[0] }}{% if parts|length > 1 %}<br><small class="muted">({{ parts[1] }}</small>{% endif %}{% endmacro %}
+
 {% block content %}
 <h2>Daily Summary {{ manual_link("goals") }}</h2>
 
@@ -41,6 +43,7 @@
            onchange="window.location='/summary/'+this.value">
   </div>
   <a href="/summary/trend" class="btn btn-sm btn-outline-secondary">Multiday nutrient trend</a>
+  <a href="/summary/nutrient-plot" class="btn btn-sm btn-outline-secondary">Nutrient plot</a>
 </div>
 
 {# ── Recent days table ────────────────────────────────────────────────── #}
@@ -54,15 +57,17 @@
       <tr>
         <th>Date</th>
         <th class="num-col" style="white-space:nowrap">Day DCP</th>
+        {% for col in mandatory_day_cols %}
+        <th class="num-col" style="white-space:nowrap;line-height:1.2"{% if col.title %} title="{{ col.title }}"{% endif %}>{{ col_header(col.label) }}</th>
+        {% endfor %}
         {% if show_pct_col %}
         <th class="num-col" title="That date's own protein target">Goal</th>
         <th class="num-col" title="Day DCP ÷ that date's own protein target">% goal</th>
         {% endif %}
         {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
         {% for col in day_nutrient_cols %}
-        <th class="num-col">{{ col.label }}</th>
+        <th class="num-col" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>
         {% endfor %}
-        <th class="num-col">Meals</th>
         <th></th>
       </tr>
     </thead>
@@ -77,6 +82,11 @@
           <span class="muted">—</span>
           {% endif %}
         </td>
+        {% for col in mandatory_day_cols %}
+        <td class="num-col">
+          {% if r.mandatory_values[col.key] is not none %}{{ r.mandatory_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endfor %}
         {% if show_pct_col %}
         <td class="num-col">
           {% if r.goal is not none %}{{ r.goal|int }}&thinsp;g{% else %}<span class="muted">—</span>{% endif %}
@@ -97,7 +107,6 @@
           {% if r.nutrient_values[col.key] is not none %}{{ r.nutrient_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endfor %}
-        <td class="num-col muted">{{ r.complete_count }}</td>
         <td><a href="/summary/{{ r.meal_date }}" class="btn btn-sm btn-link p-0">Analyze</a></td>
       </tr>
       {% endfor %}

@@ -942,9 +942,7 @@ def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlit
     yet — this counts every meal with a computed value, not just ones marked
     complete: DCP is auto-saved as items are added, so an in-progress meal
     already contributes to the day total, same as the day-detail page's own
-    pooled DIAAS analysis and the CLI's day summary), complete_count (number
-    of complete meals that day, shown separately as a progress indicator —
-    unrelated to whether day_bcp has a value), day_pct_goal (the
+    pooled DIAAS analysis and the CLI's day summary), day_pct_goal (the
     %-of-profile-goal value already stored per meal by refresh_day_pct_goal —
     every meal on a date shares the same value, so MAX just picks it up).
     Prefers the pooled day-level DCP from day_bcp_cache when available.
@@ -956,7 +954,6 @@ def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlit
             COALESCE(c.dcp_g,
                 SUM(CASE WHEN m.bcp_g IS NOT NULL THEN m.bcp_g END)
             ) AS day_bcp,
-            COUNT(CASE WHEN m.complete = 1 THEN 1 END) AS complete_count,
             MAX(m.day_pct_goal) AS day_pct_goal
         FROM meals m
         LEFT JOIN day_bcp_cache c ON c.meal_date = m.meal_date

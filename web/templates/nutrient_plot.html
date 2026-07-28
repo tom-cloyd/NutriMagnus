@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Nutrient Plot{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/summary">Daily Summary</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Nutrient Plot</li>
+  </ol>
+</nav>
+
+<h2>Nutrient Plot {{ manual_link("nutrient-plot") }}</h2>
+<p class="muted">Line plot of one or more nutrients from your logged days, day on the x-axis.</p>
+
+<form method="get" action="/summary/nutrient-plot" class="mb-3">
+  <div class="mb-2">
+    <span class="form-label d-block">Nutrients <small class="muted">(up to {{ max_nutrients }})</small></span>
+    <div style="max-width:26rem;max-height:22rem;overflow-y:auto;border:1px solid #d7dce4;border-radius:4px;padding:0.4rem 0.6rem">
+      {% for n in available_nutrients %}
+      <div class="form-check m-0" style="padding-top:0.15rem;padding-bottom:0.15rem">
+        <input class="form-check-input" type="checkbox" name="nutrients" id="nut-{{ n.key }}"
+               value="{{ n.key }}" {% if n.key in chosen %}checked{% endif %}>
+        <label class="form-check-label" for="nut-{{ n.key }}">{{ n.label }}</label>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex flex-wrap gap-3 align-items-end mt-3">
+    <div>
+      <label class="form-label mb-0" for="days_back">Days back <small class="muted">(blank = all logged days)</small></label>
+      <input type="number" min="1" class="form-control form-control-sm" id="days_back" name="days_back"
+             value="{{ days_back }}" style="width:8rem" placeholder="All">
+    </div>
+    <div>
+      <label class="form-label mb-0" for="anchor_date">Ending on</label>
+      <input type="date" class="form-control form-control-sm" id="anchor_date" name="anchor_date"
+             value="{{ anchor_date }}" style="width:11rem">
+    </div>
+    <div>
+      <label class="form-label mb-0" for="scale_factor" title="Step 1: any nutrient plotted alongside a much larger- or smaller-scale one is divided by this so both stay readable on one axis. Prefilled with NuMa's computed default — change it and click Plot to try a different value.">Scale factor</label>
+      <input type="number" min="0.1" step="0.1" class="form-control form-control-sm" id="scale_factor" name="scale_factor"
+             value="{{ scale_factor }}" placeholder="{{ scale_factor_placeholder }}" style="width:7rem">
+    </div>
+    <div>
+      <label class="form-label mb-0" for="smoothing" title="Each point is averaged with its preceding days to smooth out day-to-day noise. 0 turns smoothing off and shows the original, unsmoothed data.">Smoothing (days)</label>
+      <input type="number" min="0" step="1" class="form-control form-control-sm" id="smoothing" name="smoothing"
+             value="{{ smoothing }}" style="width:7rem">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Plot</button>
+  </div>
+
+  <div class="mt-2" style="max-width:32rem">
+    <label class="form-label mb-0" for="title">Plot title</label>
+    <input type="text" class="form-control form-control-sm" id="title" name="title" value="{{ title }}">
+  </div>
+
+  {% if chosen %}
+  <div class="d-flex flex-wrap gap-3 align-items-end mt-3">
+    <div>
+      <label class="form-label mb-0" for="highlight" title="This nutrient always draws solid, and in color mode always red, so the one figure you're usually comparing everything else against stands out.">Highlight nutrient</label>
+      <select class="form-select form-select-sm" id="highlight" name="highlight" style="width:14rem">
+        {% for k in chosen %}
+        <option value="{{ k }}" {% if k == highlight %}selected{% endif %}>{{ available_nutrients|selectattr('key', 'equalto', k)|map(attribute='label')|first }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-check mb-1">
+      <input class="form-check-input" type="checkbox" id="grayscale" name="grayscale" value="1" {% if grayscale %}checked{% endif %}>
+      <label class="form-check-label" for="grayscale" title="Renders every line in black, using a different dash pattern per nutrient instead of color, so the chart still reads correctly on a printer that can't print color. Preview it here before you print.">Black &amp; white (printer-friendly)</label>
+    </div>
+  </div>
+
+  <div class="mt-3" style="max-width:44rem">
+    <span class="form-label d-block mb-0">Per-nutrient factors <small class="muted">(step 2 — fine-tune an individual nutrient's scaling on top of the Scale factor above)</small></span>
+    <div class="d-flex flex-wrap gap-3 mt-1">
+      {% for row in nutrient_factor_rows %}
+      <div>
+        <label class="form-label mb-0" for="factor_{{ row.key }}"><small>{{ row.label }}</small></label>
+        <input type="number" min="0.1" step="0.1" class="form-control form-control-sm" id="factor_{{ row.key }}"
+               name="factor_{{ row.key }}" value="{{ row.value }}" placeholder="{{ row.placeholder }}" style="width:6rem">
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</form>
+
+{% if has_plot %}
+<div class="mb-2">
+  <img id="plot-img" src="/summary/nutrient-plot/image?{{ qs }}" alt="Nutrient plot" style="max-width:100%;border:1px solid #d7dce4;border-radius:4px">
+</div>
+<div class="d-flex gap-2 align-items-center flex-wrap">
+  <a id="plot-dl-png" href="/summary/nutrient-plot/image?{{ qs }}&download=1" class="btn btn-sm btn-outline-secondary">Download PNG</a>
+  <a id="plot-dl-svg" href="/summary/nutrient-plot/image?{{ qs }}&fmt=svg&download=1" class="btn btn-sm btn-outline-secondary">Download SVG</a>
+  <a id="plot-print" href="/summary/nutrient-plot/print?{{ qs }}" target="_blank" class="btn btn-sm btn-outline-secondary">Print / Save as PDF</a>
+  <small class="muted">{{ manual_link("plot-file-formats", "Which format should I pick?") }}</small>
+</div>
+<p class="muted mt-2"><small>{{ dates|length }} day(s) plotted, {{ dates[0] }} to {{ dates[-1] }}.</small></p>
+<script>
+(function () {
+  // Instant on-screen preview: toggling Black & white re-fetches the chart
+  // image (and keeps the download/print links in sync) immediately,
+  // without waiting for a full Plot click / page reload.
+  var checkbox = document.getElementById('grayscale');
+  if (!checkbox) return;
+  var targets = [
+    {el: document.getElementById('plot-img'), attr: 'src'},
+    {el: document.getElementById('plot-dl-png'), attr: 'href'},
+    {el: document.getElementById('plot-dl-svg'), attr: 'href'},
+    {el: document.getElementById('plot-print'), attr: 'href'},
+  ];
+  checkbox.addEventListener('change', function () {
+    targets.forEach(function (t) {
+      if (!t.el) return;
+      var url = new URL(t.el[t.attr], window.location.origin);
+      if (checkbox.checked) {
+        url.searchParams.set('grayscale', '1');
+      } else {
+        url.searchParams.delete('grayscale');
+      }
+      t.el[t.attr] = url.pathname + '?' + url.searchParams.toString();
+    });
+  });
+})();
+</script>
+{% elif chosen %}
+<p class="muted mt-2">No logged days in the selected range.</p>
+{% else %}
+<p class="muted mt-2">Pick at least one nutrient above, then click Plot.</p>
+{% endif %}
+{% endblock %}

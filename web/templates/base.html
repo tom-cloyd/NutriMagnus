@@ -327,7 +327,23 @@
       if (!target) return;
       e.preventDefault();
       target.click();
-      target.focus();
+      if (target.classList.contains('dropdown-toggle')) {
+        // Bootstrap opens the menu synchronously on click, so the first
+        // item already exists — send focus straight into it instead of
+        // leaving it on the toggle. From there Bootstrap's own dropdown
+        // keyboard handling takes over (ArrowUp/ArrowDown to move between
+        // items, Enter/Space to pick one, Escape to close), so a menu item
+        // can be reached and activated without touching the mouse.
+        var menu = target.nextElementSibling;
+        var firstItem = menu && menu.querySelector('.dropdown-item');
+        if (firstItem) {
+          firstItem.focus();
+        } else {
+          target.focus();
+        }
+      } else {
+        target.focus();
+      }
     });
 
     applyShortcuts(enabled);

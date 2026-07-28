@@ -1,31 +1,32 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-26:0535* / Reading 2 hours, 55 minutes
+*Updated 2026-07-28:1402* / Reading 3 hours, 35 minutes 
 
-**NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet.
+**NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, and also for older people or chronically-ill people.
 
-**Eating is fundamentally about survival, for we must constantly support and replace the cells in our body.** Most of the cells in our body persist for a shorter span than we do. During their lifespan they do their work using available materials. Eventually they must be replaced by new cells, constructed again from available materials.
+**Eating is fundamentally about survival- all life's first priority, for we must constantly support and replace the cells in our body.** Most of the cells in our body persist for a shorter period than we do. During their lifespan they do their work using materials available to them in their immediate environment. Eventually they must be replaced by new cells, constructed again from such available materials.
 
-**Cellular support and replacement depends upon our accessing essential materials, through eating.** While significant essential materials may already exist in the local environment of a cell, but the rest have to come from elsewhere, and ultimately that means from outside our bodies. For this reason we must eat.
+**Cellular support and replacement depends upon our accessing essential materials, through eating.** While significant essential materials may already exist in the local environment of a cell, the rest have to come from elsewhere, and ultimately that means from outside our bodies. For this reason we must eat.
 
-**Eating usually involves making choices, and good choice requires good information.** The three major problems with blocking good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed in the general domain of nutrition science. [NuMa](#gloss-numa) takes up these problems, in detail.
+**Eating usually involves making choices, and good choice requires good information.** The three major problems impeding good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed by the general domain of nutrition science. [NuMa](#gloss-numa) takes up these problems, in detail.
 
 **Both the program and its accompanying *User Manual* are an ongoing project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review; it is an advanced first draft.
 
-**User feedback is highly valued, so please give us yours!** What many software users don't realize is that with programs in active development ANY feedback is appreciated and likely to be useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` or `NuMa` in the subject line, please!
+**User feedback is highly valued, so please give us yours!** What many software users don't realize is that with programs in active development ANY feedback is appreciated and most likely useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` or `NuMa` in the subject line, please!
 
-**How to come up with feedback:** First, any thoughts you wish to share are welcome. We know what is useful to us, but can't
-react at all if you share. If in doubt, just do it! We'll be grateful. Of particular interest to us:
+**How to come up with feedback:** First, ANY thoughts you wish to share are welcome. We know what is useful to us, but can't react at all if you don't share. If in doubt, just do it! We'll be grateful. Of particular interest to us are these topics:
 
 1. Inconveniences: you notice that something seems a bit difficult to do, or you see a simpler or quicker way to do it.
 2. Missing or incomplete information: Sometimes updates and changes do not go out to every part of the program as they should, and you see a gap in the information provided.
 3. Outright nonsense: you look at program output and think "that can't be right" or maybe you just feel doubtful about it.
 
+User-derived issues get immediate priority in the program-development process!
+
 ---
 
 ## How to read this Manual
 
-NuMa comes to you in two versions. one runs in a browser (the "Web App" version) and the other runs in a terminal (the CLI - command line interface - version). The browser version offers a more customary interface, while the CLI version offers speed and information density. Ideally you will try both, but most people should begin with the web version.
+NuMa comes to you in two versions. One runs in a browser (the "Web App" version) and the other runs in a terminal (the CLI - command line interface - version). The browser version offers a more customary interface, while the CLI version offers speed and information density. Ideally you will try both, but most people should begin with the web version.
 
 Since almost everyone using NuMa will open it in a web browser, this manual is organized so you can ignore the command-line material entirely:
 
@@ -33,7 +34,33 @@ Since almost everyone using NuMa will open it in a web browser, this manual is o
 - Read **Part 3** (Reading Your Results) whenever you want to know what a column or table means — it's the same reference whether you're looking at the web app or the terminal.
 - Read **Part 4 — Using the Web App** for how to actually operate NuMa.
 - **Skip Part 5 — Using the Command Line.** It documents a separate, developer-oriented way of running the program from a terminal. If you didn't open a terminal to start NuMa, none of Part 5 applies to you.
-- Parts 6 and 7 (Essential resources, Appendices) apply to everyone.
+- Parts 6 to 8 apply to everyone.
+
+## To get a quick start:
+
+Initial general tip: This is a complex, powerful analytical program. It can be successfully approached by moving slowly and thoughtfully, with real benefit obtained from using some of its easiest and simplest features. Start with what you understand. Use the manual to learn more. Contact us quickly rather than slowly if you start to get overwhelmed. One of our goals is to work to minimize the risk of that that happening!
+
+### 1. Download and install the program
+
+[//]: # "develop section"
+
+### 2. Go to Settings and do this:
+
+a. Go to Settings and set up your personal profile, if you want the program to immediately apply to you. 
+b. Set up your Pantry foods as available primary protein sources: Go to Appendix B below and review the listed foods. Some you will likely have. The others you should consider buying if you're serious about making plant protein sources your sole or primary protein concern.
+
+### 3. Skim Part 1, A and F, just to know they exist.
+
+While looking at section A, make a few notes about what you'd like to try first.
+
+Seriously consider what is suggested in section F - looking at the workflows can quickly show you major program features.
+
+### 4. Consider investing some time with Part 2
+
+This program necessarily employ a basic vocabulary. You have two options:
+
+1. Learn basics before diving into the programs functions and output.
+2. Dive in first, and use the "Learn more..." links you'll see to immediaately access relevant manual section so you can understand what's immediately in front of you.
 
 ---
 
@@ -41,7 +68,7 @@ Since almost everyone using NuMa will open it in a web browser, this manual is o
 
 ---
 
-### What a user can do with NutriMagnus — brief overview
+### A: What a user can do with NutriMagnus — brief overview
 
 The five items in the top navigation bar correspond to the five major things you can do with the program:
 
@@ -53,7 +80,7 @@ The five items in the top navigation bar correspond to the five major things you
 
 **Detailed how-to guides for each menu area follow later in this manual.** For output samples and screenshots, see the [Output samples](#outputSamples) section. If you prefer to learn by example before reading explanations, skip ahead to [Sample Workflows](#sample-workflows) at the end of this introduction — it points you to a set of annotated walkthroughs for whichever version of the program you use.
 
-### NutriMagnus addresses two serious problems
+### B: NutriMagnus addresses two serious problems
 
 Thoughtful diet management requires trustworthy, specific data that is only to be found in research report summaries. Both access and use of this data requires use of computers. 
 
@@ -79,13 +106,13 @@ Beyond the problem of ingesting the right mix of amino acids, there are two othe
 
 * Age, sex, and activity level differences in protein needs do exist and they are not minor. Older people, active people, and those with chronic diseases, for example, require substantially more protein than do younger healthy people, for several reasons. Almost all common discussions of dietary protein fail to address this problem, and in any case a mere discussion doesn't tell one what to eat and how much.
 
-### This protein-management problem is critical for older people and the chronically ill, and especially so for women
+### C. This protein-management problem is critical for older people and the chronically ill, and especially so for women
 
 In very brief summary, as we age, we tend to lose muscle mass, utilize dietary protein less efficiently, and simply eat less. These factors compound to create a perfect storm of vulnerability to general ill-health and the often dire consequences of falls. And these issues affect women more than men. Put simply - getting enough of the right sort of protein matters far more than most people realize. A good diet is utterly necessary, but not by itself sufficient. It must be complemented with adequate resistance exercise.
 
 There is very little discussion of the problem in the mass media. So, it is up to use as individuals to self-educate and then make carefully considered decisions about our diet. But this is almost impossible to do without serious technical help, as the nutritional factors involved go well beyond simple arithmetic or the naively simple view offered to us by the first major statements about plant protein complementarity in the very early '70s.
 
-### NutriMagnus is the missing helper
+### D. NutriMagnus is the missing helper
 
 These are technical problems that are beyond the ability of ordinary people to solve well. An easy-to-use, freely available computer program will go far toward solving this problem. This is what this project is about.
 
@@ -95,7 +122,7 @@ NuMa has been under intense development and is still being developed. Over time,
 
 Very recently, a Windows version of the program has been developed. It will soon be available for download and user trials. 
 
-### Why you can trust NutriMagnus (NuMa)
+### E. Why you can trust NutriMagnus (NuMa)
 
 **[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it used.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your Pantry, and recipes you have analyzed. For protein complement suggestions specifically, a built-in list of about 30 common protein sources fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be seeded from a small published reference table (see [Glycemic Index](#gi)) rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
@@ -103,13 +130,13 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **Appendix J has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
-**Problems may appear anyway.** As professional programmers will tell you, all programs have bugs. This is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all fixes benefit everyone who uses the program.
+**Problems may appear anyway.** As professional programmers will tell you, all programs have bugs. This is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all such fixes benefit everyone who uses the program.
 
 **How to report suspected errors or problem with the program:** (to be developed)
 
 ---
 
-### Sample Workflows [sample-workflows]
+### F. Sample Workflows [sample-workflows]
 
 **If you'd prefer to learn by example before reading explanations,** fully worked, step-by-step walkthroughs are provided later in this manual:
 
@@ -585,6 +612,52 @@ This is the same B12/iron/zinc-aware analysis described in [Diet-Aware Bioavaila
 **Multi-day protein complementarity.** Below the nutrient comparison, the trend view also pools every amino-acid-containing food logged across the window's days and runs the same [complement suggestion](#comp) analysis normally shown for a single day -- but framed for forward planning ("Add to upcoming meals" rather than "Add to your day"), since the gap it found accumulated across several days, not one meal you can still fix. A gap that only shows up when pooled across the whole window -- rather than in any single day's suggestions -- is exactly the kind of small, persistent shortfall this view is meant to catch.
 
 
+### Nutrient Plot [nutrient-plot]
+
+**Web app only.** A line chart of one or more nutrients across your logged days, day on the x-axis — useful for spotting a trend visually rather than reading a column of numbers.
+
+**Access it from Analysis → Daily Summary → "Nutrient plot".** Check up to 8 nutrients from the full nutrient list (any nutrient NuMa tracks, not just the ones you've chosen as Meals & Log columns, plus Day DCP itself) — Day DCP, Protein, Calories, Carbs, and Fiber are listed first, matching Recent Days' mandatory columns; the checkbox list scrolls vertically below them. Then choose which days to include:
+
+    (blank days-back)         Every logged day, oldest to newest.
+    Days back + Ending on     The N days ending on the date you pick
+                              (defaults to your most recent logged day).
+
+Only days that actually have a logged meal appear on the chart — a gap in your logging shows as a gap in the line, not a drop to zero.
+
+**Date labels thin out automatically on a long chart.** Every plotted day still gets a data point, but once there are more than 18 of them, showing every single date's label would crowd them into an unreadable jumble, so only every 2nd, 3rd, etc. date is labeled (always skipping at least one), spaced out enough to stay legible.
+
+If you pick nutrients with different units (e.g. Protein in g alongside Sodium in mg), they still plot together on one y-axis. In that case the y-axis shows no title or numbers at all — once nutrients are on different scales, no single number on a shared axis means the same thing for every line, so printing one would just be misleading. The gridlines are still there for a rough sense of relative up-and-down movement; each line's real values live in its own legend entry instead. Plotting a single nutrient, or several that share a unit and didn't need any scaling, still shows a normal, meaningful numbered axis.
+
+**Scaling happens in two steps, both of which you can override.**
+
+*Step 1 — Scale factor.* If one nutrient's numbers dwarf another's (e.g. Calories next to Protein, or Calcium next to Protein), the smaller one would flatten into a barely-visible wiggle along the bottom. NuMa divides every plotted nutrient except the least-variable one by a computed **Scale factor** — the ratio between the most-variable and least-variable nutrient's standard deviation across the plotted days — which brings a dominant nutrient's spread down to roughly match the smallest. The **Scale factor** field shows this computed value as a placeholder (grayed, e.g. "3.5") and is left blank by default, meaning "use that computed value." Type your own number and click Plot to override it.
+
+*Step 2 — Per-nutrient factors.* A single shared Scale factor can't perfectly equalize more than two nutrients at once — with three or more plotted, one can still end up nearly flat even after step 1. NuMa checks each nutrient's variance after step 1 and sets a floor at 25% of the most-variable nutrient's variance; anything still below that floor gets its own individual multiplier (shown as "×2.4" etc. in its legend entry) to bring it back up to a visibly readable wiggle. Each chosen nutrient gets its own **Per-nutrient factors** field, prefilled the same "blank = use the computed value" way as Scale factor — type a number to override just that one nutrient.
+
+**Highlight nutrient.** Pick which one nutrient always draws solid and (in color mode) red, so the figure you're usually comparing everything else against stands out at a glance — defaults to Day DCP whenever it's one of the chosen nutrients.
+
+**Black & white (printer-friendly).** Check this to preview the chart the way it'll look on a printer that can't print color: every line drawn in black, with the highlighted nutrient solid and every other nutrient in its own dash pattern (dashed, dotted, dash-dot, etc.) instead of a color, so lines stay distinguishable without color at all. The on-screen chart updates the instant you check or uncheck the box — no need to click Plot — so you can compare both looks side by side before deciding.
+
+**Smoothing.** Day-to-day values can be noisy enough to obscure the underlying trend. The **Smoothing (days)** field averages each point with its preceding days — a trailing moving average — to smooth that out; it defaults to 3 days. Set it to 0 to turn smoothing off and see the original, unsmoothed data. A smoothed nutrient's own scaling (steps 1 and 2 above) is calculated from the smoothed data, since that's what's actually on the chart.
+
+**Plot title.** Defaults to "Key nutrients, {start date} to {end date}" for whatever range is currently plotted, shown right on the chart itself. Edit the **Plot title** field and click Plot to use your own instead.
+
+**The legend sits below the chart**, wrapped horizontally rather than stacked in a tall column, so it never overlaps a data line and stays compact and print-friendly.
+
+**Print or save it.** "Print / Save as PDF" opens a stripped-down, print-friendly page with the chart and your browser's print dialog. "Download PNG" and "Download SVG" save the chart as an image file — see [Plot File Formats](#plot-file-formats) for which one to pick.
+
+
+#### Plot File Formats — PNG vs. SVG [plot-file-formats]
+
+Both "Download PNG" and "Download SVG" save the same chart as an image file you can keep, email, or paste into a document — they just store it differently.
+
+**PNG** is a normal photo-style image, a fixed grid of pixels. It opens everywhere without a second thought, and is the safer default if you're not sure what a document or website will accept.
+
+**SVG** stores the chart as the shapes and lines that drew it, not pixels — so it stays perfectly crisp at any size, whether you zoom way in on screen or print it on a large sheet of paper. PNG images can look blurry or blocky if enlarged; an SVG never will. The trade-off is that a few older programs don't open SVG files directly (most current web browsers, word processors, and image editors do).
+
+**Rule of thumb:** downloading to look at, email, or drop into a typical document — PNG. Need to print it large, or want it to stay sharp if someone else resizes it — SVG.
+
+
 ### Per-Day Profile Tracking [day-profile]
 
 Your profile isn't fixed forever -- weight, activity level, or even which named profile is active can change over time (illness, travel, a deliberate weight change). But your logged meals stay put. If a past day's DCP and RDA comparisons always used *today's* profile, an old day could silently get re-scored against numbers that weren't true of you back then.
@@ -803,9 +876,11 @@ The sections linked from analysis output are:
 - [My Pantry](#pantry) — [My Pantry](#gloss-my-pantry) table columns
 - [N-Day nutrient trend](#trend) — averaging intake across logged days to catch chronic shortfalls
 - [Nutrient analysis](#nutrients) — nutrient analysis table columns and groups
+- [Nutrient plot](#nutrient-plot) — line chart of chosen nutrients across logged days (web)
 - [Omega-3 fatty acids](#omega3) — ALA, EPA, DHA, and why only ALA has a Daily Goal
 - [Oxalate data](#oxalate) — [oxalate](#gloss-oxalate) data source, enabling, matching, and limitations
 - [Per-day profile tracking](#day-profile) — how a logged day stays pinned to the profile active when it was saved, and how to change it
+- [Plot File Formats](#plot-file-formats) — PNG vs. SVG, and which to pick when downloading a chart
 - [Profile Optimal targets](#optimal) — custom per-nutrient targets above the standard RDA
 - [Protein completeness](#complete) — what makes a protein "complete"
 - [Protein quality](#protein-quality) — single-food amino acid ratios table columns
@@ -1148,6 +1223,23 @@ meal) to compute them.
 The same chosen columns also appear on the Daily Summary's Recent Days table
 (Analysis -> Daily Summary), aggregated per day instead of per meal -- so a
 day's Sodium column, for example, is the sum of every meal logged that day.
+
+On both lists (web), a column with a unit stacks it onto its own line below
+the nutrient's name (e.g. "Vitamin D" over "(mcg)"), matching the built-in
+Meal DCP / Day DCP / % goal columns -- so each column takes up roughly half
+the width it otherwise would.
+
+**Recent Days also always shows four columns right after Day DCP, regardless
+of what you've chosen above:** Protein (the raw, un-adjusted total -- Day DCP
+is the digestibility-adjusted figure), Calories, Carbs (carbohydrates --
+sugars and starches), and Fiber. These aren't part of your 6-column choice
+and can't be turned off; if you'd separately picked one of them as a Meals &
+Log column, it's simply not duplicated on Recent Days.
+
+Recent Days' column headers stack a nutrient's unit onto its own line below
+the name (e.g. "Vitamin D" over "(mcg)") instead of running both on one
+line, so each column takes up roughly half the width it otherwise would --
+letting more columns fit on screen at once.
 
 
 #### Meal Items Table [meal-detail]
@@ -1521,7 +1613,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 4 — Using the Web App
 
-This is the part almost everyone needs. NuMa's web app runs in your ordinary browser — there is nothing to install and no command line involved.
+This is the program most user needs. NuMa's web app runs in your ordinary browser — there is nothing to install and no command line involved.
 
 ### Opening NutriMagnus
 
@@ -1545,9 +1637,9 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 
 ### Sample Workflows [sample-workflows-web]
 
-**Two examples showing NuMa in action, end to end.** Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
+**Use this as a tutorial!** With NuMa open in your browser, work through these step by step, paying close attention to what appears on your screen. Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
 
-**Use this as a tutorial!** With NuMa open in your browser, work through either workflow step by step, paying close attention to what appears on your screen.
+**Workflows 1–3 are a single connected thread, not a tour of every menu.** They follow one feature end to end — protein complementarity — because it's NuMa's most distinctive capability. Right after them, a short "a few more things worth trying" section highlights a few other Foods and Recipes features these three don't touch, and Workflow 4 does the same connected-thread treatment for Meals & Log paired with Analysis.
 
 ---
 
@@ -1574,6 +1666,8 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 #### Workflow 2 — Analyzing a meal with pantry items as complement candidates
 
 **What this shows:** how recording your own protein sources in the Pantry makes complement suggestions personal and practical, drawing on foods you actually have.
+
+**Before you start, set up your profile.** Click **Settings**, fill in your age, sex, weight, height, and activity level, and save. This is what lets NuMa compare your protein intake against a target built for you, rather than a generic default — you'll see it reflected in the % goal figures later in this workflow and in Workflow 4.
 
 **Step 1 — Add a food to your Pantry.** Click **Foods** in the navigation bar, then click **7. My Pantry**. On the Pantry page, type `hemp seeds` into the search box under "Add a pantry item — search for full amino acid data" and click **Search**. A results table appears — click **Add to pantry** next to the best match. (The separate "Quick add by name only" box further down the page skips the search and saves just the name, with no nutrient data — use it only when you can't find a match.)
 
@@ -1602,6 +1696,38 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 **Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen — each qualifying recipe or pantry item appears as its own candidate card under **From your pantry & recipes**.
 
 **What you learned:** NuMa's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
+
+---
+
+#### A few more things worth trying
+
+Workflows 1–3 follow one thread — protein complementarity — since it's NuMa's most distinctive feature. A few other things worth a look, once you've got the basics down:
+
+**Foods → Compare.** Add up to eight foods side by side in one table (checkboxes in the search results, a gram amount for each) — a quick way to answer "which of these is actually better for me" instead of flipping between separate detail pages. A comparison can be saved under a name and reopened later.
+
+**Foods → Custom food profiles.** Enter a homemade dish, a supplement, or a product NuMa's databases don't have (or have incompletely) — either from scratch, or by copying an existing cached food as a starting draft and editing its nutrients from there.
+
+**Recipes: use one recipe inside another.** A recipe can be added as an ingredient of another recipe — a lentil sauce used inside three different dinners, say. Edit the base recipe and save it, and NuMa automatically recalculates DCP for every recipe that depends on it, directly or through another sub-recipe in between, so a foundational recipe's protein score is never left stale in whatever uses it.
+
+**Recipes → Archive/Restore.** Hide a recipe (or a food, or a pantry entry) from search and complement suggestions without deleting it — for something you're not using right now but don't want to lose track of.
+
+---
+
+#### Workflow 4 — Logging several days, then spotting a pattern in Analysis
+
+**What this shows:** how Analysis turns a handful of logged days into something a single meal — or even a single day — can't show you: a full day's combined nutrition, and a pattern across many days.
+
+**Step 1 — Log a couple more days.** Click **Meals & Log → New Meal** and create two or three more meals across two or three different dates — reuse foods from Workflows 1–3 if you'd like to keep it quick (`brown rice cooked`, `black beans cooked`, `corn tortilla`).
+
+**Step 2 — Analyze a full day.** Open any one of the meals on a date where you logged more than one — a button reading **Analyze full day (N meals)** appears near the top of the page whenever that's the case. Click it. NuMa pools every meal logged that date into one combined analysis — total nutrients, pooled protein quality, and complement suggestions across everything you ate that day, rather than meal by meal.
+
+**Step 3 — Check the Daily Summary.** Click **Analysis → 1. Daily summary**. The Recent Days table lists every date you've logged: Day DCP, then Protein, Calories, Carbs, and Fiber (built in for every day, right after Day DCP), then your goal in grams and % of it. Click any date to reopen that day's full analysis.
+
+**Step 4 — Catch a chronic pattern with Multiday Nutrient Trend.** From the Daily Summary page, click **Multiday nutrient trend** and choose a 7, 14, or 30-day window. NuMa averages your intake over that window and compares it to your RDA targets — surfacing a nutrient that's persistently a little low, the kind of gap a single good or bad day would hide.
+
+**Step 5 — See the shape of it with Nutrient Plot.** Click **Nutrient plot** instead. Check Day DCP and Protein (or any other nutrient you're curious about), then click **Plot**. NuMa draws a line chart across your logged days — sometimes a shape on a chart makes a pattern obvious in a way a table of numbers doesn't.
+
+**What you learned:** Analyzing a full day rolls up everything you ate; Daily Summary tracks that day by day; Multiday Trend and Nutrient Plot turn many days into a pattern you can act on — two different views (numbers-against-target, and shape-over-time) of the same underlying data.
 
 ---
 
@@ -1750,9 +1876,9 @@ These conventions apply at every prompt throughout the program — menus, search
 
 ### Sample Workflows [sample-workflows-cli]
 
-**Three examples showing NuMa in action, end to end, from the terminal.** Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
+**Use this as a tutorial!** With NuMa running (`./numa.py`), work through these step by step, comparing what you see on screen to the instructions below. Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
 
-**Use this as a tutorial!** With NuMa running (`./numa.py`), work through any of the following workflows step by step, comparing what you see on screen to the instructions below.
+**Workflows 1–3 are a single connected thread, not a tour of every menu.** They follow one feature end to end — protein complementarity — because it's NuMa's most distinctive capability. Right after them, a short "a few more things worth trying" section highlights a few other Foods and Recipes features these three don't touch, and Workflow 4 does the same connected-thread treatment for Meals & Log paired with Analysis. (This mirrors the web app's Sample Workflows in Part 4.)
 
 ---
 
@@ -1783,6 +1909,8 @@ These conventions apply at every prompt throughout the program — menus, search
 #### Workflow 2 — Analyzing a meal with pantry items as complement candidates
 
 **What this shows:** how recording your own protein sources in the Pantry makes complement suggestions personal and practical, drawing on foods you actually have.
+
+**Before you start, set up your profile.** At the main menu type `5` for **Settings**, then `2` for **User profile**. Fill in your age, sex, weight, height, and activity level. This is what lets NuMa compare your protein intake against a target built for you, rather than a generic default — you'll see it reflected in the RDA comparison later in this workflow and in Workflow 4.
 
 **Step 1 — Add a food to your Pantry.** At the main menu type `1` for **Foods**, then `7` for **My pantry**. Choose the option to add a food via [USDA](#gloss-usda) search (rather than name-only entry, which skips nutrient data), then search for `hemp seeds` and pick the best match.
 
@@ -1821,6 +1949,38 @@ Your lentil soup recipe appears as a candidate. NuMa shows how many grams of the
     Considered: 6 pantry items, 4 analyzed recipes, built-in list of ~30 common protein sources.
 
 **What you learned:** NuMa's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
+
+---
+
+#### A few more things worth trying
+
+Workflows 1–3 follow one thread — protein complementarity — since it's NuMa's most distinctive feature. A few other things worth a look, once you've got the basics down:
+
+**Foods → 5 (Compare foods side-by-side).** Add up to eight foods or recipe portions and see them side by side in one table — a quick way to answer "which of these is actually better for me" instead of running separate analyses.
+
+**Foods → 8 (Custom food profiles).** Enter a homemade dish, a supplement, or a product NuMa's databases don't have (or have incompletely) — either from scratch, or by copying an existing cached food as a starting draft.
+
+**Recipes: nest one recipe inside another.** When adding ingredients to a recipe (Recipes → 1, or the ingredient-edit flow), search finds your other saved recipes too — a lentil sauce can become an ingredient in three different dinners. Edit the base recipe and save it, and NuMa automatically recalculates DCP for every recipe that depends on it, directly or through another sub-recipe in between, so a foundational recipe's protein score is never left stale in whatever uses it.
+
+**Archive what you're not using.** `y{id}` in Recipes → 2 archives or restores a recipe; `x#` does the same for a Food Cache entry; `x` (then the row ID) for a Pantry entry. None of this deletes anything — it just hides it from search and complement suggestions until you restore it.
+
+---
+
+#### Workflow 4 — Logging several days, then spotting a pattern in Analysis
+
+**What this shows:** how Analysis turns a handful of logged days into something a single meal — or even a single day — can't show you: a full day's combined nutrition, and a pattern across many days. (The web app has an equivalent workflow — see [Workflow 4](#sample-workflows-web) in Part 4.)
+
+**Step 1 — Log a couple more days.** From the main menu type `3` for **Meals & Log**, then `n` for a new meal, across two or three different dates — reuse foods from Workflows 1–3 if you'd like to keep it quick (`brown rice cooked`, `black beans cooked`, `corn tortilla`).
+
+**Step 2 — Analyze a full day.** Type `a{id}` for one of the meals on a date where you logged more than one. Since more than one meal shares that date, NuMa asks whether to analyze just this meal or combine all meals from that date — choose to combine them. NuMa pools every meal logged that date into one combined analysis: total nutrients, pooled protein quality, and complement suggestions across everything you ate that day.
+
+**Step 3 — Check the Daily Summary.** From the main menu type `4` for **Analysis**, then `1` for **Daily summary**, then `3` to list recent dates with meals logged. Pick a date to reopen that day's full analysis.
+
+**Step 4 — Catch a chronic pattern with Multiday Nutrient Trend.** From the Daily Summary menu, type `4` for **Multiday nutrient trend** and choose a 7, 14, or 30-day window. NuMa averages your intake over that window and compares it to your RDA targets — surfacing a nutrient that's persistently a little low, the kind of gap a single good or bad day would hide.
+
+**Step 5 — See the shape of it in the web app.** The terminal doesn't draw charts, but if you also have the web app open, click **Nutrient plot** on its Daily Summary page, check Day DCP and Protein, and click **Plot** — a line chart of the same days you just logged from the terminal. Both interfaces share the same underlying data, so this works regardless of which one you used to log your meals.
+
+**What you learned:** Analyzing a full day rolls up everything you ate; Daily Summary tracks that day by day; Multiday Trend turns many days into a pattern you can act on — and the web app's Nutrient Plot can show you that same pattern visually.
 
 ---
 
@@ -2454,6 +2614,7 @@ Aggregates all meals on a given day into one nutrient report.
 | **1** | Today's summary |
 | **2** | Summary for a specific date — enter `YYYY-MM-DD` at the prompt |
 | **3** | List the 30 most recent dates that have meals logged |
+| **4** | [Multiday nutrient trend](#trend) — average intake over the last 7, 14, or 30 days, to catch a chronic shortfall a single day would hide |
 
 The summary shows, in order:
 
@@ -2556,6 +2717,8 @@ Enter the food name exactly as it appears in your cache (the match is case-insen
 #### Web keyboard shortcuts [web-shortcuts]
 
 The web version supports single-key navigation using the underlined letter shown in each menu item and Settings section heading, pressed together with **Alt+Shift** (e.g. `Alt+Shift+F` opens Foods, `Alt+Shift+3` jumps to Dietary Preferences within Settings). This is a browser-side feature — it is unrelated to, and does not affect, anything stored in your NuMa data.
+
+For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse.
 
 Shortcuts are on by default. Toggle them off from **Settings → Keyboard Shortcuts** if the underlines are distracting or the key combination conflicts with your browser or OS. The setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
@@ -2888,11 +3051,55 @@ Do not be reluctant in any way to do this. When you're having a problem the caus
 
 ---
 
-## Part 7 — Appendices
+## Part 7 — Possible Additional Features
+
+---
+
+### Source citations for major assertions in the manual
+
+This is basic. Claims must be backed up, and source citations are how it's done. Numa is designed around nutrition research findings. To move quickly, these findings have not been referenced in the manual. They will be as soon as possible, which is to say as soon as the program is reliably working for a number of serious users.
+
+### Suggested optimum nutrition profiles
+
+For various major age groups, we can offer research supported optimums for critical nutrients. The user can choose to adopt them or use the as the basis for setting their own optimums, or ignore then altogether.
+
+### Research-supported maximum nutrient level suggestions
+
+For a limited number of nutrients, maximum levels of consumption have been established, the exceeding of which puts the individuals at risk in various wasy. We can identify these nutrients, levels, and risks, with full sourcing to back up claims made.
+
+### Plots of individual nutrients against their RDAs and user-established, RDAs, optimums, and maximum levels
+
+This is easily achieved once we have dealt with the fundamental data problem better (see above). This can be done by assisting the user, as suggested above.
+
+### Development of glycemic data lookup tables
+
+Such data is of interest to anyone wanting to better manage their blood sugar levels, including folks with any degree of metabolic syndrome, pre-diabetes, or outright diabetes. At present, no active use of such data exists in the program, but provision of such use is in place.
+
+### What else? Well, know this...
+
+#### Your ideas shape what gets built next {: #feature-ideas}
+
+NuMa is an evolving tool, still actively being built out. This part exists to invite you into that process: if there's something NuMa doesn't do yet that would make it more useful to you, we want to hear about it.
+
+No idea is too small, too ambitious, or too specific to your own situation. A feature that seems minor to you may turn out to matter to a lot of other users too — and one that seems highly personal often points to a real gap in the program. Several of NuMa's existing features started out as exactly this: one user's request.
+
+#### How to contribute an idea
+
+Use the same channel as [reporting a problem](#feedback):
+
+1. **Text Tom at 435-272-3332** with a brief description of what you'd like NuMa to do, and why it would help you. He will generally call you back to get the full picture.
+2. **Or email**, especially for a longer or more detailed idea — a screenshot or example is welcome if it helps explain what you have in mind. If you email, also send a text, since email isn't checked daily and a good idea shouldn't get lost in it.
+
+There's no such thing as a request that's not worth mentioning. If you're not sure whether NuMa can already do what you want, ask anyway — the answer might be a feature you hadn't found yet, or it might be a real gap worth filling.
+
+
+## Part 8 — Appendices
 
 ---
 
 ### Appendix A: Raw protein, protein quality, and protein digestibility [appendix-a]
+
+[//]: # "develop"
 
 #### The core problems with protein
 
@@ -3027,11 +3234,15 @@ Think of it like fuel efficiency: a car that gets 50 miles per gallon is efficie
 
 The [DIAAS](#gloss-diaas) table characterizes the quality of each gram. Hitting your daily protein target is about counting how many grams you eat.
 
-### Appendix B: Plant Protein Sources in the Pantry [appendix-b]
+### Appendix B: Plant protein sources in your pantry [appendix-b]
+
+("pantry" here has two meanings: your actual pantry, and the pantry database that is in numa (see the Foods dropdown menu), which is a list of foods in your actual pantry.)
 
 This appendix profiles the plant protein sources currently kept in a typical [NuMa](#gloss-numa) pantry, including nutritional yeast, which is not a plant but is grouped here because it fills the same dietary role. For each source: what form it takes, where it comes from, its essential amino acid ([EAA](#gloss-eaa)) strengths and weaknesses relative to the [FAO](#gloss-fao) reference values described in [Appendix A](#appendix-a), and its typical role in cooking.
 
 The [EAA](#gloss-eaa) notes below describe general tendencies for each food, not a substitute for running the food itself through [NuMa](#gloss-numa). Growing conditions, processing, and the specific [USDA](#gloss-usda) or Open Food Facts record behind a given entry all shift the exact numbers — use [NuMa](#gloss-numa)'s own amino acid ratio and [DIAAS](#gloss-diaas) output for precise figures. Sourcing and cost information for these foods is addressed separately, not here.
+
+BEFORE GOING ANY FURTHER: You should know that the two most useful foods below (aside from staples like whole wheat flour) are nutritional yeast and hulled hemp seed. Both are incredibly nutritious and useful. Nutritional yeast add umamai an any food, and hulled hemp seed is invaluable when eating legumes.
 
 #### Seeds
 
@@ -3613,65 +3824,89 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 ### Appendix K: Recent program updates log
 
+#### July 28
+
+* WEB APP & CLI VERSION SAMPLE WORKFLOWS: NEW WORKFLOW 4 (MEALS & ANALYSIS), PLUS A LIGHTER "MORE THINGS WORTH TRYING" SECTION -  Manual - The three existing web workflows are now explicitly framed as one connected thread (protein complementarity), not a tour of every menu. Right after them: a short, non-step-by-step section highlighting Foods → Compare, Custom food profiles, sub-recipe nesting, and Archive/Restore; then a full new Workflow 4 covering full-day analysis, Daily Summary, Multiday Nutrient Trend, and Nutrient Plot. Workflow 2 now also points new users to Settings → Your Profile before starting. [learn more...](#sample-workflows-web)
+* NUTRIENT PLOT: NEW LINE-SMOOTHING OPTION -  Analysis > Daily Summary > Nutrient plot (web) - A new **Smoothing (days)** field applies a trailing moving average to each plotted nutrient, defaulting to 3 days, to see the underlying trend through day-to-day noise. Set it to 0 to go back to the original, unsmoothed data. [learn more...](#nutrient-plot)
+* NUTRIENT PLOT: CHOOSE WHICH NUTRIENT IS HIGHLIGHTED (DEFAULT: DAY DCP) -  Analysis > Daily Summary > Nutrient plot (web) - The "always red and solid" line was previously always Day DCP. A new **Highlight nutrient** dropdown lets you pick any currently-plotted nutrient instead — still defaults to Day DCP whenever it's one of your chosen nutrients. [learn more...](#nutrient-plot)
+* NUTRIENT PLOT: BLACK & WHITE PREVIEW FOR NON-COLOR PRINTERS -  Analysis > Daily Summary > Nutrient plot (web) - A new "Black & white (printer-friendly)" checkbox renders every line in black, using a distinct dash pattern per nutrient instead of color (the highlighted nutrient stays solid). Works on-screen so you can preview it before printing, not just when printing. [learn more...](#nutrient-plot)
+* NEW MANUAL SECTION: PNG VS. SVG, AND WHICH TO PICK -  Manual - Added a plain-language explanation of the Nutrient Plot's two download formats, linked from a new "Which format should I pick?" line next to the Download buttons. [learn more...](#plot-file-formats)
+* NUTRIENT PLOT: SCALING NOW USES VARIANCE, NOT A FIXED ÷100, AND YOU CAN OVERRIDE IT -  Analysis > Daily Summary > Nutrient plot (web) - The previous fixed "divide by 100" rule could overshoot, turning the nutrient it was meant to rescue into the flat one instead (reported: Protein + Carbohydrates). Scaling now computes a factor from the ratio of the most-variable to least-variable plotted nutrient's standard deviation, which brings a dominant line down to roughly match the smallest without over- or under-correcting. A new **Scale factor** field on the plot page shows this computed value and lets you type your own instead. [learn more...](#nutrient-plot)
+
+#### July 27
+
+* NUTRIENT PLOT NOW AUTO-SCALES A DOMINANT NUTRIENT SO IT DOESN'T DROWN OUT A SMALLER ONE -  Analysis > Daily Summary > Nutrient plot (web) - Plotting Calories next to Protein (or Calcium next to Protein) used to flatten the smaller line to a barely-visible wiggle at the bottom. Any nutrient whose average is 5.5x or more the smallest plotted nutrient's average is now divided by 100 before plotting, noted right in its legend entry (e.g. "Calories (kcal) ÷100"). [learn more...](#nutrient-plot)
+* RECENT DAYS NOW ALWAYS SHOWS PROTEIN, CALORIES, CARBS, AND FIBER -  Analysis > Daily Summary: Recent Days (CLI + web) - Four columns now always appear right after Day DCP: Protein (the raw, un-adjusted total — Day DCP is the digestibility-adjusted figure), Calories, Carbs (carbohydrates — sugars and starches), and Fiber. These are separate from your 6-column choice and can't be turned off; if you'd already picked one of them as an extra column, it's simply not shown twice. [learn more...](#meal-columns)
+* NUTRIENT PLOT'S PICKER NOW LEADS WITH PROTEIN/CALORIES/CARBS/FIBER, INCLUDES CALORIES, AND SCROLLS VERTICALLY -  Analysis > Daily Summary > Nutrient plot (web) - The nutrient checklist now lists Protein, Calories, Carbohydrates (Sugars, starches), and Fiber first, matching Recent Days' mandatory columns — Calories wasn't previously plottable at all. The list is now a compact scrolling vertical column instead of a wide multi-per-row grid. [learn more...](#nutrient-plot)
+* NEW: LINE PLOT ANY NUTRIENT ACROSS YOUR LOGGED DAYS -  Analysis > Daily Summary > Nutrient plot (web) - Pick up to 8 nutrients and a range of days (all logged days, or N days back from a chosen date), and NuMa draws a line chart with day on the x-axis. Missing days show as a gap in the line rather than a drop to zero. Printable via a stripped-down print page, and downloadable as a PNG. [learn more...](#nutrient-plot)
+* MEAL IDS COLUMN IS WIDER SO ROWS AREN'T AS TALL -  Analysis > Food Use in Meals (web) - The Meal IDs column at the right of the results table is now about four times wider, so a food used across many meals lists its meal numbers with far less line-wrapping. [learn more...](#fooduse)
+* CLICKING A MEAL ID FROM FOOD USE IN MEALS NOW GIVES YOU A WAY BACK -  Analysis > Food Use in Meals (web) - Clicking one of the meal numbers in the Meal IDs column now shows a "↩ Back to analysis" pill next to the breadcrumb on the meal page you land on, returning you to the exact search results you came from — matching how the main-nav breadcrumb already flags a memory-driven landing. [learn more...](#fooduse)
+* A MEAL'S PAGE NOW SHOWS ITS ID NUMBER -  Meals & Log (web) - A meal's page title now shows its ID number in parentheses next to the date, so you can confirm you landed on the meal you meant to — useful right after following a Meal IDs link from Food Use in Meals.
+
+#### July 26
+
+* SEARCH RESULTS NOW RANK YOUR OWN RECIPES BELOW PANTRY AND CACHE FOODS, BUT STILL ABOVE USDA/OPEN FOOD FACTS -  Foods: Search / Meals & Log / Recipes: Add Ingredient (web) - Both sort modes previously treated Pantry, Cache, and your own Recipes as one tied-for-first group ahead of USDA/OFF results. Recipes now form their own middle tier — behind Pantry/Cache, still ahead of external results — so a recipe with a similar name no longer outranks an exact match already sitting in your Cache. [learn more...](#food-search)
+* PRINTED RECIPE PAGES NOW SHOW THE RECIPE'S ID AND PROTEIN SCORE -  Recipes: Print/save recipe (web) - The print-friendly recipe page's header now lists the recipe's ID number and DCP in grams alongside servings and total yield, matching the detail you'd see on screen. [learn more...](#recipes-menu-web)
+
 #### July 25
 
-* RECIPE INGREDIENT SEARCH SHOWS AMINO ACID STATUS ON THE WEB, MATCHING THE TERMINAL APP -  Recipes: Add Ingredient (web) - The search results table for adding a recipe ingredient now shows the AA column already used everywhere else, so you can spot amino-acid data availability before adding a food. [learn more...](user-manual.md#food-search)
-* FOODS SEARCH RESULTS PERSIST WHEN YOU STEP AWAY AND COME BACK -  Foods: Search (web) - Like the meal and recipe "add" searches already did, leaving to check something else and returning to Foods: Search now restores your last query and results instead of starting over. [learn more...](user-manual.md#search-memory)
-* MAIN NAVIGATION REMEMBERS WHERE YOU WERE, PER SECTION -  Recipes / Meals & Log / Settings / Manual (web) - Clicking one of these in the top navigation now returns you to the exact page you were last on in that section — e.g. the specific recipe you were editing — instead of always jumping to its list page. When that memory is what brought you back, the page's breadcrumb is highlighted with a one-click "All recipes"/"All meals" link back to the plain list. [learn more...](user-manual.md#search-memory)
-* A QUICK-RETURN LINK APPEARS NEXT TO FOODS WHEN THERE'S SOMEWHERE TO GO BACK TO -  Foods (web) - Foods is a drop-down of separate destinations, so it doesn't jump back the same way — instead, a small "↩" link appears next to it whenever you've viewed a food, showing that food's name, so you can return to it in one click after wandering off to Recipes or Meals & Log. [learn more...](user-manual.md#search-memory)
-* AMOUNT FIELDS NOW SAY DIRECTLY THAT A PLAIN NUMBER MEANS GRAMS -  Foods / Recipes / Meals & Log (CLI + web) - Every place you type a portion amount now states, right there, that entering just a number with no unit is read as grams — previously this was true but unstated. [learn more...](user-manual.md#portion-formats)
-* A RECIPE'S PROTEIN SCORE NOW UPDATES ITS PARENT RECIPES TOO -  Recipes - Changing a recipe that's used as an ingredient inside other recipes now recalculates DCP for those parent recipes as well, not just the one you edited directly — so a nested recipe's protein score is never left stale in whatever uses it. [learn more...](user-manual.md#recipes-menu-web)
+* RECIPE INGREDIENT SEARCH SHOWS AMINO ACID STATUS ON THE WEB, MATCHING THE TERMINAL APP -  Recipes: Add Ingredient (web) - The search results table for adding a recipe ingredient now shows the AA column already used everywhere else, so you can spot amino-acid data availability before adding a food. [learn more...](#food-search)
+* FOODS SEARCH RESULTS PERSIST WHEN YOU STEP AWAY AND COME BACK -  Foods: Search (web) - Like the meal and recipe "add" searches already did, leaving to check something else and returning to Foods: Search now restores your last query and results instead of starting over. [learn more...](#search-memory)
+* MAIN NAVIGATION REMEMBERS WHERE YOU WERE, PER SECTION -  Recipes / Meals & Log / Settings / Manual (web) - Clicking one of these in the top navigation now returns you to the exact page you were last on in that section — e.g. the specific recipe you were editing — instead of always jumping to its list page. When that memory is what brought you back, the page's breadcrumb is highlighted with a one-click "All recipes"/"All meals" link back to the plain list. [learn more...](#search-memory)
+* A QUICK-RETURN LINK APPEARS NEXT TO FOODS WHEN THERE'S SOMEWHERE TO GO BACK TO -  Foods (web) - Foods is a drop-down of separate destinations, so it doesn't jump back the same way — instead, a small "↩" link appears next to it whenever you've viewed a food, showing that food's name, so you can return to it in one click after wandering off to Recipes or Meals & Log. [learn more...](#search-memory)
+* AMOUNT FIELDS NOW SAY DIRECTLY THAT A PLAIN NUMBER MEANS GRAMS -  Foods / Recipes / Meals & Log (CLI + web) - Every place you type a portion amount now states, right there, that entering just a number with no unit is read as grams — previously this was true but unstated. [learn more...](#portion-formats)
+* A RECIPE'S PROTEIN SCORE NOW UPDATES ITS PARENT RECIPES TOO -  Recipes - Changing a recipe that's used as an ingredient inside other recipes now recalculates DCP for those parent recipes as well, not just the one you edited directly — so a nested recipe's protein score is never left stale in whatever uses it. [learn more...](#recipes-menu-web)
 * SUB-RECIPE INGREDIENTS ARE SCORED AS A WHOLE, NOT BROKEN BACK INTO THEIR RAW INGREDIENTS -  Recipes - When a recipe is used as an ingredient in another recipe, its protein-quality (DIAAS/DCP) contribution is now based on its own already-computed nutrient profile as a single item, instead of being decomposed back into its raw ingredients — so a sub-recipe deliberately built to complement its own limiting amino acid (e.g. a nut butter blended with a seed) gets credit for that pairing instead of it being hidden.
 * MANUAL'S TABLE OF CONTENTS: CLICKING A COLLAPSED SECTION'S TITLE ALSO OPENS IT -  Manual (web) - Clicking a collapsed section's heading text in the sidebar contents now expands it in addition to taking you there, so it never looks "stuck" shut.
 
 #### July 24
 
-* WEB APP'S DIGESTIBLE COMPLETE PROTEIN EXPLANATION NOW MATCHES THE CLI WHEN IT'S CAPPED -  Meals & Log / Full Day / Recipes / Daily Summary (web) - When DCP is capped at your absorbed-protein ceiling, the web app now shows the same "capped" breakdown the terminal app already showed, instead of a plain raw-protein-times-DIAAS equation that no longer added up. A new "Learn more" link takes you straight to the explanation below. [learn more...](user-manual.md#dcp-cap)
+* WEB APP'S DIGESTIBLE COMPLETE PROTEIN EXPLANATION NOW MATCHES THE CLI WHEN IT'S CAPPED -  Meals & Log / Full Day / Recipes / Daily Summary (web) - When DCP is capped at your absorbed-protein ceiling, the web app now shows the same "capped" breakdown the terminal app already showed, instead of a plain raw-protein-times-DIAAS equation that no longer added up. A new "Learn more" link takes you straight to the explanation below. [learn more...](#dcp-cap)
 * MANUAL'S TABLE OF CONTENTS NOW HIGHLIGHTS WHERE YOU ARE -  Manual (web) - The sidebar contents list now highlights the section you're currently reading as you scroll, and automatically expands a collapsed section if that's where you land, so you can always see the larger context of what's on screen.
 
 #### July 23
 
-* LOGGED DAYS KEEP THE USER PROFILE ACTIVE AT THE TIME THEY WERE LOGGED -  Analysis > Daily Summary - Each logged day now remains compared against whichever profile was active when you logged it, not whatever profile is active today — switching profiles for illness, travel, or a weight change no longer silently rescores your past days. You can also manually reassign which profile a specific day is compared against. [learn more...](user-manual.md#day-profile)
-* RECENT DAYS SHOW YOUR DAILY DCP GOAL AND YOUR CHOSEN NUTRIENT COLUMNS -  Analysis > Daily Summary: Recent Days - Each day now shows its own protein (DCP) goal in grams, not just a percentage, and shows the same extra nutrient columns you chose for the Meals & Log list. [learn more...](user-manual.md#meal-columns)
-* CHOOSE HOW MANY MEALS TO SHOW; CLEARER MEALS & LOG COLUMNS -  Meals & Log - Choose exactly how many meals to show via a number box, in place of the old "show all"/"show recent 9" toggle; Calories now appears before the DCP columns; column headers are stacked to fit more on screen; the "Search meal history" link now explains what it searches. [learn more...](user-manual.md#meals-list)
-* MULTIDAY NUTRIENT TREND NOW LEADS WITH YOUR DCP AVERAGE -  Analysis > Multiday Nutrient Trend - This average-over-time view now leads with your average Digestible Complete Protein (DCP) instead of raw protein, since raw protein alone overstates what your body can actually use. [learn more...](user-manual.md#trend)
+* LOGGED DAYS KEEP THE USER PROFILE ACTIVE AT THE TIME THEY WERE LOGGED -  Analysis > Daily Summary - Each logged day now remains compared against whichever profile was active when you logged it, not whatever profile is active today — switching profiles for illness, travel, or a weight change no longer silently rescores your past days. You can also manually reassign which profile a specific day is compared against. [learn more...](#day-profile)
+* RECENT DAYS SHOW YOUR DAILY DCP GOAL AND YOUR CHOSEN NUTRIENT COLUMNS -  Analysis > Daily Summary: Recent Days - Each day now shows its own protein (DCP) goal in grams, not just a percentage, and shows the same extra nutrient columns you chose for the Meals & Log list. [learn more...](#meal-columns)
+* CHOOSE HOW MANY MEALS TO SHOW; CLEARER MEALS & LOG COLUMNS -  Meals & Log - Choose exactly how many meals to show via a number box, in place of the old "show all"/"show recent 9" toggle; Calories now appears before the DCP columns; column headers are stacked to fit more on screen; the "Search meal history" link now explains what it searches. [learn more...](#meals-list)
+* MULTIDAY NUTRIENT TREND NOW LEADS WITH YOUR DCP AVERAGE -  Analysis > Multiday Nutrient Trend - This average-over-time view now leads with your average Digestible Complete Protein (DCP) instead of raw protein, since raw protein alone overstates what your body can actually use. [learn more...](#trend)
 * SEARCH BOXES REMEMBER YOUR LAST SEARCH -  Meals & Log: Add Food or Recipe search / Recipes: Add Ingredient search (web) - If you follow a link away to look something up and come straight back, your last search and its results are restored automatically; a new "Reset search" button clears it back to the page's default.
-* CONFIRM AMINO ACID DATA FOR SEARCH RESULTS ON DEMAND -  Foods: Search (web) - You can select foods showing the uncertain "~✓" amino-acid badge and click "Fetch full details for selected" to confirm, on demand, whether they truly have amino acid data. [learn more...](user-manual.md#food-search)
-* ESTIMATE AMINO ACIDS BY COPYING FROM ANOTHER FOOD -  Foods: Drafted Food Profiles / Food Cache edit (CLI); Custom Food Profiles edit (web) - When entering a food's amino acid data, you can now search for and pick a similar food to copy amino acids from instead of typing them in by hand — values are scaled automatically to match the food's own protein content, and a note documenting the source is suggested for you. [learn more...](user-manual.md#drafted-foods)
-* SEARCH RESULTS FOR RAW/WHOLE FOODS NO LONGER GET BURIED BEHIND BRANDED PRODUCTS -  Foods: Search / Meals & Log: Add Food or Recipe / Recipes: Add Ingredient (CLI + web) - USDA's own search ranking can bury a plain food like "Potatoes, flesh and skin, raw" — the version most likely to carry amino acid data — under branded and prepared-dish matches for the same word; the app now searches deeper to find them, and how deep is configurable in Settings > Advanced settings (0 = no limit). [learn more...](user-manual.md#food-data)
-* CLICKING "MEALS" OR "RECIPES" IN THE BREADCRUMB NOW STARTS A FRESH SEARCH -  Meals & Log / Recipes: Edit (web) - Following the breadcrumb back to the list now clears your remembered search, so you land on a clean page; using the top "Meals & Log" menu link still brings your search back whenever you return to it. [learn more...](user-manual.md#search-memory)
-* DAILY SUMMARY'S CHOSEN NUTRIENT COLUMNS NOW SHOW DATA FOR EVERY DAY -  Analysis > Daily Summary: Recent Days (CLI + web) - Fixed a bug where your chosen extra nutrient columns only had data for the couple of days you'd most recently opened; all logged days now show their numbers. [learn more...](user-manual.md#meal-columns)
+* CONFIRM AMINO ACID DATA FOR SEARCH RESULTS ON DEMAND -  Foods: Search (web) - You can select foods showing the uncertain "~✓" amino-acid badge and click "Fetch full details for selected" to confirm, on demand, whether they truly have amino acid data. [learn more...](#food-search)
+* ESTIMATE AMINO ACIDS BY COPYING FROM ANOTHER FOOD -  Foods: Drafted Food Profiles / Food Cache edit (CLI); Custom Food Profiles edit (web) - When entering a food's amino acid data, you can now search for and pick a similar food to copy amino acids from instead of typing them in by hand — values are scaled automatically to match the food's own protein content, and a note documenting the source is suggested for you. [learn more...](#drafted-foods)
+* SEARCH RESULTS FOR RAW/WHOLE FOODS NO LONGER GET BURIED BEHIND BRANDED PRODUCTS -  Foods: Search / Meals & Log: Add Food or Recipe / Recipes: Add Ingredient (CLI + web) - USDA's own search ranking can bury a plain food like "Potatoes, flesh and skin, raw" — the version most likely to carry amino acid data — under branded and prepared-dish matches for the same word; the app now searches deeper to find them, and how deep is configurable in Settings > Advanced settings (0 = no limit). [learn more...](#food-data)
+* CLICKING "MEALS" OR "RECIPES" IN THE BREADCRUMB NOW STARTS A FRESH SEARCH -  Meals & Log / Recipes: Edit (web) - Following the breadcrumb back to the list now clears your remembered search, so you land on a clean page; using the top "Meals & Log" menu link still brings your search back whenever you return to it. [learn more...](#search-memory)
+* DAILY SUMMARY'S CHOSEN NUTRIENT COLUMNS NOW SHOW DATA FOR EVERY DAY -  Analysis > Daily Summary: Recent Days (CLI + web) - Fixed a bug where your chosen extra nutrient columns only had data for the couple of days you'd most recently opened; all logged days now show their numbers. [learn more...](#meal-columns)
 
 #### July 22
 
-* CHOOSE YOUR OWN EXTRA NUTRIENT COLUMNS FOR MEALS & LOG -  Meals & Log - You can now choose up to 6 extra nutrient columns, and their order, to show on the Meals & Log list, in both the terminal app and the web app. [learn more...](user-manual.md#meal-columns)
+* CHOOSE YOUR OWN EXTRA NUTRIENT COLUMNS FOR MEALS & LOG -  Meals & Log - You can now choose up to 6 extra nutrient columns, and their order, to show on the Meals & Log list, in both the terminal app and the web app. [learn more...](#meal-columns)
 * SEE EACH FOOD OR RECIPE'S ID AND DATA SOURCE AT A GLANCE -  Foods / Recipes / Meals & Log - Every food and recipe name shown anywhere in the program now displays its ID number and data source (USDA, Open Food Facts, user-drafted, or recipe) right underneath it, so you can always trace what you're looking at back to its source.
 * RECIPE PROTEIN COMPLETENESS RECALCULATES AUTOMATICALLY -  Recipes - A recipe's protein completeness (DCP) is now recalculated automatically whenever you change its ingredients or servings, instead of only when you explicitly ask for it.
-* MANUAL NOW SPLIT INTO WEB APP AND COMMAND LINE PARTS -  Manual - The manual is now split into separate Web App and Command Line parts, so web users (most users) no longer have to read past command-line-only instructions. [learn more...](user-manual.md#how-to-read-this-manual)
+* MANUAL NOW SPLIT INTO WEB APP AND COMMAND LINE PARTS -  Manual - The manual is now split into separate Web App and Command Line parts, so web users (most users) no longer have to read past command-line-only instructions. [learn more...](#how-to-read-this-manual)
 
 #### July 20
 
-* ARCHIVE FOODS, PANTRY ENTRIES, AND RECIPES YOU'RE NOT USING -  Foods / My Pantry / Recipes - You can now archive (reserve) a food, pantry entry, or recipe to hide it from search, complement suggestions, and everyday lists without deleting it or breaking anything that still references it — one click in the web app (Archive/Restore button, plus a Show Archived checkbox), or one command in the terminal app. [learn more...](user-manual.md#archive)
+* ARCHIVE FOODS, PANTRY ENTRIES, AND RECIPES YOU'RE NOT USING -  Foods / My Pantry / Recipes - You can now archive (reserve) a food, pantry entry, or recipe to hide it from search, complement suggestions, and everyday lists without deleting it or breaking anything that still references it — one click in the web app (Archive/Restore button, plus a Show Archived checkbox), or one command in the terminal app. [learn more...](#archive)
 
 #### July 19
 
-* IRON, ZINC, AND B12 GUIDANCE ADAPTS TO YOUR DIETARY PREFERENCE -  Analysis / Settings - If your dietary preference is set to vegetarian or plant-based, your iron and zinc daily targets are now automatically raised to reflect their lower absorption from plant foods, with an explanatory note; a warning also appears if your logged vitamin B12 intake is critically low on a plant-only diet. [learn more...](user-manual.md#diet-bioavailability)
-* TRACK NUTRIENT TRENDS OVER 7, 14, OR 30 DAYS -  Analysis > Multiday Nutrient Trend - New view: average your nutrient intake over the last 7, 14, or 30 days against your targets, to catch a chronic shortfall that a single day's numbers would hide. [learn more...](user-manual.md#trend)
+* IRON, ZINC, AND B12 GUIDANCE ADAPTS TO YOUR DIETARY PREFERENCE -  Analysis / Settings - If your dietary preference is set to vegetarian or plant-based, your iron and zinc daily targets are now automatically raised to reflect their lower absorption from plant foods, with an explanatory note; a warning also appears if your logged vitamin B12 intake is critically low on a plant-only diet. [learn more...](#diet-bioavailability)
+* TRACK NUTRIENT TRENDS OVER 7, 14, OR 30 DAYS -  Analysis > Multiday Nutrient Trend - New view: average your nutrient intake over the last 7, 14, or 30 days against your targets, to catch a chronic shortfall that a single day's numbers would hide. [learn more...](#trend)
 * IODINE AND SELENIUM NOW TRACKED ALONGSIDE YOUR OTHER MINERALS -  Settings > Nutrient Targets - Iodine and selenium are now tracked alongside your other minerals throughout the program.
-* LOAD RECOMMENDED NUTRIENT TARGETS WITH ONE CLICK; SAFETY LIMITS APPLY AUTOMATICALLY -  Settings > Nutrient Targets - A new "load recommended optimal targets" action fills in sensible defaults (e.g. Vitamin D, EPA+DHA) for any nutrient you haven't already customized; built-in safe upper limits (iron, zinc, vitamin A, B6, iodine, selenium) now apply automatically even where you haven't set a personal max. [learn more...](user-manual.md#optimal)
-* MY PANTRY NOW MATCHES FOOD CACHE COLUMNS; LINK A NAME-ONLY ENTRY TO REAL DATA -  My Pantry / Food Cache (web) - My Pantry now shows Type, AA, GI, and DIAAS columns matching the Food Cache; a new "Link a food" action lets you attach a name-only pantry entry to a searched food instead of creating a duplicate. [learn more...](user-manual.md#pantry)
+* LOAD RECOMMENDED NUTRIENT TARGETS WITH ONE CLICK; SAFETY LIMITS APPLY AUTOMATICALLY -  Settings > Nutrient Targets - A new "load recommended optimal targets" action fills in sensible defaults (e.g. Vitamin D, EPA+DHA) for any nutrient you haven't already customized; built-in safe upper limits (iron, zinc, vitamin A, B6, iodine, selenium) now apply automatically even where you haven't set a personal max. [learn more...](#optimal)
+* MY PANTRY NOW MATCHES FOOD CACHE COLUMNS; LINK A NAME-ONLY ENTRY TO REAL DATA -  My Pantry / Food Cache (web) - My Pantry now shows Type, AA, GI, and DIAAS columns matching the Food Cache; a new "Link a food" action lets you attach a name-only pantry entry to a searched food instead of creating a duplicate. [learn more...](#pantry)
 
 #### July 16
 
-* ANALYZING A MEAL NOW AUTO-SAVES ITS DCP AND CALORIES; ONE CALCULATE COMMAND FOR ALL/30/10 DAYS -  Meals & Log - Analyzing a meal now automatically saves its computed DCP and calories instead of only displaying them; a single Calculate command replaces the old p-command, letting you compute DCP and calories for all meals, the last 30 days, or the last 10 days at once. [learn more...](user-manual.md#meals-list)
+* ANALYZING A MEAL NOW AUTO-SAVES ITS DCP AND CALORIES; ONE CALCULATE COMMAND FOR ALL/30/10 DAYS -  Meals & Log - Analyzing a meal now automatically saves its computed DCP and calories instead of only displaying them; a single Calculate command replaces the old p-command, letting you compute DCP and calories for all meals, the last 30 days, or the last 10 days at once. [learn more...](#meals-list)
 
 #### July 15
 
-* SET A PERSONAL TARGET ABOVE THE RDA, PLUS A DAILY SAFETY CAP, FOR ANY NUTRIENT -  Settings > Nutrient Targets - You can now set a personal target above the standard RDA for any nutrient (e.g. more vitamin D than the population minimum) and/or a personal daily safety cap — tracked alongside RDA everywhere nutrients are shown, with a warning color when your intake is near or over your cap. [learn more...](user-manual.md#optimal)
+* SET A PERSONAL TARGET ABOVE THE RDA, PLUS A DAILY SAFETY CAP, FOR ANY NUTRIENT -  Settings > Nutrient Targets - You can now set a personal target above the standard RDA for any nutrient (e.g. more vitamin D than the population minimum) and/or a personal daily safety cap — tracked alongside RDA everywhere nutrients are shown, with a warning color when your intake is near or over your cap. [learn more...](#optimal)
 * UNSAVED FORM CHANGES NOW WARN YOU BEFORE YOU NAVIGATE AWAY -  Web app - Any editable form now warns you if you try to navigate away with unsaved changes, and shows a colored Save button when something's been edited.
-* NEW DIAAS-BY-PROTEIN-SOURCE QUICK-REFERENCE TABLE IN THE MANUAL -  Manual - Added a DIAAS-by-protein-source quick-reference table for hand-estimating a packaged food's protein quality when it has no amino acid data. [learn more...](user-manual.md#diaas-estimate-table)
+* NEW DIAAS-BY-PROTEIN-SOURCE QUICK-REFERENCE TABLE IN THE MANUAL -  Manual - Added a DIAAS-by-protein-source quick-reference table for hand-estimating a packaged food's protein quality when it has no amino acid data. [learn more...](#diaas-estimate-table)
 * FIND AND RELINK BROKEN RECIPE REFERENCES -  Recipes - A recipe ingredient that points to a food or recipe no longer in your cache (a "broken reference") can now be found and relinked, from a new Broken Recipe References list.
-* FOOD USE IN MEALS NOW GROUPS CORRECTLY BY RECIPE, EVEN AFTER A RENAME -  Analysis > Food Use in Meals - Frequency-of-use history now groups correctly by recipe, so renaming a recipe no longer splits its history into two separate entries. [learn more...](user-manual.md#fooduse)
+* FOOD USE IN MEALS NOW GROUPS CORRECTLY BY RECIPE, EVEN AFTER A RENAME -  Analysis > Food Use in Meals - Frequency-of-use history now groups correctly by recipe, so renaming a recipe no longer splits its history into two separate entries. [learn more...](#fooduse)
 * VOLUME AMOUNTS FOR DRIED HERBS AND SPICES NO LONGER REJECTED -  Foods - Entering a volume amount (e.g. teaspoons) for dried herbs and spices like red pepper flakes is no longer rejected for lack of density data.
 
 ---
