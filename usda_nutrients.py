@@ -567,6 +567,17 @@ _COMPLEMENT_TABLE: list[dict] = [
 _COMPLEMENT_INDEX: dict[str, dict] = {c["name"].lower(): c for c in _COMPLEMENT_TABLE}
 
 
+def complement_table_names() -> list[str]:
+    """Names of all foods in the internal curated complement table.
+
+    Used by callers (CLI render.py, web backend.py) to search the user's own
+    food cache for a real match to each curated entry before falling back to
+    the entry's generic literature profile — see suggest_complements()'s
+    cache_candidates parameter.
+    """
+    return [c["name"] for c in _COMPLEMENT_TABLE]
+
+
 def _find_complement_by_name(food_name: str) -> dict | None:
     """Match a food name against the complement table by keyword, return entry or None."""
     name_lower = food_name.lower()
@@ -580,6 +591,37 @@ def _find_complement_by_name(food_name: str) -> dict | None:
         if primary_kw in name_lower or name_lower in primary_kw:
             return entry
     return None
+
+
+def _estimate_aa_from_curated(nutrients: Nutrients, food_name: str) -> Nutrients | None:
+    """Merge in amino acid data from the curated complement table, scaled to
+    `nutrients`' own protein content. Returns None if `nutrients` already has
+    real AA data, no curated entry matches `food_name`, or either side has no
+    usable protein figure to scale by.
+
+    This is the "auto-estimate" fallback used by suggest_complements() for a
+    real cached/pantry food that lacks its own amino acid panel — distinct
+    from the user-driven "estimate amino acids from another food" tool, which
+    lets the user pick any food (not just this ~20-entry table) as the source
+    and persists the result. This one is recomputed fresh each call and never
+    saved, so it can't accidentally preempt that more accurate, user-chosen
+    estimate.
+    """
+    if has_amino_acid_data(nutrients):
+        return None
+    entry = _find_complement_by_name(food_name)
+    if not entry:
+        return None
+    ref_protein = entry["nutrients"].get("protein_g", 0)
+    actual_protein = nutrients.get("protein_g", 0)
+    if ref_protein <= 0 or actual_protein <= 0:
+        return None
+    scale = actual_protein / ref_protein
+    merged = dict(nutrients)
+    for k, v in entry["nutrients"].items():
+        if k.startswith("aa_"):
+            merged[k] = v * scale
+    return merged
 
 
 def get_complement_nutrients(food_name: str) -> Nutrients | None:
@@ -694,6 +736,7 @@ def suggest_complements(
     base_digestibility: float = 1.0,
     base_food_name: str | None = None,
     max_improver_grams: float = 300,
+    cache_candidates: list[dict] | None = None,
 ) -> dict[str, list[dict]]:
     """
     Suggest complement foods to close essential amino acid gaps.
@@ -702,18 +745,28 @@ def suggest_complements(
         "name": str
         "nutrients": dict | None   (per-100g; None if not in USDA cache)
         "diaas": float | None
+    cache_candidates: real foods from the user's broader food cache (not just
+        pantry) that match a curated-table entry by name — same dict shape as
+        pantry_candidates. When one is found for a given curated entry, it's
+        used in place of that entry's generic profile in the "general" tier
+        (see complement_table_names() for the names to search the cache for).
     diet_pref: "all" includes all sources; "vegetarian" allows dairy/eggs but not
         meat/fish; "plant_only" excludes all animal-sourced entries.
     base_food_name: used to look up true ileal digestibility for DIAAS-improver
         calculations; falls back to base_digestibility if None.
 
+    Any candidate (pantry or general) that has real nutrient data but lacks its
+    own amino acid panel is auto-estimated via the curated table (scaled to its
+    own protein content) rather than dropped — see _estimate_aa_from_curated().
+    Result dicts carry "estimated": True when this happened.
+
     Returns {"pantry": [...], "general": [...], "diaas_improvers": [...]}
     Gap-closer dicts contain:
-        name, grams, new_scores, new_complete, gaps_closed,
+        name, grams, new_scores, new_complete, gaps_closed, estimated,
         remaining_gaps, protein_added, digestible_protein_added, diaas
     DIAAS-improver dicts contain:
         name, steps (list of {grams, new_diaas}), grams (largest step),
-        current_diaas, new_diaas (at largest step),
+        current_diaas, new_diaas (at largest step), estimated,
         protein_added, digestible_protein_added, diaas
     """
     gaps = get_aa_gaps(base_nutrients, digestibility=base_digestibility)
@@ -847,12 +900,21 @@ def suggest_complements(
                 continue
             cand_nutrients = cand.get("nutrients")
             cand_diaas = cand.get("diaas") or get_diaas(name)
+            estimated = False
             # If no nutrients from cache, try the complement table
             if cand_nutrients is None:
                 entry = _find_complement_by_name(name)
                 if entry:
                     cand_nutrients = entry["nutrients"]
                     cand_diaas = cand_diaas or entry["diaas"]
+            elif not has_amino_acid_data(cand_nutrients):
+                # Real food, real macros, but no AA panel of its own — auto-estimate
+                # from the curated table rather than silently dropping it.
+                merged = _estimate_aa_from_curated(cand_nutrients, name)
+                if merged is not None:
+                    cand_nutrients = merged
+                    cand_diaas = cand_diaas or get_diaas(name)
+                    estimated = True
             if cand_nutrients is None:
                 continue
             # Try gap-closer first (targeted AA-ratio formula)
@@ -861,7 +923,7 @@ def suggest_complements(
                 metrics = _score_candidate(cand_nutrients, cand_diaas, target_aa)
                 if metrics is not None:
                     break
-            extra = {"recipe_id": recipe_id, "serving_weight_g": serving_weight_g}
+            extra = {"recipe_id": recipe_id, "serving_weight_g": serving_weight_g, "estimated": estimated}
             if metrics is not None:
                 seen_names.add(name)
                 gap_closers.append({"name": name, "fdc_id": fdc_id, **extra, **metrics})
@@ -892,12 +954,28 @@ def suggest_complements(
             return bool(c.get("dairy_egg", False))
         return False  # plant_only
 
-    general_candidates = [
-        {"name": c["name"], "fdc_id": c.get("fdc_id"), "nutrients": c["nutrients"], "diaas": c["diaas"]}
-        for c in _COMPLEMENT_TABLE
-        if c["name"].lower() not in pantry_names_lower
-        and _diet_allows(c)
-    ]
+    # Index cache_candidates (real foods matching a curated entry by name) so the
+    # general tier prefers real cached data over the entry's generic profile.
+    cache_by_curated_key: dict[str, dict] = {}
+    for cc in (cache_candidates or []):
+        entry = _find_complement_by_name(cc["name"])
+        if entry and entry["name"].lower() not in cache_by_curated_key:
+            cache_by_curated_key[entry["name"].lower()] = cc
+
+    general_candidates = []
+    for c in _COMPLEMENT_TABLE:
+        if c["name"].lower() in pantry_names_lower or not _diet_allows(c):
+            continue
+        real = cache_by_curated_key.get(c["name"].lower())
+        if real is not None:
+            general_candidates.append({
+                "name": real["name"], "fdc_id": real.get("fdc_id"),
+                "nutrients": real.get("nutrients"), "diaas": real.get("diaas") or c["diaas"],
+            })
+        else:
+            general_candidates.append(
+                {"name": c["name"], "fdc_id": c.get("fdc_id"), "nutrients": c["nutrients"], "diaas": c["diaas"]}
+            )
     general_gap_closers, general_diaas_improvers = _build_suggestions(general_candidates)
 
     # Merge DIAAS-improvers from both sources, excluding names already in gap-closer lists.

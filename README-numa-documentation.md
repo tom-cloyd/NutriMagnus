@@ -2,7 +2,7 @@
 
 A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-24:2310
+UPDATED: 2026-07-29:1909
 ---
 
 ## Table of Contents
@@ -955,7 +955,7 @@ Imports `NUTRIENT_MAP`, `ESSENTIAL_AMINO_ACIDS`, and `AA_REFERENCE_MG_PER_G_PROT
 | `sum_nutrients(*dicts)` | Add any number of nutrient dicts together |
 | `protein_completeness(nutrients)` | Assess essential amino acid completeness vs. FAO/WHO reference. Requires 5+ AAs with **non-zero** values; zero-keyed AA entries (common in branded USDA foods) are ignored. |
 | `get_aa_gaps(nutrients, digestibility=1.0)` | Return `(aa_key, score, deficit_g)` for each essential AA with digestibility-adjusted score below 0.95, sorted most-limiting first. The 0.95 threshold filters out near-adequate AAs (e.g. score 0.994) that would otherwise generate impractically small complement amounts. |
-| `suggest_complements(base_nutrients, pantry_candidates, diet_pref="all")` | Compute minimum-gram complement suggestions from pantry and curated table; returns `{"pantry": [...], "general": [...]}`. `diet_pref` controls which curated-table entries are eligible: `"all"` includes everything, `"vegetarian"` includes only plant and dairy/egg entries (those flagged `dairy_egg=True` in `_COMPLEMENT_TABLE`), `"plant_only"` excludes all animal entries. The curated table holds protein + nine essential AAs per 100g for ~30 common protein sources; used only for complement scoring and AA gap augmentation — not for general food search. |
+| `suggest_complements(base_nutrients, pantry_candidates, diet_pref="all", cache_candidates=None)` | Compute minimum-gram complement suggestions from pantry, the broader food cache, and the curated table; returns `{"pantry": [...], "general": [...]}`. `diet_pref` controls which curated-table entries are eligible: `"all"` includes everything, `"vegetarian"` includes only plant and dairy/egg entries (those flagged `dairy_egg=True` in `_COMPLEMENT_TABLE`), `"plant_only"` excludes all animal entries. The curated table holds protein + nine essential AAs per 100g for ~30 common protein sources; used only for complement scoring and AA gap augmentation — not for general food search. Any real candidate (pantry, recipe, or `cache_candidates` — real foods matched by name to a curated entry, built by callers via `complement_table_names()` + `db.search_cached_foods()`) that has real macros but no amino acid panel of its own is auto-estimated by scaling the matching curated entry's AA profile to its own protein content, rather than being silently dropped; result dicts carry `"estimated": True` when this happened. The `general` tier prefers a `cache_candidates` match's real data/fdc_id over the curated entry's own generic profile when one is found. See `numa_app/services/complements.py::load_cache_candidates()` and the manual's "Amino acid estimates in complement suggestions" section for the CLI/web-facing side of this. |
 | `nutrient_label(key)` | Reverse-lookup display name and unit for any nutrient key |
 | `get_diaas(food_name)` | Return DIAAS protein digestibility score for a food (keyword lookup) |
 | `get_antinutrient_flags(food_name)` | Return consolidated anti-nutrient flags as a list of `{"problem": str, "cause": str, "solutions": [(label, description), ...]}` dicts. Entries sharing the same group are merged into one flag with multiple solutions. |

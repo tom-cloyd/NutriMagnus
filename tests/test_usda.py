@@ -632,6 +632,92 @@ class TestSuggestComplements:
 
 
 # ---------------------------------------------------------------------------
+# suggest_complements — auto-estimate fallback + cache_candidates preference
+# ---------------------------------------------------------------------------
+
+class TestSuggestComplementsAutoEstimate:
+    def test_complement_table_names_includes_known_entries(self):
+        names = _usda.complement_table_names()
+        assert "Nutritional yeast" in names
+        assert len(names) > 10
+
+    def test_pantry_food_missing_aa_is_auto_estimated(self):
+        # Real pantry food, real macros, no AA data of its own — name matches
+        # the curated "Nutritional yeast" entry by keyword.
+        pantry = [{"name": "Nutritional Yeast Flakes", "fdc_id": 42,
+                   "nutrients": {"protein_g": 45.0}, "diaas": None}]
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, pantry)
+        assert len(result["pantry"]) == 1
+        s = result["pantry"][0]
+        assert s["name"] == "Nutritional Yeast Flakes"
+        assert s["fdc_id"] == 42
+        assert s["estimated"] is True
+
+    def test_estimate_scales_to_real_food_protein_not_curated_protein(self):
+        # The curated "Nutritional yeast" entry is 52g protein/100g. A real
+        # product with less protein (45g/100g) needs correspondingly MORE
+        # grams to deliver the same amino acid payload — the estimate must
+        # scale to the real food's own protein, not silently reuse the
+        # curated table's own gram figure.
+        curated_result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [])
+        curated_grams = next(
+            s["grams"] for s in curated_result["general"] if s["name"] == "Nutritional yeast"
+        )
+        pantry = [{"name": "Nutritional Yeast Flakes", "fdc_id": 42,
+                   "nutrients": {"protein_g": 45.0}, "diaas": None}]
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, pantry)
+        assert result["pantry"][0]["grams"] > curated_grams
+
+    def test_pantry_food_missing_aa_with_no_curated_match_is_dropped(self):
+        # Real macros, no AA data, and no keyword match in the curated table —
+        # should be silently excluded rather than crash or appear un-scored.
+        pantry = [{"name": "Mystery Protein Bar", "fdc_id": 43,
+                   "nutrients": {"protein_g": 20.0}, "diaas": None}]
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, pantry)
+        assert result["pantry"] == []
+        assert not any(s["name"] == "Mystery Protein Bar" for s in result["general"])
+
+    def test_general_tier_prefers_cache_candidate_with_real_aa_data(self):
+        real_yeast = {
+            "name": "Nutritional Yeast Flakes", "fdc_id": 555,
+            "nutrients": {
+                "protein_g": 40.0,
+                "aa_tryptophan_g": 0.5, "aa_threonine_g": 1.9, "aa_isoleucine_g": 1.9,
+                "aa_leucine_g": 2.8, "aa_lysine_g": 2.4, "aa_methionine_g": 0.66,
+                "aa_cystine_g": 0.18, "aa_phenylalanine_g": 1.5, "aa_valine_g": 2.1,
+                "aa_histidine_g": 0.9,
+            },
+            "diaas": 0.7,
+        }
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [], cache_candidates=[real_yeast])
+        matches = [s for s in result["general"] if "yeast" in s["name"].lower()]
+        assert len(matches) == 1
+        assert matches[0]["name"] == "Nutritional Yeast Flakes"
+        assert matches[0]["fdc_id"] == 555
+        assert matches[0]["estimated"] is False
+
+    def test_general_tier_auto_estimates_cache_candidate_missing_aa(self):
+        real_yeast_no_aa = {"name": "Nutritional Yeast Flakes", "fdc_id": 777,
+                             "nutrients": {"protein_g": 40.0}, "diaas": None}
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [], cache_candidates=[real_yeast_no_aa])
+        matches = [s for s in result["general"] if "yeast" in s["name"].lower()]
+        assert len(matches) == 1
+        assert matches[0]["fdc_id"] == 777
+        assert matches[0]["estimated"] is True
+
+    def test_cache_candidate_ignored_when_name_already_in_pantry(self):
+        # Pantry already covers this name — cache_candidates shouldn't
+        # duplicate it into the general tier.
+        pantry = [{"name": "Nutritional yeast", "fdc_id": 1,
+                   "nutrients": {"protein_g": 52.0}, "diaas": 0.72}]
+        cache_dup = [{"name": "Nutritional Yeast Flakes", "fdc_id": 999,
+                      "nutrients": {"protein_g": 40.0}, "diaas": None}]
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, pantry, cache_candidates=cache_dup)
+        general_names = [s["name"].lower() for s in result["general"]]
+        assert not any("yeast" in n for n in general_names)
+
+
+# ---------------------------------------------------------------------------
 # _score_one_complement  (module-level helper, tested directly)
 # ---------------------------------------------------------------------------
 

@@ -234,7 +234,7 @@
       ['meals',    /^\/meal/],
       ['settings', /^\/settings/],
       ['manual',   /^\/manual/],
-      ['foods',    /^\/food|^\/pantry/],
+      ['foods',    /^\/food(?!\/annotate)|^\/pantry/],
     ];
     function sectionFor(path) {
       for (var i = 0; i < SECTIONS.length; i++) {

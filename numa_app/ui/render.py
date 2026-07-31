@@ -823,12 +823,16 @@ def _print_complement_suggestions(
     except Exception:
         recipe_candidates = []
     pantry_and_recipes = pantry + recipe_candidates
+    cache_candidates = _complements.load_cache_candidates(
+        {c["name"].lower() for c in pantry_and_recipes}
+    )
     max_improver_grams = 300 if context == "recipe" else 120
     suggestions = _usda.suggest_complements(
         base_nutrients, pantry_and_recipes, diet_pref=state._diet_pref,
         base_digestibility=_digestibility,
         base_food_name=base_food_name,
         max_improver_grams=max_improver_grams,
+        cache_candidates=cache_candidates,
     )
 
     base_protein = base_nutrients.get("protein_g", 0.0)
@@ -909,10 +913,23 @@ def _print_complement_suggestions(
 
     _GRAD_THRESHOLD = 30  # grams; above this, show graduated scale instead of single amount
 
+    saw_estimate_or_generic = False
+
+    def _source_tag(s: dict) -> str:
+        nonlocal saw_estimate_or_generic
+        if not s.get("fdc_id") and not s.get("recipe_id"):
+            saw_estimate_or_generic = True
+            return "  [grey62](generic estimate)[/grey62]"
+        if s.get("estimated"):
+            saw_estimate_or_generic = True
+            return "  [grey62](estimated)[/grey62]"
+        return ""
+
     def _show_suggestion(s: dict, label: str) -> None:
         diaas_str = f"  [grey62]DIAAS {s['diaas']:.2f}[/grey62]" if s.get("diaas") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}] "
-                      f"[bold]{s['name']}[/bold]{food_id_tag(s.get('fdc_id'), recipe_id=s.get('recipe_id'))}{diaas_str}")
+                      f"[bold]{s['name']}[/bold]{food_id_tag(s.get('fdc_id'), recipe_id=s.get('recipe_id'))}"
+                      f"{_source_tag(s)}{diaas_str}")
         full_grams = s["grams"]
 
         if full_grams > _GRAD_THRESHOLD:
@@ -1145,7 +1162,7 @@ def _print_complement_suggestions(
     def _show_diaas_improver(s: dict, label: str) -> None:
         diaas_str = f"  [grey62]DIAAS {s['diaas']:.2f}[/grey62]" if s.get("diaas") else ""
         state.console.print(f"\n  [{state.T['accent']}]{label}[/{state.T['accent']}] "
-                      f"[bold]{s['name']}[/bold]{food_id_tag(s.get('fdc_id'))}{diaas_str}")
+                      f"[bold]{s['name']}[/bold]{food_id_tag(s.get('fdc_id'))}{_source_tag(s)}{diaas_str}")
         cur = s.get("current_diaas", 0.0)
         cur_color = state.T["warning"] if cur < 0.9 else state.T["success"]
         for step in s.get("steps", []):
@@ -1291,7 +1308,7 @@ def _print_complement_suggestions(
                 )
                 state.console.print(
                     f"    Step 1 — {add_verb} [bold]{step1['grams']}g[/bold]{vol1_str}  "
-                    f"[bold]{gc_name}[/bold]{fdc_str}",
+                    f"[bold]{gc_name}[/bold]{fdc_str}{_source_tag(step1)}",
                     highlight=False,
                 )
                 score_parts = []
@@ -1320,7 +1337,7 @@ def _print_complement_suggestions(
                 b_fdc = food_id_tag(step2.get("fdc_id"), recipe_id=step2.get("recipe_id"))
                 state.console.print(
                     f"    Step 2 — {add_verb} [bold]{step2['grams']}g[/bold]{vol2_str}  "
-                    f"[bold]{step2['name']}[/bold]{b_fdc}",
+                    f"[bold]{step2['name']}[/bold]{b_fdc}{_source_tag(step2)}",
                     highlight=False,
                 )
                 state.console.print(
@@ -1338,10 +1355,15 @@ def _print_complement_suggestions(
                         highlight=False,
                     )
 
+    if saw_estimate_or_generic:
+        state.console.print(
+            f"\n  [grey62]{textwrap.fill(_complements.ESTIMATE_NOTE, width=_sugg_w - 2, initial_indent='', subsequent_indent='  ')}[/grey62]"
+        )
+
     if top_gap_closers and diaas_improvers:
-        help_footer("comb", "comp")
+        help_footer("comb", "comp", "comp-estimate")
     else:
-        help_footer("comp")
+        help_footer("comp", "comp-estimate")
 
 def _print_dcp_adequacy_section(
     meal_result: "dict | None",

@@ -4,11 +4,57 @@ and web (backend.py). Both previously reimplemented this independently;
 extracting it here keeps AA-gap scoring and two-step combo pairing in one place.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/complements.py — complement display math"
 """
+import json
+
+import db as _db
 import usda as _usda
 from .portions import amount_note as _amount_note
 
 Nutrients = dict[str, float]
 Gaps = list[tuple[str, float, float]]  # (aa_key, orig_score, deficit_g) from usda.get_aa_gaps
+
+
+def load_cache_candidates(exclude_names_lower: set[str] | None = None) -> list[dict]:
+    """Search the user's broader food cache (not just pantry) for a real match to
+    each entry in the internal curated complement table.
+
+    Used so suggest_complements()'s "general" tier prefers a real cached food
+    (with its own fdc_id and, if present, its own real AA data) over the curated
+    table's generic literature profile. Always safe: returns [] on any DB error.
+    """
+    exclude_names_lower = exclude_names_lower or set()
+    candidates: list[dict] = []
+    seen_fdc_ids: set[int] = set()
+    try:
+        with _db.get_db() as conn:
+            for name in _usda.complement_table_names():
+                if name.lower() in exclude_names_lower:
+                    continue
+                for row in _db.search_cached_foods(conn, name)[:1]:
+                    if row["fdc_id"] in seen_fdc_ids:
+                        continue
+                    seen_fdc_ids.add(row["fdc_id"])
+                    nutrients = json.loads(row["nutrients_json"]) if row["nutrients_json"] else None
+                    candidates.append({
+                        "name":      row["name"],
+                        "fdc_id":    row["fdc_id"],
+                        "nutrients": nutrients,
+                        "diaas":     _usda.get_diaas(row["name"]),
+                    })
+    except Exception:
+        return []
+    return candidates
+
+
+ESTIMATE_NOTE = (
+    "These estimates are computed fresh each time from a small built-in reference table "
+    "(~20 common foods), scaled to this food's own protein content — they are not saved to "
+    "the food and are not the same as the \"estimate amino acids from another food\" tool, "
+    "which lets you pick your own comparison food and save it permanently. For any food you "
+    "rely on often, consider running that tool instead — it's more accurate and only has to "
+    "be done once. See ?comp-estimate for more."
+)
+
 
 AA_LOW_IN: dict[str, str] = {
     "aa_methionine_g":    "grains (rice, wheat, quinoa) and most legumes",
@@ -94,6 +140,7 @@ def two_step_combo(
     step1 = {
         "name":       gc.get("name", ""),
         "fdc_id":     gc.get("fdc_id"),
+        "estimated":  gc.get("estimated", False),
         "diaas":      round(gc["diaas"], 2) if gc.get("diaas") else None,
         "grams":      gc_grams,
         "amount_note": _amount_note(gc_grams, gc.get("name", "")) if gc_grams else None,
@@ -110,6 +157,7 @@ def two_step_combo(
         step2 = {
             "name":       b.get("name", ""),
             "fdc_id":     b.get("fdc_id"),
+            "estimated":  b.get("estimated", False),
             "diaas":      round(b["diaas"], 2) if b.get("diaas") else None,
             "grams":      b_step["grams"],
             "amount_note": _amount_note(b_step["grams"], b.get("name", "")) if b_step.get("grams") else None,
@@ -138,6 +186,7 @@ def build_complement_display(
     pair_limit: int = 6,
     improver_limit: int = 3,
     two_step_limit: int = 3,
+    cache_candidates: list[dict] | None = None,
 ) -> dict:
     """Build the full complement-suggestion display structure for one base food/meal/recipe.
 
@@ -168,6 +217,7 @@ def build_complement_display(
             base_digestibility=digestibility,
             base_food_name=base_food_name,
             max_improver_grams=max_improver_grams,
+            cache_candidates=cache_candidates,
         )
     except Exception:
         return {"no_data": True}
@@ -245,6 +295,7 @@ def build_complement_display(
             "opens_new_gap":     s.get("opens_new_gap", False),
             "aa_effects":        aa_effects(s, gaps, digestibility=digestibility),
             "total_dig":         _total_dig(s),
+            "estimated":         s.get("estimated", False),
         }
 
     def _fmt_improver(s: dict) -> dict:
@@ -273,6 +324,7 @@ def build_complement_display(
             "dig_protein_added": round(dig, 1),
             "protein_added":     round(raw, 1),
             "total_dig":         total_dig,
+            "estimated":         s.get("estimated", False),
         }
 
     def _fmt_pair(p: dict) -> dict:
@@ -329,6 +381,18 @@ def build_complement_display(
             if combo is not None:
                 two_step_combos.append(combo)
 
+    pantry_fmt = [_fmt(s) for s in pantry_suggs]
+    general_fmt = [_fmt(s) for s in general_suggs]
+    improvers_fmt = [_fmt_improver(s) for s in diaas_improvers]
+
+    def _is_generic(row: dict) -> bool:
+        return not row.get("fdc_id") and not row.get("recipe_id")
+
+    has_estimate_or_generic = any(
+        row.get("estimated") or _is_generic(row)
+        for row in pantry_fmt + general_fmt + improvers_fmt
+    )
+
     gap_rows = [{"label": _usda.nutrient_label(k)[0], "score": round(v, 3)} for k, v, _ in gaps[:4]]
     limiting_aa = gaps[0][0] if gaps else None
     limiting_label = _usda.nutrient_label(limiting_aa)[0] if limiting_aa else "this amino acid"
@@ -343,12 +407,14 @@ def build_complement_display(
         "ranking_note":      "Ranked by grams needed (smallest first). Exception: an option that fully completes the amino acid profile is promoted to the top — but only if its serving is 50 g or less.",
         "pantry_empty":      not pantry_candidates,
         "pantry_no_qualify": bool(pantry_candidates) and not pantry_suggs,
-        "pantry":            [_fmt(s) for s in pantry_suggs],
-        "general":           [_fmt(s) for s in general_suggs],
+        "pantry":            pantry_fmt,
+        "general":           general_fmt,
         "pairs":             [_fmt_pair(p) for p in pair_suggs],
-        "diaas_improvers":   [_fmt_improver(s) for s in diaas_improvers],
+        "diaas_improvers":   improvers_fmt,
         "two_step_combos":   two_step_combos,
         "have_gap_closers":  bool(pantry_suggs or general_suggs),
+        "has_estimate_or_generic": has_estimate_or_generic,
+        "estimate_note": ESTIMATE_NOTE if has_estimate_or_generic else None,
         "exhausted_msg": (
             f"{exhausted_prefix} A qualifying complement must have a {limiting_label}/protein ratio "
             f"above the FAO reference to close the gap to score 1.0 in a practical serving (≤ 500 g). "

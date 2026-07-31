@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-28:1402* / Reading 3 hours, 35 minutes 
+*Updated 2026-07-30:1925* / Reading 3 hours, 35 minutes 
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, and also for older people or chronically-ill people.
 
@@ -38,9 +38,17 @@ Since almost everyone using NuMa will open it in a web browser, this manual is o
 
 ## To get a quick start:
 
-Initial general tip: This is a complex, powerful analytical program. It can be successfully approached by moving slowly and thoughtfully, with real benefit obtained from using some of its easiest and simplest features. Start with what you understand. Use the manual to learn more. Contact us quickly rather than slowly if you start to get overwhelmed. One of our goals is to work to minimize the risk of that that happening!
+This is a complex, powerful analytical program. A careful Internet search reveals that it is unique in its power and depth. It can be successfully approached by moving slowly and thoughtfully, with real benefit obtained from using some of its easiest and simplest features. 
+
+Start with what you understand - analysis of single foods and simple recipes. Use the manual to learn more. Do not expect to learn it all in a few sessions. Contact us quickly rather than slowly if you start to get overwhelmed. One of our goals is to work to minimize the risk of that that happening!
+
+You will have to tell the program WHAT you are eating and HOW MUCH. The absolute best way to do this is give it a weight. Sometimes you can just give it a "portion" or a volume measure and it knows the weight of that and so can keep going. Remember that approximations are better than nothing. 
+
+Without the program you're flying blind. With it, and only using volume measures, there will be errors of measurement but you're still much better informed about what's happening than before. But in some cases a volume measure for just doesn't work. In such a case, call for help and we'll figure it out. All in all, it's by far best to have and use a kitchen scale. I have had a small Oxo scale for years. It's excellent. There are others you can consider as well, but I do suggest that you get one.
 
 ### 1. Download and install the program
+
+Under development.
 
 [//]: # "develop section"
 
@@ -210,7 +218,20 @@ If only [DIAAS](#gloss-diaas)-boosting options are shown (Tier 2), the underlyin
 
 You do not need to eat [complement foods](#gloss-complement-food) at the same meal — meeting daily totals is sufficient for healthy adults. See also [DIAAS](#diaas) and [limiting amino acid](#gap) for background.
 
-Data sources: your pantry (Foods → [My Pantry](#gloss-my-pantry)) and any recipes you have analyzed are checked first; a built-in list of about 30 common protein sources is also always consulted as a fallback, filtered by your dietary preferences (see [dietary preferences](#diet)). The suggestion header tells you exactly which sources were considered for that run.
+Data sources, checked in this order: your pantry (Foods → [My Pantry](#gloss-my-pantry)) and any recipes you have analyzed; then your broader food cache (any food you've ever looked up, matched by name against the built-in reference list below); then that built-in list itself, filtered by your dietary preferences (see [dietary preferences](#diet)). The suggestion header tells you exactly which sources were considered for that run. See [amino acid estimates in suggestions](#comp-estimate) for what it means when a suggestion is tagged "(estimated)" or "(generic estimate)".
+
+
+### Amino acid estimates in complement suggestions [comp-estimate]
+
+A [complement suggestion](#comp) needs amino acid data for the suggested food to compute how much of it closes a gap. Most of the time that comes from the food's own real, measured data. When it doesn't, NuMa falls back to a small built-in reference table of about 20 common protein sources (soy protein isolate, nutritional yeast, oats, and the like) rather than leaving you with no suggestion at all. Two tags tell you when that fallback happened:
+
+  "(estimated)" — the suggested food is a real item from your pantry, recipes, or food cache, but it has no amino acid panel of its own. NuMa matched its name against the built-in reference table and scaled that table's amino acid profile to this food's own protein content.
+
+  "(generic estimate)" — no real food matched at all. The whole suggestion is the reference table entry itself, not any specific product you have.
+
+Either way, this estimate is computed fresh every time the suggestion is shown — it is never saved to the food's own record, so there is nothing to undo. That also means it is not the same as the "estimate amino acids from another food" tool described under [Estimating amino acids by copying from another food](#custom-foods): that tool lets you search your entire food database and pick any food you judge to be a good match yourself, and it saves the result permanently to the food's own record. The built-in table used for "(estimated)" / "(generic estimate)" tags is a fixed, much shorter list matched purely by keyword — it can't use your own judgment about which food is the closer match, and the two methods can disagree.
+
+For a food you rely on often, running the "estimate amino acids from another food" tool on it yourself is worth doing: it is more accurate (your judgment beats a keyword match against ~20 entries), it only has to be done once, and it turns the food into a normal pantry/cache candidate for every suggestion afterward — no more tags.
 
 
 ### Two-step combinations [comb]
@@ -838,6 +859,7 @@ Throughout this manual, **Learn more** links appear next to section headings and
 
 The sections linked from analysis output are:
 
+- [Amino acid estimates in complement suggestions](#comp-estimate) — what "(estimated)" and "(generic estimate)" tags mean
 - [Amino acid fetch workflow](#fetch) — fetching missing data with Claude AI
 - [Amino acid scoring](#aa-scoring) — limiting-amino-acid [DIAAS](#gloss-diaas) scoring method
 - [Antinutrients](#antinutrients) — what [antinutrients](#gloss-antinutrient) are and how they appear in output
@@ -3026,6 +3048,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 Under development.
 
+[//]: # "develop section"
+
 ### *Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 
 (Under development)
@@ -3442,13 +3466,19 @@ For clinical guidance without [CGM](#gloss-cgm), dietitians working with people 
 
 Under development.
 
+[//]: # "develop section"
+
 ### Appendix E: Full Nutrient Key
 
 Under development.
 
+[//]: # "develop section"
+
 ### Appendix F: Protein ingestion timing
 
-To be researched.
+Under development.
+
+[//]: # "develop section"
 
 Resources:
 
@@ -3456,7 +3486,9 @@ Resources:
 
 ### Appendix G: Meal timing
 
-To be researched.
+Under development.
+
+[//]: # "develop section"
 
 Resources:
 
@@ -3823,6 +3855,12 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 ---
 
 ### Appendix K: Recent program updates log
+
+#### July 29
+
+* COMPLEMENT SUGGESTIONS NOW USE YOUR OWN FOOD DATA WHEN AVAILABLE, AND FLAG IT WHEN THEY DON'T -  Protein Complement Suggestions (CLI + web) - Previously, a suggestion like "Nutritional Yeast Flakes" could be sized entirely against a generic literature reference profile, with no indication that the amount was estimated rather than measured — adding that exact real product could still leave a gap open. Suggestions now check your pantry, your recipes, and your broader food cache (any food you've ever looked up) for a real match before falling back to the built-in reference table, and any suggestion sized from that fallback is now clearly tagged "(estimated)" (a real food of yours, scaled from the reference table) or "(generic estimate)" (no real match at all — the reference food itself). A footer note explains what the tags mean and points to the more accurate, permanent alternative: the "estimate amino acids from another food" tool. [learn more...](#comp-estimate)
+
+* "ANNOTATE A FOOD" NO LONGER STICKS TO THE FOODS QUICK-RETURN CHIP - Web - The Foods section remembers the last page you visited so its quick-return chip can bring you straight back (e.g. to the food you were just looking at). But when adding a food to a meal sent you through the "Annotate a food" prompt (GI / DIAAS / prep method) as a mid-flow detour, that transient page was getting remembered as "the" Foods page — leaving a stale "Annotate a food" chip behind even after you clicked through it empty. The annotate page is now excluded from this memory, so the chip only ever points at a food you deliberately visited.
 
 #### July 28
 

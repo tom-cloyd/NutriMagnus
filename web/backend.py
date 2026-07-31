@@ -881,10 +881,11 @@ def _food_complement_section(food_name: str, nutrients: dict) -> dict:
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
     pantry = _web_pantry_candidates() + _web_recipe_candidates()
+    cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
     return _complements.build_complement_display(
         nutrients, pantry, diet_pref=diet_pref,
         digestibility=digestibility, base_food_name=food_name,
-        max_improver_grams=120,
+        max_improver_grams=120, cache_candidates=cache_candidates,
     )
 
 
@@ -2782,10 +2783,12 @@ def _complement_suggestions(
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
     pantry = _web_pantry_candidates() + _web_recipe_candidates(exclude_recipe_id)
+    cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
     max_improver_grams = 300 if context == "recipe" else 120
     return _complements.build_complement_display(
         aa_nutrients, pantry, diet_pref=diet_pref,
         digestibility=1.0, max_improver_grams=max_improver_grams,
+        cache_candidates=cache_candidates,
     )
 
 

@@ -2,10 +2,26 @@
 Tests for numa_app/services/complements.py — the shared complement-suggestion
 display math used by both the CLI (render.py) and web (backend.py).
 """
+import json
+import sqlite3
+
 import pytest
 
 from numa_app.services import complements as _complements
 from tests.conftest import SAMPLE_NUTRIENTS
+
+_DEFICIENT_NUTRIENTS = {
+    "protein_g":          20.0,
+    "aa_tryptophan_g":    0.08,
+    "aa_threonine_g":     0.60,
+    "aa_isoleucine_g":    0.80,
+    "aa_leucine_g":       1.40,
+    "aa_lysine_g":        0.50,
+    "aa_methionine_g":    0.60,
+    "aa_phenylalanine_g": 0.90,
+    "aa_valine_g":        0.90,
+    "aa_histidine_g":     0.40,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -89,3 +105,67 @@ class TestBuildComplementDisplay:
             nutrients, pantry, digestibility=0.88, diet_pref="all",
         )
         assert result["pantry"] or result["general"]
+
+    def test_no_estimate_flag_when_all_suggestions_are_real_or_curated_with_fdc(self):
+        # SAMPLE_NUTRIENTS' gap is closed by curated entries that happen to carry
+        # a real fdc_id (Tempeh, Egg, Whey, Tofu, Soy protein isolate) — none
+        # should be flagged as estimated or generic.
+        nutrients = dict(SAMPLE_NUTRIENTS)
+        nutrients["aa_lysine_g"] = 0.6
+        result = _complements.build_complement_display(nutrients, [], digestibility=0.5, diet_pref="all")
+        assert result["has_estimate_or_generic"] is False
+        assert result["estimate_note"] is None
+
+    def test_estimate_flag_set_when_pantry_food_is_auto_estimated(self):
+        pantry = [{"name": "Nutritional Yeast Flakes", "fdc_id": 42,
+                   "nutrients": {"protein_g": 45.0}, "diaas": None}]
+        result = _complements.build_complement_display(
+            _DEFICIENT_NUTRIENTS, pantry, digestibility=1.0, diet_pref="all",
+        )
+        assert result["has_estimate_or_generic"] is True
+        assert result["estimate_note"] == _complements.ESTIMATE_NOTE
+        matches = [s for s in result["pantry"] if s["name"] == "Nutritional Yeast Flakes"]
+        assert matches and matches[0]["estimated"] is True
+        assert matches[0]["fdc_id"] == 42
+
+
+# ---------------------------------------------------------------------------
+# load_cache_candidates
+# ---------------------------------------------------------------------------
+
+class TestLoadCacheCandidates:
+    def _insert_food(self, db_conn: sqlite3.Connection, fdc_id: int, name: str,
+                      nutrients: dict | None) -> None:
+        db_conn.execute("""
+            INSERT OR REPLACE INTO foods
+                (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (fdc_id, name, "Branded", None, None, None,
+              json.dumps(nutrients) if nutrients is not None else None, json.dumps([])))
+        db_conn.commit()
+
+    def test_finds_real_food_matching_curated_entry_by_name(self, db_conn):
+        self._insert_food(db_conn, 500, "Nutritional Yeast Flakes", {"protein_g": 45.0})
+        candidates = _complements.load_cache_candidates()
+        names = [c["name"] for c in candidates]
+        assert "Nutritional Yeast Flakes" in names
+        match = next(c for c in candidates if c["name"] == "Nutritional Yeast Flakes")
+        assert match["fdc_id"] == 500
+        assert match["nutrients"] == {"protein_g": 45.0}
+
+    def test_excludes_curated_names_already_covered_elsewhere(self, db_conn):
+        # exclude_names_lower is checked against the curated table's own entry
+        # name (e.g. a pantry item literally named "Nutritional yeast"), not
+        # against whatever real product name the cache search would find —
+        # this skips searching that curated slot at all.
+        self._insert_food(db_conn, 500, "Nutritional Yeast Flakes", {"protein_g": 45.0})
+        candidates = _complements.load_cache_candidates({"nutritional yeast"})
+        assert not any(c["name"] == "Nutritional Yeast Flakes" for c in candidates)
+
+    def test_no_match_returns_nothing_for_that_food(self, db_conn):
+        self._insert_food(db_conn, 501, "Frozen Pizza Rolls", {"protein_g": 8.0})
+        candidates = _complements.load_cache_candidates()
+        assert not any(c["name"] == "Frozen Pizza Rolls" for c in candidates)
+
+    def test_empty_cache_returns_empty_list(self):
+        assert _complements.load_cache_candidates() == []

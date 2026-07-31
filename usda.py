@@ -28,6 +28,7 @@ from usda_nutrients import (  # noqa: F401
     nutrient_label,
     get_aa_gaps,
     get_complement_nutrients,
+    complement_table_names,
     suggest_complements,
     get_diaas,
     get_antinutrient_flags,
