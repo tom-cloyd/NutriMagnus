@@ -151,10 +151,25 @@
 <section id="sec-protein-summary" class="analysis-section">
   <h3 class="section-heading">Protein Summary {{ manual_link("dcp") }}</h3>
   {% if diaas.dcp_g is not none %}
+  {% set per_serving_dcp = (diaas.dcp_g / servings) if servings else diaas.dcp_g %}
+  {% set total_recipe_dcp = per_serving_dcp * recipe.servings %}
   <div class="protein-summary-card {% if diaas.score is not none and diaas.score >= 0.9 %}psc-complete{% elif diaas.dcp_g %}psc-incomplete{% else %}psc-unknown{% endif %}">
     <div class="ps-metric">
       <div class="ps-label">Digestible Complete Protein (DCP)</div>
+      {% if recipe.servings and recipe.servings > 1 %}
+      <div class="ps-dcp-row">
+        <div class="ps-dcp-item">
+          <div class="ps-dcp-num">{{ "%.1f"|format(per_serving_dcp) }}&thinsp;g</div>
+          <div class="ps-dcp-sub">single serving</div>
+        </div>
+        <div class="ps-dcp-item">
+          <div class="ps-dcp-num">{{ "%.1f"|format(total_recipe_dcp) }}&thinsp;g</div>
+          <div class="ps-dcp-sub">full recipe ({{ recipe.servings }} servings)</div>
+        </div>
+      </div>
+      {% else %}
       <div class="ps-value">{{ diaas.dcp_g }}&thinsp;g</div>
+      {% endif %}
       {% if protein_adequacy and not protein_adequacy.no_profile %}
       <div class="ps-status muted">{{ protein_adequacy.pct | int }}% of daily target ({{ protein_adequacy.target }}&thinsp;g)</div>
       {% endif %}
@@ -487,13 +502,16 @@
   {% if s.grad_steps %}
   <p class="mb-1"><strong>{{ verb }} (graduated):</strong></p>
   <table class="table table-sm mb-1" style="max-width:36rem">
-    <thead><tr><th>Amount</th><th>Digestible protein added</th><th>DCP achieved</th></tr></thead>
+    <thead><tr><th>Amount</th><th>Digestible protein added</th><th>DCP achieved</th>{% if recipe.servings and recipe.servings > 1 %}<th>Single serving DCP</th>{% endif %}</tr></thead>
     <tbody>
     {% for step in s.grad_steps %}
     <tr{% if loop.last %} class="table-success"{% endif %}>
       <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
       <td>{{ step.dig_protein }}&thinsp;g</td>
       <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
+      {% if recipe.servings and recipe.servings > 1 %}
+      <td class="muted">{% if step.dcp is not none %}{{ "%.1f"|format(step.dcp / recipe.servings) }}&thinsp;g{% else %}—{% endif %}</td>
+      {% endif %}
     </tr>
     {% endfor %}
     </tbody>
@@ -509,7 +527,7 @@
   </small></p>
   {% endif %}
   <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein at full serving (from {{ s.protein_added }}&thinsp;g raw)</small></p>
-  <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with full serving: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+  <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with full serving: <strong>{{ s.total_dig }}&thinsp;g</strong>{% if recipe.servings and recipe.servings > 1 %} <span class="muted">(single serving: {{ "%.1f"|format(s.total_dig / recipe.servings) }}&thinsp;g)</span>{% endif %}</small></p>
   {% if s.new_complete and s.grad_steps %}
   <p class="mb-0 muted"><small>The complement fills amino acid gaps in the base protein, making previously wasted raw protein utilizable. DCP rises faster than the complement alone because it unlocks the base protein too.</small></p>
   {% endif %}

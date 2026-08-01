@@ -9,11 +9,14 @@
 <details open>
   <summary><strong>New Meal</strong></summary>
   <form method="post" action="/meals/create" class="mt-2">
-    <div class="row g-3 mb-3">
+    <div class="row g-3 mb-3 align-items-end">
       <div class="col-auto">
         <label class="form-label" for="meal-name">Name</label>
         <input type="text" class="form-control" id="meal-name" name="name"
-               placeholder="Breakfast, Lunch…" autofocus style="width: 12rem;">
+               value="all day" placeholder="Breakfast, Lunch…" autofocus style="width: 12rem;">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Create Meal</button>
       </div>
       <div class="col-auto">
         <label class="form-label" for="meal-date">Date</label>
@@ -21,7 +24,6 @@
                value="{{ today }}" style="width: 9.5rem;">
       </div>
     </div>
-    <button type="submit" class="btn btn-primary">Create Meal</button>
   </form>
 </details>
 

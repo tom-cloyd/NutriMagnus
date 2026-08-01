@@ -396,11 +396,15 @@ def _print_protein_adequacy(
     *,
     context_label: str | None = None,
     dcp_g: float | None = None,
+    dcp_total_g: float | None = None,
+    servings: float | None = None,
 ) -> None:
     """Print personalized protein adequacy vs. the user's profile-derived target.
 
     dcp_g: when provided (from DIAAS analysis), used as the effective protein intake
            figure instead of the raw total protein from nutrients.
+    dcp_total_g/servings: when the recipe has more than one serving, also print the
+    whole-recipe DCP total alongside the per-serving figure.
     """
     if profile is None:
         return
@@ -427,6 +431,12 @@ def _print_protein_adequacy(
         f"  {intake_label}: [{color}]{protein_intake:.1f} g[/{color}]  [grey62]({pct:.0f}% of daily target)[/grey62]",
         highlight=False,
     )
+    if dcp_g is not None and servings is not None and servings > 1 and dcp_total_g is not None:
+        state.console.print(
+            f"  [grey62]Per serving: [{color}]{dcp_g:.1f}g[/{color}]"
+            f"   ·   Whole recipe ({servings:g} servings): [{color}]{dcp_total_g:.1f}g[/{color}][/grey62]",
+            highlight=False,
+        )
 
 
 def _print_meal_diaas(
@@ -794,6 +804,8 @@ def _print_complement_suggestions(
     basis_label: str | None = None,  # e.g. "per serving" or "whole recipe (7 servings)"
     base_diaas: float | None = None,  # pass effective DIAAS directly (e.g. for multi-ingredient recipes)
     silent_if_complete: bool = False,  # if True, print nothing when no gaps (avoids duplicate messages)
+    recipe_servings: float | None = None,  # when base_nutrients is a whole-recipe total (servings > 1),
+                                            # also show the per-serving DCP alongside each total
 ) -> None:
     """
     Display protein complement suggestions.
@@ -802,6 +814,8 @@ def _print_complement_suggestions(
                     the total digestible protein line is accurate.
     basis_label: appended to the section header to clarify what the gram amounts refer to.
     silent_if_complete: when True, return without printing anything if there are no AA gaps.
+    recipe_servings: only pass when base_nutrients is a whole-recipe total; used solely to
+                      show the equivalent per-serving DCP alongside each achieved-DCP figure.
     """
     if base_diaas is None:
         base_diaas = _usda.get_diaas(base_food_name) if base_food_name else None
@@ -999,6 +1013,15 @@ def _print_complement_suggestions(
                 f"[{state.T['success']}]{total_list}[/{state.T['success']}]",
                 highlight=False,
             )
+            if recipe_servings and recipe_servings > 1:
+                per_serving_list = ", ".join(
+                    f"{(base_digestible + dig_full * frac) / recipe_servings:.1f}g" for frac in step_fracs
+                )
+                state.console.print(
+                    f"    [grey62]Per serving ({recipe_servings:g} servings): "
+                    f"{per_serving_list}[/grey62]",
+                    highlight=False,
+                )
 
         else:
             # Single-amount display (unchanged for practical servings ≤ 30g).
@@ -1030,6 +1053,12 @@ def _print_complement_suggestions(
             state.console.print(f"    Total digestible complete protein now = "
                           f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
                           highlight=False)
+            if recipe_servings and recipe_servings > 1:
+                state.console.print(
+                    f"    [grey62]Per serving ({recipe_servings:g} servings): "
+                    f"{total_dig / recipe_servings:.1f}g[/grey62]",
+                    highlight=False,
+                )
 
         if s.get("opens_new_gap"):
             state.console.print(f"    [{state.T['warning']}]Note: closes the above gap but opens a new one "
@@ -1375,11 +1404,16 @@ def _print_dcp_adequacy_section(
     dcp_approximate: bool = False,
     dcp_notes: "list[str] | None" = None,
     context_label: "str | None" = None,
+    dcp_total_g: float | None = None,
+    servings: float | None = None,
 ) -> None:
     """Combined DCP summary + personalized protein adequacy, shown after BIOAVAILABILITY.
 
     When meal DIAAS is available, renders: DIAAS explanation, DCP panel with adequacy
     merged inside.  Falls back to _print_protein_adequacy when DIAAS is not available.
+
+    dcp_total_g/servings: when the recipe has more than one serving, also print the
+    whole-recipe DCP total alongside the per-serving figure so the two aren't confused.
     """
     total_protein = analysis_nutrients.get("protein_g", 0.0)
 
@@ -1388,6 +1422,8 @@ def _print_dcp_adequacy_section(
             analysis_nutrients, profile,
             context_label=context_label,
             dcp_g=None if dcp_skip else dcp_g,
+            dcp_total_g=None if dcp_skip else dcp_total_g,
+            servings=servings,
         )
         return
 
@@ -1443,6 +1479,13 @@ def _print_dcp_adequacy_section(
             f"  [bold][{color}]Digestible complete protein = {dcp:.1f}g,[/{color}][/bold]"
             f"  [grey62]from {protein_basis:.1f}g {basis_label}"
             f" × [{color}]{meal_diaas:.2f}[/{color}] meal DIAAS (see below)[/grey62]",
+            highlight=False,
+        )
+
+    if servings is not None and servings > 1 and dcp_total_g is not None:
+        state.console.print(
+            f"  [grey62]Per serving: [{color}]{dcp:.1f}g[/{color}]"
+            f"   ·   Whole recipe ({servings:g} servings): [{color}]{dcp_total_g:.1f}g[/{color}][/grey62]",
             highlight=False,
         )
 

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Fetch data from Claude AI{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache">Food Cache</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Fetch from Claude AI</li>
+  </ol>
+</nav>
+
+<h2>Fetch nutrient data from Claude AI {{ manual_link("fetch") }}</h2>
+
+{% if not prompt %}
+<p class="text-warning">None of the foods you selected could be found — go back to the
+<a href="/food/cache">Food Cache</a> and try again.</p>
+{% else %}
+<p class="muted">A prompt for {{ selected|length }} food{% if selected|length != 1 %}s{% endif %} is ready below.</p>
+
+<ol>
+  <li class="mb-1">Copy the prompt below (button provided).</li>
+  <li class="mb-1">Go to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> — open a
+    <strong>new chat</strong> (not an existing one), paste the prompt, and send.</li>
+  <li class="mb-1">When Claude finishes, copy its entire reply.
+    <br><small class="muted">All foods should appear in one response. If Claude splits its answer across
+    multiple replies, copy each one and paste them together.</small></li>
+  <li class="mb-1">Go to <a href="/food/cache/claude-import">Import Claude response</a>, paste the reply, and
+    review before importing.</li>
+</ol>
+
+<div class="mb-2">
+  <button type="button" class="btn btn-sm btn-primary" onclick="copyPrompt()">Copy prompt to clipboard</button>
+  <span id="copy-status" class="muted ms-2"></span>
+</div>
+<textarea id="prompt-text" class="form-control font-monospace" rows="20" readonly
+          style="font-size:0.8rem" onclick="this.select()">{{ prompt }}</textarea>
+
+<script>
+function copyPrompt() {
+  var ta = document.getElementById('prompt-text');
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(function () {
+    document.getElementById('copy-status').textContent = 'Copied!';
+  }, function () {
+    document.getElementById('copy-status').textContent = 'Could not copy automatically — select the text above and copy it manually.';
+  });
+}
+</script>
+{% endif %}
+{% endblock %}

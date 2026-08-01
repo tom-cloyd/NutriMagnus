@@ -481,6 +481,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
         eff_diaas: float | None = None
         pooled_tid: float | None = None   # weighted-average true ileal digestibility for complement sizing
         dcp_amount: float | None = None
+        dcp_total_amount: float | None = None   # whole-recipe DCP, pre-division by servings
 
         # Compute meal-level pooled DIAAS from actual AA data — captures complementarity
         meal_result: dict | None = None
@@ -506,7 +507,8 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             if ingredient_stats:
                 if meal_result and meal_result.get("diaas") is not None:
                     eff_diaas = meal_result["diaas"]
-                    dcp_amount = (meal_result.get("digestible_complete_protein_g") or 0.0) / effective_servings
+                    dcp_total_amount = meal_result.get("digestible_complete_protein_g") or 0.0
+                    dcp_amount = dcp_total_amount / effective_servings
                     # Compute pooled TID (weighted avg digestibility) — DIAAS != TID and must
                     # not be used as digestibility in complement sizing (inflates R by 1/DIAAS,
                     # causing 5-10× oversized suggestions when DIAAS is low due to AA imbalance).
@@ -524,6 +526,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                         for s in ingredient_stats
                     )
                     total_protein_whole = sum(s["protein_g"] for s in ingredient_stats)
+                    dcp_total_amount = total_digestible
                     dcp_amount = total_digestible / effective_servings
                     eff_diaas = total_digestible / total_protein_whole if total_protein_whole > 0 else 0.0
                 # When servings=0 dcp_g per-serving is meaningless — don't save it.
@@ -611,6 +614,8 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
             dcp_approximate=dcp_approximate,
             dcp_notes=dcp_notes,
             context_label=recipe["name"],
+            dcp_total_g=dcp_total_amount,
+            servings=recipe["servings"],
         )
 
         # Protein Complement Suggestions (step 6)
@@ -634,25 +639,28 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                 if servings > 1 and gaps:
                     state.console.print(
                         f"\n  Complement suggestions basis:\n"
-                        f"  [grey62]1[/grey62]  Per serving  [grey62](default)[/grey62]\n"
-                        f"  [grey62]2[/grey62]  Whole recipe  ({servings} serving(s))"
+                        f"  [grey62]1[/grey62]  Whole recipe  ({servings} serving(s))  [grey62](default — grams shown are what to add as a recipe ingredient)[/grey62]\n"
+                        f"  [grey62]2[/grey62]  Per serving  [grey62](grams needed for just one serving's portion)[/grey62]"
                     )
                     try:
-                        basis_choice = _prompt("Choice  (Enter=per serving)", choices=["1", "2"], default="1").strip()
+                        basis_choice = _prompt("Choice  (Enter=whole recipe)", choices=["1", "2"], default="1").strip()
                     except Cancelled:
                         basis_choice = "1"
                 else:
                     basis_choice = "1"
                 if basis_choice == "2":
-                    sugg_nutrients, _ = _augment_aa_from_curated(combined, ingredient_stats)
-                    basis_label = f"whole recipe — {servings} serving(s)"
-                else:
                     sugg_nutrients = augmented_analysis
                     basis_label = "per serving"
+                    sugg_recipe_servings = None
+                else:
+                    sugg_nutrients, _ = _augment_aa_from_curated(combined, ingredient_stats)
+                    basis_label = f"whole recipe — {servings} serving(s)"
+                    sugg_recipe_servings = servings if servings > 1 else None
                 _print_complement_suggestions(sugg_nutrients, context="recipe",
                                               offer_if_covered=True,
                                               basis_label=basis_label,
-                                              base_diaas=pooled_tid)
+                                              base_diaas=pooled_tid,
+                                              recipe_servings=sugg_recipe_servings)
 
         # Glycemic load (step 7)
         gl_whole, gl_blockers = _compute_recipe_gl(recipe["id"])

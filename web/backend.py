@@ -23,6 +23,7 @@ import diaas as _diaas
 import openfoodfacts as _off
 import profile as _profile
 import usda as _usda
+from numa_app.services import claude_fetch as _claude_fetch
 from numa_app.services import complements as _complements
 from numa_app.services import day_profile as _day_profile
 from numa_app.services import aa_estimate as _aa_estimate
@@ -1714,7 +1715,7 @@ _FOOD_CACHE_SORT_KEYS = {
 @app.get("/food/cache", response_class=HTMLResponse)
 async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
                           show_archived: bool | None = None, archived: int = 0, restored: int = 0,
-                          still_used: int = 0):
+                          still_used: int = 0, imported: int = 0):
     sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
@@ -1757,6 +1758,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
         "archived":      archived,
         "restored":      restored,
         "still_used":    still_used,
+        "imported":      imported,
     })
 
 
@@ -1765,6 +1767,68 @@ async def food_cache_delete(fdc_id: int = Form(...)):
     with _db.get_db() as conn:
         _db.delete_cached_food(conn, fdc_id)
     return RedirectResponse("/food/cache", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Claude AI amino-acid/nutrient fetch workflow (web equivalent of the CLI's
+# Food Cache i/r commands) — see numa_app/services/claude_fetch.py for the
+# shared prompt-building and response-parsing logic.
+# ---------------------------------------------------------------------------
+
+@app.post("/food/cache/claude-fetch", response_class=HTMLResponse)
+async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[])):
+    with _db.get_db() as conn:
+        selected = []
+        for fid in fdc_id:
+            cached = _db.get_cached_food(conn, fid)
+            if cached:
+                selected.append((fid, cached["name"]))
+    prompt = _claude_fetch.build_prompt(selected) if selected else ""
+    return templates.TemplateResponse(request, "claude_fetch.html", {
+        "prompt":   prompt,
+        "selected": selected,
+    })
+
+
+@app.get("/food/cache/claude-import", response_class=HTMLResponse)
+async def food_cache_claude_import_get(request: Request):
+    return templates.TemplateResponse(request, "claude_import.html", {
+        "response_text": "",
+        "review":        None,
+    })
+
+
+@app.post("/food/cache/claude-import", response_class=HTMLResponse)
+async def food_cache_claude_import_post(request: Request,
+                                         response_text: str = Form(...),
+                                         action: str = Form("preview")):
+    raw_blocks, curator_text, parse_warnings = _claude_fetch.parse_response(response_text)
+    valid, validate_warnings = _claude_fetch.validate_all(raw_blocks)
+    warnings = parse_warnings + validate_warnings
+
+    if action == "confirm" and valid:
+        with _db.get_db() as conn:
+            _claude_fetch.import_foods(conn, valid, curator_text)
+        return RedirectResponse("/food/cache?imported=" + str(len(valid)), status_code=303)
+
+    review_rows = []
+    for f in valid:
+        n = f["nutrients"]
+        aa_n = sum(1 for k in _claude_fetch.AA_KEYS if k in n)
+        review_rows.append({
+            "name":      f["name"],
+            "fdc_id":    f["fdc_id"],
+            "calories":  int(n.get("calories", 0)),
+            "protein_g": round(n.get("protein_g", 0), 1),
+            "aa_count":  aa_n,
+        })
+    return templates.TemplateResponse(request, "claude_import.html", {
+        "response_text": response_text,
+        "review":        review_rows,
+        "warnings":      warnings,
+        "curator_text":  curator_text,
+        "no_blocks":     not raw_blocks,
+    })
 
 
 @app.post("/food/cache/{fdc_id}/archive", response_class=RedirectResponse)
@@ -3795,6 +3859,8 @@ async def settings_get(request: Request, saved: str = ""):
                               "unit": unit, "rda_type": rda_type})
     api_key = _usda.get_api_key()
     search_boost_page_size = _usda.get_search_boost_page_size()
+    import oxalate as _ox
+    oxalate_available = _ox.is_available()
     with _db.get_db() as conn:
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
 
@@ -3839,6 +3905,7 @@ async def settings_get(request: Request, saved: str = ""):
         "diet_bioavailability_note": iron_zinc_bioavailability_note(diet_pref),
         "meal_list_nutrient_rows": meal_list_nutrient_rows,
         "meal_list_nutrients_max": MAX_MEAL_LIST_NUTRIENTS,
+        "oxalate_available":    oxalate_available,
     })
 
 
@@ -3853,6 +3920,7 @@ async def settings_post(
     height_in:      float = Form(0.0),
     height_unit:    str   = Form("cm"),
     activity_level: str   = Form(...),
+    use_oxalate_data: str | None = Form(None),
 ):
     if height_unit == "imperial":
         height_cm_val = _profile.ftin_to_cm(height_ft, height_in)
@@ -3870,7 +3938,7 @@ async def settings_post(
         activity_level=activity_level,
         weight_unit=weight_unit,
         height_unit=height_unit,
-        use_oxalate_data=existing.use_oxalate_data if existing else False,
+        use_oxalate_data=bool(use_oxalate_data),
         optimal_targets=dict(existing.optimal_targets) if existing else {},
         max_limits=dict(existing.max_limits) if existing else {},
     )
@@ -4081,7 +4149,7 @@ async def recipe_new_post(
 
 
 @app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
-async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0):
+async def recipe_detail(request: Request, recipe_id: int, servings: float | None = None):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -4094,6 +4162,8 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
         recipe_servings = float(recipe["servings"] or 1)
+        if servings is None:
+            servings = 1.0
 
         diaas_ingredients = _flatten_recipe_diaas_ingredients(recipe_id, conn, servings)
 
@@ -4105,6 +4175,10 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
                 pass
 
     scaled = {k: v * servings for k, v in per_serving.items()}
+    # Complement suggestions are always sized against the recipe's own full total,
+    # independent of the "servings to analyze" widget above — the only way to act
+    # on a suggestion is to add an ingredient to the whole recipe batch.
+    recipe_total_nutrients = {k: v * recipe_servings for k, v in per_serving.items()}
     rda = _load_rda()
     optimal = _load_optimal()
     max_limits = _load_max_limits()
@@ -4131,7 +4205,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float = 1.0)
         "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits) if scaled else [],
         "diaas":                    diaas_display,
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":              _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe", exclude_recipe_id=recipe_id),
+        "complements":              _complement_suggestions(recipe_total_nutrients, diaas_display["score"] if diaas_display else None, context="recipe", exclude_recipe_id=recipe_id),
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
         "has_optimal":        bool(optimal),

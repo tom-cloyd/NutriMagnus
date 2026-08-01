@@ -102,12 +102,21 @@ body {
     position: sticky;
     top: 0;
     height: 100vh;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
     padding: 1.25rem 0.75rem 1.5rem 0.5rem;
     border-right: 1px solid var(--border);
     background: var(--bg);
     font-size: 14.5px;
     line-height: 1.4;
+}
+/* Everything from "Contents" down scrolls in its own region — the page
+   title and search box above it stay put no matter how far the current-
+   section link below has scrolled. */
+#toc-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 #toc-sidebar .toc-page-title {
     display: block;
@@ -592,8 +601,10 @@ HTML_TEMPLATE = """\
       <button class="search-btn" id="btn-next" title="Next (Enter)">&#x25BC;</button>
     </div>
   </div>
-  <h2>Contents</h2>
-  {toc}
+  <div id="toc-scroll">
+    <h2>Contents</h2>
+    {toc}
+  </div>
 </nav>
 <main id="content">
 {body}

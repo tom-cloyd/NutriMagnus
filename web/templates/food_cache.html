@@ -45,10 +45,15 @@
 <p class="mb-3">
   <a href="/food/cache/prune" class="btn btn-sm btn-outline-secondary"
      title="Remove foods not used in any pantry entry, recipe, or meal">Prune unused foods</a>
+  <a href="/food/cache/claude-import" class="btn btn-sm btn-outline-secondary"
+     title="Import nutrient data Claude AI gave you">Import Claude response</a>
 </p>
 
 {% if pruned %}
 <div class="alert alert-success">Pruned {{ pruned }} unused food{% if pruned != 1 %}s{% endif %} from the cache.</div>
+{% endif %}
+{% if imported %}
+<div class="alert alert-success">Imported {{ imported }} food{% if imported != 1 %}s{% endif %} from Claude's response.</div>
 {% endif %}
 
 {% if archived %}
@@ -75,9 +80,20 @@
 {% endif %}
 
 {% if foods %}
+{# This form is intentionally empty — the checkboxes below live inside table-row
+   forms of their own (archive/delete/refresh), so nesting isn't allowed. Each
+   checkbox instead points back at this form via its own `form="claude-fetch-form"`
+   attribute, which HTML allows even when the input isn't a descendant. #}
+<form method="post" action="/food/cache/claude-fetch" id="claude-fetch-form"></form>
+<p class="mb-2">
+  <button type="submit" form="claude-fetch-form" class="btn btn-sm btn-primary">Fetch missing data from Claude AI</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectMissingAA()">Select all missing AA data</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectNone()">Clear selection</button>
+</p>
 <table class="table table-sm table-hover align-middle">
   <thead class="table-light">
     <tr>
+      <th></th>
       <th>ID</th>
       <th>Name</th>
       <th>Type</th>
@@ -91,6 +107,10 @@
   <tbody>
     {% for food in foods %}
     <tr{% if food.archived %} class="text-muted"{% endif %}>
+      <td>
+        <input type="checkbox" class="form-check-input claude-fetch-cb" form="claude-fetch-form"
+               name="fdc_id" value="{{ food.fdc_id }}" data-has-aa="{{ 1 if food.has_aa else 0 }}">
+      </td>
       <td class="muted" style="white-space:nowrap">
         {% if food.fdc_id < 0 %}OFF
         {% else %}{{ food.fdc_id }}{% endif %}
@@ -167,6 +187,16 @@
   </tbody>
 </table>
 <p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a> &middot; Archive hides a food from search and complement suggestions without losing it &mdash; archived foods are also protected from Prune</small></p>
+<script>
+function selectMissingAA() {
+  document.querySelectorAll('.claude-fetch-cb').forEach(function (cb) {
+    cb.checked = (cb.dataset.hasAa === '0');
+  });
+}
+function selectNone() {
+  document.querySelectorAll('.claude-fetch-cb').forEach(function (cb) { cb.checked = false; });
+}
+</script>
 {% else %}
 <p>No foods in cache{% if q %} matching that filter{% endif %}.</p>
 {% endif %}

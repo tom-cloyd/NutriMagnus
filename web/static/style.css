@@ -181,6 +181,7 @@ table {
 
 .add-food-table {
   width: 100%;
+  max-width: 46rem;
   table-layout: auto;
 }
 
@@ -715,6 +716,11 @@ h4 { font-size: 1.2rem; }
 }
 
 .ps-status { font-size: 0.9rem; margin-top: 0.2rem; }
+
+.ps-dcp-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.ps-dcp-item { text-align: left; }
+.ps-dcp-num { font-size: 1.5rem; font-weight: 700; line-height: 1.15; }
+.ps-dcp-sub { font-size: 0.78rem; font-weight: 400; color: #555; margin-top: 0.05rem; }
 
 .ps-derivation {
   font-size: 0.88rem;
