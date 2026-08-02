@@ -923,6 +923,62 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
     error = None
     sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
 
+    # Barcode detection: 12 or 13 consecutive digits (UPC-A or EAN-13).
+    # Spaces and hyphens are stripped first so "0 12345 67890 1" also works.
+    # Mirrors the CLI's _lookup_barcode_confirmed (numa_app/services/search.py)
+    # — cache first, then a real Open Food Facts barcode lookup (not a text
+    # search, which can't reliably match a GTIN). Typing the exact barcode is
+    # itself the confirmation, so the match is shown as the one search result
+    # rather than routed through a separate confirm step.
+    _bc_digits = re.sub(r"[\s\-]", "", query)
+    if _bc_digits.isdigit() and len(_bc_digits) in (12, 13):
+        bc_fdc_id = _off.off_id(_bc_digits)
+        with _db.get_db() as conn:
+            bc_cached = _db.get_cached_food(conn, bc_fdc_id)
+        if bc_cached:
+            nutrients = json.loads(bc_cached["nutrients_json"]) if bc_cached["nutrients_json"] else {}
+            results.append({
+                "fdc_id":    bc_cached["fdc_id"],
+                "name":      bc_cached["name"],
+                "data_type": bc_cached["data_type"],
+                "brand":     bc_cached["brand"] or "",
+                "source":    "cache",
+                "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
+                "gi":        None,
+                "diaas":     None,
+                "has_notes": bool(bc_cached["notes"]),
+            })
+        else:
+            try:
+                detail = _off.lookup_by_barcode(_bc_digits)
+            except Exception as exc:
+                detail = None
+                error = f"Open Food Facts unavailable: {exc}"
+            if detail is not None:
+                with _db.get_db() as conn:
+                    _db.cache_food(
+                        conn, detail["fdcId"], detail["name"], detail.get("dataType", ""),
+                        detail.get("brand"), detail.get("servingSize"), detail.get("servingUnit"),
+                        detail.get("nutrients", {}), detail.get("portions"),
+                    )
+                results.append({
+                    "fdc_id":    detail["fdcId"],
+                    "name":      detail["name"],
+                    "data_type": detail.get("dataType", ""),
+                    "brand":     detail.get("brand") or "",
+                    "source":    "off",
+                    "aa":        "✓" if _usda.has_amino_acid_data(detail.get("nutrients", {})) else "✗",
+                    "gi":        None,
+                    "diaas":     None,
+                    "has_notes": False,
+                })
+            elif not error:
+                error = f"Barcode {_bc_digits} not found in Open Food Facts. Try searching by product name instead."
+        ctx = {"results": results, "query": query, "error": error, "sort": sort}
+        if extra_ctx:
+            ctx.update(extra_ctx)
+        return templates.TemplateResponse(request, template, ctx)
+
     if query:
         query_words = query.lower().split()
         with _db.get_db() as conn:
@@ -930,9 +986,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
             cached = _db.search_cached_foods(conn, query)
             annotations = _db.annotations_for_fdcids(conn, [row["fdc_id"] for row in cached])
             pantry_ids = _pantry_fdc_ids(conn)
-        seen_ids: set[int] = set()
         for row in cached:
-            seen_ids.add(row["fdc_id"])
             with _db.get_db() as conn:
                 full = _db.get_cached_food(conn, row["fdc_id"])
             nutrients = json.loads(full["nutrients_json"]) if full and full["nutrients_json"] else {}
@@ -962,40 +1016,12 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                 "diaas":     None,
                 "has_notes": False,
             })
-        try:
-            # Double USDA search (same strategy as the meal add-food panel
-            # and CLI search): USDA's own relevance ranking for a query like
-            # "potato" buries plain/raw preparations (which carry real
-            # amino-acid data) below tangential matches like "Bread, potato"
-            # or "Potato chips" — e.g. "Potatoes, flesh and skin, raw" ranks
-            # ~20th for the query "potato". The Foundation/SR Legacy-only
-            # pass's result cap (Settings → Advanced) must be deep enough to
-            # reach that; 0 there means no cap at all.
-            foundation = _usda.search_foods(query, data_types=["Foundation", "SR Legacy"],
-                                             page_size=_usda.get_search_boost_page_size())
-            general = _usda.search_foods(query)
-            found_ids = {f["fdcId"] for f in foundation}
-            usda_combined = foundation + [f for f in general if f["fdcId"] not in found_ids]
-            for food in usda_combined:
-                fid = food.get("fdcId")
-                if fid and fid not in seen_ids:
-                    seen_ids.add(fid)
-                    dtype = food.get("dataType", "")
-                    results.append({
-                        "fdc_id":    fid,
-                        "name":      food.get("description", ""),
-                        "data_type": dtype,
-                        "brand":     food.get("brandOwner") or food.get("brandName") or "",
-                        "source":    "usda",
-                        "aa":        "~✓" if dtype in ("Foundation", "SR Legacy") else "✗",
-                        "gi":        None,
-                        "diaas":     None,
-                        "has_notes": False,
-                    })
-        except Exception as exc:
-            if not results:
-                error = f"USDA API unavailable: {exc}"
-
+        # USDA/Open Food Facts results are NOT fetched here — they're 2-3
+        # blocking network calls that would stall this page behind them.
+        # The browser fetches them separately once this (instant, local-only)
+        # response has rendered — see /food/search-api-results and
+        # /food/analyze-portion-api-results, same pattern as the meal
+        # add-food panel's /meal/{meal_id}/search-api-results.
         results = _sort_search_results(results, query, sort)
 
     ctx = {"results": results, "query": query, "error": error, "sort": sort}
@@ -1021,6 +1047,37 @@ async def food_search_post(request: Request, query: str = Form("")):
 async def search(request: Request, query: str = Form("")):
     """Legacy alias — same as POST /food/search."""
     return await _search_logic(request, query, "search.html")
+
+
+def _search_page_exclude_ids(query: str) -> set[int]:
+    """Fdc_ids already covered by the local cache for `query`, so the async
+    USDA/OFF fetch doesn't duplicate a row the fast synchronous pass already showed."""
+    with _db.get_db() as conn:
+        cached = _db.search_cached_foods(conn, query)
+    return {row["fdc_id"] for row in cached}
+
+
+@app.get("/food/search-api-results", response_class=HTMLResponse)
+async def food_search_api_results(request: Request, query: str = "", sort: str | None = None):
+    """Fetched by JS on the Food Search page after the initial (cache-only)
+    render — returns just the USDA/OFF result rows as an HTML fragment, so
+    slow external API calls never block cached foods from appearing instantly."""
+    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
+    query = query.strip()
+    results: list[dict] = []
+    if query:
+        results = _external_food_search_results(query, _search_page_exclude_ids(query), query, sort)
+    return templates.TemplateResponse(request, "_search_api_rows.html", {"results": results})
+
+
+@app.get("/food/analyze-portion-api-results", response_class=HTMLResponse)
+async def food_analyze_portion_api_results(request: Request, query: str = ""):
+    """Same as /food/search-api-results, for the Analyze a Food Portion page."""
+    query = query.strip()
+    results: list[dict] = []
+    if query:
+        results = _external_food_search_results(query, _search_page_exclude_ids(query), query, "grouped")
+    return templates.TemplateResponse(request, "_analyze_portion_api_rows.html", {"results": results})
 
 
 @app.post("/food/confirm-aa", response_class=RedirectResponse)
@@ -1163,7 +1220,7 @@ async def food_analyze_recipe_portion_post(
         "has_profile":        rda is not None,
         "has_optimal":        bool(optimal),
         "protein_adequacy":   _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":        _complement_suggestions(scaled, diaas_display["score"] if diaas_display else None, context="recipe", exclude_recipe_id=recipe_id),
+        "complements":        _complement_suggestions(scaled, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=diaas_ingredients),
         "gl":                 _recipe_gl_web(recipe_id, recipe_servings, servings),
     })
 
@@ -2574,10 +2631,12 @@ async def food_detail(
     # Resolve portion: free-form string takes priority over plain gram amount
     portion_error: str | None = None
     portion_label: str | None = None
+    portion_density_hint = False
     if portion_str.strip():
         parsed_g, parsed_label = _parse_portion_str(portion_str.strip(), portions, food["name"])
         if parsed_g is None:
             portion_error = parsed_label  # error message
+            portion_density_hint = "no density data is available" in parsed_label
             amount = 100.0
         else:
             amount = parsed_g if parsed_g > 0 else 100.0
@@ -2613,6 +2672,7 @@ async def food_detail(
         "portion_str":        portion_str.strip(),
         "portion_label":      portion_label,
         "portion_error":      portion_error,
+        "portion_density_hint": portion_density_hint,
         "portions":           portions,
         "nutrient_sections":  _nutrient_sections(display_nutrients, rda_scaled or rda,
                                                  optimal=optimal_scaled or optimal, max_limits=max_limits),
@@ -2830,9 +2890,10 @@ def _web_recipe_candidates(exclude_recipe_id: int | None = None) -> list[dict]:
 
 def _complement_suggestions(
     aa_nutrients: dict,
-    diaas_score: float | None,
+    pooled_tid: float | None,
     context: str = "meal",
     exclude_recipe_id: int | None = None,
+    ingredients: list[dict] | None = None,
 ) -> dict:
     """Build complement suggestion data. Returns no_data sentinel if AA data unavailable.
 
@@ -2841,17 +2902,37 @@ def _complement_suggestions(
     exclude_recipe_id: when context is "recipe", pass that recipe's own id so it
         never appears as a complement candidate for itself.
 
-    Uses digestibility=1.0 for gap analysis, matching CLI meal context behaviour:
-    the meal DIAAS is a pooled value and must not be re-applied as a per-food multiplier.
+    pooled_tid: protein-weighted average TRUE digestibility across the base's
+        ingredients — see diaas.pooled_tid() — passed through as the digestibility
+        basis so gaps/DCP projections use the real baseline, matching the CLI (see
+        render._print_meal_diaas, which returns this same value for exactly this
+        purpose). Do NOT pass the meal's composite DIAAS here instead: DIAAS is the
+        worst-case (limiting) AA ratio, and reapplying it as a flat per-AA
+        multiplier manufactures gaps in amino acids that were never actually short
+        — for a meal with one badly-imbalanced AA and otherwise-fine ones, this can
+        make every candidate look unable to close the gap in any practical serving.
+        Without pooled_tid, gaps/DCP projections default to digestibility=1.0, which
+        overstates the DCP a suggested addition will actually achieve.
+
+    ingredients: the base's real per-food breakdown (food_name/nutrients_100g/grams),
+        on the SAME basis/scale as aa_nutrients, when the caller has one. Passed
+        through to build_complement_display so DCP-achieved figures are computed by
+        an exact diaas.meal_level_diaas recompute rather than approximated with a
+        flat digestibility ratio. Must not be passed if its scale doesn't match
+        aa_nutrients (e.g. per-serving aa_nutrients with whole-recipe ingredients) —
+        that would silently produce a wrong "exact" number instead of a labeled
+        estimate, so callers should only wire this through on a basis-matched path.
     """
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
     pantry = _web_pantry_candidates() + _web_recipe_candidates(exclude_recipe_id)
     cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
     max_improver_grams = 300 if context == "recipe" else 120
+    digestibility = min(pooled_tid, 1.0) if pooled_tid else 1.0
     return _complements.build_complement_display(
         aa_nutrients, pantry, diet_pref=diet_pref,
-        digestibility=1.0, max_improver_grams=max_improver_grams,
+        digestibility=digestibility, max_improver_grams=max_improver_grams,
+        ingredients=ingredients,
         cache_candidates=cache_candidates,
     )
 
@@ -3003,8 +3084,8 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
     return items, total_nutrients, ingredients
 
 
-def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None]:
-    """Return (items_with_nutrients, total_nutrients, diaas_result)."""
+def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None, list]:
+    """Return (items_with_nutrients, total_nutrients, diaas_result, ingredients)."""
     with _db.get_db() as conn:
         items, total_nutrients, ingredients = _meal_expand_for_diaas(meal_id, conn)
         diaas_result = None
@@ -3014,7 +3095,7 @@ def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None]:
             except Exception:
                 pass
 
-    return items, total_nutrients, diaas_result
+    return items, total_nutrients, diaas_result, ingredients
 
 
 # ---------------------------------------------------------------------------
@@ -3026,7 +3107,7 @@ def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
 
     Falls back to summing recipe items' precomputed dcp_g when ingredient-level
     AA data is unavailable (matches the CLI's _compute_meal_bcp fallback)."""
-    _, total_nutrients, diaas_result = _meal_totals(meal_id)
+    _, total_nutrients, diaas_result, _ = _meal_totals(meal_id)
     diaas = _build_diaas_display(diaas_result)
     bcp_g = diaas["dcp_g"] if diaas else None
     calories = total_nutrients.get("calories") if total_nutrients else None
@@ -3245,7 +3326,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     if not meal:
         return RedirectResponse("/meals", status_code=303)
 
-    items, total_nutrients, diaas_result = _meal_totals(meal_id)
+    items, total_nutrients, diaas_result, meal_ingredients = _meal_totals(meal_id)
 
     # Search results for add-food panel
     search_results = []
@@ -3341,7 +3422,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     if rda and total_nutrients:
         day_parts = [total_nutrients]
         for sib in sibling_meals:
-            _, sib_nuts, _ = _meal_totals(sib["id"])
+            _, sib_nuts, _, _ = _meal_totals(sib["id"])
             if sib_nuts:
                 day_parts.append(sib_nuts)
         if len(day_parts) > 1:
@@ -3414,7 +3495,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                                                   optimal=optimal, max_limits=max_limits) if total_nutrients else [],
         "diaas":               diaas_display,
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":         _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="meal"),
+        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients),
         "gl":                  {"total": gl_total, "blockers": gl_blockers},
         "item_antinutrients":  item_antinutrients,
         "oxalate":             oxalate,
@@ -3737,7 +3818,7 @@ async def meals_search(request: Request, q: str = ""):
     })
 
 
-def _day_analysis(meal_date: str) -> tuple[list, dict, dict | None]:
+def _day_analysis(meal_date: str) -> tuple[list, dict, dict | None, list]:
     """Compute combined nutrients and DIAAS for all meals on a given date.
 
     Reuses _meal_expand_for_diaas (the same per-meal expansion _meal_totals
@@ -3762,7 +3843,7 @@ def _day_analysis(meal_date: str) -> tuple[list, dict, dict | None]:
             except Exception:
                 pass
 
-    return meals, combined_nutrients, diaas_result
+    return meals, combined_nutrients, diaas_result, all_ingredients
 
 
 @app.get("/meal/{meal_id}/day", response_class=HTMLResponse)
@@ -3772,7 +3853,7 @@ async def meal_day_view(request: Request, meal_id: int):
     if not meal:
         return RedirectResponse("/meals", status_code=303)
     meal_date = meal["meal_date"]
-    meals, combined_nutrients, diaas_result = _day_analysis(meal_date)
+    meals, combined_nutrients, diaas_result, day_ingredients = _day_analysis(meal_date)
 
     # Attach items list to each meal dict
     with _db.get_db() as conn:
@@ -3818,7 +3899,7 @@ async def meal_day_view(request: Request, meal_id: int):
                                                 optimal=optimal, max_limits=max_limits) if combined_nutrients else [],
         "diaas":             diaas_display,
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="daily"),
+        "complements":       _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="daily", ingredients=day_ingredients),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
@@ -4174,6 +4255,12 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
             except Exception:
                 pass
 
+        # Complement suggestions are sized against the recipe's own full total
+        # (see comment below), so they need the ingredient list at that same
+        # whole-recipe basis — not diaas_ingredients above, which is scaled to
+        # the "servings to analyze" widget instead.
+        full_diaas_ingredients = _flatten_recipe_diaas_ingredients(recipe_id, conn, recipe_servings)
+
     scaled = {k: v * servings for k, v in per_serving.items()}
     # Complement suggestions are always sized against the recipe's own full total,
     # independent of the "servings to analyze" widget above — the only way to act
@@ -4205,7 +4292,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
         "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits) if scaled else [],
         "diaas":                    diaas_display,
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":              _complement_suggestions(recipe_total_nutrients, diaas_display["score"] if diaas_display else None, context="recipe", exclude_recipe_id=recipe_id),
+        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients),
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
         "has_optimal":        bool(optimal),
@@ -4681,6 +4768,12 @@ async def summary_trend(request: Request, days: int = Query(7)):
             for k, v in scaled.items():
                 aa_nutrients[k] = aa_nutrients.get(k, 0.0) + v
 
+    trend_pooled_tid: float | None = None
+    if all_ingredients:
+        with _db.get_db() as conn:
+            trend_diaas_result = _diaas.meal_level_diaas(all_ingredients, conn)
+        trend_pooled_tid = _diaas.pooled_tid(trend_diaas_result)
+
     return templates.TemplateResponse(request, "trend.html", {
         "days":              days,
         "start":             start.isoformat(),
@@ -4691,7 +4784,8 @@ async def summary_trend(request: Request, days: int = Query(7)):
         "has_profile":       rda is not None,
         "has_optimal":       bool(optimal),
         "diet_notes":        _diet_aware_daily_notes(avg_nutrients, rda) if num_days else {},
-        "complements":       _complement_suggestions(aa_nutrients, None, context="daily") if aa_nutrients else None,
+        "complements":       _complement_suggestions(aa_nutrients, trend_pooled_tid, context="daily",
+                                                      ingredients=all_ingredients) if aa_nutrients else None,
         "end_profile_name":  end_profile_row["profile_name"] if end_profile_row else None,
         "differing_profile_dates": differing_dates,
         "avg_dcp":           avg_dcp,
@@ -5177,7 +5271,7 @@ async def summary_index(request: Request):
 @app.get("/summary/{meal_date}", response_class=HTMLResponse)
 async def summary_date(request: Request, meal_date: str):
     """Full-day nutrient + DIAAS analysis for a specific date."""
-    meals, combined_nutrients, diaas_result = _day_analysis(meal_date)
+    meals, combined_nutrients, diaas_result, day_ingredients = _day_analysis(meal_date)
     if not meals:
         return RedirectResponse("/summary", status_code=303)
 
@@ -5236,7 +5330,7 @@ async def summary_date(request: Request, meal_date: str):
                                                 optimal=optimal, max_limits=max_limits) if combined_nutrients else [],
         "diaas":             diaas_display,
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":       _complement_suggestions(aa_nutrients, diaas_display["score"] if diaas_display else None, context="daily"),
+        "complements":       _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="daily", ingredients=day_ingredients),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),

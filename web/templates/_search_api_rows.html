@@ -1,0 +1,2 @@
+{% import "_search_result_row.html" as _sr %}
+{% for food in results %}{{ _sr.row(food) }}{% endfor %}

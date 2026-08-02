@@ -103,6 +103,10 @@
     <strong>Recalculate all nutrient values for a different amount:</strong>
     type any amount (e.g. <code>150</code> for grams, <code>3 oz</code>, <code>1/4 cup</code>, <code>2 T</code>){% if portions %} or choose a preset{% endif %}.
   </p>
+  {% if not portions %}
+  <p class="muted"><small>No preset portions for this food — only per-100g data. You can add one (e.g. a per-egg or per-cup weight) from
+    <a href="/food/cache/{{ food.fdc_id }}/portions">Food Cache → Portions</a>. {{ manual_link("ts-no-piece-portion") }}</small></p>
+  {% endif %}
   <form method="get" action="/food/{{ food.fdc_id }}">
     <div class="portion-input-row">
       <input type="text" name="portion_str" id="amount-input"
@@ -130,6 +134,10 @@
   </form>
   {% if portion_error %}
   <p class="numa-error mt-1"><small>{{ portion_error }}</small></p>
+  {% if portion_density_hint %}
+  <p class="muted"><small>You can add a cup/tbsp weight for this food once from
+    <a href="/food/cache/{{ food.fdc_id }}/portions">Food Cache → Portions</a>, and volume amounts will convert automatically after that. {{ manual_link("ts-no-volume-portion") }}</small></p>
+  {% endif %}
   {% elif portion_label %}
   <small class="muted">Showing values for <strong>{{ portion_label }}</strong>{% if " g" not in portion_label %} ({{ amount }}&thinsp;g){% endif %}
     &middot; <a href="/food/{{ food.fdc_id }}">back to 100 g</a>
@@ -245,7 +253,7 @@
 {# ── Protein Quality ──────────────────────────────────────────────────── #}
 {% if protein %}
 <section id="sec-protein-quality" class="analysis-section">
-  <h3 class="section-heading">Protein Quality {{ manual_link("protein-quality") }}</h3>
+  <h3 class="section-heading">Protein Quality {{ manual_link("protein-quality") }} {{ manual_link("fao", "About the FAO reference") }}</h3>
 
   <div class="protein-meta">
     {% if protein.diaas is not none %}
@@ -411,6 +419,7 @@
   <h3 class="section-heading">Protein Complement Suggestions {{ manual_link("comp") }}</h3>
   {% if complements.no_gaps %}
   <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered — no complement needed.</p>
+  <p class="muted mt-1"><small>Every essential amino acid — including whichever one shows as "limiting" above — already meets or exceeds the FAO reference level. "Limiting" identifies the amino acid with the smallest margin, not a deficiency. {{ manual_link("gap") }}</small></p>
   {% else %}
   <p class="muted mt-2"><small>{{ complements.ranking_note }}</small></p>
   <p class="mt-1"><strong>Gaps:</strong>
@@ -435,7 +444,7 @@
   {% for s in complements.general %}{{ suggest_card(s, "Serve alongside") }}{% endfor %}
   {% endif %}
 
-  <p class="muted mt-2"><small>{{ complements.exhausted_msg }}</small></p>
+  <p class="muted mt-2"><small>{{ complements.exhausted_msg }} {{ manual_link("fao", "About the FAO reference") }}</small></p>
   {% if complements.has_estimate_or_generic %}
   <p class="muted mt-2"><small>{{ complements.estimate_note }}</small></p>
   {% endif %}

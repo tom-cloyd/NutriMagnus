@@ -195,7 +195,11 @@ def _do_analyze_food_portion() -> None:
                               recipe_id=food["id"])
         has_aa = _print_protein_completeness(scaled)
         if has_aa and _usda.get_aa_gaps(scaled):
-            _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True)
+            from ..services.recipe_nutrients import atomic_recipe_ingredients
+            with _db.get_db() as conn:
+                diaas_ingredients = atomic_recipe_ingredients(food["id"], conn, portion_factor=factor)
+            _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True,
+                                          ingredients=diaas_ingredients)
         elif not has_aa and scaled.get("protein_g", 0) > 0:
             state.console.print(
                 f"\n  [{state.T['warning']}]⚑  Insufficient amino acid data.[/{state.T['warning']}]",
@@ -273,6 +277,10 @@ def _do_convert_portion() -> None:
     if density is not None:
         state.console.print(f"  [grey62]Weight: {density:.3f} g/ml[/grey62]")
     state.console.print(f"  Enter an amount, for example: 150 (g/gr), 3 oz, 0.5 lb, 1/4 c (cup), 2 T (tbsp), 1 t (tsp)")
+    if not portions:
+        state.console.print("  [grey62]No preset portions for this food — only per-100g data. "
+                             "You can add one (e.g. a per-egg or per-cup weight) via Food Cache → p<row>.[/grey62]")
+        help_footer("ts-no-piece-portion")
 
     prompt_text = "Amount  (b=back, m=main, q=quit)"
     while True:
@@ -300,6 +308,7 @@ def _do_convert_portion() -> None:
         if grams is None:
             vol_display = label
             state.console.print(f"  [grey62]Weight per volume is unknown for this food. Weigh your portion to continue.[/grey62]")
+            help_footer("ts-no-volume-portion")
             try:
                 w_raw = _prompt(f"Weight of {vol_display} in grams  (e.g. 140 g · Enter=skip, b=back)", free_text=True).strip()
             except Cancelled:
@@ -361,7 +370,11 @@ def _do_analyze_recipe_portion() -> None:
                           recipe_id=rid)
     has_aa = _print_protein_completeness(scaled)
     if has_aa and _usda.get_aa_gaps(scaled):
-        _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True)
+        from ..services.recipe_nutrients import atomic_recipe_ingredients
+        with _db.get_db() as conn:
+            diaas_ingredients = atomic_recipe_ingredients(rid, conn, portion_factor=factor)
+        _print_complement_suggestions(scaled, context="recipe", offer_if_covered=True,
+                                      ingredients=diaas_ingredients)
     elif not has_aa and scaled.get("protein_g", 0) > 0:
         state.console.print(
             f"\n  [{state.T['warning']}]⚑  Insufficient amino acid data to assess protein completeness.[/{state.T['warning']}]",

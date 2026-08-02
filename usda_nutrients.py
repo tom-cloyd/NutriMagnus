@@ -885,6 +885,7 @@ def suggest_complements(
             "protein_added":            protein_added,
             "digestible_protein_added": dig_added,
             "diaas":                    comp_diaas_val,
+            "comp_nutrients":           comp_nutrients,
         }
 
     def _build_suggestions(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -1091,12 +1092,14 @@ def suggest_complements(
                          "serving_weight_g": a_serving_wt, "diaas": a_diaas,
                          "grams": a_m["grams"],
                          "protein_added": round(a_prot, 1),
-                         "dig_added":     round(a_dig,  1)},
+                         "dig_added":     round(a_dig,  1),
+                         "comp_nutrients": a_nutrients},
                         {"name": b_name, "fdc_id": b_fdc_id, "recipe_id": b_recipe_id,
                          "serving_weight_g": b_serving_wt, "diaas": b_diaas,
                          "grams": b_m["grams"],
                          "protein_added": round(b_prot, 1),
-                         "dig_added":     round(b_dig,  1)},
+                         "dig_added":     round(b_dig,  1),
+                         "comp_nutrients": b_nutrients},
                     ],
                     "total_grams":         total_grams,
                     # gaps_closed: all AAs at score ≥ 0.95 (the gap threshold).

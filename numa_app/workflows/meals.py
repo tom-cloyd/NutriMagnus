@@ -1042,7 +1042,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
                           optimal=optimal, max_limits=max_limits)
 
     ing_list = _compute_meal_ingredient_list(meal_id)
-    missing_aa, _dcp_g, meal_diaas = _print_meal_diaas(ing_list, profile=profile)
+    missing_aa, _dcp_g, _meal_diaas, meal_pooled_tid = _print_meal_diaas(ing_list, profile=profile)
 
     # Persist the calculated DCP and calories so they show up on Meals & Log.
     with _db.get_db() as conn:
@@ -1064,7 +1064,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
     ]) if ing_list else {}
     if aa_nutrients:
         _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True,
-                                      base_diaas=meal_diaas)
+                                      base_diaas=meal_pooled_tid, ingredients=ing_list)
 
     gl_total, gl_blockers = _compute_meal_gl(meal_id)
     section_title("Glycemic load")
@@ -1102,7 +1102,7 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
         all_day_ings: list[dict] = []
         for m in today_meals:
             all_day_ings.extend(_compute_meal_ingredient_list(m["id"]))
-        _, _, day_diaas = _print_meal_diaas(all_day_ings, profile=profile, title="Day-Level Complete Protein Analysis")
+        _, _, _day_diaas, day_pooled_tid = _print_meal_diaas(all_day_ings, profile=profile, title="Day-Level Complete Protein Analysis")
         day_aa_nutrients = _usda.sum_nutrients(*[
             _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
             for ing in all_day_ings
@@ -1110,7 +1110,8 @@ def _analyze_meal_inline(meal_id: int, meal_name: str, meal_date: str) -> None:
         ]) if all_day_ings else {}
         if day_aa_nutrients:
             _print_complement_suggestions(day_aa_nutrients, context="daily", basis_label="all meals today",
-                                          silent_if_complete=True, base_diaas=day_diaas)
+                                          silent_if_complete=True, base_diaas=day_pooled_tid,
+                                          ingredients=all_day_ings)
 
         gl_total_day = 0.0
         gl_blockers_day: list[tuple[str, int | None, int | None]] = []
@@ -1528,7 +1529,7 @@ def _analyze_day(meals: list, meal_date: str) -> None:
     _print_nutrient_table(combined, title=f"Nutrient analysis for {title}",
                           daily_nutrients=combined, rda=rda,
                           optimal=optimal, max_limits=max_limits, show_meal_pct=False)
-    _missing_aa, _dcp_g, meal_diaas = _print_meal_diaas(all_ings, profile=profile)
+    _missing_aa, _dcp_g, _meal_diaas, meal_pooled_tid = _print_meal_diaas(all_ings, profile=profile)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
         for ing in all_ings
@@ -1536,7 +1537,7 @@ def _analyze_day(meals: list, meal_date: str) -> None:
     ]) if all_ings else {}
     if aa_nutrients:
         _print_complement_suggestions(aa_nutrients, context="meal", offer_if_covered=True,
-                                      base_diaas=meal_diaas)
+                                      base_diaas=meal_pooled_tid, ingredients=all_ings)
     gl_total_day = 0.0
     gl_blockers_day: list[tuple[str, int | None, int | None]] = []
     for m in meals:

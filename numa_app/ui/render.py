@@ -386,7 +386,7 @@ def _print_protein_completeness(
     if partial_data_note:
         footer.append(f"  [grey62]{partial_data_note}[/grey62]")
     table_footer(*footer)
-    help_footer("protein-quality")
+    help_footer("protein-quality", "fao")
     return True
 
 
@@ -443,7 +443,7 @@ def _print_meal_diaas(
     ingredient_list: list[dict],
     profile: "_profile.UserProfile | None" = None,
     title: str = "Meal-Level Complete Protein Analysis",
-) -> tuple[list[str], float | None]:
+) -> tuple[list[str], float | None, float | None, float | None]:
     """
     Print meal-level DIAAS analysis for a list of ingredients.
 
@@ -454,14 +454,19 @@ def _print_meal_diaas(
 
     profile: when provided, prints a compact adequacy line right after the DCP line.
 
-    Returns (missing_aa_names, dcp_g, diaas):
+    Returns (missing_aa_names, dcp_g, diaas, pooled_tid):
         missing_aa_names: food names excluded due to missing AA data; empty = analysis complete.
         dcp_g: digestible complete protein in grams, or None if DIAAS analysis unavailable.
-        diaas: meal DIAAS (capped at 1.0), or None if unavailable. Pass as base_diaas to
-               _print_complement_suggestions so its DCP projections use the correct baseline.
+        diaas: meal DIAAS (capped at 1.0), or None if unavailable. Do NOT pass this as
+               base_diaas to _print_complement_suggestions — it's the worst-case (limiting)
+               AA ratio, not a digestibility, and reapplying it as a flat per-AA multiplier
+               manufactures gaps in AAs that were never actually short (see diaas.pooled_tid's
+               docstring). Pass pooled_tid (below) instead.
+        pooled_tid: protein-weighted average TRUE digestibility across ingredients — the
+               correct value to pass as base_diaas to _print_complement_suggestions.
     """
     if not ingredient_list:
-        return [], None, None
+        return [], None, None, None
 
     with _db.get_db() as conn:
         result = _diaas.meal_level_diaas(ingredient_list, conn)
@@ -476,7 +481,7 @@ def _print_meal_diaas(
                 "\n  [grey62](Meal-level DIAAS analysis unavailable — "
                 "no amino acid data for any ingredient.)[/grey62]"
             )
-        return result["missing_aa_names"], None, None
+        return result["missing_aa_names"], None, None, None
 
     section_title(title,
                   "pooled across foods, digestibility-corrected (DIAAS)")
@@ -646,10 +651,11 @@ def _print_meal_diaas(
             for _src in est_with_protein:
                 state.console.print(f"  [grey62]    • {_src}[/grey62]", highlight=False)
 
-    help_footer("meal-diaas", "iaa-ratios")
+    help_footer("meal-diaas", "iaa-ratios", "fao")
     raw_diaas = result.get("diaas")
     capped_diaas = min(raw_diaas, 1.0) if raw_diaas is not None else None
-    return result["missing_aa_names"], result.get("digestible_complete_protein_g"), capped_diaas
+    return (result["missing_aa_names"], result.get("digestible_complete_protein_g"),
+            capped_diaas, _diaas.pooled_tid(result))
 
 def _print_recipe_bioavailability(
     ingredient_stats: list[dict],
@@ -806,6 +812,10 @@ def _print_complement_suggestions(
     silent_if_complete: bool = False,  # if True, print nothing when no gaps (avoids duplicate messages)
     recipe_servings: float | None = None,  # when base_nutrients is a whole-recipe total (servings > 1),
                                             # also show the per-serving DCP alongside each total
+    ingredients: list[dict] | None = None,  # real per-food breakdown for base_nutrients, when
+                                             # available (meal/daily/recipe/trend) — enables exact
+                                             # DCP-achieved figures via diaas.meal_level_diaas
+                                             # instead of the flat-digestibility approximation.
 ) -> None:
     """
     Display protein complement suggestions.
@@ -816,6 +826,10 @@ def _print_complement_suggestions(
     silent_if_complete: when True, return without printing anything if there are no AA gaps.
     recipe_servings: only pass when base_nutrients is a whole-recipe total; used solely to
                       show the equivalent per-serving DCP alongside each achieved-DCP figure.
+    ingredients: pass the real ingredient list (food_name/nutrients_100g/grams) whenever one
+                 exists so "DCP achieved" figures are computed exactly (via
+                 _complements.exact_dcp) rather than approximated with a flat digestibility
+                 ratio — see _dcp_label below.
     """
     if base_diaas is None:
         base_diaas = _usda.get_diaas(base_food_name) if base_food_name else None
@@ -826,6 +840,12 @@ def _print_complement_suggestions(
         if not silent_if_complete:
             section_title("Protein Complement Suggestions")
             state.console.print("  [grey62]No complement suggestions are needed.[/grey62]")
+            state.console.print(
+                "  [grey62]Every essential amino acid — including whichever one shows as \"limiting\" "
+                "above — already meets or exceeds the FAO reference level. \"Limiting\" identifies the "
+                "amino acid with the smallest margin, not a deficiency.[/grey62]"
+            )
+            help_footer("gap", "fao")
         return
 
     try:
@@ -883,7 +903,7 @@ def _print_complement_suggestions(
         _sources.append(f"{len(pantry)} pantry item{'s' if len(pantry) != 1 else ''}")
     if recipe_candidates:
         _sources.append(f"{len(recipe_candidates)} analyzed recipe{'s' if len(recipe_candidates) != 1 else ''}")
-    _sources.append("built-in list of ~30 common protein sources")
+    _sources.append(f"built-in list of {len(_usda.complement_table_names())} common protein sources")
     state.console.print(f"[grey62]{textwrap.fill('Considered: ' + ', '.join(_sources) + '.', width=_sugg_w - 2, initial_indent='  ', subsequent_indent='  ')}[/grey62]")
     state.console.print(f"[grey62]{textwrap.fill('Ranked by grams needed (smallest first). Exception: an option that fully completes the amino acid profile is promoted to the top — but only if its serving is 50 g or less.', width=_sugg_w - 2, initial_indent='  ', subsequent_indent='  ')}[/grey62]")
     gap_labels = ", ".join(
@@ -926,6 +946,19 @@ def _print_complement_suggestions(
         return f"{count:.1f} {unit}"
 
     _GRAD_THRESHOLD = 30  # grams; above this, show graduated scale instead of single amount
+
+    # DCP-achieved figures are exact when `ingredients` (the real per-food breakdown)
+    # is available — they're computed via a true diaas.meal_level_diaas recompute
+    # (see _exact_dcp below) — or when context="food" (a single food's own published/
+    # estimated DIAAS applied uniformly to its own AAs is standard DIAAS methodology,
+    # not an approximation). Without `ingredients`, figures fall back to a flat
+    # composite-digestibility approximation that can diverge noticeably from the
+    # true recompute — label those as estimates.
+    _dcp_label = "Total digestible complete protein" if (context == "food" or ingredients) \
+        else "Estimated total digestible complete protein"
+
+    def _exact_dcp(food_name: str, comp_nutrients: dict | None, grams: float | None) -> float | None:
+        return _complements.exact_dcp(ingredients, [(food_name, comp_nutrients, grams)])
 
     saw_estimate_or_generic = False
 
@@ -1004,19 +1037,21 @@ def _print_complement_suggestions(
                 highlight=False,
             )
 
-            # Total digestible complete protein at each step.
-            total_list = ", ".join(
-                f"{base_digestible + dig_full * frac:.1f}g" for frac in step_fracs
-            )
+            # Total digestible complete protein at each step — exact recompute when
+            # `ingredients` is available, else the flat-digestibility approximation.
+            comp_nutrients = s.get("comp_nutrients")
+            total_values = []
+            for g, frac in zip(steps, step_fracs):
+                exact = _exact_dcp(s["name"], comp_nutrients, g)
+                total_values.append(exact if exact is not None else base_digestible + dig_full * frac)
+            total_list = ", ".join(f"{v:.1f}g" for v in total_values)
             state.console.print(
-                f"    Total digestible complete protein: "
+                f"    {_dcp_label}: "
                 f"[{state.T['success']}]{total_list}[/{state.T['success']}]",
                 highlight=False,
             )
             if recipe_servings and recipe_servings > 1:
-                per_serving_list = ", ".join(
-                    f"{(base_digestible + dig_full * frac) / recipe_servings:.1f}g" for frac in step_fracs
-                )
+                per_serving_list = ", ".join(f"{v / recipe_servings:.1f}g" for v in total_values)
                 state.console.print(
                     f"    [grey62]Per serving ({recipe_servings:g} servings): "
                     f"{per_serving_list}[/grey62]",
@@ -1041,16 +1076,18 @@ def _print_complement_suggestions(
             state.console.print(f"    Effect: {' · '.join(score_parts)}")
             dig = s["digestible_protein_added"]
             raw = s["protein_added"]
-            if s.get("predicted_diaas") is not None:
-                total_dig = (base_protein + raw) * min(1.0, s["predicted_diaas"])
-            elif s.get("new_scores") and _digestibility > 0:
-                new_raw_min = min(s["new_scores"].values())
-                total_dig = (base_protein + raw) * min(1.0, _digestibility * new_raw_min)
-            else:
-                total_dig = base_digestible + dig
+            total_dig = _exact_dcp(s["name"], s.get("comp_nutrients"), s.get("grams"))
+            if total_dig is None:
+                if s.get("predicted_diaas") is not None:
+                    total_dig = (base_protein + raw) * min(1.0, s["predicted_diaas"])
+                elif s.get("new_scores") and _digestibility > 0:
+                    new_raw_min = min(s["new_scores"].values())
+                    total_dig = (base_protein + raw) * min(1.0, _digestibility * new_raw_min)
+                else:
+                    total_dig = base_digestible + dig
             state.console.print(f"    Adds: [bold]{dig:.1f}g[/bold] digestible protein "
                           f"[grey62](from {raw:.1f}g raw)[/grey62]", highlight=False)
-            state.console.print(f"    Total digestible complete protein now = "
+            state.console.print(f"    {_dcp_label} now = "
                           f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
                           highlight=False)
             if recipe_servings and recipe_servings > 1:
@@ -1124,15 +1161,18 @@ def _print_complement_suggestions(
             f"[grey62](from {p['total_protein_added']:.1f}g raw)[/grey62]",
             highlight=False,
         )
-        if p.get("predicted_diaas") is not None:
-            total_dig = (base_protein + p["total_protein_added"]) * min(1.0, p["predicted_diaas"])
-        elif p.get("new_scores") and _digestibility > 0:
-            new_raw_min = min(p["new_scores"].values())
-            total_dig = (base_protein + p["total_protein_added"]) * min(1.0, _digestibility * new_raw_min)
-        else:
-            total_dig = base_digestible + p["total_dig_added"]
+        pair_extra = [(f["name"], f.get("comp_nutrients"), f.get("grams")) for f in foods]
+        total_dig = _complements.exact_dcp(ingredients, pair_extra)
+        if total_dig is None:
+            if p.get("predicted_diaas") is not None:
+                total_dig = (base_protein + p["total_protein_added"]) * min(1.0, p["predicted_diaas"])
+            elif p.get("new_scores") and _digestibility > 0:
+                new_raw_min = min(p["new_scores"].values())
+                total_dig = (base_protein + p["total_protein_added"]) * min(1.0, _digestibility * new_raw_min)
+            else:
+                total_dig = base_digestible + p["total_dig_added"]
         state.console.print(
-            f"    Total digestible complete protein now = "
+            f"    {_dcp_label} now = "
             f"[{state.T['success']}]{total_dig:.1f}g[/{state.T['success']}]",
             highlight=False,
         )
@@ -1244,14 +1284,14 @@ def _print_complement_suggestions(
                     ans = _prompt("Look elsewhere for more options?  [grey62](y/N)[/grey62]",
                                   default="n").strip().lower()
                 except Cancelled:
-                    help_footer("comp")
+                    help_footer("comp", "fao")
                     return
                 if ans == "m":
                     raise ReturnToMain()
                 if ans == "q":
                     raise SystemExit(0)
                 if ans == "b":
-                    help_footer("comp")
+                    help_footer("comp", "fao")
                     return
                 if ans == "y":
                     _show_paged(general_suggs, "Other options", page_size=5)
@@ -1265,7 +1305,7 @@ def _print_complement_suggestions(
             else:
                 _general_exhausted_msg(0)
     except Cancelled:
-        help_footer("comp")
+        help_footer("comp", "fao")
         return
 
     if pair_suggs:
@@ -1390,9 +1430,9 @@ def _print_complement_suggestions(
         )
 
     if top_gap_closers and diaas_improvers:
-        help_footer("comb", "comp", "comp-estimate")
+        help_footer("comb", "comp", "comp-estimate", "fao")
     else:
-        help_footer("comp", "comp-estimate")
+        help_footer("comp", "comp-estimate", "fao")
 
 def _print_dcp_adequacy_section(
     meal_result: "dict | None",

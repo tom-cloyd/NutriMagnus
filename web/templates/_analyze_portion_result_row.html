@@ -1,0 +1,23 @@
+{% macro row(food) %}
+<tr>
+  <td>
+    {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+    {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
+    {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+    {% else %}<span class="muted">—</span>{% endif %}
+  </td>
+  <td class="muted"><small>{{ food.gi or "—" }}</small></td>
+  <td class="muted"><small>{{ food.diaas or "—" }}</small></td>
+  <td class="muted">{% if food.has_notes %}<span title="Has a saved note">y</span>{% endif %}</td>
+  <td>
+    {% if food._type == "recipe" %}
+    <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
+    {% else %}
+    <a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
+    {% endif %}
+  </td>
+  <td class="muted">{{ food.brand or "—" }}</td>
+  <td class="muted">{{ food.data_type }}</td>
+  <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+</tr>
+{% endmacro %}

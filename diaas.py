@@ -368,6 +368,34 @@ def meal_level_diaas(
     }
 
 
+def pooled_tid(result: dict) -> float | None:
+    """Protein-weighted average TRUE ileal digestibility across a meal_level_diaas()
+    result's ingredients — as opposed to `result["diaas"]`, the composite DIAAS,
+    which is the worst-case (limiting) AA ratio and already bakes in any AA-balance
+    penalty on top of digestibility.
+
+    Composite DIAAS must not be reused as a flat per-AA digestibility multiplier for
+    gap analysis or complement sizing: a food mix can have severe imbalance in one AA
+    (crushing composite DIAAS) while every other AA is comfortably above reference —
+    applying the crushed composite value to ALL AAs manufactures gaps that don't
+    exist and can make even a strong complement look unable to close them in any
+    practical serving. pooled_tid reflects only the true absorption loss, not the
+    AA-balance penalty, so gap sizing responds correctly to what a complement's own
+    AA content can actually fix. See numa_app.workflows.recipe_analysis, which uses
+    this same protein-weighted-average approach for recipe complement sizing.
+
+    Returns None if no ingredient has usable AA + digestibility data.
+    """
+    aa_ings = [
+        i for i in (result.get("ingredients") or [])
+        if i.get("has_aa_data") and i.get("protein_g", 0) > 0
+    ]
+    aa_protein_sum = sum(i["protein_g"] for i in aa_ings)
+    if aa_protein_sum <= 0:
+        return None
+    return sum(i["protein_g"] * i["digestibility"] for i in aa_ings) / aa_protein_sum
+
+
 # ---------------------------------------------------------------------------
 # DB functions for user overrides  (table created by db.init_db)
 # ---------------------------------------------------------------------------

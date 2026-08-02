@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_search_result_row.html" as _sr %}
 {% block title %}NutriMagnus — Search{% endblock %}
 
 {% block content %}
@@ -17,6 +18,7 @@
            placeholder="e.g. salmon, oat bran, lentils" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
+  <p class="muted mb-2"><small>Type a food name, an <a href="/manual#gloss-fdc-id" target="_blank" rel="noopener">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
   {% if query %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
 </form>
 
@@ -24,13 +26,16 @@
 <p class="numa-error">{{ error }}</p>
 {% endif %}
 
-{% if results %}
-{% set unconfirmed = results|selectattr("aa", "equalto", "~✓")|list %}
+{% set _bc = query.replace(" ", "").replace("-", "") %}
+{% set is_barcode_query = _bc.isdigit() and (_bc|length == 12 or _bc|length == 13) %}
+
+{% if query %}
 <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
-  <p class="result-count mb-0">
+  <p class="result-count mb-0" id="search-result-count">
     {{ results|length }} result{% if results|length != 1 %}s{% endif %}
     for <strong>{{ query }}</strong>
   </p>
+  {% if not is_barcode_query %}
   <form method="get" action="/food/search" class="d-flex gap-2 align-items-center">
     <input type="hidden" name="query" value="{{ query }}">
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
@@ -40,101 +45,101 @@
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
   </form>
+  {% endif %}
 </div>
 <form method="post" action="/food/confirm-aa" id="confirm-aa-form">
   <input type="hidden" name="query" value="{{ query }}">
   <input type="hidden" name="sort" value="{{ sort }}">
-  {% if unconfirmed %}
-  <div class="d-flex align-items-center gap-2 mb-2">
+  <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
     <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
       Fetch full details for selected
     </button>
     <small class="muted">Confirms whether a <span class="text-warning">~✓</span> food really has amino acid data — search results don't carry nutrient data, only the food's name and type, so this is a guess until fetched.</small>
   </div>
-  {% endif %}
-<table class="table table-sm table-hover">
-  <thead class="table-light">
-    <tr>
-      {% if unconfirmed %}
-      <th style="width:2rem">
-        <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
-               aria-label="Select all unconfirmed">
-      </th>
+  <table class="table table-sm table-hover" id="search-table" {% if not results and is_barcode_query %}style="display:none"{% endif %}>
+    <thead class="table-light">
+      <tr>
+        <th class="confirm-col" style="width:2rem">
+          <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
+                 aria-label="Select all unconfirmed">
+        </th>
+        <th class="muted" style="width:6rem">ID</th>
+        <th title="Amino acid data">AA</th>
+        <th title="Glycemic index (annotated)">GI</th>
+        <th title="DIAAS score (annotated)">DIAAS</th>
+        <th title="Has a saved note">Notes</th>
+        <th>Food</th>
+        <th>Brand</th>
+        <th>Type</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody id="search-tbody">
+      {% for food in results %}{{ _sr.row(food) }}{% endfor %}
+      {% if not is_barcode_query %}
+      <tr id="search-api-loading" class="food-meta-row">
+        <td colspan="10"><small class="muted">Searching USDA FoodData Central and Open Food Facts…</small></td>
+      </tr>
       {% endif %}
-      <th class="muted" style="width:6rem">ID</th>
-      <th title="Amino acid data">AA</th>
-      <th title="Glycemic index (annotated)">GI</th>
-      <th title="DIAAS score (annotated)">DIAAS</th>
-      <th title="Has a saved note">Notes</th>
-      <th>Food</th>
-      <th>Brand</th>
-      <th>Type</th>
-      <th>Source</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for food in results %}
-    <tr>
-      {% if unconfirmed %}
-      <td>
-        {% if food.aa == "~✓" %}
-        <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
-               aria-label="Select {{ food.name }} to fetch full details">
-        {% endif %}
-      </td>
-      {% endif %}
-      <td class="muted"><small>
-        {% if food._type == "recipe" %}{{ food.recipe_id }}
-        {% elif food.fdc_id > 0 %}{{ food.fdc_id }}
-        {% else %}OFF{% endif %}
-      </small></td>
-      <td>
-        {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
-        {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
-        {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
-        {% else %}<span class="muted">—</span>{% endif %}
-      </td>
-      <td class="muted"><small>{{ food.gi if food.gi is not none else "—" }}</small></td>
-      <td class="muted"><small>{{ food.diaas if food.diaas is not none else "—" }}</small></td>
-      <td class="muted">{% if food.has_notes %}<span title="Has a saved note">y</span>{% endif %}</td>
-      <td>
-        {% if food._type == "recipe" %}
-        <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
-        {% else %}
-        <a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
-        {% endif %}
-      </td>
-      <td class="muted">{{ food.brand or "—" }}</td>
-      <td class="muted">{{ food.data_type }}</td>
-      <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+    </tbody>
+  </table>
 </form>
-{% if unconfirmed %}
+<p id="search-no-results" class="muted" {% if results or not is_barcode_query %}style="display:none"{% endif %}>No results for <strong>{{ query }}</strong>.</p>
 <script>
 (function () {
-  var form = document.getElementById('confirm-aa-form');
-  if (!form) return;
-  var boxes = Array.prototype.slice.call(form.querySelectorAll('[data-confirm-aa-checkbox]'));
-  var submitBtn = form.querySelector('[data-confirm-aa-submit]');
-  var selectAll = form.querySelector('[data-confirm-aa-select-all]');
+  var tbody = document.getElementById('search-tbody');
+  var table = document.getElementById('search-table');
+  var confirmForm = document.getElementById('confirm-aa-form');
+  var confirmPanel = document.getElementById('confirm-aa-panel');
+  var submitBtn = confirmForm.querySelector('[data-confirm-aa-submit]');
+  var selectAll = confirmForm.querySelector('[data-confirm-aa-select-all]');
 
-  function refresh() {
-    submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
+  function refreshConfirmUI() {
+    var boxes = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'));
+    confirmPanel.style.display = boxes.length ? '' : 'none';
+    if (submitBtn) submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
   }
-  boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+  tbody.addEventListener('change', function (e) {
+    if (e.target.matches('[data-confirm-aa-checkbox]')) refreshConfirmUI();
+  });
   if (selectAll) {
     selectAll.addEventListener('change', function () {
-      boxes.forEach(function (b) { b.checked = selectAll.checked; });
-      refresh();
+      Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'))
+        .forEach(function (b) { b.checked = selectAll.checked; });
+      refreshConfirmUI();
     });
   }
+  refreshConfirmUI();
+
+  var loadingRow = document.getElementById('search-api-loading');
+  if (!loadingRow) return;  // barcode query — already fully resolved, nothing more to fetch
+
+  var noResults = document.getElementById('search-no-results');
+  var countEl = document.getElementById('search-result-count');
+  var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}});
+  fetch('/food/search-api-results?' + params.toString())
+    .then(function (r) { return r.text(); })
+    .then(function (html) {
+      loadingRow.remove();
+      var hadRows = tbody.querySelector('tr') !== null;
+      if (html.trim()) {
+        tbody.insertAdjacentHTML('beforeend', html);
+        table.style.display = '';
+      } else if (!hadRows) {
+        table.style.display = 'none';
+        noResults.style.display = '';
+      }
+      var totalRows = tbody.querySelectorAll('tr').length;
+      countEl.textContent = totalRows + ' result' + (totalRows != 1 ? 's' : '') + ' for ';
+      var strong = document.createElement('strong');
+      strong.textContent = {{ query | tojson }};
+      countEl.appendChild(strong);
+      refreshConfirmUI();
+    })
+    .catch(function () {
+      loadingRow.querySelector('small').textContent = 'Search failed — reload to retry.';
+    });
 })();
 </script>
-{% endif %}
-{% elif query %}
-<p>No results for <strong>{{ query }}</strong>.</p>
 {% endif %}
 {% endblock %}

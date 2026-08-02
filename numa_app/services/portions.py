@@ -7,6 +7,7 @@ import re
 
 import usda as _usda
 from .. import state
+from ..ui.common import help_footer
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt
 
 _UNIT_TO_GRAMS: dict[str, float] = {
@@ -446,6 +447,10 @@ def _pick_portion(
         for i, p in enumerate(portions, 1):
             state.console.print(f"    [grey62]p{i}[/grey62]  {p['description']} [{p['gram_weight']:.4g}g]")
         state.console.print("  [grey62]  e.g. 'p1' for one portion, '2 p1' for two[/grey62]")
+    else:
+        state.console.print("  [grey62]No preset portions for this food — only per-100g data. "
+                             "You can add one (e.g. a per-egg or per-cup weight) via Food Cache → p<row>.[/grey62]")
+        help_footer("ts-no-piece-portion")
     if current:
         state.console.print(
             f"  Current: [{state.T['default_hint']}]{current}[/{state.T['default_hint']}]"
@@ -491,7 +496,7 @@ def _pick_portion(
         if grams == 0.0 and label.endswith(" pc"):
             parsed = _parse_number_tokens(_tokenize_portion(raw))
             bare_g = parsed[0] if parsed else None
-            if bare_g is None or bare_g <= 0:
+            if bare_g is None or bare_g < 0:
                 state.console.print(f"[{state.T['warning']}]Unrecognized input. Try: 150 g, 3 oz, 1/4 cup, 2 T.[/{state.T['warning']}]")
                 continue
             if portions:
@@ -514,6 +519,7 @@ def _pick_portion(
             vol_display = label
             state.console.print(f"  [grey62]Weight per volume is unknown for this food. "
                           f"Enter grams to calculate nutrition, or press Enter to skip.[/grey62]")
+            help_footer("ts-no-volume-portion")
             while True:
                 try:
                     w_raw = _prompt(f"Weight of {vol_display} in grams  (Enter=skip)", free_text=True).strip()

@@ -86,6 +86,86 @@ def test_food_search_by_name(client: TestClient, monkeypatch: pytest.MonkeyPatch
     assert "Chicken" in resp.text
 
 
+def test_food_search_page_defers_usda_off_to_async_endpoint(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The initial /food/search response must not block on USDA/OFF — those
+    results are fetched by the browser afterward from /food/search-api-results
+    (see _search_logic's cache-only fast path)."""
+    _mock_api(monkeypatch)
+    resp = client.get("/food/search", params={"query": "Chicken"})
+    assert resp.status_code == 200
+    assert "broilers or fryers" not in resp.text
+    assert "search-api-results" in resp.text  # JS fetch call is present
+
+    api_resp = client.get("/food/search-api-results", params={"query": "Chicken"})
+    assert api_resp.status_code == 200
+    assert "broilers or fryers" in api_resp.text
+
+
+def test_analyze_portion_page_defers_usda_off_to_async_endpoint(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _mock_api(monkeypatch)
+    resp = client.post("/food/analyze-portion", data={"query": "Chicken"})
+    assert resp.status_code == 200
+    assert "broilers or fryers" not in resp.text
+    assert "analyze-portion-api-results" in resp.text
+
+    api_resp = client.get("/food/analyze-portion-api-results", params={"query": "Chicken"})
+    assert api_resp.status_code == 200
+    assert "broilers or fryers" in api_resp.text
+
+
+def test_food_search_by_barcode_found_via_off(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    barcode = "012345678905"  # UPC-A, 12 digits
+
+    def fake_lookup(bc: str) -> dict:
+        assert bc == barcode
+        return {
+            "fdcId": -2000000001, "name": "Test Bar", "dataType": "Open Food Facts",
+            "brand": "Acme", "servingSize": 40.0, "servingUnit": "g",
+            "nutrients": {"protein_g": 10.0}, "portions": [],
+        }
+
+    monkeypatch.setattr("web.backend._off.lookup_by_barcode", fake_lookup)
+    resp = client.get("/food/search", params={"query": barcode})
+    assert resp.status_code == 200
+    assert "Test Bar" in resp.text
+
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, -2000000001)
+    assert cached is not None
+    assert cached["name"] == "Test Bar"
+
+
+def test_food_search_by_barcode_prefers_cache_over_off(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    barcode = "012345678905"
+    import openfoodfacts as _off
+    off_fdc_id = _off.off_id(barcode)
+    with _db.get_db() as conn:
+        _db.cache_food(
+            conn, off_fdc_id, "Already Cached Bar", "Open Food Facts",
+            None, None, None, {"protein_g": 5.0}, None,
+        )
+
+    def fail_lookup(bc: str) -> None:
+        raise AssertionError("should not hit Open Food Facts when already cached")
+
+    monkeypatch.setattr("web.backend._off.lookup_by_barcode", fail_lookup)
+    resp = client.get("/food/search", params={"query": barcode})
+    assert resp.status_code == 200
+    assert "Already Cached Bar" in resp.text
+
+
+def test_food_search_by_barcode_not_found(client: TestClient) -> None:
+    resp = client.get("/food/search", params={"query": "012345678905"})
+    assert resp.status_code == 200
+    assert "not found" in resp.text.lower()
+
+
 def test_food_detail_page(client: TestClient, cached_food) -> None:
     resp = client.get(f"/food/{cached_food['fdcId']}")
     assert resp.status_code == 200

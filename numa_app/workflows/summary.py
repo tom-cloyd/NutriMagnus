@@ -5,6 +5,7 @@ Docs: README-numa-documentation.md, Menu Structure: "4. Analysis"
 from datetime import date, timedelta
 
 import db as _db
+import diaas as _diaas
 import profile as _profile
 import usda as _usda
 from rich.table import Table
@@ -90,7 +91,7 @@ def _do_daily_summary(meal_date: str) -> None:
                           per_label=f"meals: {meal_names}",
                           daily_nutrients=combined, rda=rda,
                           optimal=optimal, max_limits=max_limits, show_meal_pct=False)
-    missing_aa, _dcp_g, day_diaas = _print_meal_diaas(all_ings)
+    missing_aa, _dcp_g, _day_diaas, day_pooled_tid = _print_meal_diaas(all_ings)
     aa_nutrients = _usda.sum_nutrients(*[
         _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
         for ing in all_ings
@@ -100,7 +101,7 @@ def _do_daily_summary(meal_date: str) -> None:
         _print_protein_adequacy(combined, user_profile, context_label=f"Daily total ({meal_date})", dcp_g=_dcp_g)
     if aa_nutrients:
         _print_complement_suggestions(aa_nutrients, context="daily", offer_if_covered=True,
-                                      base_diaas=day_diaas)
+                                      base_diaas=day_pooled_tid, ingredients=all_ings)
 
     if user_profile:
         try:
@@ -354,8 +355,14 @@ def _do_nutrient_trend() -> None:
         if _usda.has_amino_acid_data(ing["nutrients_100g"])
     ]) if all_ings else {}
     if aa_nutrients:
+        trend_pooled_tid: float | None = None
+        if all_ings:
+            with _db.get_db() as conn:
+                trend_result = _diaas.meal_level_diaas(all_ings, conn)
+            trend_pooled_tid = _diaas.pooled_tid(trend_result)
         _print_complement_suggestions(
             aa_nutrients, context="trend",
             basis_label=f"pooled across {num_days} logged day(s)",
             silent_if_complete=True,
+            base_diaas=trend_pooled_tid, ingredients=all_ings,
         )

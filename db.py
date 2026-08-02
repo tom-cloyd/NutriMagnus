@@ -402,6 +402,18 @@ def prune_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool
     return unused
 
 
+def _singular_variant(word: str) -> str | None:
+    """Return a plausible singular form of `word`, or None if not plural-looking."""
+    lw = word.lower()
+    if lw.endswith("ies") and len(lw) > 3:
+        return lw[:-3] + "y"
+    if lw.endswith("es") and len(lw) > 2:
+        return lw[:-2]
+    if lw.endswith("s") and len(lw) > 1:
+        return lw[:-1]
+    return None
+
+
 def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archived: bool = False) -> list[sqlite3.Row]:
     words = query.split()
     if not words:
@@ -411,15 +423,23 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
     # user-drafted foods like "B12 5000mcg" from surfacing for "coffee 1".
     match_words = [w for w in words if not w.isdigit()] or words
     select = "SELECT fdc_id, name, data_type, brand, portions_json, notes, nutrients_json, archived FROM foods"
-    params = [f"%{w}%" for w in match_words]
     archived_clause = "" if include_archived else "AND archived = 0"
-    # All-words match for the general cache
-    and_cond = " AND ".join("name LIKE ?" for _ in match_words)
-    and_rows = conn.execute(f"{select} WHERE {and_cond} {archived_clause} ORDER BY name", params).fetchall()
+    # Each query word also tries its singular form, so e.g. "potatoes" matches
+    # cached/drafted names stored as singular "Potato, cooked".
+    word_variants = [[w] + ([_singular_variant(w)] if _singular_variant(w) and _singular_variant(w) != w else []) for w in match_words]
+    # All-words match for the general cache — each word may match by either form
+    and_groups = []
+    and_params: list[str] = []
+    for variants in word_variants:
+        and_groups.append("(" + " OR ".join("name LIKE ?" for _ in variants) + ")")
+        and_params.extend(f"%{v}%" for v in variants)
+    and_cond = " AND ".join(and_groups)
+    and_rows = conn.execute(f"{select} WHERE {and_cond} {archived_clause} ORDER BY name", and_params).fetchall()
     # Any-word match for user-drafted foods — so "vitamin d" finds "D3 50 mcg" etc.
-    or_cond = " OR ".join("name LIKE ?" for _ in match_words)
+    or_params = [f"%{v}%" for variants in word_variants for v in variants]
+    or_cond = " OR ".join("name LIKE ?" for _ in or_params)
     or_rows = conn.execute(
-        f"{select} WHERE user_drafted = 1 AND ({or_cond}) {archived_clause} ORDER BY name", params
+        f"{select} WHERE user_drafted = 1 AND ({or_cond}) {archived_clause} ORDER BY name", or_params
     ).fetchall()
     seen = {r["fdc_id"] for r in and_rows}
     return list(and_rows) + [r for r in or_rows if r["fdc_id"] not in seen]

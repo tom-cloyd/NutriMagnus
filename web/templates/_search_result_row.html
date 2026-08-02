@@ -1,0 +1,34 @@
+{% macro row(food) %}
+<tr>
+  <td class="confirm-col">
+    {% if food.aa == "~✓" %}
+    <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
+           aria-label="Select {{ food.name }} to fetch full details">
+    {% endif %}
+  </td>
+  <td class="muted"><small>
+    {% if food._type == "recipe" %}{{ food.recipe_id }}
+    {% elif food.fdc_id > 0 %}{{ food.fdc_id }}
+    {% else %}OFF{% endif %}
+  </small></td>
+  <td>
+    {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+    {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
+    {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+    {% else %}<span class="muted">—</span>{% endif %}
+  </td>
+  <td class="muted"><small>{{ food.gi or "—" }}</small></td>
+  <td class="muted"><small>{{ food.diaas or "—" }}</small></td>
+  <td class="muted">{% if food.has_notes %}<span title="Has a saved note">y</span>{% endif %}</td>
+  <td>
+    {% if food._type == "recipe" %}
+    <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
+    {% else %}
+    <a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
+    {% endif %}
+  </td>
+  <td class="muted">{{ food.brand or "—" }}</td>
+  <td class="muted">{{ food.data_type }}</td>
+  <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+</tr>
+{% endmacro %}

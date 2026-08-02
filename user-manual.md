@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-07-31:2338* / Reading 3 hours, 35 minutes 
+*Updated 2026-08-02:0030* / Reading 3 hours, 35 minutes 
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, and also for older people or chronically-ill people.
 
@@ -80,7 +80,7 @@ This program necessarily uses some specialized vocabulary. You have two options:
 
 The five items in the top navigation bar correspond to the five major things you can do with the program:
 
-- **Foods** — Search the [USDA](#gloss-usda) and Open Food Facts databases; analyze the nutrients in a specific portion of any food or recipe; compare up to eight foods side-by-side; manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles; annotate foods with glycemic index and [DIAAS](#gloss-diaas) estimates.
+- **Foods** — Search the [USDA](#gloss-usda) and Open Food Facts[^3] databases; analyze the nutrients in a specific portion of any food or recipe; compare up to eight foods side-by-side; manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles; annotate foods with glycemic index and [DIAAS](#gloss-diaas) estimates.
 - **Recipes** — Create and save recipes with ingredients and instructions; browse, copy, and delete saved recipes; develop a recipe iteratively with nutritional feedback after each ingredient change; analyze a recipe portion for full nutrient data, protein quality, and complement suggestions.
 - **Meals & Log** — Record what you eat by date; add foods and recipes to meals; analyze individual meals or the combined total for a full day; search your entire meal history for any food.
 - **Analysis** — A growing set of preset analyses. **Daily summary - [DCP](#gloss-dcp) and goals**: combined nutrient totals for today or any past date, compared against personalized [RDA](#gloss-rda) targets, plus a list of recent days with meals. **Food use in meals**: rank which foods were used across a chosen set of date ranges and/or meals, with a frequency histogram.
@@ -104,7 +104,11 @@ Plant proteins are usually more affordable and easier to ship and store for long
 
 There are 9 protein building blocks (amino acids) that human bodies cannot make and must therefore ingest. Additionally, they must be ingested in specific proportions. When a food, or meal, or diet lacks or is insufficient in one or more of these "essential" amino acids this has a limiting effect on the utilization of the other 8. This is the "incomplete protein" problem that almost all plant proteins present.
 
-Consider someone building a brick wall. Suppose they order a bag of cement and 500 bricks. It is likely that they will run out of cement before they run out of bricks. This is the limitation problem that is inherent in plant-based diets. While the needed amino acids do not need to all be present in a single food, or recipe, or meal, they do need to be present in approximately any given 24-hour period if the amino acid limitation problem is to be avoided. So, one way or another, one needs to tend to the issue of what is missing and where to find replacements to add it to one's diet in time.
+Consider someone building a brick wall, where the plan calls for a fixed ratio of bricks to bags of cement — say, 50 bricks per bag. If they have 500 bricks but only 6 bags of cement, they can only build as much wall as 6 bags of cement allows; the other 200 bricks sit unused no matter how many more of them they buy. Buying more bricks doesn't help, because bricks were never what was running short *relative to the fixed ratio the plan calls for*.
+
+This is the essential amino acid problem inherent in plant-based diets. The human body needs each of the nine essential amino acids in a fixed proportion to the total protein eaten — much like the bricks-to-cement ratio above. When a food, meal, or diet is short on one amino acid relative to that required ratio, the shortfall — not the total protein eaten — sets a ceiling on how much of that protein the body can actually use; the rest is broken down and discarded, like the unused bricks. (This required ratio is the [FAO 2013 Reference Standard](#fao) — see [Appendix A](#appendix-a) for the full technical explanation.)
+
+While the needed amino acids do not need to all be present in a single food, or recipe, or meal, they do need to be present in approximately any given 24-hour period if the amino acid limitation problem is to be avoided. So, one way or another, one needs to tend to the issue of what is missing and where to find replacements to add it to one's diet in time.
 
 **NuMa handles gracefully the tricky problem of managing plant-based proteins.** Few people know which foods have missing essential amino acids ([EAAs](#gloss-eaa)) or which have the needed excess [EAAs](#gloss-eaa) which would make them a good complement to eat with other foods lacking enough of those [EAAS](#gloss-eaa) in the same 24-hour period.
 
@@ -132,7 +136,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 ### E. Why you can trust NutriMagnus (NuMa)
 
-**[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it used.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your Pantry, and recipes you have analyzed. For protein complement suggestions specifically, a built-in list of about 30 common protein sources fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be filled in automatically from a small published reference table (see [Glycemic Index](#gi)), rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
+**[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it is using.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your [Pantry](#pantry), and [recipes you have analyzed](#recipes-menu). For protein complement suggestions specifically, a built-in list of 25 common protein sources[^10] fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be filled in automatically from a small published reference table (see [Glycemic Index](#gi)), rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
 **[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-07-15), there are 476 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that menus, prompts, and control flow all still work as they should — for both the terminal program and the web app. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. The terminal program and the web app are two interfaces onto the same underlying nutrition-calculation code (protein complement suggestions, recipe totals, glycemic load, digestible protein, [RDA](#gloss-rda) status, and more) rather than each keeping its own separate copy.
 
@@ -218,12 +222,12 @@ If only [DIAAS](#gloss-diaas)-boosting options are shown (Tier 2), the underlyin
 
 You do not need to eat [complement foods](#gloss-complement-food) at the same meal — meeting daily totals is sufficient for healthy adults. See also [DIAAS](#diaas) and [limiting amino acid](#gap) for background.
 
-Data sources, checked in this order: your pantry (Foods → [My Pantry](#gloss-my-pantry)) and any recipes you have analyzed; then your broader food cache (any food you've ever looked up, matched by name against the built-in reference list below); then that built-in list itself, filtered by your dietary preferences (see [dietary preferences](#diet)). The suggestion header tells you exactly which sources were considered for that run. See [amino acid estimates in suggestions](#comp-estimate) for what it means when a suggestion is tagged "(estimated)" or "(generic estimate)".
+Data sources, checked in this order: your [pantry](#pantry) (Foods → [My Pantry](#gloss-my-pantry)) and any [recipes you have analyzed](#recipes-menu); then your broader food cache (any food you've ever looked up, matched by name against the built-in reference list below); then that built-in list itself[^10], filtered by your dietary preferences (see [dietary preferences](#diet)). The suggestion header tells you exactly which sources were considered for that run. See [amino acid estimates in suggestions](#comp-estimate) for what it means when a suggestion is tagged "(estimated)" or "(generic estimate)".
 
 
 ### Amino acid estimates in complement suggestions [comp-estimate]
 
-A [complement suggestion](#comp) needs amino acid data for the suggested food to compute how much of it closes a gap. Most of the time that comes from the food's own real, measured data. When it doesn't, NuMa falls back to a small built-in reference table of about 20 common protein sources (soy protein isolate, nutritional yeast, oats, and the like) rather than leaving you with no suggestion at all. Two tags tell you when that fallback happened:
+A [complement suggestion](#comp) needs amino acid data for the suggested food to compute how much of it closes a gap. Most of the time that comes from the food's own real, measured data. When it doesn't, NuMa falls back to the same built-in reference table of 25 common protein sources[^10] used to fill gaps in [Protein Complement Suggestions](#comp) (soy protein isolate, nutritional yeast, oats, and the like) rather than leaving you with no suggestion at all. Two tags tell you when that fallback happened:
 
   "(estimated)" — the suggested food is a real item from your pantry, recipes, or food cache, but it has no amino acid panel of its own. NuMa matched its name against the built-in reference table and scaled that table's amino acid profile to this food's own protein content.
 
@@ -231,7 +235,7 @@ A [complement suggestion](#comp) needs amino acid data for the suggested food to
 
 Either way, this estimate is computed fresh every time the suggestion is shown — it is never saved to the food's own record, so there is nothing to undo. This is not the same as the "estimate amino acids from another food" tool described under [Estimating amino acids by copying from another food](#custom-foods). That tool lets you search all your saved foods and pick whichever one you judge to be the best match yourself, and it saves your choice permanently to that food's own record. The built-in table used for the "(estimated)" / "(generic estimate)" tags, by contrast, is a fixed, much shorter list matched purely by keyword — it can't use your own judgment about which food is the closer match, so the two methods can disagree.
 
-For a food you rely on often, running the "estimate amino acids from another food" tool on it yourself is worth doing: it is more accurate (your judgment beats a keyword match against ~20 entries), it only has to be done once, and it turns the food into a normal pantry/cache candidate for every suggestion afterward — no more tags.
+For a food you rely on often, running the "estimate amino acids from another food" tool on it yourself is worth doing: it is more accurate (your judgment beats a keyword match against 25 entries), it only has to be done once, and it turns the food into a normal pantry/cache candidate for every suggestion afterward — no more tags.
 
 
 ### Two-step combinations [comb]
@@ -277,7 +281,7 @@ NuMa shows [DCP](#gloss-dcp) in the bioavailability section of food and recipe a
 
 ### DIAAS — Digestible Indispensable Amino Acid Score [diaas]
 
-[DIAAS](#gloss-diaas) measures how well your body can actually use the protein in a food. A score of **1.0** means the protein fully meets the [FAO](#gloss-fao) 2013 amino acid reference standard after accounting for digestibility. Scores above 1.0 are excellent; below 1.0 means one or more amino acids fall short.
+[DIAAS](#gloss-diaas) measures how well your body can actually use the protein in a food. A score of **1.0** means the protein fully meets the [FAO 2013 amino acid reference standard](#fao) after accounting for digestibility. Scores above 1.0 are excellent; below 1.0 means one or more amino acids fall short.
 
 Animal proteins typically score 1.0 or above. Most plant proteins score below 1.0, though some (pea protein, soy) come close. Digestibility matters because some protein in food is never absorbed — it passes through unchanged or is broken down by gut bacteria rather than used by your body.
 
@@ -389,7 +393,7 @@ See also [DIAAS](#diaas), [digestible complete protein](#dcp), [amino acid scori
 
 ### FAO 2013 Reference Standard [fao]
 
-The [FAO](#gloss-fao) (Food and Agriculture Organization of the United Nations) published a reference amino acid scoring pattern in 2013 that defines the minimum amounts of each essential amino acid per gram of protein needed to meet adult human requirements.
+The [FAO](#gloss-fao) (Food and Agriculture Organization of the United Nations) published a reference amino acid scoring pattern in 2013 that defines the minimum amounts of each essential amino acid per gram of protein needed to meet adult human requirements. This is a ratio, not an absolute quantity — the requirement scales with how much protein you eat, so a small meal and a large meal must both hit the same per-gram proportions. See [Appendix A](#appendix-a) for the full worked explanation of why this ratio, not total protein, determines what your body can use.
 
 NuMa uses this pattern as the benchmark for all protein quality scoring: completeness, gaps, and complement calculations. A score of **1.0** for an amino acid means the food exactly meets the [FAO](#gloss-fao) reference for that amino acid; above 1.0 exceeds it; below 1.0 falls short.
 
@@ -509,7 +513,7 @@ The glycemic index ([GI](#gloss-gi)) measures how quickly a carbohydrate-contain
 
 NuMa displays [GI](#gloss-gi) for reference only and does not use it in protein quality calculations.
 
-**Where [GI](#gloss-gi) values come from.** Neither [USDA](#gloss-usda) nor Open Food Facts tracks [GI](#gloss-gi), so NuMa can't look it up automatically the way it does for calories or protein — you (or NuMa, on your behalf) have to supply it. To save you the work for common foods, NuMa can automatically fill in [GI](#gloss-gi) values for about 60 everyday items, using a published reference table[^8]. If your food cache doesn't have these values yet, NuMa will ask whether you'd like it to fill them in for you. For anything else, just add [GI](#gloss-gi) values as you go: the first time you add a new food to your Pantry or a meal, NuMa will offer to prompt you for its [GI](#gloss-gi) value right there, so your data builds up naturally through normal use.
+**Where [GI](#gloss-gi) values come from.** Neither [USDA](#gloss-usda) nor Open Food Facts[^3] tracks [GI](#gloss-gi), so NuMa can't look it up automatically the way it does for calories or protein — you (or NuMa, on your behalf) have to supply it. To save you the work for common foods, NuMa can automatically fill in [GI](#gloss-gi) values for about 60 everyday items, using a published reference table[^8]. If your food cache doesn't have these values yet, NuMa will ask whether you'd like it to fill them in for you. For anything else, just add [GI](#gloss-gi) values as you go: the first time you add a new food to your Pantry or a meal, NuMa will offer to prompt you for its [GI](#gloss-gi) value right there, so your data builds up naturally through normal use.
 
 
 ### Glycemic Load [gl]
@@ -1445,7 +1449,7 @@ Nested recipes (ID = recipe) have their nutrients scaled automatically from thei
 
 #### USDA Food Search Results [food-search]
 
-Listed after a food search. Combines matches from [USDA](#gloss-usda) FoodData Central, Open Food Facts, and your local [Food Cache](#gloss-food-cache).
+Listed after a food search. Combines matches from [USDA](#gloss-usda) FoodData Central, Open Food Facts[^3], and your local [Food Cache](#gloss-food-cache).
 
 Columns:
 
@@ -1564,7 +1568,7 @@ For the full import workflow, see [amino acid fetch workflow](#fetch).
 
 #### Drafted Food Profiles List [drafted-foods]
 
-Shows the custom food profiles you have created by hand -- products from a label, research table entries, or supplements not in [USDA](#gloss-usda) or Open Food Facts.
+Shows the custom food profiles you have created by hand -- products from a label, research table entries, or supplements not in [USDA](#gloss-usda) or Open Food Facts[^3].
 
 Columns:
 
@@ -1572,7 +1576,7 @@ Columns:
     Name    Food name as you entered it.
     Note    Your optional source or description note.
 
-Drafted foods are stored in your [Food Cache](#gloss-food-cache) and appear in all food searches alongside [USDA](#gloss-usda) and Open Food Facts entries. In ID columns throughout the program, drafted foods are shown as "usr".
+Drafted foods are stored in your [Food Cache](#gloss-food-cache) and appear in all food searches alongside [USDA](#gloss-usda) and Open Food Facts[^3] entries. In ID columns throughout the program, drafted foods are shown as "usr".
 
 To edit nutrient data: Foods -> [Food Cache](#gloss-food-cache), find the food, and use e#. Editing is done in the [Food Cache](#gloss-food-cache), not in this list.
 
@@ -1771,7 +1775,7 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 #### Search (Foods → Search)
 
-Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12-digit barcode. Results are checked against your local [Food Cache](#gloss-food-cache) and pantry first — a match there appears instantly, with no need to reach out to the internet — then against [USDA](#gloss-usda) FoodData Central and Open Food Facts. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
+Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12/13-digit barcode (UPC-A or EAN-13). Results are checked against your local [Food Cache](#gloss-food-cache) and pantry first — a match there appears instantly, with no need to reach out to the internet — then against [USDA](#gloss-usda) FoodData Central and Open Food Facts[^3] (fetched in the background right after, so a repeat food you already have never waits on a slow external lookup). A barcode instead goes straight to a direct Open Food Facts lookup by that exact code, skipping general search entirely. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
 
 #### Analyze a food portion / Analyze a saved recipe portion
 
@@ -1787,7 +1791,7 @@ Add up to eight foods (checkboxes in the search results) and set a gram amount f
 
 #### Food Cache [food-cache-web]
 
-Every food NuMa has ever fetched from USDA or Open Food Facts lives here — see the [Food Cache column guide](#cached) in Part 3 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete**. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using.
+Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 3 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete**. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using.
 
 **Fetching missing amino acid data with Claude AI.** Some foods — especially branded or prepared items — arrive without amino acid data. Check the boxes next to the foods you want (or click "Select all missing AA data" to grab every food currently missing it), then click **Fetch missing data from Claude AI**. This builds a ready-to-send prompt and shows it on its own page with a **Copy prompt to clipboard** button. From there:
 
@@ -1851,13 +1855,13 @@ This table is read-only and updates automatically whenever you change **Your Pro
 
 #### Custom food profiles
 
-When a food isn't in USDA or Open Food Facts — or the entry you found is incomplete — go to **Foods → Custom food profiles → Create** (or copy an existing cached food as a starting point). Fill in whichever fields you have data for: basic macros are always asked for; minerals, vitamins, amino acids, and phytonutrients are optional. Once saved, the food appears in every search and can be used in meals and recipes exactly like any other food. Edit or delete a custom profile from the same **Custom food profiles** page at any time.
+When a food isn't in USDA or Open Food Facts[^3] — or the entry you found is incomplete — go to **Foods → Custom food profiles → Create** (or copy an existing cached food as a starting point). Fill in whichever fields you have data for: basic macros are always asked for; minerals, vitamins, amino acids, and phytonutrients are optional. Once saved, the food appears in every search and can be used in meals and recipes exactly like any other food. Edit or delete a custom profile from the same **Custom food profiles** page at any time.
 
 #### Dietary supplements — tablets, capsules, softgels
 
 Supplement labels give amounts per tablet, not per 100 g. To enter one, create a custom food profile as above, and set the serving size to **1** with a unit of `tablet`, `capsule`, `softgel`, or similar — then enter the nutrient amounts exactly as printed on the label. Logging "1 [unit]" in a meal will then add exactly those label amounts to your totals, no weighing involved.
 
-**Tip:** try a barcode search first. Many supplement products are already in Open Food Facts with complete data, saving you the manual entry.
+**Tip:** try a barcode search first. Many supplement products are already in Open Food Facts[^3] with complete data, saving you the manual entry.
 
 ### A note on amino acid data
 
@@ -1943,7 +1947,7 @@ These conventions apply at every prompt throughout the program — menus, search
 
 **Step 6 — Read the complement suggestions.** NuMa prints a Protein Complement Suggestions block automatically whenever a gap exists. The first line tells you what was considered:
 
-    Considered: built-in list of ~30 common protein sources.
+    Considered: built-in list of 25 common protein sources.
 
 (If you have pantry items or analyzed recipes, they appear here too — see Workflows 2 and 3.) Suggestions are ranked by smallest amount needed. You might see, for example, that adding 45 g of lentils would close the lysine gap and bring the combined protein to a complete profile.
 
@@ -1967,7 +1971,7 @@ These conventions apply at every prompt throughout the program — menus, search
 
 **Step 5 — Read the complement suggestions.** The first line now reads:
 
-    Considered: 1 pantry item, built-in list of ~30 common protein sources.
+    Considered: 1 pantry item, built-in list of 25 common protein sources.
 
 Hemp seeds — your pantry item — will appear in the suggestions if it qualifies as a gap closer for this meal. Because the suggestion is drawn from your pantry, it reflects a food you actually have, not just a theoretical option.
 
@@ -1985,13 +1989,13 @@ Hemp seeds — your pantry item — will appear in the suggestions if it qualifi
 
 **Step 3 — Read the complement suggestions.** The first line now reads:
 
-    Considered: 1 analyzed recipe, built-in list of ~30 common protein sources.
+    Considered: 1 analyzed recipe, built-in list of 25 common protein sources.
 
 Your lentil soup recipe appears as a candidate. NuMa shows how many grams of the recipe (and approximately how many servings) would close the gaps in the corn tortillas. The suggestion might read: "Add to food above: 180 g  (0.9 servings)."
 
 **Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen. A fully populated pantry and recipe collection will produce a line like:
 
-    Considered: 6 pantry items, 4 analyzed recipes, built-in list of ~30 common protein sources.
+    Considered: 6 pantry items, 4 analyzed recipes, built-in list of 25 common protein sources.
 
 **What you learned:** NuMa's suggestions become progressively more useful as you add your own data. The built-in list ensures you always get suggestions even on day one; your pantry and recipes make those suggestions yours.
 
@@ -2175,11 +2179,11 @@ In the sample output above you will notice a program "bug": the **Procedure** li
 
 ### Using the Foods menu
 
-The Foods menu (main menu option **1**) has nine sub-options. Most start with a food search — type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12-digit barcode.
+The Foods menu (main menu option **1**) has nine sub-options. Most start with a food search — type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12/13-digit barcode (UPC-A or EAN-13).
 
 #### Search food databases (Foods → 1)
 
-Searches [USDA](#gloss-usda) FoodData Central and Open Food Facts. Your local [Food Cache](#gloss-food-cache) is checked first; any cached match appears instantly at the top of the results list, with no need to reach out to the internet. Select a food to see its complete nutrient table (per 100 g), protein completeness analysis, and [DIAAS](#gloss-diaas) bioavailability data. If amino acid gaps are present, complement suggestions are shown automatically.
+Searches [USDA](#gloss-usda) FoodData Central and Open Food Facts[^3]. Your local [Food Cache](#gloss-food-cache) is checked first; any cached match appears instantly at the top of the results list, with no need to reach out to the internet. Select a food to see its complete nutrient table (per 100 g), protein completeness analysis, and [DIAAS](#gloss-diaas) bioavailability data. If amino acid gaps are present, complement suggestions are shown automatically.
 
 After the per-100g display, you are asked whether to analyze a specific portion. Answer **y** to open the portion picker.
 
@@ -2344,7 +2348,7 @@ The web app offers the same choice as "Skip for now" vs. "Skip forever for this 
 
 ---
 
-### Using the Recipes menu
+### Using the Recipes menu [recipes-menu]
 
 The Recipes menu (main menu option **2**) manages everything related to recipes — creating them, editing them, analyzing their nutritional content, and developing them iteratively with nutritional feedback.
 
@@ -2903,7 +2907,7 @@ This is the best fit when you have a single label or research figure to type in 
 
 #### Custom (drafted) food profiles
 
-When you need a food that is not in [USDA](#gloss-usda) or Open Food Facts — or when the database entry is incomplete — you can create a custom profile via **Foods → 8. Drafted Food Profiles → 2. Create**. The entry wizard walks you through:
+When you need a food that is not in [USDA](#gloss-usda) or Open Food Facts[^3] — or when the database entry is incomplete — you can create a custom profile via **Foods → 8. Drafted Food Profiles → 2. Create**. The entry wizard walks you through:
 
 - **Name** — what to call this food in searches and meal logs.
 - **Supplement mode** (see below) or normal serving size and unit.
@@ -2933,7 +2937,7 @@ Vitamins, minerals, and other supplement tablets are sold in per-tablet amounts,
 
 When you later log "1 tablet" in a meal, those exact amounts are added to your nutrient totals.
 
-**Tip:** Try a barcode search first (type the 12-digit number on the label at any search prompt). Many supplement products are already in Open Food Facts with complete nutrient data and require no manual entry.
+**Tip:** Try a barcode search first (type the 12 or 13-digit number on the label at any search prompt). Many supplement products are already in Open Food Facts[^3] with complete nutrient data and require no manual entry.
 
 **Converting an old entry to supplement mode:**
 
@@ -2971,7 +2975,7 @@ Every food in these online tables has a unique ID number — think of it as a pr
 Food enters your [Food Cache](#gloss-food-cache) in four ways:
 
 1. **From [USDA](#gloss-usda)** — you search, find a match, and select it. It is instantly saved into your [Food Cache](#gloss-food-cache).
-2. **From Open Food Facts** — same process; the food is saved the moment you pick it.
+2. **From Open Food Facts[^3]** — same process; the food is saved the moment you pick it.
 3. **By barcode** — at any food search prompt, type the 12-digit UPC-A or 13-digit EAN barcode printed on the product (digits only; spaces and hyphens are ignored). NuMa looks the product up on Open Food Facts by barcode, shows you the product name and brand, and asks whether to use it. This is the fastest way to add packaged foods and dietary supplements — many have an Open Food Facts entry but no [USDA](#gloss-usda) record.
 4. **By hand** — you create a custom food profile yourself, entering nutrient values from a product label or research source. These entries go straight into your [Food Cache](#gloss-food-cache) without coming from any online source.
 
@@ -2979,7 +2983,7 @@ In every case, NuMa saves the food's original ID number alongside its data. That
 
 **[Food Annotations](#gloss-food-annotation)** are a second table on your computer. They hold extra information you choose to add about a specific food — information that does not exist in either online table:
 
-- **Glycemic index ([GI](#gloss-gi))** — how quickly a food raises blood sugar (scale 0–100). Neither [USDA](#gloss-usda) nor Open Food Facts provides [GI](#gloss-gi) values, so if you have a figure from a research table or a product source, you can record it here.
+- **Glycemic index ([GI](#gloss-gi))** — how quickly a food raises blood sugar (scale 0–100). Neither [USDA](#gloss-usda) nor Open Food Facts[^3] provides [GI](#gloss-gi) values, so if you have a figure from a research table or a product source, you can record it here.
 - **[DIAAS](#gloss-diaas) estimate** — a protein quality score (scale 0–1.5). NuMa can calculate this automatically for whole foods that have complete amino acid data. For packaged foods where that data is absent, you can record a known [DIAAS](#gloss-diaas) figure here instead — see [Estimating DIAAS by hand for a packaged food](#diaas-estimate-table) for a quick-reference table by protein source.
 - **A preparation note** — a short reminder such as "boiled 20 minutes" or "soaked overnight."
 
@@ -3039,7 +3043,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **FDC ID**{: #gloss-fdc-id}  —  The unique numeric identifier assigned to each food entry in USDA FoodData Central. You can enter an FDC ID directly at any "Search food or recipe" prompt instead of typing a name.
 
-**Food Cache**{: #gloss-food-cache}  —  Your local database of previously retrieved foods. Searching the cache is instant (no network required); foods are added automatically when you select them from USDA or Open Food Facts results.
+**Food Cache**{: #gloss-food-cache}  —  Your local database of previously retrieved foods. Searching the cache is instant (no network required); foods are added automatically when you select them from USDA or Open Food Facts[^3] results.
 
 **Food Annotation**{: #gloss-food-annotation}  —  Extra information you attach to a cached food: glycemic index, a DIAAS estimate, or a preparation note. Stored locally; not part of any online database.
 
@@ -3077,7 +3081,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **USDA**{: #gloss-usda}  —  United States Department of Agriculture. The U.S. government body that publishes FoodData Central, NuMa's primary food data source.
 
-**usr**{: #gloss-usr}  —  User-drafted. Appears in ingredient ID columns to indicate a food whose nutrient profile you created or edited by hand, rather than one retrieved from USDA or Open Food Facts.
+**usr**{: #gloss-usr}  —  User-drafted. Appears in ingredient ID columns to indicate a food whose nutrient profile you created or edited by hand, rather than one retrieved from USDA or Open Food Facts[^3].
 
 ### Internet resources
 
@@ -3178,11 +3182,35 @@ This shouldn't happen, and if it does, it's worth [reporting](#feedback) — but
 
 *See also:* [A deleted recipe shows up as "(deleted)" somewhere](#ts-deleted-recipe).
 
-#### How to contact help
+#### A food's portion or serving-size data looks wrong
 
-Do not be reluctant in any way to do this. When you're having a problem the cause most like is NOT you! So, contacting us gives us essential information needed to make things better for you and also for every other user. We very much want to hear from you if you have a problem.
+This is a different kind of problem than the others on this page: it isn't NuMa misbehaving, it's a gap or error in the underlying USDA data NuMa displays. USDA publishes nutrient values reliably, but the *portion* records attached to a food — "1 large," "1 cup, sliced," and so on — are contributed unevenly and sometimes inaccurately. NuMa shows you exactly what USDA supplies; when that's missing or wrong, the fix is to teach NuMa the correct value yourself, once, and it's remembered for every future use of that food.
 
-1. Text Tom at 435-272-3332. Plainly state that you are having a problem with the program. A brief statement of the problem is all I need. With your phone number I can call you back and get complete details of what I need to know to resolve your problem. I will generally call you back immediately. If a better time is available, let me know.
+##### A food has no "per piece" or "per egg" portion — only grams [ts-no-piece-portion]
+
+Some foods that obviously come in natural units — a whole egg, a piece of fruit, a slice of bread — still have no USDA-supplied portion for that unit, only the generic per-100-g figures. This happens because USDA's portion records are contributed per food entry, not derived automatically from the food's description, so some entries simply never got one. It's not something NuMa can infer on its own — "1 egg" isn't a fixed weight (USDA's own size grades range from about 38 g for "Small" to 63 g for "Jumbo").
+
+Two fixes: weigh the item once on a kitchen scale and enter that weight directly (`56g`, for instance), or teach NuMa the unit permanently — **command line:** Food Cache, `p` followed by the row number (e.g. `p30`), then `p` (Add piece weight); **web app:** the food's [Food Cache](#food-cache-web) entry, **Portions** action. Either way, every later analysis, recipe, and meal entry for that food can then use the unit directly (`1 egg`, `2 slices`) instead of a gram weight.
+
+##### A food has a weight portion but no cup/tablespoon equivalent [ts-no-volume-portion]
+
+NuMa converts a volume measure (cup, tablespoon, teaspoon) to grams using a *density* estimate for that food — mass per milliliter. USDA doesn't publish density directly; NuMa derives it only where a matching weight-and-volume portion pair exists in the food's own USDA record, plus a small built-in table for common dried herbs and spices (see [Portion Input Formats](#portion-formats)). Outside those cases, entering a volume measure will prompt you to weigh the amount and enter the grams yourself — this is expected, not a bug, since guessing a density would silently produce wrong nutrient totals.
+
+If you'll be entering this food by volume repeatedly, teach NuMa the conversion once: weigh a level cup (or tablespoon) of it, then use the same Portions editor as above — **command line:** Food Cache, `p<row>`, then `c` (Add cup weight); **web app:** the [Food Cache](#food-cache-web) entry's **Portions** action. From then on, cup and tablespoon amounts for that food convert automatically.
+
+##### A food's portion or volume conversion looks flatly wrong [ts-bad-portion-data]
+
+Occasionally a USDA record's portion weight is simply implausible for what it describes — a "1 large" egg listed at a weight that doesn't match a scale, or a "1 cup" measure clearly sized for a different preparation than the one you have. This is a data-entry error on USDA's side, inherited as-is; NuMa doesn't second-guess or adjust USDA's published portion weights, since there'd be no reliable way to tell a genuine correction from a wrong override.
+
+If a portion weight doesn't match what you measure: weigh your actual amount and enter the gram figure directly for that one use, and — if you'll use this food again — replace the bad portion with a corrected one via the same Portions editor (**command line:** Food Cache, `p<row>`; **web app:** the [Food Cache](#food-cache-web) entry's **Portions** action). Custom portions you add there are yours — they aren't overwritten by a later **Refresh** of the food's nutrient data. If you're confident the USDA source itself is wrong (not just unusual), [let us know](#feedback) — it's worth tracking so other users hit it less often, even though NuMa can't correct USDA's database directly.
+
+*See also:* [Enter food portions as weights, not volume measures, whenever possible](#portion-formats).
+
+#### Getting more help
+
+This is extremely easy, and we want you to do it. When you're having a problem the cause is NOT necessarily you! Regardless of the nature of your problem, contacting us gives us essential information needed to make things better for you and also for every other user. We very much want to hear from you if you have a problem.
+
+1. Text Tom at 435-272-3332. Plainly state that you are having a problem with the program. A brief statement of the problem is all I need. With your phone number I can call you back and get complete details of what I need to know to resolve your problem. I will generally call you back immediately. If you prefer a different time, let me know.
 
 2. For non-urgent problems - which generally are improvements you'd like to see - you can also email me. Provide screenshots, if you think that would help. ALWAYS TEXT ME IF YOU SEND AN EMAIL, as I do not check my email daily, and yours easily can get lost in the 100s I get every day.
 
@@ -3379,7 +3407,7 @@ The [DIAAS](#gloss-diaas) table characterizes the quality of each gram. Hitting 
 
 This appendix profiles the plant protein sources currently kept in a typical [NuMa](#gloss-numa) pantry, including nutritional yeast, which is not a plant but is grouped here because it fills the same dietary role. For each source: what form it takes, where it comes from, its essential amino acid ([EAA](#gloss-eaa)) strengths and weaknesses relative to the [FAO](#gloss-fao) reference values described in [Appendix A](#appendix-a), and its typical role in cooking.
 
-The [EAA](#gloss-eaa) notes below describe general tendencies for each food, not a substitute for running the food itself through [NuMa](#gloss-numa). Growing conditions, processing, and the specific [USDA](#gloss-usda) or Open Food Facts record behind a given entry all shift the exact numbers — use [NuMa](#gloss-numa)'s own amino acid ratio and [DIAAS](#gloss-diaas) output for precise figures. Sourcing and cost information for these foods is addressed separately, not here.
+The [EAA](#gloss-eaa) notes below describe general tendencies for each food, not a substitute for running the food itself through [NuMa](#gloss-numa). Growing conditions, processing, and the specific [USDA](#gloss-usda) or Open Food Facts[^3] record behind a given entry all shift the exact numbers — use [NuMa](#gloss-numa)'s own amino acid ratio and [DIAAS](#gloss-diaas) output for precise figures. Sourcing and cost information for these foods is addressed separately, not here.
 
 BEFORE GOING ANY FURTHER: You should know that the two most useful foods below (aside from staples like whole wheat flour) are nutritional yeast and hulled hemp seed. Both are incredibly nutritious and useful. Nutritional yeast adds umami to any food, and hulled hemp seed is invaluable when eating legumes.
 
@@ -3978,14 +4006,20 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 ### Appendix K: Recent program updates log
 
+#### August 2
+
+* MANUAL: "OPEN FOOD FACTS" IS NOW FOOTNOTED EVERYWHERE IT APPEARS IN PROSE, NOT JUST ON FIRST MENTION -  Manual (throughout) - The name means nothing to most readers, and the one explanatory footnote (citing the project and its URL) was only attached the first time it came up in Part 1 — a reader who lands directly in, say, the Custom Food Profiles or Food Cache sections (very likely, given how manuals get used) would see the term with no indication it's an external database at all. It's now footnoted at every plain-prose occurrence (18 in total), skipping only indented terminal-output mockups (where footnote markup doesn't belong), a bullet that already defines the term inline with its own link, the glossary entry that defines "OFF" itself, and Appendix K's own dated log entries.
+* PERFORMANCE: FOOD SEARCH AND ANALYZE-A-FOOD-PORTION PAGES LOAD INSTANTLY; USDA/OPEN FOOD FACTS RESULTS ARRIVE A MOMENT LATER -  Foods → Search / Analyze a Food Portion (web) - These two pages used to block on 2-3 external network calls (USDA twice, then Open Food Facts) before showing anything at all — a repeat search for a food already in your cache waited on the same slow round-trip as a brand-new one. They now render instantly from your local Food Cache, pantry, and recipes, then fetch USDA/OFF results in the background and append them below a "Searching…" row — the same pattern already used by the meal add-food panel. Along the way this fixed a real gap: the Food Search page's synchronous search never actually queried Open Food Facts at all (only USDA), so the manual's claim that it checked both sources was inaccurate for name/FDC-ID searches; the new background fetch genuinely covers both, and yesterday's barcode-search addition below is unaffected (a barcode is a single direct lookup, not a broad search, so it still resolves immediately).
+
+#### August 1
+
+* MANUAL: THE "RATIO, NOT ABSOLUTE AMOUNT" IDEA BEHIND THE FAO REFERENCE STANDARD IS NOW EXPLAINED WHERE READERS FIRST MEET IT, AND LINKED EVERYWHERE ELSE IT'S USED -  Manual (Part 1 intro) + every screen that cites an FAO amino acid reference (CLI + web) - The core idea that makes protein complementarity work — each essential amino acid is required in a fixed *ratio to total protein eaten*, not some absolute daily amount — was previously stated precisely only in Appendix A, disconnected from the plain-language brick-wall analogy in the introduction (which illustrated the limiting-factor concept but never said the ratio was fixed or per-gram-of-protein). The intro analogy now makes that explicit and links to both the FAO 2013 Reference Standard section and Appendix A's full derivation; the FAO Reference Standard section itself now states the ratio point directly instead of leaving it implicit. Beyond the manual, every place the CLI or web app shows an "FAO reference" figure — the meal/food/recipe amino-acid-ratio tables, the protein-quality and complement-suggestion sections, the "no suggestions needed" message — now links to this explanation (`?fao` on the command line), so a reader who only ever encounters the concept mid-analysis, never in the intro, still has a path to it.
+* NEW TROUBLESHOOTING CATEGORY: PORTION AND SERVING-SIZE DATA PROBLEMS -  Manual - The Troubleshooting section had no home for "this food's portion data is missing or wrong" reports (e.g. an egg with only a 100 g figure and no "1 egg" portion) — these are USDA source-data gaps, not NuMa bugs, so they didn't fit any existing group. A new "A food's portion or serving-size data looks wrong" category covers three forms: no per-piece/per-unit portion at all, a weight portion with no cup/tablespoon equivalent (density unknown), and a portion or volume conversion that's just measured wrong in USDA's own record — each with the fix (weigh it yourself, or add/correct a custom portion via the Food Cache Portions editor, which persists across a later Refresh). [learn more...](#feedback)
+
 #### July 31
 
-* MANUAL: THE ?TOPIC HELP SYSTEM IS NOW LABELED AS COMMAND-LINE-ONLY WHEREVER IT'S MENTIONED -  Manual - The Troubleshooting section (added earlier today) and the "Getting help" section referenced typing `?topic` at a prompt without saying this only exists in the command-line app. Both now say so explicitly, and "Getting help" spells out that the web app's equivalent is its Learn more links plus this manual's own search — there's no typed `?topic` lookup in the web app yet.
 * NEW TROUBLESHOOTING SECTION: 13 REAL PROBLEMS, GROUPED BY HOW THEY FEEL RATHER THAN WHICH MENU THEY'RE IN -  Manual - The "Troubleshooting and feedback" section's three empty stub headings are now filled in, plus ten more topics gathered from behavior already explained elsewhere in the manual but easy to mistake for a bug (dietary preference silently filtering search results, a meal's DCP not computing until it's marked complete, DCP being capped below the DIAAS projection, a deleted recipe's "(deleted)" ghost reference, and more). Grouped into five sections — Operating the program; I don't understand...; I'm confused — something unexpected happened; I expected to see something and it's not there; The numbers don't make sense — with several topics cross-listed under more than one group where the same problem could reasonably be searched for either way. Every topic is also now a working `?ts-...` in-app help lookup. [learn more...](#feedback)
-* WEB APP CATCHES UP TO THE CLI: OXALATE DATA TOGGLE AND CLAUDE AI NUTRIENT FETCH -  Foods: Food Cache / Settings (web) - Two features flagged in this same day's documentation review as CLI-only are now in the web app too. Settings → Your Profile has a new "Look up oxalate content for foods" checkbox (previously only toggleable from the command line, even though the web app already displayed the data once enabled). The Food Cache page can now check foods missing amino acid data, build a ready-to-copy Claude AI prompt, and — on a new "Import Claude response" page — parse Claude's reply into a review table (name, FDC ID, calories, protein, amino acids found) before writing it to your cache, matching the command line's `i`/`r` commands. The underlying prompt-building and response-parsing logic is now shared between the CLI and web app in one module, so the two can't drift apart again. [learn more...](#food-cache-web)
 * MANUAL: FULL PASS FOR NON-TECHNICAL READABILITY — JARGON, BROKEN SENTENCES, A WRONG MENU NUMBER, AND CLI-ONLY FEATURES NOW LABELED AS SUCH -  Manual - A systematic read-through (prompted by the glycemic-index footnote fix above) turned up and fixed roughly two dozen passages that would confuse a non-technical reader: unexplained developer jargon (API keys, internal file/variable names, `min()`/algebra notation, raw code-style comparisons like `protein_g > 0`) rewritten in plain language or moved into "(For technically skilled users: ...)" asides; several broken or garbled sentences (including the manual's own definition of DIAAS, and a stray "add umamai an any food" typo); an empty glossary entry for TID filled in; a wrong menu number sending CLI readers to "Foods → 7" for Custom/Drafted Food Profiles when the correct item is "Foods → 8"; and a handful of CLI-only features (the Claude AI amino-acid-fetch workflow, the Oxalate data on/off switch) that weren't labeled as CLI-only even though the web app doesn't yet have them. The Oxalate section also now correctly states that toggling it currently requires the command-line app (a real feature gap, not just a documentation one — the web Settings page has no equivalent control yet).
-* PROTEIN SUMMARY SHOWS BOTH SINGLE-SERVING AND FULL-RECIPE DCP; COMPLEMENT SUGGESTIONS SHOW SINGLE-SERVING DCP TOO -  Recipes: Analyze recipe / Recipe detail (CLI + web) - For any recipe with more than one serving, the Protein Summary now states both DCP figures as large bold numbers with small plain-text labels underneath ("4.9 g / single serving" and "102.9 g / full recipe (21 servings)"), replacing the earlier single run-on sentence. The Protein Complement Suggestions section's graduated-amount table now has a "Single serving DCP" column next to "DCP achieved," so you can see what a suggested addition does for one serving without doing the division yourself.
-* FIX: RECIPE COMPLEMENT SUGGESTIONS DEFAULTED TO A "PER SERVING" BASIS THAT DIDN'T MATCH ADDING AN INGREDIENT -  Recipes: Analyze recipe / Recipe detail (CLI + web) - The "Add to recipe: Xg" suggestion was sized to close the protein gap for a single serving, but adding that ingredient to the recipe (CLI ingredient add, or the web recipe page) adds it to the whole batch, diluting its effect across every serving — so the promised DCP gain never showed up, and the same suggestion kept reappearing. The CLI's basis prompt now defaults to "Whole recipe" (the actionable choice), with "Per serving" as the secondary option. The web recipe page now always sizes complement suggestions against the recipe's full total, independent of its separate "Servings to analyze" field (which still controls the per-serving/whole-day nutrient tables above, unchanged).
 
 #### July 30
 
@@ -4101,4 +4135,6 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 [^8]: Foster-Powell, Holt & Brand-Miller, "International table of glycemic index and glycemic load values: 2008," *Diabetes Care* 31(12):2281–3. This is a Creative Commons–licensed table, and NuMa uses it to fill in glycemic index values for common foods automatically. (For technically skilled users: this is done by a helper program, `import_gi_seed.py`, included in NuMa's program folder. It only fills in a value when a food's name matches the table exactly; anything less certain is left for you to confirm by hand.)
 
 [^9]: US National Institutes of Health. (2026, July 31). Office of Dietary Supplements—Nutrient Recommendations and Databases. https://ods.od.nih.gov/HealthInformation/nutrientrecommendations.aspx
+
+[^10]: NuMa's own curated table of amino-acid profiles for common protein-complement foods — beans, grains, seeds, and a few animal foods included for comparison (`_COMPLEMENT_TABLE` in `usda_nutrients.py`). 23 of the 25 entries cite a specific [USDA](#gloss-usda) FoodData Central SR Legacy record by FDC ID, sourced the same way as the rest of NuMa's nutrient data[^2]; the remaining two (nutritional yeast, pea protein powder) use published amino-acid-composition literature values because no matching USDA record exists for those specific products. NuMa always checks your own food cache for a real match to each entry's food name before falling back to these built-in figures — see [amino acid estimates in complement suggestions](#comp-estimate).
 

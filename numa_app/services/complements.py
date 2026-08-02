@@ -14,6 +14,38 @@ Nutrients = dict[str, float]
 Gaps = list[tuple[str, float, float]]  # (aa_key, orig_score, deficit_g) from usda.get_aa_gaps
 
 
+def exact_dcp(ingredients: list[dict] | None, extra: list[tuple[str, dict | None, float]]) -> float | None:
+    """Recompute the real digestible complete protein (g) for `ingredients` plus
+    hypothetical `extra` foods, via diaas.meal_level_diaas — the same per-ingredient,
+    true-digestibility engine used for the meal/day/recipe's own displayed DCP.
+
+    `ingredients`: the base's real per-food breakdown — list of
+        {"food_name", "nutrients_100g", "grams"}. None when the caller has no such
+        breakdown (e.g. a single-food base, which needs no recomputation since its
+        own DIAAS is already an exact flat digestibility, not a pooled approximation).
+    `extra`: (food_name, nutrients_100g, grams) tuples for the food(s) being
+        hypothetically added, at the amount to preview.
+
+    Returns None when `ingredients` or `extra` isn't usable — callers should fall
+    back to the linear-interpolation approximation (_dcp_at_frac/_total_dig) in
+    that case, matching prior behavior for contexts with no ingredient list.
+    """
+    if not ingredients:
+        return None
+    extra_ings = [
+        {"food_name": name, "nutrients_100g": nuts, "grams": grams}
+        for name, nuts, grams in extra
+        if nuts and grams and grams > 0
+    ]
+    if not extra_ings:
+        return None
+    import diaas as _diaas
+    with _db.get_db() as conn:
+        result = _diaas.meal_level_diaas(list(ingredients) + extra_ings, conn)
+    dcp = result.get("digestible_complete_protein_g")
+    return round(dcp, 1) if dcp is not None else None
+
+
 def load_cache_candidates(exclude_names_lower: set[str] | None = None) -> list[dict]:
     """Search the user's broader food cache (not just pantry) for a real match to
     each entry in the internal curated complement table.
@@ -106,6 +138,7 @@ def two_step_combo(
     max_improver_grams: float,
     fallback_digestibility: float = 1.0,
     aa_effects_limit: int = 3,
+    ingredients: list[dict] | None = None,
 ) -> dict | None:
     """Pair a gap-closer (Step 1) with the best DIAAS-booster for the resulting
     protein pool (Step 2, if one qualifies). Returns None if `gc` has no cached
@@ -121,9 +154,12 @@ def two_step_combo(
         return None
 
     gc_grams = gc["grams"]
+    gc_name = gc.get("name", "")
     gc_raw = float(gc.get("protein_added") or 0)
     gc_diaas = gc.get("predicted_diaas") or fallback_digestibility
-    gc_dcp = round((base_protein + gc_raw) * min(1.0, gc_diaas), 1)
+    gc_dcp = exact_dcp(ingredients, [(gc_name, comp_nutrients, gc_grams)])
+    if gc_dcp is None:
+        gc_dcp = round((base_protein + gc_raw) * min(1.0, gc_diaas), 1)
 
     combined = _usda.sum_nutrients(
         base_nutrients, _usda.scale_nutrients(comp_nutrients, gc_grams)
@@ -138,7 +174,7 @@ def two_step_combo(
     ]
 
     step1 = {
-        "name":       gc.get("name", ""),
+        "name":       gc_name,
         "fdc_id":     gc.get("fdc_id"),
         "estimated":  gc.get("estimated", False),
         "diaas":      round(gc["diaas"], 2) if gc.get("diaas") else None,
@@ -153,7 +189,12 @@ def two_step_combo(
     if qualifying:
         b = qualifying[0]
         b_step = b["steps"][0]
-        b_dcp = b_step.get("dcp")
+        b_dcp = exact_dcp(ingredients, [
+            (gc_name, comp_nutrients, gc_grams),
+            (b.get("name", ""), b.get("comp_nutrients"), b_step["grams"]),
+        ])
+        if b_dcp is None:
+            b_dcp = b_step.get("dcp")
         step2 = {
             "name":       b.get("name", ""),
             "fdc_id":     b.get("fdc_id"),
@@ -187,6 +228,7 @@ def build_complement_display(
     improver_limit: int = 3,
     two_step_limit: int = 3,
     cache_candidates: list[dict] | None = None,
+    ingredients: list[dict] | None = None,
 ) -> dict:
     """Build the full complement-suggestion display structure for one base food/meal/recipe.
 
@@ -198,6 +240,16 @@ def build_complement_display(
     `gaps`' digestibility-adjusted orig_scores must first rescale new_scores by
     `digestibility`; skipping that step (as the web backend previously did for
     single-food pages) silently overstates AA "after" scores whenever digestibility < 1.0.
+
+    `ingredients`: the base's real per-food breakdown (list of {"food_name",
+    "nutrients_100g", "grams"}), when available — meal/daily/recipe contexts have
+    one; a single-food base does not (context="food"). When provided, every
+    displayed "DCP achieved"/"total_dig" figure is computed by exact_dcp() — a
+    real diaas.meal_level_diaas recompute of ingredients + the candidate at that
+    gram amount — instead of the flat-digestibility linear approximation. That
+    approximation (still used as a fallback when `ingredients` is absent) can be
+    off by 15-20g on a real meal, because it applies one composite ratio to every
+    amino acid instead of each ingredient's own true digestibility.
 
     Returns {"no_data": True}, {"no_gaps": True}, or the full display dict consumed
     by both the CLI (numa_app/ui/render.py) and the web templates.
@@ -258,7 +310,8 @@ def build_complement_display(
         return round(total_p * min(1.0, min_score), 1)
 
     def _grad_steps(full_grams: float | None, dig_full: float, food_name: str,
-                    raw_full: float = 0.0, new_scores_full: dict | None = None) -> list[dict]:
+                    raw_full: float = 0.0, new_scores_full: dict | None = None,
+                    comp_nutrients: dict | None = None) -> list[dict]:
         if not full_grams or full_grams <= _GRAD_THRESHOLD:
             return []
         seen: set[int] = set()
@@ -267,7 +320,9 @@ def build_complement_display(
             g = max(1, round(full_grams * frac))
             if g not in seen:
                 seen.add(g)
-                dcp = _dcp_at_frac(frac, raw_full, new_scores_full or {})
+                dcp = exact_dcp(ingredients, [(food_name, comp_nutrients, g)])
+                if dcp is None:
+                    dcp = _dcp_at_frac(frac, raw_full, new_scores_full or {})
                 steps.append({
                     "grams": g, "amount_note": _amount_note(g, food_name),
                     "dig_protein": round(dig_full * frac, 1), "dcp": dcp,
@@ -280,11 +335,16 @@ def build_complement_display(
         full_grams = s.get("grams")
         name = s.get("name", "")
         new_scores = s.get("new_scores", {})
+        comp_nutrients = s.get("comp_nutrients")
+        total_dig = exact_dcp(ingredients, [(name, comp_nutrients, full_grams)]) if full_grams else None
+        if total_dig is None:
+            total_dig = _total_dig(s)
         return {
             "name":              name,
             "grams":             full_grams,
             "amount_note":       _amount_note(full_grams, name) if full_grams else None,
-            "grad_steps":        _grad_steps(full_grams, dig, name, raw_full=raw, new_scores_full=new_scores),
+            "grad_steps":        _grad_steps(full_grams, dig, name, raw_full=raw, new_scores_full=new_scores,
+                                              comp_nutrients=comp_nutrients),
             "fdc_id":            s.get("fdc_id"),
             "recipe_id":         s.get("recipe_id"),
             "serving_weight_g":  s.get("serving_weight_g"),
@@ -294,7 +354,7 @@ def build_complement_display(
             "protein_added":     round(raw, 1),
             "opens_new_gap":     s.get("opens_new_gap", False),
             "aa_effects":        aa_effects(s, gaps, digestibility=digestibility),
-            "total_dig":         _total_dig(s),
+            "total_dig":         total_dig,
             "estimated":         s.get("estimated", False),
         }
 
@@ -302,14 +362,21 @@ def build_complement_display(
         raw = float(s.get("protein_added") or 0)
         dig = float(s.get("digestible_protein_added") or 0)
         new_diaas = s.get("new_diaas") or 0.0
-        total_dig = (round((base_protein + raw) * min(1.0, new_diaas), 1) if new_diaas
-                     else round(base_digestible + dig, 1))
         grams = s.get("grams")
         name = s.get("name", "")
-        steps_out = [
-            {**step, "amount_note": _amount_note(step["grams"], name) if step.get("grams") else None}
-            for step in s.get("steps", [])
-        ]
+        comp_nutrients = s.get("comp_nutrients")
+        total_dig = exact_dcp(ingredients, [(name, comp_nutrients, grams)]) if grams else None
+        if total_dig is None:
+            total_dig = (round((base_protein + raw) * min(1.0, new_diaas), 1) if new_diaas
+                         else round(base_digestible + dig, 1))
+        steps_out = []
+        for step in s.get("steps", []):
+            step_dcp = exact_dcp(ingredients, [(name, comp_nutrients, step.get("grams"))])
+            steps_out.append({
+                **step,
+                "amount_note": _amount_note(step["grams"], name) if step.get("grams") else None,
+                "dcp": step_dcp if step_dcp is not None else step.get("dcp"),
+            })
         return {
             "name":              name,
             "grams":             grams,
@@ -343,13 +410,19 @@ def build_complement_display(
         ]
         new_scores = p.get("new_scores", {})
         total_raw  = base_protein + float(p.get("total_protein_added") or 0)
-        if new_scores and gaps:
-            old_adj_min = gaps[0][1]
-            new_adj_min = _adj_min(new_scores)
-            scale = (new_adj_min / old_adj_min) if old_adj_min > 0 else 1.0
-            total_dig_complete = round(total_raw * min(1.0, scale), 1)
-        else:
-            total_dig_complete = round(base_digestible + float(p.get("total_dig_added") or 0), 1)
+        pair_extra = [
+            (f.get("name", ""), f.get("comp_nutrients"), f.get("grams"))
+            for f in p.get("foods", [])
+        ]
+        total_dig_complete = exact_dcp(ingredients, pair_extra)
+        if total_dig_complete is None:
+            if new_scores and gaps:
+                old_adj_min = gaps[0][1]
+                new_adj_min = _adj_min(new_scores)
+                scale = (new_adj_min / old_adj_min) if old_adj_min > 0 else 1.0
+                total_dig_complete = round(total_raw * min(1.0, scale), 1)
+            else:
+                total_dig_complete = round(base_digestible + float(p.get("total_dig_added") or 0), 1)
         return {
             "foods":               foods_out,
             "total_grams":         p.get("total_grams"),
@@ -377,6 +450,7 @@ def build_complement_display(
                 pantry_candidates=pantry_candidates, diet_pref=diet_pref,
                 gaps=gaps, max_improver_grams=max_improver_grams,
                 fallback_digestibility=digestibility,
+                ingredients=ingredients,
             )
             if combo is not None:
                 two_step_combos.append(combo)

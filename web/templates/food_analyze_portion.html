@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_analyze_portion_result_row.html" as _sr %}
 {% block title %}NutriMagnus — Analyze a Food Portion{% endblock %}
 
 {% block content %}
@@ -21,18 +22,22 @@
            placeholder="e.g. salmon, oat bran, lentils" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
+  <p class="muted mb-0"><small>Type a food name, an <a href="/manual#gloss-fdc-id" target="_blank" rel="noopener">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
 </form>
 
 {% if error %}
 <p class="numa-error">{{ error }}</p>
 {% endif %}
 
-{% if results %}
-<p class="result-count">
+{% set _bc = query.replace(" ", "").replace("-", "") %}
+{% set is_barcode_query = _bc.isdigit() and (_bc|length == 12 or _bc|length == 13) %}
+
+{% if query %}
+<p class="result-count" id="ap-result-count">
   {{ results|length }} result{% if results|length != 1 %}s{% endif %}
   for <strong>{{ query }}</strong>
 </p>
-<table class="table table-sm table-hover">
+<table class="table table-sm table-hover" id="ap-table" {% if not results and is_barcode_query %}style="display:none"{% endif %}>
   <thead class="table-light">
     <tr>
       <th title="Amino acid data">AA</th>
@@ -45,33 +50,48 @@
       <th>Source</th>
     </tr>
   </thead>
-  <tbody>
-    {% for food in results %}
-    <tr>
-      <td>
-        {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
-        {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
-        {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
-        {% else %}<span class="muted">—</span>{% endif %}
-      </td>
-      <td class="muted"><small>{{ food.gi if food.gi is not none else "—" }}</small></td>
-      <td class="muted"><small>{{ food.diaas if food.diaas is not none else "—" }}</small></td>
-      <td class="muted">{% if food.has_notes %}<span title="Has a saved note">y</span>{% endif %}</td>
-      <td>
-        {% if food._type == "recipe" %}
-        <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
-        {% else %}
-        <a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
-        {% endif %}
-      </td>
-      <td class="muted">{{ food.brand or "—" }}</td>
-      <td class="muted">{{ food.data_type }}</td>
-      <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+  <tbody id="ap-tbody">
+    {% for food in results %}{{ _sr.row(food) }}{% endfor %}
+    {% if not is_barcode_query %}
+    <tr id="ap-api-loading" class="food-meta-row">
+      <td colspan="8"><small class="muted">Searching USDA FoodData Central and Open Food Facts…</small></td>
     </tr>
-    {% endfor %}
+    {% endif %}
   </tbody>
 </table>
-{% elif query %}
-<p>No results for <strong>{{ query }}</strong>.</p>
+<p id="ap-no-results" class="muted" {% if results or not is_barcode_query %}style="display:none"{% endif %}>No results for <strong>{{ query }}</strong>.</p>
+<script>
+(function () {
+  var loadingRow = document.getElementById('ap-api-loading');
+  if (!loadingRow) return;  // barcode query — already fully resolved, nothing more to fetch
+
+  var tbody = document.getElementById('ap-tbody');
+  var table = document.getElementById('ap-table');
+  var noResults = document.getElementById('ap-no-results');
+  var countEl = document.getElementById('ap-result-count');
+  var params = new URLSearchParams({query: {{ query | tojson }}});
+  fetch('/food/analyze-portion-api-results?' + params.toString())
+    .then(function (r) { return r.text(); })
+    .then(function (html) {
+      loadingRow.remove();
+      var hadRows = tbody.querySelector('tr') !== null;
+      if (html.trim()) {
+        tbody.insertAdjacentHTML('beforeend', html);
+        table.style.display = '';
+      } else if (!hadRows) {
+        table.style.display = 'none';
+        noResults.style.display = '';
+      }
+      var totalRows = tbody.querySelectorAll('tr').length;
+      countEl.textContent = totalRows + ' result' + (totalRows != 1 ? 's' : '') + ' for ';
+      var strong = document.createElement('strong');
+      strong.textContent = {{ query | tojson }};
+      countEl.appendChild(strong);
+    })
+    .catch(function () {
+      loadingRow.querySelector('small').textContent = 'Search failed — reload to retry.';
+    });
+})();
+</script>
 {% endif %}
 {% endblock %}

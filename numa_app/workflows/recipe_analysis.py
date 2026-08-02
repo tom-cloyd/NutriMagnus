@@ -485,6 +485,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
 
         # Compute meal-level pooled DIAAS from actual AA data — captures complementarity
         meal_result: dict | None = None
+        diaas_ingredients: list[dict] = []
         if not dcp_skip and ingredient_stats:
             diaas_ingredients = [
                 {
@@ -509,16 +510,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                     eff_diaas = meal_result["diaas"]
                     dcp_total_amount = meal_result.get("digestible_complete_protein_g") or 0.0
                     dcp_amount = dcp_total_amount / effective_servings
-                    # Compute pooled TID (weighted avg digestibility) — DIAAS != TID and must
-                    # not be used as digestibility in complement sizing (inflates R by 1/DIAAS,
-                    # causing 5-10× oversized suggestions when DIAAS is low due to AA imbalance).
-                    aa_ings = [
-                        i for i in (meal_result.get("ingredients") or [])
-                        if i.get("has_aa_data") and i.get("protein_g", 0) > 0
-                    ]
-                    _aa_protein_sum = sum(i["protein_g"] for i in aa_ings)
-                    if _aa_protein_sum > 0:
-                        pooled_tid = sum(i["protein_g"] * i["digestibility"] for i in aa_ings) / _aa_protein_sum
+                    pooled_tid = _diaas.pooled_tid(meal_result)
                 else:
                     # Fall back to per-ingredient weighted average when AA data is unavailable
                     total_digestible = sum(
@@ -648,6 +640,7 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                         basis_choice = "1"
                 else:
                     basis_choice = "1"
+                sugg_ingredients = None
                 if basis_choice == "2":
                     sugg_nutrients = augmented_analysis
                     basis_label = "per serving"
@@ -656,11 +649,17 @@ def _do_recipe_view(recipe=None, *, save_analysis: bool = False) -> None:
                     sugg_nutrients, _ = _augment_aa_from_curated(combined, ingredient_stats)
                     basis_label = f"whole recipe — {servings} serving(s)"
                     sugg_recipe_servings = servings if servings > 1 else None
+                    # Whole-recipe basis matches diaas_ingredients' scale (both are the
+                    # full recipe, unscaled) — exact_dcp needs that match or it silently
+                    # recomputes on the wrong basis. The per-serving branch above doesn't
+                    # match, so it keeps using the approximation.
+                    sugg_ingredients = diaas_ingredients
                 _print_complement_suggestions(sugg_nutrients, context="recipe",
                                               offer_if_covered=True,
                                               basis_label=basis_label,
                                               base_diaas=pooled_tid,
-                                              recipe_servings=sugg_recipe_servings)
+                                              recipe_servings=sugg_recipe_servings,
+                                              ingredients=sugg_ingredients)
 
         # Glycemic load (step 7)
         gl_whole, gl_blockers = _compute_recipe_gl(recipe["id"])

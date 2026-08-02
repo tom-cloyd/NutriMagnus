@@ -257,12 +257,13 @@ def no_export(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def no_off(monkeypatch: pytest.MonkeyPatch) -> None:
     """
-    Stub out Open Food Facts search to return [] so tests never hit the network
-    and OFF results don't appear in search output or affect pick ordering.
-    Applied automatically to every test.
+    Stub out Open Food Facts search/barcode lookup to return no results so
+    tests never hit the network and OFF results don't appear in search output
+    or affect pick ordering. Applied automatically to every test.
     """
     import openfoodfacts as _off
     monkeypatch.setattr(_off, "search_foods", lambda *a, **kw: [])
+    monkeypatch.setattr(_off, "lookup_by_barcode", lambda *a, **kw: None)
 
 
 # ---------------------------------------------------------------------------
