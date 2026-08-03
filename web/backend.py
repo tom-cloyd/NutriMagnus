@@ -40,6 +40,7 @@ from numa_app.services.recipe_nutrients import (
     atomic_recipe_ingredients, best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients,
 )
 from numa_app.services import recipe_dcp as _recipe_dcp
+from numa_app.services import search_ranking as _search_ranking
 
 _WEB_DIR    = Path(__file__).parent
 _MANUAL     = _WEB_DIR.parent / "user-manual.html"
@@ -223,6 +224,16 @@ def _resolve_sort(sort: str | None, pref_key: str, default: str, valid: set[str]
     return sort
 
 
+def _sort_meal_items_display(items: list[dict], item_sort: str | None = None) -> list[dict]:
+    """Order a meal's items per the shared display preference: alphabetical by
+    food/recipe name (default), or entry order (first added to last). Shares
+    prefs.json with the CLI's _sort_meal_items() in numa_app/workflows/meals.py."""
+    resolved = item_sort or _resolve_sort(None, "sort_meal_items", "alpha", {"alpha", "entry"})
+    if resolved == "entry":
+        return items
+    return sorted(items, key=lambda it: (it["food_name"] or "").lower())
+
+
 def _resolve_bool_pref(value: bool | None, pref_key: str, default: bool = False) -> bool:
     """Resolve a sticky boolean list-view toggle (e.g. 'show archived'): an explicit
     query param wins and is remembered as the new default; otherwise use the saved pref.
@@ -264,44 +275,23 @@ def _plot_label_for(key: str) -> str:
     return _nutrient_label_for(key)
 
 
-def _search_relevance_key(name: str, query: str) -> tuple:
-    """Rank a result name by match quality against the search query — exact match
-    first, then prefix match, then by fraction of query words present, then by
-    how much shorter (closer) the name is, then alphabetically. Lower sorts first."""
-    nl = (name or "").lower()
-    ql = query.lower().strip()
-    query_words = [w for w in ql.split() if not w.isdigit()]
-    hits = sum(1 for w in query_words if w in nl)
-    fraction_matched = hits / len(query_words) if query_words else 0.0
-    return (
-        0 if nl == ql else 1,
-        0 if nl.startswith(ql) else 1,
-        -fraction_matched,
-        len(nl),
-        nl,
-    )
-
-
 def _sort_search_results(results: list[dict], query: str, mode: str) -> list[dict]:
-    """Order search results either grouped by source category (pantry/cache,
-    recipe, then USDA/OFF), or by pure name-match quality regardless of category.
-    Cache always sorts ahead of recipes, which always sort ahead of external
-    USDA/OFF results, in either mode — "Best match to name" only controls
-    ordering within each of those three tiers, never across them."""
-    if mode == "relevance":
-        def _relevance_tier(source: str) -> int:
-            if source in ("pantry", "cache"):
-                return 0
-            if source == "recipe":
-                return 1
-            return 2
+    """Order search results by match quality: how many query words a name
+    contains (all > all-but-one > ...), with ties broken first by which
+    specific words matched (earlier query words outrank later ones — see
+    numa_app.services.search_ranking) and only then by source category
+    (pantry/cache/recipe/external). "Pantry, Cache, then Other" mode instead
+    sorts strictly by source category first, for users who want their own
+    data ahead of everything else regardless of match quality."""
+    if mode == "grouped":
         return sorted(
             results,
-            key=lambda r: (_relevance_tier(r["source"]), _search_relevance_key(r["name"], query)),
+            key=lambda r: (_SEARCH_CATEGORY_RANK.get(r["source"], 9),
+                            _search_ranking.relevance_key(r["name"], query, data_type=r.get("data_type", ""))),
         )
     return sorted(
         results,
-        key=lambda r: (_SEARCH_CATEGORY_RANK.get(r["source"], 9), _search_relevance_key(r["name"], query)),
+        key=lambda r: _search_ranking.relevance_key(r["name"], query, r["source"], r.get("data_type", "")),
     )
 
 
@@ -915,13 +905,59 @@ async def index(request: Request):
     )
 
 
+def _search_local_results(query: str) -> list[dict]:
+    """Local (cache/pantry/recipe) candidates for a food-search query — the
+    instant, no-network part of Food Search / Analyze a Food Portion. Shared
+    by the initial synchronous render and the async '-api-results' endpoints,
+    which merge this with external results before sorting so a weak local
+    match never outranks a better external one just by rendering first."""
+    results: list[dict] = []
+    query_words = query.lower().split()
+    with _db.get_db() as conn:
+        all_recipes = _db.recipe_list(conn)
+        cached = _db.search_cached_foods(conn, query)
+        annotations = _db.annotations_for_fdcids(conn, [row["fdc_id"] for row in cached])
+        pantry_ids = _pantry_fdc_ids(conn)
+    for row in cached:
+        with _db.get_db() as conn:
+            full = _db.get_cached_food(conn, row["fdc_id"])
+        nutrients = json.loads(full["nutrients_json"]) if full and full["nutrients_json"] else {}
+        ann = annotations.get(row["fdc_id"])
+        results.append({
+            "fdc_id":    row["fdc_id"],
+            "name":      row["name"],
+            "data_type": row["data_type"],
+            "brand":     row["brand"] or "",
+            "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
+            "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
+            "gi":        round(ann["gi_estimate"]) if ann and ann["gi_estimate"] is not None else None,
+            "diaas":     round(ann["diaas_estimate"], 2) if ann and ann["diaas_estimate"] is not None else None,
+            "has_notes": bool(row["notes"]),
+        })
+    matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
+    for r in matching_recipes:
+        results.append({
+            "_type":     "recipe",
+            "recipe_id": r["id"],
+            "name":      r["name"],
+            "data_type": "Recipe",
+            "brand":     "",
+            "source":    "recipe",
+            "aa":        "✓" if r["dcp_g"] is not None else "—",
+            "gi":        None,
+            "diaas":     None,
+            "has_notes": False,
+        })
+    return results
+
+
 async def _search_logic(request: Request, query: str, template: str, extra_ctx: dict | None = None,
                          sort: str | None = None):
     """Shared search logic for food search and analyze-portion pages."""
     query = query.strip()
     results = []
     error = None
-    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
 
     # Barcode detection: 12 or 13 consecutive digits (UPC-A or EAN-13).
     # Spaces and hyphens are stripped first so "0 12345 67890 1" also works.
@@ -980,48 +1016,16 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
         return templates.TemplateResponse(request, template, ctx)
 
     if query:
-        query_words = query.lower().split()
-        with _db.get_db() as conn:
-            all_recipes = _db.recipe_list(conn)
-            cached = _db.search_cached_foods(conn, query)
-            annotations = _db.annotations_for_fdcids(conn, [row["fdc_id"] for row in cached])
-            pantry_ids = _pantry_fdc_ids(conn)
-        for row in cached:
-            with _db.get_db() as conn:
-                full = _db.get_cached_food(conn, row["fdc_id"])
-            nutrients = json.loads(full["nutrients_json"]) if full and full["nutrients_json"] else {}
-            ann = annotations.get(row["fdc_id"])
-            results.append({
-                "fdc_id":    row["fdc_id"],
-                "name":      row["name"],
-                "data_type": row["data_type"],
-                "brand":     row["brand"] or "",
-                "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
-                "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
-                "gi":        round(ann["gi_estimate"]) if ann and ann["gi_estimate"] is not None else None,
-                "diaas":     round(ann["diaas_estimate"], 2) if ann and ann["diaas_estimate"] is not None else None,
-                "has_notes": bool(row["notes"]),
-            })
-        matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
-        for r in matching_recipes:
-            results.append({
-                "_type":     "recipe",
-                "recipe_id": r["id"],
-                "name":      r["name"],
-                "data_type": "Recipe",
-                "brand":     "",
-                "source":    "recipe",
-                "aa":        "✓" if r["dcp_g"] is not None else "—",
-                "gi":        None,
-                "diaas":     None,
-                "has_notes": False,
-            })
         # USDA/Open Food Facts results are NOT fetched here — they're 2-3
         # blocking network calls that would stall this page behind them.
         # The browser fetches them separately once this (instant, local-only)
         # response has rendered — see /food/search-api-results and
         # /food/analyze-portion-api-results, same pattern as the meal
-        # add-food panel's /meal/{meal_id}/search-api-results.
+        # add-food panel's /meal/{meal_id}/search-api-results. Those async
+        # endpoints re-fetch these same local results and merge+re-sort them
+        # with the external ones, so a weak local match never outranks a
+        # much better external one just by rendering first.
+        results = _search_local_results(query)
         results = _sort_search_results(results, query, sort)
 
     ctx = {"results": results, "query": query, "error": error, "sort": sort}
@@ -1034,7 +1038,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
 async def food_search_get(request: Request, query: str = Query(default=""), sort: str | None = None):
     if query.strip():
         return await _search_logic(request, query, "search.html", sort=sort)
-    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     return templates.TemplateResponse(request, "search.html", {"results": [], "query": "", "sort": sort})
 
 
@@ -1049,34 +1053,36 @@ async def search(request: Request, query: str = Form("")):
     return await _search_logic(request, query, "search.html")
 
 
-def _search_page_exclude_ids(query: str) -> set[int]:
-    """Fdc_ids already covered by the local cache for `query`, so the async
-    USDA/OFF fetch doesn't duplicate a row the fast synchronous pass already showed."""
-    with _db.get_db() as conn:
-        cached = _db.search_cached_foods(conn, query)
-    return {row["fdc_id"] for row in cached}
-
-
 @app.get("/food/search-api-results", response_class=HTMLResponse)
 async def food_search_api_results(request: Request, query: str = "", sort: str | None = None):
     """Fetched by JS on the Food Search page after the initial (cache-only)
-    render — returns just the USDA/OFF result rows as an HTML fragment, so
-    slow external API calls never block cached foods from appearing instantly."""
-    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
+    render. Returns the FULL result set — local results merged with USDA/OFF
+    and re-sorted together, not just the external rows appended below — so a
+    weak local match never outranks a much better external one just because
+    the local pass rendered first. The JS replaces the table body with this
+    response rather than appending to it."""
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     query = query.strip()
     results: list[dict] = []
     if query:
-        results = _external_food_search_results(query, _search_page_exclude_ids(query), query, sort)
+        local = _search_local_results(query)
+        exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
+        external = _external_food_search_results(query, exclude_ids, query, sort)
+        results = _sort_search_results(local + external, query, sort)
     return templates.TemplateResponse(request, "_search_api_rows.html", {"results": results})
 
 
 @app.get("/food/analyze-portion-api-results", response_class=HTMLResponse)
-async def food_analyze_portion_api_results(request: Request, query: str = ""):
+async def food_analyze_portion_api_results(request: Request, query: str = "", sort: str | None = None):
     """Same as /food/search-api-results, for the Analyze a Food Portion page."""
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     query = query.strip()
     results: list[dict] = []
     if query:
-        results = _external_food_search_results(query, _search_page_exclude_ids(query), query, "grouped")
+        local = _search_local_results(query)
+        exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
+        external = _external_food_search_results(query, exclude_ids, query, sort)
+        results = _sort_search_results(local + external, query, sort)
     return templates.TemplateResponse(request, "_analyze_portion_api_rows.html", {"results": results})
 
 
@@ -1129,8 +1135,9 @@ async def food_confirm_aa(
 
 @app.get("/food/analyze-portion", response_class=HTMLResponse)
 async def food_analyze_portion_get(request: Request):
+    sort = _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     return templates.TemplateResponse(request, "food_analyze_portion.html",
-                                      {"results": [], "query": ""})
+                                      {"results": [], "query": "", "sort": sort})
 
 
 @app.post("/food/analyze-portion", response_class=HTMLResponse)
@@ -1275,7 +1282,7 @@ async def food_convert_get(request: Request, q: str = ""):
                     "source":      "recipe",
                     "convert_url": f"/food/convert/recipe/{r['id']}",
                 })
-        search_results = _sort_search_results(search_results, q, "grouped")
+        search_results = _sort_search_results(search_results, q, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
     return templates.TemplateResponse(request, "food_convert.html", {
         "query":          q,
         "search_results": search_results,
@@ -1611,7 +1618,7 @@ async def food_compare_get(
         except Exception as exc:
             if not search_results:
                 search_error = f"USDA API unavailable: {exc}"
-        search_results = _sort_search_results(search_results, search, "grouped")
+        search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
 
     with _db.get_db() as conn:
         saved_lists = _db.saved_comparison_list(conn)
@@ -2143,7 +2150,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
         except Exception:
             pass
 
-        search_results = _sort_search_results(search_results, search, "grouped")
+        search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
 
     link_name = next((i["food_name"] for i in items if i["id"] == link_id), None) if link_id else None
 
@@ -3312,9 +3319,98 @@ async def meal_refresh_aa(meal_id: int):
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
+def _meal_add_food_local_results(q: str) -> list[dict]:
+    """Local (recipe/cache/pantry) candidates for the meal add-food panel —
+    the instant, no-network part. Shared by the initial synchronous render
+    and the async search-api-results endpoint, which merges this with
+    external results before sorting so a weak local match never outranks a
+    much better external one just by rendering first."""
+    # Preprocess query (same logic as CLI search.py)
+    _clean_words = [w for w in q.lower().split() if w not in _SEARCH_META_WORDS]
+    clean_query = " ".join(_clean_words) if _clean_words else q
+
+    search_results: list[dict] = []
+
+    # Prepend matching recipes (local DB, instant)
+    with _db.get_db() as conn:
+        all_recipes   = _db.recipe_list(conn)
+        cached_rows   = _db.search_cached_foods(conn, clean_query)
+        pantry_ids    = _pantry_fdc_ids(conn)
+    ql = q.lower()
+    query_words = ql.split()
+    matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
+    for r in matching_recipes:
+        search_results.append({
+            "_type":         "recipe",
+            "recipe_id":     r["id"],
+            "name":          r["name"],
+            "servings":      float(r["servings"] or 1),
+            "total_weight":  r["total_weight"],
+            "total_weight_unit": r["total_weight_unit"] or "g",
+            "total_volume":  r["total_volume"],
+            "total_volume_unit": r["total_volume_unit"] or "ml",
+            "data_type":     "Recipe",
+            "source":        "recipe",
+        })
+
+    # Cached foods only — fast, local DB. External USDA/OFF results are
+    # fetched separately by the browser (GET /meal/{meal_id}/search-api-
+    # results) so a repeat food already in the cache renders instantly
+    # instead of waiting on 2-3 blocking USDA/OFF API round-trips.
+    cache_fdc_ids = {row["fdc_id"] for row in cached_rows}
+    with _db.get_db() as conn:
+        annotations = _db.annotations_for_fdcids(conn, list(cache_fdc_ids))
+        cached_nutrients: dict[int, str | None] = {}
+        for fid in cache_fdc_ids:
+            row = _db.get_cached_food(conn, fid)
+            if row:
+                cached_nutrients[fid] = row["nutrients_json"]
+
+    def _aa_status(fdc_id: int, data_type: str) -> str:
+        nuts_json = cached_nutrients.get(fdc_id)
+        if nuts_json:
+            return "✓" if _usda.has_amino_acid_data(json.loads(nuts_json)) else "✗"
+        if data_type in ("Foundation", "SR Legacy"):
+            return "~✓"
+        return "✗"
+
+    def _ann_gi(fdc_id: int) -> str:
+        ann = annotations.get(fdc_id)
+        if ann and ann["gi_estimate"] is not None:
+            return str(int(round(ann["gi_estimate"])))
+        return ""
+
+    def _ann_diaas(fdc_id: int) -> str:
+        ann = annotations.get(fdc_id)
+        if ann and ann["diaas_estimate"] is not None:
+            return f"{ann['diaas_estimate']:.2f}"
+        return ""
+
+    for row in cached_rows:
+        fid = row["fdc_id"]
+        portions = json.loads(row["portions_json"] or "[]") or []
+        dtype = row["data_type"] or ""
+        search_results.append({
+            "fdc_id":    fid,
+            "name":      row["name"],
+            "data_type": dtype,
+            "brand":     row["brand"] or "",
+            "source":    "pantry" if fid in pantry_ids else "cache",
+            "off_code":  "",
+            "portions":  portions,
+            "aa":        _aa_status(fid, dtype),
+            "gi":        _ann_gi(fid),
+            "diaas":     _ann_diaas(fid),
+        })
+
+    return search_results
+
+
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
-async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None):
-    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
+async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None,
+                     item_sort: str | None = None):
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
         if not meal:
@@ -3327,89 +3423,12 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         return RedirectResponse("/meals", status_code=303)
 
     items, total_nutrients, diaas_result, meal_ingredients = _meal_totals(meal_id)
+    items = _sort_meal_items_display(items, item_sort)
 
     # Search results for add-food panel
     search_results = []
     if q:
-        # Preprocess query (same logic as CLI search.py)
-        _clean_words = [w for w in q.lower().split() if w not in _SEARCH_META_WORDS]
-        clean_query = " ".join(_clean_words) if _clean_words else q
-        _api_words  = [w for w in clean_query.split() if w not in _SEARCH_PREP_WORDS]
-        api_query   = " ".join(_api_words) if _api_words else clean_query
-
-        # Prepend matching recipes (local DB, instant)
-        with _db.get_db() as conn:
-            all_recipes   = _db.recipe_list(conn)
-            cached_rows   = _db.search_cached_foods(conn, clean_query)
-            pantry_ids    = _pantry_fdc_ids(conn)
-        ql = q.lower()
-        query_words = ql.split()
-        matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
-        for r in matching_recipes:
-            search_results.append({
-                "_type":         "recipe",
-                "recipe_id":     r["id"],
-                "name":          r["name"],
-                "servings":      float(r["servings"] or 1),
-                "total_weight":  r["total_weight"],
-                "total_weight_unit": r["total_weight_unit"] or "g",
-                "total_volume":  r["total_volume"],
-                "total_volume_unit": r["total_volume_unit"] or "ml",
-                "data_type":     "Recipe",
-                "source":        "recipe",
-            })
-
-        # Cached foods only — fast, local DB. External USDA/OFF results are
-        # fetched separately by the browser (GET /meal/{meal_id}/search-api-
-        # results) so a repeat food already in the cache renders instantly
-        # instead of waiting on 2-3 blocking USDA/OFF API round-trips.
-        cache_fdc_ids = {row["fdc_id"] for row in cached_rows}
-        with _db.get_db() as conn:
-            annotations = _db.annotations_for_fdcids(conn, list(cache_fdc_ids))
-            cached_nutrients: dict[int, str | None] = {}
-            for fid in cache_fdc_ids:
-                row = _db.get_cached_food(conn, fid)
-                if row:
-                    cached_nutrients[fid] = row["nutrients_json"]
-
-        def _aa_status(fdc_id: int, data_type: str) -> str:
-            nuts_json = cached_nutrients.get(fdc_id)
-            if nuts_json:
-                return "✓" if _usda.has_amino_acid_data(json.loads(nuts_json)) else "✗"
-            if data_type in ("Foundation", "SR Legacy"):
-                return "~✓"
-            return "✗"
-
-        def _ann_gi(fdc_id: int) -> str:
-            ann = annotations.get(fdc_id)
-            if ann and ann["gi_estimate"] is not None:
-                return str(int(round(ann["gi_estimate"])))
-            return ""
-
-        def _ann_diaas(fdc_id: int) -> str:
-            ann = annotations.get(fdc_id)
-            if ann and ann["diaas_estimate"] is not None:
-                return f"{ann['diaas_estimate']:.2f}"
-            return ""
-
-        for row in cached_rows:
-            fid = row["fdc_id"]
-            portions = json.loads(row["portions_json"] or "[]") or []
-            dtype = row["data_type"] or ""
-            search_results.append({
-                "fdc_id":    fid,
-                "name":      row["name"],
-                "data_type": dtype,
-                "brand":     row["brand"] or "",
-                "source":    "pantry" if fid in pantry_ids else "cache",
-                "off_code":  "",
-                "portions":  portions,
-                "aa":        _aa_status(fid, dtype),
-                "gi":        _ann_gi(fid),
-                "diaas":     _ann_diaas(fid),
-            })
-
-        search_results = _sort_search_results(search_results, q, sort)
+        search_results = _sort_search_results(_meal_add_food_local_results(q), q, sort)
 
     with _db.get_db() as conn:
         day_profile_obj = _day_profile.get_profile_for_date(conn, meal["meal_date"])
@@ -3491,6 +3510,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     return templates.TemplateResponse(request, "meal.html", {
         "meal":                dict(meal),
         "items":               items,
+        "item_sort":           item_sort,
         "nutrient_sections":   _nutrient_sections(total_nutrients, rda, daily_nutrients,
                                                   optimal=optimal, max_limits=max_limits) if total_nutrients else [],
         "diaas":               diaas_display,
@@ -3513,10 +3533,13 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
 
 @app.get("/meal/{meal_id}/search-api-results", response_class=HTMLResponse)
 async def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None):
-    """Fetched by JS on the meal page after the initial (cache-only) render —
-    returns just the USDA/OFF result rows as an HTML fragment, so slow
-    external API calls never block cached foods from appearing instantly."""
-    sort = _resolve_sort(sort, "sort_food_search", "grouped", _SEARCH_SORT_MODES)
+    """Fetched by JS on the meal page after the initial (cache-only) render.
+    Returns the FULL result set — local results merged with USDA/OFF and
+    re-sorted together, not just the external rows appended below — so a
+    weak local match never outranks a much better external one just because
+    the local pass rendered first. The JS replaces the table body with this
+    response rather than appending to it."""
+    sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     q = q.strip()
     results: list[dict] = []
     if q:
@@ -3525,16 +3548,55 @@ async def meal_search_api_results(request: Request, meal_id: int, q: str = "", s
         _api_words = [w for w in clean_query.split() if w not in _SEARCH_PREP_WORDS]
         api_query = " ".join(_api_words) if _api_words else clean_query
 
-        with _db.get_db() as conn:
-            cached_rows = _db.search_cached_foods(conn, clean_query)
-        exclude_ids = {row["fdc_id"] for row in cached_rows}
-        results = _external_food_search_results(api_query, exclude_ids, q, sort)
+        local = _meal_add_food_local_results(q)
+        exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
+        external = _external_food_search_results(api_query, exclude_ids, q, sort)
+        results = _sort_search_results(local + external, q, sort)
 
     return templates.TemplateResponse(request, "_add_food_api_rows.html", {
         "meal_id": meal_id,
         "results": results,
         "q":       q,
     })
+
+
+@app.post("/meal/{meal_id}/confirm-aa", response_class=RedirectResponse)
+async def meal_confirm_aa(
+    meal_id: int,
+    fdc_ids: list[int] = Form(...),
+    q: str = Form(""),
+    sort: str = Form(""),
+):
+    """Same as /food/confirm-aa, for the add-food search results on a meal's
+    page — fetches and caches full USDA details for the selected foods so
+    their '~✓' guess becomes a confirmed ✓ or ✗."""
+    for fdc_id in fdc_ids:
+        if fdc_id <= 0:
+            continue
+        with _db.get_db() as conn:
+            cached = _db.get_cached_food(conn, fdc_id)
+        if cached:
+            continue
+        try:
+            detail = _usda.get_food_detail(fdc_id)
+        except Exception:
+            continue
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn, fdc_id=detail["fdcId"], name=detail["name"],
+                data_type=detail.get("dataType", ""),
+                brand=detail.get("brand"),
+                serving_size=detail.get("servingSize"),
+                serving_unit=detail.get("servingUnit"),
+                nutrients=detail.get("nutrients", {}),
+                portions=detail.get("portions", []),
+            )
+
+    from urllib.parse import urlencode
+    params = {"q": q}
+    if sort:
+        params["sort"] = sort
+    return RedirectResponse(f"/meal/{meal_id}?{urlencode(params)}", status_code=303)
 
 
 @app.post("/meal/{meal_id}/add", response_class=RedirectResponse)
@@ -3862,7 +3924,7 @@ async def meal_day_view(request: Request, meal_id: int):
             for it in m_items:
                 if it["item_type"] == "recipe":
                     it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
-            m["meal_items"] = m_items
+            m["meal_items"] = _sort_meal_items_display(m_items)
 
     diaas_display = _build_diaas_display(diaas_result)
 
@@ -4414,7 +4476,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                     })
         except Exception:
             pass
-        search_results = _sort_search_results(search_results, q, "grouped")
+        search_results = _sort_search_results(search_results, q, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
 
     return templates.TemplateResponse(request, "recipe_edit.html", {
         "recipe":             dict(recipe),
@@ -4513,6 +4575,41 @@ async def recipe_copy_post(recipe_id: int):
             )
         _recipe_dcp.recompute_recipe_dcp(new_id, conn)
     return RedirectResponse(f"/recipe/{new_id}/edit", status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/confirm-aa", response_class=RedirectResponse)
+async def recipe_confirm_aa(
+    recipe_id: int,
+    fdc_ids: list[int] = Form(...),
+    q: str = Form(""),
+):
+    """Same as /food/confirm-aa, for the ingredient-search results on a
+    recipe's edit page — fetches and caches full USDA details for the
+    selected foods so their '~✓' guess becomes a confirmed ✓ or ✗."""
+    for fdc_id in fdc_ids:
+        if fdc_id <= 0:
+            continue
+        with _db.get_db() as conn:
+            cached = _db.get_cached_food(conn, fdc_id)
+        if cached:
+            continue
+        try:
+            detail = _usda.get_food_detail(fdc_id)
+        except Exception:
+            continue
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn, fdc_id=detail["fdcId"], name=detail["name"],
+                data_type=detail.get("dataType", ""),
+                brand=detail.get("brand"),
+                serving_size=detail.get("servingSize"),
+                serving_unit=detail.get("servingUnit"),
+                nutrients=detail.get("nutrients", {}),
+                portions=detail.get("portions", []),
+            )
+
+    from urllib.parse import urlencode
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?{urlencode({'q': q})}", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/ingredient/add", response_class=RedirectResponse)
@@ -5281,7 +5378,7 @@ async def summary_date(request: Request, meal_date: str):
             for it in m_items:
                 if it["item_type"] == "recipe":
                     it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
-            m["meal_items"] = m_items
+            m["meal_items"] = _sort_meal_items_display(m_items)
 
     diaas_display = _build_diaas_display(diaas_result)
 

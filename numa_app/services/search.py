@@ -13,6 +13,7 @@ import db as _db
 import usda as _usda
 import openfoodfacts as _off
 from .. import state
+from . import search_ranking as _search_ranking
 from ..ui.common import _id_cell, ID_KEY, table_title, help_footer, food_id_tag
 from ..ui.prompts import Cancelled, ReturnToMain, _prompt, _hint
 
@@ -593,7 +594,11 @@ def _search_and_pick_food(
             _complete_cache = sorted(
                 (r for r in cache_results
                  if (data_types is None or r.get("dataType") in data_types)),
-                key=lambda r: r.get("fdcId") not in _pantry_ids,  # pantry items first
+                key=lambda r: _search_ranking.relevance_key(
+                    r.get("description", ""), clean_query,
+                    "pantry" if r.get("fdcId") in _pantry_ids else "cache",
+                    r.get("dataType", ""),
+                ),
             )
 
             _bg_results: list[dict] = []

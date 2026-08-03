@@ -174,9 +174,27 @@
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
   </form>
+  {# A checkbox's own <tr> sits inside the results table below, which also
+     contains each row's independent "Add to meal" <form> — HTML forms can't
+     nest, so this form wraps only the button/panel, and each checkbox
+     references it by id via the form="" attribute instead. #}
+  <form method="post" action="/meal/{{ meal.id }}/confirm-aa" id="confirm-aa-form">
+    <input type="hidden" name="q" value="{{ q }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
+      <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
+        Fetch full details for selected
+      </button>
+      <small class="muted">Confirms whether a <span class="text-warning">~✓</span> food really has amino acid data — search results don't carry nutrient data, only the food's name and type, so this is a guess until fetched.</small>
+    </div>
+  </form>
   <table class="nutrient-table add-food-table" id="add-food-table">
     <thead>
       <tr>
+        <th class="confirm-col" style="width:2rem">
+          <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
+                 aria-label="Select all unconfirmed">
+        </th>
         <th>Food / Recipe</th>
         <th class="col-aa" title="Amino acid data available">AA</th>
         <th class="col-gi" title="Glycemic index (annotated)">GI</th>
@@ -188,7 +206,7 @@
     <tbody id="add-food-tbody">
       {% for food in search_results %}{{ _sr.add_food_row(meal.id, food, q) }}{% endfor %}
       <tr id="add-food-api-loading" class="food-meta-row">
-        <td colspan="6"><small class="muted">Searching USDA FoodData Central and Open Food Facts…</small></td>
+        <td colspan="7"><small class="muted">Searching USDA FoodData Central and Open Food Facts…</small></td>
       </tr>
     </tbody>
   </table>
@@ -204,18 +222,43 @@
     var loadingRow = document.getElementById('add-food-api-loading');
     var table = document.getElementById('add-food-table');
     var noResults = document.getElementById('add-food-no-results');
+    var confirmForm = document.getElementById('confirm-aa-form');
+    var confirmPanel = document.getElementById('confirm-aa-panel');
+    var submitBtn = confirmForm.querySelector('[data-confirm-aa-submit]');
+    var selectAll = table.querySelector('[data-confirm-aa-select-all]');
+
+    function refreshConfirmUI() {
+      var boxes = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'));
+      confirmPanel.style.display = boxes.length ? '' : 'none';
+      if (submitBtn) submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
+    }
+    tbody.addEventListener('change', function (e) {
+      if (e.target.matches('[data-confirm-aa-checkbox]')) refreshConfirmUI();
+    });
+    if (selectAll) {
+      selectAll.addEventListener('change', function () {
+        Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'))
+          .forEach(function (b) { b.checked = selectAll.checked; });
+        refreshConfirmUI();
+      });
+    }
+    refreshConfirmUI();
+
     var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}});
     fetch('/meal/{{ meal.id }}/search-api-results?' + params.toString())
       .then(function (r) { return r.text(); })
       .then(function (html) {
-        loadingRow.remove();
-        var hadRows = tbody.querySelector('tr') !== null;
+        // Server response is the FULL merged+re-sorted result set (local +
+        // external), not just new rows — replace, don't append, so a weak
+        // local match can't stay pinned above a better external one.
+        tbody.innerHTML = html;
         if (html.trim()) {
-          tbody.insertAdjacentHTML('beforeend', html);
-        } else if (!hadRows) {
+          table.style.display = '';
+        } else {
           table.style.display = 'none';
           noResults.style.display = '';
         }
+        refreshConfirmUI();
       })
       .catch(function () {
         loadingRow.querySelector('small').textContent = 'Search failed — reload to retry.';
@@ -280,7 +323,17 @@
 {# ── Items list ───────────────────────────────────────────────────────── #}
 {% if items %}
 <section id="sec-items" class="analysis-section">
-  <h3 class="section-heading">Items ({{ items|length }}) {{ manual_link("meal-detail") }}</h3>
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <h3 class="section-heading mb-0">Items ({{ items|length }}) {{ manual_link("meal-detail") }}</h3>
+    <form method="get" action="/meal/{{ meal.id }}" class="d-flex align-items-center gap-1">
+      <label class="muted me-1" for="item_sort"><small>Sort by</small></label>
+      <select name="item_sort" id="item_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
+              onchange="this.form.submit()">
+        <option value="alpha" {% if item_sort == "alpha" %}selected{% endif %}>Alphabetical</option>
+        <option value="entry" {% if item_sort == "entry" %}selected{% endif %}>Entry order</option>
+      </select>
+    </form>
+  </div>
   <table class="nutrient-table mt-2">
     <thead>
       <tr>

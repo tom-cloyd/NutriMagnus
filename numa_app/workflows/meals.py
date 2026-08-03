@@ -859,11 +859,20 @@ def _do_meal_delete_multiple(meal_ids: list[int]) -> None:
         state.console.print("[grey62]Cancelled.[/grey62]")
 
 
+def _sort_meal_items(items: list) -> list:
+    """Order meal items per the remembered display preference: alphabetical
+    by food/recipe name (default), or entry order (first added to last)."""
+    sort = state.get_sort_pref("meal_items", "alpha")
+    if sort == "entry":
+        return list(items)
+    return sorted(items, key=lambda it: (it["food_name"] or "").lower())
+
+
 def _print_meal_items(meal_id: int, meal_name: str) -> list:
     """Print items for a meal and return the list of items."""
     with _db.get_db() as conn:
         meal_row = _db.meal_get(conn, meal_id)
-        items    = _db.meal_get_items(conn, meal_id)
+        items    = _sort_meal_items(_db.meal_get_items(conn, meal_id))
         recipe_deleted = {
             it["id"]: _db.recipe_get(conn, it["recipe_id"]) is None
             for it in items if it["item_type"] == "recipe"
@@ -903,6 +912,8 @@ def _print_meal_items(meal_id: int, meal_name: str) -> list:
                 name_cell = f"{fname} [grey62]{fdots}[/grey62]{food_id_tag(it['fdc_id'])}"
             tbl.add_row(str(it["id"]), amount_label, name_cell)
         state.console.print(tbl)
+        sort_label = "entry order (first added to last)" if state.get_sort_pref("meal_items", "alpha") == "entry" else "alphabetical"
+        table_footer(f"  [grey62]Sorted {sort_label} — 'o' in Actions to change[/grey62]")
         help_footer("meal-detail")
     return list(items)
 
@@ -1195,6 +1206,10 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
         ]
         if siblings:
             menu_items.append(("8", "Merge with meal(s) on same date"))
+        item_sort = state.get_sort_pref("meal_items", "alpha")
+        menu_items.append(
+            ("o", "Sort items — entry order" if item_sort != "entry" else "Sort items — alphabetical")
+        )
         menu_items += [
             ("b", "Back to previous menu"),
             ("m", "Return to main menu"),
@@ -1496,6 +1511,11 @@ def _meal_action_loop(meal_id: int, meal_name: str, meal_date: str) -> bool:
             if del_orig == "y" and any(m["id"] == meal_id for m in selected):
                 return False
             _print_meal_items(new_mid, new_name)
+
+        elif choice == "o":
+            new_sort = "entry" if item_sort != "entry" else "alpha"
+            _prefs.set_sort_pref("meal_items", new_sort)
+            _print_meal_items(meal_id, meal_name)
 
         elif choice in ("b", ""):
             return True

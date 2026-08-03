@@ -221,10 +221,26 @@
       </form>
 
       {% if search_results %}
-      <p class="muted mt-1 mb-2"><small>Add a replacement below, then remove the original ingredient above.</small></p>
+      {# A checkbox's own <tr> sits inside the results table below, which also
+         contains each row's independent "Add to recipe" <form> — HTML forms
+         can't nest, so this form wraps only the button/panel, and each
+         checkbox references it by id via the form="" attribute instead. #}
+      <form method="post" action="/recipe/{{ recipe.id }}/confirm-aa" id="confirm-aa-form">
+        <input type="hidden" name="q" value="{{ q }}">
+        <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
+          <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
+            Fetch full details for selected
+          </button>
+          <small class="muted">Confirms whether a <span class="text-warning">~✓</span> food really has amino acid data — search results don't carry nutrient data, only the food's name and type, so this is a guess until fetched.</small>
+        </div>
+      </form>
       <table class="nutrient-table add-food-table">
         <thead>
           <tr>
+            <th class="confirm-col" style="width:2rem">
+              <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
+                     aria-label="Select all unconfirmed">
+            </th>
             <th>Food</th>
             <th class="col-id">ID#</th>
             <th title="Amino acid data">AA</th>
@@ -232,9 +248,15 @@
             <th colspan="2">Amount &rarr; Add</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="add-ingredient-tbody">
           {% for food in search_results %}
           <tr>
+            <td class="confirm-col">
+              {% if food.aa == "~✓" %}
+              <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
+                     form="confirm-aa-form" aria-label="Select {{ food.name }} to fetch full details">
+              {% endif %}
+            </td>
             <td>
               <strong>{{ food.name }}</strong>
               {% if food.data_type or food.brand %}
@@ -294,6 +316,32 @@
           {% endfor %}
         </tbody>
       </table>
+      <script>
+      (function () {
+        var tbody = document.getElementById('add-ingredient-tbody');
+        var confirmForm = document.getElementById('confirm-aa-form');
+        var confirmPanel = document.getElementById('confirm-aa-panel');
+        var submitBtn = confirmForm.querySelector('[data-confirm-aa-submit]');
+        var selectAll = tbody.closest('table').querySelector('[data-confirm-aa-select-all]');
+
+        function refreshConfirmUI() {
+          var boxes = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'));
+          confirmPanel.style.display = boxes.length ? '' : 'none';
+          if (submitBtn) submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
+        }
+        tbody.addEventListener('change', function (e) {
+          if (e.target.matches('[data-confirm-aa-checkbox]')) refreshConfirmUI();
+        });
+        if (selectAll) {
+          selectAll.addEventListener('change', function () {
+            Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'))
+              .forEach(function (b) { b.checked = selectAll.checked; });
+            refreshConfirmUI();
+          });
+        }
+        refreshConfirmUI();
+      })();
+      </script>
       {% elif q %}
       <p>No results for <strong>{{ q }}</strong>.</p>
       {% endif %}

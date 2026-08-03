@@ -1,5 +1,11 @@
 {% macro add_food_row(meal_id, food, q) %}
       <tr class="food-meta-row">
+        <td class="confirm-col">
+          {% if food.aa == "~✓" %}
+          <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
+                 form="confirm-aa-form" aria-label="Select {{ food.name }} to fetch full details">
+          {% endif %}
+        </td>
         <td><strong>{{ food.name }}</strong>
           {% if (food.data_type and food._type != "recipe") or food.brand %}<br><small class="muted">{% if food._type != "recipe" %}{{ food.data_type }}{% endif %}{% if food.brand and food.data_type and food._type != "recipe" %} &middot; {% endif %}{{ food.brand or '' }}</small>{% endif %}
         </td>
@@ -15,7 +21,7 @@
         <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
       </tr>
       <tr class="add-food-form-row">
-        <td colspan="6">
+        <td colspan="7">
           {% if food._type == "recipe" %}
           {% set rid = food.recipe_id %}
           <form method="post" action="/meal/{{ meal_id }}/add-recipe" class="add-food-form">

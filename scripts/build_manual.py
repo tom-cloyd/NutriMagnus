@@ -36,11 +36,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SOURCE = PROJECT_ROOT / "user-manual.md"
 OUTPUT = PROJECT_ROOT / "user-manual.html"
 PAGE_TITLE = "NutriMagnus User Manual"
+WORDS_PER_MINUTE = 225
 
 # Matches a markdown heading that ends with a [short-anchor] tag.
 # Groups: (hashes, title_text, anchor)
 _ANCHOR_RE = re.compile(
     r'^(#{1,6})\s+(.+?)\s+\[([a-z][a-z0-9-]*)\]\s*$',
+    re.MULTILINE,
+)
+
+# The manual's second line: "*Updated YYYY-MM-DD:HHMM* / Reading time: ..."
+# The timestamp is bumped by hand per CLAUDE.md convention; only the reading
+# time portion is regenerated here.
+_HEADER_LINE_RE = re.compile(
+    r'^(\*Updated \d{4}-\d{2}-\d{2}:\d{4}\*) / Reading time: .+$',
     re.MULTILINE,
 )
 
@@ -51,6 +60,26 @@ def preprocess(text: str) -> str:
         hashes, title, anchor = m.group(1), m.group(2).strip(), m.group(3)
         return f'{hashes} {title} {{#{anchor}}}'
     return _ANCHOR_RE.sub(_replace, text)
+
+
+def count_words(markdown_text: str) -> int:
+    """Word count of the manual body, ignoring code and link targets."""
+    text = _HEADER_LINE_RE.sub('', markdown_text, count=1)
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    text = re.sub(r'`[^`]*`', '', text)
+    text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
+    return len(text.split())
+
+
+def reading_time_str(word_count: int, wpm: int = WORDS_PER_MINUTE) -> str:
+    total_minutes = max(1, round(word_count / wpm))
+    hours, minutes = divmod(total_minutes, 60)
+    parts = []
+    if hours:
+        parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+    if minutes:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    return ", ".join(parts)
 
 
 # ── Styling ──────────────────────────────────────────────────────────────────
@@ -620,6 +649,16 @@ def main() -> None:
         sys.exit(f"Error: source not found: {SOURCE}")
 
     raw = SOURCE.read_text(encoding="utf-8")
+
+    word_count = count_words(raw)
+    reading_time = reading_time_str(word_count)
+    updated_raw, n = _HEADER_LINE_RE.subn(
+        lambda m: f"{m.group(1)} / Reading time: {reading_time}", raw, count=1
+    )
+    if n and updated_raw != raw:
+        SOURCE.write_text(updated_raw, encoding="utf-8")
+        raw = updated_raw
+
     processed = preprocess(raw)
 
     md = markdown.Markdown(
@@ -646,6 +685,7 @@ def main() -> None:
     print(f"Built: {OUTPUT}")
     print(f"  Source : {SOURCE}")
     print(f"  Output : {size_kb:.1f} KB")
+    print(f"  Words  : {word_count} ({reading_time} reading time @ {WORDS_PER_MINUTE} wpm)")
 
 
 if __name__ == "__main__":

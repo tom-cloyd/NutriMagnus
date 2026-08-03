@@ -6,9 +6,10 @@ after `pyinstaller --onefile --name nutrimagnus numa.py` has produced
 dist/nutrimagnus. Used by .forgejo/workflows/release.yml on every push to
 main; safe to run manually too.
 
-Release notes are pulled from program-updates.md's section matching today's
-date (## Month Day), falling back to a generic message if that section
-doesn't exist yet (e.g. the daily update-notes extraction hasn't run today).
+Release notes are pulled from user-manual.md's Appendix K ("Recent program
+updates log") section matching today's date (#### Month Day), falling back
+to a generic message if that section doesn't exist yet (e.g. no manual
+changes were logged today).
 
 Requires CODEBERG_TOKEN in the environment (a Codeberg access token with
 repo write scope).
@@ -23,7 +24,8 @@ import urllib.request
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 API_BASE = "https://codeberg.org/api/v1/repos/Tom_Cloyd/NutriMagnus"
 BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
-UPDATES_FILE = REPO_ROOT / "program-updates.md"
+MANUAL_FILE = REPO_ROOT / "user-manual.md"
+APPENDIX_K_HEADING = "### Appendix K: Recent program updates log"
 
 
 def _version() -> str:
@@ -38,15 +40,22 @@ def _tag_for(version_str: str) -> str:
 
 
 def _release_notes_for_today() -> str:
-    today_heading = "## " + datetime.date.today().strftime("%B %-d")
-    if not UPDATES_FILE.exists():
+    today_heading = "#### " + datetime.date.today().strftime("%B %-d")
+    if not MANUAL_FILE.exists():
         return "Automated build from main."
-    lines = UPDATES_FILE.read_text().splitlines()
+    lines = MANUAL_FILE.read_text().splitlines()
+    in_appendix = False
     for i, line in enumerate(lines):
-        if line.strip() == today_heading:
+        stripped = line.strip()
+        if stripped == APPENDIX_K_HEADING:
+            in_appendix = True
+            continue
+        if not in_appendix:
+            continue
+        if stripped == today_heading:
             body_lines = []
             for later in lines[i + 1:]:
-                if later.startswith("## "):
+                if later.startswith("#### ") or later.startswith("### "):
                     break
                 body_lines.append(later)
             body = "\n".join(body_lines).strip()

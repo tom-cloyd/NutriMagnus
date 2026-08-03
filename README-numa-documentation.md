@@ -102,6 +102,7 @@ numa/
                                      recompute_recipe_dcp()
       reports.py                   — export rendering support
       search.py                    — _search_and_pick_food(), _suggest_foundation_search()
+      search_ranking.py            — shared food-search relevance ranking (CLI + web): relevance_key()
     workflows/
       __init__.py
       foods.py                     — Foods menu; search, portion analysis, convert, cached-food viewer
@@ -335,15 +336,19 @@ The conversion math is shown on screen so you can verify it against the label.
 
 See the [User Manual](user-manual.html) for usage documentation on food search, barcode scanning, and the food cache quick-pick.
 
-**Result ordering** — results are ranked in this order:
+**Result ordering.** See `numa_app/services/search_ranking.py`, shared by the CLI and web app. `relevance_key(name, query, source, data_type)` returns a sort tuple, lower sorts first:
 
-1. **Local cache** — foods you have already fetched always appear first
-2. **Annotated cache hits** — within cached foods, those with GI or DIAAS estimates on file sort above unannotated ones
-3. **USDA Foundation Foods and SR Legacy** — whole-food entries with the most complete nutrient profiles
-4. **Open Food Facts** — community-sourced packaged foods
-5. **Branded (USDA)** — commercial products
+```python
+(-count, -mask, SOURCE_RANK.get(source, 9), DATA_TYPE_RANK.get(data_type, 1), exact, prefix, len(name), name)
+```
 
-If the search string contains a brand name (any brand word of four or more characters that appears in a result's brand field), the ranking switches to relevance order (most query-word matches first) so the specific product you named surfaces at the top; cache and annotation status still apply as tiebreakers.
+- `count` — how many query words appear in the candidate's name (substring, case-insensitive). This is the dominant term: an all-words match always outranks an all-but-one match, which always outranks an all-but-two match, and so on.
+- `mask` — a bitmask, one bit per query word, MSB = the *first* word typed. Within an equal `count`, comparing masks as integers means matching earlier query words outranks matching later ones: for the query `milk dry instant` (bit weights 4/2/1), a name matching `milk`+`dry` scores `110₂ = 6`, one matching `milk`+`instant` scores `101₂ = 5` — so the "dry" hit wins even though both matched exactly 2 of 3 words, because the user typed "dry" before "instant". This is a compact way to encode "word order signals priority" without hand-written tiering logic.
+- `SOURCE_RANK` (`pantry`→0, `cache`→1, `recipe`→2, `usda`/`off`→3) — the *only* place source enters the comparison, and only once `count` and `mask` are already tied. This is what fixes the previous behavior where a weak or coincidental pantry/cache match could outrank a much better USDA/OFF result simply by virtue of already being in the user's own data.
+- `DATA_TYPE_RANK` (`Foundation`/`SR Legacy`→0, `Survey (FNDDS)`/`Experimental`→1, `Branded`/`Open Food Facts`→2) — breaks ties among results that are otherwise identical on text relevance and source. Without this, a wall of near-identical branded product names (e.g. a dozen listings all named "INSTANT NONFAT DRY MILK") can bury the one Foundation/SR Legacy food that actually carries amino acid data, since the remaining tiebreakers (below) have no way to prefer it — a longer, more descriptive USDA reference name loses to a terse branded one on `len(name)` alone. This restores the property the original "search deeper into Foundation/SR Legacy" boost pass (see `get_search_boost_page_size()`) was designed to provide by list position, before `relevance_key` started re-sorting its output.
+- `exact`, `prefix`, `len(name)`, `name` — final tiebreakers: exact string match, then prefix match, then shorter name, then alphabetical.
+
+The web app additionally offers a "Pantry, Cache, then Other" sort mode (`_sort_search_results()` in `web/backend.py`) that sorts by `SOURCE_RANK` *before* `relevance_key`, for users who deliberately want their own library first regardless of match quality. "Best match to name" (the default) uses `relevance_key` as shown above, with source only as the final tiebreaker. The CLI has no such toggle — its Food Cache quick-pick table always uses `relevance_key`.
 
 The results table always includes an **AA data** column (✓ confirmed / ~✓ likely / ✗ none) and an **Ann** column showing which foods have GI and/or DIAAS estimates saved (`GI`, `DI`, or `GI DI` in green; `·····` if none). Use these columns to pick the option with the richest existing data before committing to a fetch.
 
@@ -756,10 +761,7 @@ All functions now use `section_title()`, `table_title()`, `table_footer()`, and 
 
 The local cache is **always** searched first. The USDA (and OFF) search always runs alongside it — both sources are queried on every search regardless of cache hits. Remote-only items (not already in the cache) are appended without duplicates (matched by `fdc_id`).
 
-**Result ranking** is performed after deduplication via two paths:
-
-- **Brand query detected** — if any brand word (≥ 4 chars) from any result's `brandOwner` / `brandName` field appears in the query string, results are sorted by `_word_score` (descending): the count of query words that appear in the food's description. This surfaces the specific branded product the user named.
-- **Generic query** — otherwise, results are sorted by `(_source_tier(f), -_word_score(f))`. `_source_tier` returns `0` for cached items, `1` for Foundation/SR Legacy, `2` for Open Food Facts, and `3` for Branded/unknown. Within each tier, higher word-score items rank first.
+**Result ranking** is performed after deduplication via the shared `numa_app/services/search_ranking.relevance_key()` (see "Searching for a food" above for the full algorithm, including the word-order bitmask trick). The cache's candidates are tagged `"pantry"` or `"cache"` before sorting so pantry items only win ties, never override a better text match.
 
 An **AA data** column is always shown in the results table using the following symbols:
 

@@ -56,7 +56,7 @@ class AppContext:
     theme: dict[str, str] = field(default_factory=lambda: THEMES["dark"].copy())
     diet_pref: str = "all"  # "all" | "vegetarian" | "plant_only"
     sort_prefs: dict = field(default_factory=lambda: {
-        "recipes": "recent", "food_cache": "name", "meals": "date",
+        "recipes": "recent", "food_cache": "name", "meals": "date", "meal_items": "alpha",
     })
     list_filters: dict = field(default_factory=lambda: {
         "recipes": False, "food_cache": False, "pantry": False,

@@ -46,6 +46,8 @@ def _load_prefs() -> None:
                 state.app_ctx.sort_prefs["food_cache"] = data["sort_food_cache"]
             if data.get("sort_meals") in ("date", "name", "meal_bcp", "calories"):
                 state.app_ctx.sort_prefs["meals"] = data["sort_meals"]
+            if data.get("sort_meal_items") in ("alpha", "entry"):
+                state.app_ctx.sort_prefs["meal_items"] = data["sort_meal_items"]
             if isinstance(data.get("show_archived_food_cache"), bool):
                 state.app_ctx.list_filters["food_cache"] = data["show_archived_food_cache"]
             if isinstance(data.get("show_archived_pantry"), bool):
@@ -81,6 +83,7 @@ def _save_prefs() -> None:
     data["sort_recipes"] = state.app_ctx.sort_prefs.get("recipes", "recent")
     data["sort_food_cache"] = state.app_ctx.sort_prefs.get("food_cache", "name")
     data["sort_meals"] = state.app_ctx.sort_prefs.get("meals", "date")
+    data["sort_meal_items"] = state.app_ctx.sort_prefs.get("meal_items", "alpha")
     data["show_archived_food_cache"] = state.app_ctx.list_filters.get("food_cache", False)
     data["show_archived_pantry"] = state.app_ctx.list_filters.get("pantry", False)
     data["show_archived_recipes"] = state.app_ctx.list_filters.get("recipes", False)

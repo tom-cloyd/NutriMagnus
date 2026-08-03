@@ -69,16 +69,17 @@
   var table = document.getElementById('ap-table');
   var noResults = document.getElementById('ap-no-results');
   var countEl = document.getElementById('ap-result-count');
-  var params = new URLSearchParams({query: {{ query | tojson }}});
+  var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}});
   fetch('/food/analyze-portion-api-results?' + params.toString())
     .then(function (r) { return r.text(); })
     .then(function (html) {
-      loadingRow.remove();
-      var hadRows = tbody.querySelector('tr') !== null;
+      // Server response is the FULL merged+re-sorted result set (local +
+      // external), not just new rows — replace, don't append, so a weak
+      // local match can't stay pinned above a better external one.
+      tbody.innerHTML = html;
       if (html.trim()) {
-        tbody.insertAdjacentHTML('beforeend', html);
         table.style.display = '';
-      } else if (!hadRows) {
+      } else {
         table.style.display = 'none';
         noResults.style.display = '';
       }
