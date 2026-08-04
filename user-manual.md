@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-04:0001* / Reading time: 1 hour, 52 minutes
+*Updated 2026-08-04:0826* / Reading time: 1 hour, 52 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -1606,7 +1606,8 @@ Columns:
     AA      Amino acid data status.
               checkmark  AA data in your cache. This food can be used in
                          complement suggestions.
-              X          No AA data. Add data via the Food Cache (option c).
+              X          No AA data. Add data via e<row> (jumps to this
+                         food's Food Cache entry) or option c.
               --         Name-only entry: no USDA link, no nutrient data.
                          Search for this food via Foods to add it properly.
     Food    Food name.
@@ -1621,7 +1622,9 @@ entry (no USDA link) shows a "Link a food" button — search and pick a
 match to attach real nutrient data to that same pantry row, rather than
 adding a duplicate. This does not exist in the CLI yet; the CLI's `c`
 command only opens the Food Cache and does not attach a food to a
-name-only pantry entry.)
+name-only pantry entry. Every other row also has an **Edit** button —
+the web equivalent of the CLI's `e<row>` command below — that jumps
+straight to that food's Food Cache edit page.)
 
 Only pantry foods with [AA](#gloss-aa) data (checkmark) appear in complement suggestions. Name-only entries (--) and those without [AA](#gloss-aa) data (X) may still appear if their name matches a built-in complement table entry. Archived pantry entries never appear in complement suggestions.
 
@@ -1631,6 +1634,10 @@ Commands:
     r   Remove a food from the pantry.
     x   Archive or restore a food (enter its row ID) — see [archiving](#archive).
     s   Show/hide archived entries in this list.
+    e   Edit a food's data (e<row>, e.g. e3) — jumps straight to that
+        food's Food Cache entry for editing, skipping the search-and-find
+        step. Not available for name-only entries — link one to a real
+        food first (via a).
     c   Open the Food Cache to edit nutrients for a pantry food.
 
 See [complement suggestions](#comp) for how complement suggestions use your pantry.
@@ -3223,6 +3230,86 @@ This is expected, not a bug: deleting a recipe that's used as an ingredient in a
 
 Some foods — especially branded or prepared products — simply don't have amino acid data published anywhere NuMa can look it up automatically. This isn't a bug; it's a genuine data gap. Two ways to close it: search for a USDA Foundation or SR Legacy equivalent (plain/raw foods are far more likely to have full amino acid data than branded ones), or fetch the missing values yourself via Claude AI — see [Missing amino acid profiles](#missing-aa) and [Food Cache](#food-cache-web) (web) or [Fetching Missing Nutritional Data from Claude](#fetch) (command line).
 
+*See also:* [No brand or equivalent of a food has amino acid data anywhere in USDA](#ts-no-aa-anywhere), for the harder case where neither fix above applies.
+
+#### No brand or equivalent of a food has amino acid data anywhere in USDA [ts-no-aa-anywhere]
+
+This is a step beyond [an "insufficient amino acid data" warning](#ts-missing-aa): you've checked, and no brand, no store variant, and no generic USDA entry for this food carries amino acid data — the whole category is a gap, not just the specific product. "Search for a Foundation/SR Legacy equivalent" doesn't help here because there's no equivalent food with the data you need.
+
+The fix is to stop looking for an equivalent *food* and look instead for an equivalent *ingredient* — something with measured amino acid data whose composition dominates the protein in the food you're trying to estimate. Flour-based baked goods, for instance, get essentially all their protein from the flour; a legume-based product gets essentially all of its protein from that legume. [Estimating amino acids by copying from another food](#drafted-foods) is the tool that turns an ingredient like this into an estimate for your actual food — it scales the ingredient's amino acid values to match your food's own measured protein content automatically, rather than you doing that arithmetic by hand.
+
+If more than one ingredient contributes meaningfully to the protein (a flour blend, for example), blend their profiles first, by mass fraction, before treating the result as a single stand-in. The copy-from-another-food picker copies from one source food at a time, so build the blend as its own drafted food first — call it a **proxy food**: a temporary, scratch entry that exists only to hold the numbers you'll scale from, not something you'd search for or log a meal against. (If only one ingredient dominates, it's still worth entering as its own proxy food rather than typing numbers straight into the real food — see why below.)
+
+Once you have a proxy food — blended or not — holding the numbers you need, there are two different ways to turn it into a usable estimate for your actual food. Pick whichever fits how you'll use that food going forward:
+
+**Option 1 — create a new, clearly-labeled draft (the general-purpose default).** Foods → Custom Food Profiles → **Copy a cached food as a draft**, pick the real food you're missing AA data for (it copies that food's full nutrient snapshot — protein included — into a brand-new, independent entry), rename the copy something unambiguous like "Graham Cracker, generic (estimated AA)," then run the AA-copying picker on *that* draft, scaling from your proxy food. Because the original cached food is never touched, USDA can still refresh its full nutrient profile and portions automatically if that entry ever changes. The tradeoff: this new draft doesn't retroactively reach meals or recipes that already reference the *original* food — those keep pointing at the un-estimated entry until you go swap the reference over by hand.
+
+**Option 2 — edit the original food's AA fields directly (a deliberate exception).** If you know you'll always be logging this exact product, editing its AA data in place is often more practical: every past and future meal or recipe that already references it picks up the estimate immediately, with nothing to swap. The cost is real, though — editing *any* of a food's data marks the entire record user-modified, not just the amino acid fields, so NuMa will never again silently refresh its full nutrient profile, portions, or anything else on it from USDA; you're taking permanent manual ownership of that specific record. That's an easy trade when the food is unlikely to gain real measured data any other way — a specific branded product like Nabisco Honey Maid Grahams already has its macronutrients measured and isn't about to grow USDA amino acid data on its own, so there's little future refresh being given up.
+
+**Worked example: graham crackers, no AA data on any brand, made from a 2:1 white-to-whole-wheat flour blend. Nabisco Honey Maid Grahams specifically are already logged in past meals.**
+
+Steps 1–3 build the proxy food and are the same regardless of which option you pick. Steps 4 onward differ — jump to whichever option fits your situation.
+
+Step 1 — pull measured amino acid data for both flours (USDA Foundation/SR Legacy entries):
+
+    Amino acid       White flour, per 100g    Whole wheat flour, per 100g
+                      (protein 10.3 g)         (protein 13.21 g)
+    Histidine         230 mg                    357 mg
+    Isoleucine        357 mg                    443 mg
+    Leucine           710 mg                    898 mg
+    Lysine            228 mg                    359 mg
+    Methionine        183 mg                    228 mg
+    Phenylalanine     520 mg                    682 mg
+    Threonine         281 mg                    367 mg
+    Tryptophan        127 mg                    174 mg
+    Valine            415 mg                    564 mg
+
+Step 2 — blend (average) the two flours 2:1 by mass (2 parts white, 1 part whole wheat) to get the amino acid pattern of the flour actually used, per 100g of blend:
+
+    Amino acid       Blend, per 100g flour mix (protein 11.27 g)
+    Histidine         272 mg
+    Isoleucine        386 mg
+    Leucine           773 mg
+    Lysine            272 mg
+    Methionine        198 mg
+    Phenylalanine     574 mg
+    Threonine         310 mg
+    Tryptophan        143 mg
+    Valine            465 mg
+
+Step 3 — enter this blend as its own proxy food (Foods → Drafted Food Profiles → Create; web: Custom Food Profiles), named something like "Wheat flour blend, 2:1 white:whole wheat (proxy)," with the protein and amino acid values from Step 2 typed in directly.
+
+**Continuing with option 1 (new labeled draft).** Use this branch if you haven't already logged the Nabisco Honey Maid Grahams entry anywhere, or you'd simply rather leave it untouched:
+
+Step 4 — Foods → Custom Food Profiles → **Copy a cached food as a draft**, and pick the Nabisco Honey Maid Grahams entry. This copies its full nutrient snapshot — including its measured protein content, 6.8 g/100g — into a brand-new, independent entry. The original cached food is untouched.
+
+Step 5 — rename the new draft something unambiguous, like "Graham Cracker, generic (estimated AA)."
+
+Step 6 — on that new draft, use the "estimate amino acids from another food" picker and choose the proxy food from Step 3 as the source. NuMa scales the proxy's amino acid values to match the draft's own protein content automatically — factor 6.8 ÷ 11.27 ≈ 0.60 — giving:
+
+    Amino acid       Estimated, graham crackers, per 100g (protein 6.8 g)
+    Histidine         164 mg
+    Isoleucine        233 mg
+    Leucine           466 mg
+    Lysine            164 mg
+    Methionine        119 mg
+    Phenylalanine     346 mg
+    Threonine         187 mg
+    Tryptophan        86 mg
+    Valine            280 mg
+
+Step 7 — document the derivation in the draft's Note field (the picker suggests one automatically). From now on, use this draft — not the original Nabisco entry — when logging graham crackers in meals or recipes.
+
+**Continuing with option 2 (edit the original in place) — Nabisco Honey Maid Grahams is already logged in past meals, so this is the better fit here:**
+
+Step 4 — on the real Nabisco Honey Maid Grahams cached entry, use the "estimate amino acids from another food" picker and choose the proxy food from Step 3 as the source. The Grahams have their own measured protein content (6.8 g/100g) even though they lack amino acid data, so NuMa scales the proxy's amino acid values to match it automatically — factor 6.8 ÷ 11.27 ≈ 0.60 — giving the same result table as above.
+
+Step 5 — document the derivation in the food's Note field (the picker suggests one automatically). Every meal and recipe already referencing this entry — past and future — picks up the estimate immediately; there's nothing else to update.
+
+**Either way:** these amino acid figures are an approximation, not a certified lab value — they assume the crackers' protein comes entirely from the flour blend (true enough for a plain graham cracker; less true for a chocolate-coated one, where dairy protein in the coating would shift the pattern).
+
+Once you've applied the estimate to every food that needed it, the proxy food from Step 3 has done its job — it exists only to hold numbers for the picker to scale from, not to be searched for or logged against. Delete it to keep it out of future search results, unless you expect to reuse it again soon (for another graham-cracker product, say) — in which case there's no harm leaving it in place until you're done with it.
+
 #### I searched for a food I know exists and got nothing [ts-search-empty]
 
 Try different search terms. "beans cooked" and "beans canned" may seem to be the same thing but they are not. The latter is a subgroup of the former. Playing with search terms can yield seriously variable results.
@@ -4089,6 +4176,8 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 #### August 4
 
 * NEW: FOOD SEARCH CAN NOW BE FILTERED TO A SINGLE DATA SOURCE -  Foods → Search / Analyze a Food Portion / Convert / Compare; My Pantry; Meals & Log: Add Food or Recipe; Recipes → Edit (add ingredient) (web) - Every food-search box in the app now has a "Source" dropdown next to (or near) its results — All sources, Pantry, Food Cache, Recipes, USDA FoodData Central, or Open Food Facts — that narrows the results list to just that source. Options are labeled with the source abbreviation followed by its full name (e.g. "USDA — USDA FoodData Central") so both the short badge used elsewhere and the full name are visible together. The choice is sticky across all these search boxes, same as the existing "Sort by" preference. Built to help track down a suspected remaining search-ranking oddity by isolating results to one source at a time, but useful generally for narrowing a crowded results list to, say, just what's in your own pantry.
+* NEW MANUAL SECTION: WHAT TO DO WHEN NO BRAND OR EQUIVALENT OF A FOOD HAS AMINO ACID DATA ANYWHERE IN USDA -  Manual - Added a Part 8 troubleshooting entry for the harder variant of the missing-amino-acid-data problem, where no version of a food anywhere in USDA has ever had an amino acid panel measured, so there's no equivalent food to search for. The fix: build a scratch "proxy food" from an ingredient (or blend of ingredients, by mass fraction) that supplies essentially all the target food's protein, then apply it one of two ways — copy the real food as a new labeled draft first (the general-purpose default: leaves the original refreshable from USDA, but doesn't retroactively reach meals/recipes already logged against it), or edit the original food's AA fields directly (a deliberate exception for a specific product you'll always be logging: reaches existing logs immediately, at the cost of freezing that whole record against future USDA refreshes). Includes a full worked example (graham crackers, no AA data on any brand, estimated from a 2:1 white:whole-wheat flour blend, applied via the in-place option since the branded product was already logged). [learn more...](#ts-no-aa-anywhere)
+* NEW: EDIT A PANTRY FOOD'S DATA DIRECTLY FROM THE PANTRY LIST -  My Pantry (CLI + web) - Editing a pantry food's nutrient/AA data used to mean leaving My Pantry, opening the Food Cache, and finding the food again by name. Each pantry row now has a direct shortcut into that food's existing Food Cache edit screen — the CLI's new `e<row>` command (e.g. `e3`), or an **Edit** button on each web row — rather than a second, separate edit implementation. Not available for name-only pantry entries (no linked food yet to edit); link one first via Add/"Link a food". Deleting a food from Pantry or the Food Cache was already possible in both interfaces and is unchanged.
 
 #### August 3
 

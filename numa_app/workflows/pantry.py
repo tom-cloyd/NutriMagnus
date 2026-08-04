@@ -94,14 +94,10 @@ def _do_pantry_menu() -> None:
         state.console.print(f"  [{state.T['accent']}]r.[/{state.T['accent']}] Remove a food")
         state.console.print(f"  [{state.T['accent']}]x.[/{state.T['accent']}] Archive / restore a food  [grey62](hide from complement suggestions, reversible)[/grey62]")
         state.console.print(f"  [{state.T['accent']}]s.[/{state.T['accent']}] {'Hide' if show_archived else 'Show'} archived  [grey62](toggle archived pantry entries in this list)[/grey62]")
+        state.console.print(f"  [{state.T['accent']}]e.[/{state.T['accent']}] Edit a food's data  [grey62](e<row>, e.g. e3 — jumps to that food's Food Cache entry)[/grey62]")
         state.console.print(f"  [{state.T['accent']}]c.[/{state.T['accent']}] Go to Food Cache  [grey62](edit nutrients there)[/grey62]")
         state.console.print(f"  [grey62]b.[/grey62] Back to Foods menu")
         state.console.print(f"  [grey62]m.[/grey62] Return to main menu")
-        state.console.print()
-        state.console.print(
-            f"  [grey62]To edit or obtain nutrient data for any food, use the Food Cache (option c).\n"
-            f"  All pantry foods may be managed there.[/grey62]"
-        )
         state.console.print()
         try:
             choice = _prompt("Choice").strip().lower()
@@ -119,6 +115,8 @@ def _do_pantry_menu() -> None:
             _safe_call(_do_pantry_archive_toggle)
         elif choice == "s":
             _prefs.set_list_filter("pantry", not show_archived)
+        elif choice.startswith("e") and choice[1:].isdigit():
+            _safe_call(_do_pantry_edit_food, int(choice[1:]))
         elif choice == "b":
             return
         elif choice == "m":
@@ -126,7 +124,7 @@ def _do_pantry_menu() -> None:
         elif choice == "q":
             raise SystemExit(0)
         elif choice != "":
-            state.console.print(f"[{state.T['warning']}]Please enter a valid option (a / r / x / s / c / b / m / q).[/{state.T['warning']}]")
+            state.console.print(f"[{state.T['warning']}]Please enter a valid option (a / r / x / s / e<row> / c / b / m / q).[/{state.T['warning']}]")
 
 
 def _offer_custom_portions(fdc_id: int, food_name: str, existing_portions: list[dict]) -> None:
@@ -273,6 +271,27 @@ def _do_pantry_remove() -> None:
             return
         _db.pantry_remove(conn, pid)
     state.console.print(f"  [{state.T['success']}]✓[/{state.T['success']}] Removed: {row['food_name']}{food_id_tag(row['fdc_id'])}")
+
+
+def _do_pantry_edit_food(pid: int) -> None:
+    """Jump straight to editing a pantry row's linked food in the Food Cache."""
+    from .drafted_foods import _do_edit_cached_food
+    with _db.get_db() as conn:
+        row = _db.pantry_get(conn, pid)
+        if row is None:
+            state.console.print(f"[{state.T['warning']}]ID {pid} not found.[/{state.T['warning']}]")
+            return
+        if row["fdc_id"] is None:
+            state.console.print(
+                f"[{state.T['warning']}]{row['food_name']} is a name-only entry with no linked food to edit — "
+                f"add it via USDA search instead to get an editable Food Cache entry.[/{state.T['warning']}]"
+            )
+            return
+        cached = _db.get_cached_food(conn, row["fdc_id"])
+    if cached is None:
+        state.console.print(f"[{state.T['warning']}]No Food Cache entry found for {row['food_name']}.[/{state.T['warning']}]")
+        return
+    _do_edit_cached_food(row["fdc_id"], cached)
 
 
 def _do_pantry_archive_toggle() -> None:
