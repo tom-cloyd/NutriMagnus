@@ -1,101 +1,64 @@
 # NutriMagnus (numa) — AI Coding Guide
 
-Nutritional analysis CLI. USDA FoodData Central + Open Food Facts. Python 3.13, stdlib only (no requests, no typer). Rich for terminal output.
+Nutritional analysis web app (FastAPI). USDA FoodData Central + Open Food Facts. Python 3.13.
 
 Full architecture docs: `README-numa-documentation.md`
+
+Note: this was previously a dual CLI+web project. The interactive terminal CLI was removed
+2026-08-04 — the owner never used it and expected no other users to either. This file is
+fully updated for the web-only codebase. `README-numa-documentation.md` may still have
+CLI-era mechanics pending its own cleanup pass.
 
 ---
 
 ## Run / Test
 
 ```bash
-./numa.py                        # launch interactive app
+python web/launcher.py           # launch the web app (opens a browser tab)
 pytest                           # run full test suite
-pytest tests/test_cli.py -k foo  # run one test
+pytest tests/test_web.py -k foo  # run one test
 ```
-
-Tests use `NumaTestRunner` (see `tests/conftest.py`) — never call `numa.py` as a subprocess in tests.
 
 ---
 
 ## Package Layout
 
 ```
-numa.py              — 5-line CLI entry point (argparse only)
 db.py                — all SQLite access (get_db context manager + query functions)
-manual.py            — ?-help system: show(ref), _ALIASES, section parsing
-usda.py              — thin re-export shim; edit usda_api.py / usda_nutrients.py instead
-usda_api.py          — USDA HTTP client, NUTRIENT_MAP, amino acid constants
-usda_nutrients.py    — nutrient math, AA analysis, DIAAS, complement suggestions
-diaas.py             — meal-level DIAAS pooled calculation
-profile.py           — UserProfile dataclass, RDA computation
-export.py            — report rendering (txt / md / html)
-openfoodfacts.py     — Open Food Facts API client
+usda.py               — thin re-export shim; edit usda_api.py / usda_nutrients.py instead
+usda_api.py           — USDA HTTP client, NUTRIENT_MAP, amino acid constants
+usda_nutrients.py     — nutrient math, AA analysis, DIAAS, complement suggestions
+diaas.py              — meal-level DIAAS pooled calculation
+profile.py            — UserProfile dataclass, RDA computation
+export.py             — report rendering (txt / md / html)
+openfoodfacts.py      — Open Food Facts API client
 
 numa_app/
-  main.py            — initialize_app(), _run_menu(), run_app()
-  state.py           — AppContext (Console + theme dict T + dietary flag)
-  config/
-    prefs.py         — dietary preference load/save
-    theme.py         — theme load/save/switch
-  ui/
-    common.py        — _show_menu, _safe_call, _id_cell, _prompt_with_options,
-                       dot_cell, section_title, table_title, table_footer, ID_KEY
-    prompts.py       — _prompt(), Cancelled, ReturnToMain, _ask_float/int/date
-    render.py        — _print_nutrient_table, _print_protein_completeness, _print_bioavailability,
-                       _print_recipe_bioavailability, _print_rda_comparison
   services/
-    aa_estimate.py   — estimate a food's AA profile by scaling another food's
-                       AA values to its own protein content (CLI + web):
-                       estimate_aa(), source_note()
-    annotations.py   — GI/DIAAS annotation prompts for foods
-    complements.py   — shared complement-suggestion math (CLI + web): aa_effects(),
-                       two_step_combo(), build_complement_display()
-    day_profile.py   — per-day profile pinning (CLI + web): get_profile_for_date(),
-                       ensure_day_profile(), backfill_missing_day_profiles(),
-                       set_day_profile_override(), protein_target_for_date() —
-                       required entry point for any date-scoped profile lookup
-    glycemic_load.py — shared GL aggregation (CLI + web): compute_glycemic_load()
-    meal_bcp.py      — shared meal-DCP fallback (CLI + web): recipe_dcp_fallback()
-    portions.py      — _parse_portion_input(), _pick_portion()
-    rda_status.py    — shared RDA/limit percent-of-target classification (CLI + web): rda_status()
-    recipe_nutrients.py — shared recursive recipe-ingredient expansion (CLI + web):
-                       expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
-    search.py        — _search_and_pick_food()
-    reports.py       — auto-save + user-export offer
-  workflows/
-    foods.py         — Foods menu
-    drafted_foods.py — drafted food profile CRUD
-    pantry.py        — My Pantry menu
-    meals.py         — Meals & Log menu
-    recipes.py       — Recipes menu dispatch + shared helpers + create/browse/develop
-    recipe_analysis.py — _do_recipe_view (full nutrition analysis)
-    recipe_edit.py   — _do_recipe_edit
-    settings.py      — Settings menu
-    analysis.py      — Analysis menu dispatch (daily summary, food use in meals)
-    summary.py       — Daily summary - DCP and goals
-    food_use.py      — Food use in meals (frequency-of-use table + histogram)
+    aa_estimate.py     — estimate a food's AA profile by scaling another food's
+                         AA values to its own protein content: estimate_aa(), source_note()
+    complements.py     — shared complement-suggestion math: aa_effects(),
+                         two_step_combo(), build_complement_display()
+    day_profile.py     — per-day profile pinning: get_profile_for_date(),
+                         ensure_day_profile(), backfill_missing_day_profiles(),
+                         set_day_profile_override(), protein_target_for_date() —
+                         required entry point for any date-scoped profile lookup
+    food_ids.py        — classify_food_id() — food/recipe ID → (id_str, source_label)
+    glycemic_load.py    — shared GL aggregation: compute_glycemic_load()
+    manual_build.py     — rebuild_manual_if_stale(), used by the /manual route
+    meal_bcp.py         — shared meal-DCP fallback: recipe_dcp_fallback()
+    portions.py         — _parse_portion_input() — portion-string parsing
+    rda_status.py       — shared RDA/limit percent-of-target classification: rda_status()
+    recipe_nutrients.py — shared recursive recipe-ingredient expansion:
+                         expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
+    search.py           — _refresh_cache_if_missing_aa(), used by recipe_nutrients.py
+
+web/
+  backend.py           — the FastAPI app: all routes
+  launcher.py          — starts uvicorn and opens a browser tab
+  templates/           — Jinja2 templates
+  static/              — CSS/static assets
 ```
-
----
-
-## Navigation Contract
-
-Every interactive function obeys this protocol:
-
-| Signal | Meaning | How raised |
-|--------|---------|-----------|
-| `Cancelled` | cancel this action, back to menu | Ctrl+C / Escape / `b` at prompt |
-| `ReturnToMain` | jump straight back to main menu | user types `m` at any prompt |
-| `SystemExit(0)` | quit program | user types `q` at any prompt |
-
-**`_safe_call(fn, *args)`** — wrap every menu-action dispatch with this. It catches `Cancelled` (prints "Cancelled.") and lets `ReturnToMain` and `SystemExit` propagate.
-
-**`_prompt(prompt_text, *, default, choices, free_text, prefill)`** — the only way to get user input. Never use bare `input()`. `choices=["y","n"]` enables single-keypress mode (only listed chars accepted). `free_text=True` uses readline with backspace. `prefill=True` pre-populates the line with `default` for in-place editing.
-
-**`_prompt_with_options(label, options, *, default)`** — displays a numbered/lettered options block above the prompt, then collects free-text input. Use this (not raw `state.console.print` + `_prompt`) when presenting explicit choices with descriptions. `options` is `list[tuple[str, str]]` — `[("1", "Search USDA"), ("2", "Enter name only")]`.
-
-Workflow functions that present a sub-loop should catch `Cancelled` and `break`/`return`, not `except Exception`.
 
 ---
 
@@ -106,10 +69,11 @@ Workflow functions that present a sub-loop should catch `Cancelled` and `break`/
 with _db.get_db() as conn:
     row = _db.recipe_get(conn, rid)
 
-# NEVER hold a connection across a prompt — user input can take seconds/minutes
+# NEVER hold a connection open across a slow operation (an external API call,
+# a second network round-trip) — open it, do the DB work, close it
 with _db.get_db() as conn:
     data = _db.some_query(conn)
-# ... prompt the user ...
+# ... slow operation here ...
 with _db.get_db() as conn:
     _db.some_write(conn, data)
 ```
@@ -133,42 +97,6 @@ with _db.get_db() as conn:
 
 `get_cached_food()` rows:
 `fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json, user_drafted, notes`
-
----
-
-## `_search_and_pick_food()` Return Value
-
-Returns `None` if the user cancels, or one of two dict shapes depending on what was selected:
-
-**Food selected** (USDA or OFF):
-```python
-{
-    "fdcId":            int,         # USDA FDC ID (positive) or OFF synthetic ID (negative)
-    "name":             str,
-    "dataType":         str,         # "Foundation", "SR Legacy", "Branded", "Survey (FNDDS)",
-                                     # "Experimental", "User Drafted", or "OFF"
-    "brand":            str | None,
-    "servingSize":      float | None,
-    "servingUnit":      str | None,
-    "householdServing": str | None,
-    "nutrients":        dict[str, float],   # per 100 g, keys from NUTRIENT_MAP
-    "portions":         list[dict] | None,  # USDA portion list
-}
-```
-
-**Recipe selected** (when `prepend_recipes` list was passed):
-```python
-{
-    "_type":        "recipe",
-    "id":           int,
-    "name":         str,
-    "servings":     float,
-    "dcp_g":        float | None,
-    "total_weight": float | None,
-}
-```
-
-Callers must check `food.get("_type") == "recipe"` before accessing recipe-only keys.
 
 ---
 
@@ -210,97 +138,10 @@ Essential AAs: all `aa_` keys except `aa_cystine_g` and `aa_tyrosine_g`.
 
 ---
 
-## Theme / Styling
-
-Use `state.T["key"]` for all colors — never hardcode Rich color names.
-
-| Key | Use |
-|-----|-----|
-| `accent` | bold section headings, numbered menu items |
-| `accent_plain` | table header style |
-| `success` | ✓, green bars, "met" status |
-| `warning` | ⚠, yellow, "approaching" |
-| `error` | ✗, red, "over limit" |
-| `hi` | bold white — sub-section titles within an analysis |
-| `default_hint` | blue — pre-filled defaults in prompts |
-
-**Table/heading helpers** (always use these — don't call `state.console.print` for section structure directly):
-
-```python
-from ..ui.common import section_title, table_title, table_footer, dot_cell
-
-section_title("Title", "optional subtitle")   # full-width accent + rule
-table_title("Title", "optional Rich markup")  # indented hi-colour title
-table_footer("  [dim]legend text[/dim]")      # blank line + footer lines
-dot_cell(text, width)                          # truncate + dim dot leaders
-```
-
-**`_id_cell(fdc_id)`** (from `ui/common.py`) — renders the ID column value for any food table: positive int → `"123456"` (dim), negative OFF ID → `"OFF"` (dim), `None` → `""`. Always use this for ID columns; never format IDs manually. `ID_KEY` is the matching legend string for `table_footer()`.
-
----
-
-## ? Help System
-
-Users type `?topic` at any prompt to display an inline help panel. The lookup chain is:
-
-1. `_prompt()` in `numa_app/ui/prompts.py` detects a `?`-prefixed input and calls `manual.show(ref)`.
-2. `manual.show()` resolves aliases via `_ALIASES`, then looks up `(title, body)` in the parsed section dict.
-3. The section is rendered as a Rich `Panel` and the prompt repeats.
-
-**Adding a new help topic:**
-
-1. Add a section to `user-manual.md` with an anchored heading:
-   ```
-   ## My New Topic [mytopic]
-
-   Plain text body. No markdown tables — Rich renders this as-is inside a Panel.
-   ```
-   The anchor is the text inside `[…]`, lower-cased. It must be unique.
-
-2. If you want shortcut aliases, add entries to `_ALIASES` in `manual.py`:
-   ```python
-   "my-topic": "mytopic",
-   "my topic": "mytopic",
-   ```
-
-3. Surface it from the relevant output block using `help_footer()` in `ui/common.py`:
-   ```python
-   from ..ui.common import help_footer
-   help_footer("mytopic")                  # one topic
-   help_footer("mytopic", "diaas")         # two topics — joined with "or"
-   ```
-   This prints: `At any prompt, type ?mytopic or ?diaas for help with these columns.`
-
-4. Update the topic list in the `## Using the ? Help System [help]` section of `user-manual.md`.
-
-**Format rules for manual sections:**
-- Plain text only — no Markdown tables, no bold/italic markup (Rich won't render it).
-- Indented preformatted blocks (4-space indent) are preserved as-is.
-- `---` separator lines are stripped from section bodies automatically.
-
----
-
-## Circular Import Pattern
-
-`recipes.py` imports from `recipe_analysis.py` and `recipe_edit.py` at call time (not at module top) to break circular dependencies:
-
-```python
-def _do_something():
-    from .recipe_analysis import _do_recipe_view   # lazy — inside function body
-    from .recipe_edit import _do_recipe_edit
-```
-
-Follow this pattern for any new cross-imports between workflow modules.
-
----
-
 ## Key Invariants
 
 - **Never `import usda_api` or `import usda_nutrients` directly** — always `import usda as _usda`. `usda.py` is the stable public surface.
-- **Never open the DB outside `get_db()`** — no raw `sqlite3.connect()` calls in workflow code.
-- **Never hold a DB connection across a `_prompt()` call.**
-- **Never hardcode Rich color strings** — always `state.T["key"]`.
-- **`_prompt()` only** for user input — never bare `input()`.
+- **Never open the DB outside `get_db()`** — no raw `sqlite3.connect()` calls anywhere.
 - **Add `Docs:` line** to any new module's docstring pointing to the relevant README section.
 - **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Get the current timestamp with `date "+%Y-%m-%d:%H%M"` and never guess it. If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps the same way (see each file's top few lines for the exact format).
 
@@ -308,7 +149,6 @@ Follow this pattern for any new cross-imports between workflow modules.
 
 ## Test Conventions
 
-- `NumaTestRunner.invoke(input="...")` — newline-separated inputs, one per prompt.
-- `_mock_api(monkeypatch)` — stubs USDA API; use for any test that touches food search.
-- Autouse fixtures handle DB, profile, prefs, export no-op, and OFF stub — don't set these up manually.
-- When adding a test for a new recipe flow, map out the full prompt sequence in a comment first (the input string is fragile).
+- `_mock_api(monkeypatch)` (in `tests/conftest.py`) — stubs USDA API; use for any test that touches food search.
+- Autouse fixtures handle DB, profile, and OFF stub — don't set these up manually.
+- `tests/test_web.py` has its own `use_test_web_prefs` fixture and `client` (FastAPI `TestClient`) fixture.

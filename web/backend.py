@@ -236,9 +236,7 @@ def _sort_meal_items_display(items: list[dict], item_sort: str | None = None) ->
 
 def _resolve_bool_pref(value: bool | None, pref_key: str, default: bool = False) -> bool:
     """Resolve a sticky boolean list-view toggle (e.g. 'show archived'): an explicit
-    query param wins and is remembered as the new default; otherwise use the saved pref.
-    Shares prefs.json with the CLI's numa_app/config/prefs.py, so the choice is shared
-    between the CLI and the web app."""
+    query param wins and is remembered as the new default; otherwise use the saved pref."""
     prefs = _load_prefs_file()
     if value is None:
         return bool(prefs.get(pref_key, default))
@@ -455,7 +453,7 @@ templates.env.globals["manual_link"] = _manual_link
 def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
     """Render the '(#id, SOURCE)' annotation shown on its own line under a food/recipe name."""
     from markupsafe import Markup, escape
-    from numa_app.ui.common import classify_food_id
+    from numa_app.services.food_ids import classify_food_id
     classified = classify_food_id(fdc_id, recipe_id)
     if classified is None:
         return ""
@@ -887,7 +885,16 @@ def _protein_section(food_name: str, nutrients: dict) -> dict | None:
     }
 
 
-def _food_complement_section(food_name: str, nutrients: dict) -> dict:
+def _effective_ignored(ignore_complements: list[str], unignore: list[str]) -> set[str]:
+    """Names in `ignore_complements` minus any the user has just checked to restore
+    in the "manage ignored foods" panel. `ignore_complements` includes both the
+    hidden inputs carrying forward previously-ignored names and any newly checked
+    suggestion-card checkboxes from this submission."""
+    unignore_lower = {n.lower() for n in unignore}
+    return {n for n in ignore_complements if n.lower() not in unignore_lower}
+
+
+def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set[str] | None = None) -> dict:
     """Complement suggestions for a single food, using its own DIAAS as digestibility."""
     if not _usda.has_amino_acid_data(nutrients) or nutrients.get("protein_g", 0) <= 0:
         return {"no_data": True}
@@ -901,6 +908,7 @@ def _food_complement_section(food_name: str, nutrients: dict) -> dict:
         nutrients, pantry, diet_pref=diet_pref,
         digestibility=digestibility, base_food_name=food_name,
         max_improver_grams=120, cache_candidates=cache_candidates,
+        exclude_names=exclude_names,
     )
 
 
@@ -2644,6 +2652,8 @@ async def food_detail(
     fdc_id: int,
     amount: float = Query(default=100.0, gt=0),
     portion_str: str = Query(default=""),
+    ignore_complements: list[str] = Query(default=[]),
+    unignore: list[str] = Query(default=[]),
 ):
     nutrients: dict = {}
     portions: list = []
@@ -2746,7 +2756,8 @@ async def food_detail(
         "nutrient_sections":  _nutrient_sections(display_nutrients, rda_scaled or rda,
                                                  optimal=optimal_scaled or optimal, max_limits=max_limits),
         "protein":            _protein_section(food["name"], display_nutrients),
-        "complements":        _food_complement_section(food["name"], display_nutrients),
+        "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore)),
+        "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "antinutrients":      antinutrient_flags,
         "has_profile":        rda is not None,
         "has_optimal":        bool(optimal),
@@ -2963,6 +2974,7 @@ def _complement_suggestions(
     context: str = "meal",
     exclude_recipe_id: int | None = None,
     ingredients: list[dict] | None = None,
+    exclude_names: set[str] | None = None,
 ) -> dict:
     """Build complement suggestion data. Returns no_data sentinel if AA data unavailable.
 
@@ -3003,6 +3015,7 @@ def _complement_suggestions(
         digestibility=digestibility, max_improver_grams=max_improver_grams,
         ingredients=ingredients,
         cache_candidates=cache_candidates,
+        exclude_names=exclude_names,
     )
 
 
@@ -3470,7 +3483,9 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
 
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
 async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None,
-                     item_sort: str | None = None, source: str | None = None):
+                     item_sort: str | None = None, source: str | None = None,
+                     ignore_complements: list[str] = Query(default=[]),
+                     unignore: list[str] = Query(default=[])):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
     source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
@@ -3579,7 +3594,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                                                   optimal=optimal, max_limits=max_limits) if total_nutrients else [],
         "diaas":               diaas_display,
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients),
+        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore)),
+        "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "gl":                  {"total": gl_total, "blockers": gl_blockers},
         "item_antinutrients":  item_antinutrients,
         "oxalate":             oxalate,
@@ -4365,7 +4381,9 @@ async def recipe_new_post(
 
 
 @app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
-async def recipe_detail(request: Request, recipe_id: int, servings: float | None = None):
+async def recipe_detail(request: Request, recipe_id: int, servings: float | None = None,
+                         ignore_complements: list[str] = Query(default=[]),
+                         unignore: list[str] = Query(default=[])):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -4427,7 +4445,8 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
         "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits) if scaled else [],
         "diaas":                    diaas_display,
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients),
+        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore)),
+        "ignored_complements":      sorted(_effective_ignored(ignore_complements, unignore)),
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
         "has_optimal":        bool(optimal),
@@ -5651,7 +5670,7 @@ async def analysis_food_use(
 
 @app.get("/manual", response_class=HTMLResponse)
 async def manual(request: Request):
-    from numa_app.main import rebuild_manual_if_stale
+    from numa_app.services.manual_build import rebuild_manual_if_stale
     rebuild_manual_if_stale()
     if not _MANUAL.exists():
         return HTMLResponse("<p>User manual not found. Run <code>make manual</code> to generate it.</p>", status_code=404)

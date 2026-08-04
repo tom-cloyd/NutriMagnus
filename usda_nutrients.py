@@ -737,6 +737,7 @@ def suggest_complements(
     base_food_name: str | None = None,
     max_improver_grams: float = 300,
     cache_candidates: list[dict] | None = None,
+    exclude_names: set[str] | None = None,
 ) -> dict[str, list[dict]]:
     """
     Suggest complement foods to close essential amino acid gaps.
@@ -752,6 +753,10 @@ def suggest_complements(
         (see complement_table_names() for the names to search the cache for).
     diet_pref: "all" includes all sources; "vegetarian" allows dairy/eggs but not
         meat/fish; "plant_only" excludes all animal-sourced entries.
+    exclude_names: suggestion names (case-insensitive) to omit entirely — e.g. foods
+        the user has flagged "ignore" in the UI. Applied to pantry, general, and
+        (transitively, since they're built from the same candidate pools) the pairs
+        and diaas_improvers tiers.
     base_food_name: used to look up true ileal digestibility for DIAAS-improver
         calculations; falls back to base_digestibility if None.
 
@@ -941,6 +946,10 @@ def suggest_complements(
         diaas_improvers.sort(key=lambda r: (-r["new_diaas"], r["grams"]))
         return gap_closers, diaas_improvers
 
+    exclude_lower = {n.lower() for n in (exclude_names or ())}
+    if exclude_lower:
+        pantry_candidates = [c for c in pantry_candidates if c["name"].lower() not in exclude_lower]
+
     pantry_gap_closers, pantry_diaas_improvers = _build_suggestions(pantry_candidates)
 
     # General suggestions from the curated table, filtered by dietary preference.
@@ -965,9 +974,11 @@ def suggest_complements(
 
     general_candidates = []
     for c in _COMPLEMENT_TABLE:
-        if c["name"].lower() in pantry_names_lower or not _diet_allows(c):
+        if c["name"].lower() in pantry_names_lower or c["name"].lower() in exclude_lower or not _diet_allows(c):
             continue
         real = cache_by_curated_key.get(c["name"].lower())
+        if real is not None and real["name"].lower() in exclude_lower:
+            continue
         if real is not None:
             general_candidates.append({
                 "name": real["name"], "fdc_id": real.get("fdc_id"),

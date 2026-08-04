@@ -493,6 +493,10 @@
 
 {% macro suggest_card(s, verb) %}
 <div class="card card-body mb-2 p-2" style="max-width:38rem">
+  <label class="mb-1 d-inline-flex align-items-center gap-1" style="font-size:.8rem">
+    <input type="checkbox" name="ignore_complements" value="{{ s.name }}">
+    <span class="muted">Ignore this suggestion in recalculation</span>
+  </label>
   <p class="mb-1">
     <strong>{{ s.name }}</strong>{{ food_id_tag(s.fdc_id, s.get('recipe_id')) }}
     {% if not s.fdc_id and not s.recipe_id %}<small class="muted"> generic estimate</small>{% elif s.estimated %}<small class="muted"> estimated</small>{% endif %}
@@ -537,6 +541,8 @@
 </div>
 {% endmacro %}
 
+<form method="get" action="{{ request.url.path }}" id="complements-form">
+<input type="hidden" name="servings" value="{{ servings }}">
 <section id="sec-complements" class="analysis-section">
   <h3 class="section-heading">Protein Complement Suggestions {{ manual_link("comp") }}</h3>
   {% if complements.no_gaps %}
@@ -548,6 +554,25 @@
     {% for gap in complements.gaps %}
       {{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}
     {% endfor %}
+  </p>
+
+  {% if ignored_complements %}
+  {% for name in ignored_complements %}<input type="hidden" name="ignore_complements" value="{{ name }}">{% endfor %}
+  <details class="mt-1 mb-1">
+    <summary class="muted" style="cursor:pointer"><small>Ignoring {{ ignored_complements|length }} suggestion{{ 's' if ignored_complements|length != 1 else '' }} &mdash; manage</small></summary>
+    <table class="table table-sm mt-1" style="max-width:26rem">
+      <thead><tr><th>Food</th><th>Remove ignore</th></tr></thead>
+      <tbody>
+      {% for name in ignored_complements %}
+      <tr><td>{{ name }}</td><td><input type="checkbox" name="unignore" value="{{ name }}"></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="mt-1 mb-0"><small><a href="{{ request.url.path }}?servings={{ servings }}">Clear all</a></small></p>
+  </details>
+  {% endif %}
+  <p class="mt-1">
+    <button type="submit" class="btn btn-sm btn-outline-secondary" id="recalc-complements-btn" disabled>Recalculate complements</button>
   </p>
 
   {% if complements.pantry_empty %}
@@ -612,6 +637,10 @@
   </small></p>
   {% for s in complements.diaas_improvers %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
+    <label class="mb-1 d-inline-flex align-items-center gap-1" style="font-size:.8rem">
+      <input type="checkbox" name="ignore_complements" value="{{ s.name }}">
+      <span class="muted">Ignore this suggestion in recalculation</span>
+    </label>
     <p class="mb-1"><strong>{{ s.name }}</strong>{{ food_id_tag(s.fdc_id, s.get('recipe_id')) }}
       {% if not s.fdc_id and not s.recipe_id %}<small class="muted"> generic estimate</small>{% elif s.estimated %}<small class="muted"> estimated</small>{% endif %}
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
@@ -674,6 +703,14 @@
   {% endfor %}
 </section>
 {% endif %}
+</form>
+<script>
+document.getElementById('complements-form').addEventListener('change', function (e) {
+  if (e.target.name === 'ignore_complements' || e.target.name === 'unignore') {
+    document.getElementById('recalc-complements-btn').disabled = false;
+  }
+});
+</script>
 
 {% endif %}{# end complements block #}
 

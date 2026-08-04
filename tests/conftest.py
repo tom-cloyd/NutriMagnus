@@ -5,19 +5,12 @@ Key fixtures:
   use_test_db       — autouse; redirects all db.get_db() calls to a per-test
                       temp database so tests never touch ~/.local/share/numa/numa.db
   use_test_profile  — autouse; redirects profile._PROFILES_DIR/_ACTIVE_NAME_FILE to temp paths
-  use_test_prefs    — autouse; pre-populates a temp prefs file and patches both
-                      prefs._PREFS_FILE and main._PREFS_FILE so _load_prefs()
-                      and the main menu guard both see the temp file
-  no_export         — autouse; stubs _offer_export to a no-op so tests don't
-                      write real files to ~/.numa/reports/ and don't need extra
-                      input lines to decline the export prompt
+  no_off            — autouse; stubs Open Food Facts search/barcode lookup
   db_conn           — direct sqlite3 connection to the temp DB for assertions
-  runner            — NumaTestRunner: invoke run_app() with captured I/O
   cached_food       — inserts SAMPLE_FOOD_DETAIL into the temp DB cache; use this
                       in any test that needs a food available without hitting the API
 """
 
-import io
 import json
 import pathlib
 import sqlite3
@@ -26,38 +19,7 @@ import pytest
 
 import db as _db
 import profile as _profile
-
-
-def nutrient_target_menu_index(key: str) -> str:
-    """Return the 1-based menu index (as a string) for `key` in the Settings →
-    Nutrient targets list, computed from the live group definitions so tests
-    don't hardcode numbers that silently go stale whenever a nutrient is added
-    to numa_app.workflows.settings._NUTRIENT_TARGET_GROUPS."""
-    from numa_app.workflows.settings import _NUTRIENT_TARGET_GROUPS
-    idx = 1
-    for _group_name, keys in _NUTRIENT_TARGET_GROUPS:
-        for k in keys:
-            if k == key:
-                return str(idx)
-            idx += 1
-    raise KeyError(f"{key!r} not found in _NUTRIENT_TARGET_GROUPS")
-
-
-def meal_column_menu_index(key: str) -> str:
-    """Return the 1-based menu index (as a string) for `key` in the Settings ->
-    Meals & Log columns picker, computed from the live group definitions
-    (same groups as nutrient_target_menu_index, minus 'calories' which that
-    screen doesn't offer)."""
-    from numa_app.workflows.settings import _NUTRIENT_TARGET_GROUPS
-    idx = 1
-    for _group_name, keys in _NUTRIENT_TARGET_GROUPS:
-        for k in keys:
-            if k == "calories":
-                continue
-            if k == key:
-                return str(idx)
-            idx += 1
-    raise KeyError(f"{key!r} not found in meal-columns picker")
+import usda as _usda
 
 
 # ---------------------------------------------------------------------------
@@ -132,49 +94,16 @@ SAMPLE_NUTRIENTS_2: dict = {
 }
 
 
-# ---------------------------------------------------------------------------
-# NumaTestRunner
-# ---------------------------------------------------------------------------
-
-class NumaResult:
-    def __init__(self, output: str, exit_code: int):
-        self.output = output
-        self.exit_code = exit_code
-
-
-class NumaTestRunner:
+def _mock_api(monkeypatch: pytest.MonkeyPatch):
     """
-    Invoke run_app() with captured I/O, no real tty.
-
-    When sys.stdin is not a tty, _prompt() falls back to rich Prompt.ask()
-    which calls input() — reading from whatever sys.stdin points to.
-    We replace sys.stdin with io.StringIO(input) and redirect the rich
-    Console to a StringIO buffer to capture all output.
+    Patch out both USDA API functions.
+    search_foods returns SAMPLE_SEARCH_RESULTS.
+    get_food_detail returns SAMPLE_FOOD_DETAIL.
+    get_api_key returns a dummy key so _ensure_api_key() passes immediately.
     """
-
-    def invoke(self, input: str = "", *, api_key=None, theme=None) -> NumaResult:
-        import sys
-        from rich.console import Console
-        from numa_app import state
-        from numa_app.main import run_app
-
-        buf = io.StringIO()
-        new_console = Console(file=buf, highlight=False, force_terminal=False, width=200)
-        old_stdin = sys.stdin
-        old_console = state.app_ctx.console
-        exit_code = 0
-        try:
-            sys.stdin = io.StringIO(input)
-            state.app_ctx.console = new_console
-            state.sync_globals()
-            run_app(theme=theme, api_key=api_key)
-        except SystemExit as e:
-            exit_code = e.code if isinstance(e.code, int) else 0
-        finally:
-            sys.stdin = old_stdin
-            state.app_ctx.console = old_console
-            state.sync_globals()
-        return NumaResult(buf.getvalue(), exit_code)
+    monkeypatch.setattr(_usda, "search_foods", lambda *a, **kw: SAMPLE_SEARCH_RESULTS)
+    monkeypatch.setattr(_usda, "get_food_detail", lambda *a, **kw: SAMPLE_FOOD_DETAIL)
+    monkeypatch.setattr(_usda, "get_api_key", lambda: "TESTKEY123")
 
 
 # ---------------------------------------------------------------------------
@@ -227,34 +156,6 @@ def use_test_profile(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.fixture(autouse=True)
-def use_test_prefs(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    Pre-populate a temp prefs file and patch both prefs._PREFS_FILE and
-    main._PREFS_FILE so that initialize_app() never shows the first-run
-    animal foods prompt and _load_prefs() reads from the temp file.
-    Applied automatically to every test.
-    """
-    from numa_app.config import prefs as _prefs
-    from numa_app import main as _main
-
-    prefs_file = tmp_path / "test_prefs.json"
-    prefs_file.write_text(json.dumps({"include_animal_foods": True}))
-    monkeypatch.setattr(_prefs, "_PREFS_FILE", prefs_file)
-    monkeypatch.setattr(_main, "_PREFS_FILE", prefs_file)
-
-
-@pytest.fixture(autouse=True)
-def no_export(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    Stub out _offer_export to a no-op so tests never write real report files
-    and don't need extra input lines to decline the export prompt.
-    Applied automatically to every test.
-    """
-    from numa_app.services import reports as _reports
-    monkeypatch.setattr(_reports, "_offer_export", lambda *a, **kw: None)
-
-
-@pytest.fixture(autouse=True)
 def no_off(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Stub out Open Food Facts search/barcode lookup to return no results so
@@ -278,16 +179,6 @@ def db_conn(db_path: pathlib.Path):
     conn.execute("PRAGMA foreign_keys = ON")
     yield conn
     conn.close()
-
-
-# ---------------------------------------------------------------------------
-# CLI runner
-# ---------------------------------------------------------------------------
-
-@pytest.fixture()
-def runner() -> NumaTestRunner:
-    """NumaTestRunner: invokes run_app() with captured stdin/stdout."""
-    return NumaTestRunner()
 
 
 # ---------------------------------------------------------------------------

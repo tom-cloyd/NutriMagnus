@@ -4,10 +4,9 @@ test_web.py — smoke tests for the FastAPI web app (web/backend.py).
 Uses fastapi.testclient.TestClient (requires httpx — not in requirements.txt,
 same as pytest; install separately: pip install httpx).
 
-Reuses the CLI test suite's autouse fixtures (use_test_db, use_test_profile,
-use_test_prefs) from conftest.py for DB/profile isolation, plus a
-web-specific fixture below since web/backend.py keeps its own _PREFS_FILE
-module constant rather than sharing numa_app.config.prefs._PREFS_FILE.
+Reuses the shared autouse fixtures (use_test_db, use_test_profile) from
+conftest.py for DB/profile isolation, plus a web-specific fixture below
+since web/backend.py keeps its own _PREFS_FILE module constant.
 """
 import datetime
 import json
@@ -20,8 +19,7 @@ import db as _db
 import diaas as _diaas
 import profile as _profile
 import web.backend as backend
-from tests.conftest import SAMPLE_NUTRIENTS
-from tests.test_cli import _mock_api
+from tests.conftest import SAMPLE_NUTRIENTS, _mock_api
 
 
 @pytest.fixture(autouse=True)

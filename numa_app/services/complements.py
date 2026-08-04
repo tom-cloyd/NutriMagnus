@@ -139,6 +139,7 @@ def two_step_combo(
     fallback_digestibility: float = 1.0,
     aa_effects_limit: int = 3,
     ingredients: list[dict] | None = None,
+    exclude_names: set[str] | None = None,
 ) -> dict | None:
     """Pair a gap-closer (Step 1) with the best DIAAS-booster for the resulting
     protein pool (Step 2, if one qualifies). Returns None if `gc` has no cached
@@ -167,6 +168,7 @@ def two_step_combo(
     sub = _usda.suggest_complements(
         combined, pantry_candidates, diet_pref=diet_pref,
         base_digestibility=gc_diaas, max_improver_grams=max_improver_grams,
+        exclude_names=exclude_names,
     )
     qualifying = [
         b for b in sub.get("diaas_improvers", [])
@@ -229,6 +231,7 @@ def build_complement_display(
     two_step_limit: int = 3,
     cache_candidates: list[dict] | None = None,
     ingredients: list[dict] | None = None,
+    exclude_names: set[str] | None = None,
 ) -> dict:
     """Build the full complement-suggestion display structure for one base food/meal/recipe.
 
@@ -251,6 +254,10 @@ def build_complement_display(
     off by 15-20g on a real meal, because it applies one composite ratio to every
     amino acid instead of each ingredient's own true digestibility.
 
+    exclude_names: suggestion names (case-insensitive) the user has flagged to
+        ignore — omitted from every tier (pantry, general, pairs, diaas_improvers,
+        two_step_combos).
+
     Returns {"no_data": True}, {"no_gaps": True}, or the full display dict consumed
     by both the CLI (numa_app/ui/render.py) and the web templates.
     """
@@ -270,6 +277,7 @@ def build_complement_display(
             base_food_name=base_food_name,
             max_improver_grams=max_improver_grams,
             cache_candidates=cache_candidates,
+            exclude_names=exclude_names,
         )
     except Exception:
         return {"no_data": True}
@@ -451,6 +459,7 @@ def build_complement_display(
                 gaps=gaps, max_improver_grams=max_improver_grams,
                 fallback_digestibility=digestibility,
                 ingredients=ingredients,
+                exclude_names=exclude_names,
             )
             if combo is not None:
                 two_step_combos.append(combo)

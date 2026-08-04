@@ -26,7 +26,7 @@ import re
 from datetime import date
 
 import usda as _usda
-from numa_app.ui.common import classify_food_id
+from numa_app.services.food_ids import classify_food_id
 
 
 def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None, fmt: str = "txt",

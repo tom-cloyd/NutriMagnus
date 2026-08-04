@@ -1,13 +1,19 @@
 # NutriMagnus — Nutritional Analysis Program documentation
 
-A command-line nutritional analysis tool written in Python. Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
+A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-07-29:1909
+UPDATED: 2026-08-04:1504
+
+Note: this was previously a dual CLI+web project. The interactive terminal CLI was removed
+2026-08-04 — the owner never used it and expected no other users to either. This document has
+been updated for the web-only codebase. The "Bugs found during test restoration" and
+"Implementation Phases" sections near the end are left as historical development records and
+still describe CLI-era files/mechanics from when they happened — not current instructions.
+
 ---
 
 ## Table of Contents
 
-- [Preliminary](#preliminary)
 - [Overview](#overview)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
@@ -17,20 +23,6 @@ UPDATED: 2026-07-29:1909
 - [Data Storage](#data-storage)
 - [Test Suite](#test-suite)
 - [Implementation Phases](#implementation-phases)
-
----
-
-## Preliminary
-
-* **To launch the CLI version**
-  * Linux: `numa`  (symlink at `~/.local/bin/numa` → `numa.py` is on PATH)
-  * Windows: `python numa.py`
-
-* **To launch the web version**
-  * From the `web/` directory:
-  * Linux / Windows: `uvicorn backend:app --reload`
-  * Then open `http://localhost:8000` in a browser.
-  * Use `uvicorn backend:app` (no `--reload`) for a stable session without auto-restart.
 
 ---
 
@@ -47,77 +39,62 @@ The program uses two nutrition data sources:
 - **USDA FoodData Central** — free, comprehensive, 300,000+ foods with full macro/micronutrient profiles including amino acid data for protein completeness analysis.
 - **Open Food Facts** — free, open-source (CC BY-SA 4.0), community-maintained, millions of branded/packaged products globally. No API key required. Does not include amino acid data.
 
-The CLI interface follows the same interaction pattern as `cmgr.py` (the contact manager in the sibling `../cmgr/` directory): hierarchical menus, Ctrl+C to cancel and go back, color themes, and a consistent prompt style throughout.
-
 ---
 
 ## Project Structure
 
+Note: the CLI was removed 2026-08-04. `numa_app/` used to also contain `main.py`, `state.py`,
+`config/`, `ui/`, and `workflows/` (all CLI-only) plus CLI-only `services/annotations.py`,
+`oxalate_link.py`, and `reports.py` — all deleted. `manual.py` (the CLI's `?keyword` help
+lookup) was also deleted; the small bit of it the web app needs (`rebuild_manual_if_stale()`)
+now lives in `numa_app/services/manual_build.py`.
+
 ```
 numa/
-  numa.py                          — thin CLI entry point (argparse); delegates to numa_app.main
   db.py                            — SQLite database: schema, queries, context manager
-  usda.py                          — backwards-compatible re-export shim (29 lines); import this
+  usda.py                          — backwards-compatible re-export shim; import this
   usda_api.py                      — USDA FoodData Central HTTP client; API key; search; detail fetch
   usda_nutrients.py                — nutrient math; AA analysis; DIAAS lookup; complement table; density
   openfoodfacts.py                 — Open Food Facts API client; merged into food search results
   diaas.py                         — Meal-level DIAAS calculation and digestibility data
   export.py                        — Report export (txt, md, html)
   profile.py                       — User profile dataclass, RDA computation, unit parsing
-  requirements.txt                 — Python dependencies (rich only)
+  platform_utils.py                — Cross-platform data-dir path resolution
+  version.py                       — Single-source-of-truth VERSION stamp
+  requirements.txt                 — Python dependencies (fastapi, uvicorn, Jinja2, Markdown, python-multipart;
+                                     pytest/httpx for test/dev)
+  import_foods.py, import_json_folder.py, import_gi_seed.py, numa_gen_prompt.py,
+  numa_import_claude.py            — standalone maintenance scripts, independent of the web app
+  build_oxalate_db.py              — one-time script: builds oxalate.db from oxalate_source_data.py
   README-numa-documentation.md     — This file
-  README-Nutrimagnus-status-report.md  — Draft public status report
-  README-refactor.md               — Notes on the offline-friendly refactor
   scripts/
     setup_venv.sh                  — Create and populate .venv
-    run_numa.sh                    — Quick run without manually activating venv
-  numa_app/                        — Main application package (product of the refactor)
+    build_manual.py                — Regenerates user-manual.html from user-manual.md
+  numa_app/
     __init__.py
-    __main__.py
-    main.py                        — run_app(), initialize_app(), print_startup_banner(), _run_menu()
-    state.py                       — AppContext; theme/dietary state; set_theme(), set_diet_pref()
-    config/
-      __init__.py
-      prefs.py                     — dietary preferences load/save; first-run diet-pref prompt; _DIET_LABELS
-      theme.py                     — theme load/save/detect; _change_theme()
-    ui/
-      __init__.py
-      common.py                    — _show_menu(), _safe_call(), dot_cell(), table_title(), section_title(), table_footer()
-      prompts.py                   — _prompt(), Cancelled, _ask_float(), _ask_int(), _ask_date()
-      render.py                    — _print_nutrient_table(), _print_protein_completeness(),
-                                     _print_bioavailability(), _print_complement_suggestions()
     services/
-      __init__.py
-      annotations.py               — annotate_food_interactive(), maybe_prompt_gi/diaas(); food annotation UI
-      complements.py               — shared complement-suggestion display math (CLI + web): aa_effects(),
-                                     two_step_combo(), build_complement_display()
-      glycemic_load.py              — shared glycemic load aggregation (CLI + web): compute_glycemic_load()
-      meal_bcp.py                  — shared meal-DCP fallback (CLI + web): recipe_dcp_fallback()
-      oxalate_link.py              — maybe_show_oxalate(fdc_id, food_name): check/display/prompt oxalate link
-      portions.py                  — _pick_portion(), _parse_portion_input()
-      rda_status.py                — shared RDA/limit percent-of-target classification (CLI + web): rda_status()
-      recipe_nutrients.py          — shared recursive recipe-ingredient expansion (CLI + web):
-                                     expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
-      recipe_dcp.py                 — shared auto-recompute of a recipe's per-serving DCP (CLI + web):
-                                     recompute_recipe_dcp()
-      reports.py                   — export rendering support
-      search.py                    — _search_and_pick_food(), _suggest_foundation_search()
-      search_ranking.py            — shared food-search relevance ranking (CLI + web): relevance_key()
-    workflows/
-      __init__.py
-      foods.py                     — Foods menu; search, portion analysis, convert, cached-food viewer
-      drafted_foods.py             — Edit any cached food; drafted-profile CRUD; bulk AA import
-      pantry.py                    — My Pantry menu
-      meals.py                     — Meals & Log menu
-      recipes.py                   — Recipes menu dispatch; shared helpers; create/browse/develop/delete
-      recipe_analysis.py           — Analyze recipe workflow (_do_recipe_view, _resolve_recipe_dcp_data)
-      recipe_edit.py               — Edit recipe workflow (_do_recipe_edit)
-      settings.py                  — Settings menu; user profile; DIAAS overrides; RDA comparison
-      analysis.py                   — Analysis menu; dispatches to daily summary and food-use analyses
-      summary.py                   — Daily summary - DCP and goals (formerly the top-level Daily Summary menu)
-      food_use.py                   — Food use in meals: frequency-of-use table + histogram over a chosen meal set
-  manual.py                        — User manual parser; ?keyword help lookup; show(), lookup(),
-                                     available(); _ALIASES for topic shortcuts
+      aa_estimate.py                — estimate a food's AA profile by scaling another food's AA
+                                      values to its own protein content: estimate_aa(), source_note()
+      claude_fetch.py                — Claude AI amino-acid-fetch prompt building and response import
+      complements.py                — shared complement-suggestion display math: aa_effects(),
+                                      two_step_combo(), build_complement_display()
+      day_profile.py                 — per-day profile pinning: get_profile_for_date(), ensure_day_profile()
+      diet_aware.py                  — B12/iron/zinc bioavailability notes based on dietary preference
+      food_ids.py                    — classify_food_id() — food/recipe ID → (id_str, source_label)
+      food_import.py                 — shared food-cache import logic (used by import_foods.py etc.)
+      glycemic_load.py               — shared glycemic load aggregation: compute_glycemic_load()
+      manual_build.py                — rebuild_manual_if_stale(), used by the web app's /manual route
+      meal_bcp.py                    — shared meal-DCP fallback: recipe_dcp_fallback()
+      meal_list_columns.py           — shared Meals & Log custom-column logic
+      nutrient_trend.py              — multiday nutrient trend averaging
+      plotting.py                    — nutrient trend line-chart rendering
+      portions.py                    — _parse_portion_input() — portion-string parsing
+      rda_status.py                  — shared RDA/limit percent-of-target classification: rda_status()
+      recipe_dcp.py                  — shared auto-recompute of a recipe's per-serving DCP: recompute_recipe_dcp()
+      recipe_nutrients.py            — shared recursive recipe-ingredient expansion:
+                                      expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
+      search.py                      — _refresh_cache_if_missing_aa(), used by recipe_nutrients.py
+      search_ranking.py              — shared food-search relevance ranking: relevance_key()
   user-manual.md                   — Essential instructions, tips, and reference material for
                                      users; plain-text sections keyed by [anchor] for inline display
   oxalate.py                       — Read-only access to oxalate.db: get_oxalate_db(), search_similar(),
@@ -181,11 +158,16 @@ cd numa
 
 Dependencies (`requirements.txt`):
 
-| Package | Purpose                                    |
-|---------|--------------------------------------------|
-| `rich`  | Console output, tables, color themes       |
+| Package           | Purpose                                    |
+|-------------------|---------------------------------------------|
+| `fastapi`         | Web app framework                          |
+| `uvicorn`         | ASGI server                                |
+| `Jinja2`          | Template rendering                         |
+| `Markdown`        | Renders the manual and other markdown text |
+| `python-multipart`| Form-data parsing (FastAPI dependency)     |
+| `pytest`, `httpx` | Test suite / test client (test/dev only)   |
 
-> **Note:** `typer` was removed in the refactor — the CLI now uses stdlib `argparse`. `requests` is not a dependency; HTTP uses stdlib `urllib`.
+> **Note:** `requests` is not a dependency; HTTP uses stdlib `urllib`.
 
 ### 2. USDA API key
 
@@ -207,48 +189,26 @@ all registered keys.
 
 #### Setting the key
 
-Run this once after you receive the key:
-
-```bash
-./numa.py --api-key YOUR_KEY_HERE
-```
-
-The key is saved to `~/.config/numa/config.json` and used automatically on all
-subsequent runs. It can also be changed at any time via the **Settings** menu
-inside the program (**Settings → Advanced settings → USDA API key**).
+Set it from **Settings → Advanced settings → USDA API key** in the web app. It's saved
+to `~/.config/numa/config.json` and used automatically on all subsequent runs.
 
 ---
 
 ## Running the Program
 
 ```bash
-cd numa
-./numa.py
+python web/launcher.py
 ```
 
-Or, without manually activating the venv:
+This starts uvicorn and opens a browser tab at `http://127.0.0.1:8000`. Useful flags: `--port N`, `--no-browser`, `--reload` (dev auto-restart). Alternatively, from the `web/` directory: `uvicorn backend:app --reload`.
 
-```bash
-./scripts/run_numa.sh
-```
-
-The program launches into a startup banner (showing profile, theme, and dietary-preference status) and then the interactive menu. No subcommands are required for normal use.
-
-**Command-line options** (for scripting / setup only):
-
-```
-./numa.py --api-key KEY     Set USDA API key and exit
-./numa.py --theme THEME     Set color theme: dark, light, neutral, auto
-./numa.py --help            Show options
-```
-
-For menu navigation conventions, keyboard shortcuts, and first-run setup, see the [NutriMagnus User Manual](user-manual.html).
+For first-run setup, see the [NutriMagnus User Manual](user-manual.html).
 
 ---
 
 ## Menu Structure
 
-numa has five top-level menu areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary - DCP and goals** (the original per-day nutrient/RDA workflow) and **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs). For a complete description of every menu command and workflow, see the [NutriMagnus User Manual](user-manual.html).
+numa has five top-level nav areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary - DCP and goals** (the original per-day nutrient/RDA workflow) and **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs). For a complete description of every page and workflow, see the [NutriMagnus User Manual](user-manual.html).
 
 ---
 
@@ -270,7 +230,7 @@ When a cached USDA food is selected and its stored nutrients are missing all fou
 
 The `food_annotations` table stores user-supplied estimates attached to individual cached foods by `fdc_id` (fields: `gi_estimate`, `diaas_estimate`, `prep_context`, `gi_no_prompt`, `diaas_no_prompt`). See the [User Manual](user-manual.html) for the annotation workflow.
 
-**Prompt on first add:** `numa_app/services/annotations.py:maybe_prompt_gi()` is called the first time a food is added to the Pantry (single-add path) or to a meal, if that food has no `gi_estimate` on file and `gi_no_prompt` isn't set. CLI: `Enter`/`s` skips just this once (asked again next time); `x` sets `gi_no_prompt=1` (never asked again for that food; can still be added later via `annotate_food_interactive`). Web (`web/backend.py:_gi_prompt_needed()`): `/pantry/add` and `/meal/{id}/add` redirect to `/food/annotate/{fdc_id}?next=...` when a prompt is warranted; the annotate page offers "Skip for now" (no DB write, redirects to `next`) vs. "Skip forever for this food" (POSTs to `/food/annotate/{fdc_id}/skip-forever`, which sets `gi_no_prompt=1` via `upsert_food_annotation` without touching other fields). `diaas_no_prompt` exists in the schema and CLI (`maybe_prompt_diaas`) but is not currently wired into any add flow.
+**Prompt on first add:** `web/backend.py:_gi_prompt_needed()` fires the first time a food is added to the Pantry (single-add path) or to a meal, if that food has no `gi_estimate` on file and `gi_no_prompt` isn't set. `/pantry/add` and `/meal/{id}/add` redirect to `/food/annotate/{fdc_id}?next=...` when a prompt is warranted; the annotate page offers "Skip for now" (no DB write, redirects to `next`) vs. "Skip forever for this food" (POSTs to `/food/annotate/{fdc_id}/skip-forever`, which sets `gi_no_prompt=1` via `upsert_food_annotation` without touching other fields). `diaas_no_prompt` exists in the schema but is not currently wired into any add flow.
 
 **Seeding GI values in bulk:** `import_gi_seed.py` (repo root) writes `gi_estimate` for cached foods whose name exactly matches an entry in a small hardcoded table sourced from Foster-Powell/Holt/Brand-Miller (2008) *Diabetes Care* 31(12):2281-3 (CC-licensed, ~60 common foods). Ambiguous/fuzzy matches are printed for manual review rather than written automatically — see the script's docstring. Run with `--apply` to write; without it, it's a dry run.
 
@@ -336,7 +296,7 @@ The conversion math is shown on screen so you can verify it against the label.
 
 See the [User Manual](user-manual.html) for usage documentation on food search, barcode scanning, and the food cache quick-pick.
 
-**Result ordering.** See `numa_app/services/search_ranking.py`, shared by the CLI and web app. `relevance_key(name, query, source, data_type)` returns a sort tuple, lower sorts first:
+**Result ordering.** See `numa_app/services/search_ranking.py`. `relevance_key(name, query, source, data_type)` returns a sort tuple, lower sorts first:
 
 ```python
 (-count, -mask, SOURCE_RANK.get(source, 9), DATA_TYPE_RANK.get(data_type, 1), exact, prefix, len(name), name)
@@ -348,7 +308,7 @@ See the [User Manual](user-manual.html) for usage documentation on food search, 
 - `DATA_TYPE_RANK` (`Foundation`/`SR Legacy`→0, `Survey (FNDDS)`/`Experimental`→1, `Branded`/`Open Food Facts`→2) — breaks ties among results that are otherwise identical on text relevance and source. Without this, a wall of near-identical branded product names (e.g. a dozen listings all named "INSTANT NONFAT DRY MILK") can bury the one Foundation/SR Legacy food that actually carries amino acid data, since the remaining tiebreakers (below) have no way to prefer it — a longer, more descriptive USDA reference name loses to a terse branded one on `len(name)` alone. This restores the property the original "search deeper into Foundation/SR Legacy" boost pass (see `get_search_boost_page_size()`) was designed to provide by list position, before `relevance_key` started re-sorting its output.
 - `exact`, `prefix`, `len(name)`, `name` — final tiebreakers: exact string match, then prefix match, then shorter name, then alphabetical.
 
-The web app additionally offers a "Pantry, Cache, then Other" sort mode (`_sort_search_results()` in `web/backend.py`) that sorts by `SOURCE_RANK` *before* `relevance_key`, for users who deliberately want their own library first regardless of match quality. "Best match to name" (the default) uses `relevance_key` as shown above, with source only as the final tiebreaker. The CLI has no such toggle — its Food Cache quick-pick table always uses `relevance_key`.
+The web app additionally offers a "Pantry, Cache, then Other" sort mode (`_sort_search_results()` in `web/backend.py`) that sorts by `SOURCE_RANK` *before* `relevance_key`, for users who deliberately want their own library first regardless of match quality. "Best match to name" (the default) uses `relevance_key` as shown above, with source only as the final tiebreaker.
 
 The results table always includes an **AA data** column (✓ confirmed / ~✓ likely / ✗ none) and an **Ann** column showing which foods have GI and/or DIAAS estimates saved (`GI`, `DI`, or `GI DI` in green; `·····` if none). Use these columns to pick the option with the richest existing data before committing to a fetch.
 
@@ -443,41 +403,35 @@ needed, and pick from the Foundation results without leaving the current flow.
 
 #### No amino acid data — the Claude fetch workflow
 
-When no Foundation Foods substitute is available, numa provides a two-step interactive workflow to retrieve amino acid (and other nutrient) data from Claude AI (claude.ai) and import it directly into the cache.
+When no Foundation Foods substitute is available, numa provides a two-step workflow, backed by `numa_app/services/claude_fetch.py`, to retrieve amino acid (and other nutrient) data from Claude AI (claude.ai) and import it directly into the cache.
 
-**Access** — **Foods → 5. View cached / saved foods**, commands printed below the table:
+**Access** — Food Cache: check the boxes next to foods showing the uncertain/missing AA badge (or "Select all missing AA data"), then click **Fetch missing data from Claude AI**.
 
-| Command | Action |
-|---------|--------|
-| `i#` / `i#,#` | Generate prompt for specific row(s) — e.g. `i3`, `i1,4,7` |
-| `i` alone | Generate prompt for every ✗ food in the current list (with confirmation) |
-| `r` | Read and import `~/claude_response.txt` |
+**Step 1 — prompt generation (`claude_fetch.build_prompt()`).**
 
-**Step 1 — prompt generation (`_do_claude_fetch` in `foods.py`).**
-
-Builds the food list from the selected rows (or all ✗ foods if no row numbers are given) and writes `~/claude_prompt.txt` using `_CLAUDE_PROMPT_TEMPLATE`. The template instructs Claude to return one fenced JSON block per food containing:
+Builds a prompt from the selected foods and shows it on its own page with a **Copy prompt to clipboard** button. The prompt instructs Claude to return one fenced JSON block per food containing:
 
 - **Metadata keys**: `name`, `fdc_id`, `fdc_type`, `source`, `confidence_note`
 - **Nutrient keys**: all recognized fields (macros, minerals, vitamins, phytonutrients, and all 11 amino acids), per 100 g edible portion
 
-Key rules embedded in the template: amino acid values must be in grams per 100 g food (not per g protein, not mg); `aa_methionine_g`/`aa_cystine_g` and `aa_phenylalanine_g`/`aa_tyrosine_g` must always be separate keys; unknown values must be omitted entirely (never zero-filled); true zeros may be included explicitly; source hierarchy is USDA FDC → SR Legacy → peer-reviewed literature → estimate.
+Key rules embedded in the prompt: amino acid values must be in grams per 100 g food (not per g protein, not mg); `aa_methionine_g`/`aa_cystine_g` and `aa_phenylalanine_g`/`aa_tyrosine_g` must always be separate keys; unknown values must be omitted entirely (never zero-filled); true zeros may be included explicitly; source hierarchy is USDA FDC → SR Legacy → peer-reviewed literature → estimate.
 
-After writing the file, the function prints a four-step instruction block: open the file, copy its entire contents, paste into a **new** claude.ai chat, and — critically — copy only Claude's reply text (not the full conversation) before saving as `~/claude_response.txt`.
+The page instructs the user to open a **new** claude.ai chat, paste the prompt and send, then copy Claude's entire reply back into NuMa's **Import Claude response** page.
 
-**Step 2 — response import (`_do_claude_import` in `foods.py`).**
+**Step 2 — response import (`claude_fetch.parse_response()` / `validate_all()`).**
 
-Reads `~/claude_response.txt` and passes it to `_claude_parse_response()`, which extracts fenced (` ```json ``` `) and bare JSON objects. Any non-JSON text trailing the last JSON block is collected as **curator text** — Claude's methodological caveats, confidence statements, and batch-level notes.
+`parse_response()` extracts fenced (` ```json ``` `) and bare JSON objects from the pasted reply. Any non-JSON text trailing the last JSON block is collected as **curator text** — Claude's methodological caveats, confidence statements, and batch-level notes.
 
-Each block is validated by `_claude_validate_block()`: it must have `name` (string), `fdc_id` (integer or integer-string), and a valid `fdc_type`; unrecognized nutrient keys are stripped silently; blocks that fail validation are reported and skipped.
+Each block is validated by `validate_block()`: it must have `name` (string), `fdc_id` (integer or integer-string), and a valid `fdc_type`; unrecognized nutrient keys are stripped silently; blocks that fail validation are reported and skipped.
 
-Passing blocks are shown in a review table — name, FDC ID, calories, protein, and AA count out of 11 — before the user confirms. On confirmation, each food is written via `_db.cache_food()` with:
+Passing blocks are shown in a review table — name, FDC ID, calories, protein, and AA count out of 11 — before the user clicks **Import**. On confirmation, each food is written via `_db.cache_food()` (through `claude_fetch.import_foods()`) with:
 - `notes` — formatted from `source` and `confidence_note`
-- `curator_notes` — the batch-level curator text (shown in the N column; readable with `n#`)
+- `curator_notes` — the batch-level curator text
 - `user_drafted` **not set** — entries remain overwritable by subsequent USDA re-fetches (omega backfill, incomplete-cache detection)
 
-`_do_claude_import` doesn't require the foods to be pre-existing cache entries — `_claude_validate_block` only needs `name` and `fdc_id`, so a hand-written `~/claude_response.txt` (skipping Steps 1–2 entirely) can introduce a brand-new food, e.g. a packaged product keyed by its UPC.
+Import doesn't require the foods to be pre-existing cache entries — `validate_block()` only needs `name` and `fdc_id`, so a hand-pasted response (skipping Step 1 entirely) can introduce a brand-new food, e.g. a packaged product keyed by its UPC.
 
-**Per-serving input (`numa_app/services/food_import.py`).** Nutrient values normally must already be per-100g. As an alternative, a block may give `serving_size_g` + `nutrition_per_serving` (same key names as the flat shape); `_claude_validate_block` runs these through `food_import.convert_per_serving()` (scales by `100 / serving_size_g`) before merging into `nutrients`, and appends the conversion factor to the food's notes. `food_import.VALID_NUTRIENT_KEYS` (derived from `usda_api.NUTRIENT_MAP`, so it can't drift from the nutrients numa actually understands) and `food_import.validate_and_strip()` are the single shared implementation of key validation/stripping — `foods.py`'s `_CLAUDE_VALID_KEYS`, `import_foods.py`, and `import_json_folder.py` all import from this module rather than keeping their own copies.
+**Per-serving input (`numa_app/services/food_import.py`).** Nutrient values normally must already be per-100g. As an alternative, a block may give `serving_size_g` + `nutrition_per_serving` (same key names as the flat shape); `validate_block()` runs these through `food_import.convert_per_serving()` (scales by `100 / serving_size_g`) before merging into `nutrients`, and appends the conversion factor to the food's notes. `food_import.VALID_NUTRIENT_KEYS` (derived from `usda_api.NUTRIENT_MAP`, so it can't drift from the nutrients numa actually understands) and `food_import.validate_and_strip()` are the single shared implementation of key validation/stripping — `claude_fetch.py`, `import_foods.py`, and `import_json_folder.py` all import from this module rather than keeping their own copies.
 
 #### No amino acid data — `import_foods.py` (scripted alternative)
 
@@ -526,7 +480,7 @@ DIAAS scores are not available from any API — they come from controlled digest
 
 **Per-food DIAAS via annotations.** If you have a primary-literature DIAAS value for a specific food, you can save it via **Foods → Annotate a cached food** or the inline prompt during analysis. A saved annotation in `food_annotations.diaas_estimate` takes priority over the keyword table for that food. This is the only path to storing a DIAAS value per-food in the database.
 
-This same saved-value-takes-priority rule applies to the DIAAS column shown in the web app's Food Cache and My Pantry list views (`food_cache.html`, `pantry.html`): a saved annotation is marked with ★, otherwise the list falls back to the keyword-table value when the food has amino acid data. The CLI's Food Cache table (`foods.py`) is narrower — it shows only the saved annotation, never the keyword-table value — so the two surfaces can show different DIAAS figures for the same unannotated food.
+This same saved-value-takes-priority rule applies to the DIAAS column shown in the web app's Food Cache and My Pantry list views (`food_cache.html`, `pantry.html`): a saved annotation is marked with ★, otherwise the list falls back to the keyword-table value when the food has amino acid data.
 
 ### Meal-level DIAAS analysis
 
@@ -560,7 +514,7 @@ When a meal has ingredients without AA data, the analysis reports how many are a
 
 If you answer `y`, for each affected standalone ingredient the program runs a focused search of USDA **SR Legacy** and **Foundation** foods — the datasets most likely to include full amino acid profiles. The **AA** column in the results table (✓/✗) shows at a glance which candidates have AA data. Picking a replacement updates that ingredient in the meal for the current analysis session. Press Enter to skip an ingredient and leave it excluded from IAA pooling.
 
-Ingredients contributing less than 1 g of protein are treated as negligible and left off all of these missing-AA lists and digestibility tables (CLI and web) — a footnote notes when items were omitted this way. This keeps garnishes, spices, and trace amounts (e.g. a square of dark chocolate) from cluttering warnings that matter only for real protein sources.
+Ingredients contributing less than 1 g of protein are treated as negligible and left off all of these missing-AA lists and digestibility tables — a footnote notes when items were omitted this way. This keeps garnishes, spices, and trace amounts (e.g. a square of dark chocolate) from cluttering warnings that matter only for real protein sources.
 
 #### Why the "Fetching amino acid data…" spinner can be slow
 
@@ -626,160 +580,14 @@ See the [User Manual](user-manual.html) for usage.
 
 ## Architecture
 
-### Overview — the refactor
+### Overview — module split
 
-The original monolithic `numa.py` was split into a `numa_app/` package (see `README-refactor.md`). The split is organized by responsibility:
+`usda.py` is a thin re-export shim. All code that does `import usda as _usda` continues to work unchanged. The actual implementation lives in two files that can each be read and edited independently:
 
-- **`numa.py`** — five lines: parse args with `argparse`, call `run_app()`. Uses stdlib only; no `typer`.
-- **`numa_app/main.py`** — top-level orchestration: `initialize_app()`, `print_startup_banner()`, `_run_menu()`, `run_app()`.
-- **`numa_app/state.py`** — shared mutable state: `AppContext` dataclass holding the `Console`, current theme, dietary preference, and remembered list-sort choices. Module-level aliases (`console`, `T`, `_current_theme_name`, `_diet_pref`) are kept for convenience; `sync_globals()` refreshes them when state changes.
-- **`numa_app/config/`** — persistence for theme and dietary preferences.
-- **`numa_app/ui/`** — all terminal I/O primitives and rendering.
-- **`numa_app/services/`** — stateless helpers for food search, portion parsing, and report export.
-- **`numa_app/workflows/`** — one file per top-level menu area; each contains the menu loop and the handlers for every item in that section.
+- **`usda_api.py`** — HTTP client: API key management, `search_foods()`, `get_food_detail()`, `_parse_food()`, and the `NUTRIENT_MAP` / `ESSENTIAL_AMINO_ACIDS` / `AA_REFERENCE_MG_PER_G_PROTEIN` constants.
+- **`usda_nutrients.py`** — all nutrient math: `scale_nutrients()`, `sum_nutrients()`, `has_amino_acid_data()`, `protein_completeness()`, `get_aa_gaps()`, `suggest_complements()`, `get_diaas()`, `get_antinutrient_flags()`, `get_density_g_per_ml()`, and the embedded DIAAS, anti-nutrient, and complement data tables.
 
-The support modules (`db.py`, `usda.py`, `diaas.py`, `export.py`, `profile.py`) live at the project root and are imported by the workflow modules as needed.
-
-`usda.py` is a thin re-export shim (29 lines). All code that does `import usda as _usda` continues to work unchanged. The actual implementation lives in two files that can each be read and edited independently:
-
-- **`usda_api.py`** (~290 lines) — HTTP client: API key management, `search_foods()`, `get_food_detail()`, `_parse_food()`, and the `NUTRIENT_MAP` / `ESSENTIAL_AMINO_ACIDS` / `AA_REFERENCE_MG_PER_G_PROTEIN` constants.
-- **`usda_nutrients.py`** (~890 lines) — all nutrient math: `scale_nutrients()`, `sum_nutrients()`, `has_amino_acid_data()`, `protein_completeness()`, `get_aa_gaps()`, `suggest_complements()`, `get_diaas()`, `get_antinutrient_flags()`, `get_density_g_per_ml()`, and the embedded DIAAS, anti-nutrient, and complement data tables.
-
-Similarly, the three largest workflow files were split to keep each under 600 lines:
-
-- **`recipes.py`** — menu dispatch + shared helpers + create/list/display/delete (~440 lines). Uses lazy imports of `recipe_edit` and `recipe_analysis` inside `_menu_recipes()` to avoid circular dependencies.
-- **`recipe_analysis.py`** — the "Analyze recipe" workflow: `_resolve_recipe_dcp_data()` and `_do_recipe_view()` (~575 lines).
-- **`recipe_edit.py`** — the "Edit recipe" workflow: `_do_recipe_edit()` (~355 lines).
-- **`foods.py`** — Foods menu + search/analyze/convert/cached-food viewer (~365 lines).
-- **`drafted_foods.py`** — `_do_edit_cached_food()`, `_prompt_nutrients()`, `_bulk_import_aa()`, and drafted-profile management (`_do_drafted_foods_menu`, `_do_create_drafted_food`) — no separate edit entry point; editing goes through Food Cache.
-
-### `numa_app/main.py` — startup and top-level menu
-
-`initialize_app()` handles `--api-key` and `--theme` command-line flags (both exit after acting), calls `db.init_db()`, loads dietary preferences, and on first run triggers the animal-foods preference prompt.
-
-`print_startup_banner()` renders the double green rule, then two lines: `NutriMagnus ("nutrition wizard")` in bold green, and `Nutritional Analysis for individuals and families`. Then profile summary and theme/dietary status.
-
-`_run_menu()` is the top-level loop. It renders the main menu inline (not via `_show_menu()`), dispatches to workflow submenus by return value — `True` means go back, `False` means quit. It catches `ReturnToMain` exceptions, which any nested prompt can raise when the user types `m` to jump directly back here from anywhere in the menu tree.
-
-### `numa_app/state.py` — shared state
-
-`AppContext` is the single source of truth. `set_theme(name, theme_dict)`, `set_diet_pref(value)`, and `set_sort_pref(list_name, value)` are the only mutation points; all three call `sync_globals()` to keep the module-level aliases in sync with the dataclass. All workflow modules import `state` and reference `state.T`, `state.console`, `state._diet_pref` directly. `_diet_pref` is a string: `"all"` | `"vegetarian"` | `"plant_only"`.
-
-`AppContext.sort_prefs` is a dict remembering the last-chosen sort order per list view: `{"recipes": "recent", "food_cache": "name", "meals": "date"}`. Read with `state.get_sort_pref(list_name, default)`; workflow code updates it via `numa_app/config/prefs.py`'s `set_sort_pref(list_name, value)`, which also persists it to `prefs.json` immediately (keys `sort_recipes`, `sort_food_cache`, `sort_meals`) so the choice survives restarts. The web app (`web/backend.py`) reads/writes the same three keys in the same `prefs.json` via its own `_resolve_sort()` helper, so a sort choice made in one interface becomes the default in the other.
-
-### `numa_app/ui/prompts.py` — input primitives
-
-`_prompt(prompt_text, *, default, choices, prefill)` is the core input function. It has two paths:
-
-- **Non-tty** (e.g., piped input, test runner): delegates to `rich.prompt.Prompt.ask()`.
-- **Interactive tty, free_text**: uses `readline`-backed `input()`. Default values are displayed before the colon as `(Press enter to keep VALUE)` with the value in the theme's blue (`default_hint` style); nothing is pre-filled after the colon. Pressing Enter on a blank line returns the stored default.
-- **Interactive tty, choices**: single-keypress mode via `termios`/`tty`. Only a character in the `choices` list is accepted; all other keystrokes are silently ignored. Pressing Enter on no input returns the default. This prevents accidentally submitting multi-character garbage (e.g., typing a food name at a `y/n/q` prompt).
-- **Interactive tty, no choices, not free_text**: accumulation mode — characters are buffered and echoed until Enter; backspace/delete work. Up/down arrow keys navigate a persistent input history (up to 1000 entries, stored in `~/.numa_history`, loaded at startup). Pressing up saves the current partial buffer (`hist_saved`) and replaces it with the previous history entry; pressing down restores toward the current input. Consecutive duplicates are suppressed. Empty entries are not recorded.
-
-Ctrl+C and `\x04` (EOF) raise `Cancelled` in all tty paths. Escape is detected by checking for trailing bytes within 50 ms; a bare Escape raises `Cancelled`.
-
-`prefill=True` uses `readline.set_pre_input_hook` to pre-populate the input line with the default value, allowing the user to edit it in-place (e.g., for recipe name edits). This path requires an interactive tty and a non-empty default.
-
-`Cancelled` is a plain exception class raised at any prompt when the user cancels. It propagates up to `_safe_call()` or the enclosing workflow, which prints `[dim]Cancelled.[/dim]` and returns the menu to the previous level.
-
-`ReturnToMain` is a plain exception class raised when the user types `m` at any prompt that offers `m=main`. It propagates freely through `_safe_call()` (which does not catch it) and through all workflow loops up to `_run_menu()`, which catches it and resumes the main menu loop. Every inline prompt that offers `b=back` also offers `m=main`.
-
-`_ask_float()`, `_ask_int()`, `_ask_date()` are thin wrappers that append `(b=back, m=main, q=quit)` to the prompt text and handle the `b` (return `None`), `m` (raise `ReturnToMain`), and `q` (`SystemExit(0)`) shortcuts.
-
-### `manual.py` — inline help lookup
-
-Parses `user-manual.md` on first use and caches sections keyed by anchor. Sections are headed `## Title [anchor]`; the anchor is the bracketed token, lower-cased.
-
-`show(ref)` resolves aliases via `_ALIASES`, looks up the section, and renders it as a Rich `Panel` using the app's console. Returns `True` if found, `False` (with a list of available topics) if not. Called from `_prompt()` whenever the user types a `?`-prefixed command at any prompt.
-
-`lookup(ref)` returns `(title, body)` or `None` — use this when the caller wants to handle display itself.
-
-`available()` returns all defined anchor names sorted — used to build the "Available topics" fallback message.
-
-`_ALIASES` maps common alternate spellings and synonyms to canonical anchors (e.g. `"suggest"` → `"comp"`, `"?"` → `"help"`).
-
-#### Adding a new help topic
-
-1. Add a section to `user-manual.md` with an anchored heading:
-   ```
-   ## My New Topic [mytopic]
-
-   Plain text body. No Markdown tables or markup — Rich renders this as-is inside a Panel.
-   ```
-   The anchor must be unique and lower-case.
-
-2. If alternate spellings should resolve to the same section, add them to `_ALIASES` in `manual.py`:
-   ```python
-   "my-topic": "mytopic",
-   ```
-
-3. Surface the topic from the relevant output block using `help_footer()` in `ui/common.py`:
-   ```python
-   from ..ui.common import help_footer
-   help_footer("mytopic")            # single topic
-   help_footer("mytopic", "diaas")   # multiple — joined with "or"
-   ```
-   This prints: `At any prompt, type ?mytopic or ?diaas for help with these columns.`
-
-4. Add the new topic to the topic list in the `## Using the ? Help System [help]` section of `user-manual.md`.
-
-**Format rules for manual sections:** plain text only — no Markdown tables, no bold/italic (Rich won't interpret them). `---` separator lines are stripped from section bodies automatically. Indented blocks are preserved as-is.
-
-### `numa_app/ui/common.py` — menu rendering and safe dispatch
-
-`_show_menu(title, items)` renders a title, horizontal rule, and numbered/lettered items. Numeric keys are styled with the accent color; non-numeric keys (b, q, etc.) use dim.
-
-`_safe_call(fn, *args)` wraps every action call to catch `Cancelled` (prints "Cancelled.") and re-raises `SystemExit(0)` cleanly. Used throughout workflow modules to dispatch individual menu actions without the caller needing try/except.
-
-**Table rendering helpers** (used throughout workflows and render.py):
-
-| Function | Purpose |
-|---|---|
-| `dot_cell(text, width)` | Truncate text to `width` chars and pad remainder with dim dot leaders (`·`). Standardizes column appearance across all tables. |
-| `table_title(title, subtitle)` | Blank line + indented hi-colour title for a table within an analysis section. `subtitle` is a pre-formatted Rich markup string for color legends or context. |
-| `section_title(title, subtitle)` | Blank line + full-width accent title + rule — for top-level output sections. `subtitle` is plain text (auto-wrapped in dim). |
-| `table_footer(*lines)` | Blank line then each line printed as-is — for key legends, totals, and notes below a table. |
-| `help_footer(*anchors)` | One-liner beneath a table listing `?topic` commands the user can type. Joins multiple anchors with "or". No-ops if called with no arguments. |
-
-### `numa_app/ui/render.py` — output rendering
-
-All functions now use `section_title()`, `table_title()`, `table_footer()`, and `dot_cell()` from `ui.common` for consistent heading and table-column formatting throughout all output contexts (food, recipe, meal, daily summary).
-
-`_print_nutrient_table(nutrients, title, per_label)` renders a Rich table of nutrients grouped into Macronutrients, Minerals, Vitamins, and Phytonutrients. Only groups with at least one present key are shown. Nutrient name column uses dot leaders via `dot_cell()`.
-
-`_print_protein_completeness(nutrients)` checks all nine essential amino acids against the FAO reference. Returns `True` if amino acid data was present, `False` if not. Requires 5+ AAs with non-zero values — zero-keyed entries (common in branded USDA foods) are treated as absent.
-
-`_print_bioavailability(food_name, nutrients)` calls `usda.get_diaas()` and `usda.get_antinutrient_flags()` and renders the bioavailability block (DIAAS bar, digestible protein, anti-nutrient notes).
-
-`_print_complement_suggestions(nutrients, context, offer_if_covered, base_food_name)` renders the pantry-then-general complement suggestion flow. `offer_if_covered=False` suppresses the offer when the food already meets the reference (used for single-food display). `offer_if_covered=True` always shows (used after recipe analysis).
-
-`_print_rda_comparison(nutrients, profile)` renders a table comparing daily nutrient totals against personalized RDA targets. For each nutrient it shows intake, target, percentage of RDA, a color-coded bar (green/yellow/red), and a status note. Sodium uses the limit direction (green if under); all others use the minimum direction. Nutrient name column uses `dot_cell()` for fixed-width alignment.
-
-### `numa_app/services/search.py` — food lookup flow
-
-`_search_and_pick_food()` handles the full food lookup: prompt → search local cache and USDA (and Open Food Facts for unrestricted searches) → merge results cache-first → remove duplicates and rank → display results table → user picks → fetch detail if not cached → cache and return food dict. Reused by every workflow that needs food selected. Both cache-return paths include an omega fatty acid backfill check: if the selected food is a non-user-drafted USDA food missing all four omega keys, the program silently fetches and merges them before returning.
-
-The local cache is **always** searched first. The USDA (and OFF) search always runs alongside it — both sources are queried on every search regardless of cache hits. Remote-only items (not already in the cache) are appended without duplicates (matched by `fdc_id`).
-
-**Result ranking** is performed after deduplication via the shared `numa_app/services/search_ranking.relevance_key()` (see "Searching for a food" above for the full algorithm, including the word-order bitmask trick). The cache's candidates are tagged `"pantry"` or `"cache"` before sorting so pantry items only win ties, never override a better text match.
-
-An **AA data** column is always shown in the results table using the following symbols:
-
-| Symbol | Meaning |
-|--------|---------|
-| ✓ | Confirmed — food is cached and has amino acid values |
-| ✗ | None — food is cached with no AA data, or is a branded/OFF product (these sources never include AA data) |
-| ~✓ | Likely — food is not yet cached but is Foundation or SR Legacy type, which almost always carry full AA profiles |
-
-A multi-line key below the table explains these symbols. If the USDA API fails but cache results exist, the function continues with cached items only and shows a warning.
-
-When `data_types` is restricted to `["Foundation", "SR Legacy"]` (AA-fix flows), Open Food Facts is excluded automatically, since OFF products never contain amino acid data.
-
-When a recipe is selected from the results, the returned dict now includes `total_weight` (from `recipes.total_weight`), enabling recipe-portion analysis to display per-100g breakdowns when total weight is recorded.
-
-Network errors (`TimeoutError`, `OSError`) when fetching food detail are now caught and displayed as a user-friendly message rather than crashing the flow.
-
-`_suggest_foundation_search(food)` is called when the selected food has no amino acid data. It offers to re-search Foundation Foods using a pre-filled keyword (first token of the food name), shows results, and returns the user's pick or `None`. The help text notes that Open Food Facts results are excluded from this flow.
+The support modules (`db.py`, `usda.py`, `diaas.py`, `export.py`, `profile.py`) live at the project root and are imported by `numa_app/services/*` and `web/backend.py` as needed.
 
 ### `openfoodfacts.py` — Open Food Facts API client
 
@@ -802,87 +610,19 @@ OFF nutrient keys (`energy-kcal_100g`, `proteins_100g`, etc.) are mapped to the 
 - **USDA portion shortcut** (`p1`, `p2`) → gram weight from USDA portions list.
 - **Portion multiple** (`1.5 p1`) → multiple of a USDA portion.
 
-Returns `None` on unrecognized input; `(None, vol_display)` when volume is recognized but density is unavailable (caller then prompts for grams). `_PIECE_UNITS` is a frozenset of the recognized piece-unit words.
+Returns `None` on unrecognized input; `(None, vol_display)` when volume is recognized but density is unavailable (caller then prompts for grams). `_PIECE_UNITS` is a frozenset of the recognized piece-unit words. `volume_hint()` and `amount_note()` (also in this file) render a cups/tbsp/tsp approximation for a gram amount, used by complement suggestions and elsewhere. `web/backend.py` builds its own portion-picker UI around `_parse_portion_input()` directly; the interactive CLI equivalent (`_pick_portion()`) was removed with the CLI.
 
-`_pick_portion(food)` renders the USDA portions list for the food, then loops on `_parse_portion_input` until the user enters a valid amount or cancels. The hint text explains that a bare number means pieces/count and a unit is required for weight or volume.
+### `numa_app/services/search.py` — cache-freshness helper
 
-### `numa_app/workflows/recipes.py` — recipe CRUD and shared helpers
+Now just `_refresh_cache_if_missing_aa(fdc_id)`, used by `recipe_nutrients.py`: if a cached food lacks amino acid data and is SR Legacy or Foundation, re-fetches it from the USDA API and updates the cache. The interactive food-lookup flow this file used to contain (`_search_and_pick_food()` and friends) was CLI-only and was removed with the CLI; the web app implements its own food search directly in `web/backend.py`.
 
-Contains the menu dispatch (`_menu_recipes`), all shared helper functions used by the split-out modules, and the create/browse/develop/display/delete/copy handlers.
-
-**Menu dispatch** (`_menu_recipes`): three items — Create / Browse / Develop. Uses lazy imports of `recipe_edit` and `recipe_analysis` inside action handlers to avoid circular dependencies.
-
-**Key workflow handlers:**
-
-| Function | Purpose |
-|---|---|
-| `_do_recipe_browse()` | Browse workflow: shows 20 most-recently-accessed recipes; supports inline `v/x/a/d/c<id>` actions, `s`=search, `r`=recent. Each action stamps `last_accessed_at` via `recipe_touch()`. |
-| `_do_recipe_develop(recipe=None)` | Develop workflow: iterative add/remove ingredients with optional nutritional analysis after each change; prompts for procedure on exit; calls `recipe_dcp.recompute_recipe_dcp()` if ingredients changed. Accepts optional pre-selected recipe (used by Browse `x<id>`). |
-| `_do_recipe_display(recipe=None)` | Text view: name, ingredients, procedure; ends with `e=edit  b/Enter=done` prompt — pressing `e` chains directly into `_do_recipe_edit`. Accepts optional pre-selected recipe. |
-| `_do_recipe_delete(recipe=None)` | Delete with confirmation. Accepts optional pre-selected recipe. |
-| `_do_copy_recipe(recipe=None)` | Copy recipe under a new name. Accepts optional pre-selected recipe. |
-
-Key shared helpers imported by `recipe_analysis.py` and `recipe_edit.py`:
-
-| Function | Purpose |
-|---|---|
-| `_pick_recipe()` | Search/list recipes, return selected recipe dict |
-| `_compute_recipe_dcp(rid)` | Compute digestible complete protein (g) for a whole recipe from cached ingredient data — used for live display only (e.g. `_compute_recipe_protein_summary`'s ingredient-list DCP line); not persisted. The value saved to `recipes.dcp_g` always goes through `recipe_dcp.recompute_recipe_dcp()` instead, which is per-serving. |
-| `_augment_aa_from_curated(nutrients, stats)` | Add AA data from the curated complement table for ingredients that lack USDA AA profiles |
-| `_parse_serving_amount(raw)` | Parse a serving count string (int, fraction, decimal) |
-| `_format_recipe_portion_label(servings)` | Format a portion label ("1 serving", "2 servings", etc.) |
-| `_get_recipe_total_nutrients(recipe_id)` | Return `(recipe, ingredients, combined_nutrients)` — used by the Foods workflow to analyze a recipe portion |
-| `_pick_recipe_portion(recipe)` | Prompt for number of servings; return `(servings, label)` |
-
-### `numa_app/workflows/recipe_analysis.py` — analyze recipe workflow (~575 lines)
-
-Contains `_resolve_recipe_dcp_data()` and `_do_recipe_view()` (menu option 5 "Analyze recipe").
-
-`_resolve_recipe_dcp_data(recipe_id, ingredients, ingredient_stats, combined)` detects missing data that blocks or degrades DCP calculation (unknown ingredient weights, missing DIAAS scores, missing AA data). It prompts the user to provide data, calculate with assumptions, or skip. Returns `(updated_stats, updated_combined, approximate, notes)`, `None` to skip DCP entirely, or `"rerun"` if ingredients were replaced and analysis should restart.
-
-`_do_recipe_view()` is the full nutrition analysis workflow: builds combined nutrient totals, calls `_resolve_recipe_dcp_data`, applies DIAAS-weighted DCP calculation, displays per-serving and whole-recipe nutrient tables, recipe bioavailability table, protein completeness, and complement suggestions. Supports live replacement of ingredients with missing AA data during the session.
-
-Also contains `_recipe_weight_to_g()` and `_recipe_vol_to_ml()` — unit converters for recipe total volume/weight metadata.
-
-### `numa_app/workflows/recipe_edit.py` — edit recipe workflow (~355 lines)
-
-Contains `_do_recipe_edit()` (menu option 4 "Edit recipe"). Supports back-navigation through metadata fields (name → description → servings → total volume → total weight → procedure), ingredient-level editing (amount, unit, food name, notes), ingredient replacement via USDA search, reordering, and deletion. Calls `recipe_dcp.recompute_recipe_dcp()` after any metadata or ingredient change.
-
-### `numa_app/workflows/foods.py` — Foods menu (~365 lines)
-
-Contains the Foods menu dispatch and the search/analyze/convert/cached-food-viewer handlers. Imports `_do_edit_cached_food` and `_do_drafted_foods_menu` from `drafted_foods.py`.
-
-### `numa_app/workflows/drafted_foods.py` — cache editing and drafted profiles (~620 lines)
-
-`_do_edit_cached_food(fdc_id, cached)` edits any cached food (USDA, OFF, or user-drafted): name, serving metadata, all nutrients (pre-filled from existing values), and a note. After saving, marks the entry `user_drafted=True` so automatic AA re-fetches will not overwrite the changes. Preserves original USDA portion data. Auto-detects supplement mode (single portion with `gram_weight=100`); for user-drafted foods not yet in supplement mode, asks at the start of the edit session whether to convert. Before writing, shows an s/d/m (Save changes / Discard / Discard and return to main menu) confirmation — the same pattern `_do_create_drafted_food` already used, added here for parity since this function batches many field edits in memory before one `update_cached_food_profile()` write.
-
-`_prompt_nutrients(existing, unit_label, note_out=None)` interactively prompts for all nutrient values per 100g (or per tablet/capsule/etc. when `unit_label` is set). Walks through five optional sections: basic macros (always), minerals, vitamins, amino acids (four modes: one-by-one, bulk import, copy/estimate from another food, or skip), and phytonutrients. For vitamins A, D, and E, IU input is accepted and auto-converted to the program's native mcg/mg units. In supplement mode, the intro explains the label-entry convention so naive users are not confused by the "per 100g" framing. The "copy/estimate" AA mode calls `_search_and_pick_food()` to pick a source food, then `numa_app.services.aa_estimate.estimate_aa()` to scale that food's amino acids onto the food being edited (see below); when `note_out` (a caller-supplied dict) is given, a source citation is written to `note_out["suggested"]` so the caller's subsequent Note prompt can default to it instead of the food's prior note.
-
-`_bulk_import_aa(protein_g)` accepts amino acid values as `name: value` pairs (full name, 3-letter, or 1-letter codes). If `protein_g` is provided, converts from g/100g-protein to g/100g-food automatically. Classifies each entry as stored, non-essential (skipped with note), or unrecognized (warning).
-
-`_do_drafted_foods_menu()` / `_do_create_drafted_food()` — drafted-profile management. The menu offers five options: List, Create, Edit, Delete, and Copy. Create supports starting from a USDA food (pre-fills all values) or from scratch, and includes a supplement/unit-based mode question. Edit calls `_do_edit_cached_food()` directly, which handles supplement detection and the conversion question. Drafted profiles are saved with small negative `fdc_id` values (−1, −2, …) and `user_drafted=True`.
-
-**`numa_app/services/aa_estimate.py` — AA copy/estimate (CLI + web):** manually typing or pasting a food's amino acid profile is slow, and copying another food's raw AA grams verbatim silently misestimates whenever the two foods' protein density differs (a food with 2× the protein would otherwise look 2× more complete than it really is). `estimate_aa(target_nutrients, source_nutrients) -> (updated, factor, error)` scales every `usda.ALL_AMINO_ACIDS` key present in `source_nutrients` by `target_protein_g / source_protein_g` before writing it onto a copy of `target_nutrients`; returns an `error` string instead if the source lacks amino acid data (`usda.has_amino_acid_data()`) or either food has no usable `protein_g`. `source_note(name, fdc_id, factor)` renders the "AA data estimated by scaling from X (#id), factor N.NNx, DATE" string used to auto-suggest a Note. `usda.ALL_AMINO_ACIDS` (in `usda_api.py`, re-exported via `usda.py`) is `ESSENTIAL_AMINO_ACIDS` plus `aa_cystine_g`/`aa_tyrosine_g` — the full trackable AA set, as distinct from the 9-key essential set used for completeness scoring. CLI entry point: a third choice ("copy/estimate from another food") in `drafted_foods.py`'s `_prompt_nutrients()` amino-acid section, available everywhere that function is called (create/copy/edit). Web entry point: an inline picker on `food_custom_edit.html` (search your Food Cache, "Use as source" button) posting to `POST /food/custom-profiles/{fdc_id}/copy-aa` (`web/backend.py`), which fetches-and-caches the source if it isn't cached yet, applies the same `estimate_aa()`, and redirects back with an `aa_applied` status flag.
-
-### `numa_app/workflows/settings.py` — settings menu, profile, and RDA
-
-`_menu_settings()` renders the settings menu (Color theme, User profile, Dietary preferences, Editor command, Display program settings at launch, Advanced settings, and more). Each item shows its current status inline. The Advanced settings item opens `_menu_advanced_settings()`, which holds Protein digestibility overrides, USDA API key, Storage location (display only), and Search result depth (`usda.get_search_boost_page_size()` / `set_search_boost_page_size()` — see `search_foods()` below).
-
-`_get_editor_command()` / `_do_editor_command()` — let the user set a preferred editor command (e.g. `nano`, `vim`, `code --wait`). Blank means use `$VISUAL`/`$EDITOR`. Enter `-` to clear back to system default.
-
-`_do_launch_display_setting()` — toggles whether the startup banner (profile, theme, dietary status) is shown on launch. Default is off (`n`). Setting is stored in `prefs.json`; `run_app()` checks it before calling `print_startup_banner()`.
-
-`_do_user_profile()` collects age, sex, weight (accepts kg or lb), height (accepts cm or feet+inches), and activity level. Existing values are shown and kept on empty input. On save, prints the computed calorie and protein targets.
-
-`_do_dietary_prefs()` presents a three-option menu (all animal foods / vegetarian / plant-based only), saves the chosen value to `prefs.json`, and updates `state._diet_pref` immediately. Label strings for all three values are defined in `_DIET_LABELS` (in `prefs.py`) and imported by both `settings.py` and `main.py`.
-
-`_do_diaas_overrides()` manages the `diaas_overrides` table: list, add/update, delete. Shows the current numa-calculated value before prompting for the override. Uses `table_title()` and `dot_cell()` from `ui.common` for consistent table styling.
+**`numa_app/services/aa_estimate.py` — AA copy/estimate:** manually typing or pasting a food's amino acid profile is slow, and copying another food's raw AA grams verbatim silently misestimates whenever the two foods' protein density differs (a food with 2× the protein would otherwise look 2× more complete than it really is). `estimate_aa(target_nutrients, source_nutrients) -> (updated, factor, error)` scales every `usda.ALL_AMINO_ACIDS` key present in `source_nutrients` by `target_protein_g / source_protein_g` before writing it onto a copy of `target_nutrients`; returns an `error` string instead if the source lacks amino acid data (`usda.has_amino_acid_data()`) or either food has no usable `protein_g`. `source_note(name, fdc_id, factor)` renders the "AA data estimated by scaling from X (#id), factor N.NNx, DATE" string used to auto-suggest a Note. `usda.ALL_AMINO_ACIDS` (in `usda_api.py`, re-exported via `usda.py`) is `ESSENTIAL_AMINO_ACIDS` plus `aa_cystine_g`/`aa_tyrosine_g` — the full trackable AA set, as distinct from the 9-key essential set used for completeness scoring. Entry point: an inline picker on `food_custom_edit.html` (search your Food Cache, "Use as source" button) posting to `POST /food/custom-profiles/{fdc_id}/copy-aa` (`web/backend.py`), which fetches-and-caches the source if it isn't cached yet, applies `estimate_aa()`, and redirects back with an `aa_applied` status flag.
 
 ### `db.py` — SQLite database
 
 All persistence goes through a `get_db()` context manager that commits on clean exit and rolls back on exception. The database path is `~/.local/share/numa/numa.db`.
 
-**Schema migrations run from two independent entry points**: `numa_app/main.py`'s `initialize_app()` calls `_db.init_db()` for the CLI, and `web/backend.py`'s FastAPI `lifespan` handler (`_lifespan()`, wraps `app = FastAPI(..., lifespan=_lifespan)`) calls it again on web server startup. This is deliberate — the web server (`web/launcher.py`) is a **separate OS process** from the CLI, spawned via `subprocess.Popen` from `numa_app/main.py:_launch_web()`, and must not assume the CLI has run `init_db()` first. Before this was added, restarting only the web server (without a full CLI restart) against a database that predated a new migration would 500 with `sqlite3.OperationalError: no such column: ...` on any query touching the new column. `init_db()` is idempotent (every migration step is a guarded `ALTER TABLE ... ADD COLUMN` or `CREATE TABLE IF NOT EXISTS`), so calling it twice — once from the CLI, once from the web server — is safe and cheap.
+**Schema migrations run automatically at startup**: `web/backend.py`'s FastAPI `lifespan` handler (`_lifespan()`, wraps `app = FastAPI(..., lifespan=_lifespan)`) calls `_db.init_db()` on web server startup, so the app is self-sufficient against a brand-new or un-migrated database (see `tests/test_web.py::test_web_app_self_migrates_without_cli`, a regression test from when a second process used to be relied on for this). `init_db()` is idempotent (every migration step is a guarded `ALTER TABLE ... ADD COLUMN` or `CREATE TABLE IF NOT EXISTS`), so it's always safe and cheap to call.
 
 **Schema:**
 
@@ -899,7 +639,7 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 
 `recipes.total_volume` / `recipes.total_volume_unit` and `recipes.total_weight` / `recipes.total_weight_unit` store the user-entered batch size (e.g. 4.0 / "cups", 800.0 / "g"). Both pairs are nullable — either or both may be omitted. Added via `ALTER TABLE` migration so existing databases are upgraded automatically on first run.
 
-`recipes.dcp_g` stores the digestible complete protein **per serving**, kept in sync automatically: `numa_app/services/recipe_dcp.py`'s `recompute_recipe_dcp()` recomputes and persists it after any recipe or ingredient edit in both the CLI (`recipe_edit.py`, `recipes.py` develop flow) and web app (`web/backend.py` recipe/ingredient POST routes), and `db.py`'s mutating recipe functions (`recipe_update`, `recipe_add/update/remove_ingredient`) clear it to `NULL` as a fallback in case some caller doesn't. It is `NULL` (shown as `NC` — not computed) when servings is 0, no ingredient has weight, or a *significant* protein-contributing ingredient (≥1 g protein) is missing amino acid data; a best-guess/approximate value is never persisted. Minor protein contributors missing amino acid data (<1 g protein — spices, oil, salt, a trace of chocolate) are excluded from the calculation rather than blocking it, regardless of how large a share of the recipe's (possibly small) total protein that 1 g represents — the gram floor is absolute, not relative to the recipe. The web app's "Compute DCP for all complete recipes" button (`/recipes/compute-bcp`) also calls this same function across every recipe, regardless of its `complete` flag.
+`recipes.dcp_g` stores the digestible complete protein **per serving**, kept in sync automatically: `numa_app/services/recipe_dcp.py`'s `recompute_recipe_dcp()` recomputes and persists it after any recipe or ingredient edit (`web/backend.py` recipe/ingredient POST routes), and `db.py`'s mutating recipe functions (`recipe_update`, `recipe_add/update/remove_ingredient`) clear it to `NULL` as a fallback in case some caller doesn't. It is `NULL` (shown as `NC` — not computed) when servings is 0, no ingredient has weight, or a *significant* protein-contributing ingredient (≥1 g protein) is missing amino acid data; a best-guess/approximate value is never persisted. Minor protein contributors missing amino acid data (<1 g protein — spices, oil, salt, a trace of chocolate) are excluded from the calculation rather than blocking it, regardless of how large a share of the recipe's (possibly small) total protein that 1 g represents — the gram floor is absolute, not relative to the recipe. The web app's "Compute DCP for all complete recipes" button (`/recipes/compute-bcp`) also calls this same function across every recipe, regardless of its `complete` flag.
 
 `recipes.last_accessed_at` stores the ISO 8601 UTC timestamp of the last time the recipe was opened via any workflow action (view/edit/develop/analyze/copy). It is `NULL` for recipes that have never been accessed. Added via `ALTER TABLE` migration. Used by `recipe_list_recent()` to order the Browse view; falls back to `created_at` for recipes with no access timestamp.
 
@@ -918,11 +658,11 @@ All nutrient data is stored as a JSON blob in `foods.nutrients_json`, keyed by t
 
 - `list_cached_foods`, `search_cached_foods`, `pantry_list`, `recipe_list`, `recipe_list_recent` all take `include_archived: bool = False` — the default excludes archived rows, so every existing caller (including all of `web/backend.py`) got this filtering automatically without change.
 - Single-row lookups (`get_cached_food`, `expand_recipe_ingredients` in `recipe_nutrients.py`) are never filtered — an archived food/recipe still resolves correctly wherever it's already referenced (an existing recipe ingredient, a logged meal item).
-- `set_food_archived` / `set_pantry_archived` / `set_recipe_archived` flip the flag; the CLI commands that call them (`x#` in Food Cache, `x`+ID in Pantry, `y{id}` in Recipes Browse) reuse the current-state check as a toggle, so one command handles both archive and restore.
+- `set_food_archived` / `set_pantry_archived` / `set_recipe_archived` flip the flag; callers reuse the current-state check as a toggle, so one route handles both archive and restore.
 - `food_references(conn, fdc_id)` / `recipe_references(conn, recipe_id)` return reference counts (pantry/recipes/meals) so the UI can warn — but not block — before archiving something still in active use.
 - `list_unused_cached_foods` / `prune_unused_cached_foods` always exclude archived rows: archiving is meant to protect data from being lost, so an archived-but-unreferenced food is never swept up by `u` (prune unused).
 - Per-list "show archived" visibility is a session/persisted preference, not a query default — `numa_app/state.py`'s `AppContext.list_filters` dict (`get_list_filter`/`set_list_filter`) mirrors the existing `sort_prefs` pattern exactly, and `numa_app/config/prefs.py` persists it (`show_archived_food_cache`/`show_archived_pantry`/`show_archived_recipes` keys in `prefs.json`) the same way sort choices are persisted. Any future per-list view-state toggle should follow this same two-layer (state.py get/set + config/prefs.py persisted wrapper) pattern.
-- **Web app parity**: `web/backend.py`'s `/food/cache`, `/pantry`, and `/recipes` GET routes accept a `show_archived` query param resolved via `_resolve_bool_pref()` (mirrors `_resolve_sort()`), and each has a `POST .../{{id}}/archive` route that flips the flag and redirects with `?archived=1`/`?restored=1` (plus `&still_used=1` when the item was still referenced) for a flash-banner message. Crucially, `_resolve_bool_pref` reads/writes the **same** `prefs.json` keys as the CLI's `numa_app/config/prefs.py`, so the "show archived" choice is shared between the CLI and the web app automatically. Unlike the CLI's interactive y/n confirmation before archiving something still referenced, the web flow archives immediately (one click, no JS-driven confirm dialog) and surfaces the "still referenced" warning as a post-action flash message instead of a pre-action prompt — same warn-but-never-block policy, simpler implementation given the app's plain-HTML-forms architecture (no fetch/AJAX anywhere in `web/`).
+- `web/backend.py`'s `/food/cache`, `/pantry`, and `/recipes` GET routes accept a `show_archived` query param resolved via `_resolve_bool_pref()` (mirrors `_resolve_sort()`), and each has a `POST .../{{id}}/archive` route that flips the flag and redirects with `?archived=1`/`?restored=1` (plus `&still_used=1` when the item was still referenced) for a flash-banner message. The web flow archives immediately (one click, no JS-driven confirm dialog) and surfaces the "still referenced" warning as a post-action flash message instead of a pre-action prompt — a warn-but-never-block policy, matching the app's plain-HTML-forms architecture (no fetch/AJAX anywhere in `web/`).
 
 ### `usda_api.py` — USDA HTTP client (~290 lines)
 
@@ -941,7 +681,7 @@ All nutrient data is stored as a JSON blob in `foods.nutrients_json`, keyed by t
 
 `_parse_food()` normalizes USDA API responses — the API returns nutrients in three different formats depending on the endpoint (`nutrientId`, `nutrient.id`, or `number`), and `_parse_food` handles all three.
 
-`search_foods(query, page_size, data_types)`: `page_size=0` means no cap — it requests `_USDA_MAX_PAGE_SIZE` (200, USDA's own per-request ceiling) and returns every filtered match, skipping the normal `[:page_size]` truncation. For any unrestricted (`data_types=None`) search, USDA's own relevance ranking can bury plain/raw foods — the ones most likely to carry amino-acid data — well below branded or prepared-dish matches (e.g. "Potatoes, flesh and skin, raw" ranks ~20th for the query "potato", behind "Bread, potato" and several potato-chip variants). Every caller that does an unrestricted search (the Foods search page, the meal add-food panel, and CLI search in `numa_app/services/search.py`, two call sites) works around this with a second, explicit `data_types=["Foundation", "SR Legacy"]` pass merged in ahead of the general results; that pass's `page_size` is `get_search_boost_page_size()`, user-configurable via **Settings → Advanced settings → Search result depth** (CLI) or the Settings page's USDA API Key panel (web), `0` meaning no cap.
+`search_foods(query, page_size, data_types)`: `page_size=0` means no cap — it requests `_USDA_MAX_PAGE_SIZE` (200, USDA's own per-request ceiling) and returns every filtered match, skipping the normal `[:page_size]` truncation. For any unrestricted (`data_types=None`) search, USDA's own relevance ranking can bury plain/raw foods — the ones most likely to carry amino-acid data — well below branded or prepared-dish matches (e.g. "Potatoes, flesh and skin, raw" ranks ~20th for the query "potato", behind "Bread, potato" and several potato-chip variants). Every caller that does an unrestricted search (the Foods search page, the meal add-food panel, and a recipe's ingredient search) works around this with a second, explicit `data_types=["Foundation", "SR Legacy"]` pass merged in ahead of the general results; that pass's `page_size` is `get_search_boost_page_size()`, user-configurable via the Settings page's USDA API Key panel, `0` meaning no cap.
 
 `_SEARCH_ALIASES` is a small static list of foods that the USDA search index fails to surface reliably (e.g., flaxseed, chia, hemp seed, oats). These are injected into every search result that matches the alias keywords.
 
@@ -957,7 +697,7 @@ Imports `NUTRIENT_MAP`, `ESSENTIAL_AMINO_ACIDS`, and `AA_REFERENCE_MG_PER_G_PROT
 | `sum_nutrients(*dicts)` | Add any number of nutrient dicts together |
 | `protein_completeness(nutrients)` | Assess essential amino acid completeness vs. FAO/WHO reference. Requires 5+ AAs with **non-zero** values; zero-keyed AA entries (common in branded USDA foods) are ignored. |
 | `get_aa_gaps(nutrients, digestibility=1.0)` | Return `(aa_key, score, deficit_g)` for each essential AA with digestibility-adjusted score below 0.95, sorted most-limiting first. The 0.95 threshold filters out near-adequate AAs (e.g. score 0.994) that would otherwise generate impractically small complement amounts. |
-| `suggest_complements(base_nutrients, pantry_candidates, diet_pref="all", cache_candidates=None)` | Compute minimum-gram complement suggestions from pantry, the broader food cache, and the curated table; returns `{"pantry": [...], "general": [...]}`. `diet_pref` controls which curated-table entries are eligible: `"all"` includes everything, `"vegetarian"` includes only plant and dairy/egg entries (those flagged `dairy_egg=True` in `_COMPLEMENT_TABLE`), `"plant_only"` excludes all animal entries. The curated table holds protein + nine essential AAs per 100g for ~30 common protein sources; used only for complement scoring and AA gap augmentation — not for general food search. Any real candidate (pantry, recipe, or `cache_candidates` — real foods matched by name to a curated entry, built by callers via `complement_table_names()` + `db.search_cached_foods()`) that has real macros but no amino acid panel of its own is auto-estimated by scaling the matching curated entry's AA profile to its own protein content, rather than being silently dropped; result dicts carry `"estimated": True` when this happened. The `general` tier prefers a `cache_candidates` match's real data/fdc_id over the curated entry's own generic profile when one is found. See `numa_app/services/complements.py::load_cache_candidates()` and the manual's "Amino acid estimates in complement suggestions" section for the CLI/web-facing side of this. |
+| `suggest_complements(base_nutrients, pantry_candidates, diet_pref="all", cache_candidates=None, exclude_names=None)` | Compute minimum-gram complement suggestions from pantry, the broader food cache, and the curated table; returns `{"pantry": [...], "general": [...]}`. `diet_pref` controls which curated-table entries are eligible: `"all"` includes everything, `"vegetarian"` includes only plant and dairy/egg entries (those flagged `dairy_egg=True` in `_COMPLEMENT_TABLE`), `"plant_only"` excludes all animal entries. The curated table holds protein + nine essential AAs per 100g for ~30 common protein sources; used only for complement scoring and AA gap augmentation — not for general food search. Any real candidate (pantry, recipe, or `cache_candidates` — real foods matched by name to a curated entry, built by callers via `complement_table_names()` + `db.search_cached_foods()`) that has real macros but no amino acid panel of its own is auto-estimated by scaling the matching curated entry's AA profile to its own protein content, rather than being silently dropped; result dicts carry `"estimated": True` when this happened. The `general` tier prefers a `cache_candidates` match's real data/fdc_id over the curated entry's own generic profile when one is found. `exclude_names` (case-insensitive) omits given suggestion names entirely from every tier — pantry, general, pairs, and diaas_improvers all derive from the same two filtered candidate pools — used by the web app's per-suggestion "ignore" checkboxes on `/food/{id}`, `/meal/{id}`, `/recipe/{id}`; threaded through `numa_app/services/complements.py::build_complement_display()`. Each route takes two repeated query params: `ignore_complements` (every currently-ignored name — both hidden inputs carrying forward prior ignores and any newly checked suggestion-card boxes) and `unignore` (names checked in the "manage ignored foods" panel to restore); `backend.py::_effective_ignored()` computes the final exclude set as `ignore_complements - unignore` before passing it to `exclude_names`, and re-renders the same effective set into the next page's hidden inputs so ignores accumulate across repeated recalculations instead of being overwritten. See `numa_app/services/complements.py::load_cache_candidates()` and the manual's "Amino acid estimates in complement suggestions" section for the user-facing side of this. |
 | `nutrient_label(key)` | Reverse-lookup display name and unit for any nutrient key |
 | `get_diaas(food_name)` | Return DIAAS protein digestibility score for a food (keyword lookup) |
 | `get_antinutrient_flags(food_name)` | Return consolidated anti-nutrient flags as a list of `{"problem": str, "cause": str, "solutions": [(label, description), ...]}` dicts. Entries sharing the same group are merged into one flag with multiple solutions. |
@@ -1016,15 +756,15 @@ Profile is saved to and loaded from `~/.config/numa/profile.json`.
 
 The `use_oxalate_data: bool = False` field enables Harvard oxalate data lookup (see below). It is opt-in and defaults to False for all new and existing profiles.
 
-**Profile Optimal targets and custom max limits** (`optimal_targets: dict`, `max_limits: dict` fields, both `nutrient_key -> float`, native unit): user-configured overrides layered on top of the standard RDA. `compute_optimal(profile)` returns only the nutrients present in `optimal_targets`, in the same `(value, unit, "target")` shape as `compute_rda` — absent nutrients are simply not in the dict, so callers can distinguish "not customized" from "customized to zero". `get_max_limits(profile)` returns a copy of `max_limits`. Both are edited via Settings → Nutrient targets (CLI) / Settings → 7. Nutrient Targets (web) and persist through the same `save_profile`/`load_profile` JSON round-trip as the rest of the profile — `load_profile()` explicitly reconstructs `UserProfile` field-by-field, so any new dataclass field must be added there too or it will silently fail to reload despite being written correctly by `save_profile`.
+**Profile Optimal targets and custom max limits** (`optimal_targets: dict`, `max_limits: dict` fields, both `nutrient_key -> float`, native unit): user-configured overrides layered on top of the standard RDA. `compute_optimal(profile)` returns only the nutrients present in `optimal_targets`, in the same `(value, unit, "target")` shape as `compute_rda` — absent nutrients are simply not in the dict, so callers can distinguish "not customized" from "customized to zero". `get_max_limits(profile)` returns a copy of `max_limits`. Both are edited via Settings → 7. Nutrient Targets and persist through the same `save_profile`/`load_profile` JSON round-trip as the rest of the profile — `load_profile()` explicitly reconstructs `UserProfile` field-by-field, so any new dataclass field must be added there too or it will silently fail to reload despite being written correctly by `save_profile`.
 
-`numa_app/services/rda_status.py`'s `limit_warning(day_total, limit)` returns `True` once a day's total reaches 90% of a configured max limit (or exceeds it) — independent of `rda_status`'s built-in `"limit"` tier for nutrients like sodium that already have a Tolerable Upper Intake Level baked into `compute_rda`. `_print_nutrient_table` (CLI) and `_nutrient_sections` (web) both accept optional `optimal`/`max_limits` dicts: when `optimal` is non-empty, a second "Profile Optimal" triplet of columns (meal %, day total %, goal) is added next to the RDA triplet, with nutrients lacking a configured optimal shown as a dash rather than falling back to RDA; when a nutrient's day total triggers `limit_warning`, its row is colored warning/error.
+`numa_app/services/rda_status.py`'s `limit_warning(day_total, limit)` returns `True` once a day's total reaches 90% of a configured max limit (or exceeds it) — independent of `rda_status`'s built-in `"limit"` tier for nutrients like sodium that already have a Tolerable Upper Intake Level baked into `compute_rda`. `_nutrient_sections` (in `web/backend.py`) accepts optional `optimal`/`max_limits` dicts: when `optimal` is non-empty, a second "Profile Optimal" triplet of columns (meal %, day total %, goal) is added next to the RDA triplet, with nutrients lacking a configured optimal shown as a dash rather than falling back to RDA; when a nutrient's day total triggers `limit_warning`, its row is colored warning/error.
 
 **`numa_app/services/day_profile.py` — per-day profile pinning:** since a user can maintain several named profiles and switch the active one over time (illness, travel, weight change), any RDA/DCP comparison for a *specific logged date* must never resolve the profile via a bare `profile.load_profile()` — that always returns whichever profile is active *right now*, which is wrong for a past date. This module is the required entry point for any date-scoped profile lookup:
 
 - `get_profile_for_date(conn, meal_date)` — returns the `UserProfile` pinned to `meal_date`, pinning it first (to the currently-active profile) if it has none yet.
-- `ensure_day_profile(conn, meal_date)` — pins `meal_date` if unpinned; no-op otherwise. Called once from every `db.meal_create(...)` call site (CLI `numa_app/workflows/meals.py`, web `web/backend.py`) so a day is pinned the first time a meal is saved for it.
-- `backfill_missing_day_profiles(conn)` — pins every currently-logged date that predates this feature (or was otherwise never pinned) to today's active profile. Called once at startup (CLI `numa_app/main.py` `initialize_app()`, web `web/backend.py`'s FastAPI lifespan handler) so existing data doesn't require the user to touch a day for it to get a profile.
+- `ensure_day_profile(conn, meal_date)` — pins `meal_date` if unpinned; no-op otherwise. Called once from every `db.meal_create(...)` call site (`web/backend.py`) so a day is pinned the first time a meal is saved for it.
+- `backfill_missing_day_profiles(conn)` — pins every currently-logged date that predates this feature (or was otherwise never pinned) to today's active profile. Called once at startup (`web/backend.py`'s FastAPI lifespan handler) so existing data doesn't require the user to touch a day for it to get a profile.
 - `set_day_profile_override(conn, meal_date, profile_name)` — manually reassigns `meal_date` to a specific saved profile (for when illness/travel didn't line up with the calendar day) and flags the day `overridden`.
 - `protein_target_for_date(conn, meal_date, diet_pref)` — the daily protein RDA target from the date's pinned profile; used wherever `day_pct_goal` (Meals & Log's "% profile goal" column) is recomputed.
 
@@ -1114,7 +854,7 @@ The script deletes and recreates `oxalate.db` from scratch. Run this after editi
 
 ## Web Interface
 
-A local FastAPI web app that exposes the same data and analysis as the CLI. All routes are in `web/backend.py`; templates live in `web/templates/`. The app is launched separately from the CLI (see Running the Program). It shares the same SQLite database and config files as the CLI.
+A local FastAPI web app. All routes are in `web/backend.py`; templates live in `web/templates/`. See Running the Program for how to launch it.
 
 ### Starting the web app
 
@@ -1295,7 +1035,7 @@ Full meal view and edit page. Sections (all collapsible with `<details>`):
 - **Add Food or Recipe**: food search form + results table; foods add by gram weight, recipes add by serving count
 - **Items**: table with food name link, amount, notes, per-item Edit (inline collapsible form for amount + notes) and Remove buttons
 - **Merge meals**: shown when other meals exist on the same date; checkboxes to select which meals to merge, name input, delete-originals option
-- **Protein Quality (DIAAS)**: meal-level DIAAS score, total protein, digestible complete protein, limiting amino acid, per-AA ratio table. When DCP is capped (see [DCP cap](user-manual.html#dcp-cap)), the derivation line shows the uncapped projection and the capped result instead of a plain `raw protein × DIAAS` equation — matching the CLI's `dcp_was_capped` explanation (`_build_diaas_display()` in `web/backend.py`).
+- **Protein Quality (DIAAS)**: meal-level DIAAS score, total protein, digestible complete protein, limiting amino acid, per-AA ratio table. When DCP is capped (see [DCP cap](user-manual.html#dcp-cap)), the derivation line shows the uncapped projection and the capped result instead of a plain `raw protein × DIAAS` equation (`dcp_was_capped`, via `_build_diaas_display()` in `web/backend.py`).
 - **Total Nutrients**: grouped nutrient table with RDA % colour-coded by target type
 
 #### `meal_day.html`
@@ -1343,7 +1083,7 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 | `~/.local/share/numa/numa.db` | SQLite database (foods cache, recipes, meals, pantry, DIAAS overrides) |
 | `~/.config/numa/config.json` | USDA API key, search result depth (`search_boost_page_size`) |
 | `~/.config/numa/theme` | Saved color theme preference |
-| `~/.local/share/numa/prefs.json` | Dietary preferences (`diet_pref`), editor command, and remembered list-sort choices (`sort_recipes`, `sort_food_cache`, `sort_meals`) — shared by the CLI and web app |
+| `~/.local/share/numa/prefs.json` | Dietary preferences (`diet_pref`), editor command, and remembered list-sort choices (`sort_recipes`, `sort_food_cache`, `sort_meals`) |
 | `~/.config/numa/profile.json` | User profile (age, sex, weight, height, activity level) |
 | `~/.numa/reports/` | Auto-saved nutrition reports (Markdown) — one file per analysis |
 | `~/.numa/user-requested-nutrition-reports/` | User-exported reports (txt, md, or html) |
@@ -1352,20 +1092,19 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 
 ## Test Suite
 
-The test suite has been rebuilt for the refactored `numa_app/` package structure. **436 tests**, all passing.
+**462 tests**, all passing (as of the CLI removal, 2026-08-04 — `test_cli.py` and its ~144 CLI-only tests were deleted along with the CLI).
 
 Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `pythonpath = .`).
 
-> **Note:** `pytest` and `httpx` are not in `requirements.txt` (which lists only runtime dependencies). Install separately: `pip install pytest httpx`. `httpx` is only needed for `tests/test_web.py` (FastAPI's `TestClient` requires it).
+> **Note:** `pytest` and `httpx` are dev/test-only dependencies, listed in `requirements.txt` alongside the runtime ones. `httpx` is needed for `tests/test_web.py` (FastAPI's `TestClient` requires it).
 
 | File | What it tests |
 |---|---|
-| `tests/conftest.py` | Shared fixtures, sample data constants, and `NumaTestRunner` |
+| `tests/conftest.py` | Shared fixtures and sample data constants |
 | `tests/test_db.py` | Schema creation, all CRUD helpers, cascade deletes, rollback on exception |
 | `tests/test_usda.py` | `scale_nutrients`, `sum_nutrients`, `_parse_food`, `protein_completeness`, `nutrient_label`, `get_diaas`, `get_antinutrient_flags`, `suggest_complements`, `get_density_g_per_ml` |
 | `tests/test_diaas.py` | `get_digestibility` (all tiers), `meal_level_diaas` (edge cases, complementarity, pairing, gap flags), DIAAS override CRUD |
 | `tests/test_profile.py` | `load_profile`, `save_profile`, `bmr`, `compute_rda` (sex/age/activity variants), `compute_optimal`, `get_max_limits`, unit conversion helpers |
-| `tests/test_cli.py` | All menus end-to-end; USDA API mocked; dietary prefs toggle; Foods item 3 (recipe portion analysis); profile settings and RDA comparison |
 | `tests/test_web.py` | FastAPI `TestClient` tests: every parameter-free page render, food search/detail, and all mutating POST workflows — pantry, meals (create/add/complete/delete/rename/merge/refresh-aa/add-recipe), recipes (new/edit/delete/copy/ingredient add-edit-move), custom profiles, settings (profile/DIAAS-override), food-cache delete/prune, annotate, and compare (add/add-multiple/remove/amounts/save/load/rename/delete) |
 | `tests/test_complements.py` | `numa_app/services/complements.py`: `aa_effects()` digestibility rescaling, `two_step_combo()`, `build_complement_display()` gap detection |
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
@@ -1376,17 +1115,15 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 
 ### Test infrastructure
 
-**`NumaTestRunner`** (in `conftest.py`) replaces the old `typer.testing.CliRunner`. It calls `run_app()` directly, replacing `sys.stdin` with `io.StringIO(input)` and redirecting the rich `Console` to a buffer. When `sys.stdin` is not a tty, `_prompt()` falls back to `rich.prompt.Prompt.ask()`, which calls `input()` — reading from the injected `StringIO`. This captures all interactive I/O without requiring a real terminal.
-
 **Autouse fixtures** keep each test hermetic:
 
 | Fixture | Effect |
 |---|---|
 | `use_test_db` | Redirects `_db._DB_PATH` to a per-test temp file; schema initialized fresh |
 | `use_test_profile` | Redirects `profile._PROFILE_FILE` to a per-test temp path |
-| `use_test_prefs` | Pre-populates a temp prefs file and patches both `prefs._PREFS_FILE` and `main._PREFS_FILE` so the first-run animal foods prompt is never shown |
-| `no_export` | Stubs `_offer_export` to a no-op; tests don't write real files and don't need extra input lines to decline the export prompt |
 | `no_off` | Stubs `openfoodfacts.search_foods` to return `[]`; prevents network hits and stops OFF results from affecting search ordering or output in any test |
+
+`tests/test_web.py` additionally has its own `use_test_web_prefs` fixture (redirects `web/backend.py`'s own `_PREFS_FILE` constant) and a `client` fixture (FastAPI `TestClient`).
 
 ### Bugs found during test restoration
 
