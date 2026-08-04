@@ -20,9 +20,11 @@
 <div class="card mb-3" style="max-width:36rem">
   <div class="card-body">
     <h5 class="card-title">Create a new profile</h5>
+    <p class="muted mb-2" style="font-size:0.85rem"><span class="text-danger">*</span> required field</p>
     <form method="post" action="/food/custom-profiles/create">
+      <label for="new-profile-name" class="form-label mb-1">Food name <span class="text-danger">*</span></label>
       <div class="input-group">
-        <input type="text" class="form-control" name="name"
+        <input type="text" class="form-control" id="new-profile-name" name="name"
                placeholder="Food name" required>
         <button type="submit" class="btn btn-primary">Create profile</button>
       </div>

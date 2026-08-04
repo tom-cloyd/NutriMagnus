@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_add_food_row.html" as _sr %}
+{% import "_source_filter_select.html" as _srcf %}
 {% block title %}NutriMagnus — {{ meal.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -127,13 +128,14 @@
     <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Rename / change date</summary>
     <div class="card card-body mt-1 p-2" style="min-width:22rem;position:absolute;z-index:10">
       <form method="post" action="/meal/{{ meal.id }}/rename">
+        <p class="muted mb-2" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
         <div class="mb-2">
-          <label class="form-label form-label-sm mb-1">Meal name</label>
+          <label class="form-label form-label-sm mb-1">Meal name <span class="text-danger">*</span></label>
           <input type="text" name="name" class="form-control form-control-sm"
                  value="{{ meal.name }}" required>
         </div>
         <div class="mb-2">
-          <label class="form-label form-label-sm mb-1">Date</label>
+          <label class="form-label form-label-sm mb-1">Date <span class="text-danger">*</span></label>
           <input type="date" name="meal_date" class="form-control form-control-sm"
                  value="{{ meal.meal_date }}" required>
         </div>
@@ -165,7 +167,7 @@
   </form>
 
   {% if q %}
-  <form method="get" action="/meal/{{ meal.id }}" class="d-flex gap-2 align-items-center mb-2">
+  <form method="get" action="/meal/{{ meal.id }}" class="d-flex flex-wrap gap-2 align-items-center mb-2">
     <input type="hidden" name="q" value="{{ q }}">
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
@@ -173,6 +175,7 @@
       <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
+    {{ _srcf.select(source, source_filters, source_labels) }}
   </form>
   {# A checkbox's own <tr> sits inside the results table below, which also
      contains each row's independent "Add to meal" <form> — HTML forms can't
@@ -181,6 +184,7 @@
   <form method="post" action="/meal/{{ meal.id }}/confirm-aa" id="confirm-aa-form">
     <input type="hidden" name="q" value="{{ q }}">
     <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="source" value="{{ source }}">
     <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
       <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
         Fetch full details for selected
@@ -231,6 +235,11 @@
       var boxes = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'));
       confirmPanel.style.display = boxes.length ? '' : 'none';
       if (submitBtn) submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
+      // The header "select all" checkbox has nothing to select — and nothing
+      // to visually pair with — when no row has its own checkbox. Left
+      // visible, it reads as a stray, misplaced first-row checkbox sitting
+      // on the column-header line instead. Hide the whole header cell then.
+      if (selectAll) selectAll.closest('th').style.visibility = boxes.length ? '' : 'hidden';
     }
     tbody.addEventListener('change', function (e) {
       if (e.target.matches('[data-confirm-aa-checkbox]')) refreshConfirmUI();
@@ -244,10 +253,16 @@
     }
     refreshConfirmUI();
 
-    var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}});
+    var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}, source: {{ source | tojson }}});
     fetch('/meal/{{ meal.id }}/search-api-results?' + params.toString())
       .then(function (r) { return r.text(); })
       .then(function (html) {
+        // Was focus still on a field from the initial (pre-fetch) render?
+        // If so, the innerHTML replace below is about to destroy it, so
+        // restore focus to the new first result afterward. If the user has
+        // since clicked/tabbed elsewhere (or off the page), leave it alone.
+        var hadRowFocus = tbody.contains(document.activeElement);
+
         // Server response is the FULL merged+re-sorted result set (local +
         // external), not just new rows — replace, don't append, so a weak
         // local match can't stay pinned above a better external one.
@@ -259,6 +274,10 @@
           noResults.style.display = '';
         }
         refreshConfirmUI();
+        if (hadRowFocus) {
+          var inp = tbody.querySelector('input[name="portion_str"], input[name="servings"]');
+          if (inp) inp.focus();
+        }
       })
       .catch(function () {
         loadingRow.querySelector('small').textContent = 'Search failed — reload to retry.';
@@ -323,6 +342,7 @@
 {# ── Items list ───────────────────────────────────────────────────────── #}
 {% if items %}
 <section id="sec-items" class="analysis-section">
+  <div class="d-inline-block" style="max-width:100%">
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
     <h3 class="section-heading mb-0">Items ({{ items|length }}) {{ manual_link("meal-detail") }}</h3>
     <form method="get" action="/meal/{{ meal.id }}" class="d-flex align-items-center gap-1">
@@ -370,14 +390,15 @@
             <div class="card card-body p-2 mt-1" style="min-width:20rem;position:absolute;z-index:10">
               <form method="post" action="/meal/{{ meal.id }}/update/{{ item.id }}" class="d-flex flex-column gap-2">
                 <input type="hidden" name="q" value="{{ q }}">
+                <p class="muted mb-0" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
                 <div class="d-flex gap-2 align-items-center">
                   {% if item.fdc_id %}
-                  <label class="form-label mb-0 text-nowrap">Amount</label>
+                  <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
                   <input type="text" name="amount" value="{{ item.amount | round(1) }}g"
                          class="form-control form-control-sm" placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1"
                          style="width:12rem" required>
                   {% else %}
-                  <label class="form-label mb-0 text-nowrap">Servings</label>
+                  <label class="form-label mb-0 text-nowrap">Servings <span class="text-danger">*</span></label>
                   <input type="number" name="amount" value="{{ item.amount }}"
                          class="form-control form-control-sm" min="0.01" max="99" step="0.01"
                          style="width:7rem" required>
@@ -408,6 +429,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 {% else %}
 <p class="muted">No foods added yet. Use the search above.</p>

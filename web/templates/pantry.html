@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_source_filter_select.html" as _srcf %}
 {% block title %}NutriMagnus — My Pantry{% endblock %}
 
 {% block content %}
@@ -55,6 +56,13 @@
 {% if search_error %}
 <p class="numa-error">{{ search_error }}</p>
 {% endif %}
+{% if search %}
+<form method="get" action="/pantry" class="d-flex flex-wrap gap-2 align-items-center mb-2">
+  {% if link_id %}<input type="hidden" name="link_id" value="{{ link_id }}">{% endif %}
+  <input type="hidden" name="search" value="{{ search }}">
+  {{ _srcf.select(source, source_filters, source_labels) }}
+</form>
+{% endif %}
 {% if search_results %}
 <p class="result-count">
   {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
@@ -110,9 +118,10 @@
 <div class="card mb-4" style="max-width:36rem">
   <div class="card-body">
     <h5 class="card-title">Quick add by name only <span class="muted">(no USDA amino acid data)</span></h5>
+    <p class="muted mb-2" style="font-size:0.85rem"><span class="text-danger">*</span> required field</p>
     <form method="post" action="/pantry/add">
       <div class="mb-2">
-        <label for="food_name" class="form-label">Food name</label>
+        <label for="food_name" class="form-label">Food name <span class="text-danger">*</span></label>
         <input type="text" class="form-control" id="food_name" name="food_name"
                placeholder="e.g. rolled oats" required>
       </div>

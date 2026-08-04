@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_source_filter_select.html" as _srcf %}
 {% block title %}NutriMagnus — Edit {{ recipe.name }}{% endblock %}
 
 {% block content %}
@@ -48,54 +49,96 @@
 {# ── Metadata form ────────────────────────────────────────────────────── #}
 <details open>
   <summary><strong>Recipe details</strong></summary>
-  <form method="post" action="/recipe/{{ recipe.id }}/edit" class="mt-3" style="max-width:44rem">
-    <div class="row mb-2">
-      <div class="col-sm-5">
-        <label class="col-form-label" for="name">Recipe name <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="name" name="name"
-               value="{{ recipe.name }}" required>
+  <form method="post" action="/recipe/{{ recipe.id }}/edit" class="mt-3">
+    <p class="muted mb-2" style="font-size:0.85rem"><span class="text-danger">*</span> required field</p>
+    <div style="max-width:44rem">
+      <div class="row mb-2">
+        <div class="col-sm-5">
+          <label class="col-form-label" for="name">Recipe name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="name" name="name"
+                 value="{{ recipe.name }}" required>
+        </div>
+        <div class="col-sm-7">
+          <label class="col-form-label" for="description">Description</label>
+          <input type="text" class="form-control" id="description" name="description"
+                 value="{{ recipe.description or '' }}">
+        </div>
       </div>
-      <div class="col-sm-7">
-        <label class="col-form-label" for="description">Description</label>
-        <input type="text" class="form-control" id="description" name="description"
-               value="{{ recipe.description or '' }}">
-      </div>
-    </div>
 
-    <div class="row mb-2">
-      <div class="col-sm-4">
-        <label class="col-form-label" for="servings">Number of servings</label>
-        <input type="number" class="form-control" id="servings" name="servings"
-               value="{{ recipe.servings }}" min="1" max="999" step="0.01" style="max-width:8rem">
-      </div>
-      <div class="col-sm-8">
-        <label class="col-form-label">Total yield weight <small class="text-muted">(optional)</small></label>
-        <div class="input-group" style="max-width:16rem">
-          <input type="number" class="form-control" name="total_weight"
-                 value="{{ recipe.total_weight or '' }}" min="0" step="any">
-          <select class="form-select" name="total_weight_unit" style="max-width:5rem">
-            {% for u in ["g","oz","lb","kg"] %}
-            <option value="{{ u }}" {% if recipe.total_weight_unit == u %}selected{% endif %}>{{ u }}</option>
-            {% endfor %}
-          </select>
+      <div class="row mb-2">
+        <div class="col-sm-4">
+          <label class="col-form-label" for="servings">Number of servings</label>
+          <input type="number" class="form-control" id="servings" name="servings"
+                 value="{{ recipe.servings }}" min="1" max="999" step="0.01" style="max-width:8rem">
+        </div>
+        <div class="col-sm-8">
+          <label class="col-form-label">Total yield weight <small class="text-muted">(optional)</small></label>
+          <div class="input-group" style="max-width:16rem">
+            <input type="number" class="form-control" name="total_weight"
+                   value="{{ recipe.total_weight or '' }}" min="0" step="any">
+            <select class="form-select" name="total_weight_unit" style="max-width:5rem">
+              {% for u in ["g","oz","lb","kg"] %}
+              <option value="{{ u }}" {% if recipe.total_weight_unit == u %}selected{% endif %}>{{ u }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="row mb-2">
-      <div class="col-12">
+      <div class="col-lg-7">
         <label class="col-form-label" for="instructions">Instructions <small class="text-muted">(optional)</small></label>
         <textarea class="form-control" id="instructions" name="instructions"
                   rows="5" style="max-width:38.4rem">{{ recipe.instructions or '' }}</textarea>
+        <div class="form-check mt-2">
+          <input type="checkbox" class="form-check-input" id="complete" name="complete" value="1"
+                 {% if recipe.complete %}checked{% endif %}>
+          <label class="form-check-label" for="complete">Mark recipe as complete</label>
+        </div>
       </div>
-    </div>
-
-    <div class="row mb-3">
-      <div class="col-12 form-check">
-        <input type="checkbox" class="form-check-input" id="complete" name="complete" value="1"
-               {% if recipe.complete %}checked{% endif %}>
-        <label class="form-check-label" for="complete">Mark recipe as complete</label>
+      {% if nutrition_summary.has_data %}
+      <div class="col-lg-5">
+        <label class="col-form-label d-block">&nbsp;</label>
+        <div class="card" title="Updates after each ingredient change">
+          <div class="card-header py-1"><strong>Running totals</strong></div>
+          <div class="card-body py-1 px-3">
+            <table class="nutrient-table compact-table mb-0" style="width:100%;font-size:0.85rem">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th class="num-col">Whole recipe</th>
+                  <th class="num-col" title="Per serving (÷{{ nutrition_summary.servings }})">Per serving</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Calories</td>
+                  <td class="num-col">{{ nutrition_summary.calories }}&thinsp;kcal</td>
+                  <td class="num-col">{{ nutrition_summary.cal_per_srv }}&thinsp;kcal</td>
+                </tr>
+                <tr>
+                  <td>Protein (raw)</td>
+                  <td class="num-col">{{ nutrition_summary.protein_g }}&thinsp;g</td>
+                  <td class="num-col">{{ nutrition_summary.prot_per_srv }}&thinsp;g</td>
+                </tr>
+                <tr>
+                  {% if nutrition_summary.dcp_g is not none %}
+                  <td title="Digestible complete protein">Protein (DCP)</td>
+                  <td class="num-col">{{ nutrition_summary.dcp_g }}&thinsp;g</td>
+                  <td class="num-col">{{ nutrition_summary.dcp_per_srv }}&thinsp;g</td>
+                  {% else %}
+                  <td colspan="3" class="muted">
+                    <small>DCP not available — add Foundation Foods with amino acid data for a complete estimate.</small>
+                  </td>
+                  {% endif %}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
+      {% endif %}
     </div>
 
     <div class="d-flex gap-2">
@@ -163,8 +206,9 @@
               <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/edit"
                     class="d-flex flex-column gap-2">
                 <input type="hidden" name="q" value="{{ q }}">
+                <p class="muted mb-0" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
                 <div class="d-flex gap-2 align-items-center">
-                  <label class="form-label mb-0 text-nowrap">Amount</label>
+                  <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
                   <input type="text" name="portion_str"
                          value="{{ ing.amount_display if not ing.ref_recipe_id else (ing.amount | round(2) | string | replace('.0', '')) }}"
                          class="form-control form-control-sm" style="width:14rem" required>
@@ -173,7 +217,7 @@
                 <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp &middot; p1, 6&thinsp;p1 (USDA preset)</div>
                 {% endif %}
                 <div class="d-flex gap-2 align-items-center">
-                  <label class="form-label mb-0 text-nowrap">Name</label>
+                  <label class="form-label mb-0 text-nowrap">Name <span class="text-danger">*</span></label>
                   <input type="text" name="food_name" value="{{ ing.food_name }}"
                          class="form-control form-control-sm" required>
                 </div>
@@ -205,9 +249,8 @@
   {% endif %}
 </details>
 
-{# ── Add ingredient (left) + running nutrition totals (right) ───────────── #}
-<div class="row mt-3">
-  <div class="col-lg-7">
+{# ── Add ingredient ───────────────────────────────────────────────────── #}
+<div class="mt-3">
     <details id="add-ingredient-section" {% if q %}open{% endif %}>
       <summary><strong>Add Ingredient</strong></summary>
 
@@ -220,6 +263,13 @@
         {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
       </form>
 
+      {% if q %}
+      <form method="get" action="/recipe/{{ recipe.id }}/edit" class="d-flex flex-wrap gap-2 align-items-center mb-2">
+        <input type="hidden" name="q" value="{{ q }}">
+        {{ _srcf.select(source, source_filters, source_labels) }}
+      </form>
+      {% endif %}
+
       {% if search_results %}
       {# A checkbox's own <tr> sits inside the results table below, which also
          contains each row's independent "Add to recipe" <form> — HTML forms
@@ -227,6 +277,7 @@
          checkbox references it by id via the form="" attribute instead. #}
       <form method="post" action="/recipe/{{ recipe.id }}/confirm-aa" id="confirm-aa-form">
         <input type="hidden" name="q" value="{{ q }}">
+        <input type="hidden" name="source" value="{{ source }}">
         <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
           <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
             Fetch full details for selected
@@ -328,6 +379,10 @@
           var boxes = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'));
           confirmPanel.style.display = boxes.length ? '' : 'none';
           if (submitBtn) submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
+          // No row has its own checkbox to pair with the header "select all"
+          // checkbox — left visible, it reads as a stray, misplaced first-row
+          // checkbox sitting on the column-header line instead. Hide it.
+          if (selectAll) selectAll.closest('th').style.visibility = boxes.length ? '' : 'hidden';
         }
         tbody.addEventListener('change', function (e) {
           if (e.target.matches('[data-confirm-aa-checkbox]')) refreshConfirmUI();
@@ -346,55 +401,6 @@
       <p>No results for <strong>{{ q }}</strong>.</p>
       {% endif %}
     </details>
-  </div>
-
-  {% if nutrition_summary.has_data %}
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header py-2"><strong>Running totals</strong>
-        <small class="text-muted ms-2">updates after each ingredient change</small>
-      </div>
-      <div class="card-body py-2 px-3">
-        <table class="nutrient-table mb-0" style="width:100%">
-          <thead>
-            <tr>
-              <th></th>
-              <th class="num-col">Whole recipe</th>
-              <th class="num-col">Per serving
-                <small class="text-muted">(÷&thinsp;{{ nutrition_summary.servings }})</small>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Calories</td>
-              <td class="num-col">{{ nutrition_summary.calories }}&thinsp;kcal</td>
-              <td class="num-col">{{ nutrition_summary.cal_per_srv }}&thinsp;kcal</td>
-            </tr>
-            <tr>
-              <td>Protein (raw)</td>
-              <td class="num-col">{{ nutrition_summary.protein_g }}&thinsp;g</td>
-              <td class="num-col">{{ nutrition_summary.prot_per_srv }}&thinsp;g</td>
-            </tr>
-            <tr>
-              {% if nutrition_summary.dcp_g is not none %}
-              <td>Protein (DCP)
-                <small class="text-muted">digestible complete</small>
-              </td>
-              <td class="num-col">{{ nutrition_summary.dcp_g }}&thinsp;g</td>
-              <td class="num-col">{{ nutrition_summary.dcp_per_srv }}&thinsp;g</td>
-              {% else %}
-              <td colspan="3" class="muted">
-                <small>DCP not available — add Foundation Foods with amino acid data for a complete estimate.</small>
-              </td>
-              {% endif %}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-  {% endif %}
 </div>
 
 {% endblock %}

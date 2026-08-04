@@ -117,6 +117,45 @@ def test_analyze_portion_page_defers_usda_off_to_async_endpoint(
     assert "broilers or fryers" in api_resp.text
 
 
+def test_food_search_source_filter_isolates_usda(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Source dropdown should let a user isolate one data source — here,
+    nothing is cached/pantried, so 'usda' keeps the mocked USDA hit and
+    'off' (stubbed to return nothing by the autouse no_off fixture) hides it."""
+    _mock_api(monkeypatch)
+    usda_only = client.get("/food/search-api-results", params={"query": "Chicken", "source": "usda"})
+    assert usda_only.status_code == 200
+    assert "broilers or fryers" in usda_only.text
+
+    off_only = client.get("/food/search-api-results", params={"query": "Chicken", "source": "off"})
+    assert off_only.status_code == 200
+    assert "broilers or fryers" not in off_only.text
+
+
+def test_food_search_source_filter_option_labels_show_abbreviation_and_full_name(client: TestClient) -> None:
+    resp = client.get("/food/search", params={"query": "Chicken"})
+    assert resp.status_code == 200
+    assert "USDA — USDA FoodData Central" in resp.text
+    assert "OFF — Open Food Facts" in resp.text
+
+
+def test_meal_add_food_source_filter_isolates_usda(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same source filter, wired into the meal add-food search's async endpoint."""
+    import datetime as _dt
+    _mock_api(monkeypatch)
+    with _db.get_db() as conn:
+        meal_id = _db.meal_create(conn, "Test meal", _dt.date.today().isoformat())
+
+    usda_only = client.get(f"/meal/{meal_id}/search-api-results", params={"q": "Chicken", "source": "usda"})
+    assert usda_only.status_code == 200
+    assert "broilers or fryers" in usda_only.text
+
+    off_only = client.get(f"/meal/{meal_id}/search-api-results", params={"q": "Chicken", "source": "off"})
+    assert off_only.status_code == 200
+    assert "broilers or fryers" not in off_only.text
+
+
 def test_food_search_by_barcode_found_via_off(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     barcode = "012345678905"  # UPC-A, 12 digits
 

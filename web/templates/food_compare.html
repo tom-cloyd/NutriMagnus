@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_source_filter_select.html" as _srcf %}
 {% block title %}NutriMagnus — Compare Foods{% endblock %}
 
 {% block content %}
@@ -72,6 +73,14 @@
 {# ── Search results — user selects multiple to add ── #}
 {% if search_error %}
 <p class="numa-error">{{ search_error }}</p>
+{% endif %}
+{% if search %}
+<form method="get" action="/food/compare" class="d-flex flex-wrap gap-2 align-items-center mb-2">
+  <input type="hidden" name="ids" value="{{ ids_str }}">
+  <input type="hidden" name="amounts" value="{{ amounts_str }}">
+  <input type="hidden" name="search" value="{{ search }}">
+  {{ _srcf.select(source, source_filters, source_labels) }}
+</form>
 {% endif %}
 {% if search_results %}
 <form method="post" action="/food/compare/add-multiple">

@@ -29,9 +29,7 @@ DATA_TYPE_RANK = {
 
 
 def _query_words(query: str) -> list[str]:
-    words = query.lower().split()
-    non_digit = [w for w in words if not w.isdigit()]
-    return non_digit or words
+    return query.lower().split()
 
 
 def _match_count_and_mask(name_lower: str, words: list[str]) -> tuple[int, int]:

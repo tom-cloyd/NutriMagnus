@@ -1,0 +1,9 @@
+{% macro select(current, source_filters, source_labels) %}
+<label class="muted me-1" style="font-size:0.875rem"><small>Source</small></label>
+<select name="source" class="form-select form-select-sm d-inline-block" style="width:auto"
+        onchange="this.form.submit()">
+  {% for key in source_filters %}
+  <option value="{{ key }}" {% if current == key %}selected{% endif %}>{{ source_labels[key] }}</option>
+  {% endfor %}
+</select>
+{% endmacro %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_source_filter_select.html" as _srcf %}
 {% block title %}NutriMagnus — Convert a Portion{% endblock %}
 
 {% block content %}
@@ -21,6 +22,13 @@
 
 {% if search_error %}
 <p class="numa-error">{{ search_error }}</p>
+{% endif %}
+
+{% if query %}
+<form method="get" action="/food/convert" class="d-flex flex-wrap gap-2 align-items-center mb-2">
+  <input type="hidden" name="q" value="{{ query }}">
+  {{ _srcf.select(source, source_filters, source_labels) }}
+</form>
 {% endif %}
 
 {% if search_results %}

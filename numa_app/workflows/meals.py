@@ -390,7 +390,7 @@ def _menu_meals() -> bool:
                 highlight=False,
             )
             state.console.print(
-                "  [grey62]Track your own nutrients here — Settings → Meals & Log columns[/grey62]",
+                "  [grey62]Specify nutrients you want in this table here: Settings → Meals & Log columns[/grey62]",
                 highlight=False,
             )
             help_footer("meals-list", "meal-columns")

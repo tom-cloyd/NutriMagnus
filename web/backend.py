@@ -250,6 +250,30 @@ def _resolve_bool_pref(value: bool | None, pref_key: str, default: bool = False)
 _SEARCH_CATEGORY_RANK = {"pantry": 0, "cache": 1, "recipe": 2, "usda": 3, "off": 3}
 _SEARCH_SORT_MODES = {"grouped", "relevance"}
 
+# Data-source filter for search results, offered next to (or alongside) the
+# sort dropdown on every food-search box in the app. "all" is the default —
+# unfiltered, current behavior. Order here is display order in the <select>.
+_SEARCH_SOURCE_FILTERS = ["all", "pantry", "cache", "recipe", "usda", "off"]
+_SEARCH_SOURCE_LABELS = {
+    "all":    "All sources",
+    "pantry": "PANTRY — Pantry",
+    "cache":  "CACHE — Food Cache",
+    "recipe": "RECIPE — Recipes",
+    "usda":   "USDA — USDA FoodData Central",
+    "off":    "OFF — Open Food Facts",
+}
+
+
+def _filter_search_results_by_source(results: list[dict], source: str | None) -> list[dict]:
+    """Restrict search results to a single data source ('pantry', 'cache',
+    'recipe', 'usda', 'off'), or return everything when source is 'all' or
+    unset. Lets a user isolate one source's results — e.g. to check whether
+    a ranking oddity comes from a specific source's data rather than the
+    ranking logic itself."""
+    if not source or source == "all":
+        return results
+    return [r for r in results if r.get("source") == source]
+
 # Matches plotting.MAX_SERIES — the nutrient-plot picker can't offer more
 # lines than the fixed categorical color palette has colors for.
 MAX_PLOT_NUTRIENTS = 8
@@ -952,12 +976,13 @@ def _search_local_results(query: str) -> list[dict]:
 
 
 async def _search_logic(request: Request, query: str, template: str, extra_ctx: dict | None = None,
-                         sort: str | None = None):
+                         sort: str | None = None, source: str | None = None):
     """Shared search logic for food search and analyze-portion pages."""
     query = query.strip()
     results = []
     error = None
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
 
     # Barcode detection: 12 or 13 consecutive digits (UPC-A or EAN-13).
     # Spaces and hyphens are stripped first so "0 12345 67890 1" also works.
@@ -1010,7 +1035,8 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                 })
             elif not error:
                 error = f"Barcode {_bc_digits} not found in Open Food Facts. Try searching by product name instead."
-        ctx = {"results": results, "query": query, "error": error, "sort": sort}
+        ctx = {"results": results, "query": query, "error": error, "sort": sort, "source": source,
+               "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS}
         if extra_ctx:
             ctx.update(extra_ctx)
         return templates.TemplateResponse(request, template, ctx)
@@ -1027,19 +1053,26 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
         # much better external one just by rendering first.
         results = _search_local_results(query)
         results = _sort_search_results(results, query, sort)
+        results = _filter_search_results_by_source(results, source)
 
-    ctx = {"results": results, "query": query, "error": error, "sort": sort}
+    ctx = {"results": results, "query": query, "error": error, "sort": sort, "source": source,
+           "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS}
     if extra_ctx:
         ctx.update(extra_ctx)
     return templates.TemplateResponse(request, template, ctx)
 
 
 @app.get("/food/search", response_class=HTMLResponse)
-async def food_search_get(request: Request, query: str = Query(default=""), sort: str | None = None):
+async def food_search_get(request: Request, query: str = Query(default=""), sort: str | None = None,
+                           source: str | None = None):
     if query.strip():
-        return await _search_logic(request, query, "search.html", sort=sort)
+        return await _search_logic(request, query, "search.html", sort=sort, source=source)
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
-    return templates.TemplateResponse(request, "search.html", {"results": [], "query": "", "sort": sort})
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    return templates.TemplateResponse(request, "search.html", {
+        "results": [], "query": "", "sort": sort, "source": source,
+        "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
+    })
 
 
 @app.post("/food/search", response_class=HTMLResponse)
@@ -1054,7 +1087,8 @@ async def search(request: Request, query: str = Form("")):
 
 
 @app.get("/food/search-api-results", response_class=HTMLResponse)
-async def food_search_api_results(request: Request, query: str = "", sort: str | None = None):
+async def food_search_api_results(request: Request, query: str = "", sort: str | None = None,
+                                   source: str | None = None):
     """Fetched by JS on the Food Search page after the initial (cache-only)
     render. Returns the FULL result set — local results merged with USDA/OFF
     and re-sorted together, not just the external rows appended below — so a
@@ -1062,6 +1096,7 @@ async def food_search_api_results(request: Request, query: str = "", sort: str |
     the local pass rendered first. The JS replaces the table body with this
     response rather than appending to it."""
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
     query = query.strip()
     results: list[dict] = []
     if query:
@@ -1069,13 +1104,16 @@ async def food_search_api_results(request: Request, query: str = "", sort: str |
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
         external = _external_food_search_results(query, exclude_ids, query, sort)
         results = _sort_search_results(local + external, query, sort)
+        results = _filter_search_results_by_source(results, source)
     return templates.TemplateResponse(request, "_search_api_rows.html", {"results": results})
 
 
 @app.get("/food/analyze-portion-api-results", response_class=HTMLResponse)
-async def food_analyze_portion_api_results(request: Request, query: str = "", sort: str | None = None):
+async def food_analyze_portion_api_results(request: Request, query: str = "", sort: str | None = None,
+                                            source: str | None = None):
     """Same as /food/search-api-results, for the Analyze a Food Portion page."""
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
     query = query.strip()
     results: list[dict] = []
     if query:
@@ -1083,6 +1121,7 @@ async def food_analyze_portion_api_results(request: Request, query: str = "", so
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
         external = _external_food_search_results(query, exclude_ids, query, sort)
         results = _sort_search_results(local + external, query, sort)
+        results = _filter_search_results_by_source(results, source)
     return templates.TemplateResponse(request, "_analyze_portion_api_rows.html", {"results": results})
 
 
@@ -1091,6 +1130,7 @@ async def food_confirm_aa(
     fdc_ids: list[int] = Form(...),
     query: str = Form(""),
     sort: str = Form(""),
+    source: str = Form(""),
 ):
     """Fetch and cache full USDA details for the selected search-result foods,
     so their amino-acid badge changes from the coarse '~✓' guess (search
@@ -1123,6 +1163,8 @@ async def food_confirm_aa(
     params = {"query": query}
     if sort:
         params["sort"] = sort
+    if source:
+        params["source"] = source
     return RedirectResponse(f"/food/search?{urlencode(params)}", status_code=303)
 
 
@@ -1136,13 +1178,16 @@ async def food_confirm_aa(
 @app.get("/food/analyze-portion", response_class=HTMLResponse)
 async def food_analyze_portion_get(request: Request):
     sort = _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
-    return templates.TemplateResponse(request, "food_analyze_portion.html",
-                                      {"results": [], "query": "", "sort": sort})
+    source = _resolve_sort(None, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    return templates.TemplateResponse(request, "food_analyze_portion.html", {
+        "results": [], "query": "", "sort": sort, "source": source,
+        "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
+    })
 
 
 @app.post("/food/analyze-portion", response_class=HTMLResponse)
-async def food_analyze_portion_post(request: Request, query: str = Form("")):
-    return await _search_logic(request, query, "food_analyze_portion.html")
+async def food_analyze_portion_post(request: Request, query: str = Form(""), source: str = Form("all")):
+    return await _search_logic(request, query, "food_analyze_portion.html", source=source)
 
 
 @app.get("/food/analyze-recipe-portion", response_class=HTMLResponse)
@@ -1233,9 +1278,10 @@ async def food_analyze_recipe_portion_post(
 
 
 @app.get("/food/convert", response_class=HTMLResponse)
-async def food_convert_get(request: Request, q: str = ""):
+async def food_convert_get(request: Request, q: str = "", source: str | None = None):
     search_results = []
     search_error = None
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
     if q:
         q = q.strip()
         with _db.get_db() as conn:
@@ -1283,10 +1329,14 @@ async def food_convert_get(request: Request, q: str = ""):
                     "convert_url": f"/food/convert/recipe/{r['id']}",
                 })
         search_results = _sort_search_results(search_results, q, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
+        search_results = _filter_search_results_by_source(search_results, source)
     return templates.TemplateResponse(request, "food_convert.html", {
         "query":          q,
         "search_results": search_results,
         "search_error":   search_error,
+        "source":         source,
+        "source_filters": _SEARCH_SOURCE_FILTERS,
+        "source_labels":  _SEARCH_SOURCE_LABELS,
     })
 
 
@@ -1578,7 +1628,9 @@ async def food_compare_get(
     amounts: str = "",
     error: str = "",
     search: str = "",
+    source: str | None = None,
 ):
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
     id_list, amount_list = _parse_ids_amounts(ids, amounts)
     entries = _load_compare_entries(id_list, amount_list) if id_list else []
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
@@ -1619,6 +1671,7 @@ async def food_compare_get(
             if not search_results:
                 search_error = f"USDA API unavailable: {exc}"
         search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
+        search_results = _filter_search_results_by_source(search_results, source)
 
     with _db.get_db() as conn:
         saved_lists = _db.saved_comparison_list(conn)
@@ -1633,6 +1686,9 @@ async def food_compare_get(
         "search_results": search_results,
         "search_error":   search_error,
         "saved_lists":    saved_lists,
+        "source":         source,
+        "source_filters": _SEARCH_SOURCE_FILTERS,
+        "source_labels":  _SEARCH_SOURCE_LABELS,
     })
 
 
@@ -2068,8 +2124,10 @@ async def food_cache_refresh(request: Request, fdc_id: int):
 @app.get("/pantry", response_class=HTMLResponse)
 async def pantry_get(request: Request, added: str = "", linked: str = "",
                       search: str = "", link_id: int = 0,
-                      show_archived: bool | None = None, archived: int = 0, restored: int = 0):
+                      show_archived: bool | None = None, archived: int = 0, restored: int = 0,
+                      source: str | None = None):
     show_archived = _resolve_bool_pref(show_archived, "show_archived_pantry")
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
     with _db.get_db() as conn:
         rows = _db.pantry_list(conn, include_archived=show_archived)
         fdc_ids = [r["fdc_id"] for r in rows if r["fdc_id"]]
@@ -2151,6 +2209,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
             pass
 
         search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
+        search_results = _filter_search_results_by_source(search_results, source)
 
     link_name = next((i["food_name"] for i in items if i["id"] == link_id), None) if link_id else None
 
@@ -2165,6 +2224,9 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
         "link_name": link_name,
         "show_archived": show_archived,
         "archived": archived,
+        "source": source,
+        "source_filters": _SEARCH_SOURCE_FILTERS,
+        "source_labels": _SEARCH_SOURCE_LABELS,
         "restored": restored,
     })
 
@@ -3408,9 +3470,10 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
 
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
 async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None,
-                     item_sort: str | None = None):
+                     item_sort: str | None = None, source: str | None = None):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
         if not meal:
@@ -3429,6 +3492,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     search_results = []
     if q:
         search_results = _sort_search_results(_meal_add_food_local_results(q), q, sort)
+        search_results = _filter_search_results_by_source(search_results, source)
 
     with _db.get_db() as conn:
         day_profile_obj = _day_profile.get_profile_for_date(conn, meal["meal_date"])
@@ -3521,6 +3585,9 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "oxalate":             oxalate,
         "q":                   q,
         "sort":                sort,
+        "source":              source,
+        "source_filters":      _SEARCH_SOURCE_FILTERS,
+        "source_labels":       _SEARCH_SOURCE_LABELS,
         "search_results":      search_results,
         "today":               datetime.date.today().isoformat(),
         "has_profile":         rda is not None,
@@ -3532,7 +3599,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
 
 
 @app.get("/meal/{meal_id}/search-api-results", response_class=HTMLResponse)
-async def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None):
+async def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None,
+                                   source: str | None = None):
     """Fetched by JS on the meal page after the initial (cache-only) render.
     Returns the FULL result set — local results merged with USDA/OFF and
     re-sorted together, not just the external rows appended below — so a
@@ -3540,6 +3608,7 @@ async def meal_search_api_results(request: Request, meal_id: int, q: str = "", s
     the local pass rendered first. The JS replaces the table body with this
     response rather than appending to it."""
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
     q = q.strip()
     results: list[dict] = []
     if q:
@@ -3552,6 +3621,7 @@ async def meal_search_api_results(request: Request, meal_id: int, q: str = "", s
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
         external = _external_food_search_results(api_query, exclude_ids, q, sort)
         results = _sort_search_results(local + external, q, sort)
+        results = _filter_search_results_by_source(results, source)
 
     return templates.TemplateResponse(request, "_add_food_api_rows.html", {
         "meal_id": meal_id,
@@ -3566,6 +3636,7 @@ async def meal_confirm_aa(
     fdc_ids: list[int] = Form(...),
     q: str = Form(""),
     sort: str = Form(""),
+    source: str = Form(""),
 ):
     """Same as /food/confirm-aa, for the add-food search results on a meal's
     page — fetches and caches full USDA details for the selected foods so
@@ -3596,6 +3667,8 @@ async def meal_confirm_aa(
     params = {"q": q}
     if sort:
         params["sort"] = sort
+    if source:
+        params["source"] = source
     return RedirectResponse(f"/meal/{meal_id}?{urlencode(params)}", status_code=303)
 
 
@@ -4366,7 +4439,8 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
 
 @app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
 async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = "",
-                           relinked: str = ""):
+                           relinked: str = "", source: str | None = None):
+    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -4477,6 +4551,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         except Exception:
             pass
         search_results = _sort_search_results(search_results, q, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
+        search_results = _filter_search_results_by_source(search_results, source)
 
     return templates.TemplateResponse(request, "recipe_edit.html", {
         "recipe":             dict(recipe),
@@ -4488,6 +4563,9 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         "nutrition_summary":  nutrition_summary,
         "broken_groups":      broken_groups,
         "relinked":           relinked,
+        "source":             source,
+        "source_filters":     _SEARCH_SOURCE_FILTERS,
+        "source_labels":      _SEARCH_SOURCE_LABELS,
     })
 
 
@@ -4582,6 +4660,7 @@ async def recipe_confirm_aa(
     recipe_id: int,
     fdc_ids: list[int] = Form(...),
     q: str = Form(""),
+    source: str = Form(""),
 ):
     """Same as /food/confirm-aa, for the ingredient-search results on a
     recipe's edit page — fetches and caches full USDA details for the
@@ -4609,7 +4688,10 @@ async def recipe_confirm_aa(
             )
 
     from urllib.parse import urlencode
-    return RedirectResponse(f"/recipe/{recipe_id}/edit?{urlencode({'q': q})}", status_code=303)
+    params = {"q": q}
+    if source:
+        params["source"] = source
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?{urlencode(params)}", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/ingredient/add", response_class=RedirectResponse)

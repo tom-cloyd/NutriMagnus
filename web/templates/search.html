@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_search_result_row.html" as _sr %}
+{% import "_source_filter_select.html" as _srcf %}
 {% block title %}NutriMagnus — Search{% endblock %}
 
 {% block content %}
@@ -36,7 +37,7 @@
     for <strong>{{ query }}</strong>
   </p>
   {% if not is_barcode_query %}
-  <form method="get" action="/food/search" class="d-flex gap-2 align-items-center">
+  <form method="get" action="/food/search" class="d-flex flex-wrap gap-2 align-items-center">
     <input type="hidden" name="query" value="{{ query }}">
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
@@ -44,12 +45,14 @@
       <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
+    {{ _srcf.select(source, source_filters, source_labels) }}
   </form>
   {% endif %}
 </div>
 <form method="post" action="/food/confirm-aa" id="confirm-aa-form">
   <input type="hidden" name="query" value="{{ query }}">
   <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="source" value="{{ source }}">
   <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
     <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
       Fetch full details for selected
@@ -116,7 +119,7 @@
 
   var noResults = document.getElementById('search-no-results');
   var countEl = document.getElementById('search-result-count');
-  var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}});
+  var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}, source: {{ source | tojson }}});
   fetch('/food/search-api-results?' + params.toString())
     .then(function (r) { return r.text(); })
     .then(function (html) {

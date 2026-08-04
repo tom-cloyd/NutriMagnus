@@ -172,6 +172,23 @@ table {
   background: #fafafa;
 }
 
+/* Compact variant — for a nutrient-table that has to stay short, e.g. the
+   recipe-edit "Running totals" card sitting beside the Instructions box.
+   The default 2rem/3.6rem padding and 350px first-column width are sized
+   for full-width report tables and force header text to wrap in a narrow
+   column, inflating the row height well past what the content needs. */
+.nutrient-table.compact-table thead th,
+.nutrient-table.compact-table td {
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
+}
+
+.nutrient-table.compact-table td:first-child,
+.nutrient-table.compact-table th:first-child {
+  width: auto;
+  padding-left: 0.5rem;
+}
+
 .num-col {
   text-align: right;
   font-variant-numeric: tabular-nums;
