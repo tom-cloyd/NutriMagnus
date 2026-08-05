@@ -1,22 +1,24 @@
 name: Release Linux build
 
 # Runs the test suite, then builds the Linux binary (packaging the web app —
-# see nutrimagnus.spec) and publishes it as a new Codeberg release on every
-# push to main, so a fresh download is always available without a separate
-# manual "cut a release" step. Requires a CODEBERG_TOKEN secret (repo write
-# scope) configured in this repo's Settings -> Actions -> Secrets.
+# see nutrimagnus.spec) and publishes it as a new Codeberg release. Requires a
+# CODEBERG_TOKEN secret (repo write scope) configured in this repo's
+# Settings -> Actions -> Secrets.
 #
-# If version.py wasn't bumped this push, the release tag already exists and
-# scripts/create_release.py exits cleanly with no error — not every push is
-# expected to produce a new release, only ones that changed VERSION.
+# Manual trigger only (workflow_dispatch) — NOT run automatically on push.
+# A push to main must never silently publish a public release; use
+# `make push-release` (see Makefile) or run this workflow by hand from the
+# Codeberg Actions tab when you actually want a new release live.
+#
+# If version.py wasn't bumped since the last release, the tag already exists
+# and scripts/create_release.py exits cleanly with no error.
 #
 # The Windows build stays manual (make build-windows && make upload-windows)
 # since it requires a local Windows VM; it attaches to whatever release is
 # newest, so it will land on releases this workflow publishes.
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   release:

@@ -1,4 +1,4 @@
-.PHONY: devserver build release-linux vm-setup build-windows upload-windows release-windows clean
+.PHONY: devserver build push push-release release-linux vm-setup build-windows upload-windows release-windows clean
 
 # ── Linux build ───────────────────────────────────────────────────────────────
 # Packages web/launcher.py (starts uvicorn, opens a browser tab) into a single
@@ -12,12 +12,25 @@ build:
 	.venv/bin/python3 scripts/build_manual.py
 	.venv/bin/pyinstaller nutrimagnus.spec
 
+# ── Push: source only, no release ─────────────────────────────────────────────
+# The safe default. .forgejo/workflows/release.yml is manual-trigger only, so
+# this can never publish a release or binary no matter what version.py says —
+# it's just `git push`, made explicit so "push" and "publish a release" are
+# never the same reflex.
+push:
+	git push origin main
+
 # ── Linux: create a Codeberg release and upload the binary ───────────────────
-# Normally done automatically by .forgejo/workflows/release.yml on every push
-# to main; this is the same script, for manual/local use (e.g. testing a
-# release without waiting on CI). Requires CODEBERG_TOKEN in the environment.
+# Manual/local use (e.g. testing a release without waiting on CI, or firing
+# one on purpose — see push-release below). Requires CODEBERG_TOKEN in the
+# environment.
 release-linux: build
 	python3 scripts/create_release.py
+
+# ── Push + publish: push source, then build and publish a public release ─────
+# Deliberate, explicit step — only run this when you actually want a
+# downloadable release live on Codeberg.
+push-release: push release-linux
 
 # ── Windows: first-time VM setup (run once after importing the dev VM) ────────
 # Starts an HTTP server so the Windows VM can download the SSH key and setup script,
