@@ -1,11 +1,16 @@
 .PHONY: devserver build release-linux vm-setup build-windows upload-windows release-windows clean
 
 # ── Linux build ───────────────────────────────────────────────────────────────
+# Packages web/launcher.py (starts uvicorn, opens a browser tab) into a single
+# executable via nutrimagnus.spec — a hand-maintained spec (not auto-generated;
+# see its own comments), since it bundles web/templates, web/static, the
+# manual source/output, and oxalate.db as data alongside the app.
 devserver: build
 	./dist/nutrimagnus
 
 build:
-	.venv/bin/pyinstaller --onefile --name nutrimagnus numa.py
+	.venv/bin/python3 scripts/build_manual.py
+	.venv/bin/pyinstaller nutrimagnus.spec
 
 # ── Linux: create a Codeberg release and upload the binary ───────────────────
 # Normally done automatically by .forgejo/workflows/release.yml on every push
@@ -71,5 +76,6 @@ upload-windows:
 release-windows: build-windows upload-windows
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
+# Note: nutrimagnus.spec is NOT removed here — it's hand-maintained and committed.
 clean:
-	rm -rf build/ dist/ dist-windows/ nutrimagnus.spec
+	rm -rf build/ dist/ dist-windows/

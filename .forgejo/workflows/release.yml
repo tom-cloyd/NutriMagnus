@@ -1,6 +1,7 @@
 name: Release Linux build
 
-# Builds the Linux binary and publishes it as a new Codeberg release on every
+# Runs the test suite, then builds the Linux binary (packaging the web app —
+# see nutrimagnus.spec) and publishes it as a new Codeberg release on every
 # push to main, so a fresh download is always available without a separate
 # manual "cut a release" step. Requires a CODEBERG_TOKEN secret (repo write
 # scope) configured in this repo's Settings -> Actions -> Secrets.
@@ -26,12 +27,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           pip install --no-cache-dir -r requirements.txt pyinstaller==6.21.0
 
+      - name: Run tests
+        run: pytest -q
+
+      - name: Regenerate user-manual.html
+        run: python3 scripts/build_manual.py
+
       - name: Build Linux binary
-        run: pyinstaller --onefile --name nutrimagnus numa.py
+        run: pyinstaller nutrimagnus.spec
 
       - name: Create release and upload binary
         env:

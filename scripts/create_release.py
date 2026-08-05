@@ -2,7 +2,7 @@
 """
 create_release.py — create a Codeberg release for the current version and
 upload the freshly built Linux binary as its asset. Run from the repo root
-after `pyinstaller --onefile --name nutrimagnus numa.py` has produced
+after `pyinstaller nutrimagnus.spec` (packages web/launcher.py) has produced
 dist/nutrimagnus. Used by .forgejo/workflows/release.yml on every push to
 main; safe to run manually too.
 
@@ -25,7 +25,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 API_BASE = "https://codeberg.org/api/v1/repos/Tom_Cloyd/NutriMagnus"
 BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
-APPENDIX_K_HEADING = "### Appendix K: Recent program updates log"
+APPENDIX_K_HEADING = "### K. Recent program updates log"
 
 
 def _version() -> str:

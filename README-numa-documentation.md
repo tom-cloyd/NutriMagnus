@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-04:1504
+UPDATED: 2026-08-04:1850
 
 Note: this was previously a dual CLI+web project. The interactive terminal CLI was removed
 2026-08-04 — the owner never used it and expected no other users to either. This document has
@@ -63,8 +63,10 @@ numa/
   version.py                       — Single-source-of-truth VERSION stamp
   requirements.txt                 — Python dependencies (fastapi, uvicorn, Jinja2, Markdown, python-multipart;
                                      pytest/httpx for test/dev)
-  import_foods.py, import_json_folder.py, import_gi_seed.py, numa_gen_prompt.py,
-  numa_import_claude.py            — standalone maintenance scripts, independent of the web app
+  import_foods.py, import_json_folder.py, import_gi_seed.py
+                                    — standalone maintenance scripts, independent of the web app
+                                     (numa_gen_prompt.py, numa_import_claude.py also exist locally
+                                     as personal, gitignored scratch tools — not part of the repo)
   build_oxalate_db.py              — one-time script: builds oxalate.db from oxalate_source_data.py
   README-numa-documentation.md     — This file
   scripts/

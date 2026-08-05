@@ -18,6 +18,9 @@ lib/
 *.log
 *.sqlite3
 *.db
+# oxalate.db is a static, committed reference database (see README), not
+# user data — the one deliberate exception to the *.db rule above.
+!oxalate.db
 # Confidential credentials (API keys, etc.)
 .env
 
@@ -35,7 +38,11 @@ web/home_body.cache
 # --- PyInstaller build artifacts ---
 build/
 dist/
+dist-windows/
 *.spec
+# nutrimagnus.spec is hand-maintained (custom datas/hiddenimports for the
+# web-app bundle) — no longer an auto-generated throwaway file.
+!nutrimagnus.spec
 
 # --- The "Large Artifacts" ---
 # Exclude large data or model weights for local LLMs

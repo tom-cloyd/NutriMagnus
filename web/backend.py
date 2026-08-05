@@ -10,7 +10,8 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+if not getattr(sys, "frozen", False):
+    sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import markdown as _md
 from fastapi import FastAPI, Form, HTTPException, Query, Request
@@ -42,9 +43,14 @@ from numa_app.services.recipe_nutrients import (
 from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services import search_ranking as _search_ranking
 
-_WEB_DIR    = Path(__file__).parent
-_MANUAL     = _WEB_DIR.parent / "user-manual.html"
-_HOME_MD    = _WEB_DIR.parent / "home.md"
+# In a PyInstaller onefile build, backend.py is bundled as a flattened
+# top-level module — there's no separate web/ subdirectory nested under a
+# project root, both collapse to sys._MEIPASS. Source (non-frozen) layout
+# still has web/backend.py one level below the real project root.
+_WEB_DIR     = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
+_PROJECT_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else _WEB_DIR.parent
+_MANUAL     = _PROJECT_ROOT / "user-manual.html"
+_HOME_MD    = _PROJECT_ROOT / "home.md"
 _PREFS_FILE = Path.home() / ".local" / "share" / "numa" / "prefs.json"
 
 _HOME_CACHE = _WEB_DIR / "home_body.cache"

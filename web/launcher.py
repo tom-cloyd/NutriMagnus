@@ -9,16 +9,22 @@ Usage:
 import sys
 from pathlib import Path
 
+_FROZEN = getattr(sys, "frozen", False)
+
 # Inject the project venv's site-packages if we're not already running inside it.
 # Checking sys.prefix (not sys.executable) handles venvs that symlink the system Python.
 # Site-packages location differs by platform: Lib/site-packages on Windows, lib/pythonX.Y/site-packages on Linux/Mac.
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_VENV = _PROJECT_ROOT / ".venv"
-if _VENV.exists() and not Path(sys.prefix).resolve().samefile(_VENV.resolve()):
-    _py = f"python{sys.version_info.major}.{sys.version_info.minor}"
-    _site = _VENV / ("Lib/site-packages" if sys.platform == "win32" else f"lib/{_py}/site-packages")
-    if _site.exists() and str(_site) not in sys.path:
-        sys.path.insert(0, str(_site))
+# None of this applies to a frozen build — everything is already bundled, no venv involved.
+if _FROZEN:
+    _PROJECT_ROOT = Path(sys._MEIPASS)
+else:
+    _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    _VENV = _PROJECT_ROOT / ".venv"
+    if _VENV.exists() and not Path(sys.prefix).resolve().samefile(_VENV.resolve()):
+        _py = f"python{sys.version_info.major}.{sys.version_info.minor}"
+        _site = _VENV / ("Lib/site-packages" if sys.platform == "win32" else f"lib/{_py}/site-packages")
+        if _site.exists() and str(_site) not in sys.path:
+            sys.path.insert(0, str(_site))
 
 import argparse
 import socket
@@ -26,11 +32,12 @@ import threading
 import time
 import webbrowser
 
-sys.path.insert(0, str(_PROJECT_ROOT))
+if not _FROZEN:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 import uvicorn
 
-_WEB_DIR = Path(__file__).parent
+_WEB_DIR = _PROJECT_ROOT if _FROZEN else Path(__file__).parent
 
 
 def _open_after(url: str, delay: float = 1.2) -> None:
