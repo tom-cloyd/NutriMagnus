@@ -156,4 +156,4 @@ ok "VM shut down"
 
 echo ""
 echo "Windows build complete: $EXE_DST"
-echo "To upload to Codeberg:  make upload-windows"
+echo "To upload to GitHub:  make upload-windows"

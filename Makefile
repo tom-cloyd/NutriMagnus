@@ -13,23 +13,23 @@ build:
 	.venv/bin/pyinstaller nutrimagnus.spec
 
 # ── Push: source only, no release ─────────────────────────────────────────────
-# The safe default. .forgejo/workflows/release.yml is manual-trigger only, so
+# The safe default. .github/workflows/release.yml is manual-trigger only, so
 # this can never publish a release or binary no matter what version.py says —
 # it's just `git push`, made explicit so "push" and "publish a release" are
 # never the same reflex.
 push:
 	git push origin main
 
-# ── Linux: create a Codeberg release and upload the binary ───────────────────
+# ── Linux: create a GitHub release and upload the binary ─────────────────────
 # Manual/local use (e.g. testing a release without waiting on CI, or firing
-# one on purpose — see push-release below). Requires CODEBERG_TOKEN in the
-# environment.
+# one on purpose — see push-release below). Requires GITHUB_TOKEN (a personal
+# access token with repo write scope) in the environment.
 release-linux: build
 	python3 scripts/create_release.py
 
 # ── Push + publish: push source, then build and publish a public release ─────
 # Deliberate, explicit step — only run this when you actually want a
-# downloadable release live on Codeberg.
+# downloadable release live on GitHub.
 push-release: push release-linux
 
 # ── Windows: first-time VM setup (run once after importing the dev VM) ────────
@@ -67,23 +67,26 @@ vm-setup:
 build-windows:
 	./scripts/build-windows.sh
 
-# ── Windows: upload dist-windows/nutrimagnus.exe to latest Codeberg release ──
+# ── Windows: upload dist-windows/nutrimagnus.exe to latest GitHub release ────
 upload-windows:
 	@test -f dist-windows/nutrimagnus.exe || \
 	    (echo "ERROR: dist-windows/nutrimagnus.exe not found. Run 'make build-windows' first." && exit 1)
-	@test -n "$$CODEBERG_TOKEN" || \
-	    (echo "ERROR: CODEBERG_TOKEN is not set." && exit 1)
+	@test -n "$$GITHUB_TOKEN" || \
+	    (echo "ERROR: GITHUB_TOKEN is not set." && exit 1)
 	$(eval RELEASE_ID := $(shell curl -s \
-	    -H "Authorization: token $$CODEBERG_TOKEN" \
-	    "https://codeberg.org/api/v1/repos/Tom_Cloyd/NutriMagnus/releases?limit=1" \
+	    -H "Authorization: Bearer $$GITHUB_TOKEN" \
+	    -H "Accept: application/vnd.github+json" \
+	    "https://api.github.com/repos/tom-cloyd/NutriMagnus/releases?per_page=1" \
 	    | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])"))
-	@echo "==> Uploading nutrimagnus.exe to Codeberg release $(RELEASE_ID)..."
+	@echo "==> Uploading nutrimagnus.exe to GitHub release $(RELEASE_ID)..."
 	curl -s -X POST \
-	    -H "Authorization: token $$CODEBERG_TOKEN" \
-	    "https://codeberg.org/api/v1/repos/Tom_Cloyd/NutriMagnus/releases/$(RELEASE_ID)/assets" \
-	    -F "attachment=@dist-windows/nutrimagnus.exe"
+	    -H "Authorization: Bearer $$GITHUB_TOKEN" \
+	    -H "Accept: application/vnd.github+json" \
+	    -H "Content-Type: application/octet-stream" \
+	    --data-binary "@dist-windows/nutrimagnus.exe" \
+	    "https://uploads.github.com/repos/tom-cloyd/NutriMagnus/releases/$(RELEASE_ID)/assets?name=nutrimagnus.exe"
 	@echo ""
-	@echo "Done. https://codeberg.org/Tom_Cloyd/NutriMagnus/releases"
+	@echo "Done. https://github.com/tom-cloyd/NutriMagnus/releases"
 
 # ── Windows: full release (build + upload) ───────────────────────────────────
 release-windows: build-windows upload-windows

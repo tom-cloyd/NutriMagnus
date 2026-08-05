@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
-create_release.py — create a Codeberg release for the current version and
+create_release.py — create a GitHub release for the current version and
 upload the freshly built Linux binary as its asset. Run from the repo root
 after `pyinstaller nutrimagnus.spec` (packages web/launcher.py) has produced
-dist/nutrimagnus. Used by .forgejo/workflows/release.yml on every push to
-main; safe to run manually too.
+dist/nutrimagnus. Used by .github/workflows/release.yml on manual dispatch;
+safe to run manually too.
 
 Release notes are pulled from user-manual.md's Appendix K ("Recent program
 updates log") section matching today's date (#### Month Day), falling back
 to a generic message if that section doesn't exist yet (e.g. no manual
 changes were logged today).
 
-Requires CODEBERG_TOKEN in the environment (a Codeberg access token with
-repo write scope).
+Requires GITHUB_TOKEN in the environment (inside GitHub Actions this is the
+automatic per-run token, granted `contents: write` by the workflow; for
+manual/local use, a personal access token with repo write scope).
 """
 import datetime
 import json
@@ -22,7 +23,10 @@ import urllib.error
 import urllib.request
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
-API_BASE = "https://codeberg.org/api/v1/repos/Tom_Cloyd/NutriMagnus"
+GITHUB_OWNER = "tom-cloyd"
+GITHUB_REPO = "NutriMagnus"
+API_BASE = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
+UPLOADS_BASE = f"https://uploads.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
 APPENDIX_K_HEADING = "### K. Recent program updates log"
@@ -64,10 +68,12 @@ def _release_notes_for_today() -> str:
     return "Automated build from main."
 
 
-def _api_request(path: str, token: str, *, method: str = "GET",
+def _api_request(url: str, token: str, *, method: str = "GET",
                   data: bytes | None = None, content_type: str | None = None) -> dict:
-    req = urllib.request.Request(f"{API_BASE}{path}", method=method, data=data)
-    req.add_header("Authorization", f"token {token}")
+    req = urllib.request.Request(url, method=method, data=data)
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("X-GitHub-Api-Version", "2022-11-28")
     if content_type:
         req.add_header("Content-Type", content_type)
     with urllib.request.urlopen(req) as resp:
@@ -76,9 +82,9 @@ def _api_request(path: str, token: str, *, method: str = "GET",
 
 def main() -> int:
     import os
-    token = os.environ.get("CODEBERG_TOKEN")
+    token = os.environ.get("GITHUB_TOKEN")
     if not token:
-        print("ERROR: CODEBERG_TOKEN is not set.", file=sys.stderr)
+        print("ERROR: GITHUB_TOKEN is not set.", file=sys.stderr)
         return 1
     if not BINARY_PATH.exists():
         print(f"ERROR: {BINARY_PATH} not found — build it first.", file=sys.stderr)
@@ -96,12 +102,12 @@ def main() -> int:
     }).encode()
 
     try:
-        release = _api_request("/releases", token, method="POST",
+        release = _api_request(f"{API_BASE}/releases", token, method="POST",
                                 data=payload, content_type="application/json")
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")
-        if e.code == 409 or "already exist" in detail.lower():
-            print(f"Release {tag} already exists — nothing to do (version.py wasn't bumped this push).")
+        if e.code == 422 and "already_exists" in detail:
+            print(f"Release {tag} already exists — nothing to do (version.py wasn't bumped since last release).")
             return 0
         print(f"ERROR creating release: {e.code} {detail}", file=sys.stderr)
         return 1
@@ -109,27 +115,22 @@ def main() -> int:
     release_id = release["id"]
     print(f"Created release {tag} (id {release_id}).")
 
-    # Multipart upload for the binary asset — stdlib has no built-in
-    # multipart/form-data encoder, so build the minimal body by hand.
-    boundary = "----numa-release-boundary"
+    # GitHub's asset-upload endpoint takes the raw file bytes as the body
+    # (not multipart/form-data like Gitea/Codeberg) with the filename as a
+    # query parameter, and lives on a separate uploads.github.com host.
     binary_bytes = BINARY_PATH.read_bytes()
-    body_parts = (
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="attachment"; filename="nutrimagnus"\r\n'
-        f"Content-Type: application/octet-stream\r\n\r\n"
-    ).encode() + binary_bytes + f"\r\n--{boundary}--\r\n".encode()
-
     try:
         _api_request(
-            f"/releases/{release_id}/assets", token, method="POST",
-            data=body_parts, content_type=f"multipart/form-data; boundary={boundary}",
+            f"{UPLOADS_BASE}/releases/{release_id}/assets?name=nutrimagnus",
+            token, method="POST",
+            data=binary_bytes, content_type="application/octet-stream",
         )
     except urllib.error.HTTPError as e:
         print(f"ERROR uploading asset: {e.code} {e.read().decode(errors='replace')}", file=sys.stderr)
         return 1
 
     print(f"Uploaded nutrimagnus binary to release {tag}.")
-    print(f"https://codeberg.org/Tom_Cloyd/NutriMagnus/releases/tag/{tag}")
+    print(f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tag/{tag}")
     return 0
 
 

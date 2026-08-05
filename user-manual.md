@@ -3051,7 +3051,7 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 ### K. Recent program updates log
 
-[//]: # "Aside from being an update log for the user to ac cess, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day). Once a release is cut, the matched text is copied into the Codeberg release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."
+[//]: # "Aside from being an update log for the user to ac cess, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
 
 #### August 4

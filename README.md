@@ -36,7 +36,7 @@ Anyone who wants to understand what they're actually eating — especially peopl
 
 ## Download
 
-**Linux (Ubuntu):** Download the latest release from the [Releases page](https://codeberg.org/Tom_Cloyd/NutriMagnus/releases).
+**Linux (Ubuntu):** Download the latest release from the [Releases page](https://github.com/tom-cloyd/NutriMagnus/releases).
 
 *(Windows version coming.)*
 
@@ -49,11 +49,11 @@ A User Manual is built into the app — type `?` followed by any topic name at a
 Built with Python 3.12, Rich, and SQLite. No external services or API keys required for basic use.
 
 ```bash
-git clone https://codeberg.org/Tom_Cloyd/NutriMagnus
+git clone https://github.com/tom-cloyd/NutriMagnus
 cd NutriMagnus
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-./numa.py
+python web/launcher.py
 ```
 
 Full architecture documentation: [README-numa-documentation.md](README-numa-documentation.md)

@@ -1,0 +1,51 @@
+name: Release Linux build
+
+# Runs the test suite, then builds the Linux binary (packaging the web app —
+# see nutrimagnus.spec) and publishes it as a new GitHub release. Uses the
+# automatic per-run GITHUB_TOKEN (no manual secret needed) — the `contents:
+# write` permission below is what grants it release-creation rights.
+#
+# Manual trigger only (workflow_dispatch) — NOT run automatically on push.
+# A push to main must never silently publish a public release; use
+# `make push-release` (see Makefile) or run this workflow by hand from the
+# GitHub Actions tab when you actually want a new release live.
+#
+# If version.py wasn't bumped since the last release, the tag already exists
+# and scripts/create_release.py exits cleanly with no error.
+#
+# The Windows build stays manual (make build-windows && make upload-windows)
+# since it requires a local Windows VM; it attaches to whatever release is
+# newest, so it will land on releases this workflow publishes.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.12-slim
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir -r requirements.txt pyinstaller==6.21.0
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Regenerate user-manual.html
+        run: python3 scripts/build_manual.py
+
+      - name: Build Linux binary
+        run: pyinstaller nutrimagnus.spec
+
+      - name: Create release and upload binary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/create_release.py
