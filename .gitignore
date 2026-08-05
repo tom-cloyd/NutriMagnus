@@ -50,4 +50,4 @@ data/
 models/
 
 # --- Claude Code agent worktrees (internal, never commit) ---
-.claude/worktrees/
+.claude/worktrees/.claude/settings.local.json

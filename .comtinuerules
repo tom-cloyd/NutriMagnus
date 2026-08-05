@@ -1,3 +1,0 @@
-This is numa.py, a Python CLI nutrition analysis program. It validates 
-nutritional calculations against USDA, FAO, and Cronometer data using 
-DIAAS methodology for protein bioavailability analysis.
