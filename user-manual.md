@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-04:1850* / Reading time: 2 hours, 54 minutes
+*Updated 2026-08-05:0639* / Reading time: 2 hours, 55 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -141,7 +141,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it is using.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your [Pantry](#pantry), and [recipes you have analyzed](#recipes-menu-web). For protein complement suggestions specifically, a built-in list of 25 common protein sources[^10] fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be filled in automatically from a small published reference table (see [Glycemic Index](#gi)), rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-04), there are 462 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-04), there are 470 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 **Appendix J has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
@@ -1872,7 +1872,13 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 
 ### I. Using the Settings menu
 
-Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets — plus a checkbox enabling [oxalate](#oxalate) lookup), **Computed Daily Targets** (see [Part 4](#daily-nutrient-targets)), **Dietary Preferences** (affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and — see [Dietary Preferences](#diet) — every search and lookup in the program), **Keyboard Shortcuts**, **USDA API Key** (lets you use your own free personal code from USDA's website instead of the one NuMa shares with every user by default, so your searches are less likely to get temporarily blocked when many people are using NuMa at once — see [Food data](#food-data) for how to get one; also has the [search result depth](#search-ranking) setting), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), and **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults).
+Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets — plus a checkbox enabling [oxalate](#oxalate) lookup), **Computed Daily Targets** (see [Part 4](#daily-nutrient-targets)), **Dietary Preferences** (affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and — see [Dietary Preferences](#diet) — every search and lookup in the program), **Keyboard Shortcuts**, **USDA API Key** (lets you use your own free personal code from USDA's website instead of the one NuMa shares with every user by default, so your searches are less likely to get temporarily blocked when many people are using NuMa at once — see [Food data](#food-data) for how to get one; also has the [search result depth](#search-ranking) setting), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults), and **Sample Data** — see below.
+
+#### Sample Data [demo-data]
+
+A one-click way to populate the app with example content: real USDA foods (with full amino-acid data), a few of them in your pantry, and two recipes picked to show protein complementarity actually working — "Black Beans & Rice" and "Lentils & Oats Bowl," each combining a legume and a grain so the amino acids each is short on are covered by the other. Useful for exploring what the app does before you've built up your own data, or for trying it out on a fresh install.
+
+Loading sample data never touches anything already in your cache, pantry, or recipes — it's tracked separately so **Clear sample data** (which appears once it's loaded) removes exactly what was added, nothing else. Loading again while it's already loaded is a no-op.
 
 #### Computed Daily Targets
 
@@ -2256,27 +2262,26 @@ This is extremely easy, and we want you to do it. When you're having a problem t
 
 ---
 
----
-
 ## Part 8 — Possible Additional Features
 
+Ideas below are listed in their current likely probability of being implemented.
 ---
 
-### A. Source citations for major assertions in the manual
-
-This is basic. Claims must be backed up, and source citations are how it's done. Numa is designed around nutrition research findings. To move quickly, these findings have not been referenced in the manual. They will be as soon as possible, which is to say as soon as the program is reliably working for a number of serious users.
-
-### B. Suggested optimum nutrition profiles
+### Suggested optimum nutrition profiles
 
 For various major age groups, we can offer research supported optimums for critical nutrients. The user can choose to adopt them or use the as the basis for setting their own optimums, or ignore then altogether.
 
-### C. Research-supported maximum nutrient level suggestions
+### Research-supported maximum nutrient level suggestions
 
 For a limited number of nutrients, maximum levels of consumption have been established, the exceeding of which puts the individuals at risk in various wasy. We can identify these nutrients, levels, and risks, with full sourcing to back up claims made.
 
-### D. Plots of individual nutrients against their RDAs and user-established, RDAs, optimums, and maximum levels
+### Source citations for major assertions in the manual
 
-This is easily achieved once we have dealt with the fundamental data problem better (see above). This can be done by assisting the user, as suggested above.
+This is basic. Claims must be backed up, and source citations are how it's done. Numa is designed around nutrition research findings. To move quickly, these findings have not been referenced in the manual. They will be as soon as possible, which is to say as soon as the program is reliably working for a number of serious users.
+
+### D. Plots of individual nutrients consumed daily in relation to RDAs, user-established optimums, and maximum levels.
+
+This is easily achieved once we have dealt with the fundamental data problem better - getting optimums and maximums specified for a user. 
 
 ### E. Development of glycemic data lookup tables
 
@@ -3051,6 +3056,7 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 #### August 4
 
+* NEW: SAMPLE DATA — ONE-CLICK EXAMPLE FOODS, PANTRY, AND RECIPES FOR A FRESH INSTALL -  Settings → 9. Sample Data - A brand-new install starts with a completely empty cache/pantry/recipes, which makes it hard to see what the app actually does (especially protein complementarity, its headline feature) without first building everything up by hand. "Load sample data" adds 9 real USDA foods (full amino-acid panels, not placeholder data), 6 of them to the pantry, and two recipes — "Black Beans & Rice" and "Lentils & Oats Bowl" — specifically chosen and gram-verified against the app's own DIAAS math to show a real complementarity improvement (0.617/0.899 individually → 0.948 combined for the beans-and-rice pairing; 0.780/0.828 → 0.992 for lentils-and-oats). Loading never touches anything already in your cache, pantry, or recipes — what was added is tracked separately so "Clear sample data" removes exactly that and nothing else, and loading twice is a no-op. No first-run popup — it's a plain, always-available Settings action, plus a link from the empty-pantry/empty-recipes/empty-food-cache pages. [learn more...](#demo-data)
 * RELEASE PIPELINE NOW PACKAGES THE WEB APP INSTEAD OF THE REMOVED CLI, AND RUNS TESTS FIRST -  nutrimagnus.spec, Makefile, scripts/create_release.py, .forgejo/workflows/release.yml - The Linux release build was still packaging the CLI binary from the now-deleted numa.py, which meant every push to main would fail. Repointed the PyInstaller spec at web/launcher.py instead, bundling web/templates, web/static, the manual source/output, and oxalate.db alongside it — the same single-executable-that-opens-a-browser-tab pattern the CLI binary used, just launching the web app instead. This also completes the previously-separate "desktop launcher" idea: a downloaded nutrimagnus binary is now itself the double-clickable icon target. nutrimagnus.spec is no longer an auto-generated throwaway file (it's hand-maintained now, with real bundling logic) — un-ignored and committed, along with oxalate.db (previously untracked, which would have made every fresh checkout's build fail once it tried to bundle a file that didn't exist). Fixed a latent bug found along the way: the release-notes generator was matching the wrong Appendix K heading text and had silently been falling back to a generic "Automated build from main." message on every past release instead of pulling that day's real changelog entries. The CI workflow now also runs the full test suite before building, so a broken build never gets as far as a release. Windows packaging is unchanged and still targets the old CLI entry point — a known, separately-tracked gap, not addressed here.
 * REMOVED THE INTERACTIVE TERMINAL CLI -  numa.py, numa_app/ui, numa_app/workflows, numa_app/state.py, numa_app/config, manual.py, and CLI-only services (annotations.py, oxalate_link.py, reports.py) - The owner never used the CLI and expected no other users to either, so it's gone — the web app is now the only interface. `numa_app/services/search.py` and `portions.py` were trimmed to just the small pieces the web app actually calls (a shared cache-freshness helper and the portion-string parser); two genuinely shared utilities that had been misplaced under the CLI-only `numa_app/ui/` package (`classify_food_id`, and `rebuild_manual_if_stale` for the `/manual` route) were relocated into `numa_app/services/`. `~144` CLI-only tests (`test_cli.py`) were removed along with the `NumaTestRunner` test harness; the shared `_mock_api` helper moved to `conftest.py`. Also deleted `tests-prev/`, a stale untracked-since-initial-commit duplicate of the test suite. `requirements.txt` now lists the web app's actual dependencies (it previously listed only Rich's, and never listed FastAPI/uvicorn/Jinja2 at all — a pre-existing gap). Test count: 606 → 462.
 * MANUAL, CLAUDE.md, AND README FULLY SWEPT FOR CLI-ERA CONTENT AFTER THE CLI REMOVAL -  Manual, CLAUDE.md, README-numa-documentation.md - Following up the CLI removal above: deleted the manual's ~1040-line "Using the Command Line" Part wholesale and renumbered the following Parts down by one; rescued the two pieces of real content that had been living inside it despite applying to the web app too (Dietary Preferences, now Part 4.B; the extra web-keyboard-shortcuts detail, merged into Part 5) before deleting it; then went through roughly 80 scattered CLI/web comparison asides across the rest of the manual, collapsing each to just the web half. Fixed a live broken link (`#outputSamples`, pointing at the deleted CLI section) and retargeted every `#fetch` link at the web's `#food-cache-web` equivalent. CLAUDE.md's Navigation Contract, `?` Help System, Theme/Styling, and Circular Import Pattern sections — all describing deleted CLI-only mechanics — are gone; Key Invariants and Test Conventions trimmed to match. README-numa-documentation.md's Architecture section had ~250 lines describing CLI-only files (`main.py`, `state.py`, `ui/prompts.py`, `ui/common.py`, `ui/render.py`, the workflow files) in detail as though they still existed — replaced with a short, accurate module-split summary; Setup/Running the Program/Test Suite sections updated for the web-only launch and test count. Historical sections (Appendix K here, "Bugs found during test restoration" and "Implementation Phases" in the README) were deliberately left describing CLI-era mechanics as history, not live instructions — same convention already used for old changelog entries.

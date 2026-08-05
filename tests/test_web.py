@@ -493,6 +493,37 @@ def test_settings_nutrient_target_load_defaults_skips_customized(client: TestCli
     assert profile.optimal_targets["omega3_epa_mg"] == 250.0
 
 
+def test_settings_demo_data_load_and_clear(client: TestClient, tmp_path: pathlib.Path,
+                                            monkeypatch: pytest.MonkeyPatch) -> None:
+    from numa_app.services import demo_data
+    monkeypatch.setattr(demo_data, "_MARKER_FILE", tmp_path / "demo_data.json")
+
+    resp = client.get("/settings")
+    assert "Load sample data" in resp.text
+    assert "Clear sample data" not in resp.text
+
+    resp = client.post("/settings/demo-data/load", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/settings?saved=demo_data_loaded"
+
+    with _db.get_db() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM foods").fetchone()[0] == len(demo_data.DEMO_FOODS)
+        assert conn.execute("SELECT COUNT(*) FROM recipes").fetchone()[0] == len(demo_data.DEMO_RECIPES)
+
+    resp = client.get("/settings")
+    assert "Clear sample data" in resp.text
+
+    resp = client.post("/settings/demo-data/clear", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/settings?saved=demo_data_cleared"
+
+    with _db.get_db() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM foods").fetchone()[0] == 0
+
+    resp = client.get("/settings")
+    assert "Load sample data" in resp.text
+
+
 def test_settings_meal_nutrients_save_and_render(client: TestClient, cached_food) -> None:
     """Saving Sodium at position 1 in Settings shows it as a column on /meals."""
     resp = client.post(

@@ -4099,6 +4099,8 @@ async def settings_get(request: Request, saved: str = ""):
     search_boost_page_size = _usda.get_search_boost_page_size()
     import oxalate as _ox
     oxalate_available = _ox.is_available()
+    from numa_app.services import demo_data as _demo_data
+    demo_data_loaded = _demo_data.is_loaded()
     with _db.get_db() as conn:
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
 
@@ -4144,6 +4146,10 @@ async def settings_get(request: Request, saved: str = ""):
         "meal_list_nutrient_rows": meal_list_nutrient_rows,
         "meal_list_nutrients_max": MAX_MEAL_LIST_NUTRIENTS,
         "oxalate_available":    oxalate_available,
+        "demo_data_loaded":     demo_data_loaded,
+        "demo_food_count":      len(_demo_data.DEMO_FOODS),
+        "demo_pantry_count":    len(_demo_data.DEMO_PANTRY),
+        "demo_recipe_count":    len(_demo_data.DEMO_RECIPES),
     })
 
 
@@ -4276,6 +4282,26 @@ async def settings_nutrient_target_load_defaults():
             profile.optimal_targets[key] = val
     _profile.save_profile(profile)
     return RedirectResponse("/settings?saved=nutrient_target_defaults", status_code=303)
+
+
+@app.post("/settings/demo-data/load", response_class=RedirectResponse)
+async def settings_demo_data_load():
+    """Populate a fresh install with sample foods/pantry/recipes to explore
+    the app with. See numa_app.services.demo_data for what's inserted and
+    why — a marker file lets settings_demo_data_clear() undo exactly this."""
+    from numa_app.services import demo_data as _demo_data
+    with _db.get_db() as conn:
+        _demo_data.load_demo_data(conn)
+    return RedirectResponse("/settings?saved=demo_data_loaded", status_code=303)
+
+
+@app.post("/settings/demo-data/clear", response_class=RedirectResponse)
+async def settings_demo_data_clear():
+    """Remove exactly the sample foods/pantry/recipes settings_demo_data_load() added."""
+    from numa_app.services import demo_data as _demo_data
+    with _db.get_db() as conn:
+        _demo_data.clear_demo_data(conn)
+    return RedirectResponse("/settings?saved=demo_data_cleared", status_code=303)
 
 
 @app.post("/settings/meal-nutrients", response_class=RedirectResponse)

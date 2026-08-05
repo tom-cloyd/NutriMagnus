@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-04:1850
+UPDATED: 2026-08-05:0639
 
 Note: this was previously a dual CLI+web project. The interactive terminal CLI was removed
 2026-08-04 — the owner never used it and expected no other users to either. This document has
