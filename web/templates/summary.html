@@ -202,7 +202,7 @@
       {% endif %}
     </p>
     {% if protein_adequacy %}
-    <p class="muted"><small>This is {{ protein_adequacy.pct | int }}% of daily target: {{ protein_adequacy.target }}&thinsp;g
+    <p class="muted"><small>This is {{ protein_adequacy.pct | int }}% of daily target (minimum — meet or exceed): {{ protein_adequacy.target }}&thinsp;g
       {% if protein_adequacy.personal %}(personal profile — <a href="/settings">Settings</a>)
       {% else %}(standard adult reference 0.8&thinsp;g/kg &times; 70&thinsp;kg){% endif %}
     </small></p>
@@ -290,6 +290,7 @@
 {% if complements and not complements.no_data %}
 <details id="sec-comp">
   <summary><strong>Protein Complement Suggestions — Full Day</strong> {{ manual_link("comp") }}</summary>
+  {% include "_diet_pref_quick.html" %}
   {% if complements.no_gaps %}
   <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
   <p class="muted mt-1"><small>Every essential amino acid — including whichever one shows as "limiting" above — already meets or exceeds the FAO reference level. "Limiting" identifies the amino acid with the smallest margin, not a deficiency. {{ manual_link("gap") }}</small></p>
@@ -456,7 +457,7 @@
         {% if has_profile %}
         <td class="num-col">
           {% if row.pct is not none %}
-          <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+          <span class="{{ row.rda_css }}" title="{{ rda_type_title(row.rda_type) }}">{{ row.pct | int }}% <small class="muted">{{ rda_type_abbr(row.rda_type) }}</small></span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
@@ -464,7 +465,7 @@
         <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
         <td class="num-col">
           {% if row.optimal_pct is not none %}
-          <span class="{{ row.optimal_css }}">{{ row.optimal_pct | int }}%</span>
+          <span class="{{ row.optimal_css }}" title="{{ rda_type_title(row.optimal_type) }}">{{ row.optimal_pct | int }}% <small class="muted">{{ rda_type_abbr(row.optimal_type) }}</small></span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}

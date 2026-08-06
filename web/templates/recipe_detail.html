@@ -171,7 +171,7 @@
       <div class="ps-value">{{ diaas.dcp_g }}&thinsp;g</div>
       {% endif %}
       {% if protein_adequacy and not protein_adequacy.no_profile %}
-      <div class="ps-status muted">{{ protein_adequacy.pct | int }}% of daily target ({{ protein_adequacy.target }}&thinsp;g)</div>
+      <div class="ps-status muted">{{ protein_adequacy.pct | int }}% of daily target — minimum ({{ protein_adequacy.target }}&thinsp;g)</div>
       {% endif %}
     </div>
     {% if diaas.score is not none %}
@@ -339,7 +339,7 @@
         {% if has_profile %}
         <td class="num-col">
           {% if row.pct is not none %}
-          <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+          <span class="{{ row.rda_css }}" title="{{ rda_type_title(row.rda_type) }}">{{ row.pct | int }}% <small class="muted">{{ rda_type_abbr(row.rda_type) }}</small></span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
@@ -347,7 +347,7 @@
         <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
         <td class="num-col">
           {% if row.optimal_pct is not none %}
-          <span class="{{ row.optimal_css }}">{{ row.optimal_pct | int }}%</span>
+          <span class="{{ row.optimal_css }}" title="{{ rda_type_title(row.optimal_type) }}">{{ row.optimal_pct | int }}% <small class="muted">{{ rda_type_abbr(row.optimal_type) }}</small></span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
@@ -458,7 +458,7 @@
       {% endif %}
     </p>
     {% if protein_adequacy and not protein_adequacy.no_profile %}
-    <p class="muted"><small>This is {{ protein_adequacy.pct | int }}% of daily target: {{ protein_adequacy.target }}&thinsp;g{% if protein_adequacy.personal %} (personal profile — <a href="/settings">Settings</a>){% else %} (standard adult reference){% endif %}</small></p>
+    <p class="muted"><small>This is {{ protein_adequacy.pct | int }}% of daily target (minimum — meet or exceed): {{ protein_adequacy.target }}&thinsp;g{% if protein_adequacy.personal %} (personal profile — <a href="/settings">Settings</a>){% else %} (standard adult reference){% endif %}</small></p>
     {% endif %}
     {% endif %}
     {% if diaas.phe_tyr_gap %}
@@ -541,6 +541,7 @@
 </div>
 {% endmacro %}
 
+{% include "_diet_pref_quick.html" %}
 <form method="get" action="{{ request.url.path }}" id="complements-form">
 <input type="hidden" name="servings" value="{{ servings }}">
 <section id="sec-complements" class="analysis-section">

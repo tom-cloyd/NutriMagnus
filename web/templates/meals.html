@@ -105,7 +105,7 @@
       <th class="num-col">Calories</th>
       <th class="num-col" title="Digestible Complete Protein for this meal">Meal<br>DCP</th>
       <th class="num-col" title="Sum of DCP across all meals with computed data on this date (marked * if any meal isn't complete yet)">Day<br>DCP</th>
-      {% if show_pct_col %}<th class="num-col" title="Day DCP ÷ that date's own protein target">%<br>goal</th>{% endif %}
+      {% if show_pct_col %}<th class="num-col" title="Day DCP ÷ that date's own protein target (minimum — meet or exceed)">%<br>goal (min)</th>{% endif %}
       {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
       {% for col in meal_nutrient_cols %}
       <th class="num-col" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>

@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data from the USDA FoodData Central database. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-05:0639
+UPDATED: 2026-08-05:1309
 
 Note: this was previously a dual CLI+web project. The interactive terminal CLI was removed
 2026-08-04 — the owner never used it and expected no other users to either. This document has
@@ -341,7 +341,7 @@ are branded products.
 
 ### Analyzing a portion
 
-See [Appendix F of the User Manual](user-manual.html#appendix-f) for the full list of accepted portion formats.
+See [Appendix J of the User Manual](user-manual.html#portion-formats) for the full list of accepted portion formats.
 
 **Pieces vs. weight (implementation note):** A bare number (e.g. `2`) is treated as pieces/count — no gram weight is recorded and the ingredient's nutritional contribution is zero in recipe/meal totals. To store a gram weight, the user must always include a unit. This distinction is enforced in `_parse_portion_input()` in `numa_app/services/portions.py`.
 
@@ -353,7 +353,7 @@ See the [User Manual](user-manual.html) for usage documentation. Internally, the
 
 ### Protein completeness
 
-Wherever protein is analyzed (food, recipe, or meal), numa checks whether all nine essential amino acids meet FAO/WHO reference levels. See the [User Manual](user-manual.html) for output interpretation; see [Appendix A of the User Manual](user-manual.html#appendix-a) for the theory behind FAO reference values and DIAAS.
+Wherever protein is analyzed (food, recipe, or meal), numa checks whether all nine essential amino acids meet FAO/WHO reference levels. See the [User Manual](user-manual.html) for output interpretation; see [Appendix B of the User Manual](user-manual.html#appendix-b) for the theory behind FAO reference values and DIAAS.
 
 #### No amino acid data — building a user-drafted profile from literature
 
@@ -451,7 +451,7 @@ A third, lower-ceremony import path for a single food: save one JSON file per fo
 
 Wherever a food is analyzed (search, portion analysis, recipe, or meal), numa automatically displays a **Bioavailability** section if it has data for that food. This section reports two things: the DIAAS score and any anti-nutrient advisories (see next section).
 
-For background on the DIAAS scoring methodology and score interpretation, see [Appendix A of the User Manual](user-manual.html#appendix-a).
+For background on the DIAAS scoring methodology and score interpretation, see [Appendix B of the User Manual](user-manual.html#appendix-b).
 
 #### What numa displays
 
@@ -1324,4 +1324,4 @@ The original design specified three phases. Phase 1 is complete.
 
 ## Appendix — Understanding Protein Quality
 
-For a full explanation of the FAO reference values, EAA ratios, what "complete" protein means, and how the DIAAS score is calculated with worked examples, see **[Appendix A of the NutriMagnus User Manual](user-manual.html#appendix-a)**.
+For a full explanation of the FAO reference values, EAA ratios, what "complete" protein means, and how the DIAAS score is calculated with worked examples, see **[Appendix B of the NutriMagnus User Manual](user-manual.html#appendix-b)**.

@@ -94,7 +94,16 @@
       "Bash(wc *)",
       "Bash(diff *)",
       "Bash(echo *)",
-      "Bash(mkdir -p *)"
+      "Bash(mkdir -p *)",
+      "Bash(python -m pytest tests/test_web.py -k test_optimal_and_max_limit_columns_render -q)",
+      "Bash(pytest tests/test_web.py -k test_smoke_min_max_abbr_TMP -q -s)",
+      "Bash(pytest tests/test_smoke_tmp.py -q -s)",
+      "Bash(curl -s \"https://api.github.com/repos/tom-cloyd/NutriMagnus/commits/fb10045c29971586e11451265d606efc2640b761\")",
+      "Bash(curl -s \"https://api.github.com/repos/tom-cloyd/NutriMagnus\")",
+      "Bash(awk 'NR==2312,0' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/user-manual.md)",
+      "Bash(awk 'NR>=2312 && /^### [A-Z]\\\\./{print NR\": \"$0}' user-manual.md)",
+      "Bash(awk '/^## Part 9/{p=1} p && /^### [A-L]\\\\./' user-manual.md)",
+      "Bash(awk '/^### A\\\\. Recent program updates log/{p=1} p && /^### B\\\\./{exit} p' user-manual.md)"
     ]
   }
 }

@@ -18,6 +18,7 @@
            placeholder="Search for a food to look up portions…" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
+  <p class="muted mb-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
 </form>
 
 {% if search_error %}

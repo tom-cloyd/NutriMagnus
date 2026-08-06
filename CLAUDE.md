@@ -147,6 +147,41 @@ Essential AAs: all `aa_` keys except `aa_cystine_g` and `aa_tyrosine_g`.
 
 ---
 
+## Changelog (user-manual.md, Appendix A)
+
+Any turn that changes numa's user-facing behavior (new feature, bug fix, threshold change —
+not pure layout/wording tweaks, since the owner is currently numa's only user and already
+knows about those) ends with a new entry under today's `#### Month Day` heading in
+**Appendix A, "Recent program updates log"** (near the top of Part 9 — moved here from
+Appendix K on 2026-08-05 since it's checked far more often than the other appendices),
+plus the `version.py`/manual timestamp bump above.
+
+Every entry from 2026-07-31 onward uses this format — adopted 2026-08-05 because the prior
+single dense run-on line per entry was hard to skim:
+
+```
+**ALL-CAPS TITLE**
+
+One or two plain-language sentences a casual reader can grasp in a hurry. Lead with
+what the user can now do / now sees / now gets — NOT with what was wrong before or
+how it used to work. A [learn more...](#anchor) link goes here if a relevant manual
+section/anchor exists.
+
+​```
+Scope (menu path / files touched), then fuller technical detail — root cause,
+mechanism, implementation notes — git-commit-message style. Only include this
+block if there's real technical detail worth keeping; skip it for a trivial change.
+​```
+```
+
+Entries before 2026-07-31 remain in the old single-line format (`* ALL-CAPS SUMMARY -
+scope - description.`) — deliberately not reformatted retroactively; use the new format
+only going forward. After editing the manual, run `python3 scripts/build_manual.py` — it
+recomputes the "Reading time" header figure and regenerates `user-manual.html`; don't
+hand-edit reading time.
+
+---
+
 ## Test Conventions
 
 - `_mock_api(monkeypatch)` (in `tests/conftest.py`) — stubs USDA API; use for any test that touches food search.

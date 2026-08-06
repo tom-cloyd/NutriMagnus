@@ -42,6 +42,7 @@ from numa_app.services.recipe_nutrients import (
 )
 from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services import search_ranking as _search_ranking
+from numa_app.services import print_sections as _print_sections
 
 # In a PyInstaller onefile build, backend.py is bundled as a flattened
 # top-level module — there's no separate web/ subdirectory nested under a
@@ -467,6 +468,8 @@ def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
     return Markup(f'<span class="food-id-tag">(#{escape(id_str)}, {escape(source)})</span>')
 
 templates.env.globals["food_id_tag"] = _food_id_tag
+templates.env.globals["diet_labels"] = _DIET_LABELS
+templates.env.globals["current_diet_pref"] = _current_diet_pref
 
 # ---------------------------------------------------------------------------
 # Nutrient display groups (ordered for presentation)
@@ -517,6 +520,26 @@ def _rda_css(pct: float, rda_type: str) -> str:
     return "rda-" + rda_status(pct, rda_type)
 
 
+_RDA_TYPE_ABBR = {"minimum": "min", "limit": "max", "target": "target"}
+_RDA_TYPE_TITLE = {
+    "minimum": "Minimum — aim to meet or exceed this amount",
+    "limit": "Maximum — stay at or under this amount",
+    "target": "Target — aim close to this amount, not just above or below it",
+}
+
+
+def _rda_type_abbr(rda_type: str | None) -> str:
+    return _RDA_TYPE_ABBR.get(rda_type, "")
+
+
+def _rda_type_title(rda_type: str | None) -> str:
+    return _RDA_TYPE_TITLE.get(rda_type, "")
+
+
+templates.env.globals["rda_type_abbr"] = _rda_type_abbr
+templates.env.globals["rda_type_title"] = _rda_type_title
+
+
 def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                        daily_nutrients: dict | None = None,
                        optimal: dict | None = None,
@@ -542,7 +565,7 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                         day_pct = round(daily_nutrients.get(key, 0.0) / rda_val * 100, 0)
                         day_rda_css = _rda_css(day_pct, rda_type)
 
-            opt_pct = opt_day_pct = opt_css = opt_day_css = opt_goal = None
+            opt_pct = opt_day_pct = opt_css = opt_day_css = opt_goal = opt_type = None
             if optimal and key in optimal:
                 opt_val, opt_unit, opt_type = optimal[key]
                 if opt_val and opt_val > 0:
@@ -570,6 +593,7 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                 "day_pct":      day_pct,
                 "day_rda_css":  day_rda_css,
                 "optimal_goal":     opt_goal,
+                "optimal_type":     opt_type,
                 "optimal_pct":      opt_pct,
                 "optimal_css":      opt_css,
                 "optimal_day_pct":  opt_day_pct,
@@ -2652,15 +2676,13 @@ async def food_annotate_clear(fdc_id: int):
 
 
 # /food/{fdc_id} must be registered LAST among /food/* routes so literal paths win.
-@app.get("/food/{fdc_id}", response_class=HTMLResponse)
-async def food_detail(
-    request: Request,
+def _food_detail_context(
     fdc_id: int,
-    amount: float = Query(default=100.0, gt=0),
-    portion_str: str = Query(default=""),
-    ignore_complements: list[str] = Query(default=[]),
-    unignore: list[str] = Query(default=[]),
-):
+    amount: float,
+    portion_str: str,
+    ignore_complements: list[str],
+    unignore: list[str],
+) -> dict:
     nutrients: dict = {}
     portions: list = []
     food: dict = {}
@@ -2684,11 +2706,7 @@ async def food_detail(
         try:
             detail = _usda.get_food_detail(fdc_id)
         except Exception as exc:
-            return templates.TemplateResponse(request, "search.html", {
-                "results": [],
-                "query":   "",
-                "error":   f"Could not load food {fdc_id}: {exc}",
-            })
+            return {"error": f"Could not load food {fdc_id}: {exc}"}
         nutrients = detail.get("nutrients", {})
         portions = detail.get("portions", [])
         food = {
@@ -2751,7 +2769,7 @@ async def food_detail(
     if oxalate and amount and oxalate.get("mg_per_100g") is not None:
         oxalate_mg_portion = round(oxalate["mg_per_100g"] * amount / 100.0, 1)
 
-    return templates.TemplateResponse(request, "food_detail.html", {
+    return {
         "food":               food,
         "amount":             amount,
         "portion_str":        portion_str.strip(),
@@ -2770,6 +2788,75 @@ async def food_detail(
         "suggest_foundation": suggest_foundation,
         "oxalate":            oxalate,
         "oxalate_mg_portion": oxalate_mg_portion,
+    }
+
+
+@app.get("/food/{fdc_id}", response_class=HTMLResponse)
+async def food_detail(
+    request: Request,
+    fdc_id: int,
+    amount: float = Query(default=100.0, gt=0),
+    portion_str: str = Query(default=""),
+    ignore_complements: list[str] = Query(default=[]),
+    unignore: list[str] = Query(default=[]),
+):
+    ctx = _food_detail_context(fdc_id, amount, portion_str, ignore_complements, unignore)
+    if "error" in ctx:
+        return templates.TemplateResponse(request, "search.html", {
+            "results": [], "query": "", "error": ctx["error"],
+        })
+    return templates.TemplateResponse(request, "food_detail.html", ctx)
+
+
+def _food_available_sections(ctx: dict) -> list[str]:
+    available = []
+    if ctx.get("nutrient_sections"):
+        available.append("nutrient_table")
+    if ctx.get("protein"):
+        available.append("protein_summary")
+        available.append("protein_quality")
+    if ctx.get("oxalate") or ctx.get("antinutrients"):
+        available.append("antinutrients")
+    complements = ctx.get("complements")
+    if complements and not complements.get("no_data"):
+        available.append("complements")
+    return available
+
+
+@app.get("/food/{fdc_id}/print", response_class=HTMLResponse)
+async def food_print(
+    request: Request,
+    fdc_id: int,
+    amount: float = Query(default=100.0, gt=0),
+    portion_str: str = Query(default=""),
+    sections: list[str] = Query(default=[]),
+    sections_submitted: bool = Query(default=False),
+):
+    ctx = _food_detail_context(fdc_id, amount, portion_str, [], [])
+    if "error" in ctx:
+        return templates.TemplateResponse(request, "search.html", {
+            "results": [], "query": "", "error": ctx["error"],
+        })
+
+    available = _food_available_sections(ctx)
+    prefs = _load_prefs_file()
+    enabled = _print_sections.resolve_sections("food", available, sections, sections_submitted, prefs)
+    if sections_submitted:
+        _save_prefs_file(_print_sections.save_sections("food", enabled, prefs))
+
+    subtitle_bits = [b for b in [ctx["food"].get("data_type"),
+                                  f"{ctx['portion_label'] or (str(ctx['amount']) + ' g')}"] if b]
+
+    return templates.TemplateResponse(request, "print.html", {
+        "title":              ctx["food"]["name"],
+        "subtitle":           " · ".join(subtitle_bits),
+        "back_url":           f"/food/{fdc_id}",
+        "back_label":         "Back to food",
+        "fixed_params":       {"amount": amount, "portion_str": portion_str},
+        "section_labels":     _print_sections.PRINT_SECTION_LABELS,
+        "available_sections": available,
+        "enabled":            enabled,
+        **ctx,
     })
 
 
@@ -3620,6 +3707,136 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     })
 
 
+def _meal_print_context(meal_id: int) -> dict | None:
+    with _db.get_db() as conn:
+        meal = _db.meal_get(conn, meal_id)
+    if not meal:
+        return None
+
+    items, total_nutrients, diaas_result, meal_ingredients = _meal_totals(meal_id)
+    items = _sort_meal_items_display(items)
+
+    with _db.get_db() as conn:
+        day_profile_obj = _day_profile.get_profile_for_date(conn, meal["meal_date"])
+    rda = _load_rda(day_profile_obj)
+    optimal = _load_optimal(day_profile_obj)
+    max_limits = _load_max_limits(day_profile_obj)
+
+    diaas_display = _build_diaas_display(diaas_result)
+    aa_nutrients = _meal_aa_nutrients(meal_id)
+    gl_total, gl_blockers = _compute_gl(meal_id)
+
+    item_antinutrients = []
+    seen_names: set[str] = set()
+    with _db.get_db() as conn:
+        for item in items:
+            food_name = item.get("food_name", "")
+            if item.get("recipe_id"):
+                for ing in _expand_recipe_ingredients(item["recipe_id"], 1.0, conn):
+                    n = ing["food_name"]
+                    if n not in seen_names:
+                        seen_names.add(n)
+                        flags = _usda.get_antinutrient_flags(n)
+                        if flags:
+                            item_antinutrients.append({"food_name": n, "flags": flags})
+            elif item.get("fdc_id") and food_name and food_name not in seen_names:
+                seen_names.add(food_name)
+                flags = _usda.get_antinutrient_flags(food_name)
+                if flags:
+                    item_antinutrients.append({"food_name": food_name, "flags": flags})
+
+    ox_items = []
+    with _db.get_db() as conn:
+        for it in items:
+            if it.get("recipe_id"):
+                portion_factor = float(it["amount"] or 1)
+                recipe = _db.recipe_get(conn, it["recipe_id"])
+                if recipe:
+                    r_servings = float(recipe["servings"] or 1)
+                    factor = portion_factor / r_servings
+                else:
+                    factor = portion_factor
+                for ing in _expand_recipe_ingredients(it["recipe_id"], factor, conn):
+                    if ing.get("fdc_id") and ing["fdc_id"] > 0:
+                        ox_items.append({
+                            "fdc_id":    ing["fdc_id"],
+                            "food_name": ing["food_name"],
+                            "amount_g":  ing["grams"],
+                        })
+            elif it.get("fdc_id"):
+                ox_items.append({
+                    "fdc_id":    it["fdc_id"],
+                    "food_name": it["food_name"],
+                    "amount_g":  it["amount"],
+                })
+    oxalate = _oxalate_for_items(ox_items)
+
+    return {
+        "meal":               dict(meal),
+        "meal_items":         items,
+        "nutrient_sections":  _nutrient_sections(total_nutrients, rda, optimal=optimal, max_limits=max_limits) if total_nutrients else [],
+        "diaas":              diaas_display,
+        "protein_adequacy":   _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
+        "complements":        _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients),
+        "gl":                 {"total": gl_total, "blockers": gl_blockers},
+        "ingredient_antinutrients": item_antinutrients,
+        "oxalate_agg":        oxalate,
+        "has_profile":        rda is not None,
+        "has_optimal":        bool(optimal),
+    }
+
+
+def _meal_available_sections(ctx: dict) -> list[str]:
+    available = []
+    if ctx.get("meal_items"):
+        available.append("items")
+    if ctx.get("nutrient_sections"):
+        available.append("nutrient_table")
+    if ctx.get("diaas"):
+        available.append("protein_summary")
+        available.append("protein_quality")
+    gl = ctx.get("gl")
+    if gl and gl.get("total") is not None:
+        available.append("glycemic_load")
+    if ctx.get("oxalate_agg") or ctx.get("ingredient_antinutrients"):
+        available.append("antinutrients")
+    complements = ctx.get("complements")
+    if complements and not complements.get("no_data"):
+        available.append("complements")
+    return available
+
+
+@app.get("/meal/{meal_id}/print", response_class=HTMLResponse)
+async def meal_print(
+    request: Request,
+    meal_id: int,
+    sections: list[str] = Query(default=[]),
+    sections_submitted: bool = Query(default=False),
+):
+    ctx = _meal_print_context(meal_id)
+    if ctx is None:
+        return RedirectResponse("/meals", status_code=303)
+
+    available = _meal_available_sections(ctx)
+    prefs = _load_prefs_file()
+    enabled = _print_sections.resolve_sections("meal", available, sections, sections_submitted, prefs)
+    if sections_submitted:
+        _save_prefs_file(_print_sections.save_sections("meal", enabled, prefs))
+
+    return templates.TemplateResponse(request, "print.html", {
+        "title":              ctx["meal"]["name"],
+        "subtitle":           ctx["meal"]["meal_date"],
+        "back_url":           f"/meal/{meal_id}",
+        "back_label":         "Back to meal",
+        "fixed_params":       {},
+        "section_labels":     _print_sections.PRINT_SECTION_LABELS,
+        "available_sections": available,
+        "enabled":            enabled,
+        "portion_label":      "this meal",
+        **ctx,
+    })
+
+
 @app.get("/meal/{meal_id}/search-api-results", response_class=HTMLResponse)
 async def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None,
                                    source: str | None = None):
@@ -4003,12 +4220,11 @@ def _day_analysis(meal_date: str) -> tuple[list, dict, dict | None, list]:
     return meals, combined_nutrients, diaas_result, all_ingredients
 
 
-@app.get("/meal/{meal_id}/day", response_class=HTMLResponse)
-async def meal_day_view(request: Request, meal_id: int):
+def _meal_day_context(meal_id: int) -> dict | None:
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
     if not meal:
-        return RedirectResponse("/meals", status_code=303)
+        return None
     meal_date = meal["meal_date"]
     meals, combined_nutrients, diaas_result, day_ingredients = _day_analysis(meal_date)
 
@@ -4048,7 +4264,7 @@ async def meal_day_view(request: Request, meal_id: int):
     rda = _load_rda(day_profile_obj)
     optimal = _load_optimal(day_profile_obj)
     max_limits = _load_max_limits(day_profile_obj)
-    return templates.TemplateResponse(request, "meal_day.html", {
+    return {
         "meal_date":         meal_date,
         "meals":             meals,
         "from_meal_id":      meal_id,
@@ -4063,6 +4279,64 @@ async def meal_day_view(request: Request, meal_id: int):
         "day_profile_name":  day_profile_row["profile_name"] if day_profile_row else None,
         "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
         "all_profile_names": _profile.list_profiles(),
+    }
+
+
+@app.get("/meal/{meal_id}/day", response_class=HTMLResponse)
+async def meal_day_view(request: Request, meal_id: int):
+    ctx = _meal_day_context(meal_id)
+    if ctx is None:
+        return RedirectResponse("/meals", status_code=303)
+    return templates.TemplateResponse(request, "meal_day.html", ctx)
+
+
+def _day_available_sections(ctx: dict) -> list[str]:
+    available = []
+    if ctx.get("meals"):
+        available.append("meals_list")
+    if ctx.get("nutrient_sections"):
+        available.append("nutrient_table")
+    if ctx.get("diaas"):
+        available.append("protein_summary")
+        available.append("protein_quality")
+    gl = ctx.get("gl")
+    if gl and gl.get("total") is not None:
+        available.append("glycemic_load")
+    complements = ctx.get("complements")
+    if complements and not complements.get("no_data"):
+        available.append("complements")
+    return available
+
+
+@app.get("/meal/{meal_id}/day/print", response_class=HTMLResponse)
+async def meal_day_print(
+    request: Request,
+    meal_id: int,
+    sections: list[str] = Query(default=[]),
+    sections_submitted: bool = Query(default=False),
+):
+    ctx = _meal_day_context(meal_id)
+    if ctx is None:
+        return RedirectResponse("/meals", status_code=303)
+
+    available = _day_available_sections(ctx)
+    prefs = _load_prefs_file()
+    enabled = _print_sections.resolve_sections("day", available, sections, sections_submitted, prefs)
+    if sections_submitted:
+        _save_prefs_file(_print_sections.save_sections("day", enabled, prefs))
+
+    return templates.TemplateResponse(request, "print.html", {
+        "title":              f"Daily Summary — {ctx['meal_date']}",
+        "subtitle":           f"{ctx['meal_date']}" + (f" · profile: {ctx['day_profile_name']}" if ctx.get("day_profile_name") else ""),
+        "back_url":           f"/meal/{meal_id}/day",
+        "back_label":         "Back to day",
+        "fixed_params":       {},
+        "section_labels":     _print_sections.PRINT_SECTION_LABELS,
+        "available_sections": available,
+        "enabled":            enabled,
+        "portion_label":      "full day",
+        "day_meals":          ctx["meals"],
+        **ctx,
     })
 
 
@@ -4191,9 +4465,11 @@ async def settings_post(
 
 
 @app.post("/settings/diet", response_class=RedirectResponse)
-async def settings_diet_post(diet_pref: str = Form(...)):
+async def settings_diet_post(diet_pref: str = Form(...), next: str = Form(None)):
     if diet_pref in _VALID_DIET_PREFS:
         _save_prefs_file({"diet_pref": diet_pref})
+    if next and next.startswith("/") and not next.startswith("//"):
+        return RedirectResponse(next, status_code=303)
     return RedirectResponse("/settings?saved=diet", status_code=303)
 
 
@@ -4412,14 +4688,12 @@ async def recipe_new_post(
     return RedirectResponse(f"/recipe/{rid}/edit", status_code=303)
 
 
-@app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
-async def recipe_detail(request: Request, recipe_id: int, servings: float | None = None,
-                         ignore_complements: list[str] = Query(default=[]),
-                         unignore: list[str] = Query(default=[])):
+def _recipe_detail_context(recipe_id: int, servings: float | None,
+                            ignore_complements: list[str], unignore: list[str]) -> dict | None:
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
-            return RedirectResponse("/recipes", status_code=303)
+            return None
         _db.recipe_touch(conn, recipe_id)
         ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
         for _ing in ingredients:
@@ -4470,7 +4744,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
     ]
     oxalate = _oxalate_for_items(ox_items)
 
-    return templates.TemplateResponse(request, "recipe_detail.html", {
+    return {
         "recipe":                   dict(recipe),
         "ingredients":              ingredients,
         "servings":                 servings,
@@ -4485,6 +4759,72 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
         "ingredient_antinutrients": ingredient_antinutrients,
         "oxalate":                  oxalate,
         "referencing_recipes":      referencing_recipes,
+    }
+
+
+@app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
+async def recipe_detail(request: Request, recipe_id: int, servings: float | None = None,
+                         ignore_complements: list[str] = Query(default=[]),
+                         unignore: list[str] = Query(default=[])):
+    ctx = _recipe_detail_context(recipe_id, servings, ignore_complements, unignore)
+    if ctx is None:
+        return RedirectResponse("/recipes", status_code=303)
+    return templates.TemplateResponse(request, "recipe_detail.html", ctx)
+
+
+def _recipe_available_sections(ctx: dict) -> list[str]:
+    available = []
+    if ctx.get("ingredients"):
+        available.append("ingredients")
+    if ctx.get("recipe", {}).get("instructions"):
+        available.append("procedure")
+    if ctx.get("nutrient_sections"):
+        available.append("nutrient_table")
+    if ctx.get("diaas"):
+        available.append("protein_summary")
+        available.append("protein_quality")
+    gl = ctx.get("gl")
+    if gl and gl.get("total") is not None:
+        available.append("glycemic_load")
+    if ctx.get("oxalate") or ctx.get("ingredient_antinutrients"):
+        available.append("antinutrients")
+    complements = ctx.get("complements")
+    if complements and not complements.get("no_data"):
+        available.append("complements")
+    return available
+
+
+@app.get("/recipe/{recipe_id}/print", response_class=HTMLResponse)
+async def recipe_print(
+    request: Request,
+    recipe_id: int,
+    servings: float | None = None,
+    sections: list[str] = Query(default=[]),
+    sections_submitted: bool = Query(default=False),
+):
+    ctx = _recipe_detail_context(recipe_id, servings, [], [])
+    if ctx is None:
+        return RedirectResponse("/recipes", status_code=303)
+
+    available = _recipe_available_sections(ctx)
+    prefs = _load_prefs_file()
+    enabled = _print_sections.resolve_sections("recipe", available, sections, sections_submitted, prefs)
+    if sections_submitted:
+        _save_prefs_file(_print_sections.save_sections("recipe", enabled, prefs))
+
+    return templates.TemplateResponse(request, "print.html", {
+        "title":              ctx["recipe"]["name"],
+        "subtitle":           f"{ctx['servings']} serving{'s' if ctx['servings'] != 1 else ''} analyzed"
+                              f"{' · ' + str(ctx['recipe']['servings']) + ' servings per recipe' if ctx['recipe'].get('servings') else ''}",
+        "back_url":           f"/recipe/{recipe_id}",
+        "back_label":         "Back to recipe",
+        "fixed_params":       {"servings": ctx["servings"]},
+        "section_labels":     _print_sections.PRINT_SECTION_LABELS,
+        "available_sections": available,
+        "enabled":            enabled,
+        "portion_label":      f"{ctx['servings']} serving{'s' if ctx['servings'] != 1 else ''}",
+        "oxalate_agg":        ctx["oxalate"],
+        **{k: v for k, v in ctx.items() if k != "oxalate"},
     })
 
 

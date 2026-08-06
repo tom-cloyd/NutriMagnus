@@ -1,0 +1,13 @@
+{# ── Quick dietary-preference switch, shown near complement suggestions ──
+   Standalone <form> — do not nest inside another <form> (e.g. #complements-form). #}
+<form method="post" action="/settings/diet" class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+  <label class="muted mb-0" for="diet-pref-quick"><small>Dietary preference:</small></label>
+  <select class="form-select form-select-sm" style="width:auto" name="diet_pref" id="diet-pref-quick" onchange="this.form.submit()">
+    {% for key, label in diet_labels.items() %}
+    <option value="{{ key }}" {{ 'selected' if current_diet_pref() == key }}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Change</button></noscript>
+  <a href="/settings#diet-preferences" class="btn btn-sm btn-outline-secondary">Change settings</a>
+</form>

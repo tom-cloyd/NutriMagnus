@@ -86,6 +86,7 @@
     {% if food.brand %}{{ food.brand }} &middot; {% endif %}
     {{ food.data_type }}
     {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
+    &middot; <a href="/food/{{ food.fdc_id }}/print?amount={{ amount }}&portion_str={{ portion_str | urlencode }}">Print / Save as PDF</a>
   </p>
   {% if food.user_drafted %}
   <div class="d-flex gap-2 mb-2">
@@ -230,7 +231,7 @@
         {% if has_profile %}
         <td class="num-col">
           {% if row.pct is not none %}
-          <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+          <span class="{{ row.rda_css }}" title="{{ rda_type_title(row.rda_type) }}">{{ row.pct | int }}% <small class="muted">{{ rda_type_abbr(row.rda_type) }}</small></span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
@@ -238,7 +239,7 @@
         <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
         <td class="num-col">
           {% if row.optimal_pct is not none %}
-          <span class="{{ row.optimal_css }}">{{ row.optimal_pct | int }}%</span>
+          <span class="{{ row.optimal_css }}" title="{{ rda_type_title(row.optimal_type) }}">{{ row.optimal_pct | int }}% <small class="muted">{{ rda_type_abbr(row.optimal_type) }}</small></span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
@@ -325,7 +326,9 @@
     <strong>No amino acid data for this food.</strong>
     Foundation Foods (USDA's most complete dataset) usually includes full amino acid profiles.
     <a href="/food/search?query={{ suggest_foundation | urlencode }}">Search for
-    &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent.
+    &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent,
+    or <a href="/food/custom-profiles/{{ food.fdc_id }}/edit">estimate it from a similar food</a>
+    that already has amino acid data.
   </div>
   {% endif %}
 </section>
@@ -334,7 +337,9 @@
   <strong>No amino acid data for this food.</strong>
   Foundation Foods (USDA's most complete dataset) usually includes full amino acid profiles.
   <a href="/food/search?query={{ suggest_foundation | urlencode }}">Search for
-  &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent.
+  &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent,
+  or <a href="/food/custom-profiles/{{ food.fdc_id }}/edit">estimate it from a similar food</a>
+  that already has amino acid data.
 </div>
 {% endif %}
 
@@ -419,6 +424,7 @@
 </div>
 {% endmacro %}
 
+{% include "_diet_pref_quick.html" %}
 <form method="get" action="{{ request.url.path }}" id="complements-form">
 <input type="hidden" name="portion_str" value="{{ portion_str }}">
 <section id="sec-complements" class="analysis-section">

@@ -213,6 +213,28 @@ def test_unknown_food_detail_404s_gracefully(client: TestClient) -> None:
     assert resp.status_code in (200, 404)
 
 
+def test_food_print_defaults_to_all_available_sections(client: TestClient, cached_food) -> None:
+    resp = client.get(f"/food/{cached_food['fdcId']}/print")
+    assert resp.status_code == 200
+    assert "Nutrient Table" in resp.text
+    assert "Protein Summary" in resp.text
+    assert "Protein Quality" in resp.text
+
+
+def test_food_print_section_selection_is_remembered(client: TestClient, cached_food) -> None:
+    fdc_id = cached_food["fdcId"]
+    resp = client.get(f"/food/{fdc_id}/print", params={
+        "sections": ["protein_summary"], "sections_submitted": "1",
+    })
+    assert resp.status_code == 200
+    assert "Nutrient Table" not in resp.text
+    assert "Protein Summary" in resp.text
+
+    resp2 = client.get(f"/food/{fdc_id}/print")
+    assert "Nutrient Table" not in resp2.text
+    assert "Protein Summary" in resp2.text
+
+
 # ---------------------------------------------------------------------------
 # POST routes — mutating workflows (pantry, meals, recipes, settings, cache)
 # ---------------------------------------------------------------------------
@@ -287,6 +309,68 @@ def test_recipe_new_edit_and_add_ingredient(client: TestClient, cached_food, db_
     ).fetchall()
     assert len(ingredients) == 1
     assert ingredients[0]["amount"] == 200.0
+
+
+def test_recipe_print_defaults_to_all_available_sections(client: TestClient, cached_food, db_conn) -> None:
+    resp = client.post("/recipe/new", data={"name": "Chicken Bowl", "servings": 2}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "200 g"},
+        follow_redirects=False,
+    )
+
+    resp = client.get(f"/recipe/{recipe_id}/print")
+    assert resp.status_code == 200
+    assert "Ingredients" in resp.text
+    assert "Nutrient Table" in resp.text
+    assert "Protein Summary" in resp.text
+
+    resp2 = client.get(f"/recipe/{recipe_id}/print", params={
+        "sections": ["ingredients"], "sections_submitted": "1",
+    })
+    assert "Nutrient Table" not in resp2.text
+    assert "Ingredients" in resp2.text
+
+    resp3 = client.get(f"/recipe/{recipe_id}/print")
+    assert "Nutrient Table" not in resp3.text
+    assert "Ingredients" in resp3.text
+
+
+def test_meal_print_defaults_to_all_available_sections(client: TestClient, cached_food) -> None:
+    resp = client.post(
+        "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+
+    resp = client.get(f"/meal/{meal_id}/print")
+    assert resp.status_code == 200
+    assert "Foods &amp; Recipes" in resp.text
+    assert "Nutrient Table" in resp.text
+
+
+def test_meal_day_print_smoke(client: TestClient, cached_food) -> None:
+    resp = client.post(
+        "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+
+    resp = client.get(f"/meal/{meal_id}/day/print")
+    assert resp.status_code == 200
+    assert "Meals" in resp.text
+    assert "Nutrient Table" in resp.text
 
 
 def test_recipe_edit_ingredient_search_shows_id_and_brand(client: TestClient, cached_food) -> None:

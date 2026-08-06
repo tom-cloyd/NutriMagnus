@@ -20,6 +20,7 @@
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
   <p class="muted mb-2"><small>Type a food name, an <a href="/manual#gloss-fdc-id" target="_blank" rel="noopener">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
+  <p class="muted mb-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   {% if query %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
 </form>
 

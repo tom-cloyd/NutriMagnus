@@ -51,6 +51,7 @@
            placeholder="e.g. rolled oats, chicken breast" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
+  <p class="muted mb-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
 </form>
 
 {% if search_error %}
@@ -155,7 +156,13 @@
   <tbody>
     {% for item in items %}
     <tr{% if item.archived %} class="text-muted"{% endif %}>
-      <td>{{ item.food_name }}{{ food_id_tag(item.fdc_id) }}
+      <td>
+        {% if item.fdc_id %}
+        <a href="/food/{{ item.fdc_id }}"><strong>{{ item.food_name }}</strong></a>
+        {% else %}
+        {{ item.food_name }}
+        {% endif %}
+        {{ food_id_tag(item.fdc_id) }}
         {% if item.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}
       </td>
       <td>

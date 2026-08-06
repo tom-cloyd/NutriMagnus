@@ -118,7 +118,7 @@
         {% if has_profile %}
         <td class="num-col">
           {% if row.pct is not none %}
-          <span class="{{ row.rda_css }}">{{ row.pct | int }}%</span>
+          <span class="{{ row.rda_css }}" title="{{ rda_type_title(row.rda_type) }}">{{ row.pct | int }}% <small class="muted">{{ rda_type_abbr(row.rda_type) }}</small></span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
@@ -126,7 +126,7 @@
         <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
         <td class="num-col">
           {% if row.optimal_pct is not none %}
-          <span class="{{ row.optimal_css }}">{{ row.optimal_pct | int }}%</span>
+          <span class="{{ row.optimal_css }}" title="{{ rda_type_title(row.optimal_type) }}">{{ row.optimal_pct | int }}% <small class="muted">{{ rda_type_abbr(row.optimal_type) }}</small></span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
@@ -255,10 +255,10 @@
     <p>
       <strong>{{ protein_adequacy.label }}:</strong> {{ protein_adequacy.intake }}&thinsp;g
       &nbsp;&middot;&nbsp;
-      <strong>Daily target:</strong> {{ protein_adequacy.target }}&thinsp;g
+      <strong>Daily target (minimum):</strong> {{ protein_adequacy.target }}&thinsp;g
       &nbsp;&middot;&nbsp;
       <span class="{% if protein_adequacy.pct >= 100 %}status-met{% elif protein_adequacy.pct >= 75 %}rda-near{% else %}rda-low{% endif %}">
-        {{ protein_adequacy.pct | int }}% of target
+        {{ protein_adequacy.pct | int }}% of minimum target
       </span>
     </p>
     {% if not protein_adequacy.personal %}
@@ -271,6 +271,7 @@
 {# ── 6. Protein Complement Suggestions ────────────────────────────────────── #}
 <details>
   <summary><strong>Protein Complement Suggestions</strong> {{ manual_link("comp") }}</summary>
+  {% include "_diet_pref_quick.html" %}
   {% if complements.no_data %}
   <p class="muted mt-2">No amino acid data available for the ingredients in this recipe.</p>
   {% elif complements.no_gaps %}

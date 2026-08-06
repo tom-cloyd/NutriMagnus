@@ -6,7 +6,7 @@ after `pyinstaller nutrimagnus.spec` (packages web/launcher.py) has produced
 dist/nutrimagnus. Used by .github/workflows/release.yml on manual dispatch;
 safe to run manually too.
 
-Release notes are pulled from user-manual.md's Appendix K ("Recent program
+Release notes are pulled from user-manual.md's Appendix A ("Recent program
 updates log") section matching today's date (#### Month Day), falling back
 to a generic message if that section doesn't exist yet (e.g. no manual
 changes were logged today).
@@ -29,7 +29,7 @@ API_BASE = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 UPLOADS_BASE = f"https://uploads.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
-APPENDIX_K_HEADING = "### K. Recent program updates log"
+CHANGELOG_HEADING = "### A. Recent program updates log"
 
 
 def _version() -> str:
@@ -51,7 +51,7 @@ def _release_notes_for_today() -> str:
     in_appendix = False
     for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped == APPENDIX_K_HEADING:
+        if stripped == CHANGELOG_HEADING:
             in_appendix = True
             continue
         if not in_appendix:

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} — NutriMagnus</title>
+  <style>
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 12pt;
+      color: #111;
+      max-width: 48rem;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    h1 { font-size: 1.8rem; margin-bottom: 0.2rem; }
+    h2 { font-size: 1.2rem; margin-top: 1.6rem; margin-bottom: 0.5rem;
+         border-bottom: 1px solid #ccc; padding-bottom: 0.2rem; }
+    h3 { font-size: 1rem; margin-top: 1rem; margin-bottom: 0.4rem; }
+    .meta { color: #555; font-size: 0.9rem; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    th { text-align: left; border-bottom: 2px solid #999; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
+    td { padding: 0.2rem 0.4rem; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+    td.num, th.num { text-align: right; white-space: nowrap; }
+    .muted { color: #666; }
+    .card { border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem 0.7rem; margin: 0.4rem 0; }
+    .status-met { color: #146c2e; }
+    .status-gap { color: #a05a00; }
+    .no-print { margin-top: 1.5rem; margin-bottom: 1.5rem; }
+    .btn-print {
+      display: inline-block; padding: 0.4rem 1.1rem; background: #1a3a6b; color: #fff;
+      border: none; border-radius: 4px; font-size: 0.9rem; cursor: pointer; margin-right: 0.5rem;
+    }
+    .btn-back {
+      display: inline-block; padding: 0.4rem 1.1rem; background: #e9ecef; color: #333;
+      border: 1px solid #adb5bd; border-radius: 4px; font-size: 0.9rem; cursor: pointer;
+      text-decoration: none; margin-right: 0.5rem;
+    }
+    .section-form label { display: block; font-size: 0.9rem; margin-bottom: 0.3rem; }
+    @media print {
+      .no-print { display: none; }
+      body { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="no-print">
+  <form method="get" action="{{ request.url.path }}" class="section-form">
+    {% for key, url_val in fixed_params.items() %}<input type="hidden" name="{{ key }}" value="{{ url_val }}">{% endfor %}
+    <input type="hidden" name="sections_submitted" value="1">
+    <p><strong>Include on this printout:</strong></p>
+    {% for key, label in section_labels.items() %}
+    {% if key in available_sections %}
+    <label>
+      <input type="checkbox" name="sections" value="{{ key }}" {% if key in enabled %}checked{% endif %}>
+      {{ label }}
+    </label>
+    {% endif %}
+    {% endfor %}
+    <button type="submit" class="btn-print" style="margin-top:0.5rem">Update selection</button>
+  </form>
+  <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+  <a class="btn-back" href="{{ back_url }}">{{ back_label }}</a>
+</div>
+
+<h1>{{ title }}</h1>
+{% if subtitle %}<p class="meta">{{ subtitle }}</p>{% endif %}
+
+{% if not enabled %}
+<p class="muted">Nothing selected — check a box above and click "Update selection" to include content.</p>
+{% endif %}
+
+{% if "items" in enabled and meal_items %}
+<h2>Foods &amp; Recipes</h2>
+<table>
+  <thead><tr><th>Food / Recipe</th><th class="num">Amount</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for it in meal_items %}
+    <tr>
+      <td>{{ it.food_name }}{{ food_id_tag(it.fdc_id, it.recipe_id) }}</td>
+      <td class="num">{{ it.amount }}&thinsp;{{ it.unit }}</td>
+      <td class="muted">{{ it.notes or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if "meals_list" in enabled and day_meals %}
+<h2>Meals</h2>
+{% for m in day_meals %}
+<h3>{{ m.name }}</h3>
+{% if m.meal_items %}
+<table>
+  <thead><tr><th>Food / Recipe</th><th class="num">Amount</th></tr></thead>
+  <tbody>
+    {% for it in m.meal_items %}
+    <tr>
+      <td>{{ it.food_name }}{{ food_id_tag(it.fdc_id, it.recipe_id) }}</td>
+      <td class="num">{{ it.amount }}&thinsp;{{ it.unit }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No items.</p>
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if "ingredients" in enabled and ingredients %}
+<h2>Ingredients</h2>
+<table>
+  <thead><tr><th class="num">#</th><th class="num">Amount</th><th>Food</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for ing in ingredients %}
+    <tr>
+      <td class="num muted">{{ loop.index }}</td>
+      <td class="num" style="white-space:nowrap">
+        {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
+          {{ ing.amount | round(2) | string | replace(".0", "") }} srv
+        {% else %}
+          {{ ing.amount | round(1) }}&thinsp;g
+        {% endif %}
+      </td>
+      <td>{{ ing.food_name }}{% if ing.ref_recipe_deleted %} <span style="color:#c00">(sub-recipe deleted)</span>{% endif %}</td>
+      <td class="muted">{{ ing.notes or "" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if "procedure" in enabled and recipe and recipe.instructions %}
+<h2>Procedure</h2>
+<div style="white-space:pre-wrap;line-height:1.6">{{ recipe.instructions }}</div>
+{% endif %}
+
+{% if "nutrient_table" in enabled and nutrient_sections %}
+<h2>Nutrient Table</h2>
+{% for section in nutrient_sections %}
+<h3>{{ section.name }}</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Nutrient</th>
+      <th class="num">{% if portion_label %}{{ portion_label }}{% else %}{{ amount }}&thinsp;g{% endif %}</th>
+      <th>Unit</th>
+      {% if has_profile %}<th class="num">% of daily target</th>{% endif %}
+      {% if has_optimal %}<th class="num">optimal goal</th><th class="num">% of optimal</th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in section.rows %}
+    <tr>
+      <td>{{ row.label }}</td>
+      <td class="num">{{ row.value }}</td>
+      <td class="muted">{{ row.unit }}</td>
+      {% if has_profile %}
+      <td class="num">{% if row.pct is not none %}{{ row.pct | int }}% {{ rda_type_abbr(row.rda_type) }}{% else %}—{% endif %}</td>
+      {% endif %}
+      {% if has_optimal %}
+      <td class="num muted">{{ row.optimal_goal or '—' }}</td>
+      <td class="num">{% if row.optimal_pct is not none %}{{ row.optimal_pct | int }}% {{ rda_type_abbr(row.optimal_type) }}{% else %}—{% endif %}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% endif %}
+
+{% if "protein_summary" in enabled and protein %}
+<h2>Protein Summary</h2>
+{% if protein.dcp_g is not none %}
+<p>
+  <strong>Digestible Complete Protein (DCP): {{ protein.dcp_g }}&thinsp;g</strong><br>
+  {% if protein.complete %}
+  <span class="status-met">&#10003; Complete protein</span>
+  {% else %}
+  <span class="status-gap">&#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}{% if protein.limiting_score is not none %} ({{ "%.3f"|format(protein.limiting_score) }}){% endif %}</span>
+  {% endif %}
+</p>
+{% if protein.diaas is not none and protein.protein_raw is not none %}
+<p class="muted">{{ protein.protein_raw }}&thinsp;g raw protein &times; DIAAS {{ "%.2f"|format(protein.diaas) }}{% if protein.protein_digestible is not none %} = {{ protein.protein_digestible }}&thinsp;g digestible &rarr; {{ protein.dcp_g }}&thinsp;g DCP{% endif %}</p>
+{% endif %}
+{% elif protein.diaas is not none %}
+<p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }} <span class="muted">(DCP not computed for this food)</span></p>
+{% endif %}
+{% endif %}
+
+{% if "protein_quality" in enabled and protein %}
+<h2>Protein Quality</h2>
+{% if protein.diaas is not none %}
+<p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }} <span class="muted">(protein digestibility score; 1.0 = fully digestible)</span></p>
+{% endif %}
+{% if protein.protein_digestible is not none %}
+<p><strong>Digestible protein:</strong> {{ protein.protein_digestible }}&thinsp;g <span class="muted">(from {{ protein.protein_raw }}&thinsp;g raw &times; DIAAS {{ "%.2f"|format(protein.diaas) }})</span></p>
+{% endif %}
+<p>
+  {% if protein.complete %}
+  <span class="status-met">&#10003; Complete protein</span>
+  {% else %}
+  <span class="status-gap">&#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}</span>
+  {% endif %}
+</p>
+<table>
+  <thead><tr><th>Amino Acid</th><th class="num">Score vs. ref.</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for aa in protein.aa_rows %}
+    <tr>
+      <td>{{ aa.label }}</td>
+      <td class="num">{{ "%.3f"|format(aa.score) }}</td>
+      <td>{% if aa.met %}<span class="status-met">&#10003; Met</span>{% else %}<span class="status-gap">&#9888; Gap</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if "protein_summary" in enabled and diaas %}
+<h2>Protein Summary</h2>
+{% if diaas.dcp_g is not none %}
+<p>
+  <strong>Digestible Complete Protein (DCP): {{ diaas.dcp_g }}&thinsp;g</strong><br>
+  {% if diaas.score is not none and diaas.score >= 0.9 %}
+  <span class="status-met">&#10003; Complete protein</span>
+  {% else %}
+  <span class="status-gap">&#9888; {{ diaas.limiting_label or "Incomplete" }}</span>
+  {% endif %}
+</p>
+{% if protein_adequacy and not protein_adequacy.no_profile %}
+<p class="muted">{{ protein_adequacy.pct | int }}% of daily target ({{ protein_adequacy.target }}&thinsp;g{% if protein_adequacy.personal %}, personal profile{% else %}, standard adult reference{% endif %})</p>
+{% endif %}
+{% elif diaas.score is not none %}
+<p><strong>Composite DIAAS:</strong> {{ "%.3f"|format(diaas.score) }} <span class="muted">(DCP not computed)</span></p>
+{% endif %}
+{% endif %}
+
+{% if "protein_quality" in enabled and diaas %}
+<h2>Protein Quality — pooled, digestibility-corrected (DIAAS)</h2>
+{% if diaas.ing_rows %}
+<h3>Ingredient digestibility</h3>
+<table>
+  <thead><tr><th>Food</th><th class="num">Protein (g)</th><th class="num">Digestibility</th><th class="num">Digestible (g)</th></tr></thead>
+  <tbody>
+    {% for ing in diaas.ing_rows %}
+    <tr>
+      <td>{{ ing.food_name }}{{ food_id_tag(ing.fdc_id, ing.recipe_id) }}</td>
+      <td class="num">{{ ing.protein_g }}</td>
+      <td class="num">{{ "%.2f"|format(ing.digestibility) }}</td>
+      <td class="num">{{ ing.digestible_protein_g }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% if diaas.iaa_rows %}
+<h3>Amino acid ratios</h3>
+<table>
+  <thead><tr><th>Amino Acid</th><th class="num">Ratio</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for aa in diaas.iaa_rows %}
+    <tr>
+      <td>{{ aa.label }}{% if aa.is_limiting %} <span class="muted">&larr; limiting</span>{% endif %}</td>
+      <td class="num">{{ "%.3f"|format(aa.ratio) }}</td>
+      <td>{% if aa.met %}<span class="status-met">&#10003; Met</span>{% else %}<span class="status-gap">&#9888; Gap</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<p><strong>Composite DIAAS:</strong> {% if diaas.score is not none %}{{ "%.3f"|format(diaas.score) }}{% else %}N/A{% endif %}
+{% if diaas.dcp_g is not none %}&middot; <strong>Digestible complete protein:</strong> {{ diaas.dcp_g }}&thinsp;g{% endif %}</p>
+{% endif %}
+
+{% if "glycemic_load" in enabled and gl and gl.total is not none %}
+<h2>Glycemic Load</h2>
+<p><strong>{{ gl.total }}</strong> <span class="muted">&mdash; {% if gl.total < 10 %}Low{% elif gl.total < 20 %}Medium{% else %}High{% endif %}</span></p>
+{% endif %}
+
+{% if "antinutrients" in enabled and (oxalate_agg or ingredient_antinutrients) %}
+<h2>Anti-nutrients</h2>
+{% if oxalate_agg %}
+<h3>Oxalate</h3>
+{% if oxalate_agg.total_mg is not none %}
+<p><strong>Total: {{ oxalate_agg.total_mg }}&thinsp;mg</strong></p>
+{% endif %}
+{% if oxalate_agg.rows %}
+<table style="max-width:36rem">
+  <thead><tr><th>Ingredient</th><th class="num">Amount</th><th class="num">Oxalate</th><th>Category</th></tr></thead>
+  <tbody>
+    {% for row in oxalate_agg.rows %}
+    <tr>
+      <td>{{ row.name }}</td>
+      <td class="num">{{ row.amount_g }}&thinsp;g</td>
+      <td class="num">{{ row.mg }}&thinsp;mg</td>
+      <td>{{ row.category | title }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% if oxalate_agg.qualitative %}
+<p class="muted"><em>Categorical only — no quantitative data:</em>
+  {% for row in oxalate_agg.qualitative %}{{ row.name }} ({{ row.category | title }}){% if not loop.last %}, {% endif %}{% endfor %}
+</p>
+{% endif %}
+{% endif %}
+{% if ingredient_antinutrients %}
+{% for item in ingredient_antinutrients %}
+<div class="card">
+  <strong>{{ item.food_name }}</strong>
+  {% for flag in item.flags %}
+  <p>{{ flag.problem }}: {{ flag.cause }}{% if flag.solution %} <span class="muted">— {{ flag.solution_label }}: {{ flag.solution }}</span>{% endif %}</p>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if "antinutrients" in enabled and (oxalate or antinutrients) %}
+<h2>Anti-nutrients</h2>
+{% if oxalate %}
+<h3>Oxalate</h3>
+<table style="max-width:28rem">
+  <tbody>
+    {% if oxalate.mg_per_100g is not none %}
+    <tr><td>Per 100&thinsp;g</td><td class="num">{{ oxalate.mg_per_100g | round(1) }}&thinsp;mg</td><td>{{ oxalate.category | title }}</td></tr>
+    {% if oxalate_mg_portion is not none and amount != 100 %}
+    <tr><td>This portion ({{ amount | round(1) }}&thinsp;g)</td><td class="num">{{ oxalate_mg_portion }}&thinsp;mg</td><td></td></tr>
+    {% endif %}
+    {% else %}
+    <tr><td>Ref serving ({{ oxalate.serving_size }})</td><td class="num">{{ oxalate.mg_per_serving }}&thinsp;mg</td><td>{{ oxalate.category | title }}</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+<p class="muted">Reference: {{ oxalate.ref_name }}</p>
+{% endif %}
+{% if antinutrients %}
+{% for flag in antinutrients %}
+<div class="card">
+  <strong>{{ flag.problem }}</strong>
+  <p>{{ flag.cause }}</p>
+  {% if flag.solution %}<p class="muted"><em>{{ flag.solution_label }}:</em> {{ flag.solution }}</p>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if "complements" in enabled and complements and not complements.no_data %}
+<h2>Complement Suggestions</h2>
+{% if complements.no_gaps %}
+<p class="status-met">&#10003; All essential amino acids are adequately covered — no complement needed.</p>
+{% else %}
+<p class="muted">{{ complements.ranking_note }}</p>
+<p><strong>Gaps:</strong> {% for gap in complements.gaps %}{{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+
+{% macro print_card(s, verb) %}
+<div class="card">
+  <p><strong>{{ s.name }}</strong>{{ food_id_tag(s.fdc_id, s.get('recipe_id')) }}
+    {% if s.diaas %}<span class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</span>{% endif %}
+    {% if s.new_complete %}<span class="status-met"> &#10003; completes protein</span>{% endif %}
+  </p>
+  <p>{{ verb }}: <strong>{{ s.grams | round | int }}&thinsp;g</strong>{% if s.amount_note %} <span class="muted">({{ s.amount_note }})</span>{% endif %}</p>
+  <p class="muted">Adds {{ s.dig_protein_added }}&thinsp;g digestible protein &middot; total {{ s.total_dig }}&thinsp;g DCP</p>
+</div>
+{% endmacro %}
+
+{% if complements.pantry %}
+<h3>From your pantry &amp; recipes</h3>
+{% for s in complements.pantry %}{{ print_card(s, "Serve alongside") }}{% endfor %}
+{% endif %}
+{% if complements.general %}
+<h3>{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h3>
+{% for s in complements.general %}{{ print_card(s, "Serve alongside") }}{% endfor %}
+{% endif %}
+{% if complements.pairs %}
+<h3>Two-food combinations</h3>
+{% for p in complements.pairs %}
+<div class="card">
+  <p><strong>{{ p.foods[0].name }}</strong> + <strong>{{ p.foods[1].name }}</strong>{% if p.new_complete %}<span class="status-met"> &#10003; completes protein</span>{% endif %}</p>
+  {% for f in p.foods %}
+  <p class="muted">Serve alongside: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}{{ food_id_tag(f.fdc_id, f.get('recipe_id')) }}</p>
+  {% endfor %}
+  <p class="muted">Combined: {{ p.total_grams }}&thinsp;g total &middot; {{ p.total_dig_added }}&thinsp;g digestible protein added &middot; total {{ p.total_dig_complete }}&thinsp;g DCP</p>
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}{# end no_gaps else #}
+{% endif %}
+
+</body>
+</html>

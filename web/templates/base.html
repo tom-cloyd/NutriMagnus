@@ -251,26 +251,16 @@
       // If this landing was the result of a memory-restore redirect (not a
       // click the user aimed at this specific page), flag it so the page's
       // own breadcrumb — "Recipes › Weekday Chili" etc. — can call itself out
-      // as "you were brought back here" and offer an obvious way past it.
-      // Consumed on first read: a plain reload or a deliberate visit to the
-      // same URL afterwards won't keep re-showing it.
+      // as "you were brought back here" (gold highlight). No separate escape
+      // link is added: every section's breadcrumb already starts with a
+      // plain link straight to that section's list page, so a second one
+      // would just duplicate it. Consumed on first read: a plain reload or
+      // a deliberate visit to the same URL afterwards won't keep re-showing it.
       var memKey = 'numa_via_memory:' + here;
       if (sessionStorage.getItem(memKey) === '1') {
         sessionStorage.removeItem(memKey);
         var crumb = document.querySelector('nav[aria-label="breadcrumb"]');
-        if (crumb) {
-          crumb.classList.add('via-memory');
-          var firstLink = crumb.querySelector('.breadcrumb-item:first-child a');
-          if (firstLink) {
-            var crumbLabel = firstLink.textContent.trim();
-            var pill = document.createElement('a');
-            pill.href = firstLink.getAttribute('href');
-            pill.className = 'via-memory-escape';
-            pill.textContent = '✕ All ' + crumbLabel.toLowerCase();
-            pill.title = 'Brought back to where you left off — click for the full ' + crumbLabel.toLowerCase() + ' list instead';
-            crumb.appendChild(pill);
-          }
-        }
+        if (crumb) crumb.classList.add('via-memory');
       }
     }
     document.querySelectorAll('nav.navbar [data-section]').forEach(function (a) {
