@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-06:1942* / Reading time: 2 hours, 25 minutes
+*Updated 2026-08-07:0648* / Reading time: 2 hours, 25 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -2087,7 +2087,7 @@ University of Sydney. (n.d.). Glycemic Index Database. Retrieved August 2, 2026,
 
 ### D. Using this manual's search [search-howto]
 
-Web version only — the sidebar search box near the top of the table of contents. (Reading the plain-text version? There's no search index there; just search for a word describing what you're trying to do, the same as any text editor's find function.)
+Use the sidebar search box near the top of the table of contents.
 
 **It searches whole words, not phrases, and requires all of them.** Type `portion size` and NuMa looks for sections that contain *both* words somewhere — not necessarily next to each other, not in the order you typed them. This is different from typing a whole phrase and expecting an exact match: `edit portion` (as a phrase) will find nothing, because that exact wording never appears anywhere in the manual, even though the idea is covered extensively. If a search comes up empty, the fix is usually to drop a word, not add one — start with just the noun you care about (`portion`), see what comes back, then add a second word only if the list is too long to skim.
 
@@ -2355,6 +2355,37 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "Aside from being an update log for the user to ac cess, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
 
+#### August 7
+
+**FIX: JUMPING TO "EDIT CUSTOM PROFILE" NO LONGER SCROLLS PAST THE TOP OF THE PAGE**
+
+Clicking "estimate it from a similar food" in a food's Protein Quality section, or clicking Search on the Edit Custom Profile page itself, used to land you partway down the page instead of the top. Both now open at the top like every other page.
+
+```
+web/templates/base.html, web/templates/food_detail.html, web/templates/food_custom_edit.html
+Root cause: base.html's global capture-phase 'toggle' listener (auto-
+focuses the first input inside a <details> when a user opens it) was also
+firing for every <details open> already on the page at load time — browsers
+queue one synthetic 'toggle' event per already-open <details> on initial
+render. The Edit Custom Profile page has several open <details> (the
+"estimate amino acids" panel plus each nutrient field group); the last
+one's toggle event won the focus race and the browser auto-scrolled there.
+First attempt gated the listener behind a flag that flipped true on the
+first setTimeout(0) tick, reasoning that task would always run after the
+initial synthetic toggles but before any real click — true in local/
+headless testing, but a timing race, not a guarantee, and it still
+misfired in the field (Firefox, real network conditions). Replaced with a
+deterministic check: clicking or keyboard-activating a <summary> moves
+focus onto it natively before its toggle event fires, so the listener now
+only acts when document.activeElement is the toggled <details>'s own
+<summary> — true for real interaction, never true for the page-load
+synthetic toggles (activeElement is <body> at that point). Verified with
+Playwright on both Chromium and Firefox: initial load no longer steals
+focus/scroll, and manually reopening a details panel still auto-focuses
+its first field as intended. Also removed a now-redundant #estimate-aa
+fragment from the incoming link and the search form's action.
+```
+
 #### August 6
 
 **NEW: THE MANUAL'S SEARCH NOW FINDS TOPICS, NOT JUST TEXT**
@@ -2581,32 +2612,7 @@ printouts the same day (see entry above); nutrient_plot_print.html (chart
 print) is unchanged.
 ```
 
-**FIX: FOOD NAMES ON THE PANTRY PAGE ARE NOW CLICKABLE**
-
-Food names in My Pantry now link to the food's detail page, matching how the Food Cache list already worked.
-
-```
-web/templates/pantry.html
-Wrapped item.food_name in an <a href="/food/{fdc_id}"> link when item.fdc_id
-is set, mirroring the pattern already used in food_cache.html.
-```
-
 #### August 5
-
-**MANUAL: RECENT PROGRAM UPDATES LOG MOVED TO APPENDIX A, EVERY APPENDIX RELETTERED**
-
-This changelog is now Appendix A (first) instead of Appendix K (last) — quicker to find. Every other appendix shifted down one letter to make room.
-
-```
-user-manual.md, scripts/create_release.py, README-numa-documentation.md
-Moved Appendix K (this changelog) to Appendix A since it's checked far more often
-than the others. Old A→B, B→C, ... J→K; Appendix L (footnotes) unchanged, already
-last. Updated every "Appendix X" cross-reference and lettered anchor (#appendix-a
-etc.) throughout the manual and README, and the hardcoded heading string in
-scripts/create_release.py that pulls today's release notes. Entries inside this
-changelog that mention "Appendix K" by name (e.g. the Aug 4 CLI-removal entry
-below) were left as-is — historical record of what was true when written.
-```
 
 **MANUAL: EVERY CHANGELOG ENTRY FROM JULY 31 ON IS NOW A TERSE SUMMARY, WITH TECHNICAL DETAIL TUCKED IN A CODE BLOCK BELOW IT**
 
@@ -2702,19 +2708,6 @@ only in this changelog, not the manual body — added to Ordering food search
 results in Part 4; (4) the CLI's Pantry-menu command table in Part 6 had
 drifted out of sync with Part 3's fuller one — replaced with a pointer to
 the single authoritative list.
-```
-
-**MANUAL: THE NEW IGNORE/RECALCULATE COMPLEMENT FEATURE IS NOW DOCUMENTED ONCE, IN PART 4, INSTEAD OF PER-PAGE**
-
-The "ignore a complement suggestion" feature (see below) is now explained in one place in the manual instead of being repeated three times.
-
-```
-Manual (Part 3.B, Part 4, Part 5)
-The ignore/recalculate mechanic applies identically on three web pages (Food
-detail, Meal, Recipe); consolidated into one new Part 4 entry, "Ignoring a
-complement suggestion," cross-linked from the Protein Complement Suggestions
-concept section and each page's feature list — same pattern already used for
-search ranking and recipe DCP cascading.
 ```
 
 **NEW: PROTEIN COMPLEMENT SUGGESTIONS CAN BE IGNORED, RESTORED, AND RECALCULATED**
@@ -2824,18 +2817,6 @@ Repro: "peanut butter old" with "Best match to name" put a barely-matching
 pantry oatmeal ahead of the actual peanut butter result.
 ```
 
-**MANUAL: VERIFIED EVERY PART 4 TOPIC IS CROSS-LINKED FROM BOTH PART 5 AND PART 6, AND FIXED A REMAINING GLYCEMIC LOAD GAP**
-
-A documentation-only pass confirming every shared-operations topic is reachable from both the web app and command-line sections, plus a genuine fix: Glycemic Load's "needs GI data on every item" rule now has the incoming links it was missing.
-
-```
-Manual
-Audited every anchor from the Part 4 consolidation to confirm both Part 5
-and Part 6 link to it somewhere natural. Found one real gap: Glycemic
-Load's rule was mentioned by name four times with no links to the
-explanation; fixed.
-```
-
 **MANUAL: PART 4 EXPANDED — A FULL SWEEP FOR DUPLICATE AND ASYMMETRIC WEB/CLI EXPLANATIONS**
 
 A systematic pass found the same mechanism explained twice (once per interface) in eight places, plus several facts documented for only one interface despite applying to both — all consolidated into one explanation each.
@@ -2871,17 +2852,6 @@ Using the Web App, Using the Command Line, Essential resources,
 Troubleshooting and feedback, Possible Additional Features, and Appendices
 all shift down one number (now Parts 5–10). Food Search Results reference
 in Part 3 links here instead of duplicating.
-```
-
-**TROUBLESHOOTING: "A MEAL'S DCP ISN'T SHOWING" CORRECTED — DCP NO LONGER REQUIRES MARKING A MEAL COMPLETE**
-
-Fixed outdated troubleshooting advice — a meal's DCP has not required marking the meal Complete to compute for some time now. The entry now explains the real cause when DCP is missing (no amino acid data yet on any item). [learn more...](#ts-meal-dcp)
-
-```
-Manual
-Also clarifies what marking a meal Complete actually still affects — the
-"provisional" flag on a day's total in Daily Summary, not whether DCP
-itself appears.
 ```
 
 **FOOD SEARCH RESULTS NOW RANK BY HOW MANY QUERY WORDS MATCH — AND WHICH ONES — BEFORE CONSIDERING SOURCE**
@@ -2932,17 +2902,6 @@ Institute's Micronutrient Information Center, the NIH Office of Dietary
 Supplements, Open Food Facts, and the University of Sydney's Glycemic
 Index Database — each in APA format with a brief annotation, alphabetized
 by author/organization.
-```
-
-**USER MANUAL BUILD SCRIPT NOW AUTO-COMPUTES WORD COUNT AND READING TIME**
-
-The manual's "Reading time" figure at the top is no longer stale hand-typed guesswork — it's computed automatically on every build.
-
-```
-scripts/build_manual.py
-Counts words in the source on every build, derives reading time at 225
-words/minute, rewrites just that portion of the header line. The "Updated"
-timestamp is still bumped by hand, per the version-stamp convention.
 ```
 
 **PERFORMANCE: FOOD SEARCH AND ANALYZE-A-FOOD-PORTION PAGES NOW LOAD INSTANTLY; USDA/OPEN FOOD FACTS RESULTS ARRIVE A MOMENT LATER**

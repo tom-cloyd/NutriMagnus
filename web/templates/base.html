@@ -159,8 +159,23 @@
   <script>
   // Auto-focus the first text/number input whenever any <details> is opened.
   // toggle events don't bubble, so capture phase is required.
+  //
+  // Browsers also fire a synthetic 'toggle' event for every <details open>
+  // already on the page at load time (one per element, in DOM order) —
+  // without this guard, the last such element (often far down the page)
+  // would steal focus and scroll the page there on every load. A prior
+  // fix gated this on a setTimeout(0) tick (assuming it always runs after
+  // those initial synthetic events), but that's a timing race, not a
+  // guarantee — it held up in local/headless testing but not in the field.
+  // Checking document.activeElement instead is deterministic: clicking (or
+  // keyboard-activating) a <summary> moves focus onto it natively BEFORE
+  // the toggle event fires, whereas the page-load synthetic toggles fire
+  // with nothing given focus (document.activeElement is <body>). So only
+  // act when the toggle's own <summary> is the currently focused element.
   document.addEventListener('toggle', function (e) {
     if (!e.target.matches('details') || !e.target.open) return;
+    var summary = e.target.querySelector(':scope > summary');
+    if (!summary || document.activeElement !== summary) return;
     var inp = e.target.querySelector(
       'input:not([type=hidden]):not([type=submit]):not([type=date]):not([type=checkbox]),' +
       'textarea'

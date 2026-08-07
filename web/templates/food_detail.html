@@ -327,7 +327,7 @@
     Foundation Foods (USDA's most complete dataset) usually includes full amino acid profiles.
     <a href="/food/search?query={{ suggest_foundation | urlencode }}">Search for
     &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent,
-    or <a href="/food/custom-profiles/{{ food.fdc_id }}/edit?aa_source_q={{ suggest_foundation | urlencode }}#estimate-aa">estimate it from a similar food</a>
+    or <a href="/food/custom-profiles/{{ food.fdc_id }}/edit?aa_source_q={{ suggest_foundation | urlencode }}">estimate it from a similar food</a>
     that already has amino acid data.
   </div>
   {% elif not protein %}

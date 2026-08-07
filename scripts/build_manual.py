@@ -337,7 +337,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
     display: flex;
     align-items: center;
     gap: 0.35em;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--muted);
     margin-top: 6px;
     cursor: pointer;
@@ -381,10 +381,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
     line-height: 1.6;
 }
 .search-btn:hover { background: var(--accent-light); color: var(--accent); }
+#search-howto-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em;
+    margin-top: 6px;
+}
 .search-howto-link {
     display: inline-block;
-    margin-top: 6px;
-    font-size: 10.5px;
+    font-size: 12.5px;
 }
 
 /* ── Search highlights ── */
@@ -670,7 +676,7 @@ JS = """\
 
     if (!mainLis.length) return;
 
-    var header = document.querySelector('#toc-sidebar h2');
+    var header = document.querySelector('#search-howto-row');
     var allBtn = document.createElement('button');
     allBtn.type = 'button';
     allBtn.id = 'toc-collapse-all';
@@ -787,7 +793,9 @@ HTML_TEMPLATE = """\
       <button class="search-btn" id="btn-prev" title="Previous match in open section (Shift+Enter)">&#x25B2;</button>
       <button class="search-btn" id="btn-next" title="Next match in open section (Enter)">&#x25BC;</button>
     </div>
-    <a class="search-howto-link" href="#search-howto">How does this search work?</a>
+    <div id="search-howto-row">
+      <a class="search-howto-link" href="#search-howto">How does this search work?</a>
+    </div>
   </div>
   <div id="toc-scroll">
     <h2>Contents</h2>
