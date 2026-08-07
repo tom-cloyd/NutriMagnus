@@ -305,6 +305,18 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS recompute_errors (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                occurred_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+                entity_type  TEXT    NOT NULL,
+                entity_id    INTEGER,
+                message      TEXT    NOT NULL,
+                resolved_at  TEXT,
+                banner_ack_at TEXT
+            )
+        """)
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
@@ -808,6 +820,17 @@ def recipe_referencing_subrecipe(conn: sqlite3.Connection, recipe_id: int) -> li
         WHERE ri.ref_recipe_id = ?
         ORDER BY r.name
     """, (recipe_id,)).fetchall()
+
+
+def recipes_containing_food(conn: sqlite3.Connection, fdc_id: int) -> list[sqlite3.Row]:
+    """Return (id, name) rows for recipes that use `fdc_id` as a direct ingredient."""
+    return conn.execute("""
+        SELECT DISTINCT r.id, r.name
+        FROM recipe_ingredients ri
+        JOIN recipes r ON r.id = ri.recipe_id
+        WHERE ri.fdc_id = ?
+        ORDER BY r.name
+    """, (fdc_id,)).fetchall()
 
 
 def recipe_delete(conn: sqlite3.Connection, recipe_id: int) -> bool:
@@ -1450,6 +1473,72 @@ def update_cached_food_profile(
             json.dumps(nutrients), json.dumps(portions or []),
             1 if user_drafted else 0, notes or None, fdc_id,
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Recompute error log
+# ---------------------------------------------------------------------------
+
+def log_recompute_error(conn: sqlite3.Connection, entity_type: str, entity_id: int | None, message: str) -> None:
+    """Record a cascade/recompute failure so it's visible later instead of vanishing
+    into a swallowed exception. Not for expected non-computability (e.g. a recipe
+    missing amino acid data) — only for genuine failures during a cascade step."""
+    conn.execute(
+        "INSERT INTO recompute_errors (entity_type, entity_id, message) VALUES (?, ?, ?)",
+        (entity_type, entity_id, message),
+    )
+
+
+def get_recompute_error(conn: sqlite3.Connection, error_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT id, occurred_at, entity_type, entity_id, message FROM recompute_errors WHERE id = ?",
+        (error_id,),
+    ).fetchone()
+
+
+def list_unresolved_recompute_errors(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT id, occurred_at, entity_type, entity_id, message, banner_ack_at "
+        "FROM recompute_errors WHERE resolved_at IS NULL ORDER BY occurred_at DESC"
+    ).fetchall()
+
+
+def list_unacked_recompute_errors(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Unresolved errors the home-page banner hasn't been dismissed for yet."""
+    return conn.execute(
+        "SELECT id, occurred_at, entity_type, entity_id, message "
+        "FROM recompute_errors WHERE resolved_at IS NULL AND banner_ack_at IS NULL "
+        "ORDER BY occurred_at DESC"
+    ).fetchall()
+
+
+def update_recompute_error(conn: sqlite3.Connection, error_id: int, message: str) -> None:
+    """Refresh an existing unresolved entry's message/timestamp after a failed
+    retry, instead of piling up a new row for every retry attempt on the same
+    recipe. Also re-arms the home-page banner (clears banner_ack_at) since
+    this is functionally a new failure the user hasn't seen yet."""
+    conn.execute(
+        "UPDATE recompute_errors SET message = ?, occurred_at = datetime('now'), banner_ack_at = NULL "
+        "WHERE id = ?",
+        (message, error_id),
+    )
+
+
+def resolve_recompute_error(conn: sqlite3.Connection, error_id: int) -> bool:
+    cur = conn.execute(
+        "UPDATE recompute_errors SET resolved_at = datetime('now') WHERE id = ?", (error_id,)
+    )
+    return cur.rowcount > 0
+
+
+def ack_recompute_errors_banner(conn: sqlite3.Connection) -> None:
+    """'Got it, don't remind again' — silences the home-page banner for every
+    currently-outstanding error without marking them resolved; they still show
+    on the Settings page until actually addressed."""
+    conn.execute(
+        "UPDATE recompute_errors SET banner_ack_at = datetime('now') "
+        "WHERE resolved_at IS NULL AND banner_ack_at IS NULL"
     )
 
 

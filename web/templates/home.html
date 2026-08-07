@@ -2,6 +2,20 @@
 {% block title %}NutriMagnus{% endblock %}
 
 {% block content %}
+{% if unacked_errors %}
+<div class="alert alert-warning mt-4">
+  <strong>{{ unacked_errors|length }} recalculation{{ 's' if unacked_errors|length != 1 }} failed</strong> and
+  {{ 'need' if unacked_errors|length != 1 else 'needs' }} a look — a food or recipe change should have
+  triggered an update (e.g. a recipe's protein-quality score) but the update itself didn't complete.
+  See <a href="/settings#system-issues">Settings &gt; System Issues</a> for details.
+  <form method="post" action="/recompute-errors/ack-banner" class="mt-2 mb-0">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="ack-banner-checkbox" onchange="if(this.checked) this.form.requestSubmit();">
+      <label class="form-check-label" for="ack-banner-checkbox">Got it. Don't remind me again.</label>
+    </div>
+  </form>
+</div>
+{% endif %}
 <div class="mt-4">
   <h1>Welcome to NutriMagnus</h1>
   <p class="lead">A nutritional analysis tool powered by USDA FoodData Central and Open Food Facts.</p>

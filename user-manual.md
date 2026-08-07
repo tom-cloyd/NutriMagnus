@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-07:0648* / Reading time: 2 hours, 25 minutes
+*Updated 2026-08-07:0744* / Reading time: 2 hours, 25 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -162,7 +162,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it is using.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your [Pantry](#pantry), and [recipes you have analyzed](#recipes-menu-web). For protein complement suggestions specifically, a built-in list of 25 common protein sources[^10] fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be filled in automatically from a small published reference table (see [Glycemic Index](#gi)), rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-04), there are 470 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-07), there are 497 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 **Appendix K has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
@@ -1897,7 +1897,7 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 
 ### I. Using the Settings menu [settings]
 
-Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets — plus a checkbox enabling [oxalate](#oxalate) lookup), **Computed Daily Targets** (see [Part 5](#daily-nutrient-targets)), **Dietary Preferences** (affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and — see [Dietary Preferences](#diet) — every search and lookup in the program), **Keyboard Shortcuts**, **USDA API Key** (lets you use your own free personal code from USDA's website instead of the one NuMa shares with every user by default, so your searches are less likely to get temporarily blocked when many people are using NuMa at once — see [Food data](#food-data) for how to get one; also has the [search result depth](#search-ranking) setting), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults), and **Starter Data** — see below.
+Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets — plus a checkbox enabling [oxalate](#oxalate) lookup), **Computed Daily Targets** (see [Part 5](#daily-nutrient-targets)), **Dietary Preferences** (affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and — see [Dietary Preferences](#diet) — every search and lookup in the program), **Keyboard Shortcuts**, **USDA API Key** (lets you use your own free personal code from USDA's website instead of the one NuMa shares with every user by default, so your searches are less likely to get temporarily blocked when many people are using NuMa at once — see [Food data](#food-data) for how to get one; also has the [search result depth](#search-ranking) setting), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults), **Starter Data** — see below, and **System Issues** — see [below](#system-issues-howto).
 
 #### Starter Data [starter-data]
 
@@ -1908,6 +1908,21 @@ Loading starter data never touches anything already in your cache, pantry, or re
 #### Computed Daily Targets
 
 This section of Settings shows your personalized nutrient targets. See [Your computed daily nutrient targets](#daily-nutrient-targets) in Part 5 for what it contains and how it's kept current.
+
+#### System Issues [system-issues-howto]
+
+Every recipe caches its protein-quality score (DCP) so it doesn't have to be recalculated every time you view it. Whenever a food or recipe changes — editing a food's nutrients, bringing in amino acid data via "estimate it from a similar food," refreshing a food from USDA, editing a recipe's ingredients — NuMa automatically recalculates DCP for every recipe that depends on the thing that changed, including recipes-of-recipes, all the way up the chain. You never have to trigger this yourself.
+
+**System Issues is where NuMa tells you when that automatic recalculation itself broke.** This is not the same as a recipe showing "NC" (not computed) — NC just means DCP genuinely can't be calculated yet (a significant ingredient is missing amino acid data, or the recipe has 0 servings), which is an expected, normal state and isn't logged here at all. System Issues is specifically for the rarer case where the recalculation *should* have run and produced a real answer, but something went wrong internally (a software error) — the kind of failure that would otherwise silently vanish and leave a recipe's protein score stale with no indication anything was ever wrong.
+
+Each entry shows when it happened, which recipe it affects, and the error itself. Click **Retry** to have NuMa recompute that recipe's DCP again right now:
+
+- If the retry succeeds, the entry clears — you'll see a confirmation, and the recipe's DCP is now current.
+- If it fails again, the entry stays (with a fresh error message) and NuMa tells you so — Retry never just makes an entry disappear while the recipe underneath it is still broken. A repeat failure usually means a real bug that needs fixing in the code, not something you can resolve by clicking around; consider reporting it.
+
+If you'd rather fix the underlying recipe yourself instead of using Retry, re-editing it (or opening it and saving again) triggers the same recalculation that Retry does, and clears the System Issues entry the next time it succeeds.
+
+A one-time banner also appears on the home page whenever there's a System Issues entry you haven't seen yet, with a **Got it. Don't remind me again.** checkbox — checking it hides the banner (the entry still stays listed under Settings until it's actually resolved), and any *new* failure after that brings the banner back.
 
 ### J. Entering custom foods and dietary supplements
 
@@ -2356,6 +2371,33 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
 
 #### August 7
+
+**FIX: EDITING A FOOD NOW RECOMPUTES ANY RECIPE'S PROTEIN-QUALITY SCORE THAT DEPENDS ON IT**
+
+Previously, changing a food's nutrient data — including bringing in amino acid data via "estimate it from a similar food" — only updated that food. Any recipe using it kept its old, now-stale DCP (protein-quality) score until you happened to re-edit that recipe. Food edits now recompute DCP for every recipe (and, transitively, every recipe of a recipe) that uses the changed food, the same way editing a recipe directly already did. If a recompute step itself fails, it's now logged instead of silently vanishing — see the new [System Issues](#system-issues-howto) section under Settings, and a one-time banner on the home page when something needs a look. Clicking **Retry** on a System Issues entry re-runs the recompute right then and only clears the entry if it actually succeeds — it never just hides a still-broken recipe.
+
+```
+db.py, numa_app/services/recipe_dcp.py, web/backend.py, web/templates/settings.html,
+web/templates/home.html, user-manual.md
+New recipes_containing_food() lookup (db.py) plus recipe_dcp.cascade_food_change(),
+called after every write to foods.nutrients_json (USDA refresh, custom-profile edit,
+AA-copy, and the various cache_food() re-cache sites reachable from search/pantry/
+recipe/meal food-add flows — skipped only where the fdc_id is guaranteed brand-new,
+e.g. custom-profile create/copy). Reuses the existing recompute_recipe_dcp() /
+_cascade_to_ancestors() machinery so the ancestor-cascade logic isn't duplicated.
+New recompute_errors table (db.py) logs any cascade step that raises rather than
+letting it die in a swallowed exception; Settings > System Issues lists unresolved
+entries. Its Retry action (settings_recompute_error_resolve()) calls
+recompute_recipe_dcp() for that entry's recipe and only marks it resolved on
+success — a failed retry refreshes that same row's message/timestamp
+(update_recompute_error()) rather than resolving it, so Retry can never mask
+a still-broken recipe and repeated retries don't pile up duplicate rows.
+Home page shows a banner for entries
+not yet acknowledged with a "Got it, don't remind me again" checkbox
+(ack_recompute_errors_banner()) that silences the banner — not the Settings
+list — until a new failure occurs. Full explanation in the manual's new
+System Issues section (Part 9I), not just this changelog entry.
+```
 
 **FIX: JUMPING TO "EDIT CUSTOM PROFILE" NO LONGER SCROLLS PAST THE TOP OF THE PAGE**
 

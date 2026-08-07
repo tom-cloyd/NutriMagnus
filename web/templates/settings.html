@@ -476,6 +476,60 @@
   {% endif %}
 </details>
 
+{# ── 10. System issues ───────────────────────────────────────────────── #}
+<details id="system-issues" {% if recompute_errors %}open{% endif %}>
+  <summary data-ak="0"><u class="ak">0</u>. <strong>System Issues</strong>
+    {% if recompute_errors %}
+    <span class="text-danger"> — {{ recompute_errors|length }} unresolved</span>
+    {% else %}
+    <span class="muted"> — none currently</span>
+    {% endif %}
+  </summary>
+
+  <p class="mt-2 muted"><small>
+  Recipes cache their protein-quality score (DCP) so it doesn't need recalculating every time it's
+  displayed. Whenever a food or recipe changes, NuMa automatically recalculates DCP for every recipe
+  that depends on it. This list is only for the rare case where that automatic recalculation itself
+  failed (a software error, not a data problem) — it exists so a failure like that can never just
+  flash by and be forgotten. It does <em>not</em> list recipes that show "NC" (not computed) because
+  they're missing amino acid data or have 0 servings — that's expected, not an error, and isn't
+  logged here. {{ manual_link("system-issues-howto", "Full explanation in the manual") }}
+  </small></p>
+
+  {% if recompute_retry == 'resolved' %}
+  <p class="status-met mt-2"><strong>&#10003; Retried and succeeded — recomputed cleanly.</strong></p>
+  {% elif recompute_retry == 'still_failing' %}
+  <p class="mt-2"><strong class="text-danger">Retried, but it failed again</strong> — see the
+  new entry below for the latest error message. This usually means the underlying bug needs a
+  code fix, not just a retry; consider reporting it.</p>
+  {% endif %}
+
+  {% if not recompute_errors %}
+  <p class="mt-2 muted"><small>No unresolved recompute failures right now.</small></p>
+  {% else %}
+  <p class="mt-2 muted"><small>Click <strong>Retry</strong> to recompute the listed recipe right now.
+  The entry only clears from this list if the retry actually succeeds — a failed retry logs a fresh
+  entry below instead of silently disappearing.</small></p>
+  <table class="table table-sm">
+    <thead><tr><th>When</th><th>What</th><th>Error</th><th></th></tr></thead>
+    <tbody>
+      {% for err in recompute_errors %}
+      <tr>
+        <td><small>{{ err.occurred_at }}</small></td>
+        <td><small>{{ err.entity_type }} #{{ err.entity_id }}</small></td>
+        <td><small>{{ err.message }}</small></td>
+        <td>
+          <form method="post" action="/settings/recompute-error/{{ err.id }}/resolve">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Retry</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</details>
+
 <script>
 function toggleHeight(unit) {
   document.getElementById('height-cm-group').style.display =

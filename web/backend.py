@@ -961,12 +961,25 @@ async def index(request: Request):
             f"{_profile.format_height(profile.height_cm, profile.height_unit)}, "
             f"{_profile.ACTIVITY_LABELS.get(profile.activity_level, profile.activity_level)}"
         )
+    with _db.get_db() as conn:
+        unacked_errors = [dict(r) for r in _db.list_unacked_recompute_errors(conn)]
     return templates.TemplateResponse(
         request, "home.html", {
             "home_body": _render_home_md(), "version": VERSION,
             "diet_label": diet_label, "profile_label": profile_label,
+            "unacked_errors": unacked_errors,
         }
     )
+
+
+@app.post("/recompute-errors/ack-banner", response_class=RedirectResponse)
+async def recompute_errors_ack_banner():
+    """'Got it, don't remind again' on the home-page system-issues banner —
+    silences it for currently-outstanding errors without resolving them; they
+    remain visible under Settings > System Issues until actually addressed."""
+    with _db.get_db() as conn:
+        _db.ack_recompute_errors_banner(conn)
+    return RedirectResponse("/", status_code=303)
 
 
 def _search_local_results(query: str) -> list[dict]:
@@ -1062,6 +1075,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                         detail.get("brand"), detail.get("servingSize"), detail.get("servingUnit"),
                         detail.get("nutrients", {}), detail.get("portions"),
                     )
+                    _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
                 results.append({
                     "fdc_id":    detail["fdcId"],
                     "name":      detail["name"],
@@ -1198,6 +1212,7 @@ async def food_confirm_aa(
                 nutrients=detail.get("nutrients", {}),
                 portions=detail.get("portions", []),
             )
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
     from urllib.parse import urlencode
     params = {"query": query}
@@ -1410,6 +1425,7 @@ async def food_convert_detail(
                            serving_size=detail.get("servingSize"),
                            serving_unit=detail.get("servingUnit"),
                            nutrients=detail.get("nutrients", {}), portions=portions)
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
     density = _usda.get_density_g_per_ml(food_data["name"], portions)
 
@@ -1636,6 +1652,7 @@ def _load_compare_entries(ids: list[int], amounts: list[float]) -> list[dict]:
                                    serving_unit=detail.get("servingUnit"),
                                    nutrients=nutrients_100g,
                                    portions=detail.get("portions", []))
+                    _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
             except Exception:
                 nutrients_100g = {}
         nutrients = _usda.scale_nutrients(nutrients_100g, amount) if amount != 100.0 else nutrients_100g
@@ -2128,6 +2145,7 @@ async def food_cache_refresh(request: Request, fdc_id: int):
                 notes=cached["notes"],
                 user_drafted=False,
             )
+            _recipe_dcp.cascade_food_change(fdc_id, conn)
     except Exception as exc:
         error = str(exc)
     if error:
@@ -2310,6 +2328,7 @@ async def pantry_add(
                                        serving_unit=detail.get("servingUnit"),
                                        nutrients=detail.get("nutrients", {}),
                                        portions=detail.get("portions", []))
+                        _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
                     food_name = food_name or detail["name"]
             except Exception:
                 pass
@@ -2504,6 +2523,7 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
             notes=notes,
             user_drafted=True,
         )
+        _recipe_dcp.cascade_food_change(fdc_id, conn)
     with _db.get_db() as conn:
         updated = _db.get_cached_food(conn, fdc_id)
     nutrients_reload = json.loads(updated["nutrients_json"]) if updated["nutrients_json"] else {}
@@ -2555,6 +2575,7 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
                 nutrients=detail.get("nutrients", {}),
                 portions=detail.get("portions", []),
             )
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
             source = _db.get_cached_food(conn, source_fdc_id)
 
     target_nutrients = json.loads(target["nutrients_json"]) if target["nutrients_json"] else {}
@@ -2579,6 +2600,7 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
             notes=note,
             user_drafted=True,
         )
+        _recipe_dcp.cascade_food_change(fdc_id, conn)
     return RedirectResponse(f"/food/custom-profiles/{fdc_id}/edit?aa_applied=ok", status_code=303)
 
 
@@ -2760,6 +2782,7 @@ def _food_detail_context(
                 nutrients=nutrients,
                 portions=portions,
             )
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
     # Resolve portion: free-form string takes priority over plain gram amount
     portion_error: str | None = None
@@ -3514,6 +3537,7 @@ async def meal_refresh_aa(meal_id: int):
                            detail.get("brand"), detail.get("servingSize"),
                            detail.get("servingUnit"), detail.get("nutrients", {}),
                            detail.get("portions"))
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
@@ -3931,6 +3955,7 @@ async def meal_confirm_aa(
                 nutrients=detail.get("nutrients", {}),
                 portions=detail.get("portions", []),
             )
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
     from urllib.parse import urlencode
     params = {"q": q}
@@ -3984,6 +4009,7 @@ async def meal_add_food(
                                serving_unit=detail.get("servingUnit"),
                                nutrients=detail.get("nutrients", {}),
                                portions=detail.get("portions", []))
+                _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
             food_name = food_name or detail["name"]
             with _db.get_db() as conn:
                 cached = _db.get_cached_food(conn, fdc_id)
@@ -4389,7 +4415,7 @@ async def meal_day_profile_override(meal_id: int, profile_name: str = Form(...))
 # ---------------------------------------------------------------------------
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_get(request: Request, saved: str = ""):
+async def settings_get(request: Request, saved: str = "", recompute_retry: str = ""):
     profile = _profile.load_profile()
     diet_pref = _current_diet_pref()
     rda = _profile.compute_rda(profile, diet_pref=diet_pref) if profile else None
@@ -4407,6 +4433,7 @@ async def settings_get(request: Request, saved: str = ""):
     demo_data_loaded = _demo_data.is_loaded()
     with _db.get_db() as conn:
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
+        recompute_errors = [dict(r) for r in _db.list_unresolved_recompute_errors(conn)]
 
     nutrient_target_rows = []
     if profile:
@@ -4454,6 +4481,8 @@ async def settings_get(request: Request, saved: str = ""):
         "starter_food_count":   len(_demo_data.DEMO_FOODS),
         "starter_pantry_count": len(_demo_data.DEMO_PANTRY),
         "starter_recipe_count": len(_demo_data.DEMO_RECIPES),
+        "recompute_errors":     recompute_errors,
+        "recompute_retry":      recompute_retry,
     })
 
 
@@ -4628,6 +4657,26 @@ async def settings_meal_nutrients_post(request: Request):
     keys = _sanitize_meal_nutrients([key for _, key in positioned])
     _save_prefs_file({"meal_list_nutrients": keys})
     return RedirectResponse("/settings?saved=meal_nutrients#meal-list-nutrients", status_code=303)
+
+
+@app.post("/settings/recompute-error/{error_id}/resolve", response_class=RedirectResponse)
+async def settings_recompute_error_resolve(error_id: int):
+    """Retry the failed recompute right now, and only mark the log entry
+    resolved if the retry actually succeeds — clicking this never just hides
+    the entry while the underlying stale/uncomputed recipe is still broken."""
+    outcome = "not_found"
+    with _db.get_db() as conn:
+        error = _db.get_recompute_error(conn, error_id)
+        if error:
+            try:
+                if error["entity_type"] == "recipe" and error["entity_id"] is not None:
+                    _recipe_dcp.recompute_recipe_dcp(error["entity_id"], conn)
+                _db.resolve_recompute_error(conn, error_id)
+                outcome = "resolved"
+            except Exception as exc:
+                _db.update_recompute_error(conn, error_id, f"Retry failed again: {exc}")
+                outcome = "still_failing"
+    return RedirectResponse(f"/settings?recompute_retry={outcome}#system-issues", status_code=303)
 
 
 @app.post("/recipes/compute-bcp", response_class=RedirectResponse)
@@ -5107,6 +5156,7 @@ async def recipe_confirm_aa(
                 nutrients=detail.get("nutrients", {}),
                 portions=detail.get("portions", []),
             )
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
     from urllib.parse import urlencode
     params = {"q": q}
@@ -5148,6 +5198,7 @@ async def recipe_ingredient_add(
                                serving_unit=detail.get("servingUnit"),
                                nutrients=detail.get("nutrients", {}),
                                portions=detail.get("portions", []))
+                _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
             food_name = food_name or detail["name"]
             with _db.get_db() as conn:
                 cached = _db.get_cached_food(conn, fdc_id)

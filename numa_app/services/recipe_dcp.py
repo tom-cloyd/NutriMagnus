@@ -49,14 +49,42 @@ def _cascade_to_ancestors(recipe_id: int, conn, *, seen: set[int]) -> None:
     """Recompute every recipe that references `recipe_id` as a sub-recipe
     ingredient, then their own referencing recipes, and so on. `seen` guards
     against re-visiting a recipe (diamond-shaped references) or looping
-    forever if a reference cycle ever exists."""
+    forever if a reference cycle ever exists.
+
+    Each recipe is recomputed in its own try/except: one ancestor failing to
+    recompute must not abort the walk for its siblings — instead it's logged
+    to recompute_errors so it's not silently left stale (see cascade_food_change)."""
     for row in _db.recipe_referencing_subrecipe(conn, recipe_id):
         parent_id = row["id"]
         if parent_id in seen:
             continue
         seen.add(parent_id)
-        _recompute_single_recipe_dcp(parent_id, conn)
+        try:
+            _recompute_single_recipe_dcp(parent_id, conn)
+        except Exception as exc:
+            _db.log_recompute_error(conn, "recipe", parent_id, f"DCP cascade recompute failed: {exc}")
         _cascade_to_ancestors(parent_id, conn, seen=seen)
+
+
+def cascade_food_change(fdc_id: int, conn) -> None:
+    """After a food's nutrients change (manual edit, AA import, USDA refresh —
+    any write to foods.nutrients_json), recompute DCP for every recipe that
+    uses it as a direct ingredient, cascading up to their ancestors the same
+    way an in-recipe edit does. Call this after every food-nutrient write so
+    no recipe is left holding a stale DIAAS-based dcp_g.
+
+    Each affected recipe is recomputed independently — one failure is logged
+    to recompute_errors rather than raised, so a single bad recipe can't
+    block the food save that triggered this or hide from the user."""
+    for row in _db.recipes_containing_food(conn, fdc_id):
+        recipe_id = row["id"]
+        try:
+            recompute_recipe_dcp(recipe_id, conn)
+        except Exception as exc:
+            _db.log_recompute_error(
+                conn, "recipe", recipe_id,
+                f"DCP recompute failed after food {fdc_id} changed: {exc}",
+            )
 
 
 def _recompute_single_recipe_dcp(recipe_id: int, conn) -> float | None:
