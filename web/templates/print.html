@@ -354,7 +354,7 @@
 {% if complements.no_gaps %}
 <p class="status-met">&#10003; All essential amino acids are adequately covered — no complement needed.</p>
 {% else %}
-<p class="muted">{{ complements.ranking_note }}</p>
+<p class="muted">{{ complements.comp_ranking_note }}</p>
 <p><strong>Gaps:</strong> {% for gap in complements.gaps %}{{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
 
 {% macro print_card(s, verb) %}

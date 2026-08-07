@@ -160,13 +160,13 @@
 
   <form method="get" action="/meal/{{ meal.id }}" data-persist-search>
     <input type="hidden" name="sort" value="{{ sort }}">
-    <div class="input-group mb-3 mt-2" style="max-width:50%">
+    <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
+    <div class="input-group mb-3" style="max-width:50%">
       <input type="text" class="form-control" name="q" value="{{ q }}"
              placeholder="Search foods or recipes…" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
       {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
     </div>
-    <p class="muted mb-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   </form>
 
   {% if q %}
@@ -752,7 +752,15 @@
   <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
   <p class="muted mt-1"><small>Every essential amino acid — including whichever one shows as "limiting" above — already meets or exceeds the FAO reference level. "Limiting" identifies the amino acid with the smallest margin, not a deficiency. {{ manual_link("gap") }}</small></p>
   {% else %}
-  <p class="muted mt-2"><small>{{ complements.ranking_note }}</small></p>
+  <p class="muted mt-2"><small>{{ complements.comp_ranking_note }}</small></p>
+  <p class="mb-1">
+    <label class="muted me-1" style="font-size:.8rem"><small>Sort by</small></label>
+    <select name="comp_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      <option value="effect" {% if complements.comp_sort != "grams" %}selected{% endif %}>Greatest effect</option>
+      <option value="grams" {% if complements.comp_sort == "grams" %}selected{% endif %}>Smallest addition (grams)</option>
+    </select>
+  </p>
   <p class="mt-1"><strong>Gaps:</strong>
     {% for gap in complements.gaps %}
       {{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}
@@ -802,6 +810,7 @@
   {% if complements.pairs %}
   <h4 class="mt-3" id="cmpl-pairs">Two-food combinations</h4>
   <p class="muted"><small>Food A closes the primary gap (but opens a new one); food B closes what A left behind. Together they achieve a complete amino acid profile.</small></p>
+  <p class="muted"><small>{{ complements.pairs_ranking_note }}</small></p>
   {% for p in complements.pairs %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1"><strong>{{ p.foods[0].name }}</strong> + <strong>{{ p.foods[1].name }}</strong>
@@ -838,6 +847,15 @@
     No single food can close the specific AA gap at a practical serving size. These options instead raise the meal's overall DIAAS score toward 0.90 by pooling their digestible amino acids with the meal.
     {% endif %}
   </small></p>
+  <p class="muted"><small>{{ complements.diaas_ranking_note }}</small></p>
+  <p class="mb-1">
+    <label class="muted me-1" style="font-size:.8rem"><small>Sort by</small></label>
+    <select name="diaas_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      <option value="effect" {% if complements.diaas_sort != "grams" %}selected{% endif %}>Greatest effect</option>
+      <option value="grams" {% if complements.diaas_sort == "grams" %}selected{% endif %}>Smallest addition (grams)</option>
+    </select>
+  </p>
   {% for s in complements.diaas_improvers %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <label class="mb-1 d-inline-flex align-items-center gap-1" style="font-size:.8rem">
@@ -878,6 +896,7 @@
 <section id="sec-two-step" class="analysis-section">
   <h3 class="section-heading">Two-Step Combinations {{ manual_link("comb") }}</h3>
   <p class="muted"><small>Each pairs a gap-closer (Step 1) with the best DIAAS-booster for the resulting protein pool (Step 2).</small></p>
+  <p class="muted"><small>{{ complements.two_step_ranking_note }}</small></p>
   {% for combo in complements.two_step_combos %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1 fw-semibold">Combination {{ loop.index }}</p>

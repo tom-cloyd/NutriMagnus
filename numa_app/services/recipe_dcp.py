@@ -1,7 +1,7 @@
 """
-recipe_dcp.py — shared auto-recompute of a recipe's per-serving DCP, used by
-CLI (recipes.py, recipe_edit.py) and web (backend.py) after any recipe or
-ingredient edit, and by the web app's bulk "Compute DCP" action.
+recipe_dcp.py — auto-recompute of a recipe's per-serving DCP, used by the web
+backend (backend.py) after any recipe or ingredient edit, and by the web
+app's bulk "Compute DCP" action.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/recipe_dcp.py — recipe DCP auto-recompute"
 """
 import json
@@ -155,10 +155,9 @@ def _save_recipe_nutrients_100g(recipe_id: int, conn) -> None:
     """Cache the recipe's whole-batch per-100g nutrient profile.
 
     This is what makes an analyzed recipe eligible to appear as a protein
-    complement candidate elsewhere (CLI and web share the same
-    `recipes.nutrients_json` column, read by _load_recipe_candidates /
-    _web_recipe_candidates). Best-effort — failure here must never affect
-    the DCP value already saved above.
+    complement candidate elsewhere (read via the `recipes.nutrients_json`
+    column by web/backend.py's _web_recipe_candidates). Best-effort — failure
+    here must never affect the DCP value already saved above.
     """
     try:
         whole_batch_leaves = expand_recipe_ingredients(recipe_id, conn, portion_factor=1.0)

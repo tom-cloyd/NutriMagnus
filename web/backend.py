@@ -9,6 +9,7 @@ import re
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlencode
 
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -56,7 +57,7 @@ _PREFS_FILE = Path.home() / ".local" / "share" / "numa" / "prefs.json"
 
 _HOME_CACHE = _WEB_DIR / "home_body.cache"
 
-# Mirror of CLI search.py constants — strip these from USDA API queries
+# Strip these prep-state words from USDA API queries
 _SEARCH_PREP_WORDS = {
     "peeled", "unpeeled", "sliced", "diced", "chopped", "minced", "grated",
     "shredded", "mashed", "pureed", "juiced", "squeezed", "seeded", "pitted",
@@ -80,10 +81,10 @@ def _render_home_md() -> str:
 
 # ---------------------------------------------------------------------------
 # Portion-string parser (unit tables are numa_app.services.portions' — imported
-# above as _PORTION_UNIT_TO_G / _PORTION_VOL_TO_ML — so the two UIs can't drift
-# apart on gram/ml conversion factors; the parsing function itself stays
-# separate since web's stateless form flow needs different fallback behavior
-# for bare numbers and unknown-density volumes than the CLI's interactive one)
+# above as _PORTION_UNIT_TO_G / _PORTION_VOL_TO_ML — kept as the single source
+# of truth for gram/ml conversion factors; the parsing function itself stays
+# here since it needs web-specific fallback behavior for bare numbers and
+# unknown-density volumes, tailored to the stateless form flow)
 # ---------------------------------------------------------------------------
 
 
@@ -232,9 +233,8 @@ def _resolve_sort(sort: str | None, pref_key: str, default: str, valid: set[str]
 
 
 def _sort_meal_items_display(items: list[dict], item_sort: str | None = None) -> list[dict]:
-    """Order a meal's items per the shared display preference: alphabetical by
-    food/recipe name (default), or entry order (first added to last). Shares
-    prefs.json with the CLI's _sort_meal_items() in numa_app/workflows/meals.py."""
+    """Order a meal's items per the saved display preference: alphabetical by
+    food/recipe name (default), or entry order (first added to last)."""
     resolved = item_sort or _resolve_sort(None, "sort_meal_items", "alpha", {"alpha", "entry"})
     if resolved == "entry":
         return items
@@ -417,8 +417,8 @@ def _current_diet_pref() -> str:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    # Apply schema/migrations on web server startup — the web app is a separate
-    # process from the CLI and must not depend on the CLI having run first.
+    # Apply schema/migrations on web server startup, since the web app owns
+    # the database and nothing else initializes it first.
     _db.init_db()
     with _db.get_db() as conn:
         from numa_app.services import demo_data as _demo_data
@@ -500,8 +500,7 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
     ]),
 ]
 
-# Nutrients offered for Profile Optimal / max-limit configuration in Settings —
-# mirrors numa_app/workflows/settings.py's _do_nutrient_targets() groups.
+# Nutrients offered for Profile Optimal / max-limit configuration in Settings.
 _NUTRIENT_TARGET_GROUPS: list[tuple[str, list[str]]] = [
     ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg",
                          "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"]),
@@ -623,8 +622,7 @@ def _load_rda(profile=None) -> dict | None:
 
 def _diet_aware_daily_notes(nutrients: dict, rda: dict | None) -> dict:
     """Return {"iron_zinc": str|None, "b12": str|None} for a day's nutrient
-    total, mirroring the notes CLI's _print_rda_comparison shows below the
-    RDA comparison table."""
+    total, shown below the RDA comparison table."""
     diet_pref = _current_diet_pref()
     b12_note = None
     if rda and "b12_mcg" in rda:
@@ -926,7 +924,8 @@ def _effective_ignored(ignore_complements: list[str], unignore: list[str]) -> se
     return {n for n in ignore_complements if n.lower() not in unignore_lower}
 
 
-def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set[str] | None = None) -> dict:
+def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set[str] | None = None,
+                              comp_sort: str | None = None, diaas_sort: str | None = None) -> dict:
     """Complement suggestions for a single food, using its own DIAAS as digestibility."""
     if not _usda.has_amino_acid_data(nutrients) or nutrients.get("protein_g", 0) <= 0:
         return {"no_data": True}
@@ -936,11 +935,15 @@ def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set
     diet_pref = prefs.get("diet_pref", "all")
     pantry = _web_pantry_candidates() + _web_recipe_candidates()
     cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
+    comp_sort = comp_sort or _resolve_sort(None, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
+    diaas_sort = diaas_sort or _resolve_sort(None, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
     return _complements.build_complement_display(
         nutrients, pantry, diet_pref=diet_pref,
         digestibility=digestibility, base_food_name=food_name,
         max_improver_grams=120, cache_candidates=cache_candidates,
         exclude_names=exclude_names,
+        comp_sort=comp_sort,
+        diaas_sort=diaas_sort,
     )
 
 
@@ -1039,8 +1042,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
 
     # Barcode detection: 12 or 13 consecutive digits (UPC-A or EAN-13).
     # Spaces and hyphens are stripped first so "0 12345 67890 1" also works.
-    # Mirrors the CLI's _lookup_barcode_confirmed (numa_app/services/search.py)
-    # — cache first, then a real Open Food Facts barcode lookup (not a text
+    # Cache first, then a real Open Food Facts barcode lookup (not a text
     # search, which can't reliably match a GTIN). Typing the exact barcode is
     # itself the confirmation, so the match is shown as the one search result
     # rather than routed through a separate confirm step.
@@ -1601,7 +1603,7 @@ _ALL_NUTRIENT_KEYS: set[str] = {k for _, fields in _EDIT_NUTRIENT_GROUPS for k, 
 # Compare helpers
 # ---------------------------------------------------------------------------
 
-# Single source of truth: usda_nutrients.COMPARE_GROUPS (shared with numa_app/workflows/foods.py).
+# Single source of truth: usda_nutrients.COMPARE_GROUPS
 _COMPARE_GROUPS = _usda.COMPARE_GROUPS
 
 
@@ -1644,15 +1646,6 @@ def _load_compare_entries(ids: list[int], amounts: list[float]) -> list[dict]:
                 nutrients_100g = detail.get("nutrients", {})
                 name = detail["name"]
                 data_type = detail.get("dataType", "")
-                with _db.get_db() as conn:
-                    _db.cache_food(conn, fdc_id=detail["fdcId"], name=detail["name"],
-                                   data_type=detail.get("dataType", ""),
-                                   brand=detail.get("brand"),
-                                   serving_size=detail.get("servingSize"),
-                                   serving_unit=detail.get("servingUnit"),
-                                   nutrients=nutrients_100g,
-                                   portions=detail.get("portions", []))
-                    _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
             except Exception:
                 nutrients_100g = {}
         nutrients = _usda.scale_nutrients(nutrients_100g, amount) if amount != 100.0 else nutrients_100g
@@ -1662,6 +1655,7 @@ def _load_compare_entries(ids: list[int], amounts: list[float]) -> list[dict]:
             "data_type": data_type,
             "amount":    amount,
             "nutrients": nutrients,
+            "cached":    cached is not None,
         })
     return entries
 
@@ -1811,6 +1805,31 @@ async def food_compare_remove(
     )
 
 
+@app.post("/food/compare/cache-food", response_class=RedirectResponse)
+async def food_compare_cache_food(
+    fdc_id: int = Form(...),
+    ids: str = Form(""),
+    amounts: str = Form(""),
+):
+    with _db.get_db() as conn:
+        already_cached = _db.get_cached_food(conn, fdc_id) is not None
+    if not already_cached:
+        try:
+            detail = _usda.get_food_detail(fdc_id)
+            with _db.get_db() as conn:
+                _db.cache_food(conn, fdc_id=detail["fdcId"], name=detail["name"],
+                               data_type=detail.get("dataType", ""),
+                               brand=detail.get("brand"),
+                               serving_size=detail.get("servingSize"),
+                               serving_unit=detail.get("servingUnit"),
+                               nutrients=detail.get("nutrients", {}),
+                               portions=detail.get("portions", []))
+                _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
+        except Exception:
+            pass
+    return RedirectResponse(f"/food/compare?ids={ids}&amounts={amounts}", status_code=303)
+
+
 @app.post("/food/compare/amounts", response_class=RedirectResponse)
 async def food_compare_amounts(request: Request, ids: str = Form("")):
     form = await request.form()
@@ -1940,16 +1959,19 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
 
 
 @app.post("/food/cache/delete", response_class=RedirectResponse)
-async def food_cache_delete(fdc_id: int = Form(...)):
+async def food_cache_delete(fdc_id: int = Form(...), q: str = Form(""),
+                             sort: str = Form(""), show_archived: int = Form(0)):
     with _db.get_db() as conn:
         _db.delete_cached_food(conn, fdc_id)
-    return RedirectResponse("/food/cache", status_code=303)
+    return RedirectResponse(
+        f"/food/cache?{urlencode({'q': q, 'sort': sort, 'show_archived': show_archived})}",
+        status_code=303,
+    )
 
 
 # ---------------------------------------------------------------------------
-# Claude AI amino-acid/nutrient fetch workflow (web equivalent of the CLI's
-# Food Cache i/r commands) — see numa_app/services/claude_fetch.py for the
-# shared prompt-building and response-parsing logic.
+# Claude AI amino-acid/nutrient fetch workflow — see numa_app/services/
+# claude_fetch.py for the prompt-building and response-parsing logic.
 # ---------------------------------------------------------------------------
 
 @app.post("/food/cache/claude-fetch", response_class=HTMLResponse)
@@ -2009,21 +2031,24 @@ async def food_cache_claude_import_post(request: Request,
 
 
 @app.post("/food/cache/{fdc_id}/archive", response_class=RedirectResponse)
-async def food_cache_archive(fdc_id: int):
+async def food_cache_archive(fdc_id: int, q: str = Form(""), sort: str = Form(""),
+                              show_archived: int = Form(0)):
     """Archive or restore a cached food — flips whichever state it's currently in."""
+    params = {"q": q, "sort": sort, "show_archived": show_archived}
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         if not cached:
-            return RedirectResponse("/food/cache", status_code=303)
+            return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
         newly_archived = not cached["archived"]
         still_used = 0
         if newly_archived:
             refs = _db.food_references(conn, fdc_id)
             still_used = int(bool(refs["pantry"] or refs["recipes"] or refs["meals"]))
         _db.set_food_archived(conn, fdc_id, newly_archived)
-    flag = "archived=1" if newly_archived else "restored=1"
-    suffix = f"&still_used={still_used}" if newly_archived and still_used else ""
-    return RedirectResponse(f"/food/cache?{flag}{suffix}", status_code=303)
+    params["archived" if newly_archived else "restored"] = 1
+    if newly_archived and still_used:
+        params["still_used"] = 1
+    return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
 
 
 @app.get("/food/cache/prune", response_class=HTMLResponse)
@@ -2734,6 +2759,8 @@ def _food_detail_context(
     portion_str: str,
     ignore_complements: list[str],
     unignore: list[str],
+    comp_sort: str | None = None,
+    diaas_sort: str | None = None,
 ) -> dict:
     nutrients: dict = {}
     portions: list = []
@@ -2833,7 +2860,7 @@ def _food_detail_context(
         "nutrient_sections":  _nutrient_sections(display_nutrients, rda_scaled or rda,
                                                  optimal=optimal_scaled or optimal, max_limits=max_limits),
         "protein":            _protein_section(food["name"], display_nutrients),
-        "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore)),
+        "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "antinutrients":      antinutrient_flags,
         "has_profile":        rda is not None,
@@ -2852,8 +2879,13 @@ async def food_detail(
     portion_str: str = Query(default=""),
     ignore_complements: list[str] = Query(default=[]),
     unignore: list[str] = Query(default=[]),
+    comp_sort: str | None = None,
+    diaas_sort: str | None = None,
 ):
-    ctx = _food_detail_context(fdc_id, amount, portion_str, ignore_complements, unignore)
+    comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
+    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
+    ctx = _food_detail_context(fdc_id, amount, portion_str, ignore_complements, unignore,
+                                comp_sort=comp_sort, diaas_sort=diaas_sort)
     if "error" in ctx:
         return templates.TemplateResponse(request, "search.html", {
             "results": [], "query": "", "error": ctx["error"],
@@ -3065,9 +3097,8 @@ def _web_pantry_candidates() -> list[dict]:
 def _web_recipe_candidates(exclude_recipe_id: int | None = None) -> list[dict]:
     """Return analyzed recipes as complement-suggestion candidates.
 
-    Mirrors numa_app.ui.render._load_recipe_candidates. `exclude_recipe_id` leaves
-    a recipe out of its own candidate list when suggesting complements for that
-    same recipe.
+    `exclude_recipe_id` leaves a recipe out of its own candidate list when
+    suggesting complements for that same recipe.
     """
     try:
         with _db.get_db() as conn:
@@ -3114,6 +3145,9 @@ def _web_recipe_candidates(exclude_recipe_id: int | None = None) -> list[dict]:
     return candidates
 
 
+_COMPLEMENT_SORT_MODES = {"effect", "grams"}
+
+
 def _complement_suggestions(
     aa_nutrients: dict,
     pooled_tid: float | None,
@@ -3121,6 +3155,8 @@ def _complement_suggestions(
     exclude_recipe_id: int | None = None,
     ingredients: list[dict] | None = None,
     exclude_names: set[str] | None = None,
+    comp_sort: str | None = None,
+    diaas_sort: str | None = None,
 ) -> dict:
     """Build complement suggestion data. Returns no_data sentinel if AA data unavailable.
 
@@ -3131,10 +3167,9 @@ def _complement_suggestions(
 
     pooled_tid: protein-weighted average TRUE digestibility across the base's
         ingredients — see diaas.pooled_tid() — passed through as the digestibility
-        basis so gaps/DCP projections use the real baseline, matching the CLI (see
-        render._print_meal_diaas, which returns this same value for exactly this
-        purpose). Do NOT pass the meal's composite DIAAS here instead: DIAAS is the
-        worst-case (limiting) AA ratio, and reapplying it as a flat per-AA
+        basis so gaps/DCP projections use the real baseline. Do NOT pass the
+        meal's composite DIAAS here instead: DIAAS is the worst-case (limiting)
+        AA ratio, and reapplying it as a flat per-AA
         multiplier manufactures gaps in amino acids that were never actually short
         — for a meal with one badly-imbalanced AA and otherwise-fine ones, this can
         make every candidate look unable to close the gap in any practical serving.
@@ -3156,12 +3191,16 @@ def _complement_suggestions(
     cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
     max_improver_grams = 300 if context == "recipe" else 120
     digestibility = min(pooled_tid, 1.0) if pooled_tid else 1.0
+    comp_sort = comp_sort or _resolve_sort(None, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
+    diaas_sort = diaas_sort or _resolve_sort(None, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
     return _complements.build_complement_display(
         aa_nutrients, pantry, diet_pref=diet_pref,
         digestibility=digestibility, max_improver_grams=max_improver_grams,
         ingredients=ingredients,
         cache_candidates=cache_candidates,
         exclude_names=exclude_names,
+        comp_sort=comp_sort,
+        diaas_sort=diaas_sort,
     )
 
 
@@ -3213,13 +3252,13 @@ def _compute_gl(meal_id: int) -> tuple[float | None, list[str]]:
 def _expand_recipe_ingredients(recipe_id: int, portion_factor: float, conn) -> list[dict]:
     """Recursively expand a recipe's ingredients for DIAAS, scaling by portion_factor.
     Thin positional-argument wrapper — the recursion itself lives in
-    numa_app.services.recipe_nutrients (shared with the CLI)."""
+    numa_app.services.recipe_nutrients."""
     return expand_recipe_ingredients(recipe_id, conn, portion_factor=portion_factor)
 
 
 def _meal_aa_nutrients(meal_id: int) -> dict:
     """Return summed nutrients (scaled) from foods that have AA data, for complement suggestions.
-    Expands recipe items recursively and applies complement-table AA fallback, matching the CLI."""
+    Expands recipe items recursively and applies complement-table AA fallback."""
     result: dict = {}
     with _db.get_db() as conn:
         items = _db.meal_get_items(conn, meal_id)
@@ -3334,7 +3373,7 @@ def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
     """Compute DIAAS-based DCP and calories for a meal and persist them. Returns dcp_g or None.
 
     Falls back to summing recipe items' precomputed dcp_g when ingredient-level
-    AA data is unavailable (matches the CLI's _compute_meal_bcp fallback)."""
+    AA data is unavailable."""
     _, total_nutrients, diaas_result, _ = _meal_totals(meal_id)
     diaas = _build_diaas_display(diaas_result)
     bcp_g = diaas["dcp_g"] if diaas else None
@@ -3352,7 +3391,7 @@ def _refresh_day_pct_goal(meal_date: str) -> None:
 
     Includes meals not yet marked complete — DCP is auto-saved as items are
     added, so an in-progress meal already contributes to the day total
-    (matches the CLI, the day-detail page's own pooled DIAAS analysis, and
+    (matches the day-detail page's own pooled DIAAS analysis, and
     db.meal_dates_with_bcp's day_bcp aggregate used by the Daily Summary
     Recent Days table)."""
     with _db.get_db() as conn:
@@ -3373,7 +3412,7 @@ def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None,
     meals = [dict(m) for m in meals_rows]
     hidden = max(0, total - len(meals))
 
-    # Extra user-chosen nutrient columns (shared prefs.json with the CLI).
+    # Extra user-chosen nutrient columns (stored in prefs.json).
     from numa_app.services.meal_list_columns import (
         sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, format_value as _meal_format_value,
     )
@@ -3547,7 +3586,7 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
     and the async search-api-results endpoint, which merges this with
     external results before sorting so a weak local match never outranks a
     much better external one just by rendering first."""
-    # Preprocess query (same logic as CLI search.py)
+    # Preprocess query — strip meta words that shouldn't affect ranking
     _clean_words = [w for w in q.lower().split() if w not in _SEARCH_META_WORDS]
     clean_query = " ".join(_clean_words) if _clean_words else q
 
@@ -3632,10 +3671,13 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
 async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None,
                      item_sort: str | None = None, source: str | None = None,
                      ignore_complements: list[str] = Query(default=[]),
-                     unignore: list[str] = Query(default=[])):
+                     unignore: list[str] = Query(default=[]),
+                     comp_sort: str | None = None, diaas_sort: str | None = None):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
     source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
+    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
         if not meal:
@@ -3741,7 +3783,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                                                   optimal=optimal, max_limits=max_limits) if total_nutrients else [],
         "diaas":               diaas_display,
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore)),
+        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "gl":                  {"total": gl_total, "blockers": gl_blockers},
         "item_antinutrients":  item_antinutrients,
@@ -4178,7 +4220,7 @@ async def meal_update_item_post(
             cached = _db.get_cached_food(conn, item["fdc_id"]) if item["fdc_id"] else None
         portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
         grams, error_msg = _parse_portion_str(amount.strip(), portions, item["food_name"])
-        if grams:
+        if grams is not None:
             with _db.get_db() as conn:
                 _db.meal_replace_food(conn, item_id, meal_id, item["fdc_id"],
                                       item["food_name"], grams, "g", notes_val)
@@ -4605,8 +4647,7 @@ async def settings_nutrient_target_post(
 @app.post("/settings/nutrient-target/load-defaults", response_class=RedirectResponse)
 async def settings_nutrient_target_load_defaults():
     """Apply profile.compute_optimal_defaults() to any nutrient the user
-    hasn't already customized. Mirrors the CLI's 'l' command in
-    numa_app.workflows.settings._do_nutrient_targets()."""
+    hasn't already customized."""
     profile = _profile.load_profile()
     if profile is None:
         return RedirectResponse("/settings", status_code=303)
@@ -4641,8 +4682,7 @@ async def settings_demo_data_clear():
 
 @app.post("/settings/meal-nutrients", response_class=RedirectResponse)
 async def settings_meal_nutrients_post(request: Request):
-    """Save the ordered list of extra nutrient columns for the Meals & Log list.
-    Shares prefs.json with the CLI's numa_app.workflows.settings._do_meal_list_nutrients()."""
+    """Save the ordered list of extra nutrient columns for the Meals & Log list."""
     from numa_app.services.meal_list_columns import AVAILABLE_NUTRIENTS, sanitize as _sanitize_meal_nutrients
     form = await request.form()
     positioned: list[tuple[int, str]] = []
@@ -4768,7 +4808,8 @@ async def recipe_new_post(
 
 
 def _recipe_detail_context(recipe_id: int, servings: float | None,
-                            ignore_complements: list[str], unignore: list[str]) -> dict | None:
+                            ignore_complements: list[str], unignore: list[str],
+                            comp_sort: str | None = None, diaas_sort: str | None = None) -> dict | None:
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -4830,7 +4871,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits) if scaled else [],
         "diaas":                    diaas_display,
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore)),
+        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
         "ignored_complements":      sorted(_effective_ignored(ignore_complements, unignore)),
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
@@ -4844,8 +4885,12 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
 @app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
 async def recipe_detail(request: Request, recipe_id: int, servings: float | None = None,
                          ignore_complements: list[str] = Query(default=[]),
-                         unignore: list[str] = Query(default=[])):
-    ctx = _recipe_detail_context(recipe_id, servings, ignore_complements, unignore)
+                         unignore: list[str] = Query(default=[]),
+                         comp_sort: str | None = None, diaas_sort: str | None = None):
+    comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
+    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
+    ctx = _recipe_detail_context(recipe_id, servings, ignore_complements, unignore,
+                                  comp_sort=comp_sort, diaas_sort=diaas_sort)
     if ctx is None:
         return RedirectResponse("/recipes", status_code=303)
     return templates.TemplateResponse(request, "recipe_detail.html", ctx)
@@ -5361,8 +5406,7 @@ async def recipe_print(request: Request, recipe_id: int):
 @app.get("/summary/trend", response_class=HTMLResponse)
 async def summary_trend(request: Request, days: int = Query(7)):
     """Multiday average nutrient intake vs. RDA — surfaces chronic shortfalls
-    (B12, iron, iodine, vitamin D, ...) a single day's snapshot can't. Mirrors
-    numa_app.workflows.summary._do_nutrient_trend()."""
+    (B12, iron, iodine, vitamin D, ...) a single day's snapshot can't."""
     if days not in (7, 14, 30):
         days = 7
 
@@ -5409,9 +5453,10 @@ async def summary_trend(request: Request, days: int = Query(7)):
     avg_dcp = round(sum(day_dcp.values()) / len(day_dcp), 1) if day_dcp else None
     avg_dcp_pct = round(avg_dcp / protein_target * 100, 0) if avg_dcp is not None and protein_target else None
 
-    # Pool amino acids across the whole window (not averaged — see
-    # numa_app.workflows.summary._do_nutrient_trend for why pooled totals and
-    # per-day averages produce identical gap ratios).
+    # Pool amino acids across the whole window (not averaged — pooling totals
+    # first and averaging per-day both produce identical gap ratios here,
+    # since get_aa_gaps() only compares AA-to-protein ratios, so pooling is
+    # simpler and avoids an extra averaging pass).
     aa_nutrients: dict = {}
     for ing in all_ingredients:
         if _usda.has_amino_acid_data(ing["nutrients_100g"]):

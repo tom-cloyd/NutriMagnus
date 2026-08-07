@@ -1,11 +1,9 @@
 """
-claude_fetch.py — shared prompt-building and response-parsing for the
-Claude AI amino-acid/nutrient fetch workflow (CLI Food Cache i/r commands,
-and the web app's equivalent Food Cache pages).
+claude_fetch.py — prompt-building and response-parsing for the Claude AI
+amino-acid/nutrient fetch workflow behind the web app's Food Cache pages.
 
-Pure functions only — no console/HTML output here, so both the CLI
-(numa_app/workflows/foods.py) and the web app (web/backend.py) can wrap the
-same logic in their own presentation.
+Pure functions only — no HTML output here, so web/backend.py can wrap the
+same logic in its own presentation.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/claude_fetch.py — Claude fetch/import workflow"
 """
 from __future__ import annotations
@@ -251,7 +249,8 @@ def build_notes(food: dict) -> str | None:
 
 
 def import_foods(conn, valid: list[dict], curator_text: str | None) -> None:
-    """Write validated food blocks to the cache. Shared final step for CLI and web."""
+    """Write validated food blocks to the cache. Final step of the web app's
+    Claude AI fetch/import workflow."""
     import db as _db
     for f in valid:
         _db.cache_food(

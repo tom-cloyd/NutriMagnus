@@ -1,7 +1,8 @@
 """
 Tests for numa_app/services/food_import.py — the shared per-serving conversion
-and nutrient-key validation used by the Claude-import flow (workflows/foods.py),
-import_foods.py, and import_json_folder.py.
+and nutrient-key validation used by the Claude-import flow
+(numa_app/services/claude_fetch.py), import_foods.py, and
+import_json_folder.py.
 """
 import pytest
 

@@ -1,10 +1,11 @@
 """
-rda_status.py — shared RDA/limit percent-of-target classification, used by
-CLI (render.py) and web (backend.py) to color-code nutrient rows. web
-previously used its own thresholds (70% vs the CLI's 75% warning cutoff for
-minimum/target nutrients; no "approaching limit" tier at all for limit-type
-nutrients between 80-100%), so the same data could show a different colored
-verdict depending on which UI displayed it.
+rda_status.py — RDA/limit percent-of-target classification, used by the web
+backend (web/backend.py) to color-code nutrient rows. Originally extracted to
+unify web's and the (since-removed) CLI's diverging thresholds — web used 70%
+vs the CLI's 75% warning cutoff for minimum/target nutrients, and had no
+"approaching limit" tier at all for limit-type nutrients between 80-100%, so
+the same data could show a different colored verdict depending on which UI
+displayed it.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/rda_status.py — RDA status classification"
 """
 

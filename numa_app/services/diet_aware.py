@@ -1,12 +1,12 @@
 """
-diet_aware.py — shared diet-preference-aware analysis notes, used by CLI
-(render.py) and web (backend.py) in the daily summary / RDA comparison views.
+diet_aware.py — diet-preference-aware analysis notes, used by the web backend
+(web/backend.py) in the daily summary / RDA comparison views.
 
-state._diet_pref was previously consulted only to filter protein complement
-suggestions; the iron/zinc RDA bump itself lives in profile.compute_rda's
-diet_pref parameter — this module covers the analysis-layer warnings that
-sit alongside that, which have no natural home in profile.py since they
-produce user-facing text rather than numbers.
+The stored diet_pref preference was previously consulted only to filter
+protein complement suggestions; the iron/zinc RDA bump itself lives in
+profile.compute_rda's diet_pref parameter — this module covers the
+analysis-layer warnings that sit alongside that, which have no natural home
+in profile.py since they produce user-facing text rather than numbers.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/diet_aware.py — diet-preference-aware analysis notes"
 """
 

@@ -46,12 +46,12 @@
 <h5>{% if link_id %}Find a match for "{{ link_name }}"{% else %}Add a pantry item — search for full amino acid data{% endif %}</h5>
 <form method="get" action="/pantry" class="mb-2">
   {% if link_id %}<input type="hidden" name="link_id" value="{{ link_id }}">{% endif %}
+  <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="input-group mb-2" style="max-width:36rem">
     <input type="text" class="form-control" name="search" value="{{ search }}"
            placeholder="e.g. rolled oats, chicken breast" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
-  <p class="muted mb-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
 </form>
 
 {% if search_error %}

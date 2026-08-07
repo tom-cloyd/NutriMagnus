@@ -13,12 +13,12 @@
 <h2>Convert a Portion &harr; Weight</h2>
 
 <form method="get" action="/food/convert" class="mb-4">
+  <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="input-group" style="max-width:36rem">
     <input type="text" class="form-control" name="q" value="{{ query or '' }}"
            placeholder="Search for a food to look up portions…" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
-  <p class="muted mb-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
 </form>
 
 {% if search_error %}

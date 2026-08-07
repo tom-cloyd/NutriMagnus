@@ -1,7 +1,8 @@
 """
 food_import.py — shared nutrient-key validation and per-serving conversion for
 manually-compiled food imports, used by the in-app Claude-fetch flow
-(workflows/foods.py), the import_foods.py script, and import_json_folder.py.
+(numa_app/services/claude_fetch.py), the import_foods.py script, and
+import_json_folder.py.
 
 Single source of truth for VALID_NUTRIENT_KEYS: derived from usda_api.NUTRIENT_MAP
 so it can't drift out of sync with the nutrients numa actually understands.

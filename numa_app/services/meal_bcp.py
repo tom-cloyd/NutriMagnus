@@ -1,9 +1,9 @@
 """
-meal_bcp.py — shared fallback for a meal's digestible complete protein (DCP/BCP)
-when ingredient-level AA data isn't available. Used by CLI (meals.py) and web
-(backend.py); web previously lacked this fallback entirely, silently storing
-None for any meal whose foods lack raw AA data even when its recipe item(s)
-already have a precomputed dcp_g.
+meal_bcp.py — fallback for a meal's digestible complete protein (DCP/BCP)
+when ingredient-level AA data isn't available. Used by the web backend
+(backend.py), which previously lacked this fallback entirely, silently
+storing None for any meal whose foods lack raw AA data even when its recipe
+item(s) already have a precomputed dcp_g.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/meal_bcp.py — meal DCP fallback"
 """
 import db as _db

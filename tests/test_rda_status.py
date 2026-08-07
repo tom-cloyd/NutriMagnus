@@ -1,10 +1,11 @@
 """
-Tests for numa_app/services/rda_status.py — shared percent-of-target status
-classification used by CLI (render.py) and web (backend.py). web previously
-used its own thresholds (75% instead of 70% for the minimum/target "near"
-cutoff, and no intermediate tier at all for limit-type nutrients between
-80-100%), so the same nutrient data could show a different colored verdict
-depending on which UI displayed it.
+Tests for numa_app/services/rda_status.py — percent-of-target status
+classification used by the web backend (web/backend.py). Originally extracted
+to unify web's and the (since-removed) CLI's diverging thresholds — web used
+75% instead of the CLI's 70% for the minimum/target "near" cutoff, and had no
+intermediate tier at all for limit-type nutrients between 80-100%, so the
+same nutrient data could show a different colored verdict depending on which
+UI displayed it.
 """
 import pytest
 

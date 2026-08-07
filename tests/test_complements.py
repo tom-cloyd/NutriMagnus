@@ -1,6 +1,6 @@
 """
-Tests for numa_app/services/complements.py — the shared complement-suggestion
-display math used by both the CLI (render.py) and web (backend.py).
+Tests for numa_app/services/complements.py — the complement-suggestion
+display math used by the web backend (web/backend.py).
 """
 import json
 import sqlite3
@@ -127,6 +127,74 @@ class TestBuildComplementDisplay:
         matches = [s for s in result["pantry"] if s["name"] == "Nutritional Yeast Flakes"]
         assert matches and matches[0]["estimated"] is True
         assert matches[0]["fdc_id"] == 42
+
+
+# ---------------------------------------------------------------------------
+# comp_sort / diaas_sort — "greatest effect" (default) vs "smallest addition"
+# ---------------------------------------------------------------------------
+
+class TestSortModes:
+    """These bypass the real AA-gap/DIAAS science (stubbed via monkeypatch) to
+    test purely the sort-key logic in build_complement_display() in isolation —
+    the science itself is already covered by TestBuildComplementDisplay above."""
+
+    _RAW_PANTRY = [
+        {"name": "Small but weak", "fdc_id": 1, "grams": 10, "new_complete": False,
+         "gaps_closed": 1, "digestible_protein_added": 2.0, "protein_added": 2.0,
+         "new_scores": {}, "comp_nutrients": None, "estimated": False,
+         "serving_weight_g": None, "recipe_id": None},
+        {"name": "Big but strong", "fdc_id": 2, "grams": 80, "new_complete": False,
+         "gaps_closed": 3, "digestible_protein_added": 15.0, "protein_added": 15.0,
+         "new_scores": {}, "comp_nutrients": None, "estimated": False,
+         "serving_weight_g": None, "recipe_id": None},
+    ]
+
+    _RAW_IMPROVERS = [
+        {"name": "Small effect", "fdc_id": 3, "grams": 15, "new_diaas": 0.80,
+         "current_diaas": 0.70, "protein_added": 3.0, "digestible_protein_added": 2.4,
+         "diaas": 0.85, "estimated": False, "steps": [],
+         "recipe_id": None, "serving_weight_g": None},
+        {"name": "Big effect", "fdc_id": 4, "grams": 100, "new_diaas": 0.95,
+         "current_diaas": 0.70, "protein_added": 20.0, "digestible_protein_added": 17.0,
+         "diaas": 0.90, "estimated": False, "steps": [],
+         "recipe_id": None, "serving_weight_g": None},
+    ]
+
+    def _stub(self, monkeypatch, pantry=None, improvers=None):
+        monkeypatch.setattr(_complements._usda, "get_aa_gaps",
+                             lambda *a, **kw: [("aa_lysine_g", 0.5, 2.0)])
+        monkeypatch.setattr(_complements._usda, "suggest_complements",
+                             lambda *a, **kw: {"pantry": pantry or [], "general": [],
+                                                "pairs": [], "diaas_improvers": improvers or []})
+
+    def test_comp_sort_effect_ranks_by_gaps_closed_then_dcp_added(self, monkeypatch):
+        self._stub(monkeypatch, pantry=self._RAW_PANTRY)
+        result = _complements.build_complement_display({"protein_g": 20.0}, [], comp_sort="effect")
+        assert [s["name"] for s in result["pantry"]] == ["Big but strong", "Small but weak"]
+        assert "greatest effect" in result["comp_ranking_note"].lower()
+
+    def test_comp_sort_grams_ranks_by_smallest_serving(self, monkeypatch):
+        self._stub(monkeypatch, pantry=self._RAW_PANTRY)
+        result = _complements.build_complement_display({"protein_g": 20.0}, [], comp_sort="grams")
+        assert [s["name"] for s in result["pantry"]] == ["Small but weak", "Big but strong"]
+        assert "smallest addition" in result["comp_ranking_note"].lower()
+
+    def test_comp_sort_default_is_effect(self, monkeypatch):
+        self._stub(monkeypatch, pantry=self._RAW_PANTRY)
+        result = _complements.build_complement_display({"protein_g": 20.0}, [])
+        assert [s["name"] for s in result["pantry"]] == ["Big but strong", "Small but weak"]
+
+    def test_diaas_sort_effect_ranks_by_highest_resulting_diaas(self, monkeypatch):
+        self._stub(monkeypatch, improvers=self._RAW_IMPROVERS)
+        result = _complements.build_complement_display({"protein_g": 20.0}, [], diaas_sort="effect")
+        assert [s["name"] for s in result["diaas_improvers"]] == ["Big effect", "Small effect"]
+        assert "greatest effect" in result["diaas_ranking_note"].lower()
+
+    def test_diaas_sort_grams_ranks_by_smallest_serving(self, monkeypatch):
+        self._stub(monkeypatch, improvers=self._RAW_IMPROVERS)
+        result = _complements.build_complement_display({"protein_g": 20.0}, [], diaas_sort="grams")
+        assert [s["name"] for s in result["diaas_improvers"]] == ["Small effect", "Big effect"]
+        assert "smallest addition" in result["diaas_ranking_note"].lower()
 
 
 # ---------------------------------------------------------------------------

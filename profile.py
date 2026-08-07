@@ -344,9 +344,10 @@ def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple
     `diet_pref` ("all" | "vegetarian" | "plant_only", default "all") bumps
     the iron and zinc RDA to reflect reduced dietary bioavailability on
     vegetarian/plant-based patterns — see _DIET_AWARE_RDA_MULTIPLIERS and
-    manual topic ?diet-bioavailability. This is the same state.state._diet_pref
-    value used elsewhere for complement-suggestion filtering; callers pass it
-    through explicitly since profile.py itself has no dependency on app state.
+    manual topic ?diet-bioavailability. This is the same preference value used
+    elsewhere for complement-suggestion filtering (stored in the web app's
+    prefs file); callers pass it through explicitly since profile.py itself
+    has no dependency on app state.
 
     Sources: NIH Office of Dietary Supplements; USDA 2020-2025 Dietary
     Guidelines; Institute of Medicine Dietary Reference Intakes.

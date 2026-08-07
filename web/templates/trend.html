@@ -105,7 +105,7 @@
   <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
   <p class="muted mt-1"><small>Every essential amino acid — including whichever one shows as "limiting" above — already meets or exceeds the FAO reference level. "Limiting" identifies the amino acid with the smallest margin, not a deficiency. {{ manual_link("gap") }}</small></p>
   {% else %}
-  <p class="muted mt-2"><small>{{ complements.ranking_note }}</small></p>
+  <p class="muted mt-2"><small>{{ complements.comp_ranking_note }}</small></p>
   <p class="mt-1"><strong>Gaps:</strong>
     {% for gap in complements.gaps %}
       {{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}

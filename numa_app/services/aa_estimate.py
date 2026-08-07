@@ -1,6 +1,7 @@
 """
 aa_estimate.py — estimate a food's amino acid profile by copying another
-food's AA values, scaled to match its own protein content (CLI + web).
+food's AA values, scaled to match its own protein content. Used by the web
+backend.
 
 Raw AA grams don't transfer directly between foods with different protein
 density — a food with 2x the protein of its source would otherwise end up

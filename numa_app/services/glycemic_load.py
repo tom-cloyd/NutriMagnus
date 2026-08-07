@@ -1,10 +1,10 @@
 """
-glycemic_load.py — shared glycemic load (GL) aggregation across a list of
-line items (foods and/or recipes), used by CLI (recipes.py, meals.py) and
-web (backend.py). All four previous implementations independently
-recomputed this same accumulation loop; web's two additionally lacked the
-recipe-GL rollup via recipes.gl_g, always treating a nested recipe/sub-recipe
-line item as an unconditional blocker instead of using its precomputed GL.
+glycemic_load.py — glycemic load (GL) aggregation across a list of line items
+(foods and/or recipes), used by the web backend (backend.py). Extracted after
+web's two separate call sites independently recomputed this same accumulation
+loop and both lacked the recipe-GL rollup via recipes.gl_g, always treating a
+nested recipe/sub-recipe line item as an unconditional blocker instead of
+using its precomputed GL.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/glycemic_load.py — GL aggregation"
 """
 import json

@@ -279,6 +279,29 @@ def test_meal_create_add_food_complete_delete(client: TestClient, cached_food, d
     assert db_conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone() is None
 
 
+def test_meal_update_item_to_zero_grams(client: TestClient, cached_food, db_conn) -> None:
+    resp = client.post(
+        "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+    item_id = db_conn.execute(
+        "SELECT id FROM meal_items WHERE meal_id = ?", (meal_id,)
+    ).fetchone()["id"]
+
+    resp = client.post(
+        f"/meal/{meal_id}/update/{item_id}", data={"amount": "0"}, follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    item = db_conn.execute("SELECT * FROM meal_items WHERE id = ?", (item_id,)).fetchone()
+    assert item["amount"] == 0.0
+
+
 def test_recipe_new_edit_and_add_ingredient(client: TestClient, cached_food, db_conn) -> None:
     resp = client.post(
         "/recipe/new",
@@ -729,6 +752,40 @@ def test_summary_trend_shows_pooled_complement_suggestions(client: TestClient) -
     assert "Add to upcoming meals" in resp.text
 
 
+def test_meal_complement_sort_toggle_and_persistence(client: TestClient) -> None:
+    """comp_sort/diaas_sort query params reorder the meal's suggestion sections
+    and are remembered on later requests that omit them (like other list sorts,
+    e.g. Food Cache's sort dropdown)."""
+    low_lysine = dict(SAMPLE_NUTRIENTS)
+    low_lysine["aa_lysine_g"] = 0.6
+    fdc_id = 900003
+
+    with _db.get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json) VALUES (?, ?, ?, ?)",
+            (fdc_id, "Low-lysine test food", "SR Legacy", json.dumps(low_lysine)),
+        )
+        conn.commit()
+        meal_id = _db.meal_create(conn, "Lunch", datetime.date.today().isoformat())
+        _db.meal_add_food(conn, meal_id, fdc_id, "Low-lysine test food", 150.0, "g")
+        conn.commit()
+
+    resp = client.get(f"/meal/{meal_id}")
+    assert resp.status_code == 200
+    assert "greatest effect" in resp.text.lower()
+    assert '<option value="effect" selected>' in resp.text
+
+    resp = client.get(f"/meal/{meal_id}?comp_sort=grams")
+    assert resp.status_code == 200
+    assert "smallest addition" in resp.text.lower()
+    assert '<option value="grams" selected>' in resp.text
+
+    # A later request that omits comp_sort still reflects the remembered choice.
+    resp = client.get(f"/meal/{meal_id}")
+    assert resp.status_code == 200
+    assert '<option value="grams" selected>' in resp.text
+
+
 def test_settings_diet_pref_raises_iron_zinc_rda(client: TestClient) -> None:
     # Baseline: use_test_web_prefs defaults to include_animal_foods=True → "all"
     resp = client.get("/settings")
@@ -763,6 +820,25 @@ def test_settings_profile_update_preserves_nutrient_targets(client: TestClient) 
 def test_food_cache_delete_and_prune(client: TestClient, cached_food, db_conn) -> None:
     resp = client.post("/food/cache/delete", data={"fdc_id": cached_food["fdcId"]}, follow_redirects=False)
     assert resp.status_code == 303
+    assert db_conn.execute(
+        "SELECT * FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone() is None
+
+
+def test_food_cache_delete_preserves_search_filter(client: TestClient, cached_food, db_conn) -> None:
+    """Regression test: deleting from a filtered /food/cache?q=... view previously
+    redirected to the unfiltered list, dropping q/sort/show_archived — making a
+    successful delete look like it silently failed."""
+    resp = client.post(
+        "/food/cache/delete",
+        data={"fdc_id": cached_food["fdcId"], "q": "chicken", "sort": "type", "show_archived": 1},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert "q=chicken" in location
+    assert "sort=type" in location
+    assert "show_archived=1" in location
     assert db_conn.execute(
         "SELECT * FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
     ).fetchone() is None
@@ -1189,6 +1265,38 @@ def test_food_compare_add_multiple_remove_amounts(client: TestClient, cached_foo
     )
     assert resp.status_code == 303
     assert "amounts=150.0" in resp.headers["location"]
+
+
+def test_food_compare_uncached_food_shows_add_button_then_caches(
+    client: TestClient, cached_food, monkeypatch, db_conn,
+) -> None:
+    import usda as _usda
+    from tests.conftest import SAMPLE_FOOD_DETAIL
+
+    uncached_fdc_id = 999123
+    monkeypatch.setattr(_usda, "get_food_detail", lambda *a, **kw: (_ for _ in ()).throw(Exception("offline")))
+
+    resp = client.get(
+        "/food/compare",
+        params={"ids": f"{cached_food['fdcId']},{uncached_fdc_id}", "amounts": "100.0,100.0"},
+    )
+    assert resp.status_code == 200
+    assert "Add to food cache" in resp.text
+    assert db_conn.execute("SELECT * FROM foods WHERE fdc_id = ?", (uncached_fdc_id,)).fetchone() is None
+
+    fetched_detail = {**SAMPLE_FOOD_DETAIL, "fdcId": uncached_fdc_id}
+    monkeypatch.setattr(_usda, "get_food_detail", lambda *a, **kw: fetched_detail)
+    resp = client.post(
+        "/food/compare/cache-food",
+        data={"fdc_id": uncached_fdc_id,
+              "ids": f"{cached_food['fdcId']},{uncached_fdc_id}", "amounts": "100.0,100.0"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert db_conn.execute("SELECT * FROM foods WHERE fdc_id = ?", (uncached_fdc_id,)).fetchone() is not None
+
+    resp = client.get(resp.headers["location"])
+    assert "In food cache" in resp.text
 
 
 def test_food_compare_save_load_rename_delete(client: TestClient, cached_food, second_cached_food, db_conn) -> None:

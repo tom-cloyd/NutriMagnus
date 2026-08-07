@@ -1,8 +1,8 @@
 """
-Tests for numa_app/services/recipe_nutrients.py — the shared recursive
-recipe-ingredient expansion used by CLI (recipes.py, meals.py) and web
-(backend.py). Both previously reimplemented this recursion independently
-in five separate places.
+Tests for numa_app/services/recipe_nutrients.py — the recursive
+recipe-ingredient expansion used by the web backend (backend.py).
+Previously reimplemented independently in five separate places before
+being extracted here.
 """
 import json
 

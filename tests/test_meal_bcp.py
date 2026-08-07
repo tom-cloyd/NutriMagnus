@@ -1,10 +1,9 @@
 """
-Tests for numa_app/services/meal_bcp.py — the shared meal-DCP fallback used by
-CLI (meals.py) and web (backend.py). web previously lacked this fallback
-entirely: a meal whose foods lack raw AA data (so the primary DIAAS-based DCP
-computation returns nothing) but whose recipe item already has a precomputed
-dcp_g would silently persist bcp_g=None on the web route while the CLI still
-computed a correct value.
+Tests for numa_app/services/meal_bcp.py — the meal-DCP fallback used by the
+web backend (backend.py), which previously lacked this fallback entirely: a
+meal whose foods lack raw AA data (so the primary DIAAS-based DCP computation
+returns nothing) but whose recipe item already has a precomputed dcp_g would
+silently persist bcp_g=None.
 """
 import json
 

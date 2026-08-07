@@ -21,6 +21,7 @@
 {% set is_barcode_query = _bc.isdigit() and (_bc|length == 12 or _bc|length == 13) %}
 
 <form method="post" action="/food/analyze-portion">
+  <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="input-group mb-3">
     <input type="text" class="form-control" name="query" value="{{ query }}"
            placeholder="e.g. salmon, oat bran, lentils" autofocus>
@@ -32,7 +33,6 @@
   </div>
   {% endif %}
   <p class="muted mb-0"><small>Type a food name, an <a href="/manual#gloss-fdc-id" target="_blank" rel="noopener">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
-  <p class="muted mb-0"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
 </form>
 
 {% if error %}

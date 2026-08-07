@@ -1,6 +1,6 @@
 """
-portions.py — portion-string parsing (_parse_portion_input) shared by CLI-era
-recipe ingredients and the web app.
+portions.py — portion-string parsing (_parse_portion_input) for the web app's
+recipe ingredients.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/portions.py — portion parsing"
 """
 import re
@@ -202,9 +202,9 @@ def _volume_label(ml: float) -> str:
 def volume_hint(grams: float, food_name: str) -> str | None:
     """Return a human-readable volume equivalent for *grams* of *food_name*, or None.
 
-    Shared by the CLI (protein complement suggestions) and the web app —
-    both display gram amounts for suggested foods and want a cups/tbsp/tsp
-    approximation alongside them where a density estimate is available.
+    Used wherever the web app displays gram amounts for suggested foods and
+    wants a cups/tbsp/tsp approximation alongside them, where a density
+    estimate is available.
     """
     density = _usda.get_density_g_per_ml(food_name, [])
     if density is None:

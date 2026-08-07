@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-07:0744* / Reading time: 2 hours, 25 minutes
+*Updated 2026-08-07:1142* / Reading time: 2 hours, 25 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -162,7 +162,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it is using.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your [Pantry](#pantry), and [recipes you have analyzed](#recipes-menu-web). For protein complement suggestions specifically, a built-in list of 25 common protein sources[^10] fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be filled in automatically from a small published reference table (see [Glycemic Index](#gi)), rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-07), there are 497 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-07), there are 506 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 **Appendix K has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
@@ -2369,8 +2369,84 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 
 [//]: # "Aside from being an update log for the user to ac cess, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
+[//]: # "NEEDED BELOW: glean all up to and including 'FIX: EDITING A FOOD NOW RECOMPUTES'. After that, they have not been committed yet."
+
+Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed — that's all most readers need. Some entries also have a fenced code block underneath with fuller technical detail (which files changed, root cause, implementation notes) written for anyone curious about the "how," including a future version of the developer; feel free to skip those blocks entirely.
 
 #### August 7
+
+**INTERNAL: REMOVED A DEAD CODE PATH LEFT OVER FROM THE CLI REMOVAL**
+
+No user-facing change. While sweeping stale "used by CLI and web" comments left over from the 2026-08-04 CLI removal, found that `expand_recipe_ingredients()`'s `refresh_missing_aa` option was never actually invoked by any current caller — only the (already-gone) CLI ever passed `True`. Removed the dead parameter/branch and the now-fully-unused `numa_app/services/search.py` module it depended on.
+
+```
+numa_app/services/recipe_nutrients.py, numa_app/services/search.py (deleted),
+README-numa-documentation.md, CLAUDE.md
+expand_recipe_ingredients() and recipe_total_nutrients() lost the
+refresh_missing_aa parameter; _refresh_cache_if_missing_aa() (search.py's
+only function) had no other callers, so the module was deleted outright
+rather than left as dead weight. Confirmed via grep across the whole
+codebase (including tests) that refresh_missing_aa=True was never passed.
+```
+
+**PROTEIN COMPLEMENT AND DIAAS-BOOSTER SUGGESTIONS NOW EXPLAIN THEIR ORDER AND LET YOU CHOOSE IT**
+
+The meal, recipe, and food analysis pages never stated how "Protein Complement Suggestions" and "DIAAS-Boosting Options" were ordered — and it turned out the two sections used different rules, with a stale note incorrectly claiming a "50g or less" exception that only really applies to the separate "Two-food combinations" list. Both sections now show a plain-language note explaining their actual rule, and each has its own "Sort by" dropdown: **Greatest effect** (new default — most amino-acid gaps closed / highest resulting DIAAS score, as applicable) or **Smallest addition** (fewest grams needed — the previous default for Complement Suggestions). Your choice is remembered, the same way the Food Cache sort is. "Two-food combinations" and "Two-Step Combinations" also gained corrected explanatory notes (no toggle — their order is fixed/derived).
+
+```
+numa_app/services/complements.py, web/backend.py, web/templates/{meal,recipe_detail,
+food_detail,food_analyze_recipe_portion,summary,trend,print,meal_day}.html
+build_complement_display() gained comp_sort/diaas_sort params ("effect"|"grams"),
+replacing the single hardcoded sort_key for the Pantry/General tiers and adding an
+explicit sort for diaas_improvers (previously just inherited whatever order
+usda.suggest_complements() happened to return). Returns four corrected note
+strings (comp_ranking_note, diaas_ranking_note, pairs_ranking_note,
+two_step_ranking_note) replacing the old single, partly-inaccurate ranking_note.
+web/backend.py threads comp_sort/diaas_sort as query params + _resolve_sort()-
+backed prefs (new keys sort_complements/sort_diaas_improvers in prefs.json) on
+the three interactive routes (meal_view, recipe_detail, food_detail); every other
+call site (print/summary/trend/recipe-portion-analysis) omits the params and
+automatically inherits the remembered choice.
+```
+
+**FIX: DELETING OR ARCHIVING A FOOD FROM A FILTERED FOOD CACHE VIEW NO LONGER LOOKS LIKE IT DID NOTHING**
+
+Deleting or archiving a food while viewing filtered/sorted results on the Food Cache page (via the name filter, sort dropdown, or "Show archived") used to redirect back to the full unfiltered list — the action worked, but losing your filter made it easy to miss and look like nothing had happened. Delete and Archive/Restore now redirect back to the same filtered, sorted view.
+
+```
+web/backend.py, web/templates/food_cache.html
+The Delete and Archive/Restore forms now carry hidden q/sort/show_archived
+fields; food_cache_delete() and food_cache_archive() accept them and
+include them in the redirect query string via urllib.parse.urlencode
+(now a top-level import) instead of dropping straight to bare "/food/cache".
+```
+
+**COMPARE FOODS NOW SHOWS WHETHER EACH FOOD IS IN YOUR FOOD CACHE**
+
+Each food's column in the Compare Foods nutrient-comparison table now shows "In food cache" if it's already there, or an "Add to food cache" button if it isn't. Clicking the button fetches and caches that food, then the column switches to "In food cache."
+
+```
+web/backend.py, web/templates/food_compare.html
+Comparing a food no longer writes it to the cache as a side effect —
+_load_compare_entries() now only reads get_cached_food() to tag each entry
+with a "cached" bool; when uncached it fetches nutrients via
+usda.get_food_detail() for display only, without calling cache_food().
+New POST /food/compare/cache-food route is the only path that actually
+caches an uncached comparison food (fetch + cache_food()), triggered by
+the button, and redirects back to the comparison.
+```
+
+**FIX: EDITING A MEAL ITEM'S AMOUNT TO 0G NO LONGER GETS SILENTLY IGNORED**
+
+Typing 0 (or "0g") into a meal item's amount field and saving used to do nothing — the page reloaded with the old amount still in place, no error, no explanation. It now saves as entered.
+
+```
+web/backend.py
+meal_update_item_post() checked `if grams:` after parsing the portion
+string, which is falsy for 0.0 and skipped the update with no error
+message. Changed to `if grams is not None:`, matching every other
+_parse_portion_str() call site in the file.
+```
 
 **FIX: EDITING A FOOD NOW RECOMPUTES ANY RECIPE'S PROTEIN-QUALITY SCORE THAT DEPENDS ON IT**
 

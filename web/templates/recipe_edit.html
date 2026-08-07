@@ -255,12 +255,12 @@
       <summary><strong>Add Ingredient</strong></summary>
 
       <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search>
-        <div class="input-group mb-1 mt-2" style="max-width:28rem">
+        <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
+        <div class="input-group mb-1" style="max-width:28rem">
           <input type="text" class="form-control" name="q" value="{{ q }}"
                  placeholder="Search foods…" autofocus>
           <button type="submit" class="btn btn-primary">Search</button>
         </div>
-        <p class="muted mb-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
         {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
       </form>
 

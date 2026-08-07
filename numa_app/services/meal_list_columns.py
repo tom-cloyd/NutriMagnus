@@ -1,6 +1,6 @@
 """
-meal_list_columns.py — shared nutrient-column picker logic for the Meals & Log
-list (CLI + web): which nutrients can be tracked, short labels, and the cap.
+meal_list_columns.py — nutrient-column picker logic for the Meals & Log
+list: which nutrients can be tracked, short labels, and the cap.
 Also used by the Recent Days / Daily Summary list, which aggregates the same
 user-chosen columns per date instead of per meal, and by the web Nutrient
 Plot picker.

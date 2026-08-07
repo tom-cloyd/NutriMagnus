@@ -1,8 +1,7 @@
 """
-recipe_nutrients.py — shared recursive recipe-ingredient expansion and nutrient
-totaling, used by CLI (recipes.py, meals.py) and web (backend.py). Both
-previously reimplemented this same recursive tree-walk independently in five
-separate places.
+recipe_nutrients.py — recursive recipe-ingredient expansion and nutrient
+totaling, used by the web backend (backend.py). Previously reimplemented
+independently in five separate places before being extracted here.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/recipe_nutrients.py — recipe nutrient aggregation"
 """
 import json
@@ -18,7 +17,6 @@ def expand_recipe_ingredients(
     conn,
     *,
     portion_factor: float = 1.0,
-    refresh_missing_aa: bool = False,
 ) -> list[dict]:
     """Recursively expand a recipe into its leaf food ingredients.
 
@@ -28,11 +26,6 @@ def expand_recipe_ingredients(
 
     Returns [{"food_name", "fdc_id", "nutrients_100g", "grams"}, ...] — one
     entry per leaf food ingredient; sub-recipes themselves don't appear.
-
-    refresh_missing_aa: if True, fetches AA data from USDA for any leaf food
-    whose cache entry is missing it before reading its cached nutrients
-    (CLI recipe views do this; web callers handle AA refresh separately via
-    an explicit /meal/{id}/refresh-aa-style pass, so they pass False).
     """
     result: list[dict] = []
     for ing in _db.recipe_get_ingredients(conn, recipe_id):
@@ -42,12 +35,9 @@ def expand_recipe_ingredients(
             sub_factor = float(ing["amount"]) / sub_servings * portion_factor
             result.extend(expand_recipe_ingredients(
                 ing["ref_recipe_id"], conn,
-                portion_factor=sub_factor, refresh_missing_aa=refresh_missing_aa,
+                portion_factor=sub_factor,
             ))
         elif ing["fdc_id"]:
-            if refresh_missing_aa:
-                from .search import _refresh_cache_if_missing_aa
-                _refresh_cache_if_missing_aa(ing["fdc_id"])
             cached = _db.get_cached_food(conn, ing["fdc_id"])
             if not cached or not cached["nutrients_json"]:
                 continue
@@ -79,7 +69,7 @@ def atomic_recipe_ingredients(
     breakdown would hide that complementarity behind tiny per-component
     protein amounts and misattribute its digestible protein to whichever raw
     ingredient happens to dominate its weight — "recipes taken as a whole" is
-    the correct model here, matching the CLI's original recipe-view treatment.
+    the correct model here.
 
     Returns [{"food_name", "fdc_id", "recipe_id", "nutrients_100g", "grams"}, ...]
     — fdc_id is None for a sub-recipe entry, recipe_id is None for a direct food.
@@ -129,7 +119,6 @@ def recipe_total_nutrients(
     conn,
     *,
     portion_factor: float = 1.0,
-    refresh_missing_aa: bool = False,
 ) -> Nutrients:
     """Sum nutrients across a recipe's (recursively expanded) leaf ingredients.
 
@@ -138,7 +127,7 @@ def recipe_total_nutrients(
     """
     total: Nutrients = {}
     for leaf in expand_recipe_ingredients(
-        recipe_id, conn, portion_factor=portion_factor, refresh_missing_aa=refresh_missing_aa,
+        recipe_id, conn, portion_factor=portion_factor,
     ):
         scaled = _usda.scale_nutrients(leaf["nutrients_100g"], leaf["grams"], base_size=100.0)
         total = _usda.sum_nutrients(total, scaled)

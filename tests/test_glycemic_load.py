@@ -1,8 +1,8 @@
 """
-Tests for numa_app/services/glycemic_load.py — shared GL aggregation used by
-CLI (recipes.py, meals.py) and web (backend.py). web's two implementations
-previously always treated a recipe/sub-recipe line item as an unconditional
-blocker instead of using the recipe's own precomputed gl_g, unlike the CLI.
+Tests for numa_app/services/glycemic_load.py — GL aggregation used by the web
+backend (backend.py). Its two previous separate implementations always
+treated a recipe/sub-recipe line item as an unconditional blocker instead of
+using the recipe's own precomputed gl_g.
 """
 import json
 

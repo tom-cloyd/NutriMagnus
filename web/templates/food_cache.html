@@ -169,6 +169,9 @@
         </form>
         {% endif %}
         <form method="post" action="/food/cache/{{ food.fdc_id }}/archive" style="display:inline">
+          <input type="hidden" name="q" value="{{ q or '' }}">
+          <input type="hidden" name="sort" value="{{ sort }}">
+          <input type="hidden" name="show_archived" value="{{ 1 if show_archived else 0 }}">
           <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
                   title="{% if food.archived %}Restore to normal use{% else %}Hide from search & complement suggestions, without losing it{% endif %}">
             {% if food.archived %}Restore{% else %}Archive{% endif %}
@@ -176,6 +179,9 @@
         </form>
         <form method="post" action="/food/cache/delete" style="display:inline">
           <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+          <input type="hidden" name="q" value="{{ q or '' }}">
+          <input type="hidden" name="sort" value="{{ sort }}">
+          <input type="hidden" name="show_archived" value="{{ 1 if show_archived else 0 }}">
           <button type="submit" class="btn btn-sm btn-outline-danger"
                   onclick="return confirm('Delete {{ food.name | replace("'", "\\'") }} from cache?')">
             Delete

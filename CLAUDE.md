@@ -58,7 +58,6 @@ numa_app/
     rda_status.py       — shared RDA/limit percent-of-target classification: rda_status()
     recipe_nutrients.py — shared recursive recipe-ingredient expansion:
                          expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
-    search.py           — _refresh_cache_if_missing_aa(), used by recipe_nutrients.py
 
 web/
   backend.py           — the FastAPI app: all routes

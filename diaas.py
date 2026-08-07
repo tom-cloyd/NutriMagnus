@@ -381,8 +381,8 @@ def pooled_tid(result: dict) -> float | None:
     exist and can make even a strong complement look unable to close them in any
     practical serving. pooled_tid reflects only the true absorption loss, not the
     AA-balance penalty, so gap sizing responds correctly to what a complement's own
-    AA content can actually fix. See numa_app.workflows.recipe_analysis, which uses
-    this same protein-weighted-average approach for recipe complement sizing.
+    AA content can actually fix. See web/backend.py's _complement_suggestions(),
+    which uses this same protein-weighted-average approach for complement sizing.
 
     Returns None if no ingredient has usable AA + digestibility data.
     """

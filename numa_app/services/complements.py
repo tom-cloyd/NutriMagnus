@@ -1,7 +1,8 @@
 """
-complements.py — shared protein-complement display math for CLI (render.py)
-and web (backend.py). Both previously reimplemented this independently;
-extracting it here keeps AA-gap scoring and two-step combo pairing in one place.
+complements.py — protein-complement display math used by the web backend
+(web/backend.py). Originally shared with the interactive terminal CLI (removed
+2026-08-04); kept as its own module since AA-gap scoring and two-step combo
+pairing benefit from staying separate from the route/template code.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/complements.py — complement display math"
 """
 import json
@@ -232,6 +233,8 @@ def build_complement_display(
     cache_candidates: list[dict] | None = None,
     ingredients: list[dict] | None = None,
     exclude_names: set[str] | None = None,
+    comp_sort: str = "effect",
+    diaas_sort: str = "effect",
 ) -> dict:
     """Build the full complement-suggestion display structure for one base food/meal/recipe.
 
@@ -258,8 +261,16 @@ def build_complement_display(
         ignore — omitted from every tier (pantry, general, pairs, diaas_improvers,
         two_step_combos).
 
+    comp_sort: "effect" (default; most gaps closed, then most digestible protein
+        added) or "grams" (smallest serving needed) — controls Pantry/General tier
+        order. A full profile-completer is always promoted to the top of its tier
+        regardless of mode. two_step_combos inherits this order (Step 1 candidates
+        come from the same sorted list).
+    diaas_sort: "effect" (default; highest resulting DIAAS first) or "grams"
+        (smallest serving first) — controls the diaas_improvers tier order.
+
     Returns {"no_data": True}, {"no_gaps": True}, or the full display dict consumed
-    by both the CLI (numa_app/ui/render.py) and the web templates.
+    by the web templates.
     """
     if not base_nutrients or base_nutrients.get("protein_g", 0) <= 0:
         return {"no_data": True}
@@ -442,11 +453,21 @@ def build_complement_display(
             "aa_effects":          aa_effects({"new_scores": new_scores}, gaps, digestibility=digestibility),
         }
 
-    sort_key = lambda s: (0 if s.get("new_complete") else 1, float(s.get("grams") or 999))
+    if comp_sort == "grams":
+        sort_key = lambda s: (0 if s.get("new_complete") else 1, float(s.get("grams") or 999))
+    else:
+        sort_key = lambda s: (0 if s.get("new_complete") else 1,
+                               -(s.get("gaps_closed") or 0),
+                               -(s.get("digestible_protein_added") or 0))
     pantry_suggs    = sorted(suggestions.get("pantry",  []), key=sort_key)[:pantry_limit]
     general_suggs   = sorted(suggestions.get("general", []), key=sort_key)[:general_limit]
     pair_suggs      = suggestions.get("pairs", [])[:pair_limit]
-    diaas_improvers = suggestions.get("diaas_improvers", [])[:improver_limit]
+
+    if diaas_sort == "grams":
+        diaas_sort_key = lambda s: (float(s.get("grams") or 999), -(s.get("new_diaas") or 0))
+    else:
+        diaas_sort_key = lambda s: (-(s.get("new_diaas") or 0), float(s.get("grams") or 999))
+    diaas_improvers = sorted(suggestions.get("diaas_improvers", []), key=diaas_sort_key)[:improver_limit]
 
     two_step_combos: list[dict] = []
     top_gap_closers = (pantry_suggs + general_suggs)[:two_step_limit]
@@ -484,10 +505,31 @@ def build_complement_display(
     exhausted_prefix = ("All options that qualify are shown above — no others meet the criteria."
                         if n_shown > 0 else "No qualifying options found in the database.")
 
+    if comp_sort == "grams":
+        comp_ranking_note = ("Ranked by smallest addition: fewest grams needed. Exception: an option "
+                              "that fully completes the amino acid profile is always promoted to the top.")
+    else:
+        comp_ranking_note = ("Ranked by greatest effect: most amino-acid gaps closed, then most digestible "
+                              "protein added. Exception: an option that fully completes the amino acid "
+                              "profile is always promoted to the top.")
+    if diaas_sort == "grams":
+        diaas_ranking_note = "Ranked by smallest addition: fewest grams needed."
+    else:
+        diaas_ranking_note = "Ranked by greatest effect: highest resulting DIAAS score first."
+    pairs_ranking_note = ("Ranked by smallest combined addition (both foods' grams added together). "
+                          "A combination that fully closes every gap in 50 g total or less is promoted to the top.")
+    two_step_ranking_note = ("Step 1 options follow the same order as Protein Complement Suggestions above; "
+                             "Step 2 is the best-available DIAAS booster for the resulting protein pool.")
+
     return {
-        "no_gaps":           False,
-        "gaps":              gap_rows,
-        "ranking_note":      "Ranked by grams needed (smallest first). Exception: an option that fully completes the amino acid profile is promoted to the top — but only if its serving is 50 g or less.",
+        "no_gaps":              False,
+        "gaps":                 gap_rows,
+        "comp_ranking_note":    comp_ranking_note,
+        "diaas_ranking_note":   diaas_ranking_note,
+        "pairs_ranking_note":   pairs_ranking_note,
+        "two_step_ranking_note": two_step_ranking_note,
+        "comp_sort":            comp_sort,
+        "diaas_sort":           diaas_sort,
         "pantry_empty":      not pantry_candidates,
         "pantry_no_qualify": bool(pantry_candidates) and not pantry_suggs,
         "pantry":            pantry_fmt,

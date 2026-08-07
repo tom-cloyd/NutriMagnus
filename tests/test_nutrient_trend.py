@@ -1,6 +1,6 @@
 """
 Tests for numa_app/services/nutrient_trend.py — multi-day nutrient averaging
-used by the N-day nutrient trend view (CLI and web).
+used by the N-day nutrient trend view.
 """
 from numa_app.services.nutrient_trend import average_from_daily_totals
 

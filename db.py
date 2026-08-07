@@ -504,7 +504,7 @@ def set_food_annotation(
     prep_context: str | None,
 ) -> None:
     """Write all annotation fields at once (explicit NULLs clear existing values).
-    Use this for web forms; use upsert_food_annotation for CLI (field-at-a-time) updates."""
+    Use this for web forms; use upsert_food_annotation for a single field-at-a-time update."""
     conn.execute("""
         INSERT INTO food_annotations
             (fdc_id, gi_estimate, gi_no_prompt, diaas_estimate, diaas_no_prompt, prep_context, updated_at)
@@ -985,7 +985,7 @@ def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlit
     yet — this counts every meal with a computed value, not just ones marked
     complete: DCP is auto-saved as items are added, so an in-progress meal
     already contributes to the day total, same as the day-detail page's own
-    pooled DIAAS analysis and the CLI's day summary), day_pct_goal (the
+    pooled DIAAS analysis), day_pct_goal (the
     %-of-profile-goal value already stored per meal by refresh_day_pct_goal —
     every meal on a date shares the same value, so MAX just picks it up).
     Prefers the pooled day-level DCP from day_bcp_cache when available.

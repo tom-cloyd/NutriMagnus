@@ -1,7 +1,7 @@
 """
-day_profile.py — pin which user profile applies to a given logged day (CLI +
-web), so RDA/DCP comparisons for a past date use the profile that was active
-then rather than whichever profile is active now. Users can maintain several
+day_profile.py — pin which user profile applies to a given logged day, so
+RDA/DCP comparisons for a past date use the profile that was active then
+rather than whichever profile is active now. Users can maintain several
 named profiles and switch the active one (illness, travel, weight change),
 so "today's active profile" is the wrong thing to compare an old day against.
 
@@ -73,8 +73,8 @@ def set_day_profile_override(conn, meal_date: str, profile_name: str) -> bool:
     """Reassign meal_date to a specific named profile, snapshotting it and
     marking the day as manually overridden. Returns False if profile_name
     doesn't exist. Caller is responsible for refreshing day_pct_goal
-    afterward (each of CLI/web already has its own refresh routine that
-    filters complete/incomplete meals slightly differently)."""
+    afterward (web/backend.py has its own refresh routine that filters
+    complete/incomplete meals)."""
     p = _profile.load_profile(profile_name)
     if p is None:
         return False

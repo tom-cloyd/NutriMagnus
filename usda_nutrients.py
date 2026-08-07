@@ -12,9 +12,9 @@ from usda_api import NUTRIENT_MAP, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_
 # Type alias for all per-100g nutrient dicts throughout the codebase.
 Nutrients = dict[str, float]
 
-# Nutrient groupings for the multi-food compare feature (CLI foods.py + web
-# backend.py) — kept here as the single source of truth so the two UIs can't
-# silently drift apart on which nutrients are grouped together.
+# Nutrient groupings for the multi-food compare feature (web/backend.py) —
+# kept here as the single source of truth for which nutrients are grouped
+# together.
 COMPARE_GROUPS: list[tuple[str, list[str]]] = [
     ("Macronutrients", [
         "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
@@ -570,10 +570,9 @@ _COMPLEMENT_INDEX: dict[str, dict] = {c["name"].lower(): c for c in _COMPLEMENT_
 def complement_table_names() -> list[str]:
     """Names of all foods in the internal curated complement table.
 
-    Used by callers (CLI render.py, web backend.py) to search the user's own
-    food cache for a real match to each curated entry before falling back to
-    the entry's generic literature profile — see suggest_complements()'s
-    cache_candidates parameter.
+    Used by the web backend to search the user's own food cache for a real
+    match to each curated entry before falling back to the entry's generic
+    literature profile — see suggest_complements()'s cache_candidates parameter.
     """
     return [c["name"] for c in _COMPLEMENT_TABLE]
 

@@ -1,5 +1,5 @@
 """
-search_ranking.py — shared food-search relevance ranking (CLI + web).
+search_ranking.py — food-search relevance ranking, used by the web backend.
 Docs: README-numa-documentation.md
 
 Ranks a candidate name against a multi-word query so that:
