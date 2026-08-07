@@ -25,19 +25,19 @@
 {% endif %}
 
 {# ── Estimate amino acids from another food ── #}
-<details class="mb-4" {% if aa_source_q %}open{% endif %} style="max-width:44rem">
+<details id="estimate-aa" class="mb-4" open style="max-width:44rem">
   <summary><strong>Estimate amino acids from another food</strong></summary>
   <p class="muted mt-2 mb-2">
-    <small>Search your Food Cache for a food with amino acid data, then apply it here —
+    <small>Search your Food Cache and USDA for a similar food with amino acid data, then apply it here —
     values are scaled to this food's own protein content, not copied raw.</small>
   </p>
-  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="d-flex gap-2 mb-2">
+  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit#estimate-aa" class="d-flex gap-2 mb-2">
     <input type="text" class="form-control form-control-sm" name="aa_source_q" value="{{ aa_source_q }}"
-           placeholder="Search cached foods…" style="max-width:22rem">
+           placeholder="Search for a similar food…" style="max-width:22rem" {% if not aa_source_q %}autofocus{% endif %}>
     <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
   </form>
   {% if aa_source_q and not aa_source_results %}
-  <p class="muted"><small>No cached foods match "{{ aa_source_q }}".</small></p>
+  <p class="muted"><small>No foods match "{{ aa_source_q }}".</small></p>
   {% elif aa_source_results %}
   <table class="table table-sm table-hover">
     <thead class="table-light">
@@ -52,7 +52,7 @@
       {% for r in aa_source_results %}
       <tr>
         <td>
-          {% if r.has_aa %}<span class="status-met" title="Has amino acid data">&#10003;</span>
+          {% if r.has_aa %}<span class="status-met" title="Has (or likely has) amino acid data">&#10003;</span>
           {% else %}<span class="text-danger" title="No amino acid data">&#10007;</span>{% endif %}
         </td>
         <td>{{ r.name }} <small class="muted">(#{{ r.fdc_id }})</small></td>

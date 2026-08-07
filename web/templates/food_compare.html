@@ -108,7 +108,7 @@
       <tr>
         <td><input type="checkbox" name="fdc_id" value="{{ r.fdc_id }}" class="row-chk"></td>
         <td class="muted"><small>{{ r.fdc_id if r.fdc_id > 0 else 'OFF' }}</small></td>
-        <td><strong>{{ r.name }}</strong></td>
+        <td><a href="/food/{{ r.fdc_id }}"><strong>{{ r.name }}</strong></a></td>
         <td class="muted">{{ r.brand or "—" }}</td>
         <td class="muted">{{ r.data_type }}</td>
         <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>

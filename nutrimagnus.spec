@@ -18,6 +18,7 @@ a = Analysis(
         ('user-manual.html', '.'),
         ('scripts/build_manual.py', 'scripts'),
         ('oxalate.db', '.'),
+        ('numa_app/services/starter_data.json', 'numa_app/services'),
     ],
     hiddenimports=['backend'],
     hookspath=[],

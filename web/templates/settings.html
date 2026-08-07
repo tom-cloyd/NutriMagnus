@@ -444,34 +444,34 @@
   </form>
 </details>
 
-{# ── 9. Sample data ──────────────────────────────────────────────────── #}
-<details id="demo-data">
-  <summary data-ak="9"><u class="ak">9</u>. <strong>Sample Data</strong>
-    <span class="muted"> — populate the app with example foods, pantry items, and recipes to explore</span>
+{# ── 9. Starter data ─────────────────────────────────────────────────── #}
+<details id="starter-data">
+  <summary data-ak="9"><u class="ak">9</u>. <strong>Starter Data</strong>
+    <span class="muted"> — populate the app with curated foods, pantry items, and recipes to explore or build on</span>
   </summary>
 
-  {% if saved == 'demo_data_loaded' %}
-  <p class="status-met mt-2"><strong>&#10003; Sample data loaded.</strong></p>
+  {% if saved == 'starter_data_loaded' %}
+  <p class="status-met mt-2"><strong>&#10003; Starter data loaded.</strong></p>
   {% endif %}
-  {% if saved == 'demo_data_cleared' %}
-  <p class="status-met mt-2"><strong>&#10003; Sample data cleared.</strong></p>
+  {% if saved == 'starter_data_cleared' %}
+  <p class="status-met mt-2"><strong>&#10003; Starter data cleared.</strong></p>
   {% endif %}
 
-  {% if not demo_data_loaded %}
+  {% if not starter_data_loaded %}
   <p class="mt-2 muted"><small>
-    Adds {{ demo_food_count }} real, USDA-sourced foods with full amino-acid data, {{ demo_pantry_count }}
-    of them to your pantry, and {{ demo_recipe_count }} recipes chosen to show protein complementarity working —
+    Adds {{ starter_food_count }} real, USDA-sourced foods with full amino-acid data, {{ starter_pantry_count }}
+    of them to your pantry, and {{ starter_recipe_count }} recipes chosen to show protein complementarity working —
     without touching anything already in your cache, pantry, or recipes.
   </small></p>
-  <form method="post" action="/settings/demo-data/load"
-        onsubmit="return confirm('Add {{ demo_food_count }} sample foods, {{ demo_pantry_count }} pantry items, and {{ demo_recipe_count }} sample recipes?')">
-    <button type="submit" class="btn btn-outline-secondary btn-sm">Load sample data</button>
+  <form method="post" action="/settings/starter-data/load"
+        onsubmit="return confirm('Add {{ starter_food_count }} starter foods, {{ starter_pantry_count }} pantry items, and {{ starter_recipe_count }} starter recipes?')">
+    <button type="submit" class="btn btn-outline-secondary btn-sm">Load starter data</button>
   </form>
   {% else %}
-  <p class="mt-2 muted"><small>Sample data is currently loaded.</small></p>
-  <form method="post" action="/settings/demo-data/clear"
-        onsubmit="return confirm('Remove all sample foods, pantry items, and recipes? This cannot be undone.')">
-    <button type="submit" class="btn btn-outline-danger btn-sm">Clear sample data</button>
+  <p class="mt-2 muted"><small>Starter data is currently loaded.</small></p>
+  <form method="post" action="/settings/starter-data/clear"
+        onsubmit="return confirm('Remove all starter foods, pantry items, and recipes? This cannot be undone.')">
+    <button type="submit" class="btn btn-outline-danger btn-sm">Clear starter data</button>
   </form>
   {% endif %}
 </details>

@@ -421,6 +421,8 @@ async def _lifespan(app: FastAPI):
     # process from the CLI and must not depend on the CLI having run first.
     _db.init_db()
     with _db.get_db() as conn:
+        from numa_app.services import demo_data as _demo_data
+        _demo_data.seed_if_fresh_install(conn)
         _day_profile.backfill_missing_day_profiles(conn)
         missing_snapshot_meals = _db.meals_missing_nutrient_snapshot(conn)
     # One-time backfill: meals whose bcp_g/calories predate the per-meal
@@ -2403,14 +2405,42 @@ async def food_custom_profiles_edit_get(request: Request, fdc_id: int, aa_source
         if not cached:
             return RedirectResponse("/food/custom-profiles", status_code=303)
         aa_source_results = []
+        seen_ids: set[int] = {fdc_id}
         if aa_source_q.strip():
+            q = aa_source_q.strip()
             aa_source_results = [
-                dict(r) for r in _db.search_cached_foods(conn, aa_source_q.strip())
+                dict(r) for r in _db.search_cached_foods(conn, q)
                 if r["fdc_id"] != fdc_id
             ]
             for r in aa_source_results:
                 n = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
                 r["has_aa"] = _usda.has_amino_acid_data(n)
+            seen_ids |= {r["fdc_id"] for r in aa_source_results}
+
+    # USDA search runs after the cache lookup above, and other than fdc_id
+    # (needed to exclude self/dupes) uses no DB connection — a slow network
+    # call must never run with a connection held open (see CLAUDE.md).
+    if aa_source_q.strip():
+        q = aa_source_q.strip()
+        try:
+            general = _usda.search_foods(q)
+            foundation = _usda.search_foods(q, data_types=["Foundation", "SR Legacy"])
+            found_ids = {f["fdcId"] for f in foundation}
+            for food in foundation + [f for f in general if f["fdcId"] not in found_ids]:
+                fid = food.get("fdcId")
+                if not fid or fid in seen_ids:
+                    continue
+                seen_ids.add(fid)
+                dtype = food.get("dataType", "")
+                aa_source_results.append({
+                    "fdc_id":    fid,
+                    "name":      food.get("description", ""),
+                    "data_type": dtype,
+                    "has_aa":    dtype in ("Foundation", "SR Legacy"),
+                })
+        except Exception:
+            pass
+
     nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
     field_groups = [
         {
@@ -4420,10 +4450,10 @@ async def settings_get(request: Request, saved: str = ""):
         "meal_list_nutrient_rows": meal_list_nutrient_rows,
         "meal_list_nutrients_max": MAX_MEAL_LIST_NUTRIENTS,
         "oxalate_available":    oxalate_available,
-        "demo_data_loaded":     demo_data_loaded,
-        "demo_food_count":      len(_demo_data.DEMO_FOODS),
-        "demo_pantry_count":    len(_demo_data.DEMO_PANTRY),
-        "demo_recipe_count":    len(_demo_data.DEMO_RECIPES),
+        "starter_data_loaded":  demo_data_loaded,
+        "starter_food_count":   len(_demo_data.DEMO_FOODS),
+        "starter_pantry_count": len(_demo_data.DEMO_PANTRY),
+        "starter_recipe_count": len(_demo_data.DEMO_RECIPES),
     })
 
 
@@ -4560,24 +4590,24 @@ async def settings_nutrient_target_load_defaults():
     return RedirectResponse("/settings?saved=nutrient_target_defaults", status_code=303)
 
 
-@app.post("/settings/demo-data/load", response_class=RedirectResponse)
+@app.post("/settings/starter-data/load", response_class=RedirectResponse)
 async def settings_demo_data_load():
-    """Populate a fresh install with sample foods/pantry/recipes to explore
+    """Populate a fresh install with starter foods/pantry/recipes to explore
     the app with. See numa_app.services.demo_data for what's inserted and
     why — a marker file lets settings_demo_data_clear() undo exactly this."""
     from numa_app.services import demo_data as _demo_data
     with _db.get_db() as conn:
         _demo_data.load_demo_data(conn)
-    return RedirectResponse("/settings?saved=demo_data_loaded", status_code=303)
+    return RedirectResponse("/settings?saved=starter_data_loaded", status_code=303)
 
 
-@app.post("/settings/demo-data/clear", response_class=RedirectResponse)
+@app.post("/settings/starter-data/clear", response_class=RedirectResponse)
 async def settings_demo_data_clear():
-    """Remove exactly the sample foods/pantry/recipes settings_demo_data_load() added."""
+    """Remove exactly the starter foods/pantry/recipes settings_demo_data_load() added."""
     from numa_app.services import demo_data as _demo_data
     with _db.get_db() as conn:
         _demo_data.clear_demo_data(conn)
-    return RedirectResponse("/settings?saved=demo_data_cleared", status_code=303)
+    return RedirectResponse("/settings?saved=starter_data_cleared", status_code=303)
 
 
 @app.post("/settings/meal-nutrients", response_class=RedirectResponse)

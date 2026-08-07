@@ -6,7 +6,7 @@
                  form="confirm-aa-form" aria-label="Select {{ food.name }} to fetch full details">
           {% endif %}
         </td>
-        <td><strong>{{ food.name }}</strong>
+        <td>{% if food._type == "recipe" %}<a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>{% else %}<a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>{% endif %}
           {% if (food.data_type and food._type != "recipe") or food.brand %}<br><small class="muted">{% if food._type != "recipe" %}{{ food.data_type }}{% endif %}{% if food.brand and food.data_type and food._type != "recipe" %} &middot; {% endif %}{{ food.brand or '' }}</small>{% endif %}
         </td>
         <td class="col-aa">

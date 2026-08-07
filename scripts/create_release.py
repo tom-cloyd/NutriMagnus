@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
 create_release.py — create a GitHub release for the current version and
-upload the freshly built Linux binary as its asset. Run from the repo root
-after `pyinstaller nutrimagnus.spec` (packages web/launcher.py) has produced
+upload the freshly built Linux binary, its icon, and the one-file installer
+(scripts/install-linux.sh) as release assets. Run from the repo root after
+`pyinstaller nutrimagnus.spec` (packages web/launcher.py) has produced
 dist/nutrimagnus. Used by .github/workflows/release.yml on manual dispatch;
 safe to run manually too.
+
+install-linux.sh fetches its assets from releases/latest/download/<name>, so
+the exact names below (nutrimagnus, nutrimagnus.png) must stay in sync with
+that script.
 
 Release notes are pulled from user-manual.md's Appendix A ("Recent program
 updates log") section matching today's date (#### Month Day), falling back
@@ -30,6 +35,13 @@ UPLOADS_BASE = f"https://uploads.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
 CHANGELOG_HEADING = "### A. Recent program updates log"
+
+# (asset name, file path, content type) — every release asset besides the notes.
+_ASSETS = [
+    ("nutrimagnus", BINARY_PATH, "application/octet-stream"),
+    ("nutrimagnus.png", REPO_ROOT / "web" / "static" / "icon-256.png", "image/png"),
+    ("install-linux.sh", REPO_ROOT / "scripts" / "install-linux.sh", "text/x-sh"),
+]
 
 
 def _version() -> str:
@@ -86,9 +98,10 @@ def main() -> int:
     if not token:
         print("ERROR: GITHUB_TOKEN is not set.", file=sys.stderr)
         return 1
-    if not BINARY_PATH.exists():
-        print(f"ERROR: {BINARY_PATH} not found — build it first.", file=sys.stderr)
-        return 1
+    for name, path, _ in _ASSETS:
+        if not path.exists():
+            print(f"ERROR: {path} not found (needed for asset {name!r}) — build it first.", file=sys.stderr)
+            return 1
 
     version_str = _version()
     tag = _tag_for(version_str)
@@ -118,18 +131,17 @@ def main() -> int:
     # GitHub's asset-upload endpoint takes the raw file bytes as the body
     # (not multipart/form-data like Gitea/Codeberg) with the filename as a
     # query parameter, and lives on a separate uploads.github.com host.
-    binary_bytes = BINARY_PATH.read_bytes()
-    try:
-        _api_request(
-            f"{UPLOADS_BASE}/releases/{release_id}/assets?name=nutrimagnus",
-            token, method="POST",
-            data=binary_bytes, content_type="application/octet-stream",
-        )
-    except urllib.error.HTTPError as e:
-        print(f"ERROR uploading asset: {e.code} {e.read().decode(errors='replace')}", file=sys.stderr)
-        return 1
-
-    print(f"Uploaded nutrimagnus binary to release {tag}.")
+    for name, path, content_type in _ASSETS:
+        try:
+            _api_request(
+                f"{UPLOADS_BASE}/releases/{release_id}/assets?name={name}",
+                token, method="POST",
+                data=path.read_bytes(), content_type=content_type,
+            )
+        except urllib.error.HTTPError as e:
+            print(f"ERROR uploading asset {name!r}: {e.code} {e.read().decode(errors='replace')}", file=sys.stderr)
+            return 1
+        print(f"Uploaded {name} to release {tag}.")
     print(f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tag/{tag}")
     return 0
 

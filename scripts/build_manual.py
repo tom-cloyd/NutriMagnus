@@ -167,6 +167,7 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--muted);
+    margin-top: 0;
     margin-bottom: 0.75rem;
     padding-bottom: 0.4rem;
     border-bottom: 1px solid var(--border);
@@ -332,6 +333,32 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
     outline: none;
 }
 #search-input:focus { border-color: var(--accent); }
+#search-func-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+    cursor: pointer;
+}
+#search-func-toggle input { margin: 0; cursor: pointer; }
+#search-results {
+    list-style: none;
+    margin: 6px 0 0;
+    max-height: 220px;
+    overflow-y: auto;
+}
+#search-results li { margin: 0; padding: 0; }
+#search-results a {
+    display: block;
+    padding: 3px 6px;
+    border-radius: 3px;
+    color: var(--toc-fg);
+    text-decoration: none;
+    font-size: 12.5px;
+}
+#search-results a:hover { background: var(--accent-light); color: var(--accent); }
 #search-nav {
     display: flex;
     align-items: center;
@@ -354,6 +381,11 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
     line-height: 1.6;
 }
 .search-btn:hover { background: var(--accent-light); color: var(--accent); }
+.search-howto-link {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 10.5px;
+}
 
 /* ── Search highlights ── */
 mark.search-hit {
@@ -388,46 +420,95 @@ mark.search-current {
 """
 
 JS = """\
+/* ── Section search: AND-of-words over whole sections, not raw substring
+   highlighting over the whole document. See "Using this manual's search"
+   (#search-howto) for the user-facing explanation of why. ── */
 (function () {
-  var matches = [], idx = 0;
+  var VERBS = ['add', 'click', 'link', 'edit', 'set', 'type', 'change', 'pick',
+               'check', 'create', 'enter', 'archive', 'save', 'choose', 'scale',
+               'delete', 'copy', 'select', 'import', 'remove', 'restore',
+               'override', 'toggle', 'fill', 'weigh', 'update', 'rename',
+               'paste', 'export'];
 
-  function clearHighlights() {
+  var sections = [], resultItems = [], currentWords = [];
+  var openSection = null, sectionMatches = [], idx = 0;
+  var input, funcCheckbox, resultsEl;
+
+  function buildSectionIndex() {
+    var headings = Array.prototype.slice.call(
+      document.querySelectorAll('#content h1[id], #content h2[id], #content h3[id], #content h4[id]')
+    );
+    return headings.map(function (h, i) {
+      var next = headings[i + 1] || null;
+      var text = h.textContent;
+      var el = h.nextElementSibling;
+      while (el && el !== next) { text += ' ' + el.textContent; el = el.nextElementSibling; }
+      return {
+        id: h.id,
+        title: h.textContent.replace(/\\u00b6/g, '').trim(),
+        el: h,
+        nextEl: next,
+        text: text.toLowerCase(),
+      };
+    });
+  }
+
+  function elementsBetween(start, end) {
+    var els = [];
+    var el = start.nextElementSibling;
+    while (el && el !== end) { els.push(el); el = el.nextElementSibling; }
+    return els;
+  }
+
+  function countOccurrences(haystack, needle) {
+    if (!needle) return 0;
+    var count = 0, pos = 0;
+    while ((pos = haystack.indexOf(needle, pos)) !== -1) { count++; pos += needle.length; }
+    return count;
+  }
+
+  function scoreOf(section, words) {
+    var score = 0;
+    words.forEach(function (w) {
+      score += countOccurrences(section.text, w);
+      if (section.title.toLowerCase().indexOf(w) !== -1) score += 5;
+    });
+    return score;
+  }
+
+  function setCount(txt) { document.getElementById('search-count').textContent = txt; }
+
+  function closeSectionHighlights() {
     document.querySelectorAll('mark.search-hit').forEach(function (m) {
       var t = document.createTextNode(m.textContent);
       m.parentNode.replaceChild(t, m);
       t.parentNode.normalize();
     });
-    matches = []; idx = 0;
+    sectionMatches = []; idx = 0;
   }
 
-  function highlight(query) {
-    clearHighlights();
-    var q = query.trim();
-    if (q.length < 2) { setCount(''); return; }
-    var ql = q.toLowerCase();
-    var content = document.getElementById('content');
-    var walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+  function highlightWordInRoot(root, word) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function (n) {
-        return n.parentElement.closest('script,style,mark') ?
+        return n.parentElement.closest('script,style,mark,.headerlink') ?
           NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
       }
     });
     var nodes = [];
     var n;
     while ((n = walker.nextNode())) nodes.push(n);
-
     nodes.forEach(function (node) {
       var text = node.textContent;
       var lower = text.toLowerCase();
       var pos = 0, start, frags = [];
-      while ((start = lower.indexOf(ql, pos)) !== -1) {
+      while ((start = lower.indexOf(word, pos)) !== -1) {
         if (start > pos) frags.push(document.createTextNode(text.slice(pos, start)));
         var mark = document.createElement('mark');
         mark.className = 'search-hit';
-        mark.textContent = text.slice(start, start + ql.length);
+        mark.textContent = text.slice(start, start + word.length);
         frags.push(mark);
-        matches.push(mark);
-        pos = start + ql.length;
+        sectionMatches.push(mark);
+        pos = start + word.length;
       }
       if (frags.length) {
         if (pos < text.length) frags.push(document.createTextNode(text.slice(pos)));
@@ -436,39 +517,111 @@ JS = """\
         parent.removeChild(node);
       }
     });
-
-    if (matches.length) { idx = 0; scrollTo(0); }
-    setCount(matches.length ? (1) + ' / ' + matches.length : 'no matches');
   }
 
-  function scrollTo(i) {
-    matches.forEach(function (m, j) {
+  function scrollToMark(i) {
+    sectionMatches.forEach(function (m, j) {
       m.className = j === i ? 'search-hit search-current' : 'search-hit';
     });
-    if (matches[i]) matches[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setCount(matches.length ? (i + 1) + ' / ' + matches.length : 'no matches');
+    if (sectionMatches[i]) sectionMatches[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setCount(sectionMatches.length ? (i + 1) + ' / ' + sectionMatches.length + ' in this section' : 'no matches in this section');
   }
 
-  function setCount(txt) {
-    document.getElementById('search-count').textContent = txt;
+  function openResult(item) {
+    closeSectionHighlights();
+    openSection = item.section;
+    var roots = [openSection.el].concat(elementsBetween(openSection.el, openSection.nextEl));
+    currentWords.forEach(function (w) {
+      roots.forEach(function (r) { highlightWordInRoot(r, w); });
+    });
+    sectionMatches.sort(function (a, b) {
+      var pos = a.compareDocumentPosition(b);
+      return (pos & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+    });
+    openSection.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    idx = 0;
+    if (sectionMatches.length) scrollToMark(0);
+    else setCount('no matches in this section');
+  }
+
+  var RESULT_CAP = 25;
+
+  function renderResults(items, funcMode) {
+    resultsEl.innerHTML = '';
+    if (!currentWords.length) { setCount(''); return; }
+    if (!items.length) {
+      setCount(funcMode ? 'No sections match (try unchecking the box above)' : 'No sections match');
+      return;
+    }
+    var shown = items.slice(0, RESULT_CAP);
+    var msg = items.length + (items.length === 1 ? ' section matches' : ' sections match');
+    if (items.length > RESULT_CAP) msg += ' (showing top ' + RESULT_CAP + ')';
+    msg += ' \\u2014 pick one, or press Enter';
+    setCount(msg);
+    shown.forEach(function (item) {
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      a.href = '#' + item.section.id;
+      a.textContent = item.section.title;
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        openResult(item);
+        history.replaceState(null, '', '#' + item.section.id);
+      });
+      li.appendChild(a);
+      resultsEl.appendChild(li);
+    });
+  }
+
+  function runSearch() {
+    var query = input.value.trim();
+    currentWords = query.length < 2 ? [] : query.toLowerCase().split(/\\s+/).filter(Boolean);
+    closeSectionHighlights();
+    openSection = null;
+    var funcMode = funcCheckbox.checked;
+    if (!currentWords.length) {
+      resultItems = [];
+      renderResults(resultItems, funcMode);
+      return;
+    }
+    resultItems = sections.filter(function (s) {
+      var allPresent = currentWords.every(function (w) { return s.text.indexOf(w) !== -1; });
+      if (!allPresent) return false;
+      if (funcMode) return VERBS.some(function (v) { return s.text.indexOf(v) !== -1; });
+      return true;
+    }).map(function (s) {
+      return { section: s, score: scoreOf(s, currentWords) };
+    }).sort(function (a, b) { return b.score - a.score; });
+    renderResults(resultItems, funcMode);
   }
 
   function step(dir) {
-    if (!matches.length) return;
-    idx = (idx + dir + matches.length) % matches.length;
-    scrollTo(idx);
+    if (!openSection) { if (resultItems.length) openResult(resultItems[0]); return; }
+    if (!sectionMatches.length) return;
+    idx = (idx + dir + sectionMatches.length) % sectionMatches.length;
+    scrollToMark(idx);
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    var input = document.getElementById('search-input');
+    sections = buildSectionIndex();
+    input = document.getElementById('search-input');
+    funcCheckbox = document.getElementById('search-func-mode');
+    resultsEl = document.getElementById('search-results');
     var timer;
     input.addEventListener('input', function () {
       clearTimeout(timer);
-      timer = setTimeout(function () { highlight(input.value); }, 180);
+      timer = setTimeout(runSearch, 180);
     });
+    funcCheckbox.addEventListener('change', runSearch);
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
-      if (e.key === 'Escape') { input.value = ''; clearHighlights(); setCount(''); }
+      if (e.key === 'Escape') {
+        input.value = '';
+        currentWords = []; resultItems = []; openSection = null;
+        closeSectionHighlights();
+        resultsEl.innerHTML = '';
+        setCount('');
+      }
     });
     document.getElementById('btn-prev').addEventListener('click', function () { step(-1); });
     document.getElementById('btn-next').addEventListener('click', function () { step(1); });
@@ -622,13 +775,19 @@ HTML_TEMPLATE = """\
 <nav id="toc-sidebar" aria-label="Table of contents">
   <a class="toc-page-title" href="#content">{title}</a>
   <div id="search-box">
-    <input id="search-input" type="search" placeholder="Search manual…"
+    <input id="search-input" type="search" placeholder="Search manual… (all words must match)"
            autocomplete="off" spellcheck="false">
+    <label id="search-func-toggle">
+      <input type="checkbox" id="search-func-mode">
+      Only show things you can do
+    </label>
+    <ul id="search-results"></ul>
     <div id="search-nav">
       <span id="search-count"></span>
-      <button class="search-btn" id="btn-prev" title="Previous (Shift+Enter)">&#x25B2;</button>
-      <button class="search-btn" id="btn-next" title="Next (Enter)">&#x25BC;</button>
+      <button class="search-btn" id="btn-prev" title="Previous match in open section (Shift+Enter)">&#x25B2;</button>
+      <button class="search-btn" id="btn-next" title="Next match in open section (Enter)">&#x25BC;</button>
     </div>
+    <a class="search-howto-link" href="#search-howto">How does this search work?</a>
   </div>
   <div id="toc-scroll">
     <h2>Contents</h2>

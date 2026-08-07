@@ -85,7 +85,7 @@
     {% for r in search_results %}
     <tr>
       <td class="muted"><small>{{ r.fdc_id if r.fdc_id > 0 else 'OFF' }}</small></td>
-      <td><strong>{{ r.name }}</strong></td>
+      <td><a href="/food/{{ r.fdc_id }}"><strong>{{ r.name }}</strong></a></td>
       <td class="muted">{{ r.brand or "—" }}</td>
       <td class="muted">{{ r.data_type }}</td>
       <td>
@@ -225,6 +225,6 @@
 </table>
 <p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a> &middot; Archive hides an entry from complement suggestions without losing it</small></p>
 {% else %}
-<p>Your pantry is empty. Add some foods above, or <a href="/settings#demo-data">load sample data</a> to explore the app.</p>
+<p>Your pantry is empty. Add some foods above, or <a href="/settings#starter-data">load starter data</a> to explore the app.</p>
 {% endif %}
 {% endblock %}

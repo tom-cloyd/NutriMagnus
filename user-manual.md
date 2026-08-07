@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-06:0734* / Reading time: 2 hours, 22 minutes
+*Updated 2026-08-06:1942* / Reading time: 2 hours, 25 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -28,13 +28,15 @@ User-derived issues get immediate priority in the program-development process!
 
 NuMa runs as a web app, opened in your ordinary browser — there is nothing to install and no command line involved.
 
-- Read **Part 1** (Introduction) and **Part 2** (Core nutrition concepts) for the ideas behind the program.
-- Read **Part 3** (Reading Your Results) whenever you want to know what a column or table means.
-- Read **Part 4** (Shared Operations) for behaviors that show up in more than one place in the app, explained once.
-- Read **Part 5 — Using the Web App** for how to actually operate NuMa.
-- Parts 6 to 9 apply to everyone.
+- Read **Part 1** (To get a quick start) for a fast orientation before diving in.
+- Read **Part 2** (Introduction) and **Part 3** (Core nutrition concepts) for the ideas behind the program.
+- Read **Part 4** (Reading Your Results) whenever you want to know what a column or table means.
+- Read **Part 5** (Shared Operations) for behaviors that show up in more than one place in the app, explained once.
+- Read **Part 6 — Using the Web App** for how to actually operate NuMa.
+- Parts 7 to 10 apply to everyone.
+- Trying to find something in this document itself, not in the app? See [Using this manual's search](#search-howto) — it works differently from a plain text search.
 
-## To get a quick start:
+## Part 1 — To get a quick start
 
 ### A. Start with what's easiest
 
@@ -48,24 +50,43 @@ You will have to tell the program WHAT you are eating and HOW MUCH. The absolute
 
 Without the program you're flying blind. With it, even if you only use volume measures, there will be some errors of measurement, but you're still much better informed about what's happening than before. In some cases, though, a volume measure just doesn't work well. If that happens to you, [get in touch](#feedback) and we'll figure it out together. All in all, it's by far best to have and use a kitchen scale. I have had a small Oxo scale for years. It's excellent. There are others you can consider as well, but I do suggest that you get one.
 
-### A. Download and install the program
+### C. Download and install the program
 
-Under development.
+*This section is being drafted ahead of the actual Linux release — it's the plan for what installing NuMa should look and feel like, written first as a checklist for building it, then it'll become straight instructions once it's real. The Windows version of this section will be adapted from this one once the Linux release is solid.*
 
-[//]: # "develop section"
+a. **Where to get it.** Go to the NutriMagnus releases page on GitHub and download the latest Linux installer. You shouldn't have to think about which file — there should be exactly one obvious download for Linux, not a menu of binaries to choose between.
 
-### B. Go to Settings and do this:
+b. **Where it goes on your computer.** Run the installer once (double-click it in your file manager, or open a terminal and run it if double-click isn't set up to execute scripts on your system). It copies the program into a private per-user location (`~/.local/bin`) — nothing outside your own account is touched, and it never asks for an admin password.
+
+c. **Getting it into your applications menu.** The same installer step adds NuMa to your normal applications menu (GNOME Activities, KDE's app launcher, etc.) with its own icon, exactly like any program you'd install from a software center. Search for "NutriMagnus" or "NuMa" and it should appear there afterward.
+
+d. **How to launch it.** From then on, launch NuMa like any other program — click its icon in the applications menu. It starts quietly in the background and opens a browser tab pointed at the running app. No terminal, no typed commands, ever, after the one-time install.
+
+**Starter foods and recipes.** The first time you launch a fresh install, your Food Cache and Recipes list already contain a small set of starter items — foods with verified USDA nutrient and amino-acid data, and a couple of recipes chosen to demonstrate real protein-complementarity gains. Their names begin with an asterisk (for example, `* Black Beans & Rice`) so you can always tell them apart from anything you've added yourself, and remove or keep them as you like — see the [Settings](#settings) starter-data toggle if you clear them and want them back.
+
+---
+
+**What still has to be built before the above is true** (tracked here as the working plan, not manual content):
+
+1. ~~A Linux installer script~~ — done 2026-08-06: `scripts/install-linux.sh` is the one file a user downloads; it fetches the binary and icon from the latest GitHub release into `~/.local/bin` and `~/.local/share/icons`, and writes the `~/.local/share/applications/nutrimagnus.desktop` entry. Not yet verified against a real cut release (needs `make push-release` run once with the new assets in place to confirm end-to-end).
+2. ~~An application icon for NuMa~~ — done 2026-08-06: `web/static/icon-256.png`, a plain placeholder (green badge, "N" monogram) — swap it for real branding whenever that's ready; nothing else needs to change since the installer just downloads whatever's at that release asset name.
+3. ~~Generalizing `numa_app/services/demo_data.py` into permanent starter content~~ — done 2026-08-06: `seed_if_fresh_install()` auto-loads it once on a truly empty database, and the existing Settings load/clear toggle still works for anyone who removes it and wants it back. Content is curated live, not hand-coded — mark any food, pantry entry, or recipe with a leading `* ` in the app itself, then run `scripts/export_starter_data.py` before a release to pull everything starred into `numa_app/services/starter_data.json`, which is what actually ships.
+4. ~~`scripts/create_release.py` updated to upload the installer/icon~~ — done 2026-08-06: it now uploads three assets per release — `nutrimagnus` (binary), `nutrimagnus.png` (icon), `install-linux.sh` — matching the names `install-linux.sh` fetches from `releases/latest/download/`.
+5. Once all of the above is proven out on Linux (i.e. a real release has been cut and the installer tested on a clean machine), write the Windows equivalent of this section (`.exe` installer, Start Menu entry) and extend the Windows build (`make build-windows`) to produce it.
+
+### D. Go to Settings and do this:
 
 a. Go to Settings and set up your personal profile, if you want the program to immediately apply to you. 
+
 b. Set up your Pantry foods as available primary protein sources: Go to Appendix C below and review the listed foods. Some you will likely have. The others you should consider buying if you're serious about making plant protein sources your sole or primary protein concern.
 
-### C. Skim Part 1, A and F, just to know they exist.
+### E. Skim Part 2, A and F, just to know they exist.
 
 While looking at section A, make a few notes about what you'd like to try first.
 
 Seriously consider what is suggested in section F - looking at the workflows can quickly show you major program features.
 
-### D. Consider investing some time with Part 2
+### F. Consider investing some time with Part 3
 
 This program necessarily uses some specialized vocabulary. You have two options:
 
@@ -74,7 +95,7 @@ This program necessarily uses some specialized vocabulary. You have two options:
 
 ---
 
-## Part 1 — Introduction to NutriMagnus, a tool for intelligent eating: what you can do with this tool and why it matters
+## Part 2 — Introduction to NutriMagnus, a tool for intelligent eating: what you can do with this tool and why it matters
 
 ---
 
@@ -147,17 +168,17 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **Problems may appear anyway.** As professional programmers will tell you, all programs have bugs. This is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all such fixes benefit everyone who uses the program.
 
-**How to report suspected errors or problems with the program:** see [Getting more help](#feedback) in Part 7.
+**How to report suspected errors or problems with the program:** see [Getting more help](#feedback) in Part 8.
 
 ---
 
 ### F. Sample Workflows [sample-workflows]
 
-**If you'd prefer to learn by example before reading explanations,** fully worked, step-by-step walkthroughs are provided later in this manual — see [Sample Workflows](#sample-workflows-web) in Part 5. You don't need to read Part 2 or Part 3 first.
+**If you'd prefer to learn by example before reading explanations,** fully worked, step-by-step walkthroughs are provided later in this manual — see [Sample Workflows](#sample-workflows-web) in Part 6. You don't need to read Part 3 or Part 4 first.
 
 ---
 
-## Part 2 — Core nutrition concepts
+## Part 3 — Core nutrition concepts
 
 ### A. Essential Amino Acids [aa]
 
@@ -222,7 +243,7 @@ You do not need to eat [complement foods](#gloss-complement-food) at the same me
 
 Data sources, checked in this order: your [pantry](#pantry) (Foods → [My Pantry](#gloss-my-pantry)) and any [recipes you have analyzed](#recipes-menu-web); then your broader food cache (any food you've ever looked up, matched by name against the built-in reference list below); then that built-in list itself[^10], filtered by your dietary preferences (see [dietary preferences](#diet)). The suggestion header tells you exactly which sources were considered for that run. See [amino acid estimates in suggestions](#comp-estimate) for what it means when a suggestion is tagged "(estimated)" or "(generic estimate)".
 
-Don't want a particular suggestion? See [ignoring a complement suggestion](#ignore-complement) in Part 4.
+Don't want a particular suggestion? See [ignoring a complement suggestion](#ignore-complement) in Part 5.
 
 
 ### C. Amino acid estimates in complement suggestions [comp-estimate]
@@ -849,7 +870,7 @@ When you analyze a meal for the first time, you may see a "Fetching amino acid d
 
 ---
 
-## Part 3 — Reading Your Results
+## Part 4 — Reading Your Results
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -957,7 +978,7 @@ The Food Cache list shows every food you have stored locally, sortable by Name, 
 
     BRAND   Brand owner, for Branded and OFF foods.
 
-See [Food Cache](#food-cache-web) in Part 5 for the available actions on each row (Portions, Refresh, Archive/Restore, Delete, Prune unused foods) and how to fetch missing amino acid data with Claude AI.
+See [Food Cache](#food-cache-web) in Part 6 for the available actions on each row (Portions, Refresh, Archive/Restore, Delete, Prune unused foods) and how to fetch missing amino acid data with Claude AI.
 
 
 #### Archiving [archive]
@@ -1444,14 +1465,14 @@ To select: click the result. If the food is not yet in your cache, NuMa fetches 
 **Sort order.** Results can be ordered two ways — a dropdown above the results table lets you switch, and your choice is remembered as the default for next time:
 
     Best match to name (default)   See "Ordering food search results" in
-                                    Part 4 for how this ranking works.
+                                    Part 5 for how this ranking works.
     Pantry, Cache, then Other       Groups results strictly by where they
                                     came from (Pantry, then Cache, then
                                     Recipe, then USDA/OFF) regardless of
                                     match quality; within each group, the
                                     same relevance ranking applies.
 
-See [Ordering food search results](#search-ranking) in Part 4 for the full explanation.
+See [Ordering food search results](#search-ranking) in Part 5 for the full explanation.
 
 **Source filter.** A second dropdown next to the results table — separate from sort order — narrows the list to just one source: All sources, Pantry, Food Cache, Recipes, USDA FoodData Central, or Open Food Facts. Each option is labeled with the short badge used elsewhere plus its full name (e.g. "USDA — USDA FoodData Central"). Your choice is sticky across every search box that has this filter, the same way the sort-order choice is. Every search results table that follows this reference — the standalone Foods → Search page, My Pantry's "Add a food" search, the Meals & Log "Add Food or Recipe" panel, and a recipe's ingredient search — has this filter.
 
@@ -1588,7 +1609,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ---
 
-## Part 4 — Shared Operations
+## Part 5 — Shared Operations
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -1598,7 +1619,7 @@ This is a table of your personalized nutrient targets, computed from your profil
 
 This appears as its own read-only Settings panel and updates automatically whenever **Your Profile**, just above it, changes. It requires an active profile — if the table looks empty or the numbers seem off, check that your profile (age, sex, weight, height, activity level) is filled in first.
 
-**Archiving vs. deleting** is documented once, in Part 3's [Archiving](#archive) reference, so it isn't repeated here.
+**Archiving vs. deleting** is documented once, in Part 4's [Archiving](#archive) reference, so it isn't repeated here.
 
 **Every percentage shown elsewhere carries its goal type too, not just this table.** A percent-of-target is meaningless on its own — 120% is good news for a minimum (protein: you've cleared the bar) and bad news for a limit (sodium: you're over the cap). Wherever a nutrient's percentage appears — on a food, meal, recipe, daily summary, or trend page — it's followed by a small `min`, `max`, or `target` tag (hover it for the full explanation), so you never have to come back to this table to know which direction is good.
 
@@ -1686,7 +1707,7 @@ The ignored list is not saved anywhere — it resets the moment you navigate awa
 
 ---
 
-## Part 5 — Using the Web App
+## Part 6 — Using the Web App
 
 This is the program most user needs. NuMa's web app runs in your ordinary browser — there is nothing to install and no command line involved.
 
@@ -1698,7 +1719,7 @@ Launch NuMa the way it was set up on your computer — a desktop icon, an Applic
 
 Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
 
-If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings). For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. This is a browser-side feature — it is unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
+If you are using the Firefox browser and you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings). For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. This is a browser-side feature — it is unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form.
 
@@ -1712,7 +1733,7 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 
 ### C. Sample Workflows [sample-workflows-web]
 
-**Use this as a tutorial!** With NuMa open in your browser, work through these step by step, paying close attention to what appears on your screen. Each workflow is self-contained — you don't need to read Part 2 (nutrition concepts) or Part 3 (reference) first; terms are briefly explained in place.
+**Use this as a tutorial!** With NuMa open in your browser, work through these step by step, paying close attention to what appears on your screen. Each workflow is self-contained — you don't need to read Part 3 (nutrition concepts) or Part 4 (reference) first; terms are briefly explained in place.
 
 **Workflows 1–3 are a single connected thread, not a tour of every menu.** They follow one feature end to end — protein complementarity — because it's NuMa's most distinctive capability. Right after them, a short "a few more things worth trying" section highlights a few other Foods and Recipes features these three don't touch, and Workflow 4 does the same connected-thread treatment for Meals & Log paired with Analysis.
 
@@ -1782,9 +1803,9 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 **Foods → Custom food profiles.** Enter a homemade dish, a supplement, or a product NuMa's databases don't have (or have incompletely) — either from scratch, or by copying an existing cached food as a starting draft and editing its nutrients from there.
 
-**Recipes: use one recipe inside another.** A recipe can be added as an ingredient of another recipe — a lentil sauce used inside three different dinners, say. Editing and saving the base recipe keeps every recipe built on it up to date automatically — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 4.
+**Recipes: use one recipe inside another.** A recipe can be added as an ingredient of another recipe — a lentil sauce used inside three different dinners, say. Editing and saving the base recipe keeps every recipe built on it up to date automatically — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 5.
 
-**Recipes → Archive/Restore.** Hide a recipe (or a food, or a pantry entry) you're not using right now without deleting it — see [Archiving](#archive) in Part 3.
+**Recipes → Archive/Restore.** Hide a recipe (or a food, or a pantry entry) you're not using right now without deleting it — see [Archiving](#archive) in Part 4.
 
 ---
 
@@ -1810,7 +1831,7 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 #### Search (Foods → Search)
 
-Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12/13-digit barcode (UPC-A or EAN-13) — see [Your own data is always checked first](#search-ranking) in Part 4 for how results are sourced and ordered. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
+Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12/13-digit barcode (UPC-A or EAN-13) — see [Your own data is always checked first](#search-ranking) in Part 5 for how results are sourced and ordered. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
 
 #### Analyze a food portion / Analyze a saved recipe portion
 
@@ -1826,7 +1847,7 @@ Add up to eight foods (checkboxes in the search results) and set a gram amount f
 
 #### Food Cache [food-cache-web]
 
-Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 3 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete**. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using.
+Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 4 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete**. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using.
 
 **Fetching missing amino acid data with Claude AI.** Some foods — especially branded or prepared items — arrive without amino acid data. Check the boxes next to the foods you want (or click "Select all missing AA data" to grab every food currently missing it), then click **Fetch missing data from Claude AI**. This builds a ready-to-send prompt and shows it on its own page with a **Copy prompt to clipboard** button. From there:
 
@@ -1837,7 +1858,7 @@ Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here —
 
 #### My Pantry
 
-Foods you keep on hand — see [My Pantry](#pantry) in Part 3 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search, or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**).
+Foods you keep on hand — see [My Pantry](#pantry) in Part 4 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search, or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**).
 
 #### Custom food profiles
 
@@ -1853,9 +1874,9 @@ A food's page shows, in order: **Protein Summary** (DCP), **Nutritional Analysis
 
 ### F. Using the Recipes menu [recipes-menu-web]
 
-The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 4.
+The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 5.
 
-Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically, and cascades to every recipe that depends on it too — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 4. You don't need **Recompute DCP for all recipes** just because you changed one recipe; it's there for after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
+Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically, and cascades to every recipe that depends on it too — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 5. You don't need **Recompute DCP for all recipes** just because you changed one recipe; it's there for after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
 
 - **New recipe** — a short form (name, description, servings, total yield) that drops you straight into editing.
 - **Edit** — a details form plus an ingredients table. Add an ingredient by searching — the results table is the same one described in [USDA Food Search Results](#food-search), including the Source filter and sort-order dropdowns and the "Fetch full details for selected" AA-confirmation button — then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
@@ -1874,23 +1895,23 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 - **Daily summary** — a table of recent days with Day DCP and % of goal; pick a date to see that day's full analysis (same sections as the full-day meal view). From here, follow the **Multiday nutrient trend** link to see 7/14/30-day averages — useful for catching a chronic shortfall that a single good or bad day would hide.
 - **Food use in meals** — see how often you've eaten a given food or recipe. Choose either a date range or a specific list of meal IDs, optionally limit results to protein-containing foods, and get a sortable table with a visual frequency bar.
 
-### I. Using the Settings menu
+### I. Using the Settings menu [settings]
 
-Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets — plus a checkbox enabling [oxalate](#oxalate) lookup), **Computed Daily Targets** (see [Part 4](#daily-nutrient-targets)), **Dietary Preferences** (affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and — see [Dietary Preferences](#diet) — every search and lookup in the program), **Keyboard Shortcuts**, **USDA API Key** (lets you use your own free personal code from USDA's website instead of the one NuMa shares with every user by default, so your searches are less likely to get temporarily blocked when many people are using NuMa at once — see [Food data](#food-data) for how to get one; also has the [search result depth](#search-ranking) setting), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults), and **Sample Data** — see below.
+Settings is organized into collapsible sections: **Your Profile** (age, sex, weight, height, activity level — this drives all your daily nutrient targets — plus a checkbox enabling [oxalate](#oxalate) lookup), **Computed Daily Targets** (see [Part 5](#daily-nutrient-targets)), **Dietary Preferences** (affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and — see [Dietary Preferences](#diet) — every search and lookup in the program), **Keyboard Shortcuts**, **USDA API Key** (lets you use your own free personal code from USDA's website instead of the one NuMa shares with every user by default, so your searches are less likely to get temporarily blocked when many people are using NuMa at once — see [Food data](#food-data) for how to get one; also has the [search result depth](#search-ranking) setting), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), **Nutrient Targets** (optional per-nutrient Optimal targets and Max limits, with a one-click button to load recommended defaults), and **Starter Data** — see below.
 
-#### Sample Data [demo-data]
+#### Starter Data [starter-data]
 
-A one-click way to populate the app with example content: real USDA foods (with full amino-acid data), a few of them in your pantry, and two recipes picked to show protein complementarity actually working — "Black Beans & Rice" and "Lentils & Oats Bowl," each combining a legume and a grain so the amino acids each is short on are covered by the other. Useful for exploring what the app does before you've built up your own data, or for trying it out on a fresh install.
+A small set of curated content — real USDA foods (with full amino-acid data), a few of them in your pantry, and two recipes picked to show protein complementarity actually working — "* Black Beans & Rice" and "* Lentils & Oats Bowl," each combining a legume and a grain so the amino acids each is short on are covered by the other. Their names all start with `* ` so you can always tell them apart from anything you've added yourself. A brand-new install loads this automatically the first time you launch it, so your Food Cache, Pantry, and Recipes aren't empty on day one — this section is for anyone who cleared it and wants it back, or an existing install that never had it.
 
-Loading sample data never touches anything already in your cache, pantry, or recipes — it's tracked separately so **Clear sample data** (which appears once it's loaded) removes exactly what was added, nothing else. Loading again while it's already loaded is a no-op.
+Loading starter data never touches anything already in your cache, pantry, or recipes — it's tracked separately so **Clear starter data** (which appears once it's loaded) removes exactly what was added, nothing else. Loading again while it's already loaded is a no-op.
 
 #### Computed Daily Targets
 
-This section of Settings shows your personalized nutrient targets. See [Your computed daily nutrient targets](#daily-nutrient-targets) in Part 4 for what it contains and how it's kept current.
+This section of Settings shows your personalized nutrient targets. See [Your computed daily nutrient targets](#daily-nutrient-targets) in Part 5 for what it contains and how it's kept current.
 
 ### J. Entering custom foods and dietary supplements
 
-Go to **Foods → Custom food profiles → Create**. See [Entering custom foods and dietary supplements](#custom-foods) in Part 4 for the fields, the supplement/tablet mechanism, and the barcode-first tip — they work identically here.
+Go to **Foods → Custom food profiles → Create**. See [Entering custom foods and dietary supplements](#custom-foods) in Part 5 for the fields, the supplement/tablet mechanism, and the barcode-first tip — they work identically here.
 
 ### K. A note on amino acid data
 
@@ -1898,7 +1919,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ---
 
-## Part 6 — Essential resources
+## Part 7 — Essential resources
 
 ---
 
@@ -1917,7 +1938,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 Your key is stored on your computer only. Once set, all food searches use your personal key with a much higher rate limit.
 
-**Search result depth** (Settings → Advanced settings) — see [Search result depth](#search-ranking) in Part 4 for what this controls and why.
+**Search result depth** (Settings → Advanced settings) — see [Search result depth](#search-ranking) in Part 5 for what this controls and why.
 
 Every food in these online tables has a unique ID number — think of it as a product code that identifies that one food and nothing else.
 
@@ -2006,7 +2027,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **GL**{: #gloss-gl}  —  Glycemic Load. A measure of glycemic impact that combines GI with the actual amount of carbohydrate in a serving. More useful than GI alone for real-world meal comparisons. See [glycemic load](#gl).
 
-**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NuMa's web app provides (see Part 5, "Using the Web App").
+**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NuMa's web app provides (see Part 6, "Using the Web App").
 
 **Ileal digestibility**{: #gloss-ileal-digestibility}  —  The fraction of an amino acid absorbed by the end of the small intestine (ileum). DIAAS uses true ileal digestibility, which is more accurate than fecal digestibility for measuring protein available to the body.
 
@@ -2064,8 +2085,17 @@ University of Sydney. (n.d.). Glycemic Index Database. Retrieved August 2, 2026,
 
 > The original research database behind glycemic index and glycemic load values; useful for looking up GI numbers for foods not yet annotated in NuMa.
 
+### D. Using this manual's search [search-howto]
 
-## Part 7 — Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
+Web version only — the sidebar search box near the top of the table of contents. (Reading the plain-text version? There's no search index there; just search for a word describing what you're trying to do, the same as any text editor's find function.)
+
+**It searches whole words, not phrases, and requires all of them.** Type `portion size` and NuMa looks for sections that contain *both* words somewhere — not necessarily next to each other, not in the order you typed them. This is different from typing a whole phrase and expecting an exact match: `edit portion` (as a phrase) will find nothing, because that exact wording never appears anywhere in the manual, even though the idea is covered extensively. If a search comes up empty, the fix is usually to drop a word, not add one — start with just the noun you care about (`portion`), see what comes back, then add a second word only if the list is too long to skim.
+
+**Results are sections, not raw text.** Instead of jumping straight to every individual occurrence of your words scattered across the whole manual, search shows you a short list of section headings that contain all of them — click one (or press **Enter** to jump straight to the top match) to open it, and NuMa highlights every matching word within that section so you can see at a glance where they landed. **Enter**/**Shift+Enter** (or the &#x25B2;/&#x25BC; buttons) then step between highlighted words inside that one section, not across the whole document.
+
+**The "Only show things you can do" checkbox** narrows the results further, to sections that contain some instruction — add, edit, change, remove, and similar words — rather than sections that merely *discuss* a topic. Turn it on when you're trying to do something rather than understand something: `portion size` with the box checked skips past conceptual explanations of what a portion is and goes straight to the section that tells you how to add or correct one. It's a heuristic, not a guarantee — a section phrased with an instruction word this checkbox doesn't happen to recognize can still be missed, and unchecking the box always shows you the same results or more, never fewer, so it's worth trying both if the checked list comes up empty.
+
+## Part 8 — Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 
 If something seems broken or confusing, there's a good chance the answer is already below. The topics are grouped by how the problem *feels* rather than which menu it's in, since that's usually how you'll remember it later — and a few topics are listed in more than one group, since the same problem can feel different ways depending on what you were expecting. There aren't so many that you can't just skim the headings if nothing matches at first.
 
@@ -2082,7 +2112,7 @@ Either way, [let us know](#feedback) — see "How to contact help" below. This i
 #### You know what you want to do but can't see how to do it [ts-findit]
 
 Click any **Learn more** link near a section heading or analysis output — see [Getting help](#help) for the full list of what each one covers.
-- Either version: this manual's own search — if you're reading it in the web app, use the sidebar search box; if you're skimming the plain text version, search for a word describing what you're trying to do rather than a menu name.
+- Either version: this manual's own search — if you're reading it in the web app, use the sidebar search box (see [Using this manual's search](#search-howto) for how to get good results from it, especially the "Only show things you can do" checkbox); if you're skimming the plain text version, search for a word describing what you're trying to do rather than a menu name.
 
 If you still can't find it, [tell us what you were trying to do](#feedback) in plain language, not what menu item you were looking for. That phrasing is exactly what we need to know whether the feature exists, is named confusingly, or genuinely isn't built yet.
 
@@ -2206,7 +2236,7 @@ Check your **Dietary Preference** setting (Settings). If it's set to "Plant-base
 
 This is usually not a bug — it's the order you typed your search words in. NuMa ranks results first by how many of your search words a name contains, but when there's a tie, it treats the *order* you typed your words in as a signal of priority: matching your earlier words outranks matching your later ones. So searching `milk dry instant` will favor a "milk dry ..." match over a "milk instant ..." match whenever only one of those two words is present in a given result, simply because "dry" was typed before "instant."
 
-If that's not the priority you meant, reorder your search words so the one you care most about comes first — put the word that most distinguishes what you want right after the main food name. See [Ordering food search results](#search-ranking) in Part 4 for the full explanation of how results are ranked.
+If that's not the priority you meant, reorder your search words so the one you care most about comes first — put the word that most distinguishes what you want right after the main food name. See [Ordering food search results](#search-ranking) in Part 5 for the full explanation of how results are ranked.
 
 #### A meal's DCP isn't showing [ts-meal-dcp]
 
@@ -2266,7 +2296,7 @@ This is extremely easy, and we want you to do it. When you're having a problem t
 
 ---
 
-## Part 8 — Possible Additional Features
+## Part 9 — Possible Additional Features
 
 Ideas below are listed in their current likely probability of being implemented.
 
@@ -2292,6 +2322,12 @@ This is easily achieved once we have dealt with the fundamental data problem bet
 
 Such data is of interest to anyone wanting to better manage their blood sugar levels, including folks with any degree of metabolic syndrome, pre-diabetes, or outright diabetes. At present, no active use of such data exists in the program, but provision of such use is in place.
 
+### CSV export and import for foods and recipes
+
+Right now a report on a food or recipe can be exported as text, Markdown, or HTML, but there's no way to get the underlying data out as a spreadsheet-friendly file. A CSV export would make it easy to hand a food or recipe to someone else, or to open your own foods and recipes in a spreadsheet for your own purposes. This came up while planning how curated foods and recipes might travel with a fresh install — worth having on its own merits, independent of that.
+
+Export alone only serves half the point, though — the real goal is letting users trade data with each other, and that means a matching **CSV import**, so someone else's exported file can be pulled straight into your own Food Cache or Recipes, not just read.
+
 ### F. What else? Well, know this...
 
 #### Your ideas shape what gets built next {: #feature-ideas}
@@ -2310,7 +2346,7 @@ Use the same channel as [reporting a problem](#feedback):
 There's no such thing as a request that's not worth mentioning. If you're not sure whether NuMa can already do what you want, ask anyway — the answer might be a feature you hadn't found yet, or it might be a real gap worth filling.
 
 
-## Part 9 — Appendices
+## Part 10 — Appendices
 
 ---
 
@@ -2320,6 +2356,179 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
 
 #### August 6
+
+**NEW: THE MANUAL'S SEARCH NOW FINDS TOPICS, NOT JUST TEXT**
+
+The sidebar search box (web version) searches differently now: type any words in any order and NuMa finds sections containing *all* of them, then lists matching section titles to jump to — instead of only highlighting an exact phrase wherever it appears verbatim. A new "Only show things you can do" checkbox further narrows results to sections that contain an instruction (add, edit, change, remove, and similar words), for when you're trying to do something rather than understand something. See [Using this manual's search](#search-howto) (new, Part 7 D) for the full explanation, linked from the search box itself, the "How to read this Manual" front matter, and the "can't find it" troubleshooting entry.
+
+```
+scripts/build_manual.py, user-manual.md
+Replaced the old single-string substring highlighter with a section index
+built once on load (buildSectionIndex(): one entry per h1-h4, its title +
+all sibling content up to the next heading of any level, lowercased).
+Typing debounces 180ms into runSearch(), which AND-filters the index on
+whitespace-split query words (plain substring per word, no phrase
+matching), optionally requiring at least one word from a fixed 29-word
+VERBS list (add, click, edit, change, set, enter, choose, delete, archive,
+etc. — picked from actual word-frequency counts against this manual's own
+text, not guessed) when the checkbox is checked, scores by occurrence
+count with a title-match bonus, and renders up to 25 results (capped for
+display only — the count line always reports the true total, e.g. "41
+sections match (showing top 25)", never a silently-truncated number).
+Clicking a result (or pressing Enter, which opens the top-scored one)
+scrolls to that heading and highlights each query word within that
+section only via highlightWordInRoot() (a generalized version of the old
+highlighter, scoped to a DOM range instead of the whole document); Enter/
+Shift+Enter and the ▲/▼ buttons then step between matches inside that one
+section, sorted into document order. Escape clears the query, the results
+list, and any open-section highlighting. Verified interactively with
+Playwright (not just pytest, since this is pure generated-HTML/JS with no
+Python-side test coverage) — AND-of-words matching, the verb checkbox,
+result-count accuracy pre- and post-cap, click-to-open highlighting and
+scroll position, prev/next stepping, and Escape reset all confirmed
+against the live rendered page. The existing TOC collapse-all/expand-all
+and scroll-spy features (separate IIFEs, untouched) still work.
+```
+
+**FIX: REMOVED DEAD SPACE ABOVE THE MANUAL'S CONTENTS HEADING**
+
+The manual's sidebar had an unexplained gap of blank space between the search box and the "Contents / Collapse all" bar. Gone now — the sidebar's Contents heading sits directly under the search box.
+
+```
+scripts/build_manual.py
+The global `h2 { margin: 2.5rem 0 0.75rem; }` rule (meant for in-content
+headings) was leaking its 2.5rem top margin into the sidebar's #toc-sidebar
+h2, which only overrode margin-bottom. Added an explicit margin-top: 0 to
+#toc-sidebar h2.
+```
+
+**FIX: THE PROTEIN QUALITY SECTION NOW ALWAYS APPEARS ON A FOOD'S PAGE**
+
+A food's Protein Quality section (and its sidebar link) used to disappear entirely when the food had no amino acid data — you'd have to scroll and stumble on a stray notice with no way to jump straight to it. Now the section and its sidebar link are always there, showing either the full analysis or a clear explanation of what's missing and what to do about it.
+
+```
+web/templates/food_detail.html
+Merged the two previously-separate "protein quality present" / "no AA data"
+template branches into one always-rendered <section id="sec-protein-quality">,
+and dropped the {% if protein %} guard around the sidebar TOC entry so it's
+never hidden. Added a plain "No protein in this food" fallback for the
+(rare) case where a food has neither AA data nor any protein at all, so the
+section body is never blank.
+```
+
+**FIX: "ESTIMATE AMINO ACIDS FROM A SIMILAR FOOD" NOW ACTUALLY LETS YOU SEARCH**
+
+The "estimate it from a similar food" link on a food with no amino acid data now takes you straight to a search box, pre-filled and already searching — no more landing on a big empty nutrient-entry form and missing the search tool entirely. The search itself now also reaches USDA, not just your own Food Cache, so a similar food doesn't have to already be cached to be found.
+
+```
+web/backend.py, web/templates/food_detail.html, web/templates/food_custom_edit.html
+food_custom_profiles_edit_get() now runs a USDA search (Foundation/SR Legacy
+boosted, same ranking as the general food search) alongside the existing
+_db.search_cached_foods() call whenever aa_source_q is set, closing the DB
+connection before the network call per the get_db() usage rule. The
+"estimate it from a similar food" link on food_detail.html now passes
+aa_source_q (reusing the same first-clause-of-name guess as the Foundation
+Foods suggestion) and an #estimate-aa anchor; the <details> panel on
+food_custom_edit.html is open by default (was previously collapsed unless
+a search was already in progress) and autofocuses the search box. OFF
+results are intentionally excluded from the AA-source search since OFF
+foods never carry amino acid data and can't be re-fetched by fdc_id the
+way USDA foods can.
+```
+
+**NEW: FOOD SEARCH RESULTS LINK STRAIGHT TO THE FOOD**
+
+Every food-search results list — in Meals, Recipes, Food Cache, Pantry, Compare, and Analyze a Portion — now has the food's name as a link to its detail page, so you can jump straight to it (e.g. to borrow an amino-acid profile from a related food) instead of leaving the search and looking it up again in Foods. Recipes in results link to the recipe page instead.
+
+```
+web/templates/_add_food_row.html, web/templates/recipe_edit.html,
+web/templates/food_compare.html, web/templates/pantry.html
+_search_result_row.html and _analyze_portion_result_row.html already linked
+names to /food/{fdc_id} (or /recipe/{recipe_id} for recipe rows); brought
+the remaining search-result row templates up to the same pattern. No new
+routes — /food/{fdc_id} already resolves pantry, cache, and not-yet-cached
+USDA/OFF results alike (fetching and caching on first visit), so the same
+link target works regardless of source. food_convert.html's name link was
+left pointing at its purpose-built convert_url rather than /food/{fdc_id}.
+```
+
+**MANUAL/UI: "SAMPLE DATA" RENAMED TO "STARTER DATA" THROUGHOUT**
+
+Settings → 9 is now "Starter Data," matching what it actually is — real curated content, not throwaway sample fixtures. Same behavior, same content, just consistent naming: the section heading, button labels, empty-state links on Food Cache/Pantry/Recipes, and the manual all now say "starter data."
+
+```
+web/templates/settings.html, web/backend.py, web/templates/pantry.html,
+web/templates/food_cache.html, web/templates/recipes.html,
+numa_app/services/demo_data.py
+Renamed the user-visible surface only — the details id (demo-data →
+starter-data), route paths (/settings/demo-data/{load,clear} →
+/settings/starter-data/{load,clear}), redirect query values
+(demo_data_loaded/cleared → starter_data_loaded/cleared), template context
+keys (demo_data_loaded/demo_food_count/demo_pantry_count/demo_recipe_count →
+starter_data_loaded/starter_food_count/starter_pantry_count/
+starter_recipe_count), and the stored "notes" text on loaded rows (Sample
+data → Starter data). Left demo_data.py's internal module name, function
+names, and DEMO_FOODS/DEMO_PANTRY/DEMO_RECIPES constants alone — invisible
+implementation detail, out of scope for this pass.
+```
+
+**NEW: A ONE-FILE LINUX INSTALLER**
+
+The planned Linux release now has a real installer: `scripts/install-linux.sh` is the single file a user will download, and running it fetches the program and a (placeholder) icon from the latest GitHub release, then adds NuMa to the applications menu. Nothing outside the user's own account is touched and no admin password is needed. Not yet exercised against a real cut release — see Part 1, Section C above for the current state of the release plan.
+
+```
+scripts/install-linux.sh, web/static/icon-256.png, scripts/create_release.py
+install-linux.sh downloads from releases/latest/download/{nutrimagnus,
+nutrimagnus.png} into ~/.local/bin and ~/.local/share/icons, then writes
+~/.local/share/applications/nutrimagnus.desktop pointing at both by absolute
+path (Exec=/Icon=), and runs update-desktop-database if present. icon-256.png
+is a plain placeholder (green badge, "N" monogram, generated via Pillow) —
+swap the file for real branding later; nothing downstream needs to change.
+create_release.py now uploads three named assets per release (binary, icon,
+installer script) instead of just the binary, via a small (name, path,
+content-type) list, so install-linux.sh's fixed asset names stay the
+contract between the two scripts.
+```
+
+**NEW: A FRESH INSTALL NOW COMES WITH STARTER FOODS AND RECIPES ALREADY LOADED**
+
+A brand-new install's Food Cache, Pantry, and Recipes list are no longer empty — a small set of USDA-verified foods and two protein-complementary recipes are there from the first launch, ready to explore or build on. Their names all begin with an asterisk (e.g. `* Black Beans & Rice`) so you can always tell them apart from anything you add yourself. If you clear them from [Settings](#settings) and want them back, the same load/clear toggle still works.
+
+```
+numa_app/services/demo_data.py, numa_app/services/starter_data.json,
+scripts/export_starter_data.py, nutrimagnus.spec, web/backend.py
+Generalizes the existing optional "Sample Data" Settings toggle (added
+2026-08-05, renamed to "Starter Data" the same day this landed) rather
+than replacing it: content moved out of Python literals
+into starter_data.json, regenerated by the new scripts/export_starter_data.py
+from whatever foods/pantry/recipes in a real database are "* "-prefixed —
+so curating starter content is done in the app itself, not by editing code.
+A recipe is only exported if every ingredient is also starred; others are
+skipped with a warning. A new seed_if_fresh_install() runs once from the
+FastAPI lifespan handler in web/backend.py, guarded by a separate
+_SEED_ATTEMPTED_MARKER file (distinct from the load/clear marker) so that
+clearing starter data from an otherwise-empty DB can never be mistaken for
+a fresh install and trigger a reseed on the next start. nutrimagnus.spec
+bundles starter_data.json as a onefile-build data asset (demo_data.py
+resolves its path via sys._MEIPASS when frozen, matching web/backend.py's
+existing pattern for templates/static/oxalate.db). Part of the groundwork
+for the planned Linux/Windows installers — see Part 1, Section C.
+```
+
+**MANUAL: "TO GET A QUICK START" IS NOW PART 1, EVERY LATER PART RENUMBERED**
+
+The quick-start section at the top of the manual is now formally Part 1, so it shows up in the table of contents and reads consistently with the rest of the manual. Every other Part shifted down one number (old Part 1 → 2, ... old Part 9 → 10).
+
+```
+user-manual.md
+Old Part 1 (Introduction) through Part 9 (Appendices) all shifted down one
+number; the untitled "To get a quick start:" lead-in is now "## Part 1 —
+To get a quick start". Updated every cross-reference to a Part number
+throughout the live manual body; historical Appendix A changelog entries
+were left as-is since they describe past states, matching the established
+policy of not retroactively rewriting old changelog entries. No named
+anchors changed, so no links elsewhere in the manual or app broke.
+```
 
 **FIX: THE "ESTIMATE AMINO ACIDS FROM ANOTHER FOOD" TOOL IS NOW EASY TO FIND**
 
@@ -2417,7 +2626,7 @@ can now do matters more than what was wrong before.
 
 **NEW: SAMPLE DATA — ONE-CLICK EXAMPLE FOODS, PANTRY, AND RECIPES FOR A FRESH INSTALL**
 
-A brand-new install can now load one-click sample data — foods, a pantry, and two recipes — so you can see NuMa's protein-complementarity feature working right away instead of building everything up by hand. Find it at Settings → 9. Sample Data; "Clear sample data" removes exactly what was added and nothing else. [learn more...](#demo-data)
+A brand-new install can now load one-click sample data — foods, a pantry, and two recipes — so you can see NuMa's protein-complementarity feature working right away instead of building everything up by hand. Find it at Settings → 9. Sample Data; "Clear sample data" removes exactly what was added and nothing else. [learn more...](#starter-data)
 
 ```
 Settings → 9. Sample Data

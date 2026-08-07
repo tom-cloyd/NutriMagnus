@@ -2,7 +2,7 @@
 
 **NutriMagnus ("nutrition wizard")** is a free, open-source nutritional analysis program for individuals and families — with particular depth for people eating plant-based diets.
 
-It analyzes individual foods, recipes, and full daily meals using data from the USDA FoodData Central database (300,000+ foods) and Open Food Facts (millions of packaged products worldwide). No subscription, no account, no internet connection required after first use.
+It analyzes individual foods, recipes, and full daily meals using data from the USDA FoodData Central database (300,000+ foods) and Open Food Facts (millions of packaged products worldwide). No subscription, no account. An internet connection is needed to look up a food for the first time; anything already looked up is cached locally and works offline from then on.
 
 ---
 
@@ -30,7 +30,9 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Multiple user profiles** — different RDA targets for different household members (age, sex, weight, activity level)
 - **Personalized nutrient targets** — set a custom "optimal" target above the standard RDA for any nutrient (e.g. higher Vitamin D for older adults), and custom max limits that warn you as you approach them
 - **Personal pantry** — keep a list of protein sources on hand; the complement advisor draws from it first
-- **Extensive built-in help** — type `?topic` at any prompt for inline reference panels covering every feature; a full User Manual is included and accessible without leaving the app
+- **Glycemic load tracking** — see the glycemic load of foods, recipes, and full meals
+- **Printable reports** — generate a print/PDF-ready report for any food, meal, or full day, with a checkbox choice of which sections to include
+- **Extensive built-in help** — "Learn more" links throughout the app jump straight to the relevant section of the full User Manual, built in and readable without leaving the app
 
 ---
 
@@ -40,13 +42,13 @@ Anyone who wants to understand what they're actually eating — especially peopl
 
 *(Windows version coming.)*
 
-A User Manual is built into the app — type `?` followed by any topic name at any prompt to read it inline.
+A User Manual is built into the app — open it anytime from the nav bar, or follow a "Learn more" link from the relevant page.
 
 ---
 
 ## For developers
 
-Built with Python 3.12, Rich, and SQLite. No external services or API keys required for basic use.
+Built with Python 3.12, FastAPI, and SQLite. No external services or API keys required for basic use — food search works out of the box on a shared USDA demo key; add your own free key in Settings for higher rate limits.
 
 ```bash
 git clone https://github.com/tom-cloyd/NutriMagnus

@@ -25,11 +25,9 @@
     </ul>
   </li>
   {% endif %}
-  {% if protein %}
   <li class="sb-item" data-target="sec-protein-quality">
     <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Protein Quality</button>
   </li>
-  {% endif %}
   {% if complements and not complements.no_data %}
   <li class="sb-item" data-target="sec-complements">
     <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Complement Suggestions</button>
@@ -252,10 +250,10 @@
 {% endif %}
 
 {# ── Protein Quality ──────────────────────────────────────────────────── #}
-{% if protein %}
 <section id="sec-protein-quality" class="analysis-section">
   <h3 class="section-heading">Protein Quality {{ manual_link("protein-quality") }} {{ manual_link("fao", "About the FAO reference") }}</h3>
 
+  {% if protein %}
   <div class="protein-meta">
     {% if protein.diaas is not none %}
     <p>
@@ -320,28 +318,22 @@
     </tbody>
   </table>
 
-  {# Foundation Foods suggestion when no AA data #}
+  {% endif %}
+
+  {# No amino acid data — shown whether or not there's a protein-summary card above #}
   {% if suggest_foundation %}
   <div class="alert alert-info mt-3" style="max-width:42rem">
     <strong>No amino acid data for this food.</strong>
     Foundation Foods (USDA's most complete dataset) usually includes full amino acid profiles.
     <a href="/food/search?query={{ suggest_foundation | urlencode }}">Search for
     &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent,
-    or <a href="/food/custom-profiles/{{ food.fdc_id }}/edit">estimate it from a similar food</a>
+    or <a href="/food/custom-profiles/{{ food.fdc_id }}/edit?aa_source_q={{ suggest_foundation | urlencode }}#estimate-aa">estimate it from a similar food</a>
     that already has amino acid data.
   </div>
+  {% elif not protein %}
+  <p class="muted">No protein in this food &mdash; protein quality analysis is not applicable.</p>
   {% endif %}
 </section>
-{% elif suggest_foundation %}
-<div class="alert alert-info mt-3" style="max-width:42rem">
-  <strong>No amino acid data for this food.</strong>
-  Foundation Foods (USDA's most complete dataset) usually includes full amino acid profiles.
-  <a href="/food/search?query={{ suggest_foundation | urlencode }}">Search for
-  &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent,
-  or <a href="/food/custom-profiles/{{ food.fdc_id }}/edit">estimate it from a similar food</a>
-  that already has amino acid data.
-</div>
-{% endif %}
 
 {# ── Anti-nutrient Notes ──────────────────────────────────────────────── #}
 {# ── Oxalate ──────────────────────────────────────────────────────────── #}

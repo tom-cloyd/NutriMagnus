@@ -583,29 +583,29 @@ def test_settings_demo_data_load_and_clear(client: TestClient, tmp_path: pathlib
     monkeypatch.setattr(demo_data, "_MARKER_FILE", tmp_path / "demo_data.json")
 
     resp = client.get("/settings")
-    assert "Load sample data" in resp.text
-    assert "Clear sample data" not in resp.text
+    assert "Load starter data" in resp.text
+    assert "Clear starter data" not in resp.text
 
-    resp = client.post("/settings/demo-data/load", follow_redirects=False)
+    resp = client.post("/settings/starter-data/load", follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/settings?saved=demo_data_loaded"
+    assert resp.headers["location"] == "/settings?saved=starter_data_loaded"
 
     with _db.get_db() as conn:
         assert conn.execute("SELECT COUNT(*) FROM foods").fetchone()[0] == len(demo_data.DEMO_FOODS)
         assert conn.execute("SELECT COUNT(*) FROM recipes").fetchone()[0] == len(demo_data.DEMO_RECIPES)
 
     resp = client.get("/settings")
-    assert "Clear sample data" in resp.text
+    assert "Clear starter data" in resp.text
 
-    resp = client.post("/settings/demo-data/clear", follow_redirects=False)
+    resp = client.post("/settings/starter-data/clear", follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/settings?saved=demo_data_cleared"
+    assert resp.headers["location"] == "/settings?saved=starter_data_cleared"
 
     with _db.get_db() as conn:
         assert conn.execute("SELECT COUNT(*) FROM foods").fetchone()[0] == 0
 
     resp = client.get("/settings")
-    assert "Load sample data" in resp.text
+    assert "Load starter data" in resp.text
 
 
 def test_settings_meal_nutrients_save_and_render(client: TestClient, cached_food) -> None:

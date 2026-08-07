@@ -310,7 +310,8 @@
               {% endif %}
             </td>
             <td>
-              <strong>{{ food.name }}</strong>
+              {% if food._type == "recipe" %}<a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
+              {% else %}<a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>{% endif %}
               {% if food.data_type or food.brand %}
               <br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
               {% endif %}
