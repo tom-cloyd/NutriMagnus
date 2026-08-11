@@ -630,3 +630,112 @@ class TestNumericalRegressionOatmealRecipe:
                     f"{_diaas.IAA_LABELS[aa_key]} ratio {ratio:.3f} is not above "
                     f"Met+Cys ratio {met_cys_ratio:.3f}"
                 )
+
+
+# ---------------------------------------------------------------------------
+# Golden-value regression: pinto beans + quinoa vs. published FAO Table I-7
+#
+# Nutrient values below are transcribed verbatim from user-manual.md Appendix K
+# (Tables I-1/I-2), which in turn are USDA SR Legacy values as of June 2026 for:
+#   FDC 173796 — Beans, pinto, mature seeds, cooked, boiled, with salt
+#   FDC 168917 — Quinoa, cooked
+# Expected ratios/DIAAS/DCP are the independently hand-worked values in Appendix K
+# Table I-7, not values re-derived from this code — this test exists to catch
+# drift between the two, not to encode the algorithm's own output as truth.
+# ---------------------------------------------------------------------------
+
+_PINTO_BEANS_100G = {
+    "protein_g":          9.01,
+    "aa_histidine_g":     0.232,
+    "aa_isoleucine_g":    0.368,
+    "aa_leucine_g":       0.664,
+    "aa_lysine_g":        0.571,
+    "aa_methionine_g":    0.126,
+    "aa_cystine_g":       0.090,
+    "aa_phenylalanine_g": 0.450,
+    "aa_tyrosine_g":      0.234,
+    "aa_threonine_g":     0.350,
+    "aa_tryptophan_g":    0.098,
+    "aa_valine_g":        0.435,
+}
+
+_QUINOA_COOKED_100G = {
+    "protein_g":          4.40,
+    "aa_histidine_g":     0.127,
+    "aa_isoleucine_g":    0.157,
+    "aa_leucine_g":       0.261,
+    "aa_lysine_g":        0.239,
+    "aa_methionine_g":    0.096,
+    "aa_cystine_g":       0.063,
+    "aa_phenylalanine_g": 0.185,
+    "aa_tyrosine_g":      0.083,
+    "aa_threonine_g":     0.131,
+    "aa_tryptophan_g":    0.052,
+    "aa_valine_g":        0.185,
+}
+
+_PINTO_QUINOA_INGREDIENTS = [
+    {"food_name": "Beans, pinto, mature seeds, cooked, boiled, with salt",
+     "fdc_id": 173796, "nutrients_100g": _PINTO_BEANS_100G, "grams": 100},
+    {"food_name": "Quinoa, cooked",
+     "fdc_id": 168917, "nutrients_100g": _QUINOA_COOKED_100G, "grams": 100},
+]
+
+# Table I-7 ratios, keyed to the IAA dict keys used by diaas.py.
+_TABLE_I7_RATIOS = {
+    "aa_histidine_g":     1.368,
+    "aa_isoleucine_g":    1.063,
+    "aa_leucine_g":       0.921,
+    "aa_lysine_g":        1.025,
+    "aa_methionine_g":    0.998,  # Met+Cys
+    "aa_phenylalanine_g": 1.410,  # Phe+Tyr
+    "aa_threonine_g":     1.167,
+    "aa_tryptophan_g":    1.385,
+    "aa_valine_g":        0.942,
+}
+
+
+class TestGoldenValuePintoQuinoaMeal:
+    """Golden-value regression vs. user-manual.md Appendix K, Table I-7.
+
+    Confirms the digestibility lookups, pooling, and composite scoring in
+    diaas.py reproduce the independently hand-worked FAO methodology example
+    to at least three significant figures — the same tolerance the manual
+    asks a reader to verify against.
+    """
+
+    @pytest.fixture(autouse=True)
+    def result(self):
+        self._result = _diaas.meal_level_diaas(_PINTO_QUINOA_INGREDIENTS)
+
+    def test_digestibility_coefficients(self):
+        pinto_dig, _ = _diaas.get_digestibility("Beans, pinto, mature seeds, cooked, boiled, with salt")
+        quinoa_dig, _ = _diaas.get_digestibility("Quinoa, cooked")
+        assert pinto_dig == pytest.approx(0.80)
+        assert quinoa_dig == pytest.approx(0.85)
+
+    def test_total_protein(self):
+        assert self._result["total_protein_g"] == pytest.approx(13.41, abs=0.005)
+
+    def test_iaa_ratios_match_table_i7(self):
+        for aa_key, expected_ratio in _TABLE_I7_RATIOS.items():
+            actual = self._result["iaa_ratios"][aa_key]
+            assert actual == pytest.approx(expected_ratio, abs=0.001), (
+                f"{_diaas.IAA_LABELS[aa_key]} ratio {actual:.3f} != "
+                f"Table I-7 value {expected_ratio:.3f}"
+            )
+
+    def test_leucine_is_limiting(self):
+        assert self._result["limiting_iaa"] == "aa_leucine_g"
+        assert self._result["limiting_label"] == "Leucine"
+
+    def test_composite_diaas(self):
+        assert self._result["diaas"] == pytest.approx(0.921, abs=0.001)
+
+    def test_digestible_complete_protein(self):
+        # NOT the manual's Appendix K Step 5 value (13.41 x 0.921 = 12.35g) — diaas.py
+        # caps DCP at aa_dig_protein_g (9.01x0.80 + 4.40x0.85 = 10.948g) because the
+        # limiting IAA (leucine) is concentrated in quinoa, the higher-digestibility
+        # ingredient, so the uncapped formula would report more absorbed protein than
+        # is physically possible. See diaas.py's dcp calculation comment.
+        assert self._result["digestible_complete_protein_g"] == pytest.approx(10.948, abs=0.01)

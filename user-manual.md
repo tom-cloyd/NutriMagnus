@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-07:1142* / Reading time: 2 hours, 25 minutes
+*Updated 2026-08-10:1821* / Reading time: 2 hours, 27 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -162,7 +162,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 **[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it is using.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your [Pantry](#pantry), and [recipes you have analyzed](#recipes-menu-web). For protein complement suggestions specifically, a built-in list of 25 common protein sources[^10] fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be filled in automatically from a small published reference table (see [Glycemic Index](#gi)), rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-07), there are 506 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-10), there are 525 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 **Appendix K has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
@@ -928,6 +928,7 @@ The sections linked from analysis output are:
 - [Protein completeness](#complete) — what makes a protein "complete"
 - [Protein quality](#protein-quality) — single-food amino acid ratios table columns
 - [RDA](#rda) — daily intake vs. recommended values table
+- [Recipe comparison](#recipe-comparison) — recipe comparison ingredient and nutrient tables
 - [Recipe ingredients](#recipe-ingredients) — recipe ingredient list columns
 - [Recipes list](#recipes) — recipes list table columns
 
@@ -1394,6 +1395,17 @@ Columns:
 Commands: a{id}=analyze  v{id}=view/edit  d{id}=delete  c{id}=copy  y{id}=archive/restore  x=new recipe  /text=filter by name  r=clear filter  o=sort  s=show/hide archived  n/p=next/prev page
 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein).
+
+
+#### Recipe Comparison Tables [recipe-comparison]
+
+Shows up to six recipes side-by-side in two tables: an ingredient table and a nutrient table.
+
+The **ingredient table** has one row per distinct ingredient name across the recipes you're comparing, one column per recipe, showing that ingredient's amount in each recipe or "--" if it isn't used. Ingredients shared by two or more recipes are listed first (highlighted) — that's usually the interesting question when comparing recipes: which ingredients differ, and by how much. A sub-recipe used as an ingredient shows its serving count rather than being expanded into its own raw ingredients.
+
+The **nutrient table** reuses the same layout as [food comparison](#food-comparison) — all nutrient groups, highest value per row highlighted, sortable by checked nutrients. A toggle switches the basis between **Per serving** (each recipe's nutrients divided by its own serving count — the fair way to compare recipes with different batch sizes) and **Whole recipe** (the full batch as authored).
+
+To run a comparison: Recipes -> Compare recipes. Search adds from your own saved recipes only (recipe comparison doesn't reach out to USDA/OFF, since a recipe only exists in your database).
 
 
 #### Recipe Ingredient List [recipe-ingredients]
@@ -2279,7 +2291,7 @@ This shouldn't happen, and if it does, it's worth [reporting](#feedback) — but
 
 ### F. A food's portion or serving-size data looks wrong
 
-This is a different kind of problem than the others on this page: it isn't NuMa misbehaving, it's a gap or error in the underlying USDA data NuMa displays. USDA publishes nutrient values reliably, but the *portion* records attached to a food — "1 large," "1 cup, sliced," and so on — are contributed unevenly and sometimes inaccurately. NuMa shows you exactly what USDA supplies; when that's missing or wrong, the fix is to teach NuMa the correct value yourself, once, and it's remembered for every future use of that food.
+Most of what's below isn't NuMa misbehaving, it's a gap or error in the underlying USDA data NuMa displays. USDA publishes nutrient values reliably, but the *portion* records attached to a food — "1 large," "1 cup, sliced," and so on — are contributed unevenly and sometimes inaccurately. NuMa shows you exactly what USDA supplies; when that's missing or wrong, the fix is to teach NuMa the correct value yourself, once, and it's remembered for every future use of that food. (One entry below — the `pN` shortcut mix-up — is a NuMa naming rule rather than a USDA data gap; it's grouped here because it's still fundamentally a portion-editing question.)
 
 #### A food has no "per piece" or "per egg" portion — only grams [ts-no-piece-portion]
 
@@ -2300,6 +2312,17 @@ Occasionally a USDA record's portion weight is simply implausible for what it de
 If a portion weight doesn't match what you measure: weigh your actual amount and enter the gram figure directly for that one use, and — if you'll use this food again — replace the bad portion with a corrected one via the same Portions editor (the [Food Cache](#food-cache-web) entry's **Portions** action). Custom portions you add there are yours — they aren't overwritten by a later **Refresh** of the food's nutrient data. If you're confident the USDA source itself is wrong (not just unusual), [let us know](#feedback) — it's worth tracking so other users hit it less often, even though NuMa can't correct USDA's database directly.
 
 *See also:* [Enter food portions as weights, not volume measures, whenever possible](#portion-formats).
+
+#### A food's portion "pN" shortcut points to the wrong portion [ts-portion-numbering]
+
+This is not a USDA data problem, it's a NuMa naming rule that's easy to misread: `p1`, `p2`, … always mean "the food's 1st stored portion, 2nd stored portion, …" in list order — never a portion's own description text. If you add a custom portion and type its own name in the **Description** field — say, you literally type `p1` as the description — that text has no bearing on its shortcut number. A food copied or imported from USDA usually already has a few built-in portions ("oz", "1 cup sliced," and so on) occupying the early slots, so your new one lands further down the list — often `p3` or `p4` — while `p1` still refers to whatever was already first. Typing `p1` in that situation silently applies the *wrong* portion's gram weight, with no error, since `p1` is still a valid shortcut — just not the one you meant.
+
+Two ways to avoid this:
+
+1. **Check the portion list shown right where you type the amount** — Foods, Recipes, and Meals all display the food's full portion set with its real shortcut number next to each entry (e.g. `p1 oz (14.2 g) · p2 1.75" square (3.0 g) · p3 …`) immediately above or below the amount field. Match against that list, not against a portion's name.
+2. **Re-check after any portion edit.** Adding, removing, or reordering a food's portions renumbers every `pN` from that point on — a `p1` amount you entered correctly last week can silently mean something else today if you've since added or removed an earlier portion. If a `pN` amount doesn't come out the way you expect, re-open that food's [Manage Portions](#food-cache-web) page and count down the list before assuming something's broken.
+
+*See also:* [USDA standard portions and the `pN` shortcut](#portion-formats).
 
 ### G. Getting more help
 
@@ -2373,7 +2396,209 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 
 Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed — that's all most readers need. Some entries also have a fenced code block underneath with fuller technical detail (which files changed, root cause, implementation notes) written for anyone curious about the "how," including a future version of the developer; feel free to skip those blocks entirely.
 
+#### August 10
+
+**COMPARE RECIPES SIDE BY SIDE — INGREDIENTS, PROTEIN QUALITY, AND NUTRIENTS**
+
+A new "Compare recipes" button on the Recipes page lets you pick up to six recipes and see three tables: which ingredients they share vs. differ on (with amounts), their DIAAS-based protein quality (composite score, limiting amino acid, digestible complete protein), and their full nutrient profiles side by side — switchable between per-serving and whole-recipe totals. [learn more...](#recipe-comparison)
+
+```
+web/backend.py: /recipe/compare (GET), /recipe/compare/add, /add-multiple,
+/remove (POST) — registered before the /recipe/{recipe_id} wildcard route
+so the literal "compare" path segment isn't swallowed by it. Nutrient side
+reuses _build_compare_groups() (already generic over any {"nutrients"}
+entry) fed from recipe_nutrients.py's per-serving/whole-batch totals.
+Ingredient side: _build_recipe_ingredient_rows() unions each recipe's
+top-level ingredients (as authored, not expanded through sub-recipes) by
+food_name, sorting shared ingredients first. Protein quality side:
+_build_protein_quality_rows() reuses the same _flatten_recipe_diaas_ingredients()
++ _diaas.meal_level_diaas() + _build_diaas_display() pipeline that powers
+the recipe detail page's DIAAS card, scaled to 1 serving or the whole
+batch to match the nutrient table's unit toggle; recipes without enough
+AA data show "—" instead of breaking the row.
+web/templates/recipe_compare.html: modeled on food_compare.html, reusing
+its .compare-table CSS and column-sort JS as-is.
+```
+
+**FIXED GARBLED AMOUNTS ON THE COMPARE RECIPES INGREDIENT TABLE**
+
+The ingredient comparison table (added earlier today) could show a raw gram figure glued right next to a separately-stored, already-descriptive unit label — e.g. "61.94763513513512 61.95 gr" or "185.0 cup" — instead of one clean amount. Gram figures are now also rounded to whole numbers, since fractional grams aren't meaningful at cooking precision. The rows shaded grey (ingredients shared by 2+ recipes) now say so in the caption above the table. The "Sort columns," "Clear sort," and "Per serving"/"Whole recipe" buttons are now on one line above the nutrient table instead of split across two.
+
+```
+web/backend.py: _build_recipe_ingredient_rows() now calls the existing
+_ing_amount_display() helper (already used by recipe_edit.html) to produce
+one canonical display string per cell instead of concatenating the raw
+amount and unit columns, which are two different representations of the
+same quantity (unit already embeds amount + a human label, e.g. "1/4 cup
+(≈ 62 g)", for ingredients added via the portion-string parser; older rows
+predating that parser store a bare unit like "cup" with no quantity, which
+_ing_amount_display() falls back to filling in from the grams column).
+New _round_grams_in_label() then rounds only the gram figures in that
+string to whole numbers, leaving cup/tbsp/tsp fractions untouched.
+web/templates/recipe_compare.html: cell rendering simplified to the single
+display string; nutrient-comparison button row restructured into one flex
+container.
+```
+
+**STARTER-DATA EXPORT NOW AUTO-INCLUDES A RECIPE'S UN-STARRED INGREDIENTS**
+
+`scripts/export_starter_data.py` (run before cutting a release to refresh the bundled starter content) used to require every ingredient of a starred recipe to also be individually renamed with the `"* "` prefix, or the whole recipe was silently skipped with only a stderr warning. Now, any ingredient food that isn't already starred is pulled in automatically and given the `"* "` prefix in the exported file (the real food isn't renamed) — including foods with real-world data problems, which are left as useful examples for future workflow tutorials. Every food/pantry item/recipe in starter_data.json stays `"* "`-prefixed, as demo_data.py expects. Recipes that reference a sub-recipe are still skipped (starter data has no nested-recipe support).
+
+```
+scripts/export_starter_data.py
+foods_by_fdc_id keyed by fdc_id (not name) so an ingredient can be looked up
+and added regardless of its own naming; export_name = "* " + food's real
+name when not already prefixed, and the recipe's ingredient tuple uses that
+same exported name (not the DB's food_name) so demo_data.load_demo_data()'s
+by_name[food_name] lookup still resolves correctly. Sub-recipe ingredients
+are detected via ref_recipe_id (not a null fdc_id — sub-recipe rows use
+fdc_id=0 as a sentinel, per recipe_ingredient_add_recipe in web/backend.py).
+tests/test_export_starter_data.py added.
+```
+
+**SETTINGS > STARTER DATA CAN NOW RESTORE INDIVIDUAL ITEMS, NOT JUST EVERYTHING AT ONCE**
+
+The "Clear starter data" button now has a caption right underneath explaining exactly what it removes — the starter foods, pantry items, and recipes that were loaded, and nothing else you've added or edited. A new "Restore individual starter items" section lists every starter food (with its fdc_id), pantry item, and recipe not currently in your Food Cache/Pantry/Recipes, with a checkbox next to each — check the ones you want back and restore just those, without reloading everything. Checking a pantry item or recipe also restores any starter food it depends on that isn't already cached.
+
+```
+numa_app/services/demo_data.py: starter_status() reports per-item presence
+by checking the DB directly (not the load/clear marker file), so it stays
+accurate after a selective restore or a manual edit/delete of a starter
+item. restore_selected() adds back only what's checked and not already
+present, pulling in dependent foods for a selected pantry item or recipe.
+web/backend.py: new POST /settings/starter-data/restore route.
+web/templates/settings.html: checkbox list grouped by Foods/Pantry/Recipes,
+only showing items not already present. A second, always-visible "View all
+starter data" toggle lists every starter food (fdc_id and name) and recipe
+(name) regardless of whether it's currently loaded.
+```
+
+**MEAL AND RECIPE PROTEIN TABLES NOW SHOW PER-FOOD DCP**
+
+The "Meal foods: Digestibility" table (meal pages) and "Ingredients: digestibility" table (recipe pages) now have a DCP (g) column after AA data, showing each food's own contribution to digestible complete protein. Foods without amino acid data show "—", since DCP can't be calculated without both a digestible protein figure and AA data — a footer note explains this.
+
+```
+web/backend.py (_build_diaas_display), web/templates/meal.html, recipe_detail.html
+Per-row dcp_g = protein_g × min(composite DIAAS score, 1.0) for AA-analyzed
+foods, None otherwise. Uses the meal-level pooled score (per-food DIAAS
+isn't computed), so per-row values sum to the table's total DCP figure.
+```
+
+#### August 9
+
+**FIXED MISSING BREADCRUMBS ON THE ANALYSIS PAGES**
+
+Daily Summary, Food Use in Meals, and Multiday Nutrient Trend now all show a breadcrumb trail back to where they came from, matching every page under the Foods and Recipes menus. Multiday Nutrient Trend was missing one outright (its sibling Nutrient Plot page already had one); Daily Summary and Food Use in Meals — the two Analysis-menu destinations — never had one at all.
+
+```
+web/templates/summary.html, trend.html, analysis_food_use.html
+summary.html's top-level "Analysis / Daily Summary" breadcrumb now also
+absorbs the date-detail sub-view (renders "Analysis / Daily Summary / {date}"),
+replacing the separate inner breadcrumb that used to sit below the date
+picker. trend.html and analysis_food_use.html each gained a standard
+breadcrumb nav matching the Foods-menu page pattern.
+```
+
+**FOOD, RECIPE, AND MEAL PAGES NOW SHOW A ONE-LINE DCP SUMMARY UNDER THE TITLE**
+
+Right below the name of a food, recipe, meal, or full day, you now see how much digestible complete protein (DCP) it delivers relative to its total raw protein — e.g. "100.0 g ⇒ 1.5 g digestible complete protein — 52% of 2.9 g raw protein" for a food, or "1.0 serving analyzed ⇒ 8.8 g digestible complete protein — 81% of 10.9 g raw protein" for a recipe — so you don't have to scroll to the Protein Summary section to see that ratio. The leading segment shows what's being analyzed (the food's current portion, the recipe's servings-analyzed count, a meal's item count, or a day's meal count); the percentage is the food's protein-quality score (digestibility × limiting-amino-acid ratio) expressed as "% of raw protein retained as DCP." [learn more...](#dcp)
+
+```
+web/templates/food_detail.html, recipe_detail.html, meal.html, meal_day.html
+Added a one-line summary directly under each page's <h2>, computed from the
+same dcp_g/total_protein_g (protein_raw for a single food) values already
+present in the page context — no new backend computation.
+```
+
+#### August 8
+
+**A FOOD'S DETAIL PAGE NOW LINKS DIRECTLY TO ITS PORTION EDITOR**
+
+Every food detail page has a "Manage portions for this food" link right next to the amount field — no more going to Food Cache and searching for the food again just to add or fix a portion. [learn more...](#food-cache-web)
+
+```
+web/templates/food_detail.html
+Added a persistent link to /food/cache/{fdc_id}/portions in the portion-form
+block, shown whether or not the food already has portions (previously the
+only link there appeared solely in the "no portions yet" and volume-density
+hint messages).
+```
+
+**MEAL ITEM AMOUNT EDITOR NOW LISTS A FOOD'S PORTIONS AND THEIR "pN" SHORTCUT NUMBERS**
+
+When editing an existing meal item's amount, the edit panel now lists every one of that food's stored portions next to its shortcut number (p1, p2, …) — the same legend already shown when first adding a food to a meal. Without it, "pN" looked like it should match a portion's own name or description, but it's actually just that portion's position in the list; typing "p1" for a custom portion you named "p1" could silently grab a different, pre-existing portion sitting first in line instead.
+
+```
+web/backend.py (_meal_expand_for_diaas), web/templates/meal.html
+_meal_expand_for_diaas() now attaches each food item's cached portions list
+(portions_json) to its dict so the template has it without an extra query.
+meal.html's per-item edit panel gained the same "Portions: p1 X (Yg) · p2 …"
+legend already used in _add_food_row.html's add-to-meal form.
+```
+
+**COPY A WHOLE NUTRIENT PROFILE FROM ANOTHER FOOD WHEN CREATING A CUSTOM FOOD**
+
+The Edit Custom Profile page now has a "Copy a full nutrient profile from another food" search box, alongside the existing amino-acid estimator. Use it to seed a blank draft with a similar food's complete per-100g values (including amino acids) before hand-editing — a raw, unscaled copy, not the protein-scaled estimate the AA tool does. The two tools are independent and either can overwrite fields the other set.
+
+```
+web/backend.py (_search_food_sources, food_custom_profiles_copy_nutrients),
+numa_app/services/aa_estimate.py (copy_nutrients_note),
+web/templates/food_custom_edit.html
+New POST /food/custom-profiles/{fdc_id}/copy-nutrients mirrors the existing
+copy-aa route's cache-then-USDA source lookup, but replaces the target's
+entire nutrients dict wholesale (dict(source_nutrients)) instead of scaling
+just the AA keys to protein content. Search UI/logic factored out of the
+existing AA-source picker into _search_food_sources() and reused by both
+pickers. Confirm-dialog on the copy button since this is a destructive,
+whole-profile overwrite.
+```
+
+**FIXED A NEW DRAFTED FOOD SOMETIMES GETTING MISLABELED AS AN OPEN FOOD FACTS ENTRY**
+
+Creating a new food profile occasionally assigned it an ID deep inside Open Food Facts' reserved ID range, which then made the food detail page wrongly show it as an "OFF" food instead of "User-drafted." New drafted foods now always get an ID in their own reserved range, so the label is always correct.
+
+```
+db.py (next_user_drafted_fdc_id)
+The next-ID query took MIN(fdc_id) across ALL negative-ID foods, including
+cached Open Food Facts entries (OFF IDs live around -2,000,000,000 to
+-3,000,000,000, see openfoodfacts._OFF_ID_BASE). Once an OFF food occupied
+the deep end of that range, a new draft could land at e.g. -2900014088 —
+inside OFF's namespace — and numa_app/services/food_ids.classify_food_id()
+(a pure ID-range heuristic, threshold -1_000_000_000) then labeled it "OFF".
+Query now scoped to fdc_id > -1_000_000_000 so drafted foods stay confined
+to their own small-negative range. One already-affected row in the live DB
+was manually reassigned from -2900014088 to -3.
+```
+
+**FIXED THE CONFUSING FREQUENCY BAR ON THE "FOOD USE IN MEALS" PAGE**
+
+The bar in the Food Use in Meals table now shows what its retitled column header says: the percentage of days in your searched date range that a food actually appeared on. Previously the bar was scaled against whichever food happened to be used most often in your results, so a food used on only 3 of 90 days could render as a full, solid bar — making the bar meaningless without knowing the hidden maximum.
+
+```
+web/backend.py (analysis_food_use), web/templates/analysis_food_use.html
+pct was days_used / max_days_in_result_set * 100 — a relative ranking, not
+an absolute frequency. Changed the denominator to total_days (the actual
+count of distinct days covered by the search). Column header "Frequency"
+renamed to "% of Days in Range"; footnote and progress-bar aria-label
+updated to match.
+```
+
 #### August 7
+
+**ADDED THE MISSING DIAAS GOLDEN-VALUE REGRESSION TEST, AND FIXED A STALE NUMBER IN APPENDIX K**
+
+The pinto beans + quinoa worked example in Appendix K is now backed by an automated test (`tests/test_diaas.py`) that runs the real two-food meal through the actual DIAAS code and checks every IAA ratio against the manual's published Table I-7 to three significant figures. Building it surfaced a real discrepancy: Appendix K's digestible complete protein (DCP) figure was stale — it used the simple `total protein × DIAAS` formula, but the code was later hardened to also cap DCP at the meal's digestibility-weighted protein (correct behavior: DIAAS can exceed average digestibility when the limiting amino acid happens to concentrate in the more-digestible food, and the naive formula could then report more protein absorbed than is physically possible). Appendix K Steps 5–6 now explain and use the capped figure (10.948 g, not 12.35 g).
+
+```
+tests/test_diaas.py, user-manual.md (Appendix K)
+New TestGoldenValuePintoQuinoaMeal class feeds FDC 173796/168917 nutrient
+data (transcribed from Appendix K Tables I-1/I-2) through meal_level_diaas()
+and asserts iaa_ratios, limiting_iaa, composite diaas, and digestible_
+complete_protein_g against Appendix K's Table I-7 and the corrected DCP cap
+logic in diaas.py (lines ~349-352). Manual's Step 5 DCP walkthrough and
+Step 6 interpretation paragraph rewritten to show the aa_dig_protein_g cap
+explicitly instead of the old uncapped multiplication.
+```
 
 **INTERNAL: REMOVED A DEAD CODE PATH LEFT OVER FROM THE CLI REMOVAL**
 
@@ -3674,6 +3899,8 @@ Many [USDA](#gloss-usda) foods include pre-defined portion sizes (e.g. "1 medium
     p2         select USDA portion #2
     1.5 p1     one-and-a-half times USDA portion #1
 
+**`p1`, `p2`, … mean "the food's 1st portion, 2nd portion, …" — position in the list, never the portion's own text.** This trips people up specifically when you add a custom portion (via [Food Cache](#food-cache-web) → **Portions**) and happen to *name* it something like `p1`: that name has no effect on its shortcut number. If it's the fourth portion in the list, its shortcut is `p4`, no matter what you called it. Every screen where you type a `pN` shortcut — Foods, Recipes, Meals — also lists that food's full portion set with the real shortcut number next to each one; check that list before typing `pN`, don't guess from a portion's name. Adding, removing, or reordering portions on a food also renumbers every `pN` that follows the changed spot, so re-check the list after any portion edit, too — see [A food's portion "pN" shortcut points to the wrong portion](#ts-portion-numbering) if a `pN` amount doesn't come out the way you expected.
+
 OMITTING THE SPACE
 
 For all weight and volume units, the space between the number and unit is optional. These pairs are identical:
@@ -3889,11 +4116,19 @@ The **composite [DIAAS](#gloss-diaas) score is the lowest ratio** — the *limit
 
     Composite DIAAS = the lowest ratio above = 0.921   (limited by Leucine)
 
-A [DIAAS](#gloss-diaas) of 0.921 means this meal delivers about 92% of the protein quality of a reference protein. It also means the **digestible [complete protein](#gloss-complete-protein)** for this 200 g meal is:
+A [DIAAS](#gloss-diaas) of 0.921 means this meal delivers about 92% of the protein quality of a reference protein.
 
-    DCP = 13.41 g × 0.921 = 12.35 g
+**Digestible complete protein has a second ceiling beyond the DIAAS multiplication.** The naive calculation would be:
 
-(If the DIAAS score were above 1.0, it would be capped at 1.0 for this calculation, since a food's digestible complete protein can never exceed its total protein.)
+    13.41 g × 0.921 = 12.35 g
+
+but this can overstate what the body actually absorbs. DIAAS is the *limiting-IAA* ratio, not an average — and here the limiting IAA (leucine) happens to be relatively better-supplied by quinoa, the more digestible of the two foods (0.85 vs. pinto beans' 0.80). Multiplying the *whole* protein pool by that single ratio can produce a DCP higher than the protein that was ever actually digested. [NuMa](#gloss-numa) guards against this by also capping DCP at the meal's digestibility-weighted protein — the sum of each food's protein × its own digestibility coefficient:
+
+    aa_dig_protein_g = (9.01 g × 0.80) + (4.40 g × 0.85) = 7.208 + 3.740 = 10.948 g
+
+    DCP = min(13.41 g × 0.921, 10.948 g) = min(12.35 g, 10.948 g) = 10.948 g
+
+(The DIAAS-based figure is also separately capped at 1.0 when DIAAS exceeds 1.0, since digestible complete protein can never exceed total protein either way.)
 
 ---
 
@@ -3908,7 +4143,7 @@ For this meal:
 - **Lysine**, which is the classic weak point of grains, is met here (1.025) — the pinto beans contribute the lysine that quinoa alone would not cover.
 - **[Met+Cys](#gloss-met-cys)** is nearly exactly met at 0.998 — essentially at the reference.
 
-The [DCP](#gloss-dcp) of 12.35 g from 13.41 g of raw protein means that roughly 1.06 g of protein per meal is rendered non-contributory by the leucine shortfall. In practical terms, this is a high-quality plant-protein meal — [DIAAS](#gloss-diaas) above 0.9 is considered "good quality" by the [FAO](#gloss-fao).
+The [DCP](#gloss-dcp) of 10.948 g from 13.41 g of raw protein means that roughly 2.46 g of protein per meal is rendered non-contributory — most of that from the digestibility gap between the two foods, with the leucine shortfall further capping the naive DIAAS-only estimate. In practical terms, this is still a high-quality plant-protein meal — [DIAAS](#gloss-diaas) above 0.9 is considered "good quality" by the [FAO](#gloss-fao).
 
 ---
 
