@@ -2441,49 +2441,57 @@ async def food_custom_profiles_delete(fdc_id: int):
     return RedirectResponse("/food/custom-profiles", status_code=303)
 
 
+def _search_food_sources(conn, q: str, exclude_id: int) -> list[dict]:
+    """Shared search-cache-then-USDA lookup used by both the AA-copy and
+    nutrient-copy pickers on the custom-profile edit page."""
+    results = [
+        dict(r) for r in _db.search_cached_foods(conn, q)
+        if r["fdc_id"] != exclude_id
+    ]
+    for r in results:
+        n = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
+        r["has_aa"] = _usda.has_amino_acid_data(n)
+    seen_ids: set[int] = {exclude_id} | {r["fdc_id"] for r in results}
+
+    # USDA search runs after the cache lookup above, and other than fdc_id
+    # (needed to exclude self/dupes) uses no DB connection — a slow network
+    # call must never run with a connection held open (see CLAUDE.md).
+    try:
+        general = _usda.search_foods(q)
+        foundation = _usda.search_foods(q, data_types=["Foundation", "SR Legacy"])
+        found_ids = {f["fdcId"] for f in foundation}
+        for food in foundation + [f for f in general if f["fdcId"] not in found_ids]:
+            fid = food.get("fdcId")
+            if not fid or fid in seen_ids:
+                continue
+            seen_ids.add(fid)
+            dtype = food.get("dataType", "")
+            results.append({
+                "fdc_id":    fid,
+                "name":      food.get("description", ""),
+                "data_type": dtype,
+                "has_aa":    dtype in ("Foundation", "SR Legacy"),
+            })
+    except Exception:
+        pass
+    return results
+
+
 @app.get("/food/custom-profiles/{fdc_id}/edit", response_class=HTMLResponse)
 async def food_custom_profiles_edit_get(request: Request, fdc_id: int, aa_source_q: str = Query(default=""),
-                                        aa_applied: str = Query(default="")):
+                                        aa_applied: str = Query(default=""),
+                                        nutrient_source_q: str = Query(default=""),
+                                        nutrients_applied: str = Query(default="")):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         if not cached:
             return RedirectResponse("/food/custom-profiles", status_code=303)
         aa_source_results = []
-        seen_ids: set[int] = {fdc_id}
         if aa_source_q.strip():
-            q = aa_source_q.strip()
-            aa_source_results = [
-                dict(r) for r in _db.search_cached_foods(conn, q)
-                if r["fdc_id"] != fdc_id
-            ]
-            for r in aa_source_results:
-                n = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
-                r["has_aa"] = _usda.has_amino_acid_data(n)
-            seen_ids |= {r["fdc_id"] for r in aa_source_results}
-
-    # USDA search runs after the cache lookup above, and other than fdc_id
-    # (needed to exclude self/dupes) uses no DB connection — a slow network
-    # call must never run with a connection held open (see CLAUDE.md).
-    if aa_source_q.strip():
-        q = aa_source_q.strip()
-        try:
-            general = _usda.search_foods(q)
-            foundation = _usda.search_foods(q, data_types=["Foundation", "SR Legacy"])
-            found_ids = {f["fdcId"] for f in foundation}
-            for food in foundation + [f for f in general if f["fdcId"] not in found_ids]:
-                fid = food.get("fdcId")
-                if not fid or fid in seen_ids:
-                    continue
-                seen_ids.add(fid)
-                dtype = food.get("dataType", "")
-                aa_source_results.append({
-                    "fdc_id":    fid,
-                    "name":      food.get("description", ""),
-                    "data_type": dtype,
-                    "has_aa":    dtype in ("Foundation", "SR Legacy"),
-                })
-        except Exception:
-            pass
+            aa_source_results = _search_food_sources(conn, aa_source_q.strip(), fdc_id)
+        nutrient_source_results = []
+        if nutrient_source_q.strip():
+            nutrient_source_results = _search_food_sources(conn, nutrient_source_q.strip(), fdc_id)
 
     nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
     field_groups = [
@@ -2503,6 +2511,9 @@ async def food_custom_profiles_edit_get(request: Request, fdc_id: int, aa_source
         "aa_source_q": aa_source_q.strip(),
         "aa_source_results": aa_source_results,
         "aa_applied": aa_applied,
+        "nutrient_source_q": nutrient_source_q.strip(),
+        "nutrient_source_results": nutrient_source_results,
+        "nutrients_applied": nutrients_applied,
     })
 
 
@@ -2627,6 +2638,62 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
         )
         _recipe_dcp.cascade_food_change(fdc_id, conn)
     return RedirectResponse(f"/food/custom-profiles/{fdc_id}/edit?aa_applied=ok", status_code=303)
+
+
+@app.post("/food/custom-profiles/{fdc_id}/copy-nutrients", response_class=RedirectResponse)
+async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = Form(...)):
+    """Overwrite this food's entire nutrient profile with a raw (unscaled) copy
+    of a source food's per-100g values — a quick way to seed a blank draft
+    before hand-editing. Independent of copy-aa: either can overwrite the
+    other's fields, since this replaces the whole nutrients dict wholesale."""
+    with _db.get_db() as conn:
+        target = _db.get_cached_food(conn, fdc_id)
+        if not target:
+            return RedirectResponse("/food/custom-profiles", status_code=303)
+        source = _db.get_cached_food(conn, source_fdc_id)
+
+    if not source:
+        try:
+            detail = _usda.get_food_detail(source_fdc_id)
+        except Exception:
+            return RedirectResponse(
+                f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=source_fetch_failed", status_code=303
+            )
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn, fdc_id=detail["fdcId"], name=detail["name"],
+                data_type=detail.get("dataType", ""),
+                brand=detail.get("brand"),
+                serving_size=detail.get("servingSize"),
+                serving_unit=detail.get("servingUnit"),
+                nutrients=detail.get("nutrients", {}),
+                portions=detail.get("portions", []),
+            )
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
+            source = _db.get_cached_food(conn, source_fdc_id)
+
+    source_nutrients = json.loads(source["nutrients_json"]) if source["nutrients_json"] else {}
+    if not source_nutrients:
+        return RedirectResponse(
+            f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=error", status_code=303
+        )
+
+    portions_json = target["portions_json"]
+    portions: list[dict] = json.loads(portions_json) if portions_json and portions_json != "null" else []
+    note = _aa_estimate.copy_nutrients_note(source["name"], source_fdc_id)
+    with _db.get_db() as conn:
+        _db.update_cached_food_profile(
+            conn, fdc_id, target["name"], dict(source_nutrients),
+            data_type=target["data_type"] or "User Drafted",
+            brand=target["brand"],
+            serving_size=target["serving_size"],
+            serving_unit=target["serving_unit"],
+            portions=portions,
+            notes=note,
+            user_drafted=True,
+        )
+        _recipe_dcp.cascade_food_change(fdc_id, conn)
+    return RedirectResponse(f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=ok", status_code=303)
 
 
 @app.post("/food/custom-profiles/copy/{fdc_id}", response_class=RedirectResponse)
@@ -2997,6 +3064,7 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
         [_iaa_row(k, v) for k, v in diaas_result.get("iaa_ratios", {}).items()],
         key=lambda r: r["label"],
     )
+    eff_score = min(score, 1.0)
     ing_rows = []
     omitted_low_protein = False
     for ing in diaas_result.get("ingredients", []):
@@ -3005,7 +3073,8 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
             omitted_low_protein = True
             continue
         d = ing.get("digestibility", 1.0)
-        dig_p = p * d if ing.get("has_aa_data") else p
+        has_aa = ing.get("has_aa_data", False)
+        dig_p = p * d if has_aa else p
         src = ing.get("dig_source", "")
         src_tag = "user" if "user override" in src else ("~est" if "estimate" in src else "")
         ing_rows.append({
@@ -3015,15 +3084,16 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
             "protein_g":            round(p, 1),
             "digestibility":        round(d, 2),
             "digestible_protein_g": round(dig_p, 1),
-            "has_aa":               ing.get("has_aa_data", False),
+            "has_aa":               has_aa,
             "src_tag":              src_tag,
+            "dcp_g":                round(p * eff_score, 1) if has_aa else None,
         })
     aa_p = diaas_result.get("aa_protein_g") or total_p
     raw_dcp = diaas_result.get("digestible_complete_protein_g") or 0
     dcp_g = round(raw_dcp, 1)
-    eff_pct = round(min(score, 1.0) * 100, 0)
+    eff_pct = round(eff_score * 100, 0)
     aa_dig_p = diaas_result.get("aa_dig_protein_g")
-    uncapped_dcp = aa_p * min(score, 1.0)
+    uncapped_dcp = aa_p * eff_score
     dcp_was_capped = aa_dig_p is not None and raw_dcp < uncapped_dcp - 0.05
     avg_digestibility = (aa_dig_p / aa_p) if (dcp_was_capped and aa_p > 0) else None
     protein_by_name = {
@@ -3303,6 +3373,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
         if row["item_type"] == "food" and row["fdc_id"]:
             cached = _db.get_cached_food(conn, row["fdc_id"])
             nuts_100g = json.loads(cached["nutrients_json"]) if cached and cached["nutrients_json"] else {}
+            portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
             grams = float(row["amount"])
             scaled = _usda.scale_nutrients(nuts_100g, grams)
             for k, v in scaled.items():
@@ -3316,6 +3387,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 "unit":      "g",
                 "notes":     row["notes"] or "",
                 "has_nuts":  bool(nuts_100g),
+                "portions":  portions,
             })
             if nuts_100g:
                 ingredients.append({
@@ -4476,6 +4548,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
     with _db.get_db() as conn:
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
         recompute_errors = [dict(r) for r in _db.list_unresolved_recompute_errors(conn)]
+        starter_status = _demo_data.starter_status(conn)
 
     nutrient_target_rows = []
     if profile:
@@ -4523,6 +4596,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "starter_food_count":   len(_demo_data.DEMO_FOODS),
         "starter_pantry_count": len(_demo_data.DEMO_PANTRY),
         "starter_recipe_count": len(_demo_data.DEMO_RECIPES),
+        "starter_status":       starter_status,
         "recompute_errors":     recompute_errors,
         "recompute_retry":      recompute_retry,
     })
@@ -4680,6 +4754,22 @@ async def settings_demo_data_clear():
     return RedirectResponse("/settings?saved=starter_data_cleared", status_code=303)
 
 
+@app.post("/settings/starter-data/restore", response_class=RedirectResponse)
+async def settings_demo_data_restore(request: Request):
+    """Selectively re-add starter foods/pantry items/recipes checked in the
+    Settings restore list, skipping anything already present. See
+    numa_app.services.demo_data.restore_selected() for the dependency rules
+    (a checked pantry item or recipe also restores its underlying food)."""
+    from numa_app.services import demo_data as _demo_data
+    form = await request.form()
+    food_fdc_ids = [int(v) for v in form.getlist("food_fdc_id")]
+    pantry_names = form.getlist("pantry_name")
+    recipe_names = form.getlist("recipe_name")
+    with _db.get_db() as conn:
+        _demo_data.restore_selected(conn, food_fdc_ids, pantry_names, recipe_names)
+    return RedirectResponse("/settings?saved=starter_data_restored#starter-data", status_code=303)
+
+
 @app.post("/settings/meal-nutrients", response_class=RedirectResponse)
 async def settings_meal_nutrients_post(request: Request):
     """Save the ordered list of extra nutrient columns for the Meals & Log list."""
@@ -4805,6 +4895,205 @@ async def recipe_new_post(
             total_weight_unit=total_weight_unit if tw else None,
         )
     return RedirectResponse(f"/recipe/{rid}/edit", status_code=303)
+
+
+# Recipe comparison
+# ---------------------------------------------------------------------------
+
+_MAX_COMPARE_RECIPES = 6
+
+
+def _parse_recipe_compare_ids(ids_str: str) -> list[int]:
+    return [int(x) for x in ids_str.split(",") if x.strip()] if ids_str.strip() else []
+
+
+def _load_recipe_compare_entries(conn, recipe_ids: list[int], unit: str) -> list[dict]:
+    """Load recipe data for comparison. unit='serving' scales nutrients to one
+    serving of each recipe — the fair basis for comparing recipes with
+    different batch sizes; unit='batch' uses the whole recipe as authored."""
+    entries = []
+    for rid in recipe_ids:
+        recipe = _db.recipe_get(conn, rid)
+        if not recipe:
+            continue
+        servings = float(recipe["servings"] or 1)
+        per_serving = _recipe_nutrients_per_serving(rid, conn)
+        nutrients = per_serving if unit == "serving" else {k: v * servings for k, v in per_serving.items()}
+        ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, rid)]
+
+        target_servings = 1.0 if unit == "serving" else servings
+        diaas_display = None
+        diaas_ingredients = _flatten_recipe_diaas_ingredients(rid, conn, target_servings)
+        if diaas_ingredients:
+            try:
+                diaas_result = _diaas.meal_level_diaas(diaas_ingredients, conn)
+            except Exception:
+                diaas_result = None
+            diaas_display = _build_diaas_display(diaas_result)
+
+        entries.append({
+            "id":          rid,
+            "name":        recipe["name"],
+            "servings":    servings,
+            "nutrients":   nutrients,
+            "ingredients": ingredients,
+            "diaas":       diaas_display,
+        })
+    return entries
+
+
+def _build_protein_quality_rows(entries: list[dict]) -> list[dict]:
+    """Build protein-quality comparison rows (DIAAS score, limiting amino acid,
+    raw vs. digestible complete protein) — one row per metric, one cell per
+    recipe. Highest value per numeric row is flagged for highlighting."""
+    def _numeric_row(label, unit, getter):
+        values = [e["diaas"].get(getter) if e["diaas"] else None for e in entries]
+        numeric = [v for v in values if v is not None]
+        max_val = max(numeric) if numeric else None
+        cells = [
+            {"value": v, "is_max": (v is not None and max_val is not None and v == max_val)}
+            for v in values
+        ]
+        return {"label": label, "unit": unit, "cells": cells}
+
+    for e in entries:
+        if e["diaas"] and e["diaas"].get("eff_pct") is not None:
+            e["diaas"]["eff_pct"] = int(e["diaas"]["eff_pct"])
+
+    rows = [
+        _numeric_row("Composite DIAAS score", "", "score"),
+        _numeric_row("Raw protein", "g", "total_protein_g"),
+        _numeric_row("Digestible complete protein (DCP)", "g", "dcp_g"),
+        _numeric_row("DCP as % of raw protein", "%", "eff_pct"),
+    ]
+    limiting_cells = [
+        {"value": e["diaas"].get("limiting_label") if e["diaas"] else None, "is_max": False}
+        for e in entries
+    ]
+    rows.append({"label": "Limiting amino acid", "unit": "", "cells": limiting_cells})
+    return rows if any(e["diaas"] for e in entries) else []
+
+
+_GRAM_NUM_RE = re.compile(r'(\d+(?:\.\d+)?)(\s*gr?\b)')
+
+
+def _round_grams_in_label(label: str) -> str:
+    """Round any gram figure in a display label to a whole number — fractional
+    grams aren't meaningful at cooking precision, and this table is a quick
+    side-by-side scan, not a place for hundredths-of-a-gram accuracy."""
+    return _GRAM_NUM_RE.sub(lambda m: f"{round(float(m.group(1)))}{m.group(2)}", label)
+
+
+def _build_recipe_ingredient_rows(entries: list[dict]) -> list[dict]:
+    """Union of ingredient names across the given recipe entries into one row
+    per distinct ingredient, one cell per recipe holding its amount/unit (or
+    None if that recipe doesn't use it). Ingredients shared by 2+ recipes are
+    listed first — that's the interesting case for spotting why recipes
+    differ — then recipe-unique ingredients, both alphabetized."""
+    rows_by_name: dict[str, dict] = {}
+    for i, entry in enumerate(entries):
+        for ing in entry["ingredients"]:
+            row = rows_by_name.setdefault(ing["food_name"], {
+                "name":      ing["food_name"],
+                "is_recipe": bool(ing["ref_recipe_id"]),
+                "cells":     [None] * len(entries),
+            })
+            display = _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"])
+            row["cells"][i] = {"display": _round_grams_in_label(display)}
+    rows = list(rows_by_name.values())
+    for row in rows:
+        row["shared_count"] = sum(1 for c in row["cells"] if c is not None)
+    rows.sort(key=lambda r: (-r["shared_count"], r["name"].lower()))
+    return rows
+
+
+@app.get("/recipe/compare", response_class=HTMLResponse)
+async def recipe_compare_get(
+    request: Request,
+    ids:     str = "",
+    search:  str = "",
+    unit:    str = "serving",
+    error:   str = "",
+):
+    unit = unit if unit in ("serving", "batch") else "serving"
+    id_list = _parse_recipe_compare_ids(ids)
+    search = search.strip()
+    search_results: list[dict] = []
+    with _db.get_db() as conn:
+        entries = _load_recipe_compare_entries(conn, id_list, unit)
+        if search:
+            words = search.lower().split()
+            seen = set(id_list)
+            for r in _db.recipe_list_recent(conn, limit=200):
+                if r["id"] in seen:
+                    continue
+                if any(w in r["name"].lower() for w in words):
+                    search_results.append(dict(r))
+
+    ingredient_rows = _build_recipe_ingredient_rows(entries) if len(entries) >= 2 else []
+    compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
+    protein_quality_rows = _build_protein_quality_rows(entries) if len(entries) >= 2 else []
+    ids_str = ",".join(str(e["id"]) for e in entries)
+
+    return templates.TemplateResponse(request, "recipe_compare.html", {
+        "entries":              entries,
+        "ingredient_rows":      ingredient_rows,
+        "compare_groups":       compare_groups,
+        "protein_quality_rows": protein_quality_rows,
+        "ids_str":              ids_str,
+        "search":               search,
+        "search_results":       search_results,
+        "unit":                 unit,
+        "error":                error,
+        "max_recipes":          _MAX_COMPARE_RECIPES,
+    })
+
+
+@app.post("/recipe/compare/add", response_class=RedirectResponse)
+async def recipe_compare_add(
+    recipe_id: int = Form(...),
+    ids:       str = Form(""),
+    unit:      str = Form("serving"),
+):
+    id_list = _parse_recipe_compare_ids(ids)
+    if len(id_list) >= _MAX_COMPARE_RECIPES:
+        ids_str = ",".join(str(i) for i in id_list)
+        return RedirectResponse(
+            f"/recipe/compare?ids={ids_str}&unit={unit}"
+            f"&error=Maximum+{_MAX_COMPARE_RECIPES}+recipes+allowed",
+            status_code=303,
+        )
+    if recipe_id not in id_list:
+        id_list.append(recipe_id)
+    ids_str = ",".join(str(i) for i in id_list)
+    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
+
+
+@app.post("/recipe/compare/add-multiple", response_class=RedirectResponse)
+async def recipe_compare_add_multiple(request: Request, ids: str = Form(""), unit: str = Form("serving")):
+    form = await request.form()
+    recipe_id_strs = form.getlist("recipe_id")
+    id_list = _parse_recipe_compare_ids(ids)
+    for rid_str in recipe_id_strs:
+        try:
+            rid = int(rid_str)
+        except (ValueError, TypeError):
+            continue
+        if rid not in id_list and len(id_list) < _MAX_COMPARE_RECIPES:
+            id_list.append(rid)
+    ids_str = ",".join(str(i) for i in id_list)
+    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
+
+
+@app.post("/recipe/compare/remove", response_class=RedirectResponse)
+async def recipe_compare_remove(
+    remove_id: int = Form(...),
+    ids:       str = Form(""),
+    unit:      str = Form("serving"),
+):
+    id_list = [i for i in _parse_recipe_compare_ids(ids) if i != remove_id]
+    ids_str = ",".join(str(i) for i in id_list)
+    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
 
 
 def _recipe_detail_context(recipe_id: int, servings: float | None,
@@ -6138,7 +6427,7 @@ async def analysis_food_use(
         "id":        lambda e: (e["fdc_id"] is None, e["fdc_id"] or 0),
     }
     rows_sorted = sorted(rows_all, key=sort_keys.get(sort, sort_keys["frequency"]))
-    max_days = len(rows_sorted[0]["days"]) if rows_sorted else 0
+    total_days = len({m["meal_date"] for m in meals_by_id.values()})
     result_rows = [{
         "fdc_id":    r["fdc_id"],
         "name":      r["name"],
@@ -6147,7 +6436,7 @@ async def analysis_food_use(
         "recipe_id": r["recipe_id"],
         "days":      len(r["days"]),
         "meals":     len(r["meal_ids"]),
-        "pct":       round(len(r["days"]) / max_days * 100, 0) if max_days else 0,
+        "pct":       round(len(r["days"]) / total_days * 100, 0) if total_days else 0,
         "meal_ids":  sorted(r["meal_ids"]),
     } for r in rows_sorted]
 
@@ -6161,7 +6450,7 @@ async def analysis_food_use(
         "missing_ids":   missing_ids,
         "rows":          result_rows,
         "total_meals":   len(meals_by_id),
-        "total_days":    len({m["meal_date"] for m in meals_by_id.values()}),
+        "total_days":    total_days,
         "submitted":     bool(ranges or requested_ids),
     })
 

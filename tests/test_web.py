@@ -631,6 +631,36 @@ def test_settings_demo_data_load_and_clear(client: TestClient, tmp_path: pathlib
     assert "Load starter data" in resp.text
 
 
+def test_settings_starter_data_restore_selected(client: TestClient, tmp_path: pathlib.Path,
+                                                  monkeypatch: pytest.MonkeyPatch) -> None:
+    from numa_app.services import demo_data
+    monkeypatch.setattr(demo_data, "_MARKER_FILE", tmp_path / "demo_data.json")
+
+    food = demo_data.DEMO_FOODS[0]
+    resp = client.get("/settings")
+    assert f"{food['fdc_id']} — {food['name']}" in resp.text
+
+    resp = client.post(
+        "/settings/starter-data/restore",
+        data={"food_fdc_id": [str(food["fdc_id"])]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/settings?saved=starter_data_restored#starter-data"
+
+    with _db.get_db() as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM foods WHERE fdc_id=?", (food["fdc_id"],)
+        ).fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM foods").fetchone()[0] == 1
+
+    resp = client.get("/settings")
+    # No longer offered as a restore checkbox (it's present now)...
+    assert f'value="{food["fdc_id"]}"' not in resp.text
+    # ...but still listed in the always-visible "View all starter data" list.
+    assert f"{food['fdc_id']} — {food['name']}" in resp.text
+
+
 def test_settings_meal_nutrients_save_and_render(client: TestClient, cached_food) -> None:
     """Saving Sodium at position 1 in Settings shows it as a column on /meals."""
     resp = client.post(
@@ -1037,6 +1067,102 @@ def test_recipe_archive_hides_and_restore_reveals(client: TestClient, db_conn) -
     assert "restored=1" in resp.headers["location"]
     resp = client.get("/recipes")
     assert "Soup" in resp.text
+
+
+def _make_recipe(client: TestClient, name: str, servings: float, fdc_id: int, food_name: str,
+                  portion_str: str) -> int:
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": name, "servings": servings}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": fdc_id, "food_name": food_name, "portion_str": portion_str},
+        follow_redirects=False,
+    )
+    return recipe_id
+
+
+def test_recipe_compare_add_remove_and_cap(client: TestClient, cached_food) -> None:
+    r1 = _make_recipe(client, "Recipe One", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+    r2 = _make_recipe(client, "Recipe Two", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+
+    resp = client.post("/recipe/compare/add", data={"recipe_id": r1, "ids": ""}, follow_redirects=False)
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert f"ids={r1}" in location
+
+    resp = client.post("/recipe/compare/add", data={"recipe_id": r2, "ids": str(r1)}, follow_redirects=False)
+    ids_param = resp.headers["location"].split("ids=")[1].split("&")[0]
+    assert ids_param == f"{r1},{r2}"
+
+    resp = client.get(f"/recipe/compare?ids={r1},{r2}")
+    assert resp.status_code == 200
+    assert "Recipe One" in resp.text
+    assert "Recipe Two" in resp.text
+    assert "Nutrient comparison" in resp.text
+
+    resp = client.post(
+        "/recipe/compare/remove",
+        data={"remove_id": r1, "ids": f"{r1},{r2}"},
+        follow_redirects=False,
+    )
+    ids_param = resp.headers["location"].split("ids=")[1].split("&")[0]
+    assert ids_param == str(r2)
+
+    # Cap at _MAX_COMPARE_RECIPES (6): pad ids with dummy ids just under the cap.
+    padded_ids = ",".join(str(i) for i in range(100, 106))
+    resp = client.post(
+        "/recipe/compare/add", data={"recipe_id": r1, "ids": padded_ids}, follow_redirects=False,
+    )
+    assert "error=Maximum" in resp.headers["location"]
+
+
+def test_recipe_compare_ingredient_table_shows_shared_and_unique(
+    client: TestClient, cached_food, second_cached_food,
+) -> None:
+    r1 = _make_recipe(client, "Shares Chicken", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+    client.post(
+        f"/recipe/{r1}/ingredient/add",
+        data={"fdc_id": second_cached_food["fdcId"], "food_name": second_cached_food["name"], "portion_str": "50 g"},
+        follow_redirects=False,
+    )
+    r2 = _make_recipe(client, "Also Chicken", 1, cached_food["fdcId"], cached_food["name"], "200 g")
+
+    resp = client.get(f"/recipe/compare?ids={r1},{r2}")
+    assert resp.status_code == 200
+    # Shared ingredient shows both amounts.
+    assert "100.0" in resp.text or "100" in resp.text
+    assert "200.0" in resp.text or "200" in resp.text
+    # Unique-to-one-recipe ingredient still listed, with a "—" for the other.
+    assert second_cached_food["name"] in resp.text
+    assert "—" in resp.text
+
+
+def test_recipe_compare_nutrient_scaling_per_serving_vs_batch(client: TestClient, cached_food) -> None:
+    # 2 servings, 200g of a food with 31.0 g protein/100g => 62g total, 31g/serving.
+    r1 = _make_recipe(client, "Scaled Recipe", 2, cached_food["fdcId"], cached_food["name"], "200 g")
+    r2 = _make_recipe(client, "Other Recipe", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+
+    resp = client.get(f"/recipe/compare?ids={r1},{r2}&unit=serving")
+    assert resp.status_code == 200
+    assert "31.0" in resp.text  # per-serving protein for both recipes
+
+    resp = client.get(f"/recipe/compare?ids={r1},{r2}&unit=batch")
+    assert resp.status_code == 200
+    assert "62.0" in resp.text  # whole-batch protein for the 2-serving recipe
+
+
+def test_recipe_compare_protein_quality_section(client: TestClient, cached_food) -> None:
+    r1 = _make_recipe(client, "AA Recipe One", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+    r2 = _make_recipe(client, "AA Recipe Two", 1, cached_food["fdcId"], cached_food["name"], "200 g")
+
+    resp = client.get(f"/recipe/compare?ids={r1},{r2}")
+    assert resp.status_code == 200
+    assert "Protein quality comparison" in resp.text
+    assert "Composite DIAAS score" in resp.text
+    assert "Digestible complete protein (DCP)" in resp.text
+    assert "Limiting amino acid" in resp.text
 
 
 def test_recreated_recipe_offers_relink_to_broken_refs(client: TestClient, db_conn) -> None:

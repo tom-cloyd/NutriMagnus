@@ -49,3 +49,10 @@ def source_note(source_name: str, source_fdc_id: "int | None", factor: float) ->
         f"AA data estimated by scaling from {source_name}{id_part}, "
         f"factor {factor:.2f}x, {date.today().isoformat()}"
     )
+
+
+def copy_nutrients_note(source_name: str, source_fdc_id: "int | None") -> str:
+    """Free-text note documenting a whole-profile nutrient copy (unscaled,
+    unlike source_note's AA scaling)."""
+    id_part = f" (#{source_fdc_id})" if source_fdc_id else ""
+    return f"Nutrient profile copied from {source_name}{id_part}, {date.today().isoformat()}"

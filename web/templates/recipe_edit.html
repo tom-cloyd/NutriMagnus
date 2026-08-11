@@ -19,13 +19,6 @@
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 {% endif %}
-{% if error %}
-<div class="alert alert-danger alert-dismissible fade show" role="alert">
-  {{ error }}
-  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
-{% endif %}
-
 {% if relinked %}
 {% set relinked_parts = relinked.split(",") %}
 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -149,11 +142,17 @@
 </details>
 
 {# ── Ingredients ──────────────────────────────────────────────────────── #}
-<details open>
+{% if error %}
+<div class="alert alert-danger alert-dismissible fade show" role="alert">
+  {{ error }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+<details id="sec-ingredients" open>
   <summary><strong>Ingredients ({{ ingredients|length }})</strong></summary>
 
   {% if ingredients %}
-  <table class="nutrient-table mt-2">
+  <table class="nutrient-table list-table mt-2">
     <thead>
       <tr>
         <th class="num-col">#</th>
@@ -167,7 +166,7 @@
     </thead>
     <tbody>
       {% for ing in ingredients %}
-      <tr>
+      <tr style="position:relative">
         <td class="num-col muted">{{ loop.index }}</td>
         <td class="num-col" style="white-space:nowrap">
           {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
@@ -202,7 +201,7 @@
         <td>
           <details>
             <summary class="btn btn-outline-secondary btn-sm" style="list-style:none;cursor:pointer">Edit</summary>
-            <div class="card card-body p-2 mt-1" style="min-width:22rem;position:absolute;z-index:10">
+            <div class="card card-body p-2 mt-1" style="min-width:22rem;position:absolute;right:0;z-index:10">
               <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/edit"
                     class="d-flex flex-column gap-2">
                 <input type="hidden" name="q" value="{{ q }}">
@@ -211,7 +210,7 @@
                   <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
                   <input type="text" name="portion_str"
                          value="{{ ing.amount_display if not ing.ref_recipe_id else (ing.amount | round(2) | string | replace('.0', '')) }}"
-                         class="form-control form-control-sm" style="width:14rem" required>
+                         class="form-control form-control-sm" style="width:12rem" required>
                 </div>
                 {% if not ing.ref_recipe_id %}
                 <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp &middot; p1, 6&thinsp;p1 (USDA preset)</div>

@@ -3,6 +3,13 @@
 {% block layout_class %}container{% endblock %}
 
 {% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/summary">Daily Summary</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Multiday Nutrient Trend</li>
+  </ol>
+</nav>
+
 <h2>Multiday Nutrient Trend {{ manual_link("goals") }}</h2>
 <p class="muted">
   Average daily nutrient intake across the days you actually logged meals in the window below —

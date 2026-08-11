@@ -1377,7 +1377,12 @@ def pantry_get(conn: sqlite3.Connection, pantry_id: int) -> sqlite3.Row | None:
 # ---------------------------------------------------------------------------
 
 def next_user_drafted_fdc_id(conn: sqlite3.Connection) -> int:
-    row = conn.execute("SELECT MIN(fdc_id) AS min_id FROM foods WHERE fdc_id < 0").fetchone()
+    # Scoped to (-1_000_000_000, 0) so this never wanders into Open Food Facts'
+    # reserved negative range (see food_ids._OFF_ID_THRESHOLD / openfoodfacts._OFF_ID_BASE),
+    # which would mislabel the new draft as an OFF food.
+    row = conn.execute(
+        "SELECT MIN(fdc_id) AS min_id FROM foods WHERE fdc_id < 0 AND fdc_id > -1000000000"
+    ).fetchone()
     min_id = row["min_id"] if row and row["min_id"] is not None else 0
     return int(min_id) - 1 if min_id <= 0 else -1
 

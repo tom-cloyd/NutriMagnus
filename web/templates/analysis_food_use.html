@@ -2,6 +2,13 @@
 {% block title %}NutriMagnus — Food Use in Meals{% endblock %}
 
 {% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/summary">Analysis</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Food Use in Meals</li>
+  </ol>
+</nav>
+
 <h2>Food Use in Meals {{ manual_link("fooduse") }}</h2>
 <p class="muted">Tabulates which foods appear across a set of meals you choose, ranked by how many distinct days each food was used.</p>
 
@@ -98,7 +105,7 @@
           <th>Kind</th>
           <th class="num-col">Days used</th>
           <th class="num-col">Meals</th>
-          <th style="min-width:14rem">Frequency</th>
+          <th style="min-width:14rem">% of Days<br>in Range</th>
           <th style="min-width:24rem">Meal IDs</th>
         </tr>
       </thead>
@@ -115,7 +122,7 @@
           <td class="num-col">{{ r.days }}</td>
           <td class="num-col">{{ r.meals }}</td>
           <td>
-            <div class="progress" role="progressbar" aria-label="Days used" aria-valuenow="{{ r.pct|int }}" aria-valuemin="0" aria-valuemax="100" style="height:1rem">
+            <div class="progress" role="progressbar" aria-label="Percent of days in range this food was used" aria-valuenow="{{ r.pct|int }}" aria-valuemin="0" aria-valuemax="100" style="height:1rem">
               <div class="progress-bar" style="width: {{ r.pct|int }}%"></div>
             </div>
           </td>
@@ -128,7 +135,8 @@
     </table>
   </div>
   <p class="muted"><small>
-    Days used = distinct calendar days the food appeared in this analysis set &middot;
+    <strong>Days used</strong> = distinct calendar days the food appeared in this analysis set &middot;
+    <strong>% of Days in Range</strong> = days used &divide; {{ total_days }} total day(s) covered by this search &middot;
     recipe rows show the recipe itself; its ingredients are also listed individually &middot;
     "recipe (deleted)" means the recipe was removed after being used in that meal; its own ingredient breakdown is no longer available.
   </small></p>

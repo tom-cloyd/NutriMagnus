@@ -456,6 +456,9 @@
   {% if saved == 'starter_data_cleared' %}
   <p class="status-met mt-2"><strong>&#10003; Starter data cleared.</strong></p>
   {% endif %}
+  {% if saved == 'starter_data_restored' %}
+  <p class="status-met mt-2"><strong>&#10003; Selected starter items restored.</strong></p>
+  {% endif %}
 
   {% if not starter_data_loaded %}
   <p class="mt-2 muted"><small>
@@ -472,8 +475,72 @@
   <form method="post" action="/settings/starter-data/clear"
         onsubmit="return confirm('Remove all starter foods, pantry items, and recipes? This cannot be undone.')">
     <button type="submit" class="btn btn-outline-danger btn-sm">Clear starter data</button>
+    <p class="mt-2 muted"><small>
+      Removes the {{ starter_food_count }} starter foods from your Food Cache, the {{ starter_pantry_count }}
+      starter items from your Pantry, and the {{ starter_recipe_count }} starter recipes from your Recipes list —
+      exactly what "Load starter data" added. Nothing else in your Food Cache, Pantry, or Recipes list is touched,
+      even if you renamed or edited a starter item afterward.
+    </small></p>
   </form>
   {% endif %}
+
+  {% set missing_foods = starter_status.foods|selectattr('present', 'equalto', false)|list %}
+  {% set missing_pantry = starter_status.pantry|selectattr('present', 'equalto', false)|list %}
+  {% set missing_recipes = starter_status.recipes|selectattr('present', 'equalto', false)|list %}
+  <details class="mt-2" id="starter-data-restore">
+    <summary><small>Restore individual starter items ({{ starter_status.foods|length }} foods, fdc_id shown)</small></summary>
+    {% if not (missing_foods or missing_pantry or missing_recipes) %}
+    <p class="mt-2 muted"><small>Every starter food, pantry item, and recipe is already present — nothing to restore.</small></p>
+    {% else %}
+    <p class="mt-2 muted"><small>
+      Check specific items and restore just those, without reloading everything. Checking a pantry item or recipe
+      also restores any starter food it depends on that isn't already in your Food Cache.
+    </small></p>
+    <form method="post" action="/settings/starter-data/restore">
+      {% if missing_foods %}
+      <p class="mt-2 mb-1"><small><strong>Foods</strong></small></p>
+      <ul class="mt-0 muted" style="max-height:12rem; overflow-y:auto; list-style:none; padding-left:0;">
+        {% for food in missing_foods %}
+        <li><small><label><input type="checkbox" name="food_fdc_id" value="{{ food.fdc_id }}"> {{ food.fdc_id }} — {{ food.name }}</label></small></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if missing_pantry %}
+      <p class="mt-2 mb-1"><small><strong>Pantry items</strong></small></p>
+      <ul class="mt-0 muted" style="list-style:none; padding-left:0;">
+        {% for item in missing_pantry %}
+        <li><small><label><input type="checkbox" name="pantry_name" value="{{ item.name }}"> {{ item.name }}</label></small></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if missing_recipes %}
+      <p class="mt-2 mb-1"><small><strong>Recipes</strong></small></p>
+      <ul class="mt-0 muted" style="list-style:none; padding-left:0;">
+        {% for recipe in missing_recipes %}
+        <li><small><label><input type="checkbox" name="recipe_name" value="{{ recipe.name }}"> {{ recipe.name }}</label></small></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <button type="submit" class="btn btn-outline-secondary btn-sm mt-2">Restore selected</button>
+    </form>
+    {% endif %}
+  </details>
+
+  <details class="mt-2" id="starter-data-list">
+    <summary><small>View all starter data ({{ starter_status.foods|length }} foods, {{ starter_status.recipes|length }} recipes — fdc_id and name)</small></summary>
+    <p class="mt-2 mb-1"><small><strong>Foods</strong></small></p>
+    <ul class="mt-0 muted" style="max-height:16rem; overflow-y:auto; list-style:none; padding-left:0;">
+      {% for food in starter_status.foods %}
+      <li><small>{{ food.fdc_id }} — {{ food.name }}</small></li>
+      {% endfor %}
+    </ul>
+    <p class="mt-2 mb-1"><small><strong>Recipes</strong></small></p>
+    <ul class="mt-0 muted" style="list-style:none; padding-left:0;">
+      {% for recipe in starter_status.recipes %}
+      <li><small>{{ recipe.name }}</small></li>
+      {% endfor %}
+    </ul>
+  </details>
 </details>
 
 {# ── 10. System issues ───────────────────────────────────────────────── #}

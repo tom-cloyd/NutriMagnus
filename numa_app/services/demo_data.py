@@ -138,4 +138,90 @@ def clear_demo_data(conn) -> dict:
         conn.execute("DELETE FROM foods WHERE fdc_id = ?", (fdc_id,))
 
     _MARKER_FILE.unlink()
+
+    return {"foods": len(fdc_ids), "pantry": len(pantry_ids), "recipes": len(recipe_ids)}
+
+
+def starter_status(conn) -> dict:
+    """Per-item presence of every starter food/pantry item/recipe in the
+    current DB, for the Settings selective-restore checkbox list. Checked
+    against the DB directly (not the load/clear marker file) so it stays
+    accurate even after a selective restore or a manual edit/delete of a
+    starter item."""
+    cached_ids = {row["fdc_id"] for row in conn.execute("SELECT fdc_id FROM foods").fetchall()}
+    pantry_pairs = {(row["food_name"], row["fdc_id"]) for row in _db.pantry_list(conn, include_archived=True)}
+    recipe_names = {row["name"] for row in _db.recipe_list(conn, include_archived=True)}
+
+    by_name = {f["name"]: f for f in DEMO_FOODS}
+    return {
+        "foods": [
+            {"fdc_id": f["fdc_id"], "name": f["name"], "present": f["fdc_id"] in cached_ids}
+            for f in DEMO_FOODS
+        ],
+        "pantry": [
+            {"name": name, "present": (name, by_name[name]["fdc_id"]) in pantry_pairs}
+            for name in DEMO_PANTRY
+        ],
+        "recipes": [
+            {"name": r["name"], "present": r["name"] in recipe_names}
+            for r in DEMO_RECIPES
+        ],
+    }
+
+
+def restore_selected(conn, food_fdc_ids: list[int], pantry_names: list[str], recipe_names: list[str]) -> dict:
+    """Add back specific starter foods/pantry items/recipes that aren't
+    already present, alongside (not replacing) the all-or-nothing
+    load_demo_data()/clear_demo_data(). Selecting a pantry item or recipe
+    auto-includes any starter food it depends on that isn't already cached,
+    since a pantry item or recipe ingredient can't exist without its food.
+    Items already present are skipped, so this is safe to call repeatedly
+    with an overlapping selection."""
+    by_name = {f["name"]: f for f in DEMO_FOODS}
+    by_fdc_id = {f["fdc_id"]: f for f in DEMO_FOODS}
+    cached_ids = {row["fdc_id"] for row in conn.execute("SELECT fdc_id FROM foods").fetchall()}
+
+    recipe_defs = [r for r in DEMO_RECIPES if r["name"] in recipe_names]
+    needed_fdc_ids = set(food_fdc_ids) | {by_name[name]["fdc_id"] for name in pantry_names}
+    for recipe in recipe_defs:
+        needed_fdc_ids |= {by_name[food_name]["fdc_id"] for food_name, _amount, _unit in recipe["ingredients"]}
+
+    added_foods = 0
+    for fdc_id in needed_fdc_ids:
+        if fdc_id in cached_ids:
+            continue
+        food = by_fdc_id[fdc_id]
+        _db.cache_food(
+            conn, food["fdc_id"], food["name"], food["data_type"],
+            None, None, None, food["nutrients"], food["portions"],
+            user_drafted=True, notes="Starter data",
+        )
+        cached_ids.add(fdc_id)
+        added_foods += 1
+
+    existing_pantry = {(row["food_name"], row["fdc_id"]) for row in _db.pantry_list(conn, include_archived=True)}
+    added_pantry = 0
+    for name in pantry_names:
+        fdc_id = by_name[name]["fdc_id"]
+        if (name, fdc_id) in existing_pantry:
+            continue
+        _db.pantry_add(conn, name, fdc_id, "Starter data")
+        added_pantry += 1
+
+    existing_recipes = {row["name"] for row in _db.recipe_list(conn, include_archived=True)}
+    added_recipes = 0
+    for recipe in recipe_defs:
+        if recipe["name"] in existing_recipes:
+            continue
+        rid = _db.recipe_create(
+            conn, name=recipe["name"], description=recipe["description"],
+            servings=recipe["servings"], instructions=recipe["instructions"],
+            complete=True,
+        )
+        for food_name, amount, unit in recipe["ingredients"]:
+            _db.recipe_add_ingredient(conn, rid, by_name[food_name]["fdc_id"], food_name, amount, unit)
+        _recipe_dcp.recompute_recipe_dcp(rid, conn)
+        added_recipes += 1
+
+    return {"foods": added_foods, "pantry": added_pantry, "recipes": added_recipes}
     return {"foods": len(fdc_ids), "pantry": len(pantry_ids), "recipes": len(recipe_ids)}

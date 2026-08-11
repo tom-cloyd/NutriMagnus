@@ -80,6 +80,10 @@
 <div class="mb-2">
   <h2>{{ food.name }}</h2>
   {{ food_id_tag(food.fdc_id) }}
+  {% if protein and protein.dcp_g is not none and protein.protein_raw %}
+  <p class="muted mb-1"><small>{% if portion_label %}{{ portion_label }}{% if " g" not in portion_label %} / {{ amount }}&thinsp;g{% endif %}{% else %}{{ amount }}&thinsp;g{% endif %} &rArr;
+    {{ protein.dcp_g }}&thinsp;g digestible complete protein &mdash; {{ (100 * protein.dcp_g / protein.protein_raw) | round | int }}% of {{ protein.protein_raw }}&thinsp;g raw protein</small></p>
+  {% endif %}
   <p class="muted">
     {% if food.brand %}{{ food.brand }} &middot; {% endif %}
     {{ food.data_type }}
@@ -101,10 +105,11 @@
   <p class="portion-label">
     <strong>Recalculate all nutrient values for a different amount:</strong>
     type any amount (e.g. <code>150</code> for grams, <code>3 oz</code>, <code>1/4 cup</code>, <code>2 T</code>){% if portions %} or choose a preset{% endif %}.
+    <a href="/food/cache/{{ food.fdc_id }}/portions">Manage portions for this food &rarr;</a>
   </p>
   {% if not portions %}
   <p class="muted"><small>No preset portions for this food — only per-100g data. You can add one (e.g. a per-egg or per-cup weight) from
-    <a href="/food/cache/{{ food.fdc_id }}/portions">Food Cache → Portions</a>. {{ manual_link("ts-no-piece-portion") }}</small></p>
+    the link above. {{ manual_link("ts-no-piece-portion") }}</small></p>
   {% endif %}
   <form method="get" action="/food/{{ food.fdc_id }}">
     <div class="portion-input-row">
@@ -156,25 +161,27 @@
   <div class="protein-summary-card {% if protein.complete %}psc-complete{% else %}psc-incomplete{% endif %}">
     <div class="ps-metric">
       <div class="ps-label">Digestible Complete Protein (DCP)</div>
-      <div class="ps-value">{{ protein.dcp_g }}&thinsp;g</div>
-      {% if protein.complete %}
-      <div class="ps-status status-met">&#10003; Complete protein</div>
-      {% else %}
-      <div class="ps-status status-gap">&#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}
-        {% if protein.limiting_score is not none %}({{ "%.3f"|format(protein.limiting_score) }}){% endif %}
+      <div class="ps-value-line">
+        <span class="ps-value">{{ protein.dcp_g }}&thinsp;g</span>
+        {% if protein.complete %}
+        <span class="ps-status status-met">— &#10003; Complete protein</span>
+        {% else %}
+        <span class="ps-status status-gap">— &#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}
+          {% if protein.limiting_score is not none %}({{ "%.3f"|format(protein.limiting_score) }}){% endif %}
+        </span>
+        {% endif %}
+      </div>
+      {% if protein.diaas is not none and protein.protein_raw is not none %}
+      <div class="ps-derivation">
+        (Computed from {{ protein.protein_raw }}&thinsp;g raw protein
+        &times; DIAAS&thinsp;{{ "%.2f"|format(protein.diaas) }}
+        {% if protein.protein_digestible is not none %}
+        = {{ protein.protein_digestible }}&thinsp;g digestible
+        &rarr; <strong>{{ protein.dcp_g }}&thinsp;g DCP</strong>
+        {% endif %})
       </div>
       {% endif %}
     </div>
-    {% if protein.diaas is not none and protein.protein_raw is not none %}
-    <div class="ps-derivation">
-      {{ protein.protein_raw }}&thinsp;g raw protein
-      &times; DIAAS&thinsp;{{ "%.2f"|format(protein.diaas) }}
-      {% if protein.protein_digestible is not none %}
-      = {{ protein.protein_digestible }}&thinsp;g digestible
-      &rarr; <strong>{{ protein.dcp_g }}&thinsp;g DCP</strong>
-      {% endif %}
-    </div>
-    {% endif %}
   </div>
   {% elif protein.diaas is not none %}
   <div class="protein-summary-card psc-unknown">
@@ -610,8 +617,9 @@ document.getElementById('complements-form').addEventListener('change', function 
 {# ── Add to Pantry ───────────────────────────────────────────────────── #}
 <hr>
 <section id="sec-pantry" class="analysis-section">
-  <h3 class="section-heading">Add to Pantry {{ manual_link("pantry") }}
+  <h3 class="section-heading">Add to Pantry
     <span class="muted" style="font-size:.9rem;font-weight:400"> — save this food for complement suggestions</span>
+    {{ manual_link("pantry") }}
   </h3>
   <form method="post" action="/pantry/add" class="mt-2" style="max-width:28rem">
     <input type="hidden" name="food_name" value="{{ food.name }}">

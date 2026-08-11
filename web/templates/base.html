@@ -374,7 +374,13 @@
     }
 
     var dirtyForms = new Set();
-    var forms = document.querySelectorAll('form[method="post"]');
+    // .add-food-form: one-shot "type an amount, click Add" search-result
+    // rows, not a form you'd navigate away from with unsaved edits worth
+    // warning about. Its submit button sits inside a flex .input-group with
+    // the amount <input> (flex:1 1 auto, min-width:0), so inserting the
+    // badge right after the button there shrank the input drastically the
+    // moment you typed anything, instead of just appending harmlessly.
+    var forms = document.querySelectorAll('form[method="post"]:not(.add-food-form)');
 
     forms.forEach(function (form) {
       var hasEditable = form.querySelector(

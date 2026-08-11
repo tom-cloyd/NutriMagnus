@@ -21,6 +21,11 @@
   </form>
 </div>
 
+{% if diaas and diaas.dcp_g is not none and diaas.total_protein_g %}
+<p class="muted mb-1"><small>{{ meals|length }} meal{% if meals|length != 1 %}s{% endif %} &rArr;
+  {{ diaas.dcp_g }}&thinsp;g digestible complete protein &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</small></p>
+{% endif %}
+
 {% if day_profile_name %}
 <p class="muted mb-2">
   <small>
@@ -93,7 +98,7 @@
       {% endif %}
     </p>
     {% if protein_adequacy %}
-    <p class="muted"><small>This is {{ protein_adequacy.pct | int }}% of daily target (minimum — meet or exceed): {{ protein_adequacy.target }}&thinsp;g,
+    <p class="muted"><small>Your daily protein target is a minimum, not a cap — meeting or exceeding it is the goal. This day provides {{ protein_adequacy.pct | int }}% of that target ({{ protein_adequacy.target }}&thinsp;g),
       {% if protein_adequacy.personal %}determined by personal profile (<a href="/settings">see Settings</a>)
       {% else %}based on standard adult reference (0.8&thinsp;g/kg &times; 70&thinsp;kg){% endif %}
     </small></p>

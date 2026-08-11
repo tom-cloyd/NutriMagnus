@@ -31,6 +31,18 @@
 {% macro col_header(label) %}{% set parts = label.rsplit(' (', 1) %}{{ parts[0] }}{% if parts|length > 1 %}<br><small class="muted">({{ parts[1] }}</small>{% endif %}{% endmacro %}
 
 {% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/summary">Analysis</a></li>
+    {% if date_detail %}
+    <li class="breadcrumb-item"><a href="/summary">Daily Summary</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ date_detail }}</li>
+    {% else %}
+    <li class="breadcrumb-item active" aria-current="page">Daily Summary</li>
+    {% endif %}
+  </ol>
+</nav>
+
 <h2>Daily Summary {{ manual_link("goals") }}</h2>
 
 {# ── Date picker ──────────────────────────────────────────────────────── #}
@@ -126,12 +138,6 @@
 {# ── Full day analysis ─────────────────────────────────────────────────── #}
 {% if date_detail %}
 <hr>
-<nav aria-label="breadcrumb">
-  <ol class="breadcrumb mb-1">
-    <li class="breadcrumb-item"><a href="/summary">Daily Summary</a></li>
-    <li class="breadcrumb-item active" aria-current="page">{{ date_detail }}</li>
-  </ol>
-</nav>
 <h3>{{ date_detail }}{% if date_detail == today %} <small class="muted">(today)</small>{% endif %}</h3>
 {% if day_profile_name %}
 <p class="muted mb-2">
@@ -202,7 +208,7 @@
       {% endif %}
     </p>
     {% if protein_adequacy %}
-    <p class="muted"><small>This is {{ protein_adequacy.pct | int }}% of daily target (minimum — meet or exceed): {{ protein_adequacy.target }}&thinsp;g
+    <p class="muted"><small>Your daily protein target is a minimum, not a cap — meeting or exceeding it is the goal. This day provides {{ protein_adequacy.pct | int }}% of that target ({{ protein_adequacy.target }}&thinsp;g)
       {% if protein_adequacy.personal %}(personal profile — <a href="/settings">Settings</a>)
       {% else %}(standard adult reference 0.8&thinsp;g/kg &times; 70&thinsp;kg){% endif %}
     </small></p>

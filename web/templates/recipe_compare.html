@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Compare Recipes{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Compare Recipes</li>
+  </ol>
+</nav>
+
+<h2>Compare Recipes {{ manual_link("recipe-comparison") }}</h2>
+<p class="muted">Add up to {{ max_recipes }} recipes to compare their ingredients and nutrient profiles side by side.</p>
+
+{% if error %}
+<p class="numa-error">{{ error }}</p>
+{% endif %}
+
+{# ── Add recipe search ── #}
+<form method="get" action="/recipe/compare" class="mb-2">
+  <input type="hidden" name="ids" value="{{ ids_str }}">
+  <input type="hidden" name="unit" value="{{ unit }}">
+  <div class="input-group" style="max-width:36rem">
+    <input type="text" class="form-control" name="search"
+           value="{{ search }}"
+           placeholder="Search your recipes to add…" autofocus>
+    <button type="submit" class="btn btn-primary">Search</button>
+  </div>
+</form>
+
+{% if search_results %}
+<form method="post" action="/recipe/compare/add-multiple">
+  <input type="hidden" name="ids" value="{{ ids_str }}">
+  <input type="hidden" name="unit" value="{{ unit }}">
+  <p class="result-count">
+    {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
+    for <strong>{{ search }}</strong> — check items to add, then click &rArr;
+    <button type="submit" class="btn btn-primary btn-sm ms-1">Add selected to comparison</button>
+  </p>
+  <table class="table table-sm table-hover mb-2" style="max-width:44rem">
+    <thead class="table-light">
+      <tr>
+        <th style="width:2rem"></th>
+        <th>Recipe</th>
+        <th class="num-col">Servings</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in search_results %}
+      <tr>
+        <td><input type="checkbox" name="recipe_id" value="{{ r.id }}" class="row-chk"></td>
+        <td><a href="/recipe/{{ r.id }}"><strong>{{ r.name }}</strong></a></td>
+        <td class="num-col muted">{{ r.servings }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
+{% elif search %}
+<p>No results for <strong>{{ search }}</strong>.</p>
+{% endif %}
+
+{# ── Current recipes list ── #}
+{% if entries %}
+<table class="table table-sm table-hover mb-2" style="max-width:44rem">
+  <thead class="table-light">
+    <tr>
+      <th>Recipe</th>
+      <th class="num-col">Servings</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td><a href="/recipe/{{ e.id }}">{{ e.name }}</a>{{ food_id_tag(None, e.id) }}</td>
+      <td class="num-col muted">{{ e.servings }}</td>
+      <td>
+        <form method="post" action="/recipe/compare/remove" style="display:inline">
+          <input type="hidden" name="remove_id" value="{{ e.id }}">
+          <input type="hidden" name="ids" value="{{ ids_str }}">
+          <input type="hidden" name="unit" value="{{ unit }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="d-flex gap-2 mb-3">
+  {% if entries|length >= 2 %}
+  <a href="#comparison" class="btn btn-primary btn-sm">Show comparison &darr;</a>
+  {% endif %}
+  <a href="/recipe/compare" class="btn btn-outline-danger btn-sm">Clear comparison</a>
+</div>
+{% endif %}
+
+{% if entries|length >= 2 %}
+<hr id="comparison">
+
+{# ── Ingredient comparison ── #}
+<h4>Ingredient comparison</h4>
+<p class="muted">Ingredients used by more than one recipe are listed first and shaded grey. A sub-recipe used as an ingredient shows its serving count, not its own raw ingredients.</p>
+<div class="table-responsive">
+<table class="table table-sm table-bordered compare-table mb-4">
+  <thead class="table-light">
+    <tr>
+      <th class="compare-nutrient-col">Ingredient</th>
+      {% for e in entries %}
+      <th class="compare-val-col">{{ e.name | truncate(28) }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in ingredient_rows %}
+    <tr class="{% if row.shared_count >= 2 %}table-secondary{% endif %}">
+      <td class="compare-nutrient-col">
+        {{ row.name }}{% if row.is_recipe %} <span class="muted"><small>(recipe)</small></span>{% endif %}
+      </td>
+      {% for cell in row.cells %}
+      <td class="compare-val-col">
+        {% if cell %}{{ cell.display }}{% else %}—{% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{# ── Protein quality comparison ── #}
+{% if protein_quality_rows %}
+<h4>Protein quality comparison {{ manual_link("diaas") }}</h4>
+<p class="muted">DIAAS-based protein quality — {% if unit == 'serving' %}per serving{% else %}for the whole batch{% endif %}. Highest value per row is highlighted. Recipes without enough amino acid data to score show &mdash;.</p>
+<div class="table-responsive">
+<table class="table table-sm table-bordered compare-table mb-4">
+  <thead class="table-light">
+    <tr>
+      <th class="compare-nutrient-col">Metric</th>
+      {% for e in entries %}
+      <th class="compare-val-col">{{ e.name | truncate(28) }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in protein_quality_rows %}
+    <tr>
+      <td class="compare-nutrient-col">
+        {{ row.label }} {% if row.unit %}<span class="muted">{{ row.unit }}</span>{% endif %}
+      </td>
+      {% for cell in row.cells %}
+      <td class="compare-val-col {% if cell.is_max %}compare-max{% endif %}">
+        {{ cell.value if cell.value is not none else "—" }}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{# ── Nutrient comparison ── #}
+<div class="d-flex align-items-center gap-3 mb-1 flex-wrap">
+  <h4 class="mb-0">Nutrient comparison</h4>
+  <form method="get" action="/recipe/compare" class="d-flex align-items-center mb-0">
+    <input type="hidden" name="ids" value="{{ ids_str }}">
+    <input type="hidden" name="search" value="{{ search }}">
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="submit" name="unit" value="serving"
+              class="btn btn-outline-secondary {% if unit == 'serving' %}active{% endif %}">Per serving</button>
+      <button type="submit" name="unit" value="batch"
+              class="btn btn-outline-secondary {% if unit == 'batch' %}active{% endif %}">Whole recipe</button>
+    </div>
+  </form>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="sortCompareColumns()">Sort columns by checked nutrients</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSortBadges()">Clear sort</button>
+</div>
+<p class="muted">Check nutrients in the order you want to sort by, then click Sort. Highest value per row is highlighted.</p>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered compare-table" id="compare-table">
+  <thead class="table-light">
+    <tr>
+      <th class="compare-nutrient-col">Nutrient</th>
+      {% for e in entries %}
+      <th class="compare-val-col">{{ e.name | truncate(28) }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  {% for group in compare_groups %}
+  <tbody>
+    <tr class="table-secondary">
+      <td colspan="{{ entries|length + 1 }}"><strong>{{ group.name }}</strong></td>
+    </tr>
+    {% for row in group.rows %}
+    <tr class="compare-data-row">
+      <td class="compare-nutrient-col">
+        <span class="sort-badge" onclick="toggleSortBadge(this)"></span>{{ row.label }} <span class="muted">{{ row.unit }}</span>
+      </td>
+      {% for cell in row.cells %}
+      <td class="compare-val-col {% if cell.is_max %}compare-max{% endif %}">
+        {{ cell.value if cell.value is not none else "—" }}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+  {% endfor %}
+</table>
+</div>
+
+<script>
+(function() {
+  document.querySelectorAll('#compare-table .compare-data-row').forEach((tr, i) => {
+    tr.dataset.rowIdx = i;
+  });
+
+  const sortOrder = [];
+
+  window.toggleSortBadge = function(badge) {
+    const rowIdx = badge.closest('tr').dataset.rowIdx;
+    const pos = sortOrder.indexOf(rowIdx);
+    if (pos === -1) {
+      sortOrder.push(rowIdx);
+      badge.textContent = sortOrder.length;
+      badge.classList.add('active');
+    } else {
+      sortOrder.splice(pos, 1);
+      badge.classList.remove('active');
+      badge.textContent = '';
+      sortOrder.forEach((idx, i) => {
+        document.querySelector(`#compare-table tr[data-row-idx="${idx}"] .sort-badge`).textContent = i + 1;
+      });
+    }
+  };
+
+  window.clearSortBadges = function() {
+    sortOrder.length = 0;
+    document.querySelectorAll('#compare-table .sort-badge').forEach(b => {
+      b.textContent = '';
+      b.classList.remove('active');
+    });
+  };
+
+  window.sortCompareColumns = function() {
+    if (sortOrder.length === 0) return;
+    const table = document.getElementById('compare-table');
+    const allRows = table.querySelectorAll('tr');
+    const numCols = table.querySelector('thead tr').cells.length - 1;
+
+    const keys = Array.from({length: numCols}, () => []);
+    for (const rowIdx of sortOrder) {
+      const tr = table.querySelector(`tr[data-row-idx="${rowIdx}"]`);
+      if (!tr) continue;
+      for (let c = 0; c < numCols; c++) {
+        const cell = tr.cells[c + 1];
+        const v = cell ? parseFloat(cell.textContent.trim()) : NaN;
+        keys[c].push(isNaN(v) ? -Infinity : v);
+      }
+    }
+
+    const order = Array.from({length: numCols}, (_, i) => i);
+    order.sort((a, b) => {
+      for (let k = 0; k < sortOrder.length; k++) {
+        if (keys[b][k] !== keys[a][k]) return keys[b][k] - keys[a][k];
+      }
+      return 0;
+    });
+
+    for (const row of allRows) {
+      if (row.cells.length < 2) continue;
+      const label = row.cells[0];
+      const food = Array.from(row.cells).slice(1);
+      while (row.cells.length) row.deleteCell(0);
+      row.appendChild(label);
+      order.forEach(i => row.appendChild(food[i]));
+    }
+  };
+})();
+</script>
+{% elif entries|length == 1 %}
+<p class="muted">Add at least one more recipe to see the comparison tables.</p>
+{% endif %}
+
+{% endblock %}

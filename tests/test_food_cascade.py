@@ -222,6 +222,29 @@ class TestWebRoutesTriggerCascade:
         # cache_food() (cascading for it too, harmlessly, before the target edit).
         assert calls == [SAMPLE_FDC_ID, target_id]
 
+    def test_copy_nutrients_triggers_cascade(self, client: TestClient, db_conn, monkeypatch):
+        _mock_api(monkeypatch)
+        target_id = -1
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json, user_drafted) "
+            "VALUES (?,?,?,?,?,1)",
+            (target_id, "Draft food", "User Drafted", json.dumps({"protein_g": 20.0}), "[]"),
+        )
+        db_conn.commit()
+        calls = []
+        monkeypatch.setattr(_recipe_dcp, "cascade_food_change", lambda fdc_id, conn: calls.append(fdc_id))
+        resp = client.post(
+            f"/food/custom-profiles/{target_id}/copy-nutrients",
+            data={"source_fdc_id": SAMPLE_FDC_ID},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert "nutrients_applied=ok" in resp.headers["location"]
+        assert calls == [SAMPLE_FDC_ID, target_id]
+        updated = _db.get_cached_food(db_conn, target_id)
+        nutrients = json.loads(updated["nutrients_json"])
+        assert nutrients == json.loads(_db.get_cached_food(db_conn, SAMPLE_FDC_ID)["nutrients_json"])
+
     def test_refresh_triggers_cascade(self, client: TestClient, db_conn, monkeypatch):
         _mock_api(monkeypatch)
         db_conn.execute(

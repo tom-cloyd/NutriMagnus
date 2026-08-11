@@ -189,6 +189,38 @@ table {
   padding-left: 0.5rem;
 }
 
+/* List variant — for a nutrient-table listing rows of items (e.g. recipe
+   ingredients) rather than one named row per nutrient. The default 2rem/3.6rem
+   padding and 350px first-column width assume a wide row-name first column;
+   here the first column is a narrow row number, so that layout just pushes
+   every column into a large empty indent. Unlike compact-table, text still
+   wraps since Food/Notes cells can be long. */
+.nutrient-table.list-table th,
+.nutrient-table.list-table td {
+  padding: 0.4rem 0.6rem;
+}
+
+.nutrient-table.list-table td:first-child,
+.nutrient-table.list-table th:first-child {
+  width: auto;
+  padding-left: 0.6rem;
+}
+
+/* .nutrient-table td:not(:first-child) (above) centers every column past the
+   first — same specificity as the rules below, so without this it wins on
+   source order and defeats both the padding fix above and .num-col's
+   right-align, leaving left-aligned text (Food, Notes) looking indented
+   inside a wide auto-sized column. */
+.nutrient-table.list-table td:not(:first-child):not(.num-col),
+.nutrient-table.list-table th:not(:first-child):not(.num-col) {
+  text-align: left;
+}
+
+.nutrient-table.list-table td.num-col:not(:first-child),
+.nutrient-table.list-table th.num-col:not(:first-child) {
+  text-align: right;
+}
+
 .num-col {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -210,6 +242,17 @@ table {
   vertical-align: middle;
 }
 
+/* .nutrient-table td:not(:first-child) (above) centers every column past the
+   first, at the same specificity as the text-align:left just above — so on
+   source order it was winning and centering the Food/ID/Source text inside
+   its auto-sized column, which reads as a big left indent. Narrow metadata
+   columns (.col-aa/.col-gi/.col-diaas/.col-id/.col-source) already force
+   their own center below and are excluded here so that still applies. */
+.add-food-table td:not(:first-child):not(.col-aa):not(.col-gi):not(.col-diaas):not(.col-id):not(.col-source),
+.add-food-table th:not(:first-child):not(.col-aa):not(.col-gi):not(.col-diaas):not(.col-id):not(.col-source) {
+  text-align: left;
+}
+
 /* thead th specificity fix: .nutrient-table thead th is 0,1,2 which beats
    .add-food-table th (0,1,1) — so we need an equally-specific rule here */
 .add-food-table thead th {
@@ -218,9 +261,15 @@ table {
 
 /* Name column: left-aligned, wraps, guaranteed minimum width.
    line-height tightened well below Bootstrap's 1.5 body default — wrapped
-   food/recipe names were reading as loosely spaced two-line blocks. */
-.add-food-table th:first-child,
-.add-food-table td:first-child {
+   food/recipe names were reading as loosely spaced two-line blocks.
+   :not(.confirm-col) matters here: on the recipe/meal ingredient-search
+   tables, the AA-confirm checkbox <td> is the table's actual first child,
+   not Food — with table-layout:auto a column's rendered width is the widest
+   constraint across every cell in it, so without this exclusion the
+   checkbox column's plain <td> (no inline width override, unlike its <th>)
+   pulled this 200px rule and pushed Food ~200px to the right. */
+.add-food-table th:first-child:not(.confirm-col),
+.add-food-table td:first-child:not(.confirm-col) {
   min-width: 180px;
   width: 200px;
   max-width: 260px;
@@ -237,6 +286,20 @@ table {
 .add-food-table .col-id,
 .add-food-table .col-source {
   width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* confirm-col is also the table's first child (see note above) — needs the
+   same specificity (class+element, matching .nutrient-table td:first-child)
+   to actually beat the base 350px/3.6rem first-child rule, since the plain
+   .confirm-col class alone doesn't. */
+.add-food-table td.confirm-col,
+.add-food-table th.confirm-col {
+  width: 1%;
+  min-width: 0;
+  max-width: none;
+  padding-left: 0.45rem;
   white-space: nowrap;
   text-align: center;
 }
@@ -424,6 +487,24 @@ table {
    within 10% of (or over) the user's configured max limit. */
 .limit-near td.nutrient-name, .limit-near td:first-child, .limit-near td.num-col:nth-child(2) { color: #92400e; font-weight: 600; }
 .limit-over td.nutrient-name, .limit-over td:first-child, .limit-over td.num-col:nth-child(2) { color: #991b1b; font-weight: 600; }
+
+/* ── Focus indicator ──────────────────────────────────────────────────── */
+/* Replace Bootstrap's pale-blue focus ring with a red one everywhere, to
+   match the unsaved-changes badge color (#92400e) and be easier to see. */
+a:focus,
+button:focus,
+input:focus,
+select:focus,
+textarea:focus,
+.btn:focus,
+.btn:focus-visible,
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  outline: 2px solid #92400e !important;
+  outline-offset: 1px;
+  box-shadow: none !important;
+}
 
 /* ── Unsaved-changes indicator (base.html dirty-tracking script) ───────── */
 
@@ -691,7 +772,7 @@ h4 { font-size: 1.2rem; }
 .manual-link {
   font-size: 0.875em;
   font-weight: 400;
-  color: #5a6472;
+  color: #0d6efd;
   text-decoration: none;
   margin-left: 0.6rem;
 }
@@ -734,6 +815,9 @@ h4 { font-size: 1.2rem; }
 
 .ps-status { font-size: 0.9rem; margin-top: 0.2rem; }
 
+.ps-value-line { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+.ps-value-line .ps-status { margin-top: 0; }
+
 .ps-dcp-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
 .ps-dcp-item { text-align: left; }
 .ps-dcp-num { font-size: 1.5rem; font-weight: 700; line-height: 1.15; }
@@ -742,8 +826,7 @@ h4 { font-size: 1.2rem; }
 .ps-derivation {
   font-size: 0.88rem;
   color: #444;
-  align-self: center;
-  max-width: 30rem;
+  margin-top: 0.6rem;
 }
 
 /* ── Food comparison table ───────────────────────────────────────────── */

@@ -107,6 +107,11 @@
   {% endif %}
 </div>
 
+{% if diaas and diaas.dcp_g is not none and diaas.total_protein_g %}
+<p class="muted mb-1"><small>{{ items|length }} item{% if items|length != 1 %}s{% endif %} &rArr;
+  {{ diaas.dcp_g }}&thinsp;g digestible complete protein &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</small></p>
+{% endif %}
+
 {# ── Management actions ───────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap gap-2 mb-3">
 
@@ -298,29 +303,32 @@
   <div class="protein-summary-card {% if diaas.score is not none and diaas.score >= 0.9 %}psc-complete{% elif diaas.dcp_g %}psc-incomplete{% else %}psc-unknown{% endif %}">
     <div class="ps-metric">
       <div class="ps-label">Digestible Complete Protein (DCP)</div>
-      <div class="ps-value">{{ diaas.dcp_g }}&thinsp;g</div>
-      {% if protein_adequacy %}
-      <div class="ps-status muted">{{ protein_adequacy.pct | int }}% of daily target — minimum ({{ protein_adequacy.target }}&thinsp;g)</div>
+      <div class="ps-value-line">
+        <span class="ps-value">{{ diaas.dcp_g }}&thinsp;g</span>
+        {% if protein_adequacy %}
+        <span class="ps-status muted">— {{ protein_adequacy.pct | int }}% of your daily target minimum: {{ protein_adequacy.target }}&thinsp;g</span>
+        {% endif %}
+      </div>
+      {% if diaas.score is not none %}
+      <div class="ps-derivation">
+        {% if diaas.dcp_was_capped %}
+        (Computed from {{ diaas.aa_protein_g }}&thinsp;g raw &times; DIAAS&thinsp;{{ "%.3f"|format(diaas.score) }}
+        = {{ diaas.uncapped_dcp_g }}&thinsp;g, capped to <strong>{{ diaas.dcp_g }}&thinsp;g DCP</strong>
+        — absorbed-protein ceiling{% if diaas.avg_digestibility is not none %}, avg. digestibility {{ "%.2f"|format(diaas.avg_digestibility) }}{% endif %})
+        {{ manual_link("dcp-cap") }}
+        {% else %}
+        (Computed from
+        {% if diaas.aa_protein_g and diaas.aa_protein_g < diaas.total_protein_g - 0.05 %}
+        {{ diaas.aa_protein_g }}&thinsp;g raw in AA-analyzed foods
+        {% else %}
+        {{ diaas.total_protein_g }}&thinsp;g raw protein
+        {% endif %}
+        &times; DIAAS&thinsp;{{ "%.3f"|format(diaas.score) }}
+        = <strong>{{ diaas.dcp_g }}&thinsp;g DCP</strong>)
+        {% endif %}
+      </div>
       {% endif %}
     </div>
-    {% if diaas.score is not none %}
-    <div class="ps-derivation">
-      {% if diaas.dcp_was_capped %}
-      {{ diaas.aa_protein_g }}&thinsp;g raw &times; DIAAS&thinsp;{{ "%.3f"|format(diaas.score) }}
-      = {{ diaas.uncapped_dcp_g }}&thinsp;g, capped to <strong>{{ diaas.dcp_g }}&thinsp;g DCP</strong>
-      (absorbed-protein ceiling{% if diaas.avg_digestibility is not none %}, avg. digestibility {{ "%.2f"|format(diaas.avg_digestibility) }}{% endif %})
-      {{ manual_link("dcp-cap") }}
-      {% else %}
-      {% if diaas.aa_protein_g and diaas.aa_protein_g < diaas.total_protein_g - 0.05 %}
-      {{ diaas.aa_protein_g }}&thinsp;g raw (from AA-analyzed foods)
-      {% else %}
-      {{ diaas.total_protein_g }}&thinsp;g raw protein
-      {% endif %}
-      &times; DIAAS&thinsp;{{ "%.3f"|format(diaas.score) }}
-      = <strong>{{ diaas.dcp_g }}&thinsp;g DCP</strong>
-      {% endif %}
-    </div>
-    {% endif %}
   </div>
   {% elif diaas.score is not none %}
   <div class="protein-summary-card psc-unknown">
@@ -408,7 +416,15 @@
                   {% endif %}
                 </div>
                 {% if item.fdc_id %}
-                <div style="font-size:0.75rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp &middot; p1, p2… (USDA portions)</div>
+                <div style="font-size:0.75rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if item.portions %} &middot; p1, p2… (this food's portions, listed below){% else %} &middot; p1, p2… (USDA portions){% endif %}</div>
+                {% if item.portions %}
+                <div style="font-size:0.75rem" class="muted">
+                  Portions:
+                  {% for p in item.portions %}
+                  <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+                  {% endfor %}
+                </div>
+                {% endif %}
                 {% endif %}
                 {% if item.fdc_id %}
                 <div class="d-flex gap-2 align-items-center">
@@ -559,8 +575,9 @@
 {# ── Meal-Level Complete Protein Analysis ─────────────────────────────── #}
 {% if diaas %}
 <section id="sec-protein-quality" class="analysis-section">
-  <h3 class="section-heading">Meal-Level Protein Analysis {{ manual_link("meal-diaas") }} {{ manual_link("fao", "About the FAO reference") }}
+  <h3 class="section-heading">Meal-Level Protein Analysis
     <small class="muted" style="font-weight:400"> — pooled across foods, digestibility-corrected (DIAAS)</small>
+    {{ manual_link("meal-diaas") }}
   </h3>
 
   {% if diaas.ing_rows %}
@@ -573,6 +590,7 @@
         <th class="num-col">Digestibility</th>
         <th class="num-col">Digestible (g)</th>
         <th>AA data</th>
+        <th class="num-col">DCP (g)</th>
       </tr>
     </thead>
     <tbody>
@@ -589,6 +607,7 @@
           {% if ing.has_aa %}<span class="status-met">&#10003;</span>
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
+        <td class="num-col">{{ ing.dcp_g if ing.dcp_g is not none else '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -596,11 +615,13 @@
   {% if diaas.omitted_low_protein %}
   <p class="muted mt-1"><small>Foods without a meaningful amount of protein (&lt;0.1&thinsp;g) are omitted from this table.</small></p>
   {% endif %}
+  <p class="muted mt-1"><small>DCP (digestible complete protein) requires both a digestible protein figure and AA data — foods without AA data show "—".</small></p>
   {% endif %}
 
   {% if diaas.iaa_rows %}
   <h4 class="mt-3" id="pq-aa-ratios">Meal amino acid ratios
-    <small class="muted"> — digestible AA supply ÷ FAO reference &nbsp;|&nbsp; DIAAS = lowest ratio</small>
+    <small class="muted"> — (ratio = digestible AA supply ÷ FAO reference)</small>
+    {{ manual_link("fao", "About the FAO reference") }}
   </h4>
   <table class="nutrient-table">
     <thead>
@@ -632,7 +653,7 @@
 
   <div class="protein-meta mt-3">
     <p><strong>Composite DIAAS:</strong>
-      {% if diaas.score is not none %}{{ "%.3f"|format(diaas.score) }}{% else %}N/A{% endif %}
+      {% if diaas.score is not none %}{{ "%.3f"|format(diaas.score) }} <small class="muted">(lowest ratio in table above)</small>{% else %}N/A{% endif %}
     </p>
     {% if diaas.dcp_g is not none %}
     <p>
@@ -648,7 +669,7 @@
       {% endif %}
     </p>
     {% if protein_adequacy %}
-    <p class="muted"><small>This is {{ protein_adequacy.pct | int }}% of daily target (minimum — meet or exceed): {{ protein_adequacy.target }}&thinsp;g,
+    <p class="muted"><small>Your daily protein target is a minimum, not a cap — meeting or exceeding it is the goal. This meal provides {{ protein_adequacy.pct | int }}% of that target ({{ protein_adequacy.target }}&thinsp;g),
       {% if protein_adequacy.personal %}determined by personal profile (<a href="/settings">see Settings</a>)
       {% else %}based on standard adult reference (0.8&thinsp;g/kg &times; 70&thinsp;kg){% endif %}
     </small></p>
