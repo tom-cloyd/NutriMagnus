@@ -79,17 +79,15 @@ Two corrections to keep in mind while reading old chat sessions:
 
 ## Phase 3 — Cut the actual release (the real blocker)
 
-Nothing has run this end-to-end yet — `user-manual.md` (Part 1, Section C) says so
-explicitly: "Not yet verified against a real cut release."
-
-- [ ] Set `GITHUB_TOKEN` (personal access token, repo write scope) in your environment.
-- [ ] `make push-release` (= `git push origin main` + `make release-linux`, which builds
-      and runs `scripts/create_release.py`). This tags from `version.py` (currently
-      `2026-08-07:1142`), uploads three assets — `nutrimagnus`, `nutrimagnus.png`,
-      `install-linux.sh` — and pulls release notes from `user-manual.md` Appendix A's
-      entry for today's date.
-- [ ] Alternatively, trigger `.github/workflows/release.yml` by hand from the GitHub
-      Actions tab (`workflow_dispatch` — it will never fire on a plain push, by design).
+- [x] Set `GITHUB_TOKEN` (personal access token, repo write scope) in your environment.
+      Done 2026-08-10 — fine-grained PAT, Contents: Read and write, scoped to this repo.
+- [x] `make push-release` (= `git push origin main` + `make release-linux`, which builds
+      and runs `scripts/create_release.py`). Done 2026-08-10 — pushed 6 local commits,
+      tagged `v2026-08-10-1857` (release id 368300236), uploaded all three assets
+      (`nutrimagnus`, `nutrimagnus.png`, `install-linux.sh`):
+      https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2026-08-10-1857
+      This is the first time this has ever run end-to-end — the note below (and the
+      matching one in `user-manual.md` Part 1, Section C) is now stale/superseded.
 - [ ] **On a genuinely clean machine/account** (not one with `~/.local/bin/nutrimagnus`
       already present from dev use), run:
       ```bash
@@ -102,14 +100,17 @@ explicitly: "Not yet verified against a real cut release."
 
 ## Phase 4 — Manual finalization
 
-- [ ] Once Phase 3 succeeds, rewrite `user-manual.md` Part 1, Section C (lines ~53-76)
-      from planning language into plain present-tense instructions — delete the italic
-      "*being drafted ahead of...*" preamble and the "What still has to be built"
-      engineering checklist (items 1-4 are done; item 5 is the Windows follow-on, moves
-      to its own future task).
-- [ ] Reconcile `README.md` (line ~41) — it currently reads as if a working Linux
-      release already exists ("Download the latest release from the Releases page").
-      Leave as-is if Phase 3 succeeds; otherwise soften until it's true.
+- [x] Rewrite `user-manual.md` Part 1, Section C from planning language into plain
+      present-tense instructions — delete the italic "*being drafted ahead of...*"
+      preamble and the "What still has to be built" engineering checklist (items 1-4
+      done; item 5, the Windows follow-on, is deferred, see below). Done 2026-08-10 —
+      also swapped the stale `* Black Beans & Rice` example for a real current starter
+      recipe, and added an Ubuntu/glibc compatibility note pointing to README.md's
+      "For developers" run-from-source fallback for unsupported distros.
+- [x] Reconcile `README.md` (Download section) — it already correctly said "Linux
+      (Ubuntu)" and had a working "For developers" run-from-source section, so nothing
+      was wrong to begin with, just under-cross-referenced. Done 2026-08-10 — added the
+      same Ubuntu/glibc compatibility note there too, pointing to "For developers."
 
 ## Phase 5 — Optional polish (non-blocking)
 

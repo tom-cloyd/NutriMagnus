@@ -38,7 +38,7 @@ Anyone who wants to understand what they're actually eating — especially peopl
 
 ## Download
 
-**Linux (Ubuntu):** Download the latest release from the [Releases page](https://github.com/tom-cloyd/NutriMagnus/releases).
+**Linux (Ubuntu):** Download the latest release from the [Releases page](https://github.com/tom-cloyd/NutriMagnus/releases). Built and tested on Ubuntu 24.04 LTS; it should run on most other modern Linux distros too, but only Ubuntu is verified. If the prebuilt binary doesn't run on yours, see [For developers](#for-developers) below to run it from source instead.
 
 *(Windows version coming.)*
 
