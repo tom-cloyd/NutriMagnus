@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "_analyze_portion_result_row.html" as _sr %}
 {% import "_source_filter_select.html" as _srcf %}
+{% import "_result_limit_input.html" as _rli %}
 {% block title %}NutriMagnus — Analyze a Food Portion{% endblock %}
 
 {% block content %}
@@ -27,11 +28,10 @@
            placeholder="e.g. salmon, oat bran, lentils" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
-  {% if query and not is_barcode_query %}
   <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
     {{ _srcf.select(source, source_filters, source_labels) }}
+    {{ _rli.input(limit) }}
   </div>
-  {% endif %}
   <p class="muted mb-0"><small>Type a food name, an <a href="/manual#gloss-fdc-id" target="_blank" rel="noopener">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
 </form>
 
@@ -59,9 +59,9 @@
   </thead>
   <tbody id="ap-tbody">
     {% for food in results %}{{ _sr.row(food) }}{% endfor %}
-    {% if not is_barcode_query %}
+    {% if not is_barcode_query and external_source_labels %}
     <tr id="ap-api-loading" class="food-meta-row">
-      <td colspan="8"><small class="muted">Searching USDA FoodData Central and Open Food Facts…</small></td>
+      <td colspan="8"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>
     </tr>
     {% endif %}
   </tbody>
@@ -76,7 +76,8 @@
   var table = document.getElementById('ap-table');
   var noResults = document.getElementById('ap-no-results');
   var countEl = document.getElementById('ap-result-count');
-  var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}, source: {{ source | tojson }}});
+  var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}, limit: {{ limit | tojson }}});
+  {{ source | tojson }}.forEach(function (s) { params.append('source', s); });
   fetch('/food/analyze-portion-api-results?' + params.toString())
     .then(function (r) { return r.text(); })
     .then(function (html) {

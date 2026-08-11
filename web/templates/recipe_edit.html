@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as _srcf %}
+{% import "_result_limit_input.html" as _rli %}
 {% block title %}NutriMagnus — Edit {{ recipe.name }}{% endblock %}
 
 {% block content %}
@@ -260,15 +261,10 @@
                  placeholder="Search foods…" autofocus>
           <button type="submit" class="btn btn-primary">Search</button>
         </div>
+        <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
+        <div class="mb-2">{{ _rli.input(limit) }}</div>
         {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
       </form>
-
-      {% if q %}
-      <form method="get" action="/recipe/{{ recipe.id }}/edit" class="d-flex flex-wrap gap-2 align-items-center mb-2">
-        <input type="hidden" name="q" value="{{ q }}">
-        {{ _srcf.select(source, source_filters, source_labels) }}
-      </form>
-      {% endif %}
 
       {% if search_results %}
       {# A checkbox's own <tr> sits inside the results table below, which also
@@ -277,7 +273,8 @@
          checkbox references it by id via the form="" attribute instead. #}
       <form method="post" action="/recipe/{{ recipe.id }}/confirm-aa" id="confirm-aa-form">
         <input type="hidden" name="q" value="{{ q }}">
-        <input type="hidden" name="source" value="{{ source }}">
+        {% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
+        <input type="hidden" name="limit" value="{{ limit }}">
         <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
           <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
             Fetch full details for selected

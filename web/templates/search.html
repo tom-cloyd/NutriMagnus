@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "_search_result_row.html" as _sr %}
 {% import "_source_filter_select.html" as _srcf %}
+{% import "_result_limit_input.html" as _rli %}
 {% block title %}NutriMagnus — Search{% endblock %}
 
 {% block content %}
@@ -15,11 +16,13 @@
 
 <form method="get" action="/food/search" data-persist-search="query">
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-  <div class="input-group mb-3">
+  <div class="input-group mb-2">
     <input type="text" class="form-control" name="query" value="{{ query }}"
            placeholder="e.g. salmon, oat bran, lentils" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
+  <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
+  <div class="mb-3">{{ _rli.input(limit) }}</div>
   <p class="muted mb-2"><small>Type a food name, an <a href="/manual#gloss-fdc-id" target="_blank" rel="noopener">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
   {% if query %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
 </form>
@@ -40,20 +43,22 @@
   {% if not is_barcode_query %}
   <form method="get" action="/food/search" class="d-flex flex-wrap gap-2 align-items-center">
     <input type="hidden" name="query" value="{{ query }}">
+    {% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
+    <input type="hidden" name="limit" value="{{ limit }}">
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
             onchange="this.form.submit()">
       <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
-    {{ _srcf.select(source, source_filters, source_labels) }}
   </form>
   {% endif %}
 </div>
 <form method="post" action="/food/confirm-aa" id="confirm-aa-form">
   <input type="hidden" name="query" value="{{ query }}">
   <input type="hidden" name="sort" value="{{ sort }}">
-  <input type="hidden" name="source" value="{{ source }}">
+  {% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
+  <input type="hidden" name="limit" value="{{ limit }}">
   <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
     <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
       Fetch full details for selected
@@ -80,9 +85,9 @@
     </thead>
     <tbody id="search-tbody">
       {% for food in results %}{{ _sr.row(food) }}{% endfor %}
-      {% if not is_barcode_query %}
+      {% if not is_barcode_query and external_source_labels %}
       <tr id="search-api-loading" class="food-meta-row">
-        <td colspan="10"><small class="muted">Searching USDA FoodData Central and Open Food Facts…</small></td>
+        <td colspan="10"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>
       </tr>
       {% endif %}
     </tbody>
@@ -120,7 +125,8 @@
 
   var noResults = document.getElementById('search-no-results');
   var countEl = document.getElementById('search-result-count');
-  var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}, source: {{ source | tojson }}});
+  var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}, limit: {{ limit | tojson }}});
+  {{ source | tojson }}.forEach(function (s) { params.append('source', s); });
   fetch('/food/search-api-results?' + params.toString())
     .then(function (r) { return r.text(); })
     .then(function (html) {

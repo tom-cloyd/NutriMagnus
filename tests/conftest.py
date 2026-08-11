@@ -6,6 +6,7 @@ Key fixtures:
                       temp database so tests never touch ~/.local/share/numa/numa.db
   use_test_profile  — autouse; redirects profile._PROFILES_DIR/_ACTIVE_NAME_FILE to temp paths
   no_off            — autouse; stubs Open Food Facts search/barcode lookup
+  no_cnf            — autouse; stubs Canadian Nutrient File search/detail lookup
   db_conn           — direct sqlite3 connection to the temp DB for assertions
   cached_food       — inserts SAMPLE_FOOD_DETAIL into the temp DB cache; use this
                       in any test that needs a food available without hitting the API
@@ -165,6 +166,19 @@ def no_off(monkeypatch: pytest.MonkeyPatch) -> None:
     import openfoodfacts as _off
     monkeypatch.setattr(_off, "search_foods", lambda *a, **kw: [])
     monkeypatch.setattr(_off, "lookup_by_barcode", lambda *a, **kw: None)
+
+
+@pytest.fixture(autouse=True)
+def no_cnf(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Stub out Canadian Nutrient File search/detail lookup to return no results
+    so tests never hit the network and CNF results don't appear in search
+    output or affect pick ordering. Applied automatically to every test —
+    same role as no_off above.
+    """
+    import cnf_api as _cnf
+    monkeypatch.setattr(_cnf, "search_foods", lambda *a, **kw: [])
+    monkeypatch.setattr(_cnf, "get_food_detail_by_id", lambda *a, **kw: None)
 
 
 # ---------------------------------------------------------------------------

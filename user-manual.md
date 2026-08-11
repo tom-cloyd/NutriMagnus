@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-10:1821* / Reading time: 2 hours, 27 minutes
+*Updated 2026-08-11:1502* / Reading time: 2 hours, 28 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -52,27 +52,15 @@ Without the program you're flying blind. With it, even if you only use volume me
 
 ### C. Download and install the program
 
-*This section is being drafted ahead of the actual Linux release — it's the plan for what installing NuMa should look and feel like, written first as a checklist for building it, then it'll become straight instructions once it's real. The Windows version of this section will be adapted from this one once the Linux release is solid.*
+a. **Where to get it.** Go to the [NutriMagnus releases page](https://github.com/tom-cloyd/NutriMagnus/releases) on GitHub and download `install-linux.sh` from the latest release — that's the one file you need, not a menu of binaries to choose between. Built and tested on Ubuntu 24.04 LTS; it should run on most other modern Linux distros too, but only Ubuntu is verified. If it doesn't run on yours, see the "For developers" section of the project's `README.md` to run NuMa from source instead — no compiled binary required.
 
-a. **Where to get it.** Go to the NutriMagnus releases page on GitHub and download the latest Linux installer. You shouldn't have to think about which file — there should be exactly one obvious download for Linux, not a menu of binaries to choose between.
-
-b. **Where it goes on your computer.** Run the installer once (double-click it in your file manager, or open a terminal and run it if double-click isn't set up to execute scripts on your system). It copies the program into a private per-user location (`~/.local/bin`) — nothing outside your own account is touched, and it never asks for an admin password.
+b. **Where it goes on your computer.** Run the installer once (`bash install-linux.sh` in a terminal, from wherever you downloaded it). It copies the program into a private per-user location (`~/.local/bin`) — nothing outside your own account is touched, and it never asks for an admin password.
 
 c. **Getting it into your applications menu.** The same installer step adds NuMa to your normal applications menu (GNOME Activities, KDE's app launcher, etc.) with its own icon, exactly like any program you'd install from a software center. Search for "NutriMagnus" or "NuMa" and it should appear there afterward.
 
 d. **How to launch it.** From then on, launch NuMa like any other program — click its icon in the applications menu. It starts quietly in the background and opens a browser tab pointed at the running app. No terminal, no typed commands, ever, after the one-time install.
 
-**Starter foods and recipes.** The first time you launch a fresh install, your Food Cache and Recipes list already contain a small set of starter items — foods with verified USDA nutrient and amino-acid data, and a couple of recipes chosen to demonstrate real protein-complementarity gains. Their names begin with an asterisk (for example, `* Black Beans & Rice`) so you can always tell them apart from anything you've added yourself, and remove or keep them as you like — see the [Settings](#settings) starter-data toggle if you clear them and want them back.
-
----
-
-**What still has to be built before the above is true** (tracked here as the working plan, not manual content):
-
-1. ~~A Linux installer script~~ — done 2026-08-06: `scripts/install-linux.sh` is the one file a user downloads; it fetches the binary and icon from the latest GitHub release into `~/.local/bin` and `~/.local/share/icons`, and writes the `~/.local/share/applications/nutrimagnus.desktop` entry. Not yet verified against a real cut release (needs `make push-release` run once with the new assets in place to confirm end-to-end).
-2. ~~An application icon for NuMa~~ — done 2026-08-06: `web/static/icon-256.png`, a plain placeholder (green badge, "N" monogram) — swap it for real branding whenever that's ready; nothing else needs to change since the installer just downloads whatever's at that release asset name.
-3. ~~Generalizing `numa_app/services/demo_data.py` into permanent starter content~~ — done 2026-08-06: `seed_if_fresh_install()` auto-loads it once on a truly empty database, and the existing Settings load/clear toggle still works for anyone who removes it and wants it back. Content is curated live, not hand-coded — mark any food, pantry entry, or recipe with a leading `* ` in the app itself, then run `scripts/export_starter_data.py` before a release to pull everything starred into `numa_app/services/starter_data.json`, which is what actually ships.
-4. ~~`scripts/create_release.py` updated to upload the installer/icon~~ — done 2026-08-06: it now uploads three assets per release — `nutrimagnus` (binary), `nutrimagnus.png` (icon), `install-linux.sh` — matching the names `install-linux.sh` fetches from `releases/latest/download/`.
-5. Once all of the above is proven out on Linux (i.e. a real release has been cut and the installer tested on a clean machine), write the Windows equivalent of this section (`.exe` installer, Start Menu entry) and extend the Windows build (`make build-windows`) to produce it.
+**Starter foods and recipes.** The first time you launch a fresh install, your Food Cache and Recipes list already contain a small set of starter items — foods with verified USDA nutrient and amino-acid data, and a few recipes chosen to demonstrate real protein-complementarity gains. Their names begin with an asterisk (for example, `* Pinto-quinoa meal`) so you can always tell them apart from anything you've added yourself, and remove or keep them as you like — see the [Settings](#settings) starter-data toggle if you clear them and want them back.
 
 ### D. Go to Settings and do this:
 
@@ -158,13 +146,32 @@ NuMa has been under intense development and is still being developed. Over time,
 Very recently, a Windows version of the program has been developed. It will soon be available for download and user trials. 
 
 
-### E. Why you can trust NutriMagnus (NuMa)
+### E. Data, testing, and validation: Why you can trust NutriMagnus (NuMa)
 
-**[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it is using.** Nutrient data comes primarily from [USDA](#gloss-usda) FoodData Central[^2] — one of the most comprehensive public nutrition databases in the world — with branded and international foods supplemented by Open Food Facts.[^3] Beyond those external sources, [NuMa](#gloss-numa) also draws on data you have built up yourself: foods saved to your [Pantry](#pantry), and [recipes you have analyzed](#recipes-menu-web). For protein complement suggestions specifically, a built-in list of 25 common protein sources[^10] fills in as a fallback when your own data doesn't cover a gap. Glycemic index estimates can likewise be filled in automatically from a small published reference table (see [Glycemic Index](#gi)), rather than typed in from scratch. Wherever the program makes a suggestion, it shows you which sources it consulted.
+#### Reliable data sources
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-10), there are 525 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it is using.** Wherever the program makes a suggestion, it shows you which sources it consulted.
+
+- **[USDA](#gloss-usda) FoodData Central**[^2] — the primary nutrient database, one of the most comprehensive public nutrition sources in the world. Used for most food searches.
+- **Open Food Facts**[^3] — supplements USDA for branded and international foods, especially packaged products with a barcode.
+- **Canadian Nutrient File** — Health Canada's reference database; particularly good amino acid coverage, which helps with DIAAS calculations.
+- **UK CoFID** (Composition of Foods Integrated Dataset) — ~2,900 UK foods from Public Health England/DHSC; strong on macros, minerals, and vitamins, but has no amino acid data of its own.
+- **Australian AFCD** (Australian Food Composition Database) — ~1,600 Australian foods from FSANZ; also has real amino acid coverage, like Canadian Nutrient File.
+- **French CIQUAL** — ~3,200 French/European foods from ANSES; like CoFID, no amino acid data. See [Additional food nutrition database access](#food-db-sources) in Part 9 for all four of these, and the roadmap that added them.
+- **Harvard T.H. Chan School of Public Health oxalate table**[^11] — a 433-food reference table used to fill in [oxalate](#gloss-oxalate) content when [Oxalate data](#oxalate) is switched on in Settings. (This is optional and is off by default.)
+- **Foster-Powell/Holt/Brand-Miller glycemic index table**[^8] — a published reference table used to fill in [Glycemic Index](#gi) estimates automatically, rather than requiring you to type them in from scratch.
+- **NuMa's own curated protein-complement table**[^10] — a built-in list of 25 common protein sources used as a fallback for amino-acid data in complement suggestions, when your own data doesn't cover a gap.
+- **Your own data** — foods saved to your [Pantry](#pantry), and [recipes you have analyzed](#recipes-menu-web), are consulted ahead of every other source above.
+
+#### Extensive code testing
+
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-11), there are 606 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+
+#### Validation you can replicate yourself
 
 **Appendix K has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
+
+#### Reasonable expectations: bugs remain
 
 **Problems may appear anyway.** As professional programmers will tell you, all programs have bugs. This is more likely for new ones than for those which have been around for years. This is why you should report any result you are getting which doesn't make sense to you. There is a small chance you've found a "bug", but a greater chance that the program simply needs to explain itself to you more clearly. Either problem will be fixed ASAP, and all such fixes benefit everyone who uses the program.
 
@@ -965,16 +972,24 @@ The Food Cache list shows every food you have stored locally, sortable by Name, 
     ID#     Database identifier.
             A plain number = USDA FoodData Central FDC ID.
             "OFF"          = Open Food Facts (community-contributed data).
+            "CNF"          = Canadian Nutrient File.
+            "CoFID"        = UK Composition of Foods Integrated Dataset.
+            "AFCD"         = Australian Food Composition Database.
+            "CIQUAL"       = French CIQUAL database.
             "usr"          = User-drafted (created or edited by hand).
 
     NAME    Food name as stored in your cache.
 
-    TYPE    Data source within USDA FoodData Central, or OFF for Open Food Facts.
+    TYPE    Data source within USDA FoodData Central, or the external database it came from.
               Foundation     — USDA-analyzed reference foods; highest accuracy.
               SR Legacy      — Standard Reference database (pre-2019).
               Survey (FNDDS) — Foods as eaten, used in national dietary surveys.
               Branded        — Manufacturer-submitted data for packaged products.
               OFF            — Open Food Facts (community-contributed).
+              CNF            — Canadian Nutrient File (Health Canada).
+              CoFID          — UK Composition of Foods Integrated Dataset.
+              AFCD           — Australian Food Composition Database (FSANZ).
+              CIQUAL         — French CIQUAL database (ANSES).
               User Drafted   — Created or edited by hand in NuMa.
 
     BRAND   Brand owner, for Branded and OFF foods.
@@ -1486,7 +1501,11 @@ To select: click the result. If the food is not yet in your cache, NuMa fetches 
 
 See [Ordering food search results](#search-ranking) in Part 5 for the full explanation.
 
-**Source filter.** A second dropdown next to the results table — separate from sort order — narrows the list to just one source: All sources, Pantry, Food Cache, Recipes, USDA FoodData Central, or Open Food Facts. Each option is labeled with the short badge used elsewhere plus its full name (e.g. "USDA — USDA FoodData Central"). Your choice is sticky across every search box that has this filter, the same way the sort-order choice is. Every search results table that follows this reference — the standalone Foods → Search page, My Pantry's "Add a food" search, the Meals & Log "Add Food or Recipe" panel, and a recipe's ingredient search — has this filter.
+**Source filter.** A row of checkboxes next to the search box itself — visible before you've even typed a query, not just after results come back — narrows the list to any combination of sources you check: Pantry, Food Cache, Recipes, CoFID, AFCD, CIQUAL, USDA FoodData Central, Open Food Facts, Canadian Nutrient File. Check as many as you like; unchecking every box is treated the same as checking them all, since a filter that hides everything isn't useful. Each checkbox is labeled with the short badge used elsewhere plus its full name (e.g. "USDA — USDA FoodData Central") and re-runs the search the moment you check or uncheck it. Your choice is sticky across every search box that has this filter, the same way the sort-order choice is. It appears next to every food search in the app: the standalone Foods → Search page, Analyze a Food Portion, Convert a Portion, Compare Foods, My Pantry's "Add a food" search, the Meals & Log "Add Food or Recipe" panel, a recipe's ingredient search, and the two "copy from another food" searches on the Edit Custom Profile page.
+
+While a live database (USDA, Open Food Facts, or Canadian Nutrient File) is being searched, a status line names exactly which ones it's contacting — just "Searching USDA FoodData Central…" if you've unchecked the other two, for instance. If you've unchecked all three, that line (and the network requests behind it) doesn't appear at all. CoFID, AFCD, and CIQUAL are different: each is a bundled dataset, not a live lookup, so their results appear instantly alongside your own Pantry/Cache/Recipe matches — checking or unchecking any of them never triggers a network wait.
+
+**Result limit.** A "Show up to ___ search results" box next to the Source filter controls how many results are fetched and shown, per source (default 25, up to 500). Type a number and press Enter or click Search to apply it — like the Source filter, your choice is remembered as the default for next time.
 
 See [Food Cache](#cached) for the [Food Cache](#gloss-food-cache) column guide. See [Food Cache](#food-cache-web) to learn how to get missing amino acid data via Claude AI.
 
@@ -1843,7 +1862,7 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 #### Search (Foods → Search)
 
-Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12/13-digit barcode (UPC-A or EAN-13) — see [Your own data is always checked first](#search-ranking) in Part 5 for how results are sourced and ordered. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
+Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12/13-digit barcode (UPC-A or EAN-13) — see [Your own data is always checked first](#search-ranking) in Part 5 for how results are sourced and ordered. Next to the search box, a row of Source checkboxes (Pantry, Food Cache, Recipes, USDA, Open Food Facts) lets you narrow results to any combination of sources before or after you search — see [Source filter](#food-search) in Part 5 for details. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
 
 #### Analyze a food portion / Analyze a saved recipe portion
 
@@ -1851,11 +1870,11 @@ Shortcuts into Search that take you straight to entering an amount once you've p
 
 #### Convert
 
-A pure unit-conversion tool — search for a food, then type any amount (`3 oz`, `1/4 cup`, `150 g`) to see its gram/mL equivalent and the closest named portion size. No nutrient analysis is shown here; use Search for that.
+A pure unit-conversion tool — search for a food (with the same [Source filter](#food-search) as every other search box), then type any amount (`3 oz`, `1/4 cup`, `150 g`) to see its gram/mL equivalent and the closest named portion size. No nutrient analysis is shown here; use Search for that.
 
 #### Compare
 
-Add up to eight foods (checkboxes in the search results) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
+Add up to eight foods (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
 
 #### Food Cache [food-cache-web]
 
@@ -1870,11 +1889,11 @@ Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here —
 
 #### My Pantry
 
-Foods you keep on hand — see [My Pantry](#pantry) in Part 4 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search, or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**).
+Foods you keep on hand — see [My Pantry](#pantry) in Part 4 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**).
 
 #### Custom food profiles
 
-Create a food NuMa doesn't already have — a homemade dish, a supplement, or a product with an incomplete database entry. Either start from scratch, or **copy a cached food as a draft** and edit its nutrients from there. See [Entering custom foods and dietary supplements](#custom-foods) below.
+Create a food NuMa doesn't already have — a homemade dish, a supplement, or a product with an incomplete database entry. Either start from scratch, or **copy a cached food as a draft** and edit its nutrients from there — both of the page's "copy from another food" searches have the same [Source filter](#food-search) too, and can now reach Open Food Facts as well as your cache and USDA. See [Entering custom foods and dietary supplements](#custom-foods) below.
 
 #### Annotate
 
@@ -1952,10 +1971,14 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ### A. Food data — where it comes from and how it is stored [food-data]
 
-**Two large online tables** are NuMa's primary sources of food information:
+**Six large tables** are NuMa's primary sources of food information:
 
 - **[USDA](#gloss-usda) FoodData Central** — the U.S. government's nutrition database, covering hundreds of thousands of whole foods, ingredients, and branded products. This is NuMa's primary source. ([FoodData Central FAQ](https://fdc.nal.usda.gov/faq/))
 - **Open Food Facts** — a community-maintained database of packaged and processed food products, especially useful for branded items not found in the [USDA](#gloss-usda) table. ([Open Food Facts](https://world.openfoodfacts.org/discover))
+- **Canadian Nutrient File** — Health Canada's reference database, particularly good on amino acid coverage. ([Canadian Nutrient File](https://food-nutrition.canada.ca/api/canadian-nutrient-file/))
+- **UK CoFID** — ~2,900 UK foods from Public Health England/DHSC, bundled into NuMa directly rather than looked up live (it has no API of its own). No amino acid data. ([CoFID](https://www.gov.uk/government/publications/composition-of-foods-integrated-dataset-cofid))
+- **Australian AFCD** — ~1,600 Australian foods from FSANZ, also bundled directly. Has real amino acid data, unlike CoFID. ([AFCD](https://www.foodstandards.gov.au/science-data/monitoringnutrients/afcd))
+- **French CIQUAL** — ~3,200 French/European foods from ANSES, also bundled directly. No amino acid data. ([CIQUAL](https://ciqual.anses.fr/))
 
 **[USDA](#gloss-usda) API key.** NuMa accesses FoodData Central through [USDA](#gloss-usda)'s public API. Without a personal key it falls back to a shared demonstration key (DEMO_KEY) that has a tight rate limit — heavy use by any user can exhaust it and cause searches to fail temporarily. Getting your own key is free and takes about a minute:
 
@@ -2340,13 +2363,32 @@ Ideas below are listed in their current likely probability of being implemented.
 
 ---
 
+### Additional food nutrition database access [food-db-sources]
+
+Four more sources were added **one at a time**, each its own self-contained phase — the project could have paused after any one of them without leaving anything half-built. Two integration patterns were used, matching how each source actually publishes its data:
+
+* **Live-API pattern** — a real-time search alongside USDA and Open Food Facts, participating in the "Searching…" status message while results are fetched. Only CNF, of these four, works this way — though CNF turned out to have no name-search endpoint of its own; see Phase 1 below for how it still qualifies.
+* **Static-dataset pattern** — the source has no live API, only a downloadable CSV/Excel file, so its data is ingested once into NuMa (the same way the Harvard oxalate table and the glycemic-index seed table already work). Results from these appear instantly, like Pantry or Food Cache matches, with no network wait and nothing for the "Searching…" message to say.
+
+☑ **Phase 0 — groundwork (completed 2026-08-11).** Before any new source could be added, the code that tracks "which database did this food come from" needed to stop being hardcoded to just USDA and Open Food Facts. This phase made that change with no new source and no visible behavior change — see the August 11 changelog entry above for what moved. It's what makes every phase below an additive step instead of a repeat of the same groundwork.
+
+☑ **Phase 1 — Canadian Nutrient File (CNF) (completed 2026-08-11).** Health Canada's reference database (food-nutrition.canada.ca/api/canadian-nutrient-file/). No key required. Real-world coverage turned out even better than expected for amino acids — every one of NuMa's 11 tracked amino acids maps cleanly, plus most macros, minerals, and vitamins. One design surprise: CNF's API has no "search by name" endpoint the way USDA/OFF do — it only serves bulk dumps of its tables, so `cnf_api.py` fetches the full ~thousands-of-foods list once per program run (cached after that) and searches it locally, the same way a static dataset would, while nutrient detail for a specific food is still a live per-food network call. CNF now joins USDA/OFF in the real-time search, the Source filter, and the "Searching…" message wherever they appear — including the Edit Custom Profile page's two "copy from another food" pickers, which previously could only reach Food Cache and USDA.
+
+☑ **Phase 2 — UK CoFID (completed 2026-08-11).** McCance and Widdowson's Composition of Foods Integrated Dataset (2021) — 2,886 foods ingested from the published Excel download (gov.uk). Static-dataset pattern as planned: `scripts/build_cofid_data.py` is a one-time, developer-run ingest script (not part of the running app) that parses the spreadsheet into bundled `cofid_data.json`; `cofid_lookup.py` searches it locally, joining Pantry/Cache/Recipe as instant, no-network results rather than USDA/OFF/CNF's live async fetch. Real-world surprise: CoFID's public spreadsheet has no amino-acid sheet at all — it covers macros, minerals, and vitamins well (protein, fat, carbs, fiber, sugar, saturated/mono/poly fat, most minerals, and most B-vitamins plus A/D/E/K/C) but contributes nothing to DIAAS calculations, unlike CNF.
+
+☑ **Phase 3 — Australian AFCD (completed 2026-08-11).** The Australian Food Composition Database (FSANZ, Release 3) — 1,588 foods ingested from the published "Nutrient profiles" Excel download. The manual's original "notably deep on amino acid profiles" claim held up: unlike CoFID, AFCD's spreadsheet does publish amino acids (11 columns, in mg, converted to numa's aa_*_g keys), plus a genuinely rich mineral/vitamin set — 58 nutrients per food. Being the second static source built, this phase paid off the "factor out shared logic" plan: the record-cache/id-assignment/search/detail logic common to CoFID and AFCD was pulled into `numa_app/services/static_source_lookup.py`'s `StaticSource` class, and `cofid_lookup.py` was refactored to use it too (its public functions unchanged).
+
+☑ **Phase 4 — French CIQUAL (completed 2026-08-11).** ANSES's open-access database (2020) — 3,186 foods ingested from the published XLS download (English-language column headers, via data.gouv.fr). As predicted, the smallest of the four phases: reused `StaticSource` directly, no new shared code needed. One format wrinkle: CIQUAL's spreadsheet is the legacy Excel 97-2003 format (not .xlsx) and uses French locale numbers (comma decimals, "-" for missing) — both handled in `scripts/build_ciqual_data.py`. No amino acid data, like CoFID.
+
+All five phases are now complete — NuMa searches six food databases in total (USDA, Open Food Facts, and Canadian Nutrient File live; CoFID, AFCD, and CIQUAL bundled). This roadmap is kept here as a record of how it was built, one source at a time, and as the template for whichever database gets added next.
+
 ### Suggested optimum nutrition profiles
 
-For various major age groups, we can offer research supported optimums for critical nutrients. The user can choose to adopt them or use the as the basis for setting their own optimums, or ignore then altogether.
+For various major age groups, we can offer research supported optimums for critical nutrients. The user can choose to adopt them, use them as the basis for setting their own optimums, or ignore them altogether.
 
 ### Research-supported maximum nutrient level suggestions
 
-For a limited number of nutrients, maximum levels of consumption have been established, the exceeding of which puts the individuals at risk in various wasy. We can identify these nutrients, levels, and risks, with full sourcing to back up claims made.
+For a limited number of nutrients, maximum levels of consumption have been established, the exceeding of which puts the individuals at risk in various ways. We can identify these nutrients, levels, and risks, with full sourcing to back up claims made.
 
 ### Source citations for major assertions in the manual
 
@@ -2396,7 +2438,177 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 
 Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed — that's all most readers need. Some entries also have a fenced code block underneath with fuller technical detail (which files changed, root cause, implementation notes) written for anyone curious about the "how," including a future version of the developer; feel free to skip those blocks entirely.
 
+#### August 11
+
+**AUSTRALIAN AFCD AND FRENCH CIQUAL COMPLETE THE FOOD-DATABASE ROADMAP**
+
+Two more food databases join every search in NuMa, completing the four-source roadmap: the Australian Food Composition Database (AFCD, 1,588 foods, with real amino acid data — the "notably deep" claim held up) and the French CIQUAL database (3,186 foods, no amino acid data). Both are bundled datasets like CoFID, so their results appear instantly with no "Searching…" wait. NuMa now searches six food databases in total. See [Additional food nutrition database access](#food-db-sources) in Part 9 for the full roadmap, now complete.
+
+```
+Second and third static-dataset sources (after CoFID), so the planned
+"factor out shared logic" step happened here: new numa_app/services/
+static_source_lookup.py's StaticSource class holds the record-cache/id-
+assignment/search/detail logic all three static sources need; cofid_lookup.py
+was refactored to delegate to it too (public API unchanged — cofid_id(),
+search_foods(), etc. still work the same). afcd_lookup.py and ciqual_lookup.py
+are now both ~50-line wrappers around their own StaticSource instance.
+scripts/build_afcd_data.py ingests FSANZ's "Nutrient profiles" Excel
+(openpyxl) — 58 nutrients per food including 11 amino acids (mg → g),
+energy converted from kJ (AFCD has no kcal column). scripts/build_ciqual_
+data.py ingests ANSES's XLS export (xlrd — CIQUAL's file is the legacy
+Excel 97-2003 format, not .xlsx) — handles French locale numbers (comma
+decimals) and "-" for missing values. web/backend.py: _STATIC_SOURCES and
+_STATIC_SOURCE_MODULES generalized from a CoFID-only list to all three;
+_search_local_results()/_meal_add_food_local_results() now call one shared
+_static_source_candidates() helper instead of a hardcoded CoFID block;
+_fetch_uncached_food_detail() gained afcd/ciqual branches.
+numa_app/services/food_ids.py: afcd (-6e9..-5e9) and ciqual (-7e9..-6e9)
+ranges uncommented — the last two reserved from the original Phase 0 plan.
+tests/test_afcd.py and tests/test_ciqual.py (33 tests, fixture data
+injected directly — no file I/O, no network).
+```
+
+**UK CoFID JOINS THE FOOD SEARCH — INSTANTLY, NO NETWORK WAIT**
+
+Every food search in NuMa now also searches the UK's Composition of Foods Integrated Dataset (CoFID) — 2,886 foods from Public Health England/DHSC, strong on macros, minerals, and vitamins (no amino acid data, unlike Canadian Nutrient File). Unlike USDA/OFF/CNF, CoFID is bundled directly into NuMa rather than looked up live, so its results appear instantly — the same way Pantry and Food Cache matches do — with no "Searching…" wait and no network dependency. See [Additional food nutrition database access](#food-db-sources) in Part 9 for the rest of the roadmap (two more national databases planned).
+
+```
+New root-level cofid_lookup.py: local substring search over bundled cofid_
+data.json (2,886 records, ~1.8 MB), generated once from the published CoFID
+2021 Excel spreadsheet by scripts/build_cofid_data.py (a developer-run,
+one-time ingest tool — needs `pip install openpyxl` to run, but that's not a
+runtime dependency of the app itself). CoFID's spreadsheet spans 14 tables;
+only Proximates/Inorganics/Vitamins map onto numa's shared nutrient keys —
+no amino-acid sheet exists in the public dataset at all. Non-numeric cells
+("Tr" = trace, "N" = no reliable data) are skipped, not guessed at.
+numa_app/services/food_ids.py: cofid range uncommented (-5e9..-4e9, next in
+the already-reserved list). web/backend.py: new _STATIC_SOURCES list (same
+role as _LIVE_SOURCES, for a source with no network fetch) drives the Source
+filter label; CoFID results are merged directly into _search_local_results()/
+_meal_add_food_local_results() rather than the async external-fetch path, so
+they're excluded from the "Searching…" status message by construction — a
+static source has nothing to wait on. _fetch_uncached_food_detail() gained a
+CoFID branch alongside usda/off/cnf. tests/test_cofid.py (18 tests, fixture
+data injected directly — no file I/O, no network).
+```
+
+**CANADIAN NUTRIENT FILE (CNF) JOINS USDA AND OPEN FOOD FACTS AS A THIRD SEARCHABLE DATABASE**
+
+Every food search in NuMa — Foods → Search, Analyze a Food Portion, Meal add-food, Pantry, and the Edit Custom Profile page's "copy from another food" pickers — now also searches Health Canada's Canadian Nutrient File, with especially good amino acid coverage that helps with DIAAS calculations. It shows up as its own checkbox in the Source filter and its own line in the "Searching…" status message, alongside USDA and Open Food Facts. See [Additional food nutrition database access](#food-db-sources) in Part 9 for the rest of the roadmap (three more national databases planned, one at a time).
+
+```
+New cnf_api.py mirrors openfoodfacts.py's shape, but CNF's public API (food-
+nutrition.canada.ca/api/canadian-nutrient-file/) has no name-search endpoint
+of its own — only bulk dumps of its food list and per-food nutrient-amount
+tables. search_foods() fetches the ~thousands-of-entries food list once
+per process (module-level cache) and filters it locally by name; get_food_
+detail()/get_food_detail_by_id() make a real per-food network call, mapping
+CNF's nutrient_symbol vocabulary (confirmed against its /nutrientname/
+endpoint) onto NuMa's shared nutrients dict — all 11 tracked amino acids
+plus most macros/minerals/vitamins map cleanly; iodine has no CNF entry.
+Synthetic fdc_id range -4e9..-3e9 (numa_app/services/food_ids.py, reserved
+in the prior groundwork entry below). web/backend.py: CNF registered in
+_LIVE_SOURCES (one entry, per the groundwork's design); new shared
+_fetch_uncached_food_detail() dispatches a not-yet-cached search result to
+usda/off/cnf by which id range it falls in, replacing four copy-pasted
+`if _off.is_off_id(...)` blocks (pantry quick-add, meal add-food, and the
+two custom-profile copy pickers). tests/test_cnf.py (22 tests, HTTP mocked
+via _http_get) plus a no_cnf autouse fixture in tests/conftest.py mirroring
+the existing no_off one.
+```
+
+**GROUNDWORK FOR FUTURE FOOD DATABASES (NO USER-VISIBLE CHANGE)**
+
+Internal prep only, ahead of adding new food nutrition databases (Canadian Nutrient File, then UK CoFID, then Australian AFCD, then French CIQUAL — see [Additional food nutrition database access](#food-db-sources) in Part 9) one at a time in future sessions: the code that tracks "which database did this food come from" and builds the Source-filter checkboxes and the "Searching…" status message is now driven by a single small list instead of being hardcoded to USDA and Open Food Facts in three separate places. Behavior for USDA/OFF is unchanged; this just means each future source becomes an additive step instead of a repeat of the same groundwork.
+
+```
+numa_app/services/food_ids.py: single _OFF_ID_THRESHOLD cutoff replaced with
+_SYNTHETIC_ID_RANGES, an ordered (key, range_start, range_end, label) table;
+ranges reserved (commented out, not yet active) for cnf/cofid/afcd/ciqual so
+adding one later is a one-line uncomment, not a range renumbering.
+web/backend.py: new _LIVE_SOURCES = [(key, human_name, fetch_fn), ...] is now
+the single source of truth for both source-filter labels (_SEARCH_SOURCE_
+LABELS, _SOURCE_PICKER_FILTERS) and _external_food_search_results()'s fetch
+loop (was two copy-pasted `if "usda" in sources` / `if "off" in sources`
+blocks, now one loop calling each source's _fetch_usda_candidates()/
+_fetch_off_candidates()). New _external_source_labels() builds the "Searching
+X and Y…" message from the same list, passed to templates as
+external_source_labels; search.html/food_analyze_portion.html/meal.html's
+three copy-pasted Jinja `{% if 'usda' in source %}...{% endif %}` blocks
+replaced with a single `{{ external_source_labels | join(' and ') }}`.
+```
+
+**ACCURATE "SEARCHING…" MESSAGE, AND A "SHOW UP TO ___ RESULTS" LIMIT**
+
+The "Searching…" status line that appears while a food search fetches USDA/Open Food Facts results now names only the source(s) actually being searched — if you've unchecked Open Food Facts in the Source filter, it says "Searching USDA FoodData Central…" instead of naming both; if you've unchecked both, the line (and the network request behind it) doesn't appear at all. A new "Show up to ___ search results" box next to the Source filter lets you raise the result cap (default 25, up to 500) instead of being stuck with whatever the built-in default returned — [learn more...](#food-search)
+
+```
+web/backend.py: _external_food_search_results() gained `sources` and `limit`
+params — skips the USDA and/or OFF network call entirely when that source is
+unchecked (previously always fetched both, then filtered client-invisibly
+after the fact, which is also why the old status line was wrong for a
+filtered search). New _resolve_result_limit()/_SEARCH_RESULT_LIMIT_DEFAULT
+(25)/_SEARCH_RESULT_LIMIT_MAX (500), same persisted-pref pattern as the
+source filter, threaded through every route that already carries `source`
+(food_search_*, food_analyze_portion_*, meal_view/meal_search_api_results,
+food_convert_get, food_compare_get, pantry_get, recipe_edit_get) and into
+each USDA/OFF search_foods() call's page_size so raising the number actually
+fetches more candidates, not just displays more of the same ~21. Templates:
+new web/templates/_result_limit_input.html macro; the three AJAX-loading
+`<tr>` rows (search.html, food_analyze_portion.html, meal.html) are now
+wrapped in `{% if 'usda' in source or 'off' in source %}` with the message
+text built from whichever of the two is actually checked, and the
+loading-JS's `if (!loadingRow) return` guard (pre-existing, previously only
+guarded the barcode case) now also skips the fetch entirely in the
+neither-checked case.
+```
+
+**FOOD SOURCE FILTER: PICK ANY COMBINATION, SHOWN NEXT TO EVERY SEARCH BOX**
+
+Every food-search screen in the app (Food Search, Analyze a Food Portion, Compare Foods, Convert a Portion, Pantry, Meal "Add Food", Recipe "Add Ingredient", and the Edit Custom Profile page's two "copy from" searches) now shows Source checkboxes — Pantry, Food Cache, Recipes, USDA, Open Food Facts — right next to the search box itself, before you've even typed anything, instead of only appearing after results came back. You can check any combination, not just one at a time. The custom-profile page's two searches also gained Open Food Facts as a source, which they couldn't reach before.
+
+```
+web/backend.py: source filter reworked from a single-value "all/pantry/cache/
+recipe/usda/off" string to a list — _resolve_source_filter() replaces the old
+_resolve_sort()-based resolution, persisting a comma-joined pref and treating
+an empty/all-invalid selection as "all sources" (there's no useful "show
+nothing" state). _filter_search_results_by_source() now takes a set of
+allowed sources. Every route touching "source" (food_search_get/post,
+food_search_api_results, food_analyze_portion_*, food_convert_get,
+food_compare_get, pantry_get, meal_view, meal_search_api_results,
+recipe_edit_get, and the confirm-aa/copy-aa/copy-nutrients POST handlers that
+carry the filter forward) switched from `source: str | None` to
+`source: list[str] | None = Query(default=None)` (or `Form([])` on POSTs).
+web/templates/_source_filter_select.html's macro now renders a checkbox group
+instead of a <select>, each checkbox auto-submitting its form on change; every
+template moved the macro call into the same <form> as the query input rather
+than a separate post-results-only form. JS fetches to the *-api-results
+endpoints build the querystring with repeated `source=` params via
+URLSearchParams.append() (a plain object literal would have comma-joined the
+array into a single invalid value). _search_food_sources() (the custom-profile
+page's shared picker) got the same list-based treatment via its own
+_SOURCE_PICKER_FILTERS (cache/usda/off).
+```
+
 #### August 10
+
+**INSTALL INSTRUCTIONS ARE NOW REAL, NOT A PLAN**
+
+Part 1 Section C ("Download and install the program") now describes the actual install steps instead of a pre-release planning checklist, since the first real Linux release has now been cut. It also states plainly which platform is verified (Ubuntu 24.04 LTS) and points to running from source as a fallback if the prebuilt binary doesn't work on your distro.
+
+```
+user-manual.md (Part 1, Section C), README.md
+Removed the italic "being drafted" preamble and the "what still has to be
+built" engineering checklist (all items were done except the Windows
+follow-on, which is its own future task). Replaced the stale "* Black Beans
+& Rice" starter-recipe example with a currently-real one ("* Pinto-quinoa
+meal") since the old placeholder starter set was replaced this release (see
+RELEASE-CHECKLIST.md Phase 1). Added a one-line Ubuntu/glibc compatibility
+note to both the manual and README's Download section, pointing to
+README.md's existing "For developers" run-from-source instructions as the
+fallback for unsupported distros — that path already existed, it just
+wasn't cross-referenced from the download instructions.
+```
 
 **COMPARE RECIPES SIDE BY SIDE — INGREDIENTS, PROTEIN QUALITY, AND NUTRIENTS**
 
@@ -4172,7 +4384,8 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 ---
 
-### L. Notes
+
+## L. Notes
 
 [^1]: Lippman, D., Stump, M., Veazey, E., Guimarães, S. T., Rosenfeld, R., Kelly, J. H., Ornish, D., & Katz, D. L. (2024). Foundations of Lifestyle Medicine and its Evolution. *Mayo Clinic Proceedings: Innovations, Quality & Outcomes, 8(1)*, 97–111. https://doi.org/10.1016/j.mayocpiqo.2023.11.004
 
@@ -4193,4 +4406,6 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 [^9]: US National Institutes of Health. (2026, July 31). Office of Dietary Supplements—Nutrient Recommendations and Databases. https://ods.od.nih.gov/HealthInformation/nutrientrecommendations.aspx
 
 [^10]: NuMa's own curated table of amino-acid profiles for common protein-complement foods — beans, grains, seeds, and a few animal foods included for comparison (`_COMPLEMENT_TABLE` in `usda_nutrients.py`). 23 of the 25 entries cite a specific [USDA](#gloss-usda) FoodData Central SR Legacy record by FDC ID, sourced the same way as the rest of NuMa's nutrient data[^2]; the remaining two (nutritional yeast, pea protein powder) use published amino-acid-composition literature values because no matching USDA record exists for those specific products. NuMa always checks your own food cache for a real match to each entry's food name before falling back to these built-in figures — see [amino acid estimates in complement suggestions](#comp-estimate).
+
+[^11]: Harvard T.H. Chan School of Public Health, Renal and Urology News Oxalate Table (433 foods, November 2023 edition), credited to Dr. John Knight of the University of Alabama School of Medicine. https://hsph.harvard.edu/wp-content/uploads/2024/07/OXALATE-TABLE-1.xlsx — NuMa matches foods to this table by name; see [Oxalate data](#oxalate) for enabling it, matching, and limitations.
 

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "_add_food_row.html" as _sr %}
 {% import "_source_filter_select.html" as _srcf %}
+{% import "_result_limit_input.html" as _rli %}
 {% block title %}NutriMagnus — {{ meal.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -166,24 +167,27 @@
   <form method="get" action="/meal/{{ meal.id }}" data-persist-search>
     <input type="hidden" name="sort" value="{{ sort }}">
     <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-    <div class="input-group mb-3" style="max-width:50%">
+    <div class="input-group mb-2" style="max-width:50%">
       <input type="text" class="form-control" name="q" value="{{ q }}"
              placeholder="Search foods or recipes…" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
       {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
     </div>
+    <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
+    <div class="mb-3">{{ _rli.input(limit) }}</div>
   </form>
 
   {% if q %}
   <form method="get" action="/meal/{{ meal.id }}" class="d-flex flex-wrap gap-2 align-items-center mb-2">
     <input type="hidden" name="q" value="{{ q }}">
+    {% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
+    <input type="hidden" name="limit" value="{{ limit }}">
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
             onchange="this.form.submit()">
       <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
-    {{ _srcf.select(source, source_filters, source_labels) }}
   </form>
   {# A checkbox's own <tr> sits inside the results table below, which also
      contains each row's independent "Add to meal" <form> — HTML forms can't
@@ -192,7 +196,8 @@
   <form method="post" action="/meal/{{ meal.id }}/confirm-aa" id="confirm-aa-form">
     <input type="hidden" name="q" value="{{ q }}">
     <input type="hidden" name="sort" value="{{ sort }}">
-    <input type="hidden" name="source" value="{{ source }}">
+    {% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
+    <input type="hidden" name="limit" value="{{ limit }}">
     <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
       <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
         Fetch full details for selected
@@ -217,9 +222,11 @@
     </thead>
     <tbody id="add-food-tbody">
       {% for food in search_results %}{{ _sr.add_food_row(meal.id, food, q) }}{% endfor %}
+      {% if external_source_labels %}
       <tr id="add-food-api-loading" class="food-meta-row">
-        <td colspan="7"><small class="muted">Searching USDA FoodData Central and Open Food Facts…</small></td>
+        <td colspan="7"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>
       </tr>
+      {% endif %}
     </tbody>
   </table>
   <p id="add-food-no-results" class="muted" style="display:none">No results for <strong>{{ q }}</strong>.</p>
@@ -261,7 +268,10 @@
     }
     refreshConfirmUI();
 
-    var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}, source: {{ source | tojson }}});
+    if (!loadingRow) return;  // neither USDA nor Open Food Facts selected — nothing more to fetch
+
+    var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}, limit: {{ limit | tojson }}});
+    {{ source | tojson }}.forEach(function (s) { params.append('source', s); });
     fetch('/meal/{{ meal.id }}/search-api-results?' + params.toString())
       .then(function (r) { return r.text(); })
       .then(function (html) {
@@ -766,7 +776,8 @@
 <input type="hidden" name="q" value="{{ q }}">
 <input type="hidden" name="sort" value="{{ sort }}">
 <input type="hidden" name="item_sort" value="{{ item_sort }}">
-<input type="hidden" name="source" value="{{ source }}">
+{% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
+<input type="hidden" name="limit" value="{{ limit }}">
 <section id="sec-complements" class="analysis-section">
   <h3 class="section-heading">Protein Complement Suggestions {{ manual_link("comp") }}</h3>
   {% if complements.no_gaps %}

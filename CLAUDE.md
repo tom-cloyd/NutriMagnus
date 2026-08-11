@@ -32,6 +32,16 @@ diaas.py              — meal-level DIAAS pooled calculation
 profile.py            — UserProfile dataclass, RDA computation
 export.py             — report rendering (txt / md / html)
 openfoodfacts.py      — Open Food Facts API client
+cnf_api.py             — Canadian Nutrient File API client (search is a local
+                         name filter over one cached bulk food-list fetch —
+                         see module docstring)
+cofid_lookup.py         — UK CoFID local search over cofid_data.json (no live
+                         API; see scripts/build_cofid_data.py to regenerate).
+                         No amino-acid data — CoFID's public dataset has none.
+afcd_lookup.py          — Australian AFCD local search over afcd_data.json
+                         (see scripts/build_afcd_data.py). Has amino-acid data.
+ciqual_lookup.py        — French CIQUAL local search over ciqual_data.json
+                         (see scripts/build_ciqual_data.py). No amino-acid data.
 
 numa_app/
   services/
@@ -51,6 +61,9 @@ numa_app/
                          truly empty DB; load_demo_data()/clear_demo_data() back
                          the Settings toggle for anyone who cleared it
     food_ids.py        — classify_food_id() — food/recipe ID → (id_str, source_label)
+    static_source_lookup.py — StaticSource class: shared local-search/lookup
+                         machinery for bundled static datasets (CoFID/AFCD/
+                         CIQUAL); cofid_lookup.py etc. are thin wrappers around it
     glycemic_load.py    — shared GL aggregation: compute_glycemic_load()
     manual_build.py     — rebuild_manual_if_stale(), used by the /manual route
     meal_bcp.py         — shared meal-DCP fallback: recipe_dcp_fallback()

@@ -1,0 +1,8 @@
+{% macro input(current, field_name="limit") %}
+<div class="d-flex align-items-center gap-1">
+  <label class="muted mb-0" for="{{ field_name }}"><small>Show up to</small></label>
+  <input type="number" min="1" max="500" step="1" class="form-control form-control-sm"
+         style="width:5rem" id="{{ field_name }}" name="{{ field_name }}" value="{{ current }}">
+  <label class="muted mb-0" for="{{ field_name }}"><small>search results.</small></label>
+</div>
+{% endmacro %}

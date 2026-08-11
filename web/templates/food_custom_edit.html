@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_source_filter_select.html" as source_filter %}
 {% block title %}NutriMagnus — Edit {{ food.name }}{% endblock %}
 
 {% block content %}
@@ -40,11 +41,12 @@
     unscaled copy of the source's per-100g data. Handy for filling a blank draft before you hand-edit it.
     Independent of the amino-acid estimator below — running either one afterward will overwrite what the other set.</small>
   </p>
-  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="d-flex gap-2 mb-2">
+  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="d-flex gap-2 mb-2 align-items-center">
     <input type="hidden" name="aa_source_q" value="{{ aa_source_q }}">
     <input type="text" class="form-control form-control-sm" name="nutrient_source_q" value="{{ nutrient_source_q }}"
            placeholder="Search for a food to copy from…" style="max-width:22rem">
     <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
+    {{ source_filter.select(nutrient_source, source_filters, source_labels, "nutrient_source") }}
   </form>
   {% if nutrient_source_q and not nutrient_source_results %}
   <p class="muted"><small>No foods match "{{ nutrient_source_q }}".</small></p>
@@ -65,6 +67,7 @@
         <td>
           <form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/copy-nutrients" style="margin:0">
             <input type="hidden" name="source_fdc_id" value="{{ r.fdc_id }}">
+            <input type="hidden" name="off_code" value="{{ r.off_code or '' }}">
             <button type="submit" class="btn btn-sm btn-primary"
                     data-confirm-name="{{ r.name }}"
                     onclick="return confirm('Replace every nutrient value on this profile with a copy from ' + this.dataset.confirmName + '?')">
@@ -86,11 +89,12 @@
     <small>Search your Food Cache and USDA for a similar food with amino acid data, then apply it here —
     values are scaled to this food's own protein content, not copied raw.</small>
   </p>
-  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="d-flex gap-2 mb-2">
+  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="d-flex gap-2 mb-2 align-items-center">
     <input type="hidden" name="nutrient_source_q" value="{{ nutrient_source_q }}">
     <input type="text" class="form-control form-control-sm" name="aa_source_q" value="{{ aa_source_q }}"
            placeholder="Search for a similar food…" style="max-width:22rem" {% if not aa_source_q %}autofocus{% endif %}>
     <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
+    {{ source_filter.select(aa_source, source_filters, source_labels, "aa_source") }}
   </form>
   {% if aa_source_q and not aa_source_results %}
   <p class="muted"><small>No foods match "{{ aa_source_q }}".</small></p>
@@ -116,6 +120,7 @@
         <td>
           <form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/copy-aa" style="margin:0">
             <input type="hidden" name="source_fdc_id" value="{{ r.fdc_id }}">
+            <input type="hidden" name="off_code" value="{{ r.off_code or '' }}">
             <button type="submit" class="btn btn-sm btn-primary" {% if not r.has_aa %}disabled{% endif %}>Use as source</button>
           </form>
         </td>

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as _srcf %}
+{% import "_result_limit_input.html" as _rli %}
 {% block title %}NutriMagnus — Compare Foods{% endblock %}
 
 {% block content %}
@@ -63,25 +64,19 @@
   <input type="hidden" name="ids" value="{{ ids_str }}">
   <input type="hidden" name="amounts" value="{{ amounts_str }}">
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-  <div class="input-group" style="max-width:36rem">
+  <div class="input-group mb-2" style="max-width:36rem">
     <input type="text" class="form-control" name="search"
            value="{{ search }}"
            placeholder="Search for a food to add…" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
+  <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
+  {{ _rli.input(limit) }}
 </form>
 
 {# ── Search results — user selects multiple to add ── #}
 {% if search_error %}
 <p class="numa-error">{{ search_error }}</p>
-{% endif %}
-{% if search %}
-<form method="get" action="/food/compare" class="d-flex flex-wrap gap-2 align-items-center mb-2">
-  <input type="hidden" name="ids" value="{{ ids_str }}">
-  <input type="hidden" name="amounts" value="{{ amounts_str }}">
-  <input type="hidden" name="search" value="{{ search }}">
-  {{ _srcf.select(source, source_filters, source_labels) }}
-</form>
 {% endif %}
 {% if search_results %}
 <form method="post" action="/food/compare/add-multiple">

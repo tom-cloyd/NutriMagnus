@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as _srcf %}
+{% import "_result_limit_input.html" as _rli %}
 {% block title %}NutriMagnus — Convert a Portion{% endblock %}
 
 {% block content %}
@@ -14,22 +15,17 @@
 
 <form method="get" action="/food/convert" class="mb-4">
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-  <div class="input-group" style="max-width:36rem">
+  <div class="input-group mb-2" style="max-width:36rem">
     <input type="text" class="form-control" name="q" value="{{ query or '' }}"
            placeholder="Search for a food to look up portions…" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
   </div>
+  <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
+  {{ _rli.input(limit) }}
 </form>
 
 {% if search_error %}
 <p class="numa-error">{{ search_error }}</p>
-{% endif %}
-
-{% if query %}
-<form method="get" action="/food/convert" class="d-flex flex-wrap gap-2 align-items-center mb-2">
-  <input type="hidden" name="q" value="{{ query }}">
-  {{ _srcf.select(source, source_filters, source_labels) }}
-</form>
 {% endif %}
 
 {% if search_results %}

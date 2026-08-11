@@ -20,6 +20,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+import afcd_lookup as _afcd
+import ciqual_lookup as _ciqual
+import cnf_api as _cnf
+import cofid_lookup as _cofid
 import db as _db
 import diaas as _diaas
 import openfoodfacts as _off
@@ -68,7 +72,7 @@ _SEARCH_PREP_WORDS = {
     "fresh", "raw", "dried", "dehydrated", "reconstituted",
     "plain", "unseasoned", "seasoned", "marinated",
 }
-_SEARCH_META_WORDS = {"usda", "off", "openfoodfacts"}
+_SEARCH_META_WORDS = {"usda", "off", "openfoodfacts", "cnf"}
 
 def _render_home_md() -> str:
     if not _HOME_MD.exists():
@@ -252,32 +256,207 @@ def _resolve_bool_pref(value: bool | None, pref_key: str, default: bool = False)
     return value
 
 
-_SEARCH_CATEGORY_RANK = {"pantry": 0, "cache": 1, "recipe": 2, "usda": 3, "off": 3}
+_SEARCH_CATEGORY_RANK = {"pantry": 0, "cache": 1, "recipe": 2, "usda": 3, "off": 3, "cnf": 3,
+                          "cofid": 3, "afcd": 3, "ciqual": 3}
 _SEARCH_SORT_MODES = {"grouped", "relevance"}
 
-# Data-source filter for search results, offered next to (or alongside) the
-# sort dropdown on every food-search box in the app. "all" is the default —
-# unfiltered, current behavior. Order here is display order in the <select>.
-_SEARCH_SOURCE_FILTERS = ["all", "pantry", "cache", "recipe", "usda", "off"]
+def _fetch_usda_candidates(api_query: str, limit: int, existing: list[dict]) -> list[dict]:
+    general = _usda.search_foods(api_query, page_size=limit)
+    # USDA's own relevance ranking can bury plain/raw preparations (the ones
+    # with real amino-acid data) ~20 deep for a common single-word query —
+    # see _search_logic for the "potato" case that exposed this. The result
+    # cap is user-configurable (Settings → Advanced); 0 means no cap.
+    foundation = _usda.search_foods(api_query, data_types=["Foundation", "SR Legacy"],
+                                     page_size=_usda.get_search_boost_page_size())
+    found_ids = {f["fdcId"] for f in foundation}
+    return foundation + [f for f in general if f["fdcId"] not in found_ids]
+
+
+def _fetch_off_candidates(api_query: str, limit: int, existing: list[dict]) -> list[dict]:
+    found = []
+    for food in _off.search_foods(api_query, page_size=limit):
+        name_lower = food.get("description", "").lower()
+        if not any(name_lower == f.get("description", "").lower() for f in existing + found):
+            found.append(food)
+    return found
+
+
+def _fetch_cnf_candidates(api_query: str, limit: int, existing: list[dict]) -> list[dict]:
+    return _cnf.search_foods(api_query, page_size=limit)
+
+
+# Every live (network-backed) food-search source: (key, human name, fetch
+# function). Single source of truth for that name, used both to build the
+# "Searching X and Y…" status message (see _external_source_labels()) and by
+# _external_food_search_results()'s fetch loop below — adding a future source
+# (UK CoFID, etc. — see user-manual.md Part 9) is one entry here, not a
+# change to the message or the fetch loop.
+_LIVE_SOURCES = [
+    ("usda", "USDA FoodData Central",     _fetch_usda_candidates),
+    ("off",  "Open Food Facts",           _fetch_off_candidates),
+    ("cnf",  "Canadian Nutrient File",    _fetch_cnf_candidates),
+]
+
+# Static (bundled-dataset, no network) external sources — searched instantly
+# via _search_local_results()/_meal_add_food_local_results() rather than the
+# async fetch loop _LIVE_SOURCES drives. (key, human name) — no fetch_fn here
+# since each caller already knows how to merge its own static-source results
+# inline; this list exists for the label, matching _LIVE_SOURCES' role.
+_STATIC_SOURCES = [
+    ("cofid",  "CoFID (UK Food Composition)"),
+    ("afcd",   "AFCD (Australian Food Composition)"),
+    ("ciqual", "CIQUAL (French Food Composition)"),
+]
+_STATIC_SOURCE_MODULES = {"cofid": _cofid, "afcd": _afcd, "ciqual": _ciqual}
+
+
+def _static_source_candidates(query: str, keys: list[str] | None = None) -> list[dict]:
+    """Results from every static (bundled-dataset, no network) source — or
+    just `keys` if given — in the shared search-result shape used by
+    _search_local_results()/_meal_add_food_local_results(). None of these
+    sources' search stubs claim amino-acid data (even AFCD, which has real
+    AA data for most but not all foods — "✗" here just means "unconfirmed
+    until fetched," the same posture used for OFF/CNF search stubs)."""
+    active = keys if keys is not None else [key for key, _label in _STATIC_SOURCES]
+    results = []
+    for key in active:
+        module = _STATIC_SOURCE_MODULES.get(key)
+        if module is None:
+            continue
+        for food in module.search_foods(query):
+            results.append({
+                "fdc_id":    food["fdcId"],
+                "name":      food["description"],
+                "data_type": food["dataType"],
+                "brand":     "",
+                "source":    key,
+                "off_code":  "",
+                "portions":  [],
+                "aa":        "✗",
+                "gi":        None,
+                "diaas":     None,
+                "has_notes": False,
+            })
+    return results
+
+# Data-source filter for search results, offered next to the query box on
+# every food-search screen in the app. A user can check any combination of
+# sources; checking none is treated the same as checking all (there's no
+# useful "show nothing" state). Order here is display/checkbox order.
+_SEARCH_SOURCE_FILTERS = (["pantry", "cache", "recipe"]
+                           + [key for key, _ in _STATIC_SOURCES]
+                           + [key for key, _, _fn in _LIVE_SOURCES])
 _SEARCH_SOURCE_LABELS = {
-    "all":    "All sources",
     "pantry": "PANTRY — Pantry",
     "cache":  "CACHE — Food Cache",
     "recipe": "RECIPE — Recipes",
-    "usda":   "USDA — USDA FoodData Central",
-    "off":    "OFF — Open Food Facts",
+    **{key: f"{key.upper()} — {name}" for key, name in _STATIC_SOURCES},
+    **{key: f"{key.upper()} — {name}" for key, name, _fn in _LIVE_SOURCES},
 }
 
 
-def _filter_search_results_by_source(results: list[dict], source: str | None) -> list[dict]:
-    """Restrict search results to a single data source ('pantry', 'cache',
-    'recipe', 'usda', 'off'), or return everything when source is 'all' or
-    unset. Lets a user isolate one source's results — e.g. to check whether
+def _external_source_labels(sources: list[str]) -> list[str]:
+    """Human names of whichever live sources are in the current Source filter
+    selection, in registry order — used to build an accurate "Searching X and
+    Y…" status message that names exactly what's being queried, instead of a
+    hardcoded pair. Empty when no live source is selected (nothing to fetch)."""
+    return [name for key, name, _fn in _LIVE_SOURCES if key in sources]
+
+
+def _fetch_uncached_food_detail(fdc_id: int, off_code: str = "") -> dict:
+    """Fetch full detail for a search result not yet in the local cache,
+    dispatching by which synthetic-ID range fdc_id falls in (or a real
+    positive USDA id) — the shared "user clicked/added an external search
+    result we haven't fetched before" path used by pantry add, meal add-food,
+    and the custom-profile copy pickers. Raises on failure (network error, or
+    a source that couldn't resolve the id) so existing callers' try/except
+    Exception blocks handle it uniformly, matching usda.get_food_detail()'s
+    own raise-on-failure behavior."""
+    if fdc_id > 0:
+        return _usda.get_food_detail(fdc_id)
+    if _off.is_off_id(fdc_id):
+        detail = _off.lookup_by_barcode(off_code) if off_code else None
+        if not detail:
+            raise _off.OFFError("lookup failed")
+        return detail
+    if _cnf.is_cnf_id(fdc_id):
+        detail = _cnf.get_food_detail_by_id(fdc_id)
+        if not detail:
+            raise _cnf.CNFError("lookup failed")
+        return detail
+    if _cofid.is_cofid_id(fdc_id):
+        detail = _cofid.get_food_detail_by_id(fdc_id)
+        if not detail:
+            raise LookupError("CoFID lookup failed")
+        return detail
+    if _afcd.is_afcd_id(fdc_id):
+        detail = _afcd.get_food_detail_by_id(fdc_id)
+        if not detail:
+            raise LookupError("AFCD lookup failed")
+        return detail
+    if _ciqual.is_ciqual_id(fdc_id):
+        detail = _ciqual.get_food_detail_by_id(fdc_id)
+        if not detail:
+            raise LookupError("CIQUAL lookup failed")
+        return detail
+    raise ValueError(f"fdc_id {fdc_id} is not in any known source's id range")
+
+
+def _resolve_source_filter(raw: list[str] | None, pref_key: str,
+                            valid_sources: list[str] = _SEARCH_SOURCE_FILTERS) -> list[str]:
+    """Resolve a multi-select source filter: explicit `source` query values
+    (possibly several, one per checked checkbox) win and are remembered as
+    the new default; otherwise fall back to the saved pref. An empty or
+    entirely-invalid selection (nothing checked) reverts to "all sources" —
+    there's no point letting a user filter results down to nothing."""
+    prefs = _load_prefs_file()
+    if raw is None:
+        raw = [s for s in prefs.get(pref_key, "").split(",") if s]
+    valid = [s for s in raw if s in valid_sources]
+    if not valid:
+        valid = list(valid_sources)
+    joined = ",".join(valid)
+    if prefs.get(pref_key, "") != joined:
+        _save_prefs_file({pref_key: joined})
+    return valid
+
+
+def _filter_search_results_by_source(results: list[dict], sources: list[str] | None) -> list[dict]:
+    """Restrict search results to the given data sources ('pantry', 'cache',
+    'recipe', 'usda', 'off'), or return everything when sources is empty/unset
+    (which _resolve_source_filter() never actually produces, but callers that
+    bypass it — e.g. a hand-built filter — get the safe "no filter" behavior).
+    Lets a user isolate one or more sources' results — e.g. to check whether
     a ranking oddity comes from a specific source's data rather than the
     ranking logic itself."""
-    if not source or source == "all":
+    if not sources or set(sources) >= set(_SEARCH_SOURCE_FILTERS):
         return results
-    return [r for r in results if r.get("source") == source]
+    allowed = set(sources)
+    return [r for r in results if r.get("source") in allowed]
+
+# How many results a food search shows by default, and the ceiling a user can
+# raise it to via the "Show up to ___ search results" box next to the Source
+# filter. Also used as the page_size requested from USDA/OFF, so raising it
+# actually fetches more candidates rather than just changing a display cap.
+_SEARCH_RESULT_LIMIT_DEFAULT = 25
+_SEARCH_RESULT_LIMIT_MAX = 500
+
+
+def _resolve_result_limit(raw: int | None, pref_key: str = "search_result_limit") -> int:
+    """Resolve the "Show up to ___ results" cap: an explicit `limit` query/form
+    value wins and is remembered as the new default; otherwise fall back to
+    the saved pref. Clamped to [1, _SEARCH_RESULT_LIMIT_MAX] so a stray value
+    (blank field, huge number) can't break the page or hammer the APIs."""
+    prefs = _load_prefs_file()
+    if raw is None:
+        try:
+            raw = int(prefs.get(pref_key, _SEARCH_RESULT_LIMIT_DEFAULT))
+        except (TypeError, ValueError):
+            raw = _SEARCH_RESULT_LIMIT_DEFAULT
+    val = max(1, min(raw, _SEARCH_RESULT_LIMIT_MAX))
+    if prefs.get(pref_key) != val:
+        _save_prefs_file({pref_key: val})
+    return val
 
 # Matches plotting.MAX_SERIES — the nutrient-plot picker can't offer more
 # lines than the fixed categorical color palette has colors for.
@@ -324,33 +503,25 @@ def _sort_search_results(results: list[dict], query: str, mode: str) -> list[dic
     )
 
 
-def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str, sort: str) -> list[dict]:
-    """USDA + Open Food Facts search: 2-3 blocking network calls. Callers on
-    the web should run this out-of-band from the initial page render (see
-    /meal/{meal_id}/search-api-results) so cached results aren't stuck
-    waiting behind slow external APIs."""
+def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str, sort: str,
+                                   sources: list[str] | None = None,
+                                   limit: int = _SEARCH_RESULT_LIMIT_DEFAULT) -> list[dict]:
+    """Live-source search: one blocking network call per selected source in
+    _LIVE_SOURCES (`sources` defaults to "all of them", for callers that
+    don't filter by source at all) — skipping whichever are unchecked in the
+    current Source filter. Callers on the web should run this out-of-band
+    from the initial page render (see /meal/{meal_id}/search-api-results) so
+    cached results aren't stuck waiting behind slow external APIs."""
+    if sources is None:
+        sources = [key for key, _name, _fn in _LIVE_SOURCES]
     raw_api: list[dict] = []
-    try:
-        general = _usda.search_foods(api_query)
-        # USDA's own relevance ranking can bury plain/raw preparations
-        # (the ones with real amino-acid data) ~20 deep for a common
-        # single-word query — see _search_logic for the "potato" case
-        # that exposed this. The result cap is user-configurable
-        # (Settings → Advanced); 0 means no cap.
-        foundation = _usda.search_foods(api_query, data_types=["Foundation", "SR Legacy"],
-                                         page_size=_usda.get_search_boost_page_size())
-        found_ids = {f["fdcId"] for f in foundation}
-        raw_api.extend(foundation + [f for f in general if f["fdcId"] not in found_ids])
-    except Exception:
-        pass
-
-    try:
-        for food in _off.search_foods(api_query, page_size=6):
-            name_lower = food.get("description", "").lower()
-            if not any(name_lower == f.get("description", "").lower() for f in raw_api):
-                raw_api.append(food)
-    except Exception:
-        pass
+    for key, _name, fetch_fn in _LIVE_SOURCES:
+        if key not in sources:
+            continue
+        try:
+            raw_api.extend(fetch_fn(api_query, limit, raw_api))
+        except Exception:
+            pass
 
     candidate_ids = [f["fdcId"] for f in raw_api if isinstance(f.get("fdcId"), int)]
     with _db.get_db() as conn:
@@ -361,13 +532,16 @@ def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str,
             if row:
                 cached_nutrients[fid] = row["nutrients_json"]
 
-    def _aa_status(fdc_id: int, data_type: str, from_off: bool) -> str:
-        if from_off:
-            return "✗"
+    def _aa_status(fdc_id: int, data_type: str, source: str) -> str:
         nuts_json = cached_nutrients.get(fdc_id)
         if nuts_json:
             return "✓" if _usda.has_amino_acid_data(json.loads(nuts_json)) else "✗"
-        if data_type in ("Foundation", "SR Legacy"):
+        # Foundation/SR Legacy USDA entries reliably carry amino acid data
+        # even before the first real fetch, so that guess is safe. OFF
+        # (rarely has AA data) and CNF (has it for only a subset of foods —
+        # no reliable "always has it" data_type to key off of) can't be
+        # guessed with any confidence, so both show unconfirmed until fetched.
+        if source == "usda" and data_type in ("Foundation", "SR Legacy"):
             return "~✓"
         return "✗"
 
@@ -389,17 +563,21 @@ def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str,
         if not fid or fid in exclude_ids:
             continue
         exclude_ids.add(fid)
-        from_off = bool(food.get("_from_off"))
-        dtype = "Open Food Facts" if from_off else food.get("dataType", "")
+        if food.get("_from_off"):
+            source, dtype = "off", "Open Food Facts"
+        elif food.get("_from_cnf"):
+            source, dtype = "cnf", "Canadian Nutrient File"
+        else:
+            source, dtype = "usda", food.get("dataType", "")
         results.append({
             "fdc_id":    fid,
             "name":      food.get("description", ""),
             "data_type": dtype,
             "brand":     food.get("brandOwner") or food.get("brandName") or "",
-            "source":    "off" if from_off else "usda",
-            "off_code":  food.get("_off_code", "") if from_off else "",
+            "source":    source,
+            "off_code":  food.get("_off_code", "") if source == "off" else "",
             "portions":  [],
-            "aa":        _aa_status(fid, dtype, from_off),
+            "aa":        _aa_status(fid, dtype, source),
             "gi":        _ann_gi(fid),
             "diaas":     _ann_diaas(fid),
         })
@@ -1028,17 +1206,23 @@ def _search_local_results(query: str) -> list[dict]:
             "diaas":     None,
             "has_notes": False,
         })
+    # Static (bundled-dataset, no network) external sources are instant like
+    # Pantry/Cache/Recipe, so they're merged in here rather than through the
+    # async external-fetch path used by USDA/OFF/CNF.
+    results.extend(_static_source_candidates(query))
     return results
 
 
 async def _search_logic(request: Request, query: str, template: str, extra_ctx: dict | None = None,
-                         sort: str | None = None, source: str | None = None):
+                         sort: str | None = None, source: list[str] | None = None,
+                         limit: int | None = None):
     """Shared search logic for food search and analyze-portion pages."""
     query = query.strip()
     results = []
     error = None
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
 
     # Barcode detection: 12 or 13 consecutive digits (UPC-A or EAN-13).
     # Spaces and hyphens are stripped first so "0 12345 67890 1" also works.
@@ -1092,6 +1276,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
             elif not error:
                 error = f"Barcode {_bc_digits} not found in Open Food Facts. Try searching by product name instead."
         ctx = {"results": results, "query": query, "error": error, "sort": sort, "source": source,
+               "limit": limit, "external_source_labels": _external_source_labels(source),
                "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS}
         if extra_ctx:
             ctx.update(extra_ctx)
@@ -1109,9 +1294,10 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
         # much better external one just by rendering first.
         results = _search_local_results(query)
         results = _sort_search_results(results, query, sort)
-        results = _filter_search_results_by_source(results, source)
+        results = _filter_search_results_by_source(results, source)[:limit]
 
     ctx = {"results": results, "query": query, "error": error, "sort": sort, "source": source,
+           "limit": limit, "external_source_labels": _external_source_labels(source),
            "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS}
     if extra_ctx:
         ctx.update(extra_ctx)
@@ -1120,31 +1306,34 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
 
 @app.get("/food/search", response_class=HTMLResponse)
 async def food_search_get(request: Request, query: str = Query(default=""), sort: str | None = None,
-                           source: str | None = None):
+                           source: list[str] | None = Query(default=None), limit: int | None = None):
     if query.strip():
-        return await _search_logic(request, query, "search.html", sort=sort, source=source)
+        return await _search_logic(request, query, "search.html", sort=sort, source=source, limit=limit)
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     return templates.TemplateResponse(request, "search.html", {
-        "results": [], "query": "", "sort": sort, "source": source,
+        "results": [], "query": "", "sort": sort, "source": source, "limit": limit,
+        "external_source_labels": _external_source_labels(source),
         "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
     })
 
 
 @app.post("/food/search", response_class=HTMLResponse)
-async def food_search_post(request: Request, query: str = Form("")):
-    return await _search_logic(request, query, "search.html")
+async def food_search_post(request: Request, query: str = Form(""), limit: int | None = Form(None)):
+    return await _search_logic(request, query, "search.html", limit=limit)
 
 
 @app.post("/search", response_class=HTMLResponse)
-async def search(request: Request, query: str = Form("")):
+async def search(request: Request, query: str = Form(""), limit: int | None = Form(None)):
     """Legacy alias — same as POST /food/search."""
-    return await _search_logic(request, query, "search.html")
+    return await _search_logic(request, query, "search.html", limit=limit)
 
 
 @app.get("/food/search-api-results", response_class=HTMLResponse)
 async def food_search_api_results(request: Request, query: str = "", sort: str | None = None,
-                                   source: str | None = None):
+                                   source: list[str] | None = Query(default=None),
+                                   limit: int | None = None):
     """Fetched by JS on the Food Search page after the initial (cache-only)
     render. Returns the FULL result set — local results merged with USDA/OFF
     and re-sorted together, not just the external rows appended below — so a
@@ -1152,32 +1341,35 @@ async def food_search_api_results(request: Request, query: str = "", sort: str |
     the local pass rendered first. The JS replaces the table body with this
     response rather than appending to it."""
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     query = query.strip()
     results: list[dict] = []
     if query:
         local = _search_local_results(query)
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
-        external = _external_food_search_results(query, exclude_ids, query, sort)
+        external = _external_food_search_results(query, exclude_ids, query, sort, sources=source, limit=limit)
         results = _sort_search_results(local + external, query, sort)
-        results = _filter_search_results_by_source(results, source)
+        results = _filter_search_results_by_source(results, source)[:limit]
     return templates.TemplateResponse(request, "_search_api_rows.html", {"results": results})
 
 
 @app.get("/food/analyze-portion-api-results", response_class=HTMLResponse)
 async def food_analyze_portion_api_results(request: Request, query: str = "", sort: str | None = None,
-                                            source: str | None = None):
+                                            source: list[str] | None = Query(default=None),
+                                            limit: int | None = None):
     """Same as /food/search-api-results, for the Analyze a Food Portion page."""
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     query = query.strip()
     results: list[dict] = []
     if query:
         local = _search_local_results(query)
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
-        external = _external_food_search_results(query, exclude_ids, query, sort)
+        external = _external_food_search_results(query, exclude_ids, query, sort, sources=source, limit=limit)
         results = _sort_search_results(local + external, query, sort)
-        results = _filter_search_results_by_source(results, source)
+        results = _filter_search_results_by_source(results, source)[:limit]
     return templates.TemplateResponse(request, "_analyze_portion_api_rows.html", {"results": results})
 
 
@@ -1186,7 +1378,8 @@ async def food_confirm_aa(
     fdc_ids: list[int] = Form(...),
     query: str = Form(""),
     sort: str = Form(""),
-    source: str = Form(""),
+    source: list[str] = Form([]),
+    limit: int | None = Form(None),
 ):
     """Fetch and cache full USDA details for the selected search-result foods,
     so their amino-acid badge changes from the coarse '~✓' guess (search
@@ -1217,12 +1410,14 @@ async def food_confirm_aa(
             _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
     from urllib.parse import urlencode
-    params = {"query": query}
+    params: dict[str, str | list[str]] = {"query": query}
     if sort:
         params["sort"] = sort
     if source:
         params["source"] = source
-    return RedirectResponse(f"/food/search?{urlencode(params)}", status_code=303)
+    if limit:
+        params["limit"] = str(limit)
+    return RedirectResponse(f"/food/search?{urlencode(params, doseq=True)}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -1235,16 +1430,19 @@ async def food_confirm_aa(
 @app.get("/food/analyze-portion", response_class=HTMLResponse)
 async def food_analyze_portion_get(request: Request):
     sort = _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
-    source = _resolve_sort(None, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(None, "sort_food_search_source")
+    limit = _resolve_result_limit(None)
     return templates.TemplateResponse(request, "food_analyze_portion.html", {
-        "results": [], "query": "", "sort": sort, "source": source,
+        "results": [], "query": "", "sort": sort, "source": source, "limit": limit,
+        "external_source_labels": _external_source_labels(source),
         "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
     })
 
 
 @app.post("/food/analyze-portion", response_class=HTMLResponse)
-async def food_analyze_portion_post(request: Request, query: str = Form(""), source: str = Form("all")):
-    return await _search_logic(request, query, "food_analyze_portion.html", source=source)
+async def food_analyze_portion_post(request: Request, query: str = Form(""), source: list[str] = Form([]),
+                                     limit: int | None = Form(None)):
+    return await _search_logic(request, query, "food_analyze_portion.html", source=source, limit=limit)
 
 
 @app.get("/food/analyze-recipe-portion", response_class=HTMLResponse)
@@ -1335,10 +1533,12 @@ async def food_analyze_recipe_portion_post(
 
 
 @app.get("/food/convert", response_class=HTMLResponse)
-async def food_convert_get(request: Request, q: str = "", source: str | None = None):
+async def food_convert_get(request: Request, q: str = "", source: list[str] | None = Query(default=None),
+                            limit: int | None = None):
     search_results = []
     search_error = None
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     if q:
         q = q.strip()
         with _db.get_db() as conn:
@@ -1356,7 +1556,7 @@ async def food_convert_get(request: Request, q: str = "", source: str | None = N
                 "convert_url": f"/food/convert/{row['fdc_id']}",
             })
         try:
-            for food in _usda.search_foods(q):
+            for food in _usda.search_foods(q, page_size=limit):
                 fid = food.get("fdcId")
                 if fid and fid not in seen:
                     seen.add(fid)
@@ -1386,12 +1586,13 @@ async def food_convert_get(request: Request, q: str = "", source: str | None = N
                     "convert_url": f"/food/convert/recipe/{r['id']}",
                 })
         search_results = _sort_search_results(search_results, q, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _filter_search_results_by_source(search_results, source)
+        search_results = _filter_search_results_by_source(search_results, source)[:limit]
     return templates.TemplateResponse(request, "food_convert.html", {
         "query":          q,
         "search_results": search_results,
         "search_error":   search_error,
         "source":         source,
+        "limit":          limit,
         "source_filters": _SEARCH_SOURCE_FILTERS,
         "source_labels":  _SEARCH_SOURCE_LABELS,
     })
@@ -1679,9 +1880,11 @@ async def food_compare_get(
     amounts: str = "",
     error: str = "",
     search: str = "",
-    source: str | None = None,
+    source: list[str] | None = Query(default=None),
+    limit: int | None = None,
 ):
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     id_list, amount_list = _parse_ids_amounts(ids, amounts)
     entries = _load_compare_entries(id_list, amount_list) if id_list else []
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
@@ -1707,7 +1910,7 @@ async def food_compare_get(
                     "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 })
         try:
-            for food in _usda.search_foods(search):
+            for food in _usda.search_foods(search, page_size=limit):
                 fid = food.get("fdcId")
                 if fid and fid not in seen:
                     seen.add(fid)
@@ -1722,7 +1925,7 @@ async def food_compare_get(
             if not search_results:
                 search_error = f"USDA API unavailable: {exc}"
         search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _filter_search_results_by_source(search_results, source)
+        search_results = _filter_search_results_by_source(search_results, source)[:limit]
 
     with _db.get_db() as conn:
         saved_lists = _db.saved_comparison_list(conn)
@@ -1738,6 +1941,7 @@ async def food_compare_get(
         "search_error":   search_error,
         "saved_lists":    saved_lists,
         "source":         source,
+        "limit":          limit,
         "source_filters": _SEARCH_SOURCE_FILTERS,
         "source_labels":  _SEARCH_SOURCE_LABELS,
     })
@@ -2208,9 +2412,10 @@ async def food_cache_refresh(request: Request, fdc_id: int):
 async def pantry_get(request: Request, added: str = "", linked: str = "",
                       search: str = "", link_id: int = 0,
                       show_archived: bool | None = None, archived: int = 0, restored: int = 0,
-                      source: str | None = None):
+                      source: list[str] | None = Query(default=None), limit: int | None = None):
     show_archived = _resolve_bool_pref(show_archived, "show_archived_pantry")
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     with _db.get_db() as conn:
         rows = _db.pantry_list(conn, include_archived=show_archived)
         fdc_ids = [r["fdc_id"] for r in rows if r["fdc_id"]]
@@ -2255,44 +2460,46 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
                 "off_code":  "",
                 "aa":        "✓" if _usda.has_amino_acid_data(nuts) else "✗",
             })
-        try:
-            for food in _usda.search_foods(search):
-                fid = food.get("fdcId")
-                if fid and fid not in seen:
-                    seen.add(fid)
-                    dtype = food.get("dataType", "")
-                    search_results.append({
-                        "fdc_id":    fid,
-                        "name":      food.get("description", ""),
-                        "data_type": dtype,
-                        "brand":     food.get("brandOwner") or food.get("brandName") or "",
-                        "source":    "usda",
-                        "off_code":  "",
-                        "aa":        "~✓" if dtype in ("Foundation", "SR Legacy") else "✗",
-                    })
-        except Exception as exc:
-            if not search_results:
-                search_error = f"USDA API unavailable: {exc}"
+        if "usda" in source:
+            try:
+                for food in _usda.search_foods(search, page_size=limit):
+                    fid = food.get("fdcId")
+                    if fid and fid not in seen:
+                        seen.add(fid)
+                        dtype = food.get("dataType", "")
+                        search_results.append({
+                            "fdc_id":    fid,
+                            "name":      food.get("description", ""),
+                            "data_type": dtype,
+                            "brand":     food.get("brandOwner") or food.get("brandName") or "",
+                            "source":    "usda",
+                            "off_code":  "",
+                            "aa":        "~✓" if dtype in ("Foundation", "SR Legacy") else "✗",
+                        })
+            except Exception as exc:
+                if not search_results:
+                    search_error = f"USDA API unavailable: {exc}"
 
-        try:
-            for food in _off.search_foods(search, page_size=6):
-                fid = food.get("fdcId")
-                if fid and fid not in seen:
-                    seen.add(fid)
-                    search_results.append({
-                        "fdc_id":    fid,
-                        "name":      food.get("description", ""),
-                        "data_type": "Open Food Facts",
-                        "brand":     food.get("brandOwner") or food.get("brandName") or "",
-                        "source":    "off",
-                        "off_code":  food.get("_off_code", ""),
-                        "aa":        "✗",
-                    })
-        except Exception:
-            pass
+        if "off" in source:
+            try:
+                for food in _off.search_foods(search, page_size=limit):
+                    fid = food.get("fdcId")
+                    if fid and fid not in seen:
+                        seen.add(fid)
+                        search_results.append({
+                            "fdc_id":    fid,
+                            "name":      food.get("description", ""),
+                            "data_type": "Open Food Facts",
+                            "brand":     food.get("brandOwner") or food.get("brandName") or "",
+                            "source":    "off",
+                            "off_code":  food.get("_off_code", ""),
+                            "aa":        "✗",
+                        })
+            except Exception:
+                pass
 
         search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _filter_search_results_by_source(search_results, source)
+        search_results = _filter_search_results_by_source(search_results, source)[:limit]
 
     link_name = next((i["food_name"] for i in items if i["id"] == link_id), None) if link_id else None
 
@@ -2308,6 +2515,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
         "show_archived": show_archived,
         "archived": archived,
         "source": source,
+        "limit": limit,
         "source_filters": _SEARCH_SOURCE_FILTERS,
         "source_labels": _SEARCH_SOURCE_LABELS,
         "restored": restored,
@@ -2340,10 +2548,7 @@ async def pantry_add(
             cached = _db.get_cached_food(conn, fdc_id_int)
         if not cached:
             try:
-                if _off.is_off_id(fdc_id_int) and off_code:
-                    detail = _off.lookup_by_barcode(off_code)
-                else:
-                    detail = _usda.get_food_detail(fdc_id_int)
+                detail = _fetch_uncached_food_detail(fdc_id_int, off_code)
                 if detail:
                     with _db.get_db() as conn:
                         _db.cache_food(conn, fdc_id=detail["fdcId"], name=detail["name"],
@@ -2441,57 +2646,124 @@ async def food_custom_profiles_delete(fdc_id: int):
     return RedirectResponse("/food/custom-profiles", status_code=303)
 
 
-def _search_food_sources(conn, q: str, exclude_id: int) -> list[dict]:
-    """Shared search-cache-then-USDA lookup used by both the AA-copy and
-    nutrient-copy pickers on the custom-profile edit page."""
-    results = [
-        dict(r) for r in _db.search_cached_foods(conn, q)
-        if r["fdc_id"] != exclude_id
-    ]
-    for r in results:
-        n = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
-        r["has_aa"] = _usda.has_amino_acid_data(n)
+_SOURCE_PICKER_FILTERS = (["cache"] + [key for key, _name in _STATIC_SOURCES]
+                           + [key for key, _name, _fn in _LIVE_SOURCES])
+
+
+def _search_food_sources(conn, q: str, exclude_id: int, source: list[str] | None = None) -> list[dict]:
+    """Shared search-cache-then-USDA-then-OFF lookup used by both the AA-copy and
+    nutrient-copy pickers on the custom-profile edit page. `source` restricts
+    results to any combination of _SOURCE_PICKER_FILTERS; empty/unset means
+    all of them."""
+    if not source:
+        source = _SOURCE_PICKER_FILTERS
+    results = []
+    if "cache" in source:
+        results = [
+            dict(r) for r in _db.search_cached_foods(conn, q)
+            if r["fdc_id"] != exclude_id
+        ]
+        for r in results:
+            n = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
+            r["has_aa"] = _usda.has_amino_acid_data(n)
+            r["source"] = "cache"
     seen_ids: set[int] = {exclude_id} | {r["fdc_id"] for r in results}
 
-    # USDA search runs after the cache lookup above, and other than fdc_id
+    # USDA/OFF search runs after the cache lookup above, and other than fdc_id
     # (needed to exclude self/dupes) uses no DB connection — a slow network
     # call must never run with a connection held open (see CLAUDE.md).
-    try:
-        general = _usda.search_foods(q)
-        foundation = _usda.search_foods(q, data_types=["Foundation", "SR Legacy"])
-        found_ids = {f["fdcId"] for f in foundation}
-        for food in foundation + [f for f in general if f["fdcId"] not in found_ids]:
+    if "usda" in source:
+        try:
+            general = _usda.search_foods(q)
+            foundation = _usda.search_foods(q, data_types=["Foundation", "SR Legacy"])
+            found_ids = {f["fdcId"] for f in foundation}
+            for food in foundation + [f for f in general if f["fdcId"] not in found_ids]:
+                fid = food.get("fdcId")
+                if not fid or fid in seen_ids:
+                    continue
+                seen_ids.add(fid)
+                dtype = food.get("dataType", "")
+                results.append({
+                    "fdc_id":    fid,
+                    "name":      food.get("description", ""),
+                    "data_type": dtype,
+                    "has_aa":    dtype in ("Foundation", "SR Legacy"),
+                    "source":    "usda",
+                })
+        except Exception:
+            pass
+    if "off" in source:
+        try:
+            for food in _off.search_foods(q):
+                fid = food.get("fdcId")
+                if not fid or fid in seen_ids:
+                    continue
+                seen_ids.add(fid)
+                results.append({
+                    "fdc_id":    fid,
+                    "name":      food.get("description", ""),
+                    "data_type": food.get("dataType", "Open Food Facts"),
+                    "has_aa":    False,
+                    "source":    "off",
+                    "off_code":  food.get("_off_code", ""),
+                })
+        except Exception:
+            pass
+    if "cnf" in source:
+        try:
+            for food in _cnf.search_foods(q):
+                fid = food.get("fdcId")
+                if not fid or fid in seen_ids:
+                    continue
+                seen_ids.add(fid)
+                results.append({
+                    "fdc_id":    fid,
+                    "name":      food.get("description", ""),
+                    "data_type": food.get("dataType", "Canadian Nutrient File"),
+                    "has_aa":    False,
+                    "source":    "cnf",
+                    "off_code":  "",
+                })
+        except Exception:
+            pass
+    for static_key, static_module in _STATIC_SOURCE_MODULES.items():
+        if static_key not in source:
+            continue
+        for food in static_module.search_foods(q):
             fid = food.get("fdcId")
             if not fid or fid in seen_ids:
                 continue
             seen_ids.add(fid)
-            dtype = food.get("dataType", "")
             results.append({
                 "fdc_id":    fid,
                 "name":      food.get("description", ""),
-                "data_type": dtype,
-                "has_aa":    dtype in ("Foundation", "SR Legacy"),
+                "data_type": food.get("dataType", static_key),
+                "has_aa":    False,  # unconfirmed until fetched — see _static_source_candidates()
+                "source":    static_key,
+                "off_code":  "",
             })
-    except Exception:
-        pass
-    return results
+    return _filter_search_results_by_source(results, source)
 
 
 @app.get("/food/custom-profiles/{fdc_id}/edit", response_class=HTMLResponse)
 async def food_custom_profiles_edit_get(request: Request, fdc_id: int, aa_source_q: str = Query(default=""),
                                         aa_applied: str = Query(default=""),
+                                        aa_source: list[str] | None = Query(default=None),
                                         nutrient_source_q: str = Query(default=""),
-                                        nutrients_applied: str = Query(default="")):
+                                        nutrients_applied: str = Query(default=""),
+                                        nutrient_source: list[str] | None = Query(default=None)):
+    aa_source = _resolve_source_filter(aa_source, "sort_aa_source_filter", _SOURCE_PICKER_FILTERS)
+    nutrient_source = _resolve_source_filter(nutrient_source, "sort_nutrient_source_filter", _SOURCE_PICKER_FILTERS)
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         if not cached:
             return RedirectResponse("/food/custom-profiles", status_code=303)
         aa_source_results = []
         if aa_source_q.strip():
-            aa_source_results = _search_food_sources(conn, aa_source_q.strip(), fdc_id)
+            aa_source_results = _search_food_sources(conn, aa_source_q.strip(), fdc_id, source=aa_source)
         nutrient_source_results = []
         if nutrient_source_q.strip():
-            nutrient_source_results = _search_food_sources(conn, nutrient_source_q.strip(), fdc_id)
+            nutrient_source_results = _search_food_sources(conn, nutrient_source_q.strip(), fdc_id, source=nutrient_source)
 
     nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
     field_groups = [
@@ -2511,9 +2783,13 @@ async def food_custom_profiles_edit_get(request: Request, fdc_id: int, aa_source
         "aa_source_q": aa_source_q.strip(),
         "aa_source_results": aa_source_results,
         "aa_applied": aa_applied,
+        "aa_source": aa_source,
         "nutrient_source_q": nutrient_source_q.strip(),
         "nutrient_source_results": nutrient_source_results,
         "nutrients_applied": nutrients_applied,
+        "nutrient_source": nutrient_source,
+        "source_filters": _SOURCE_PICKER_FILTERS,
+        "source_labels": _SEARCH_SOURCE_LABELS,
     })
 
 
@@ -2580,11 +2856,18 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
         "aa_source_q": "",
         "aa_source_results": [],
         "aa_applied": "",
+        "aa_source": _SOURCE_PICKER_FILTERS,
+        "nutrient_source_q": "",
+        "nutrient_source_results": [],
+        "nutrients_applied": "",
+        "nutrient_source": _SOURCE_PICKER_FILTERS,
+        "source_filters": _SOURCE_PICKER_FILTERS,
+        "source_labels": _SEARCH_SOURCE_LABELS,
     })
 
 
 @app.post("/food/custom-profiles/{fdc_id}/copy-aa", response_class=RedirectResponse)
-async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(...)):
+async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(...), off_code: str = Form("")):
     """Estimate this food's amino acid profile by scaling a source food's AA
     values to this food's own protein content (see numa_app/services/aa_estimate.py).
     Marks the target user_drafted=True, same as any other in-place edit."""
@@ -2596,7 +2879,7 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
 
     if not source:
         try:
-            detail = _usda.get_food_detail(source_fdc_id)
+            detail = _fetch_uncached_food_detail(source_fdc_id, off_code)
         except Exception:
             return RedirectResponse(
                 f"/food/custom-profiles/{fdc_id}/edit?aa_applied=source_fetch_failed", status_code=303
@@ -2641,7 +2924,7 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
 
 
 @app.post("/food/custom-profiles/{fdc_id}/copy-nutrients", response_class=RedirectResponse)
-async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = Form(...)):
+async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = Form(...), off_code: str = Form("")):
     """Overwrite this food's entire nutrient profile with a raw (unscaled) copy
     of a source food's per-100g values — a quick way to seed a blank draft
     before hand-editing. Independent of copy-aa: either can overwrite the
@@ -2654,7 +2937,7 @@ async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = 
 
     if not source:
         try:
-            detail = _usda.get_food_detail(source_fdc_id)
+            detail = _fetch_uncached_food_detail(source_fdc_id, off_code)
         except Exception:
             return RedirectResponse(
                 f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=source_fetch_failed", status_code=303
@@ -3736,18 +4019,25 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
             "diaas":     _ann_diaas(fid),
         })
 
+    # Static (bundled-dataset, no network) external sources are instant like
+    # Pantry/Cache/Recipe, so they're merged in here rather than through the
+    # async external-fetch path used by USDA/OFF/CNF.
+    search_results.extend(_static_source_candidates(clean_query))
+
     return search_results
 
 
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
 async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None,
-                     item_sort: str | None = None, source: str | None = None,
+                     item_sort: str | None = None, source: list[str] | None = Query(default=None),
+                     limit: int | None = None,
                      ignore_complements: list[str] = Query(default=[]),
                      unignore: list[str] = Query(default=[]),
                      comp_sort: str | None = None, diaas_sort: str | None = None):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
     with _db.get_db() as conn:
@@ -3768,7 +4058,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     search_results = []
     if q:
         search_results = _sort_search_results(_meal_add_food_local_results(q), q, sort)
-        search_results = _filter_search_results_by_source(search_results, source)
+        search_results = _filter_search_results_by_source(search_results, source)[:limit]
 
     with _db.get_db() as conn:
         day_profile_obj = _day_profile.get_profile_for_date(conn, meal["meal_date"])
@@ -3863,6 +4153,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "q":                   q,
         "sort":                sort,
         "source":              source,
+        "limit":               limit,
+        "external_source_labels": _external_source_labels(source),
         "source_filters":      _SEARCH_SOURCE_FILTERS,
         "source_labels":       _SEARCH_SOURCE_LABELS,
         "search_results":      search_results,
@@ -4007,7 +4299,8 @@ async def meal_print(
 
 @app.get("/meal/{meal_id}/search-api-results", response_class=HTMLResponse)
 async def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None,
-                                   source: str | None = None):
+                                   source: list[str] | None = Query(default=None),
+                                   limit: int | None = None):
     """Fetched by JS on the meal page after the initial (cache-only) render.
     Returns the FULL result set — local results merged with USDA/OFF and
     re-sorted together, not just the external rows appended below — so a
@@ -4015,7 +4308,8 @@ async def meal_search_api_results(request: Request, meal_id: int, q: str = "", s
     the local pass rendered first. The JS replaces the table body with this
     response rather than appending to it."""
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     q = q.strip()
     results: list[dict] = []
     if q:
@@ -4026,9 +4320,9 @@ async def meal_search_api_results(request: Request, meal_id: int, q: str = "", s
 
         local = _meal_add_food_local_results(q)
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
-        external = _external_food_search_results(api_query, exclude_ids, q, sort)
+        external = _external_food_search_results(api_query, exclude_ids, q, sort, sources=source, limit=limit)
         results = _sort_search_results(local + external, q, sort)
-        results = _filter_search_results_by_source(results, source)
+        results = _filter_search_results_by_source(results, source)[:limit]
 
     return templates.TemplateResponse(request, "_add_food_api_rows.html", {
         "meal_id": meal_id,
@@ -4043,7 +4337,8 @@ async def meal_confirm_aa(
     fdc_ids: list[int] = Form(...),
     q: str = Form(""),
     sort: str = Form(""),
-    source: str = Form(""),
+    source: list[str] = Form([]),
+    limit: int | None = Form(None),
 ):
     """Same as /food/confirm-aa, for the add-food search results on a meal's
     page — fetches and caches full USDA details for the selected foods so
@@ -4072,12 +4367,14 @@ async def meal_confirm_aa(
             _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
     from urllib.parse import urlencode
-    params = {"q": q}
+    params: dict[str, str | list[str]] = {"q": q}
     if sort:
         params["sort"] = sort
     if source:
         params["source"] = source
-    return RedirectResponse(f"/meal/{meal_id}?{urlencode(params)}", status_code=303)
+    if limit:
+        params["limit"] = str(limit)
+    return RedirectResponse(f"/meal/{meal_id}?{urlencode(params, doseq=True)}", status_code=303)
 
 
 @app.post("/meal/{meal_id}/add", response_class=RedirectResponse)
@@ -4109,12 +4406,7 @@ async def meal_add_food(
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
         try:
-            if _off.is_off_id(fdc_id) and off_code:
-                detail = _off.lookup_by_barcode(off_code)
-                if not detail:
-                    return _redirect(error=f'Could not look up "{food_name or fdc_id}" on Open Food Facts.')
-            else:
-                detail = _usda.get_food_detail(fdc_id)
+            detail = _fetch_uncached_food_detail(fdc_id, off_code)
             with _db.get_db() as conn:
                 _db.cache_food(conn, fdc_id=detail["fdcId"], name=detail["name"],
                                data_type=detail.get("dataType", ""),
@@ -5243,8 +5535,10 @@ async def recipe_print(
 
 @app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
 async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = "",
-                           relinked: str = "", source: str | None = None):
-    source = _resolve_sort(source, "sort_food_search_source", "all", set(_SEARCH_SOURCE_FILTERS))
+                           relinked: str = "", source: list[str] | None = Query(default=None),
+                           limit: int | None = None):
+    source = _resolve_source_filter(source, "sort_food_search_source")
+    limit = _resolve_result_limit(limit)
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -5338,7 +5632,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
             })
         try:
-            for food in _usda.search_foods(q):
+            for food in _usda.search_foods(q, page_size=limit):
                 fid = food.get("fdcId")
                 if fid and fid not in seen:
                     seen.add(fid)
@@ -5355,7 +5649,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         except Exception:
             pass
         search_results = _sort_search_results(search_results, q, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _filter_search_results_by_source(search_results, source)
+        search_results = _filter_search_results_by_source(search_results, source)[:limit]
 
     return templates.TemplateResponse(request, "recipe_edit.html", {
         "recipe":             dict(recipe),
@@ -5368,6 +5662,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         "broken_groups":      broken_groups,
         "relinked":           relinked,
         "source":             source,
+        "limit":              limit,
         "source_filters":     _SEARCH_SOURCE_FILTERS,
         "source_labels":      _SEARCH_SOURCE_LABELS,
     })
@@ -5464,7 +5759,8 @@ async def recipe_confirm_aa(
     recipe_id: int,
     fdc_ids: list[int] = Form(...),
     q: str = Form(""),
-    source: str = Form(""),
+    source: list[str] = Form([]),
+    limit: int | None = Form(None),
 ):
     """Same as /food/confirm-aa, for the ingredient-search results on a
     recipe's edit page — fetches and caches full USDA details for the
@@ -5493,10 +5789,12 @@ async def recipe_confirm_aa(
             _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
     from urllib.parse import urlencode
-    params = {"q": q}
+    params: dict[str, str | list[str]] = {"q": q}
     if source:
         params["source"] = source
-    return RedirectResponse(f"/recipe/{recipe_id}/edit?{urlencode(params)}", status_code=303)
+    if limit:
+        params["limit"] = str(limit)
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?{urlencode(params, doseq=True)}", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/ingredient/add", response_class=RedirectResponse)
