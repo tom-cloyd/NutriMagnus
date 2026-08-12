@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% import "_ul_column.html" as _ul %}
+{% import "_rda_definition_footer.html" as _rda_note %}
 {% block title %}NutriMagnus — Analyze a Recipe Portion{% endblock %}
 
 {% block content %}
@@ -106,7 +108,8 @@
         <th class="num-col">Amount</th>
         <th>Unit</th>
         {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
-        {% if has_optimal %}<th class="num-col">optimal goal</th><th class="num-col">% of optimal</th>{% endif %}
+        {% if has_optimal %}<th class="num-col">Revised Optimal goal</th><th class="num-col">% of Revised Optimal</th>{% endif %}
+        {% if has_ul %}{{ _ul.header() }}{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -122,7 +125,7 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
-        {% if has_optimal %}
+{% if has_optimal %}
         <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
         <td class="num-col">
           {% if row.optimal_pct is not none %}
@@ -130,12 +133,14 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
+        {% if has_ul %}{{ _ul.cell(row) }}{% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </details>
 {% endfor %}
+{% if nutrient_sections and has_profile %}{{ _rda_note.note() }}{% endif %}
 
 {# ── 3. Meal-Level Complete Protein Analysis ──────────────────────────────── #}
 <details open>

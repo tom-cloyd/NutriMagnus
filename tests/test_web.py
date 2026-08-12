@@ -9,8 +9,10 @@ conftest.py for DB/profile isolation, plus a web-specific fixture below
 since web/backend.py keeps its own _PREFS_FILE module constant.
 """
 import datetime
+import io
 import json
 import pathlib
+import zipfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -174,6 +176,110 @@ def test_food_search_by_barcode_found_via_off(client: TestClient, monkeypatch: p
         cached = _db.get_cached_food(conn, -2000000001)
     assert cached is not None
     assert cached["name"] == "Test Bar"
+
+
+def test_food_cache_export_csv(client: TestClient) -> None:
+    with _db.get_db() as conn:
+        _db.cache_food(
+            conn, 111111, "Exportable Bar", "Foundation",
+            "Test Brand", 40.0, "g", {"protein_g": 5.0, "calories": 120.0},
+            [{"description": "1 bar", "gram_weight": 40.0}],
+        )
+    resp = client.get("/food/cache/export.csv")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    body = resp.text
+    assert "Exportable Bar" in body
+    assert "Test Brand" in body
+    assert "1 bar" in body
+    header = body.splitlines()[0]
+    assert "protein_g" in header
+    assert "portions" in header
+
+
+def test_food_cache_import_csv_preview_then_confirm(client: TestClient) -> None:
+    csv_text = (
+        "name,calories,protein_g,portions\r\n"
+        'Imported Bar,150,6.0,"[{""description"": ""1 bar"", ""gram_weight"": 45.0}]"\r\n'
+    )
+    preview = client.post("/food/cache/import-csv", data={"action": "preview", "csv_text": csv_text})
+    assert preview.status_code == 200
+    assert "Imported Bar" in preview.text
+    assert "Import 1 food into cache" in preview.text
+
+    confirm = client.post(
+        "/food/cache/import-csv", data={"action": "confirm", "csv_text": csv_text}, follow_redirects=False
+    )
+    assert confirm.status_code == 303
+    assert "imported=1" in confirm.headers["location"]
+
+    with _db.get_db() as conn:
+        rows = _db.list_cached_foods(conn)
+    imported = [r for r in rows if r["name"] == "Imported Bar"]
+    assert len(imported) == 1
+    assert imported[0]["fdc_id"] < 0
+    nutrients = json.loads(imported[0]["nutrients_json"])
+    assert nutrients["calories"] == 150.0
+    portions = json.loads(imported[0]["portions_json"])
+    assert portions == [{"description": "1 bar", "gram_weight": 45.0}]
+
+
+def test_food_cache_import_csv_bad_row_shows_warning_not_500(client: TestClient) -> None:
+    resp = client.post("/food/cache/import-csv", data={"action": "preview", "csv_text": "a,b\n1,2\n"})
+    assert resp.status_code == 200
+    assert "No valid food records" in resp.text
+    assert "name" in resp.text
+
+
+def test_recipe_export_csv_then_import_round_trip(client: TestClient) -> None:
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 222222, "Round Trip Quinoa", "Foundation", None, None, None,
+                        {"calories": 100.0, "protein_g": 5.0}, [])
+        sub_id = _db.recipe_create(conn, "Round Trip Cooked Quinoa", "", 2, "Boil it.")
+        _db.recipe_add_ingredient(conn, sub_id, 222222, "Round Trip Quinoa", 100.0, "100 g")
+        main_id = _db.recipe_create(conn, "Round Trip Quinoa Bowl", "tasty", 1, "Combine.")
+        _db.recipe_add_ingredient(conn, main_id, 0, "Round Trip Cooked Quinoa", 1.0,
+                                   "1 serving", ref_recipe_id=sub_id)
+
+    export_resp = client.get(f"/recipe/{main_id}/export.csv")
+    assert export_resp.status_code == 200
+    assert export_resp.headers["content-type"] == "application/zip"
+    zf = zipfile.ZipFile(io.BytesIO(export_resp.content))
+    recipes_text = zf.read("recipes.csv").decode("utf-8")
+    foods_text = zf.read("foods.csv").decode("utf-8")
+    assert "Round Trip Quinoa Bowl" in recipes_text
+    assert "Round Trip Cooked Quinoa" in recipes_text
+    assert "Round Trip Quinoa" in foods_text
+
+    # Import into a database that doesn't have any of this yet — delete the originals first.
+    with _db.get_db() as conn:
+        _db.recipe_delete(conn, main_id)
+        _db.recipe_delete(conn, sub_id)
+        _db.delete_cached_food(conn, 222222)
+
+    preview = client.post("/recipe/import-csv", data={
+        "action": "preview", "recipes_text": recipes_text, "foods_text": foods_text,
+    })
+    assert preview.status_code == 200
+    assert "Round Trip Quinoa Bowl" in preview.text
+    assert "Round Trip Cooked Quinoa" in preview.text
+
+    confirm = client.post("/recipe/import-csv", data={
+        "action": "confirm", "recipes_text": recipes_text, "foods_text": foods_text,
+    }, follow_redirects=False)
+    assert confirm.status_code == 303
+    assert "recipes_created=2" in confirm.headers["location"]
+
+    with _db.get_db() as conn:
+        recipes = {r["name"]: r["id"] for r in _db.recipe_list(conn)}
+        assert "Round Trip Quinoa Bowl" in recipes
+        assert "Round Trip Cooked Quinoa" in recipes
+        bowl_ings = _db.recipe_get_ingredients(conn, recipes["Round Trip Quinoa Bowl"])
+        assert bowl_ings[0]["ref_recipe_id"] == recipes["Round Trip Cooked Quinoa"]
+        sub_ings = _db.recipe_get_ingredients(conn, recipes["Round Trip Cooked Quinoa"])
+        assert sub_ings[0]["food_name"] == "Round Trip Quinoa"
+        foods = [f["name"] for f in _db.list_cached_foods(conn)]
+        assert "Round Trip Quinoa" in foods
 
 
 def test_food_search_by_barcode_prefers_cache_over_off(
@@ -521,8 +627,8 @@ def test_optimal_and_max_limit_columns_render(client: TestClient, cached_food, d
 
     resp = client.get(f"/food/{cached_food['fdcId']}")
     assert resp.status_code == 200
-    assert "optimal goal" in resp.text
-    assert "% of optimal" in resp.text
+    assert "Revised Optimal goal" in resp.text
+    assert "% of Revised Optimal" in resp.text
 
     resp = client.post(
         "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
@@ -537,12 +643,12 @@ def test_optimal_and_max_limit_columns_render(client: TestClient, cached_food, d
 
     resp = client.get(f"/meal/{meal_id}")
     assert resp.status_code == 200
-    assert "optimal goal" in resp.text
+    assert "Revised Optimal goal" in resp.text
     assert "limit-near" in resp.text or "limit-over" in resp.text
 
     resp = client.get("/summary/2026-07-11")
     assert resp.status_code == 200
-    assert "optimal goal" in resp.text
+    assert "Revised Optimal goal" in resp.text
 
 
 def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
@@ -585,7 +691,7 @@ def test_settings_nutrient_target_load_defaults(client: TestClient) -> None:
     }
 
     resp = client.get("/settings?saved=nutrient_target_defaults")
-    assert "Loaded recommended optimal targets" in resp.text
+    assert "Loaded recommended Revised Optimal targets" in resp.text
 
 
 def test_settings_nutrient_target_load_defaults_skips_customized(client: TestClient) -> None:
@@ -1453,3 +1559,4 @@ def test_food_compare_save_load_rename_delete(client: TestClient, cached_food, s
     resp = client.post("/food/compare/saved/delete", data={"cmp_id": cmp_id}, follow_redirects=False)
     assert resp.status_code == 303
     assert db_conn.execute("SELECT * FROM saved_comparisons WHERE id = ?", (cmp_id,)).fetchone() is None
+

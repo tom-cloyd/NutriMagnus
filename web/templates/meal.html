@@ -2,6 +2,8 @@
 {% import "_add_food_row.html" as _sr %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
+{% import "_ul_column.html" as _ul %}
+{% import "_rda_definition_footer.html" as _rda_note %}
 {% block title %}NutriMagnus — {{ meal.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -525,10 +527,11 @@
         {% if has_profile %}<th class="num-col">meal %</th>{% endif %}
         {% if has_day_pct %}<th class="num-col">day total %</th>{% endif %}
         {% if has_optimal %}
-        <th class="num-col">optimal goal</th>
-        {% if has_profile %}<th class="num-col">opt. meal %</th>{% endif %}
-        {% if has_day_pct %}<th class="num-col">opt. day %</th>{% endif %}
+        <th class="num-col">Revised Optimal goal</th>
+        {% if has_profile %}<th class="num-col">Rev. Opt. meal %</th>{% endif %}
+        {% if has_day_pct %}<th class="num-col">Rev. Opt. day %</th>{% endif %}
         {% endif %}
+        {% if has_ul %}{{ _ul.header() }}{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -568,6 +571,7 @@
         </td>
         {% endif %}
         {% endif %}
+        {% if has_ul %}{{ _ul.cell(row) }}{% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -578,6 +582,7 @@
     <strong>meal %</strong> = this meal &divide; daily goal &nbsp;&middot;&nbsp;
     <strong>day total %</strong> = all meals logged today &divide; daily goal
   </small></p>
+  {{ _rda_note.note() }}
   {% endif %}
 </section>
 {% endif %}

@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% import "_ul_column.html" as _ul %}
+{% import "_rda_definition_footer.html" as _rda_note %}
 {% block title %}NutriMagnus — {{ food.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -224,7 +226,8 @@
         <th class="num-col">{% if portion_label %}{{ portion_label }}{% if " g" not in portion_label %} ({{ amount }}&thinsp;g){% endif %}{% else %}{{ amount | int }}{% if amount != amount | int %}{{ amount }}{% endif %}&thinsp;g{% endif %}</th>
         <th>Unit</th>
         {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
-        {% if has_optimal %}<th class="num-col">optimal goal</th><th class="num-col">% of optimal</th>{% endif %}
+        {% if has_optimal %}<th class="num-col">Revised Optimal goal</th><th class="num-col">% of Revised Optimal</th>{% endif %}
+        {% if has_ul %}{{ _ul.header() }}{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -248,11 +251,13 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
+        {% if has_ul %}{{ _ul.cell(row) }}{% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% endfor %}
+  {% if has_profile %}{{ _rda_note.note() }}{% endif %}
 </section>
 {% endif %}
 

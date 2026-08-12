@@ -203,18 +203,51 @@ class TestComputeOptimalDefaults:
 
 class TestComputeUpperLimits:
     def test_expected_nutrients_and_values(self, male_35):
+        # male_35 is under 51 (calcium 2500) and under 70 (phosphorus 4000) —
+        # the two age-banded nutrients, at their under-the-threshold values.
         uls = compute_upper_limits(male_35)
         assert uls == {
+            "calcium_mg": 2500.0,
+            "phosphorus_mg": 4000.0,
             "iron_mg": 45.0,
             "zinc_mg": 40.0,
-            "vitamin_a_mcg": 3000.0,
-            "b6_mg": 100.0,
             "iodine_mcg": 1100.0,
             "selenium_mcg": 400.0,
+            "vitamin_a_mcg": 3000.0,
+            "vitamin_c_mg": 2000.0,
+            "vitamin_d_mcg": 100.0,
+            "vitamin_e_mg": 1000.0,
+            "niacin_mg": 35.0,
+            "b6_mg": 100.0,
+            "folate_mcg": 1000.0,
+            "choline_mg": 3500.0,
         }
 
-    def test_fixed_regardless_of_age_or_sex(self, male_35, female_55):
-        assert compute_upper_limits(male_35) == compute_upper_limits(female_55)
+    def test_fixed_regardless_of_sex(self, female_55):
+        # female_55 and a same-age male should match — no UL in the table
+        # differs by sex, only by age (calcium, phosphorus).
+        male_55 = UserProfile(age=55, sex="male", weight_kg=80.0, height_cm=178.0,
+                              activity_level="moderate")
+        assert compute_upper_limits(male_55) == compute_upper_limits(female_55)
+
+    def test_calcium_drops_at_51(self, male_35, female_55):
+        assert compute_upper_limits(male_35)["calcium_mg"] == 2500.0
+        assert compute_upper_limits(female_55)["calcium_mg"] == 2000.0
+
+    def test_phosphorus_drops_at_70(self, female_55):
+        under_70 = compute_upper_limits(female_55)["phosphorus_mg"]
+        over_70 = UserProfile(age=75, sex="female", weight_kg=65.0, height_cm=163.0,
+                              activity_level="light")
+        assert under_70 == 4000.0
+        assert compute_upper_limits(over_70)["phosphorus_mg"] == 3000.0
+
+    def test_no_ul_for_nutrients_marked_nd_in_dri_tables(self, male_35):
+        uls = compute_upper_limits(male_35)
+        for key in ("potassium_mg", "thiamin_mg", "riboflavin_mg", "b12_mcg", "vitamin_k_mcg"):
+            assert key not in uls
+
+    def test_no_ul_for_magnesium_since_dri_ul_is_supplement_only(self, male_35):
+        assert "magnesium_mg" not in compute_upper_limits(male_35)
 
 
 class TestMaxLimits:

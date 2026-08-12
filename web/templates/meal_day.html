@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% import "_ul_column.html" as _ul %}
+{% import "_rda_definition_footer.html" as _rda_note %}
 {% block title %}NutriMagnus — Full Day — {{ meal_date }}{% endblock %}
 
 {% block content %}
@@ -394,7 +396,8 @@
         <th class="num-col">Total</th>
         <th>Unit</th>
         {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
-        {% if has_optimal %}<th class="num-col">optimal goal</th><th class="num-col">% of optimal</th>{% endif %}
+        {% if has_optimal %}<th class="num-col">Revised Optimal goal</th><th class="num-col">% of Revised Optimal</th>{% endif %}
+        {% if has_ul %}{{ _ul.header() }}{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -410,7 +413,7 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
-        {% if has_optimal %}
+{% if has_optimal %}
         <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
         <td class="num-col">
           {% if row.optimal_pct is not none %}
@@ -418,11 +421,13 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
+        {% if has_ul %}{{ _ul.cell(row) }}{% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% endfor %}
+  {% if has_profile %}{{ _rda_note.note() }}{% endif %}
 </details>
 {% elif meals %}
 <p class="muted">No nutrient data found — ensure all foods are in the cache.</p>

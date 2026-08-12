@@ -47,6 +47,11 @@
      title="Remove foods not used in any pantry entry, recipe, or meal">Prune unused foods</a>
   <a href="/food/cache/claude-import" class="btn btn-sm btn-outline-secondary"
      title="Import nutrient data Claude AI gave you">Import Claude response</a>
+  <a href="/food/cache/export.csv?q={{ q | urlencode }}&show_archived={{ 1 if show_archived else 0 }}"
+     class="btn btn-sm btn-outline-secondary"
+     title="Download the foods listed below (name, nutrients, portions) as a CSV file">Export CSV</a>
+  <a href="/food/cache/import-csv" class="btn btn-sm btn-outline-secondary"
+     title="Import foods from a CSV file exported from this or another NuMa install">Import CSV</a>
 </p>
 
 {% if pruned %}

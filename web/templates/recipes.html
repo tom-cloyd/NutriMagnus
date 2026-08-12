@@ -41,6 +41,8 @@
   </form>
   <a href="/recipes/broken-refs" class="btn btn-sm btn-outline-secondary">Broken recipe references</a>
   <a href="/recipe/compare" class="btn btn-sm btn-outline-secondary">Compare recipes</a>
+  <a href="/recipe/import-csv" class="btn btn-sm btn-outline-secondary"
+     title="Import a recipe CSV bundle exported from this or another NuMa install">Import CSV</a>
   <small class="muted">DCP = digestible complete protein per serving · NC = not computed</small>
 </div>
 
@@ -52,6 +54,12 @@
 {% endif %}
 {% if restored %}
 <div class="alert alert-success">Restored.</div>
+{% endif %}
+{% if recipes_created is defined and recipes_created %}
+<div class="alert alert-success">
+  Imported {{ recipes_created }} new recipe{% if recipes_created != 1 %}s{% endif %}.
+  {% if recipes_reused %}{{ recipes_reused }} recipe{% if recipes_reused != 1 %}s{% endif %} in the file already existed here and {% if recipes_reused == 1 %}was{% else %}were{% endif %} left unchanged.{% endif %}
+</div>
 {% endif %}
 
 {% if not recipes %}

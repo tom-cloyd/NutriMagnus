@@ -334,9 +334,16 @@ def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple
 
     Returns a dict mapping nutrient_key → (value, unit, rda_type) where
     rda_type is one of:
-      "target"  — recommended intake (e.g. calories, carbs)
-      "minimum" — Recommended Dietary Allowance or Adequate Intake
+      "target"  — recommended intake (currently just calories)
+      "minimum" — Recommended Dietary Allowance or Adequate Intake (includes
+                  carbs_g, whose 130 g/day is the brain's minimum glucose
+                  requirement — a genuine floor, not a target to hit exactly)
       "limit"   — tolerable upper intake / daily limit
+
+    "minimum" here means the DRI/RDA sense of the word: the daily amount
+    that meets the needs of ~97-98% of healthy people in that age/sex group
+    (NIH Office of Dietary Supplements) — not a bare-survival floor. See
+    manual topic ?rda for the full definition and citation shown to users.
 
     Only nutrients tracked in usda.NUTRIENT_MAP are included.
     Amino acids and phytonutrients without established DRIs are excluded.
@@ -541,27 +548,57 @@ def compute_optimal_defaults(profile: UserProfile) -> dict[str, float]:
 
 def compute_upper_limits(profile: UserProfile) -> dict[str, float]:
     """
-    Return built-in Tolerable Upper Intake Levels (UL) for nutrients where daily
-    excess carries a known risk, independent of the "limit"-type rows already in
-    compute_rda() (currently just sodium). These apply automatically as the
-    default max limit for any nutrient the user hasn't explicitly capped
-    themselves — see get_max_limits().
+    Return built-in Tolerable Upper Intake Levels (UL) — the maximum daily
+    amount considered safe for nearly all healthy people — for every tracked
+    nutrient that has one, independent of the "limit"-type rows already in
+    compute_rda() (currently just sodium; see the sodium note below). These
+    apply automatically as the default max limit for any nutrient the user
+    hasn't explicitly capped themselves — see get_max_limits().
 
-    These are fixed adult values (not age/sex-adjusted) per NIH Office of
-    Dietary Supplements Dietary Reference Intake tables.
+    Source: NIH Office of Dietary Supplements / Institute of Medicine Dietary
+    Reference Intake UL summary tables — see manual topic ?maxlimits for the
+    full citation. Age-banded where the DRI tables show a real adult
+    difference (calcium, phosphorus); flat across all adult ages otherwise,
+    matching the source tables — most ULs simply don't vary by age or sex
+    for adults 19+.
+
+    Nutrients tracked by NuMa with NO established adult UL (deliberately
+    absent from the dict below, not a bug): potassium, thiamin, riboflavin,
+    vitamin B12, vitamin K. The DRI tables mark these "ND" (not determinable
+    from available data) — that's different from "no risk at any dose," just
+    that no safe upper bound has been established with confidence.
+
+    Magnesium is deliberately excluded even though the DRI table publishes a
+    350 mg/day UL: that figure applies only to supplemental (pill-form)
+    magnesium, not intake from food — since NuMa sums whole-food magnesium,
+    applying it here would flag entirely ordinary diets as "over the limit."
+
+    Sodium already has its own dedicated "limit"-type row in compute_rda()
+    (2300 mg/day, the Chronic Disease Risk Reduction intake) — a lower, more
+    clinically relevant threshold than a formal UL (which the DRI tables
+    don't even establish for sodium — "ND"), so it isn't duplicated here.
 
     Note: the vitamin_a_mcg UL applies specifically to preformed vitamin A
     (retinol); usda.NUTRIENT_MAP's vitamin_a_mcg is mcg RAE, which folds in
     provitamin-A carotenoids that carry no comparable toxicity risk. Treat this
     UL as a conservative approximation, not a precise clinical threshold.
     """
+    age = profile.age
     return {
-        "iron_mg":      45.0,
-        "zinc_mg":      40.0,
+        "calcium_mg":    2000.0 if age >= 51 else 2500.0,
+        "phosphorus_mg": 3000.0 if age >= 70 else 4000.0,
+        "iron_mg":       45.0,
+        "zinc_mg":       40.0,
+        "iodine_mcg":    1100.0,
+        "selenium_mcg":  400.0,
         "vitamin_a_mcg": 3000.0,
-        "b6_mg":        100.0,
-        "iodine_mcg":   1100.0,
-        "selenium_mcg": 400.0,
+        "vitamin_c_mg":  2000.0,
+        "vitamin_d_mcg": 100.0,
+        "vitamin_e_mg":  1000.0,
+        "niacin_mg":     35.0,
+        "b6_mg":         100.0,
+        "folate_mcg":    1000.0,
+        "choline_mg":    3500.0,
     }
 
 

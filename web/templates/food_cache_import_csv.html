@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Import CSV{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache">Food Cache</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Import CSV</li>
+  </ol>
+</nav>
+
+<h2>Import foods from a CSV file {{ manual_link("food-import") }}</h2>
+<p class="muted">Pick a CSV file exported from someone else's Food Cache — or your own, using the
+<strong>Export CSV</strong> button on the Food Cache page — then review before importing. Each
+imported food gets a new ID of its own; it never overwrites or reuses an existing food here.</p>
+
+<form method="post" action="/food/cache/import-csv" enctype="multipart/form-data">
+  <div class="mb-2">
+    <input type="file" name="csv_file" accept=".csv,text/csv" class="form-control">
+  </div>
+  <button type="submit" name="action" value="preview" class="btn btn-sm btn-primary">Review</button>
+</form>
+
+{% if review is not none %}
+<hr class="my-4">
+
+{% if not review %}
+<div class="alert alert-danger">No valid food records after validation — see the messages below.</div>
+{% else %}
+
+{% if warnings %}
+<div class="alert alert-warning">
+  <strong>Notes from validation:</strong>
+  <ul class="mb-0">
+    {% for msg in warnings %}<li><small>{{ msg }}</small></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<h4>Foods to import ({{ review|length }})</h4>
+<table class="table table-sm">
+  <thead class="table-light">
+    <tr>
+      <th>Name</th>
+      <th class="text-end">Cal</th>
+      <th class="text-end">Protein (g)</th>
+      <th class="text-end">Portions</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in review %}
+    <tr>
+      <td>{{ f.name }}</td>
+      <td class="text-end">{{ f.calories }}</td>
+      <td class="text-end">{{ f.protein_g }}</td>
+      <td class="text-end">{{ f.portion_count }}</td>
+      <td>
+        {% if f.duplicate %}
+        <span class="badge bg-warning text-dark" title="A food with this name already exists in your cache — importing adds a second, separate entry">Possible duplicate</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<form method="post" action="/food/cache/import-csv">
+  <input type="hidden" name="csv_text" value="{{ csv_text }}">
+  <button type="submit" name="action" value="confirm" class="btn btn-success">
+    Import {{ review|length }} food{% if review|length != 1 %}s{% endif %} into cache
+  </button>
+</form>
+{% endif %}
+{% else %}
+{% if warnings %}
+<div class="alert alert-warning">
+  <strong>Notes from validation:</strong>
+  <ul class="mb-0">
+    {% for msg in warnings %}<li><small>{{ msg }}</small></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

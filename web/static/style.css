@@ -482,6 +482,9 @@ table {
 .rda-low  { color: #374151; }
 .rda-over { color: #991b1b; font-weight: 600; }
 
+/* ── RDA definition footnote (below nutrient tables) ────────────────────── */
+.rda-footnote { margin-top: 0.4rem; }
+
 /* ── Custom max-limit warning (Settings → Nutrient targets) ────────────── */
 /* Applied to a nutrient row's Nutrient/Total cells when the day total is
    within 10% of (or over) the user's configured max limit. */

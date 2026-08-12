@@ -348,7 +348,7 @@ def list_cached_foods(conn: sqlite3.Connection, *, include_archived: bool = Fals
     archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-        "nutrients_json, notes, curator_notes, archived "
+        "nutrients_json, portions_json, notes, curator_notes, archived "
         f"FROM foods {archived_clause} ORDER BY name"
     ).fetchall()
 
@@ -434,7 +434,8 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
     # serving-size substring — excluding them from the OR match keeps unrelated
     # user-drafted foods like "B12 5000mcg" from surfacing for "coffee 1".
     match_words = [w for w in words if not w.isdigit()] or words
-    select = "SELECT fdc_id, name, data_type, brand, portions_json, notes, nutrients_json, archived FROM foods"
+    select = ("SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
+               "portions_json, notes, nutrients_json, archived FROM foods")
     archived_clause = "" if include_archived else "AND archived = 0"
     # Each query word also tries its singular form, so e.g. "potatoes" matches
     # cached/drafted names stored as singular "Potato, cooked".

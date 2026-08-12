@@ -125,7 +125,7 @@
 <details>
   <summary data-ak="2"><u class="ak">2</u>. <strong>Your Computed Daily Targets</strong>
     <span class="muted"> — derived from your profile above</span>
-    {{ manual_link("daily-targets-web") }}
+    {{ manual_link("daily-nutrient-targets") }}
   </summary>
   {% if rda_rows %}
   <p class="muted mt-1"><small>
@@ -339,10 +339,10 @@
   </form>
 </details>
 
-{# ── 7. Nutrient targets: Profile Optimal + custom max limits ──────────── #}
+{# ── 7. Nutrient targets: Revised Optimal + custom max limits ──────────── #}
 <details>
   <summary data-ak="7"><u class="ak">7</u>. <strong>Nutrient Targets</strong>
-    <span class="muted"> — custom Optimal targets and max limits, on top of your standard RDA</span>
+    <span class="muted"> — custom Revised Optimal (Recent Research) targets and max limits, on top of your standard RDA</span>
     {{ manual_link("optimal") }}
   </summary>
 
@@ -350,20 +350,20 @@
   <p class="status-met mt-2"><strong>&#10003; Nutrient target saved.</strong></p>
   {% endif %}
   {% if saved == 'nutrient_target_defaults' %}
-  <p class="status-met mt-2"><strong>&#10003; Loaded recommended optimal targets</strong> for any nutrient you hadn't already customized.</p>
+  <p class="status-met mt-2"><strong>&#10003; Loaded recommended Revised Optimal targets</strong> for any nutrient you hadn't already customized.</p>
   {% endif %}
 
   {% if nutrient_target_rows %}
   <p class="mt-2 muted"><small>
-    <strong>Optimal target</strong>: some nutrients (e.g. Vitamin D for older adults) have a
-    recommended intake well above the standard RDA — set your own target here to see it as a
-    second column on nutrient tables. {{ manual_link("optimal") }}<br>
+    <strong>Revised Optimal target</strong>: some nutrients (e.g. Vitamin D for older adults) have a
+    recommended intake well above the standard RDA, per specific recent research — set your own
+    target here to see it as a second column on nutrient tables. {{ manual_link("optimal") }}<br>
     <strong>Max limit</strong>: a personal cap you don't want to exceed. When your daily total
     is within 10% of it, the nutrient is highlighted. {{ manual_link("maxlimits") }}
     Leave a field blank and save to clear it.
   </small></p>
   <form method="post" action="/settings/nutrient-target/load-defaults" class="mt-2">
-    <button type="submit" class="btn btn-outline-secondary btn-sm">Load recommended optimal targets</button>
+    <button type="submit" class="btn btn-outline-secondary btn-sm">Load recommended Revised Optimal targets</button>
     <span class="muted"><small>Fills in commonly-cited targets (e.g. Vitamin D, EPA+DHA) for nutrients you haven't
       already customized. General guidance, not personalized medical advice — review and adjust freely.</small></span>
   </form>
@@ -371,7 +371,7 @@
     <thead class="table-light">
       <tr>
         <th>Nutrient</th>
-        <th class="text-end">Optimal target</th>
+        <th class="text-end">Revised Optimal target</th>
         <th class="text-end">Max limit</th>
         <th></th>
       </tr>

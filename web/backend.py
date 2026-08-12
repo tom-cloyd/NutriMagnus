@@ -3,10 +3,12 @@ backend.py — FastAPI web interface for numa nutritional analysis.
 Docs: README-numa-documentation.md, Architecture: "web/ — Local web app"
 """
 import datetime
+import io
 import json
 import math
 import re
 import sys
+import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlencode
@@ -15,7 +17,7 @@ if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import markdown as _md
-from fastapi import FastAPI, Form, HTTPException, Query, Request
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -31,6 +33,9 @@ import profile as _profile
 import usda as _usda
 from numa_app.services import claude_fetch as _claude_fetch
 from numa_app.services import complements as _complements
+from numa_app.services import csv_export as _csv_export
+from numa_app.services import csv_import as _csv_import
+from numa_app.services import recipe_csv as _recipe_csv
 from numa_app.services import day_profile as _day_profile
 from numa_app.services import aa_estimate as _aa_estimate
 from numa_app.services.glycemic_load import compute_glycemic_load
@@ -755,12 +760,21 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                         opt_day_pct = round(daily_nutrients.get(key, 0.0) / opt_val * 100, 0)
                         opt_day_css = _rda_css(opt_day_pct, opt_type)
 
-            limit_warn = None
-            limit = max_limits.get(key)
-            if limit and daily_nutrients is not None:
-                day_total = daily_nutrients.get(key, 0.0)
-                if limit_warning(day_total, limit):
-                    limit_warn = "limit-over" if day_total >= limit else "limit-near"
+            # UL (max limit) — shown as its own always-visible column (the
+            # numeric ceiling itself) plus a near/over badge once there's a
+            # day total to compare it against. limit_warn (used for the row's
+            # own highlight class) and ul_css are the same value — one built-
+            # in signal, shown two ways.
+            ul_val = max_limits.get(key)
+            ul_display = ul_pct = ul_css = None
+            if ul_val:
+                ul_display = f"{ul_val:.0f} {unit}"
+                if daily_nutrients is not None:
+                    day_total = daily_nutrients.get(key, 0.0)
+                    ul_pct = round(day_total / ul_val * 100, 0)
+                    if limit_warning(day_total, ul_val):
+                        ul_css = "limit-over" if day_total >= ul_val else "limit-near"
+            limit_warn = ul_css
 
             rows.append({
                 "label":        label,
@@ -778,6 +792,10 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                 "optimal_day_pct":  opt_day_pct,
                 "optimal_day_css":  opt_day_css,
                 "limit_warn":       limit_warn,
+                "ul_val":       ul_val,
+                "ul_display":   ul_display,
+                "ul_pct":       ul_pct,
+                "ul_css":       ul_css,
             })
         if rows:
             sections.append({"name": group_name, "rows": rows})
@@ -1526,6 +1544,7 @@ async def food_analyze_recipe_portion_post(
         "diaas_display":      diaas_display,
         "has_profile":        rda is not None,
         "has_optimal":        bool(optimal),
+        "has_ul":             bool(max_limits),
         "protein_adequacy":   _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":        _complement_suggestions(scaled, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=diaas_ingredients),
         "gl":                 _recipe_gl_web(recipe_id, recipe_servings, servings),
@@ -2162,6 +2181,23 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
     })
 
 
+@app.get("/food/cache/export.csv")
+async def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
+    show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
+    with _db.get_db() as conn:
+        if q.strip():
+            rows = _db.search_cached_foods(conn, q.strip(), include_archived=show_archived)
+        else:
+            rows = _db.list_cached_foods(conn, include_archived=show_archived)
+    csv_text = _csv_export.foods_to_csv(rows)
+    filename = f"numa_food_cache_{datetime.date.today().isoformat()}.csv"
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.post("/food/cache/delete", response_class=RedirectResponse)
 async def food_cache_delete(fdc_id: int = Form(...), q: str = Form(""),
                              sort: str = Form(""), show_archived: int = Form(0)):
@@ -2231,6 +2267,55 @@ async def food_cache_claude_import_post(request: Request,
         "warnings":      warnings,
         "curator_text":  curator_text,
         "no_blocks":     not raw_blocks,
+    })
+
+
+# ---------------------------------------------------------------------------
+# CSV import workflow — see numa_app/services/csv_import.py for parsing;
+# csv_export.py (same directory) produces the matching export format.
+# ---------------------------------------------------------------------------
+
+@app.get("/food/cache/import-csv", response_class=HTMLResponse)
+async def food_cache_import_csv_get(request: Request):
+    return templates.TemplateResponse(request, "food_cache_import_csv.html", {
+        "csv_text": "",
+        "review":   None,
+    })
+
+
+@app.post("/food/cache/import-csv", response_class=HTMLResponse)
+async def food_cache_import_csv_post(request: Request,
+                                      action: str = Form("preview"),
+                                      csv_text: str = Form(""),
+                                      csv_file: UploadFile | None = File(None)):
+    if csv_file is not None and csv_file.filename:
+        raw_bytes = await csv_file.read()
+        csv_text = raw_bytes.decode("utf-8-sig", errors="replace")
+
+    valid, warnings = _csv_import.parse_foods_csv(csv_text)
+
+    if action == "confirm" and valid:
+        with _db.get_db() as conn:
+            new_ids = _csv_import.import_foods(conn, valid)
+        return RedirectResponse("/food/cache?imported=" + str(len(new_ids)), status_code=303)
+
+    with _db.get_db() as conn:
+        existing_names = {r["name"].strip().lower() for r in _db.list_cached_foods(conn, include_archived=True)}
+
+    review_rows = []
+    for f in valid:
+        n = f["nutrients"]
+        review_rows.append({
+            "name":          f["name"],
+            "calories":      int(n.get("calories", 0)),
+            "protein_g":     round(n.get("protein_g", 0), 1),
+            "portion_count": len(f["portions"]),
+            "duplicate":     f["name"].strip().lower() in existing_names,
+        })
+    return templates.TemplateResponse(request, "food_cache_import_csv.html", {
+        "csv_text": csv_text,
+        "review":   review_rows,
+        "warnings": warnings,
     })
 
 
@@ -3215,6 +3300,7 @@ def _food_detail_context(
         "antinutrients":      antinutrient_flags,
         "has_profile":        rda is not None,
         "has_optimal":        bool(optimal),
+        "has_ul":             bool(max_limits),
         "suggest_foundation": suggest_foundation,
         "oxalate":            oxalate,
         "oxalate_mg_portion": oxalate_mg_portion,
@@ -4161,6 +4247,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "today":               datetime.date.today().isoformat(),
         "has_profile":         rda is not None,
         "has_optimal":        bool(optimal),
+        "has_ul":             bool(max_limits),
         "has_day_pct":         daily_nutrients is not None,
         "sibling_meals":       sibling_meals,
         "add_error":           add_error,
@@ -4243,6 +4330,7 @@ def _meal_print_context(meal_id: int) -> dict | None:
         "oxalate_agg":        oxalate,
         "has_profile":        rda is not None,
         "has_optimal":        bool(optimal),
+        "has_ul":             bool(max_limits),
     }
 
 
@@ -4738,6 +4826,7 @@ def _meal_day_context(meal_id: int) -> dict | None:
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
+        "has_ul":             bool(max_limits),
         "day_profile_name":  day_profile_row["profile_name"] if day_profile_row else None,
         "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
         "all_profile_names": _profile.list_profiles(),
@@ -5128,7 +5217,8 @@ _RECIPE_SORT_KEYS = {
 @app.get("/recipes", response_class=HTMLResponse)
 async def recipes_list(request: Request, q: str = "", sort: str | None = None,
                         show_archived: bool | None = None, archived: int = 0,
-                        restored: int = 0, still_used: int = 0):
+                        restored: int = 0, still_used: int = 0,
+                        recipes_created: int = 0, recipes_reused: int = 0):
     sort = _resolve_sort(sort, "sort_recipes", "recent", set(_RECIPE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_recipes")
     with _db.get_db() as conn:
@@ -5149,6 +5239,8 @@ async def recipes_list(request: Request, q: str = "", sort: str | None = None,
         "archived": archived,
         "restored": restored,
         "still_used": still_used,
+        "recipes_created": recipes_created,
+        "recipes_reused": recipes_reused,
     })
 
 
@@ -5159,6 +5251,56 @@ async def recipes_broken_refs(request: Request):
     return templates.TemplateResponse(request, "recipe_broken_refs.html", {
         "meals":   broken["meals"],
         "recipes": broken["recipes"],
+    })
+
+
+@app.get("/recipe/import-csv", response_class=HTMLResponse)
+async def recipe_import_csv_get(request: Request):
+    return templates.TemplateResponse(request, "recipe_import_csv.html", {
+        "recipes_text": "",
+        "foods_text":   "",
+        "review":       None,
+    })
+
+
+@app.post("/recipe/import-csv", response_class=HTMLResponse)
+async def recipe_import_csv_post(request: Request,
+                                  action: str = Form("preview"),
+                                  recipes_text: str = Form(""),
+                                  foods_text: str = Form(""),
+                                  recipes_file: UploadFile | None = File(None),
+                                  foods_file: UploadFile | None = File(None)):
+    if recipes_file is not None and recipes_file.filename:
+        recipes_text = (await recipes_file.read()).decode("utf-8-sig", errors="replace")
+    if foods_file is not None and foods_file.filename:
+        foods_text = (await foods_file.read()).decode("utf-8-sig", errors="replace")
+
+    recipes, recipe_warnings = _recipe_csv.parse_recipes_csv(recipes_text)
+    food_valid, food_warnings = _csv_import.parse_foods_csv(foods_text) if foods_text.strip() else ([], [])
+    warnings = recipe_warnings + food_warnings
+
+    if action == "confirm" and recipes:
+        with _db.get_db() as conn:
+            result = _recipe_csv.import_recipe_bundle(conn, recipes, food_valid)
+        params = {
+            "recipes_created": result["recipes_created"],
+            "recipes_reused":  result["recipes_reused"],
+        }
+        return RedirectResponse(f"/recipes?{urlencode(params)}", status_code=303)
+
+    with _db.get_db() as conn:
+        existing_names = {r["name"].strip().lower() for r in _db.recipe_list(conn, include_archived=True)}
+    review_rows = [{
+        "name":            r["name"],
+        "servings":        r["servings"],
+        "ingredient_count": len(r["ingredients"]),
+        "duplicate":       r["name"].strip().lower() in existing_names,
+    } for r in recipes]
+    return templates.TemplateResponse(request, "recipe_import_csv.html", {
+        "recipes_text": recipes_text,
+        "foods_text":   foods_text,
+        "review":       review_rows,
+        "warnings":     warnings,
     })
 
 
@@ -5457,6 +5599,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
         "has_optimal":        bool(optimal),
+        "has_ul":             bool(max_limits),
         "ingredient_antinutrients": ingredient_antinutrients,
         "oxalate":                  oxalate,
         "referencing_recipes":      referencing_recipes,
@@ -5475,6 +5618,28 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
     if ctx is None:
         return RedirectResponse("/recipes", status_code=303)
     return templates.TemplateResponse(request, "recipe_detail.html", ctx)
+
+
+@app.get("/recipe/{recipe_id}/export.csv")
+async def recipe_export_csv(recipe_id: int):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+        recipes_text, foods_text = _recipe_csv.render_recipe_export(conn, [recipe_id])
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("recipes.csv", recipes_text)
+        zf.writestr("foods.csv", foods_text)
+    safe_name = re.sub(r"[^\w\s-]", "", recipe["name"]).strip()
+    safe_name = re.sub(r"\s+", "_", safe_name)[:60] or "recipe"
+    filename = f"{safe_name}_{datetime.date.today().isoformat()}.zip"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def _recipe_available_sections(ctx: dict) -> list[str]:
@@ -6066,6 +6231,7 @@ async def summary_trend(request: Request, days: int = Query(7)):
                                                 optimal=optimal, max_limits=max_limits) if num_days else [],
         "has_profile":       rda is not None,
         "has_optimal":       bool(optimal),
+        "has_ul":             bool(max_limits),
         "diet_notes":        _diet_aware_daily_notes(avg_nutrients, rda) if num_days else {},
         "complements":       _complement_suggestions(aa_nutrients, trend_pooled_tid, context="daily",
                                                       ingredients=all_ingredients) if aa_nutrients else None,
@@ -6617,6 +6783,7 @@ async def summary_date(request: Request, meal_date: str):
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
+        "has_ul":             bool(max_limits),
         "day_profile_name":       day_profile_row["profile_name"] if day_profile_row else None,
         "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
         "all_profile_names":      _profile.list_profiles(),

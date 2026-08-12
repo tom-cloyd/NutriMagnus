@@ -1,3 +1,5 @@
+{% import "_ul_column.html" as _ul %}
+{% import "_rda_definition_footer.html" as _rda_note %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -148,7 +150,8 @@
       <th class="num">{% if portion_label %}{{ portion_label }}{% else %}{{ amount }}&thinsp;g{% endif %}</th>
       <th>Unit</th>
       {% if has_profile %}<th class="num">% of daily target</th>{% endif %}
-      {% if has_optimal %}<th class="num">optimal goal</th><th class="num">% of optimal</th>{% endif %}
+      {% if has_optimal %}<th class="num">Revised Optimal goal</th><th class="num">% of Revised Optimal</th>{% endif %}
+      {% if has_ul %}{{ _ul.header() }}{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -164,11 +167,13 @@
       <td class="num muted">{{ row.optimal_goal or '—' }}</td>
       <td class="num">{% if row.optimal_pct is not none %}{{ row.optimal_pct | int }}% {{ rda_type_abbr(row.optimal_type) }}{% else %}—{% endif %}</td>
       {% endif %}
+      {% if has_ul %}{{ _ul.cell(row) }}{% endif %}
     </tr>
     {% endfor %}
   </tbody>
 </table>
 {% endfor %}
+{% if nutrient_sections and has_profile %}{{ _rda_note.note() }}{% endif %}
 {% endif %}
 
 {% if "protein_summary" in enabled and protein %}

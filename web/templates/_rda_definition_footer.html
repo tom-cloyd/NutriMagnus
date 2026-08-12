@@ -1,0 +1,7 @@
+{# Shared footer note for every nutrient-table template, defining "RDA" and
+   citing the source — shown once per page, right after the last table, only
+   when RDA data is actually present (has_profile). See user-manual.md topic
+   ?rda for the fuller version of this same explanation. #}
+{% macro note() %}
+<p class="rda-footnote muted"><small>RDA = Recommended Dietary Allowance: "average daily level of intake sufficient to meet the nutrient requirements of nearly all (97&ndash;98%) healthy individuals" &mdash; not a bare minimum. Source: <a href="https://ods.od.nih.gov/HealthInformation/nutrientrecommendations.aspx" target="_blank" rel="noopener">NIH Office of Dietary Supplements, Nutrient Recommendations and Databases</a>. {{ manual_link("rda", "Learn more") }}</small></p>
+{% endmacro %}

@@ -1,0 +1,16 @@
+{# Shared "UL" (Tolerable Upper Intake Level) column for every nutrient-table
+   template — header() for the <th>, cell(row) for each row's <td>. Gated by
+   has_ul in the caller, same pattern as the existing "optimal" column pair.
+   See user-manual.md topic ?maxlimits for what this column means. #}
+{% macro header() %}
+<th class="num-col" title="Tolerable Upper Intake Level — the highest daily amount considered safe for nearly all healthy people">UL</th>
+{% endmacro %}
+
+{% macro cell(row) %}
+<td class="num-col">
+  {% if row.ul_display %}
+    {% set badge_css = 'rda-over' if row.ul_css == 'limit-over' else ('rda-near' if row.ul_css == 'limit-near' else 'muted') %}
+    <span class="{{ badge_css }}" title="Tolerable Upper Intake Level — the highest daily amount considered safe for nearly all healthy people. {{ 'Today is at or over this limit.' if row.ul_css == 'limit-over' else ('Today is getting close to this limit.' if row.ul_css == 'limit-near' else '' ) }}">{{ row.ul_display }}{% if row.ul_pct is not none %} <small>({{ row.ul_pct | int }}%)</small>{% endif %}</span>
+  {% else %}<span class="muted">—</span>{% endif %}
+</td>
+{% endmacro %}

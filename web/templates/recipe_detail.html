@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% import "_ul_column.html" as _ul %}
+{% import "_rda_definition_footer.html" as _rda_note %}
 {% block title %}NutriMagnus — {{ recipe.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -122,6 +124,8 @@
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a href="/recipe/{{ recipe.id }}/edit" class="btn btn-sm btn-outline-primary">Edit recipe</a>
   <a href="/recipe/{{ recipe.id }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">Print / save recipe</a>
+  <a href="/recipe/{{ recipe.id }}/export.csv" class="btn btn-sm btn-outline-secondary"
+     title="Download this recipe as a CSV bundle — includes every sub-recipe and food ingredient's full data, ready to hand to someone else">Export CSV</a>
   <form method="post" action="/recipe/{{ recipe.id }}/copy" style="margin:0">
     <button type="submit" class="btn btn-sm btn-outline-secondary">Copy recipe</button>
   </form>
@@ -339,7 +343,8 @@
         <th class="num-col">Amount</th>
         <th>Unit</th>
         {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
-        {% if has_optimal %}<th class="num-col">optimal goal</th><th class="num-col">% of optimal</th>{% endif %}
+        {% if has_optimal %}<th class="num-col">Revised Optimal goal</th><th class="num-col">% of Revised Optimal</th>{% endif %}
+        {% if has_ul %}{{ _ul.header() }}{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -355,7 +360,7 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
-        {% if has_optimal %}
+{% if has_optimal %}
         <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
         <td class="num-col">
           {% if row.optimal_pct is not none %}
@@ -363,11 +368,13 @@
           {% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
+        {% if has_ul %}{{ _ul.cell(row) }}{% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
   {% endfor %}
+  {% if has_profile %}{{ _rda_note.note() }}{% endif %}
 </section>
 {% endif %}
 

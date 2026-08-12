@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Import recipe CSV{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Import CSV</li>
+  </ol>
+</nav>
+
+<h2>Import a recipe from a CSV bundle {{ manual_link("recipes") }}</h2>
+<p class="muted">Pick the two files from a recipe's <strong>Export CSV</strong> download —
+<code>recipes.csv</code> and <code>foods.csv</code> — then review before importing. Every
+food and sub-recipe the recipe needs travels inside these two files, so nothing has to
+already exist in your Food Cache or Recipes first. A recipe or food whose name already
+matches one you have is reused instead of duplicated.</p>
+
+<form method="post" action="/recipe/import-csv" enctype="multipart/form-data">
+  <div class="mb-2">
+    <label class="form-label"><small>recipes.csv</small></label>
+    <input type="file" name="recipes_file" accept=".csv,text/csv" class="form-control">
+  </div>
+  <div class="mb-2">
+    <label class="form-label"><small>foods.csv</small></label>
+    <input type="file" name="foods_file" accept=".csv,text/csv" class="form-control">
+  </div>
+  <button type="submit" name="action" value="preview" class="btn btn-sm btn-primary">Review</button>
+</form>
+
+{% if review is not none %}
+<hr class="my-4">
+
+{% if not review %}
+<div class="alert alert-danger">No valid recipe records after validation — see the messages below.</div>
+{% else %}
+
+{% if warnings %}
+<div class="alert alert-warning">
+  <strong>Notes from validation:</strong>
+  <ul class="mb-0">
+    {% for msg in warnings %}<li><small>{{ msg }}</small></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<h4>Recipes to import ({{ review|length }})</h4>
+<table class="table table-sm">
+  <thead class="table-light">
+    <tr>
+      <th>Name</th>
+      <th class="text-end">Servings</th>
+      <th class="text-end">Ingredients</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in review %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td class="text-end">{{ r.servings }}</td>
+      <td class="text-end">{{ r.ingredient_count }}</td>
+      <td>
+        {% if r.duplicate %}
+        <span class="badge bg-info text-dark" title="A recipe with this name already exists — it will be reused, not duplicated or changed">Already have this</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<form method="post" action="/recipe/import-csv">
+  <input type="hidden" name="recipes_text" value="{{ recipes_text }}">
+  <input type="hidden" name="foods_text" value="{{ foods_text }}">
+  <button type="submit" name="action" value="confirm" class="btn btn-success">
+    Import {{ review|length }} recipe{% if review|length != 1 %}s{% endif %}
+  </button>
+</form>
+{% endif %}
+{% else %}
+{% if warnings %}
+<div class="alert alert-warning">
+  <strong>Notes from validation:</strong>
+  <ul class="mb-0">
+    {% for msg in warnings %}<li><small>{{ msg }}</small></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

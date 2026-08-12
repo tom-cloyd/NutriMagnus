@@ -322,17 +322,40 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
     padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--border);
 }
+#search-input-wrap { position: relative; }
 #search-input {
     width: 100%;
-    padding: 5px 8px;
+    padding: 5px 22px 5px 8px;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--code-bg);
     color: var(--fg);
     font-size: 12.5px;
     outline: none;
+    box-sizing: border-box;
 }
 #search-input:focus { border-color: var(--accent); }
+/* Hide the native WebKit/Blink cancel button — #search-clear replaces it
+   with one that works the same way in every browser, including Firefox. */
+#search-input::-webkit-search-cancel-button { display: none; }
+#search-clear {
+    display: none;
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 1;
+    padding: 3px 5px;
+    border-radius: 3px;
+}
+#search-clear:hover { background: var(--accent-light); color: var(--accent); }
+#search-clear.visible { display: block; }
 #search-func-toggle {
     display: flex;
     align-items: center;
@@ -438,7 +461,7 @@ JS = """\
 
   var sections = [], resultItems = [], currentWords = [];
   var openSection = null, sectionMatches = [], idx = 0;
-  var input, funcCheckbox, resultsEl;
+  var input, funcCheckbox, resultsEl, clearBtn;
 
   function buildSectionIndex() {
     var headings = Array.prototype.slice.call(
@@ -608,26 +631,39 @@ JS = """\
     scrollToMark(idx);
   }
 
+  function clearSearch() {
+    input.value = '';
+    currentWords = []; resultItems = []; openSection = null;
+    closeSectionHighlights();
+    resultsEl.innerHTML = '';
+    setCount('');
+    updateClearButton();
+  }
+
+  function updateClearButton() {
+    clearBtn.classList.toggle('visible', input.value.length > 0);
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     sections = buildSectionIndex();
     input = document.getElementById('search-input');
     funcCheckbox = document.getElementById('search-func-mode');
     resultsEl = document.getElementById('search-results');
+    clearBtn = document.getElementById('search-clear');
     var timer;
     input.addEventListener('input', function () {
+      updateClearButton();
       clearTimeout(timer);
       timer = setTimeout(runSearch, 180);
     });
     funcCheckbox.addEventListener('change', runSearch);
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
-      if (e.key === 'Escape') {
-        input.value = '';
-        currentWords = []; resultItems = []; openSection = null;
-        closeSectionHighlights();
-        resultsEl.innerHTML = '';
-        setCount('');
-      }
+      if (e.key === 'Escape') { clearSearch(); }
+    });
+    clearBtn.addEventListener('click', function () {
+      clearSearch();
+      input.focus();
     });
     document.getElementById('btn-prev').addEventListener('click', function () { step(-1); });
     document.getElementById('btn-next').addEventListener('click', function () { step(1); });
@@ -781,8 +817,11 @@ HTML_TEMPLATE = """\
 <nav id="toc-sidebar" aria-label="Table of contents">
   <a class="toc-page-title" href="#content">{title}</a>
   <div id="search-box">
-    <input id="search-input" type="search" placeholder="Search manual… (all words must match)"
-           autocomplete="off" spellcheck="false">
+    <div id="search-input-wrap">
+      <input id="search-input" type="search" placeholder="Search manual… (all words must match)"
+             autocomplete="off" spellcheck="false">
+      <button id="search-clear" type="button" title="Clear search" aria-label="Clear search">X</button>
+    </div>
     <label id="search-func-toggle">
       <input type="checkbox" id="search-func-mode">
       Only show things you can do
