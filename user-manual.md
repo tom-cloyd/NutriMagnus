@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-11:1903* / Reading time: 2 hours, 36 minutes
+*Updated 2026-08-12:2304* / Reading time: 2 hours, 39 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -107,7 +107,7 @@ The five items in the top navigation bar correspond to the five major things you
 - **Foods** — Search the [USDA](#gloss-usda) and Open Food Facts[^3] databases; analyze the nutrients in a specific portion of any food or recipe; compare up to eight foods side-by-side; manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles; annotate foods with glycemic index and [DIAAS](#gloss-diaas) estimates.
 - **Recipes** — Create and save recipes with ingredients and instructions; browse, copy, and delete saved recipes; develop a recipe iteratively with nutritional feedback after each ingredient change; analyze a recipe portion for full nutrient data, protein quality, and complement suggestions.
 - **Meals & Log** — Record what you eat by date; add foods and recipes to meals; analyze individual meals or the combined total for a full day; search your entire meal history for any food.
-- **Analysis** — A growing set of preset analyses. **Daily summary - [DCP](#gloss-dcp) and goals**: combined nutrient totals for today or any past date, compared against personalized [RDA](#gloss-rda) targets, plus a list of recent days with meals. **Food use in meals**: rank which foods were used across a chosen set of date ranges and/or meals, with a frequency histogram.
+- **Analysis** — A growing set of preset analyses. **Daily summary - [DCP](#gloss-dcp) and goals**: combined nutrient totals for today or any past date, compared against personalized [RDA](#gloss-rda) targets, plus a list of recent days with meals. **Food use in meals**: rank which foods were used across a chosen set of date ranges and/or meals, with a frequency histogram. **Food use in recipes**: the same ranking, but for which foods and sub-recipes appear as ingredients across your recipes. Both Food Use pages can also bulk-substitute one food or recipe for another across the current selection — see [Substituting a Food or Recipe](#fooduse-substitute).
 - **Settings** — Set your color theme, personal profile (age, sex, weight, height, activity level), dietary preferences, editor command, and advanced options including your personal [USDA](#gloss-usda) [API key](#food-data) (a free code from USDA's website that raises how many food searches you can do) and protein digestibility overrides.
 
 **Detailed how-to guides for each menu area follow later in this manual.** If you prefer to learn by example before reading explanations, skip ahead to [Sample Workflows](#sample-workflows) at the end of this introduction — it points you to a set of annotated walkthroughs.
@@ -178,7 +178,7 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-11), there are 634 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-12), there are 641 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 #### Validation you can replicate yourself
 
@@ -979,6 +979,8 @@ The sections linked from analysis output are:
 - [Food import](#food-import) — foods to import review table columns
 - [Food search](#food-search) — [USDA](#gloss-usda) food search results columns
 - [Food use in meals](#fooduse) — food use in meals analysis table and histogram columns
+- [Food use in recipes](#fooduse-recipes) — food use in recipes analysis table
+- [Substituting a food or recipe](#fooduse-substitute) — bulk-replace one food/recipe with another
 - [Glossary](#glossary) — abbreviations and key terms
 - [Glycemic index](#gi) — glycemic index background
 - [Glycemic load](#gl) — glycemic load concept and formula
@@ -1377,7 +1379,83 @@ the dish and its components show up in the ranking.
 Recipe rows always show the recipe's *current* name and are grouped by its
 stable ID — if you rename a recipe after logging it in meals, this analysis
 still finds and merges every occurrence under the new name rather than
-splitting them across old and new names or dropping them.
+splitting them across old and new names or dropping them. Food rows work the
+same way: the name shown is always the food's current cached name, even for
+a meal logged before you last renamed it.
+
+An expandable **Substitute a food or recipe** panel above the results lets
+you bulk-replace one food or recipe with another across the meals currently
+selected — see [Substituting a Food or Recipe](#fooduse-substitute).
+
+
+#### Food Use in Recipes — Column Guide [fooduse-recipes]
+
+Analysis -> Food use in recipes tabulates which foods and sub-recipes appear
+as *ingredients* across a set of recipes you choose — the recipe-book
+equivalent of Food Use in Meals. Pick one selection method: all recipes
+(the default), one or more date ranges by when the recipe was created, or a
+list of specific recipe IDs, then optionally limit to protein-containing
+foods.
+
+Columns:
+
+    ID                  USDA FDC ID for foods. Blank for sub-recipe rows.
+    Food / Recipe       Food or sub-recipe name. Sub-recipe rows are shown
+                        in bold.
+    Kind                "recipe" for sub-recipe rows, blank for individual
+                        foods.
+    Recipes used in     Number of selected (container) recipes whose
+                        ingredient list contains this food or sub-recipe,
+                        directly or nested inside another sub-recipe.
+
+Rows are ranked most- to least-used, with a bar showing what percentage of
+the selected recipes use each item. A sub-recipe used as an ingredient (e.g.
+a house dressing used in several salads) gets its own row — its own
+ingredients are also listed individually, the same way a directly-added
+recipe on Food Use in Meals shows up both as itself and as its expanded
+ingredients.
+
+This page has the same **Substitute a food or recipe** panel as Food Use in
+Meals, scoped to ingredients of the recipes currently selected — see
+[Substituting a Food or Recipe](#fooduse-substitute).
+
+
+#### Substituting a Food or Recipe [fooduse-substitute]
+
+Both Food Use in Meals and Food Use in Recipes have a **Substitute a food or
+recipe** panel that bulk-replaces every occurrence of one food or recipe
+with another, restricted to whatever's currently selected on that page (the
+same date range(s) or ID list you searched with).
+
+This is the tool for the common situation where a rename — or re-adding a
+food from a search instead of reusing what was already in your cache — has
+left what looks like two different foods, when really it's one food you
+just want to consolidate under a single, newer entry. Look up each item's ID
+number from the results table, then fill in:
+
+    Replace this   The old item's kind (Food or Recipe) and ID number.
+    With this      The replacement's kind and ID number.
+
+You can mix kinds — replace a food with a recipe or vice versa — since both
+meal items and recipe ingredients can point at either one. The amount and
+unit already recorded are kept as-is; only *what* the entry points to
+changes, so double-check the replacement's portion makes sense afterward if
+the two items aren't measured the same way.
+
+On **Food Use in Meals**, substitution only reaches items added *directly*
+to a meal — a food used inside a recipe is part of that recipe's own
+ingredient list, not the meal's, so substitute it from **Food Use in
+Recipes** instead, scoped to that recipe. On **Food Use in Recipes**,
+substitution updates every selected recipe's ingredient list and recomputes
+each changed recipe's DCP automatically — including cascading up to any
+recipe that in turn uses one of them as a sub-recipe.
+
+A recipe can never be substituted into referencing itself; that combination
+is silently skipped rather than creating a broken self-reference.
+
+This writes to the database immediately when you click through the
+confirmation prompt — there's no automatic undo, so it's worth double-
+checking the ID numbers first.
 
 
 #### Glycemic Load Output [glycemic]
@@ -1994,6 +2072,9 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 
 - **Daily summary** — a table of recent days with Day DCP and % of goal; pick a date to see that day's full analysis (same sections as the full-day meal view). From here, follow the **Multiday nutrient trend** link to see 7/14/30-day averages — useful for catching a chronic shortfall that a single good or bad day would hide.
 - **Food use in meals** — see how often you've eaten a given food or recipe. Choose either a date range or a specific list of meal IDs, optionally limit results to protein-containing foods, and get a sortable table with a visual frequency bar.
+- **Food use in recipes** — the same idea, but for your recipe book: see how many of your recipes use a given food or sub-recipe as an ingredient. Choose all recipes, a date-created range, or a specific list of recipe IDs.
+
+Both Food Use pages have a **Substitute a food or recipe** panel for bulk-replacing one food or recipe with another across whatever's currently selected — see [Substituting a Food or Recipe](#fooduse-substitute).
 
 ### I. Using the Settings menu [settings]
 
@@ -2500,121 +2581,157 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 
 Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed — that's all most readers need. Some entries also have a fenced code block underneath with fuller technical detail (which files changed, root cause, implementation notes) written for anyone curious about the "how," including a future version of the developer; feel free to skip those blocks entirely.
 
+#### August 12
+
+**PRESSING ENTER IN A SEARCH BOX NOW MOVES FOCUS TO THE SEARCH BUTTON**
+
+Search boxes across the app (Food Search, Compare Foods, Compare Recipes, Recipes filter, Food Cache filter, Pantry, Meal food search, and more) used to re-focus the search box itself every time you searched, since the box is set to auto-focus so a blank page is ready to type into. That fought against actually finishing a search: the red focus ring stayed stuck on the box you'd just finished with. It now lands on the Search/Filter button instead, once the box already holds what you searched for.
+
+```
+Scope: web/templates/base.html. New page-load script: for every
+input[autofocus] whose name is "q", "query", or "search" and already has a
+value, focus its form's submit button instead. Scoped by input name so
+unrelated autofocus fields (e.g. the New Meal name box, always pre-filled
+with "all day") are untouched.
+```
+
+**RECIPES NOW HAS A MENU, LIKE FOODS DOES**
+
+The **Recipes** main-nav link is now a dropdown menu, matching the Foods menu's style: **Search recipes database**, **Compare recipes**, and **Import CSV** are now menu items instead of separate buttons scattered on the recipe list page. A quick-return chip (e.g. "↩ Chickpea-quinoa meal") appears next to it once you've visited a specific recipe, so you can jump straight back after wandering off to Meals or elsewhere — the same behavior the Foods menu already had.
+
+```
+Scope: web/templates/base.html (Recipes nav-item converted from a plain link
+to a dropdown-toggle + <ul class="dropdown-menu">, new #recipes-quick-return
+chip; the nav-memory JS's quick-return logic generalized from a single
+hardcoded "foods" chip into a loop over ['foods', 'recipes']), 
+web/templates/recipes.html (removed the now-redundant Compare recipes /
+Import CSV buttons from the page's own button row).
+```
+
+**COMPARE FOODS NO LONGER OFFERS A NON-FUNCTIONAL "RECIPES" SOURCE FILTER**
+
+The [Compare Foods](#food-compare) page's search source filter used to include a "Recipes" checkbox, but recipes were never actually searchable there and couldn't be added to a food comparison — comparison entries are per-100g nutrient data keyed by a food ID, which recipes don't have. That checkbox is now removed from this page. To compare recipes against each other, use **Compare recipes** on the [Recipes](#recipes) page instead, which already supports it.
+
+```
+Scope: web/backend.py. Added _FOOD_COMPARE_SOURCE_FILTERS (the shared
+_SEARCH_SOURCE_FILTERS list minus "recipe") and passed it as both the
+valid_sources arg to _resolve_source_filter() and the source_filters
+template context in food_compare_get(), so the checkbox and its
+preference-persistence both drop "recipe".
+```
+
+**FOOD CACHE NOTES NOW EXPAND FULL-WIDTH INSTEAD OF CRAMPING THE NOTES COLUMN**
+
+On the [Food Cache](#food-cache-web) page, clicking "Notes ▸" for a food used to expand the note text inside the narrow Notes column itself, which crowded long notes into an awkward strip. It now opens a full-width row beneath that food, spanning the whole table, matching how notes already display on the Custom Profiles page.
+
+```
+Scope: web/templates/food_cache.html. Replaced the per-cell <details>/<summary>
+with a link that calls a small toggleNotes(fdcId) JS function, toggling the
+display of a sibling <tr id="notes-row-{fdc_id}"><td colspan="9"> row that was
+already hidden by default.
+```
+
+**PROTEIN COMPLEMENT SUGGESTIONS: GRADUATED-ADDITION TABLES NOW SHOW % INCREASE**
+
+The graduated-serving tables under Protein Complement Suggestions (Foods, Meals, Meal Day, Trend, Recipes) gained a **% increase** column next to DCP achieved, showing how much each 25/50/75/100% increment raises digestible complete protein relative to the base food/meal/recipe's own DCP. The column headers in that table now wrap onto two lines so they fit the narrower columns better.
+
+```
+Scope: numa_app/services/complements.py (_grad_steps() now computes
+pct_increase = (dcp - base_digestible) / base_digestible * 100 per step),
+web/templates/meal.html, recipe_detail.html, summary.html, trend.html
+(new % increase column + two-line <th> headers via <br>).
+```
+
+**NEW: FOOD USE IN RECIPES, PLUS BULK SUBSTITUTION ON BOTH FOOD USE PAGES**
+
+A new [Food Use in Recipes](#fooduse-recipes) page joins the Analysis menu — the recipe-book equivalent of Food Use in Meals, showing how many of your recipes use a given food or sub-recipe as an ingredient (pick all recipes, a date-created range, or specific recipe IDs). Both Food Use pages also gained a **Substitute a food or recipe** panel: pick an old item and a replacement by ID (either can be a food or a recipe), and every occurrence across the currently-selected meals or recipes is replaced in one step — the tool for folding a duplicate entry (e.g. after a rename left what looks like two different foods) into a single, current one. [learn more...](#fooduse-substitute)
+
+```
+Scope: db.py (recipe_expand_ingredient_use, recipe_list_by_created_range,
+recipe_list_by_ids, item_current_name, substitute_item_in_meals,
+substitute_item_in_recipes), web/backend.py (GET/POST
+/analysis/food-use-recipes, POST /analysis/food-use/substitute, POST
+/analysis/food-use-recipes/substitute; shared selection-parsing helpers
+_parse_id_list_tokens/_parse_date_range_lines/_resolve_meals_for_food_use/
+_parse_food_use_recipes_selection extracted so the substitution actions
+scope to exactly what the analysis page has on screen), new template
+analysis_food_use_recipes.html, web/templates/analysis_food_use.html
+(substitution panel), web/templates/base.html (nav entry).
+
+Substitution writes directly to meal_items (item_type/fdc_id/recipe_id/
+food_name) or recipe_ingredients (fdc_id/ref_recipe_id/food_name), and
+supports replacing a food with a recipe or vice versa since both tables
+already store either kind. Recipe-side substitution recomputes DCP via
+recipe_dcp.recompute_recipe_dcp() for every recipe actually changed, which
+already cascades to ancestor recipes on its own. A recipe substituting
+into referencing itself is silently skipped, matching the guard already
+used when adding a sub-recipe ingredient by hand. Meal-side substitution
+only reaches meal_items added directly to a meal, not foods nested inside
+a recipe a meal references — that's reachable from the recipes page,
+scoped to that recipe, instead.
+```
+
+**FOOD USE IN MEALS NOW ALWAYS SHOWS A FOOD'S CURRENT NAME, EVEN FOR OLDER MEALS**
+
+The [Food Use in Meals](#fooduse) table already tallied a food's day/meal counts by its stable ID, not by name — that part was already correct. But the *name shown* for a food row came from whatever label was stored on the meal item at the time it was added, which goes stale if you rename the food afterward (via Edit Food). Older and newer references to the same food could then display under different names, making it easy to misread the table as if a frequently-used food only showed up a handful of times. Every food row now shows the food's current name, no matter how old the meal is.
+
+```
+Scope: db.py (meal_expand_food_items). Added _current_food_name(), which
+looks up the food's live name from the cache and falls back to the item's
+stored food_name only if the food is no longer cached at all. Applied to
+both direct meal-item food rows and recipe-ingredient food rows (the
+latter via _expand_recipe). Grouping/counting logic (by fdc_id) was
+already correct and is unchanged — recipe rows already used the recipe's
+live name via recipe_get().
+```
+
+**SOURCE FILTER CHECKBOXES NO LONGER AUTO-SEARCH ON EVERY CLICK — USE THE NEW "REFRESH SEARCH" BUTTON**
+
+Every Source filter (Food Search, Analyze a Food Portion, Compare Foods, Convert a Portion, Pantry, Meal "Add Food", Recipe "Add Ingredient", and the Edit Custom Profile page's "copy from" searches) used to re-run the search the instant you clicked any checkbox, which felt jumpy when checking/unchecking several sources in a row. Checking boxes no longer searches by itself — click the new **Refresh search** button next to the checkboxes once you've set them up the way you want.
+
+```
+Scope: web/templates/_source_filter_select.html (shared macro used by all
+source-filter pages). Removed each checkbox's onchange="this.form.submit()"
+and added a type="submit" "Refresh search" button inside the same group —
+every page using the macro already wraps it in its own <form>, so the
+button submits with no per-page changes needed.
+```
+
+**RECIPE "ADD INGREDIENT" PANEL NO LONGER COLLAPSES WHEN YOU CHANGE SOURCE FILTERS BEFORE SEARCHING**
+
+On the Edit Recipe page, the Add Ingredient panel used to snap shut if you submitted it (e.g. via the new Refresh search button, or the "Reset all sources to ON" button added recently) before typing a search query — jarring, since the panel you were just using would just vanish. It now stays open across that kind of reload too.
+
+```
+Scope: web/backend.py (recipe_edit_get), web/templates/recipe_edit.html.
+The <details id="add-ingredient-section"> open condition was tied only to
+`q` being non-empty; now also opens when the request explicitly carried a
+`source` or `limit` param, which happens on any submit from inside the
+panel regardless of whether q has been typed yet.
+```
+
 #### August 11
+
+**THE "UL" COLUMN NOW HAS A FOOTNOTE EXPLAINING WHAT IT IS AND WHERE TO CHANGE IT**
+
+Every nutrient table's **UL** column header now carries an asterisk, and a footnote under the table spells out what it means (Tolerable Upper Intake Level) and where to set your own — Settings → Nutrient Targets — instead of relying only on a hover tooltip.
 
 **RECIPES CAN NOW BE EXPORTED AND IMPORTED AS SELF-CONTAINED CSV BUNDLES**
 
 A [recipe](#recipes)'s page has a new **Export CSV** button that downloads a `.zip` containing everything needed to recreate it elsewhere: the recipe itself, every sub-recipe it uses (at any nesting depth), and every distinct food ingredient's full nutrient and portion data — not just names that might not mean anything on another install. [Recipes](#recipes)' list page has a matching **Import CSV** that uploads that zip's two files and shows a review (name, servings, ingredient count, and an "already have this" flag for anything matching a recipe you already have) before importing. A recipe or food whose name already matches something you have is reused rather than duplicated, so importing the same file twice — or two recipes that share a common ingredient — doesn't pile up copies.
 
-```
-New numa_app/services/recipe_csv.py:
-- collect_recipe_bundle()/render_recipe_export() (export side): walks a
-  recipe's ingredients, following ref_recipe_id recursively to gather every
-  sub-recipe it depends on (each included once, however many places
-  reference it), and collects the deduped set of every distinct food
-  ingredient (by fdc_id) anywhere in that closure. recipes_to_csv() then
-  renders one row per ingredient, recipe fields repeated per row, sub-recipe
-  ingredients flagged via ingredient_is_subrecipe; the food half reuses
-  csv_export.foods_to_csv() verbatim as a companion foods.csv.
-- parse_recipes_csv()/import_recipe_bundle() (import side): a strict
-  two-pass build rather than trusting file order — pass 1 resolves or
-  creates every food (via csv_import.resolve_or_import_foods(), new
-  alongside the existing import_foods(): reuses an existing cache entry
-  when its name already matches instead of duplicating it) and every
-  recipe shell (same reuse-by-name rule, via a new destination-name index
-  over db.recipe_list()); pass 2 adds ingredients now that every food and
-  recipe referenced anywhere in the bundle is guaranteed to exist,
-  regardless of what order the file listed them in. An ingredient that
-  still can't be resolved (missing from foods.csv, no name match) is
-  skipped with a warning rather than silently zeroed or guessed at.
-  Recipes matched to an existing one by name are left untouched — not
-  re-added — so re-importing the same bundle is a no-op for anything
-  already present.
-New GET /recipe/{id}/export.csv (zips recipes.csv + foods.csv) and
-GET/POST /recipe/import-csv (upload → preview → confirm, same shape as the
-existing Claude AI and Food Cache CSV import flows) in web/backend.py.
-New web/templates/recipe_import_csv.html; Export CSV button added to
-recipe_detail.html, Import CSV button added to recipes.html.
-Tests: tests/test_recipe_csv.py (bundle collection, sub-recipe closure,
-export→parse round trip, two-pass import including both dedup rules and
-an unresolvable-ingredient warning) plus a full HTTP export→import round
-trip in tests/test_web.py.
-```
-
 **FOODS CAN NOW BE IMPORTED INTO THE FOOD CACHE FROM CSV, COMPLETING CSV TRADING**
 
 The [Food Cache](#food-cache-web) page has a new **Import CSV** button that uploads a CSV file — your own earlier export, or one from someone else's NuMa install — and shows a review screen (name, calories, protein, portion count, and a "possible duplicate" flag for any name that already matches something in your cache) before anything is written. Every imported food gets a brand-new ID of its own; it's added as a fresh entry, never overwriting or merging with an existing one, so a bad import is just a Delete away. Malformed rows or values are skipped individually with a plain-language reason rather than failing the whole file.
 
-```
-New numa_app/services/csv_import.py: parse_foods_csv() (pure parsing, no
-DB) reads the same column layout csv_export.foods_to_csv() writes,
-coercing each nutrient cell to float and each 'portions' cell from its
-JSON-encoded list back into portion dicts; unrecognised columns are
-reported once and ignored; a row's own 'fdc_id' column is ignored
-entirely — it belongs to the exporting install and would collide with
-unrelated foods here. import_foods() then writes each valid row via
-db.cache_food(), allocating a fresh ID per food with the same
-db.next_user_drafted_fdc_id() mechanism already used for manually-drafted
-foods, and marks them user_drafted=True.
-New GET/POST /food/cache/import-csv routes in web/backend.py follow the
-same preview-then-confirm shape as the existing Claude AI import flow
-(numa_app/services/claude_fetch.py) — a first POST parses and shows a
-review table, a second POST (with the parsed CSV text carried forward in
-a hidden field) commits it. New web/templates/food_cache_import_csv.html.
-Tests: tests/test_csv_import.py (parser unit tests, including a
-foods_to_csv → parse_foods_csv round trip) and two new web-level tests in
-tests/test_web.py covering the preview/confirm flow and a malformed file.
-```
-
 **FOODS IN THE FOOD CACHE CAN NOW BE EXPORTED TO CSV**
 
 The [Food Cache](#food-cache-web) list has a new **Export CSV** button that downloads the foods currently shown (respecting your name filter and "show archived" setting) as a spreadsheet-friendly CSV file — name, brand, type, notes, every nutrient value, and each food's custom portions. Useful for handing a food's full data to someone else, or opening it in a spreadsheet. CSV import (reading someone else's exported file back into your own cache) is not built yet — this is export only.
-
-```
-New numa_app/services/csv_export.py: foods_to_csv() renders cached-food
-rows to CSV text, one row per food, per-100g nutrient columns ordered by
-usda.NUTRIENT_MAP so the column set can't drift from what numa actually
-tracks. Portions (foods.portions_json) are included as a JSON-encoded cell
-per row rather than flattened, since a food can have any number of them —
-lossless and reuses the same serialization the app already stores.
-New GET /food/cache/export.csv route in web/backend.py, honoring the same
-q/show_archived filters as the Food Cache list page.
-db.py: list_cached_foods() and search_cached_foods() both gained missing
-columns (portions_json on the former, serving_size/serving_unit on the
-latter) so a single query has everything a CSV row needs.
-```
 
 **"RDA" AND "REVISED OPTIMAL" ARE NOW CLEARLY DISTINCT, AND MAXIMUM NUTRIENT LIMITS ARE VISIBLE ON EVERY NUTRIENT TABLE**
 
 Two related nutrient-target changes. First, every nutrient table now footnotes exactly what "RDA" means — quoting NIH's own definition ("meets the needs of nearly all (97–98%) healthy individuals," not a bare minimum) with a source link — and the age/sex-adjusted RDA table in the manual is now fully spelled out, nutrient by nutrient, instead of summarized. Second, the feature previously just called "Optimal" (targets that go *above* the RDA — vitamin D, omega-3s) is now labeled **Revised Optimal (Recent Research)** everywhere, so it can never be confused with the RDA itself. Its two existing built-in defaults now have real citations in the manual.
 
 Also new: the built-in Tolerable Upper Intake Level (UL) table grew from 6 nutrients to 14, gained age-banding for calcium and phosphorus (matching how RDA already varies by age), and — the actually-visible part — every nutrient analysis table (food, recipe, meal, daily summary, trend, and print/PDF) now has a **UL** column, far right, showing the limit and turning amber/red as your day's total for that nutrient gets close to or passes it. [learn more...](#maxlimits)
-
-```
-profile.py: compute_upper_limits() rewritten from a flat 6-nutrient dict to
-14 nutrients, age-banded for calcium (2500→2000mg at 51+) and phosphorus
-(4000→3000mg at 70+) per the real NIH/IOM DRI UL summary tables (fetched
-live via WebFetch during this session, not guessed at). Deliberately
-excludes magnesium (DRI's 350mg UL is supplemental-only, would misfire
-against NuMa's whole-food totals) and five "ND" (not-determinable)
-nutrients. rda_type docstring/carbs_g inconsistency fixed.
-web/backend.py: _nutrient_sections() gained ul_val/ul_display/ul_pct/ul_css
-per row (same 90%-near/100%-over thresholds as the existing row-highlight
-logic, now also surfaced as a number); has_ul flag added to all 8 routes
-that build nutrient tables. New shared web/templates/_ul_column.html
-(header()/cell() macros) and _rda_definition_footer.html (note() macro) —
-first cross-template shared partials for this table, previously each of the
-8 templates duplicated its own markup.
-Renamed (display text only — internal Python names, dict keys, and manual
-anchors like #optimal are unchanged, so no data migration needed): "optimal
-goal"/"% of optimal" → "Revised Optimal goal"/"% of Revised Optimal" across
-all 8 templates + settings.html's Nutrient Targets section.
-Settings page: items 1 and 2's "Learn more" links were pointing at
-nonexistent manual anchors (profile-setup, daily-targets-web) and silently
-landing on the manual's top instead of erroring — fixed by adding a real
-[profile-setup] section to Part 8 and correcting the other link to the
-already-existing #daily-nutrient-targets anchor.
-```
 
 **MANUAL SEARCH BOX GETS A CLICKABLE CLEAR BUTTON**
 

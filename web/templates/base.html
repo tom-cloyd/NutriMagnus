@@ -95,9 +95,40 @@
             <a href="#" id="foods-quick-return" class="nav-quick-return d-none"></a>
           </li>
 
-          <li class="nav-item">
-            <a class="nav-link {% if path.startswith('/recipes') or path.startswith('/recipe/') %}active{% endif %}"
-               href="/recipes" data-ak="r" data-section="recipes"><u class="ak">R</u>ecipes</a>
+          {# ── Recipes dropdown ── #}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if path.startswith('/recipes') or path.startswith('/recipe/') %}active{% endif %}"
+               href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"
+               data-ak="r" id="nav-recipes-dropdown">
+              <u class="ak">R</u>ecipes
+            </a>
+            <ul class="dropdown-menu numa-dropdown" aria-labelledby="nav-recipes-dropdown">
+              <li>
+                <a class="dropdown-item" href="/recipes">
+                  1. <strong>Search</strong> recipes database
+                  <span class="dd-hint">(filter by name)</span>
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/recipe/compare">
+                  2. <strong>Compare</strong> recipes
+                  <span class="dd-hint">(side-by-side ingredients &amp; nutrients)</span>
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/recipe/import-csv">
+                  3. <strong>Import CSV</strong>
+                  <span class="dd-hint">(bundle exported from this or another NuMa install)</span>
+                </a>
+              </li>
+            </ul>
+          </li>
+          {# Quick-return chip: only shown by JS once there's a remembered Recipes
+             page to jump back to (e.g. the specific recipe you were editing) —
+             same pattern as the Foods quick-return chip above; see that comment
+             and the nav-memory script below for why. #}
+          <li class="nav-item d-flex align-items-center">
+            <a href="#" id="recipes-quick-return" class="nav-quick-return d-none"></a>
           </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/meal') %}active{% endif %}"
@@ -121,6 +152,12 @@
                 <a class="dropdown-item" href="/analysis/food-use">
                   2. <strong>Food use in meals</strong>
                   <span class="dd-hint">(frequency across date ranges / meal IDs)</span>
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/analysis/food-use-recipes">
+                  3. <strong>Food use in recipes</strong>
+                  <span class="dd-hint">(frequency across recipes / substitution)</span>
                 </a>
               </li>
             </ul>
@@ -156,6 +193,27 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
   {% block scripts %}{% endblock %}
+  <script>
+  // Search boxes across the app (query/search/q inputs) carry the
+  // `autofocus` attribute so a blank search page is ready to type into
+  // immediately. But that same attribute fights you right after you search:
+  // the results page reloads with the box pre-filled, and the browser
+  // re-applies autofocus to the (already-answered) box instead of leaving
+  // focus somewhere useful. Once a search has actually been submitted (the
+  // box already holds a value on load), shift focus to that form's Search
+  // button instead — pressing Enter again then re-runs the same search
+  // rather than doing nothing, and the red focus ring visibly lands on the
+  // button that just did something. Scoped by input name so it doesn't
+  // touch unrelated autofocus fields (e.g. the New Meal name box, which
+  // always starts pre-filled with "all day").
+  document.querySelectorAll('input[autofocus]').forEach(function (inp) {
+    var name = (inp.getAttribute('name') || '').toLowerCase();
+    if (['q', 'query', 'search'].indexOf(name) === -1 || !inp.value) return;
+    var form = inp.closest('form');
+    var btn = form && form.querySelector('button[type="submit"], input[type="submit"]');
+    if (btn) btn.focus();
+  });
+  </script>
   <script>
   // Auto-focus the first text/number input whenever any <details> is opened.
   // toggle events don't bubble, so capture phase is required.
@@ -230,19 +288,19 @@
   })();
   </script>
   <script>
-  // Remember the last page you were on within each main-nav section (Recipes,
-  // Meals & Log, Settings, Manual) so clicking that section's nav link
-  // returns you to exactly where you left off — e.g. the specific recipe
-  // you were editing — instead of always jumping to the section's list/
-  // landing page. Foods and Analysis are dropdown menus whose items are
-  // each a deliberate, specific destination (Search, Compare, Daily summary,
-  // …) rather than one generic section page, so their dropdown click behavior
-  // is deliberately left alone — overriding those clicks would send the user
-  // somewhere other than the specific item they picked. Food Search's own
-  // results persist separately (see the data-persist-search block above).
-  // Foods still gets a *last page visited* remembered (below) purely so the
-  // separate quick-return chip next to the Foods menu has something to point
-  // at — it just isn't wired to override the dropdown itself.
+  // Remember the last page you were on within each main-nav section (Meals
+  // & Log, Settings, Manual) so clicking that section's nav link returns you
+  // to exactly where you left off instead of always jumping to the section's
+  // list/landing page. Foods, Recipes, and Analysis are dropdown menus whose
+  // items are each a deliberate, specific destination (Search, Compare,
+  // Daily summary, …) rather than one generic section page, so their
+  // dropdown click behavior is deliberately left alone — overriding those
+  // clicks would send the user somewhere other than the specific item they
+  // picked. Food Search's own results persist separately (see the
+  // data-persist-search block above). Foods and Recipes still get a *last
+  // page visited* remembered (below) purely so their quick-return chips have
+  // something to point at — it just isn't wired to override the dropdowns
+  // themselves.
   (function () {
     var SECTIONS = [
       ['recipes',  /^\/recipe/],
@@ -290,22 +348,24 @@
       });
     });
 
-    // Foods quick-return chip: purely additive, doesn't touch the Foods
-    // dropdown. Shown whenever there's a remembered Foods page and you're
-    // not already on one — e.g. "↩ Salmon, Atlantic, raw" after you've
-    // wandered off to look at a recipe.
-    var chip = document.getElementById('foods-quick-return');
-    if (chip && here !== 'foods') {
-      var foodsUrl = sessionStorage.getItem('numa_last:foods');
-      var foodsLabel = sessionStorage.getItem('numa_last_label:foods');
-      if (foodsUrl) {
-        chip.href = foodsUrl;
-        var shortLabel = foodsLabel && foodsLabel.length > 28 ? foodsLabel.slice(0, 27) + '…' : foodsLabel;
-        chip.textContent = '↩ ' + (shortLabel || 'Foods');
-        chip.title = 'Back to ' + (foodsLabel || 'where you left off in Foods');
+    // Foods/Recipes quick-return chips: purely additive, doesn't touch either
+    // dropdown. Each is shown whenever there's a remembered page in that
+    // section and you're not already on one — e.g. "↩ Salmon, Atlantic, raw"
+    // after you've wandered off to look at a meal.
+    ['foods', 'recipes'].forEach(function (section) {
+      var chip = document.getElementById(section + '-quick-return');
+      if (!chip || here === section) return;
+      var url = sessionStorage.getItem('numa_last:' + section);
+      var label = sessionStorage.getItem('numa_last_label:' + section);
+      if (url) {
+        chip.href = url;
+        var shortLabel = label && label.length > 28 ? label.slice(0, 27) + '…' : label;
+        var sectionName = section === 'foods' ? 'Foods' : 'Recipes';
+        chip.textContent = '↩ ' + (shortLabel || sectionName);
+        chip.title = 'Back to ' + (label || 'where you left off in ' + sectionName);
         chip.classList.remove('d-none');
       }
-    }
+    });
   })();
   </script>
   <script>

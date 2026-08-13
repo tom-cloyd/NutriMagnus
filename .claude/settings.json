@@ -103,7 +103,17 @@
       "Bash(awk 'NR==2312,0' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/user-manual.md)",
       "Bash(awk 'NR>=2312 && /^### [A-Z]\\\\./{print NR\": \"$0}' user-manual.md)",
       "Bash(awk '/^## Part 9/{p=1} p && /^### [A-L]\\\\./' user-manual.md)",
-      "Bash(awk '/^### A\\\\. Recent program updates log/{p=1} p && /^### B\\\\./{exit} p' user-manual.md)"
+      "Bash(awk '/^### A\\\\. Recent program updates log/{p=1} p && /^### B\\\\./{exit} p' user-manual.md)",
+      "Bash(python -m pytest tests/ -k \"complement\" -q)",
+      "Bash(python -m pytest tests/ -k \"cache\" -q)",
+      "Bash(python -m pytest tests/test_notes_toggle_tmp.py -q -s)",
+      "Bash(HOME=/tmp/claude-1000/numa-run-check NUMA_NO_BROWSER=1 nohup python -m uvicorn web.backend:app --host 127.0.0.1 --port 8791)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:8791/recipes)",
+      "Bash(python -c \"import playwright\")",
+      "Bash(pkill -f \"uvicorn web.backend:app --host 127.0.0.1 --port 8791\")",
+      "Bash(HOME=/tmp/claude-1000/numa-run-check2 NUMA_NO_BROWSER=1 nohup python -m uvicorn web.backend:app --host 127.0.0.1 --port 8792)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:8792/food/search?query=chicken)",
+      "Bash(pkill -f \"uvicorn web.backend:app --host 127.0.0.1 --port 8792\")"
     ]
   }
 }

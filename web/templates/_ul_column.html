@@ -3,7 +3,7 @@
    has_ul in the caller, same pattern as the existing "optimal" column pair.
    See user-manual.md topic ?maxlimits for what this column means. #}
 {% macro header() %}
-<th class="num-col" title="Tolerable Upper Intake Level — the highest daily amount considered safe for nearly all healthy people">UL</th>
+<th class="num-col" title="Tolerable Upper Intake Level — the highest daily amount considered safe for nearly all healthy people">UL*</th>
 {% endmacro %}
 
 {% macro cell(row) %}
@@ -13,4 +13,8 @@
     <span class="{{ badge_css }}" title="Tolerable Upper Intake Level — the highest daily amount considered safe for nearly all healthy people. {{ 'Today is at or over this limit.' if row.ul_css == 'limit-over' else ('Today is getting close to this limit.' if row.ul_css == 'limit-near' else '' ) }}">{{ row.ul_display }}{% if row.ul_pct is not none %} <small>({{ row.ul_pct | int }}%)</small>{% endif %}</span>
   {% else %}<span class="muted">—</span>{% endif %}
 </td>
+{% endmacro %}
+
+{% macro note() %}
+<p class="rda-footnote muted"><small>*UL = Tolerable Upper Intake Level: the highest average daily amount considered safe for nearly all healthy people. Built-in defaults come from NIH/IOM's DRI summary tables (14 nutrients, some age-banded); set your own personal max limit under <a href="/settings">Settings &gt; Nutrient Targets</a> to override a nutrient's default or add one not built in. {{ manual_link("maxlimits", "Learn more") }}</small></p>
 {% endmacro %}

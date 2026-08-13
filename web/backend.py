@@ -359,6 +359,12 @@ _SEARCH_SOURCE_LABELS = {
     **{key: f"{key.upper()} — {name}" for key, name, _fn in _LIVE_SOURCES},
 }
 
+# Compare Foods (/food/compare) can't hold a recipe as a comparison entry —
+# entries are per-100g food nutrient data keyed by fdc_id, which recipes
+# don't have. Recipe-to-recipe comparison lives at /recipe/compare instead,
+# so "Recipes" is left out of this page's source filter.
+_FOOD_COMPARE_SOURCE_FILTERS = [s for s in _SEARCH_SOURCE_FILTERS if s != "recipe"]
+
 
 def _external_source_labels(sources: list[str]) -> list[str]:
     """Human names of whichever live sources are in the current Source filter
@@ -1902,7 +1908,7 @@ async def food_compare_get(
     source: list[str] | None = Query(default=None),
     limit: int | None = None,
 ):
-    source = _resolve_source_filter(source, "sort_food_search_source")
+    source = _resolve_source_filter(source, "sort_food_search_source", _FOOD_COMPARE_SOURCE_FILTERS)
     limit = _resolve_result_limit(limit)
     id_list, amount_list = _parse_ids_amounts(ids, amounts)
     entries = _load_compare_entries(id_list, amount_list) if id_list else []
@@ -1961,7 +1967,7 @@ async def food_compare_get(
         "saved_lists":    saved_lists,
         "source":         source,
         "limit":          limit,
-        "source_filters": _SEARCH_SOURCE_FILTERS,
+        "source_filters": _FOOD_COMPARE_SOURCE_FILTERS,
         "source_labels":  _SEARCH_SOURCE_LABELS,
     })
 
@@ -5702,6 +5708,11 @@ async def recipe_print(
 async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = "",
                            relinked: str = "", source: list[str] | None = Query(default=None),
                            limit: int | None = None):
+    # Keep the "Add Ingredient" panel open across a reload triggered from
+    # inside it (Search, Reset all sources to ON, Refresh search) even when
+    # the query box is empty — otherwise a source-filter change with no q
+    # yet typed would collapse the panel the user was just using.
+    show_add_section = bool(q) or "source" in request.query_params or "limit" in request.query_params
     source = _resolve_source_filter(source, "sort_food_search_source")
     limit = _resolve_result_limit(limit)
     with _db.get_db() as conn:
@@ -5820,6 +5831,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         "recipe":             dict(recipe),
         "ingredients":        ingredients,
         "q":                  q,
+        "show_add_section":   show_add_section,
         "search_results":     search_results,
         "saved":              saved,
         "error":              error,
@@ -6800,6 +6812,69 @@ async def summary_date_profile_override(meal_date: str, profile_name: str = Form
     return RedirectResponse(f"/summary/{meal_date}", status_code=303)
 
 
+def _parse_id_list_tokens(raw: str) -> list[int]:
+    """Parse a comma/space-separated list of IDs, with "N-M" range tokens
+    expanded — shared by the meal-IDs and recipe-IDs selection boxes on the
+    Food Use analysis pages."""
+    ids: list[int] = []
+    for token in re.split(r"[\s,]+", raw.strip()):
+        if not token:
+            continue
+        m = re.fullmatch(r"(\d+)-(\d+)", token)
+        if m:
+            lo, hi = int(m.group(1)), int(m.group(2))
+            if lo > hi:
+                lo, hi = hi, lo
+            ids.extend(range(lo, hi + 1))
+            continue
+        try:
+            ids.append(int(token))
+        except ValueError:
+            pass
+    return ids
+
+
+def _parse_date_range_lines(raw: str) -> list[tuple[str, str]]:
+    """Parse "YYYY-MM-DD:YYYY-MM-DD" lines (one per line) into (start, end)
+    tuples, swapping a reversed pair — shared by the Food Use analysis pages."""
+    ranges: list[tuple[str, str]] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if ":" not in line:
+            continue
+        start, end = line.split(":", 1)
+        start, end = start.strip(), end.strip()
+        if start and end:
+            if start > end:
+                start, end = end, start
+            ranges.append((start, end))
+    return ranges
+
+
+def _resolve_meals_for_food_use(
+    conn, mode: str, ranges_raw: str, meal_ids: str
+) -> tuple[dict[int, dict], list[tuple[str, str]], list[int]]:
+    """Resolve the mode="range"/"ids" selection on Food Use in Meals into the
+    actual set of meals — shared by the analysis page itself and the
+    substitution action, so a substitution always applies to exactly the
+    meals currently on screen."""
+    ranges = _parse_date_range_lines(ranges_raw) if mode == "range" else []
+    requested_ids = _parse_id_list_tokens(meal_ids) if mode != "range" else []
+
+    meals_by_id: dict[int, dict] = {}
+    missing_ids: list[int] = []
+    for start, end in ranges:
+        for row in _db.meal_list_by_date_range(conn, start, end):
+            meals_by_id[row["id"]] = dict(row)
+    if requested_ids:
+        found = _db.meal_list_by_ids(conn, requested_ids)
+        found_ids = {row["id"] for row in found}
+        missing_ids = [i for i in requested_ids if i not in found_ids]
+        for row in found:
+            meals_by_id[row["id"]] = dict(row)
+    return meals_by_id, ranges, missing_ids
+
+
 @app.get("/analysis/food-use", response_class=HTMLResponse)
 async def analysis_food_use(
     request: Request,
@@ -6808,6 +6883,8 @@ async def analysis_food_use(
     meal_ids: str = Query(default=""),
     protein_only: bool = Query(default=False),
     sort: str = Query(default="frequency"),
+    substituted: int = Query(default=0),
+    error: str = Query(default=""),
 ):
     """Food use in meals: frequency-of-use table across a chosen set of meals.
 
@@ -6817,48 +6894,9 @@ async def analysis_food_use(
         today = datetime.date.today()
         ranges_raw = f"{today - datetime.timedelta(days=30)}:{today}"
 
-    ranges: list[tuple[str, str]] = []
-    requested_ids: list[int] = []
-    missing_ids: list[int] = []
-
-    if mode == "range":
-        for line in ranges_raw.splitlines():
-            line = line.strip()
-            if ":" not in line:
-                continue
-            start, end = line.split(":", 1)
-            start, end = start.strip(), end.strip()
-            if start and end:
-                if start > end:
-                    start, end = end, start
-                ranges.append((start, end))
-    else:
-        for token in re.split(r"[\s,]+", meal_ids.strip()):
-            if not token:
-                continue
-            m = re.fullmatch(r"(\d+)-(\d+)", token)
-            if m:
-                lo, hi = int(m.group(1)), int(m.group(2))
-                if lo > hi:
-                    lo, hi = hi, lo
-                requested_ids.extend(range(lo, hi + 1))
-                continue
-            try:
-                requested_ids.append(int(token))
-            except ValueError:
-                pass
-
-    meals_by_id: dict[int, dict] = {}
     with _db.get_db() as conn:
-        for start, end in ranges:
-            for row in _db.meal_list_by_date_range(conn, start, end):
-                meals_by_id[row["id"]] = dict(row)
-        if requested_ids:
-            found = _db.meal_list_by_ids(conn, requested_ids)
-            found_ids = {row["id"] for row in found}
-            missing_ids = [i for i in requested_ids if i not in found_ids]
-            for row in found:
-                meals_by_id[row["id"]] = dict(row)
+        meals_by_id, ranges, missing_ids = _resolve_meals_for_food_use(conn, mode, ranges_raw, meal_ids)
+    requested_ids = _parse_id_list_tokens(meal_ids) if mode != "range" else []
 
     agg: dict[tuple, dict] = {}
     with _db.get_db() as conn:
@@ -6917,7 +6955,200 @@ async def analysis_food_use(
         "total_meals":   len(meals_by_id),
         "total_days":    total_days,
         "submitted":     bool(ranges or requested_ids),
+        "substituted":   substituted,
+        "error":         error,
     })
+
+
+@app.post("/analysis/food-use/substitute", response_class=RedirectResponse)
+async def analysis_food_use_substitute(
+    mode: str = Form(...),
+    ranges_raw: str = Form(""),
+    meal_ids: str = Form(""),
+    protein_only: bool = Form(False),
+    sort: str = Form("frequency"),
+    old_kind: str = Form(...),
+    old_id: int = Form(...),
+    new_kind: str = Form(...),
+    new_id: int = Form(...),
+):
+    """Replace every direct occurrence of (old_kind, old_id) with (new_kind,
+    new_id) across the meals currently selected on the Food Use in Meals page
+    — the same date range(s)/meal-IDs selection already on screen, so a
+    substitution always matches exactly what the user was just looking at."""
+    from urllib.parse import urlencode
+
+    def _back(error: str | None = None, n: int = 0) -> RedirectResponse:
+        params = {"mode": mode, "protein_only": protein_only, "sort": sort}
+        if mode == "range":
+            params["ranges_raw"] = ranges_raw
+        else:
+            params["meal_ids"] = meal_ids
+        if error:
+            params["error"] = error
+        elif n:
+            params["substituted"] = n
+        return RedirectResponse(f"/analysis/food-use?{urlencode(params)}", status_code=303)
+
+    if old_kind == new_kind and old_id == new_id:
+        return _back(error="Old and new selections are the same item.")
+    try:
+        with _db.get_db() as conn:
+            meals_by_id, _, _ = _resolve_meals_for_food_use(conn, mode, ranges_raw, meal_ids)
+            n = _db.substitute_item_in_meals(conn, list(meals_by_id), old_kind, old_id, new_kind, new_id)
+    except ValueError as exc:
+        return _back(error=str(exc))
+    return _back(n=n)
+
+
+def _parse_food_use_recipes_selection(
+    conn, mode: str, ranges_raw: str, recipe_ids: str
+) -> tuple[dict[int, dict], list[tuple[str, str]], list[int]]:
+    """Resolve Food Use in Recipes' mode="all"/"range"/"ids" selection into
+    the actual set of (container) recipes — shared by the analysis page and
+    the substitution action."""
+    if mode == "all":
+        recipes_by_id = {row["id"]: dict(row) for row in _db.recipe_list(conn)}
+        return recipes_by_id, [], []
+
+    ranges = _parse_date_range_lines(ranges_raw) if mode == "range" else []
+    requested_ids = _parse_id_list_tokens(recipe_ids) if mode == "ids" else []
+
+    recipes_by_id: dict[int, dict] = {}
+    missing_ids: list[int] = []
+    for start, end in ranges:
+        for row in _db.recipe_list_by_created_range(conn, start, end):
+            recipes_by_id[row["id"]] = dict(row)
+    if requested_ids:
+        found = _db.recipe_list_by_ids(conn, requested_ids)
+        found_ids = {row["id"] for row in found}
+        missing_ids = [i for i in requested_ids if i not in found_ids]
+        for row in found:
+            recipes_by_id[row["id"]] = dict(row)
+    return recipes_by_id, ranges, missing_ids
+
+
+@app.get("/analysis/food-use-recipes", response_class=HTMLResponse)
+async def analysis_food_use_recipes(
+    request: Request,
+    mode: str = Query(default="all"),
+    ranges_raw: str = Query(default=""),
+    recipe_ids: str = Query(default=""),
+    protein_only: bool = Query(default=False),
+    sort: str = Query(default="frequency"),
+    substituted: int = Query(default=0),
+    error: str = Query(default=""),
+):
+    """Food use in recipes: frequency-of-use table across a chosen set of
+    (container) recipes — how many of them use a given food or sub-recipe as
+    an ingredient, directly or nested. mode selects ALL recipes ("all",
+    default), a date range by when the recipe was created ("range"), or
+    specific recipe IDs ("ids")."""
+    with _db.get_db() as conn:
+        recipes_by_id, ranges, missing_ids = _parse_food_use_recipes_selection(conn, mode, ranges_raw, recipe_ids)
+    requested_ids = _parse_id_list_tokens(recipe_ids) if mode == "ids" else []
+
+    agg: dict[tuple, dict] = {}
+    with _db.get_db() as conn:
+        for recipe_id in recipes_by_id:
+            items = _db.recipe_expand_ingredient_use(conn, recipe_id)
+            seen: set = set()
+            for fdc_id, name, kind, has_protein, ref_recipe_id in items:
+                if fdc_id is not None:
+                    key = (fdc_id, "food")
+                elif ref_recipe_id is not None:
+                    key = ("recipe", ref_recipe_id)
+                else:
+                    key = (kind, name)
+                if key in seen:
+                    continue
+                seen.add(key)
+                entry = agg.setdefault(key, {
+                    "name": name, "fdc_id": fdc_id, "kind": kind, "has_protein": has_protein,
+                    "recipe_id": ref_recipe_id, "container_ids": set(),
+                })
+                entry["container_ids"].add(recipe_id)
+
+    rows_all = list(agg.values())
+    if protein_only:
+        rows_all = [r for r in rows_all if r["has_protein"]]
+
+    sort_keys = {
+        "frequency": lambda e: (-len(e["container_ids"]), e["name"].lower()),
+        "food":      lambda e: (e["name"].lower(),),
+        "id":        lambda e: (e["fdc_id"] is None, e["fdc_id"] or 0),
+    }
+    rows_sorted = sorted(rows_all, key=sort_keys.get(sort, sort_keys["frequency"]))
+    total_recipes = len(recipes_by_id)
+    result_rows = [{
+        "fdc_id":      r["fdc_id"],
+        "name":        r["name"],
+        "kind":        r["kind"],
+        "recipe_id":   r["recipe_id"],
+        "count":       len(r["container_ids"]),
+        "pct":         round(len(r["container_ids"]) / total_recipes * 100, 0) if total_recipes else 0,
+        "recipe_ids":  sorted(r["container_ids"]),
+    } for r in rows_sorted]
+
+    return templates.TemplateResponse(request, "analysis_food_use_recipes.html", {
+        "mode":           mode,
+        "ranges":         ranges,
+        "ranges_raw":     ranges_raw,
+        "recipe_ids_raw": recipe_ids,
+        "protein_only":   protein_only,
+        "sort":           sort,
+        "missing_ids":    missing_ids,
+        "rows":           result_rows,
+        "total_recipes":  total_recipes,
+        "submitted":      mode == "all" or bool(ranges or requested_ids),
+        "substituted":    substituted,
+        "error":          error,
+    })
+
+
+@app.post("/analysis/food-use-recipes/substitute", response_class=RedirectResponse)
+async def analysis_food_use_recipes_substitute(
+    mode: str = Form(...),
+    ranges_raw: str = Form(""),
+    recipe_ids: str = Form(""),
+    protein_only: bool = Form(False),
+    sort: str = Form("frequency"),
+    old_kind: str = Form(...),
+    old_id: int = Form(...),
+    new_kind: str = Form(...),
+    new_id: int = Form(...),
+):
+    """Replace every ingredient occurrence of (old_kind, old_id) with
+    (new_kind, new_id) across the recipes currently selected on the Food Use
+    in Recipes page, then recompute DCP for every recipe actually changed
+    (recompute_recipe_dcp cascades up to any ancestor recipe on its own)."""
+    from urllib.parse import urlencode
+
+    def _back(error: str | None = None, n: int = 0) -> RedirectResponse:
+        params = {"mode": mode, "protein_only": protein_only, "sort": sort}
+        if mode == "range":
+            params["ranges_raw"] = ranges_raw
+        elif mode == "ids":
+            params["recipe_ids"] = recipe_ids
+        if error:
+            params["error"] = error
+        elif n:
+            params["substituted"] = n
+        return RedirectResponse(f"/analysis/food-use-recipes?{urlencode(params)}", status_code=303)
+
+    if old_kind == new_kind and old_id == new_id:
+        return _back(error="Old and new selections are the same item.")
+    try:
+        with _db.get_db() as conn:
+            recipes_by_id, _, _ = _parse_food_use_recipes_selection(conn, mode, ranges_raw, recipe_ids)
+            affected_ids = _db.substitute_item_in_recipes(
+                conn, list(recipes_by_id), old_kind, old_id, new_kind, new_id
+            )
+            for recipe_id in affected_ids:
+                _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
+    except ValueError as exc:
+        return _back(error=str(exc))
+    return _back(n=len(affected_ids))
 
 
 @app.get("/manual", response_class=HTMLResponse)

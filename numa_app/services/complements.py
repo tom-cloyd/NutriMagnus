@@ -342,9 +342,12 @@ def build_complement_display(
                 dcp = exact_dcp(ingredients, [(food_name, comp_nutrients, g)])
                 if dcp is None:
                     dcp = _dcp_at_frac(frac, raw_full, new_scores_full or {})
+                pct_increase = (round((dcp - base_digestible) / base_digestible * 100, 1)
+                                if dcp is not None and base_digestible > 0 else None)
                 steps.append({
                     "grams": g, "amount_note": _amount_note(g, food_name),
                     "dig_protein": round(dig_full * frac, 1), "dcp": dcp,
+                    "pct_increase": pct_increase,
                 })
         return steps
 

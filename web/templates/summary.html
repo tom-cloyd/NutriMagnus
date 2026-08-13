@@ -321,13 +321,14 @@
     {% if s.grad_steps %}
     <p class="mb-1"><strong>Add to day (graduated):</strong></p>
     <table class="table table-sm mb-1" style="max-width:36rem">
-      <thead><tr><th>Amount</th><th>Digestible protein added</th><th>DCP achieved</th></tr></thead>
+      <thead><tr><th>Amount</th><th>Digestible<br>protein added</th><th>DCP<br>achieved</th><th>%<br>increase</th></tr></thead>
       <tbody>
         {% for step in s.grad_steps %}
         <tr{% if loop.last %} class="table-success"{% endif %}>
           <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
           <td>{{ step.dig_protein }}&thinsp;g</td>
           <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
+          <td>{% if step.pct_increase is not none %}+{{ "%.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -485,6 +486,7 @@
   </table>
   {% endfor %}
   {% if has_profile %}{{ _rda_note.note() }}{% endif %}
+  {% if has_ul %}{{ _ul.note() }}{% endif %}
 </details>
 {% elif meals %}
 <p class="muted">No nutrient data found — ensure foods are in the cache.</p>

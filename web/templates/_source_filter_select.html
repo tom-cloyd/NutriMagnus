@@ -1,15 +1,17 @@
 {% macro select(current, source_filters, source_labels, field_name="source") %}
 <div class="d-flex flex-wrap align-items-center gap-2" role="group" aria-label="Source filter">
-  <label class="muted me-1 mb-0" style="font-size:0.875rem"><small>Source</small></label>
+  <label class="muted me-1 mb-0"><small><strong>Source</strong></small></label>
   {% for key in source_filters %}
   <div class="form-check form-check-inline mb-0">
     <input type="checkbox" class="form-check-input" id="{{ field_name }}-{{ key }}"
            name="{{ field_name }}" value="{{ key }}"
-           {% if key in current %}checked{% endif %} onchange="this.form.submit()">
+           {% if key in current %}checked{% endif %}>
     <label class="form-check-label" for="{{ field_name }}-{{ key }}" style="font-size:0.875rem">
       <small>{{ source_labels[key] }}</small>
     </label>
   </div>
   {% endfor %}
+  <button type="submit" class="btn btn-sm btn-outline-primary"
+          title="Re-run the search with the current source selection">Refresh search</button>
 </div>
 {% endmacro %}

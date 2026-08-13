@@ -1191,14 +1191,13 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
     no id survives — see recipe_delete()). Callers should key/group recipe
     rows by recipe_id when present rather than by name, since a recipe's name
     can change after a meal references it while its id stays fixed.
-    """
-    def _food_has_protein(fdc_id: int) -> bool:
-        cached = get_cached_food(conn, fdc_id)
-        if not cached:
-            return False
-        nutrients = json.loads(cached["nutrients_json"])
-        return nutrients.get("protein_g", 0) > 0
 
+    A "food" row's name is the food's *current* cached name, not the label
+    stored on the meal item/ingredient at the time it was added — a food can
+    be renamed later (e.g. via Edit Food), and every past reference should
+    read with its current name rather than a stale snapshot. Falls back to
+    the stored label if the food is no longer in the cache at all.
+    """
     def _expand_recipe(recipe_id: int) -> list[tuple[int | None, str, str, bool, bool, int | None]]:
         out: list[tuple[int | None, str, str, bool, bool, int | None]] = []
         for ing in recipe_get_ingredients(conn, recipe_id):
@@ -1207,13 +1206,15 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
             elif ing["ref_recipe_id"]:
                 out.extend(_expand_recipe(ing["ref_recipe_id"]))
             else:
-                out.append((ing["fdc_id"], ing["food_name"], "food", _food_has_protein(ing["fdc_id"]), False, None))
+                out.append((ing["fdc_id"], _current_food_name(conn, ing["fdc_id"], ing["food_name"]),
+                            "food", _food_has_protein(conn, ing["fdc_id"]), False, None))
         return out
 
     result: list[tuple[int | None, str, str, bool, bool, int | None]] = []
     for item in meal_get_items(conn, meal_id):
         if item["item_type"] == "food":
-            result.append((item["fdc_id"], item["food_name"], "food", _food_has_protein(item["fdc_id"]), False, None))
+            result.append((item["fdc_id"], _current_food_name(conn, item["fdc_id"], item["food_name"]),
+                          "food", _food_has_protein(conn, item["fdc_id"]), False, None))
         elif item["item_type"] == "recipe":
             live_recipe = recipe_get(conn, item["recipe_id"])
             recipe_deleted = live_recipe is None
@@ -1222,6 +1223,155 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
             result.append((None, display_name, "recipe", any(e[3] for e in expanded), recipe_deleted, item["recipe_id"]))
             result.extend(expanded)
     return result
+
+
+def _food_has_protein(conn: sqlite3.Connection, fdc_id: int) -> bool:
+    cached = get_cached_food(conn, fdc_id)
+    if not cached:
+        return False
+    nutrients = json.loads(cached["nutrients_json"])
+    return nutrients.get("protein_g", 0) > 0
+
+
+def _current_food_name(conn: sqlite3.Connection, fdc_id: int, fallback: str) -> str:
+    cached = get_cached_food(conn, fdc_id)
+    return cached["name"] if cached else fallback
+
+
+def recipe_expand_ingredient_use(conn: sqlite3.Connection, recipe_id: int) -> list[tuple[int | None, str, str, bool, int | None]]:
+    """Flatten a recipe's ingredient tree into (fdc_id, name, kind, has_protein, ref_recipe_id)
+    rows, for the "Food Use in Recipes" analysis — unlike meal_expand_food_items's
+    _expand_recipe (which flattens nested sub-recipes away transparently, since a
+    meal only cares about the base foods it ate), a sub-recipe ingredient here gets
+    its own "recipe" row *and* its ingredients are also recursed into, so a
+    frequently-reused sub-recipe (e.g. a house dressing) is visible as its own line,
+    the same way a meal's directly-added recipe gets its own row.
+
+    A "food" row's name is the food's current cached name (see
+    meal_expand_food_items's docstring for why); a "recipe" row's name is the
+    sub-recipe's current name.
+    """
+    out: list[tuple[int | None, str, str, bool, int | None]] = []
+    for ing in recipe_get_ingredients(conn, recipe_id):
+        if ing["ref_recipe_deleted"]:
+            out.append((None, ing["food_name"], "recipe", False, None))
+        elif ing["ref_recipe_id"]:
+            sub = recipe_get(conn, ing["ref_recipe_id"])
+            sub_rows = recipe_expand_ingredient_use(conn, ing["ref_recipe_id"]) if sub else []
+            name = sub["name"] if sub else ing["food_name"]
+            out.append((None, name, "recipe", any(r[3] for r in sub_rows), ing["ref_recipe_id"]))
+            out.extend(sub_rows)
+        else:
+            out.append((ing["fdc_id"], _current_food_name(conn, ing["fdc_id"], ing["food_name"]),
+                        "food", _food_has_protein(conn, ing["fdc_id"]), None))
+    return out
+
+
+def recipe_list_by_created_range(conn: sqlite3.Connection, start_date: str, end_date: str) -> list[sqlite3.Row]:
+    """Recipes created within [start_date, end_date] (inclusive, by calendar day)."""
+    return conn.execute(
+        "SELECT * FROM recipes WHERE date(created_at) BETWEEN ? AND ? ORDER BY created_at",
+        (start_date, end_date)
+    ).fetchall()
+
+
+def recipe_list_by_ids(conn: sqlite3.Connection, ids: list[int]) -> list[sqlite3.Row]:
+    """Return recipes matching the given IDs, ordered by name. Missing IDs are silently omitted."""
+    if not ids:
+        return []
+    placeholders = ",".join("?" * len(ids))
+    return conn.execute(
+        f"SELECT * FROM recipes WHERE id IN ({placeholders}) ORDER BY name",
+        ids
+    ).fetchall()
+
+
+def item_current_name(conn: sqlite3.Connection, kind: str, item_id: int) -> str | None:
+    """Current display name of a food (kind="food", item_id=fdc_id) or recipe
+    (kind="recipe", item_id=recipe id), or None if it no longer exists —
+    used to validate a substitution's replacement target before writing it
+    everywhere, and to label the new rows with a real, current name."""
+    if kind == "food":
+        row = get_cached_food(conn, item_id)
+        return row["name"] if row else None
+    row = recipe_get(conn, item_id)
+    return row["name"] if row else None
+
+
+def substitute_item_in_meals(conn: sqlite3.Connection, meal_ids: list[int],
+                             old_kind: str, old_id: int, new_kind: str, new_id: int) -> int:
+    """Replace direct meal-item references to (old_kind, old_id) with
+    (new_kind, new_id), restricted to meal_items belonging to meal_ids.
+    Returns the number of rows changed.
+
+    Only *directly added* meal items are reachable this way — a food used as
+    an ingredient inside a recipe that a meal references isn't touched (that
+    recipe's ingredient list is a shared, recipe-level thing; substitute
+    inside it via substitute_item_in_recipes instead, scoped to that recipe).
+    """
+    if not meal_ids or old_kind not in ("food", "recipe") or new_kind not in ("food", "recipe"):
+        return 0
+    new_name = item_current_name(conn, new_kind, new_id)
+    if new_name is None:
+        raise ValueError("Replacement food/recipe not found.")
+    placeholders = ",".join("?" * len(meal_ids))
+    old_col = "fdc_id" if old_kind == "food" else "recipe_id"
+    if new_kind == "food":
+        set_sql = "item_type='food', fdc_id=?, recipe_id=NULL, food_name=?"
+    else:
+        set_sql = "item_type='recipe', fdc_id=NULL, recipe_id=?, food_name=?"
+    cur = conn.execute(
+        f"UPDATE meal_items SET {set_sql} "
+        f"WHERE meal_id IN ({placeholders}) AND item_type=? AND {old_col}=?",
+        (new_id, new_name, *meal_ids, old_kind, old_id)
+    )
+    return cur.rowcount
+
+
+def substitute_item_in_recipes(conn: sqlite3.Connection, recipe_ids: list[int],
+                               old_kind: str, old_id: int, new_kind: str, new_id: int) -> list[int]:
+    """Replace ingredient references to (old_kind, old_id) with (new_kind, new_id)
+    across the ingredient lists of recipe_ids. Returns the distinct container
+    recipe ids that had at least one ingredient changed, so the caller can
+    recompute their DCP (recompute_recipe_dcp already cascades up to any
+    ancestor recipe that in turn uses one of these as a sub-recipe).
+
+    A recipe is never allowed to end up referencing itself as an ingredient
+    (matches the same guard used when adding a sub-recipe ingredient by
+    hand) — a container recipe is skipped if new_kind is "recipe" and new_id
+    equals that container's own id.
+    """
+    if not recipe_ids or old_kind not in ("food", "recipe") or new_kind not in ("food", "recipe"):
+        return []
+    new_name = item_current_name(conn, new_kind, new_id)
+    if new_name is None:
+        raise ValueError("Replacement food/recipe not found.")
+    placeholders = ",".join("?" * len(recipe_ids))
+    old_col = "fdc_id" if old_kind == "food" else "ref_recipe_id"
+    self_ref_guard = " AND recipe_id != ?" if new_kind == "recipe" else ""
+    params: list = [old_id]
+    if new_kind == "recipe":
+        params.append(new_id)
+
+    affected = conn.execute(
+        f"SELECT DISTINCT recipe_id FROM recipe_ingredients "
+        f"WHERE recipe_id IN ({placeholders}) AND {old_col}=?{self_ref_guard}",
+        (*recipe_ids, *params)
+    ).fetchall()
+    affected_ids = [row["recipe_id"] for row in affected]
+    if not affected_ids:
+        return []
+
+    if new_kind == "food":
+        set_sql = "fdc_id=?, ref_recipe_id=NULL, ref_recipe_deleted=0, food_name=?"
+    else:
+        set_sql = "fdc_id=0, ref_recipe_id=?, ref_recipe_deleted=0, food_name=?"
+    conn.execute(
+        f"UPDATE recipe_ingredients SET {set_sql} "
+        f"WHERE recipe_id IN ({placeholders}) AND {old_col}=?{self_ref_guard}",
+        (new_id, new_name, *recipe_ids, *params)
+    )
+    return affected_ids
 
 
 def meal_update_item(conn: sqlite3.Connection, item_id: int, meal_id: int,

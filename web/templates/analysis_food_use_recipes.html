@@ -1,39 +1,43 @@
 {% extends "base.html" %}
-{% block title %}NutriMagnus — Food Use in Meals{% endblock %}
+{% block title %}NutriMagnus — Food Use in Recipes{% endblock %}
 
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/summary">Analysis</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Food Use in Meals</li>
+    <li class="breadcrumb-item active" aria-current="page">Food Use in Recipes</li>
   </ol>
 </nav>
 
-<h2>Food Use in Meals {{ manual_link("fooduse") }}</h2>
-<p class="muted">Tabulates which foods appear across a set of meals you choose, ranked by how many distinct days each food was used.</p>
+<h2>Food Use in Recipes {{ manual_link("fooduse-recipes") }}</h2>
+<p class="muted">Tabulates which foods and sub-recipes appear across a set of recipes you choose, ranked by how many of those recipes use each one.</p>
 
 <p class="muted">Pick one selection method below — they can't be combined in a single search.</p>
 
-<form method="get" action="/analysis/food-use" class="mb-4" id="food-use-form">
+<form method="get" action="/analysis/food-use-recipes" class="mb-4" id="food-use-recipes-form">
   <div class="mb-3">
     <div class="form-check form-check-inline">
-      <input class="form-check-input" type="radio" name="mode" id="mode-range" value="range" {% if mode != "ids" %}checked{% endif %}>
-      <label class="form-check-label" for="mode-range">Date range(s)</label>
+      <input class="form-check-input" type="radio" name="mode" id="mode-all" value="all" {% if mode == "all" %}checked{% endif %}>
+      <label class="form-check-label" for="mode-all">All recipes</label>
+    </div>
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="mode" id="mode-range" value="range" {% if mode == "range" %}checked{% endif %}>
+      <label class="form-check-label" for="mode-range">Date created range(s)</label>
     </div>
     <div class="form-check form-check-inline">
       <input class="form-check-input" type="radio" name="mode" id="mode-ids" value="ids" {% if mode == "ids" %}checked{% endif %}>
-      <label class="form-check-label" for="mode-ids">Meal IDs</label>
+      <label class="form-check-label" for="mode-ids">Recipe IDs</label>
     </div>
   </div>
 
   <div class="mb-3" id="range-block">
-    <label class="form-label" for="ranges_raw">Date ranges <small class="muted">(one per line, <code>YYYY-MM-DD:YYYY-MM-DD</code>)</small></label>
+    <label class="form-label" for="ranges_raw">Date ranges <small class="muted">(one per line, <code>YYYY-MM-DD:YYYY-MM-DD</code>, by when the recipe was created)</small></label>
     <textarea class="form-control" id="ranges_raw" name="ranges_raw" rows="3" style="max-width:50%"
               placeholder="2026-01-01:2026-01-31">{{ ranges_raw or "" }}</textarea>
   </div>
   <div class="mb-3" id="ids-block">
-    <label class="form-label" for="meal_ids">Meal IDs <small class="muted">(comma or space separated, ranges like <code>12-32</code> allowed)</small></label>
-    <input type="text" class="form-control" id="meal_ids" name="meal_ids" value="{{ meal_ids_raw or "" }}" placeholder="12, 15, 18, 20-25">
+    <label class="form-label" for="recipe_ids">Recipe IDs <small class="muted">(comma or space separated, ranges like <code>12-32</code> allowed)</small></label>
+    <input type="text" class="form-control" id="recipe_ids" name="recipe_ids" value="{{ recipe_ids_raw or "" }}" placeholder="12, 15, 18, 20-25">
   </div>
 
   <div class="mb-3 form-check">
@@ -46,24 +50,27 @@
 
 <script>
 (function () {
+  var allRadio = document.getElementById('mode-all');
   var rangeRadio = document.getElementById('mode-range');
   var idsRadio = document.getElementById('mode-ids');
   var rangeBlock = document.getElementById('range-block');
   var idsBlock = document.getElementById('ids-block');
   var rangesRaw = document.getElementById('ranges_raw');
-  var mealIds = document.getElementById('meal_ids');
+  var recipeIds = document.getElementById('recipe_ids');
 
   function sync() {
     var byRange = rangeRadio.checked;
+    var byIds = idsRadio.checked;
     rangeBlock.querySelectorAll('textarea, input').forEach(function (el) { el.disabled = !byRange; });
-    idsBlock.querySelectorAll('input').forEach(function (el) { el.disabled = byRange; });
+    idsBlock.querySelectorAll('input').forEach(function (el) { el.disabled = !byIds; });
     rangeBlock.classList.toggle('opacity-50', !byRange);
-    idsBlock.classList.toggle('opacity-50', byRange);
+    idsBlock.classList.toggle('opacity-50', !byIds);
   }
+  allRadio.addEventListener('change', sync);
   rangeRadio.addEventListener('change', sync);
   idsRadio.addEventListener('change', sync);
-  mealIds.addEventListener('input', function () {
-    if (mealIds.value.trim()) {
+  recipeIds.addEventListener('input', function () {
+    if (recipeIds.value.trim()) {
       idsRadio.checked = true;
       sync();
     }
@@ -79,30 +86,29 @@
 </script>
 
 {% if missing_ids %}
-<p class="text-warning">Meal ID(s) not found: {{ missing_ids|join(", ") }}</p>
+<p class="text-warning">Recipe ID(s) not found: {{ missing_ids|join(", ") }}</p>
 {% endif %}
 
 <details class="mb-3">
   <summary><strong>Substitute a food or recipe</strong> {{ manual_link("fooduse-substitute") }}</summary>
   <p class="muted mt-2 mb-2">
-    <small>Replace every occurrence of one food or recipe with another, across the meals selected above —
-    handy when a name change (or a food re-added under a new entry) has left what looks like two different
-    foods, and you want to fold the older one into the newer. Find each item's ID number in the table below.
-    Only items added <em>directly</em> to a meal are reachable here; a food used inside a recipe is part of
-    that recipe's own ingredient list — substitute it from
-    <a href="/analysis/food-use-recipes">Food Use in Recipes</a> instead.</small>
+    <small>Replace every ingredient occurrence of one food or recipe with another, across the recipes selected
+    above — handy when a name change (or a food re-added under a new entry) has left what looks like two
+    different foods, and you want to fold the older one into the newer. Find each item's ID number in the
+    table below. Every recipe changed has its DCP recomputed automatically, cascading up to any recipe that
+    uses it as a sub-recipe in turn.</small>
   </p>
   {% if error %}
   <p class="text-danger"><small>{{ error }}</small></p>
   {% endif %}
   {% if substituted %}
-  <p class="text-success"><small>Replaced {{ substituted }} meal item(s).</small></p>
+  <p class="text-success"><small>Updated ingredients in {{ substituted }} recipe(s).</small></p>
   {% endif %}
-  <form method="post" action="/analysis/food-use/substitute" class="d-flex flex-wrap align-items-end gap-2"
-        onsubmit="return confirm('Replace every occurrence of the old item with the new one, across every meal in the current selection above? This writes to the database immediately and has no automatic undo.');">
+  <form method="post" action="/analysis/food-use-recipes/substitute" class="d-flex flex-wrap align-items-end gap-2"
+        onsubmit="return confirm('Replace every ingredient occurrence of the old item with the new one, across every recipe in the current selection above? This writes to the database immediately and has no automatic undo.');">
     <input type="hidden" name="mode" value="{{ mode }}">
     <input type="hidden" name="ranges_raw" value="{{ ranges_raw or '' }}">
-    <input type="hidden" name="meal_ids" value="{{ meal_ids_raw or '' }}">
+    <input type="hidden" name="recipe_ids" value="{{ recipe_ids_raw or '' }}">
     <input type="hidden" name="protein_only" value="{{ 'true' if protein_only else '' }}">
     <input type="hidden" name="sort" value="{{ sort or 'frequency' }}">
     <div>
@@ -131,15 +137,15 @@
 
 {% if submitted %}
   {% if rows %}
-  <p class="muted">{{ total_meals }} meal(s) across {{ total_days }} distinct day(s){% if protein_only %} &middot; protein-containing foods only{% endif %}.</p>
+  <p class="muted">{{ total_recipes }} recipe(s) in this selection{% if protein_only %} &middot; protein-containing foods only{% endif %}.</p>
   <div class="mb-2">
     <span class="muted me-2">Sort by:</span>
     <div class="btn-group btn-group-sm" role="group" aria-label="Sort">
-      <button type="submit" form="food-use-form" name="sort" value="frequency"
+      <button type="submit" form="food-use-recipes-form" name="sort" value="frequency"
               class="btn {% if sort == 'frequency' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Frequency</button>
-      <button type="submit" form="food-use-form" name="sort" value="food"
+      <button type="submit" form="food-use-recipes-form" name="sort" value="food"
               class="btn {% if sort == 'food' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Food</button>
-      <button type="submit" form="food-use-form" name="sort" value="id"
+      <button type="submit" form="food-use-recipes-form" name="sort" value="id"
               class="btn {% if sort == 'id' %}btn-primary{% else %}btn-outline-secondary{% endif %}">ID</button>
     </div>
   </div>
@@ -148,12 +154,11 @@
       <thead class="table-light">
         <tr>
           <th>ID</th>
-          <th>Food</th>
+          <th>Food / Recipe</th>
           <th>Kind</th>
-          <th class="num-col">Days used</th>
-          <th class="num-col">Meals</th>
-          <th style="min-width:14rem">% of Days<br>in Range</th>
-          <th style="min-width:24rem">Meal IDs</th>
+          <th class="num-col">Recipes used in</th>
+          <th style="min-width:14rem">% of Recipes<br>in Selection</th>
+          <th style="min-width:24rem">Recipe IDs</th>
         </tr>
       </thead>
       <tbody>
@@ -161,20 +166,15 @@
         <tr>
           <td class="muted">{% if r.fdc_id %}{{ r.fdc_id }}{% endif %}</td>
           <td>{% if r.kind == "recipe" %}<strong>{{ r.name }}</strong>{% else %}{{ r.name }}{% endif %}{{ food_id_tag(r.fdc_id, recipe_id=(r.recipe_id if r.kind == "recipe" else None)) }}</td>
-          <td class="muted">
-            {% if r.kind == "recipe" and r.deleted %}<span class="text-danger">recipe (deleted)</span>
-            {% elif r.kind == "recipe" %}recipe
-            {% endif %}
-          </td>
-          <td class="num-col">{{ r.days }}</td>
-          <td class="num-col">{{ r.meals }}</td>
+          <td class="muted">{% if r.kind == "recipe" %}recipe{% endif %}</td>
+          <td class="num-col">{{ r.count }}</td>
           <td>
-            <div class="progress" role="progressbar" aria-label="Percent of days in range this food was used" aria-valuenow="{{ r.pct|int }}" aria-valuemin="0" aria-valuemax="100" style="height:1rem">
+            <div class="progress" role="progressbar" aria-label="Percent of recipes in this selection using this item" aria-valuenow="{{ r.pct|int }}" aria-valuemin="0" aria-valuemax="100" style="height:1rem">
               <div class="progress-bar" style="width: {{ r.pct|int }}%"></div>
             </div>
           </td>
           <td class="muted">
-            {% for mid in r.meal_ids %}<a href="/meal/{{ mid }}">{{ mid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+            {% for rid in r.recipe_ids %}<a href="/recipe/{{ rid }}">{{ rid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
           </td>
         </tr>
         {% endfor %}
@@ -182,13 +182,12 @@
     </table>
   </div>
   <p class="muted"><small>
-    <strong>Days used</strong> = distinct calendar days the food appeared in this analysis set &middot;
-    <strong>% of Days in Range</strong> = days used &divide; {{ total_days }} total day(s) covered by this search &middot;
-    recipe rows show the recipe itself; its ingredients are also listed individually &middot;
-    "recipe (deleted)" means the recipe was removed after being used in that meal; its own ingredient breakdown is no longer available.
+    <strong>Recipes used in</strong> = number of the selected (container) recipes whose ingredient list contains this food or sub-recipe, directly or nested inside another sub-recipe &middot;
+    <strong>% of Recipes in Selection</strong> = that count &divide; {{ total_recipes }} total recipe(s) in this selection &middot;
+    a sub-recipe used as an ingredient shows up as its own row (in bold) and its own ingredients are also listed individually, the same way a directly-added recipe does on Food Use in Meals.
   </small></p>
   {% else %}
-  <p class="muted mt-2">No meals matched the selected date range(s) / meal IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>
+  <p class="muted mt-2">No recipes matched the selected date range(s) / recipe IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>
   {% endif %}
 {% endif %}
 {% endblock %}

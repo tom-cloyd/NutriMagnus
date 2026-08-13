@@ -144,19 +144,11 @@
         {% endif %}
         {% else %}—{% endif %}
       </td>
-      <td style="max-width:18rem">
+      <td>
         {% if food.notes or food.curator_notes %}
-        <details>
-          <summary style="cursor:pointer;color:var(--numa-accent)">
-            <small>Notes ▸</small>
-          </summary>
-          {% if food.notes %}
-          <div class="mt-1"><small><strong>Source/confidence:</strong><br>{{ food.notes }}</small></div>
-          {% endif %}
-          {% if food.curator_notes %}
-          <div class="mt-1"><small><strong>Curator notes:</strong><br>{{ food.curator_notes }}</small></div>
-          {% endif %}
-        </details>
+        <a href="#" onclick="toggleNotes({{ food.fdc_id }}); return false;" style="cursor:pointer;color:var(--numa-accent)">
+          <small>Notes ▸</small>
+        </a>
         {% else %}
         <span class="muted">—</span>
         {% endif %}
@@ -194,6 +186,18 @@
         </form>
       </td>
     </tr>
+    {% if food.notes or food.curator_notes %}
+    <tr id="notes-row-{{ food.fdc_id }}" style="display:none">
+      <td colspan="9" style="padding-top:0; padding-bottom:0.5rem; border-top:none">
+        {% if food.notes %}
+        <div class="mt-1"><small><strong>Source/confidence:</strong><br>{{ food.notes }}</small></div>
+        {% endif %}
+        {% if food.curator_notes %}
+        <div class="mt-1"><small><strong>Curator notes:</strong><br>{{ food.curator_notes }}</small></div>
+        {% endif %}
+      </td>
+    </tr>
+    {% endif %}
     {% endfor %}
   </tbody>
 </table>
@@ -206,6 +210,10 @@ function selectMissingAA() {
 }
 function selectNone() {
   document.querySelectorAll('.claude-fetch-cb').forEach(function (cb) { cb.checked = false; });
+}
+function toggleNotes(fdcId) {
+  var row = document.getElementById('notes-row-' + fdcId);
+  if (row) row.style.display = (row.style.display === 'none') ? '' : 'none';
 }
 </script>
 {% else %}
