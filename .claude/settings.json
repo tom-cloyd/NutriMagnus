@@ -113,7 +113,23 @@
       "Bash(pkill -f \"uvicorn web.backend:app --host 127.0.0.1 --port 8791\")",
       "Bash(HOME=/tmp/claude-1000/numa-run-check2 NUMA_NO_BROWSER=1 nohup python -m uvicorn web.backend:app --host 127.0.0.1 --port 8792)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:8792/food/search?query=chicken)",
-      "Bash(pkill -f \"uvicorn web.backend:app --host 127.0.0.1 --port 8792\")"
+      "Bash(pkill -f \"uvicorn web.backend:app --host 127.0.0.1 --port 8792\")",
+      "Bash(pytest tests/test_web.py -k nutrient -q)",
+      "Bash(awk 'NR>=2572 && /^### /{print NR\": \"$0}' user-manual.md)",
+      "Bash(awk 'NR==2576,NR==3120' user-manual.md)",
+      "Bash(git -C . log --oneline -15 -- web/templates/base.html)",
+      "Bash(git -C . show c3cda8d --stat)",
+      "Bash(git -C . show c3cda8d -- web/templates/base.html)",
+      "Bash(xargs -I{} sh -c 'echo ==={}; grep -n \"addEventListener\\(.click.\\\\|onclick=\" {}')",
+      "Bash(git -C . status --short)",
+      "Bash(git -C . diff web/backend.py)",
+      "Bash(jobs -p)",
+      "Bash(curl -sSL --max-time 15 -o /tmp/bootstrap.min.css https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css)",
+      "Bash(curl -sSL --max-time 15 -o /tmp/bootstrap.bundle.min.js https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js)",
+      "Bash(mkdir -p /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/static/vendor/bootstrap/css /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/static/vendor/bootstrap/js)",
+      "Bash(cp /tmp/bootstrap.min.css /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/static/vendor/bootstrap/css/bootstrap.min.css)",
+      "Bash(cp /tmp/bootstrap.bundle.min.js /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/static/vendor/bootstrap/js/bootstrap.bundle.min.js)",
+      "Bash(pkill -f \"uvicorn web.backend:app --port 8099\")"
     ]
   }
 }

@@ -4,11 +4,7 @@ A nutritional analysis web app written in Python (FastAPI). Analyzes individual 
 
 UPDATED: 2026-08-07:0744
 
-Note: this was previously a dual CLI+web project. The interactive terminal CLI was removed
-2026-08-04 — the owner never used it and expected no other users to either. This document has
-been updated for the web-only codebase. The "Bugs found during test restoration" and
-"Implementation Phases" sections near the end are left as historical development records and
-still describe CLI-era files/mechanics from when they happened — not current instructions.
+Note: this was previously a dual CLI+web project. The interactive terminal CLI was removed 2026-08-04 — the owner never used it and expected no other users to either. This document has been updated for the web-only codebase. The "Bugs found during test restoration" and "Implementation Phases" sections near the end are left as historical development records and still describe CLI-era files/mechanics from when they happened — not current instructions.
 
 ---
 
@@ -22,6 +18,7 @@ still describe CLI-era files/mechanics from when they happened — not current i
 - [Web Interface](#web-interface)
 - [Data Storage](#data-storage)
 - [Test Suite](#test-suite)
+- [Maintenance](#maintenance)
 - [Implementation Phases](#implementation-phases)
 
 ---
@@ -43,11 +40,7 @@ The program uses two nutrition data sources:
 
 ## Project Structure
 
-Note: the CLI was removed 2026-08-04. `numa_app/` used to also contain `main.py`, `state.py`,
-`config/`, `ui/`, and `workflows/` (all CLI-only) plus CLI-only `services/annotations.py`,
-`oxalate_link.py`, and `reports.py` — all deleted. `manual.py` (the CLI's `?keyword` help
-lookup) was also deleted; the small bit of it the web app needs (`rebuild_manual_if_stale()`)
-now lives in `numa_app/services/manual_build.py`.
+Note: the CLI was removed 2026-08-04. `numa_app/` used to also contain `main.py`, `state.py`, `config/`, `ui/`, and `workflows/` (all CLI-only) plus CLI-only `services/annotations.py`, `oxalate_link.py`, and `reports.py` — all deleted. `manual.py` (the CLI's `?keyword` help lookup) was also deleted; the small bit of it the web app needs (`rebuild_manual_if_stale()`) now lives in `numa_app/services/manual_build.py`.
 
 ```
 numa/
@@ -181,18 +174,13 @@ Food searches require a free API key from the USDA FoodData Central service.
 2. Enter your name and email address — no payment or account creation required.
 3. The key is emailed to you immediately (check spam if it doesn't arrive within a minute or two).
 
-The key is free and gives you **1,000 requests per hour**, which is more than
-enough for normal use. There is no paid tier — this is the standard limit for
-all registered keys.
+The key is free and gives you **1,000 requests per hour**, which is more than enough for normal use. There is no paid tier — this is the standard limit for all registered keys.
 
-> **Note:** The USDA API has a built-in `DEMO_KEY` that works without registration,
-> but it is limited to roughly 30 requests per hour and will rate-limit quickly
-> during a normal session. Always use a registered key for real use.
+> **Note:** The USDA API has a built-in `DEMO_KEY` that works without registration, but it is limited to roughly 30 requests per hour and will rate-limit quickly during a normal session. Always use a registered key for real use.
 
 #### Setting the key
 
-Set it from **Settings → Advanced settings → USDA API key** in the web app. It's saved
-to `~/.config/numa/config.json` and used automatically on all subsequent runs.
+Set it from **Settings → Advanced settings → USDA API key** in the web app. It's saved to `~/.config/numa/config.json` and used automatically on all subsequent runs.
 
 ---
 
@@ -220,11 +208,9 @@ numa has five top-level nav areas: **Foods**, **Recipes**, **Meals & Log**, **An
 
 For user-facing documentation of the food cache — what gets stored, the quick-pick flow, and how to view or delete entries — see the [User Manual](user-manual.html).
 
-**Overwrite protection for edited foods:**
-Once you edit a food's nutrients through Food Cache (or create a food manually), it is marked `user_drafted = True`. Any subsequent USDA fetch for the same food — triggered by selecting it from a search results table — will not overwrite a user-drafted entry. Your manual edits, AA patches, and custom notes are permanent unless you explicitly edit or delete them.
+**Overwrite protection for edited foods:** Once you edit a food's nutrients through Food Cache (or create a food manually), it is marked `user_drafted = True`. Any subsequent USDA fetch for the same food — triggered by selecting it from a search results table — will not overwrite a user-drafted entry. Your manual edits, AA patches, and custom notes are permanent unless you explicitly edit or delete them.
 
-**Automatic omega fatty acid backfill:**
-When a cached USDA food is selected and its stored nutrients are missing all four omega keys (`omega3_ala_mg`, `omega3_epa_mg`, `omega3_dha_mg`, `omega6_la_mg`), the program silently fetches and merges just those nutrients from the USDA API and updates the cache entry. This happens transparently on first use; subsequent accesses use the updated cache. User-drafted foods are never touched by this backfill.
+**Automatic omega fatty acid backfill:** When a cached USDA food is selected and its stored nutrients are missing all four omega keys (`omega3_ala_mg`, `omega3_epa_mg`, `omega3_dha_mg`, `omega6_la_mg`), the program silently fetches and merges just those nutrients from the USDA API and updates the cache entry. This happens transparently on first use; subsequent accesses use the updated cache. User-drafted foods are never touched by this backfill.
 
 ---
 
@@ -254,19 +240,15 @@ Every food — USDA, Open Food Facts, or user-created — is a row in the `foods
 | Drafted Food Profiles (Foods → 8) | Rows where `user_drafted = 1` | `foods` (filtered) |
 | My Pantry (Foods → 7) | Pantry entries, each optionally FK'd to `foods` | `pantry` |
 
-**Food Cache vs Drafted Food Profiles:**
-The "Drafted Food Profiles" list is a filtered view of the same `foods` table — `WHERE user_drafted = 1`. A food becomes `user_drafted = True` when you create it manually or when you edit its nutrients through Food Cache. Editing a food in Food Cache immediately affects what Drafted Food Profiles shows, and vice versa, because they are the same row.
+**Food Cache vs Drafted Food Profiles:** The "Drafted Food Profiles" list is a filtered view of the same `foods` table — `WHERE user_drafted = 1`. A food becomes `user_drafted = True` when you create it manually or when you edit its nutrients through Food Cache. Editing a food in Food Cache immediately affects what Drafted Food Profiles shows, and vice versa, because they are the same row.
 
 `user_drafted = True` also activates overwrite protection: all code paths that write a fresh USDA fetch result to the cache check this flag first and skip the write if it is set. This means manual AA patches, serving-size corrections, and other edits survive repeated searches for the same food.
 
-**Pantry:**
-The `pantry` table has its own `id` (autoincrement), a `food_name` text field, and a nullable `fdc_id` FK pointing into `foods`. A pantry entry can exist without a cache entry (name-only). When `fdc_id` is set, all nutrient calculations use the live `foods` row — so editing that food in Food Cache instantly updates any pantry-based analysis. However, the pantry stores its own `food_name` string; renaming a cached food does not update the pantry display name.
+**Pantry:** The `pantry` table has its own `id` (autoincrement), a `food_name` text field, and a nullable `fdc_id` FK pointing into `foods`. A pantry entry can exist without a cache entry (name-only). When `fdc_id` is set, all nutrient calculations use the live `foods` row — so editing that food in Food Cache instantly updates any pantry-based analysis. However, the pantry stores its own `food_name` string; renaming a cached food does not update the pantry display name.
 
-**Annotations:**
-The `food_annotations` table is keyed by `fdc_id` and foreign-keyed to `foods` (`ON DELETE CASCADE`). Annotations are visible everywhere that food appears — search results, cache list, analyses — because they are always looked up by `fdc_id`.
+**Annotations:** The `food_annotations` table is keyed by `fdc_id` and foreign-keyed to `foods` (`ON DELETE CASCADE`). Annotations are visible everywhere that food appears — search results, cache list, analyses — because they are always looked up by `fdc_id`.
 
-**Editing rule:**
-All nutrient editing goes through **Food Cache** (Foods → 6). Both the Drafted Food Profiles menu and the Pantry menu redirect there for edits and display a notice to that effect. This keeps a single edit path regardless of how you reached the food.
+**Editing rule:** All nutrient editing goes through **Food Cache** (Foods → 6). Both the Drafted Food Profiles menu and the Pantry menu redirect there for edits and display a notice to that effect. This keeps a single edit path regardless of how you reached the food.
 
 ---
 
@@ -278,11 +260,9 @@ Drafted profiles let you store custom nutrient values for any food. They are sav
 
 Vitamins, minerals, and other supplement tablets are sold in per-tablet amounts, not per-100g amounts. Supplement mode solves this: by treating 1 tablet as equivalent to 100g internally, the stored per-100g values exactly equal the per-tablet label values. No weighing is required.
 
-**Creating a supplement:**
-When you answer yes to "Is this a supplement?", the program asks for the unit name (default: `tablet`; other common values: `capsule`, `softgel`, `pill`, `scoop`). Serving size and unit are set automatically (`1 tablet`). Enter nutrient values exactly as printed on the label — e.g., if the label says "Vitamin B12: 5000 mcg per tablet", enter `5000` at the Vitamin B12 prompt. When you later log "1 tablet" in a meal, those exact amounts are added to your nutrient totals.
+**Creating a supplement:** When you answer yes to "Is this a supplement?", the program asks for the unit name (default: `tablet`; other common values: `capsule`, `softgel`, `pill`, `scoop`). Serving size and unit are set automatically (`1 tablet`). Enter nutrient values exactly as printed on the label — e.g., if the label says "Vitamin B12: 5000 mcg per tablet", enter `5000` at the Vitamin B12 prompt. When you later log "1 tablet" in a meal, those exact amounts are added to your nutrient totals.
 
-**Editing an old entry to convert it to supplement mode:**
-Open the entry via **Drafted food profiles → 3. Edit**. If the entry is user-drafted and not already in supplement mode, the program asks "Is this a supplement?" at the start of the edit session. Answer yes and confirm the unit name — the gram_weight=100 portion is added automatically, preserving any nutrient values you already entered.
+**Editing an old entry to convert it to supplement mode:** Open the entry via **Drafted food profiles → 3. Edit**. If the entry is user-drafted and not already in supplement mode, the program asks "Is this a supplement?" at the start of the edit session. Answer yes and confirm the unit name — the gram_weight=100 portion is added automatically, preserving any nutrient values you already entered.
 
 **IU input for vitamins A, D, and E:**
 Many US supplement labels express these vitamins in International Units. At those prompts, enter the number followed by `IU` (e.g. `400 IU` or `5000iu`). The program converts automatically:
@@ -318,9 +298,7 @@ After viewing the full nutrient breakdown, the program now offers to immediately
 
 #### Too many branded results?
 
-The USDA database contains many packaged/branded food entries. A
-simple search like "pinto beans" will often return 25 branded products (canned
-goods, mixes, etc.) rather than the plain cooked food you want.
+The USDA database contains many packaged/branded food entries. A simple search like "pinto beans" will often return 25 branded products (canned goods, mixes, etc.) rather than the plain cooked food you want.
 
 For home-cooked or generic foods, add descriptive terms to narrow the results:
 
@@ -331,13 +309,9 @@ For home-cooked or generic foods, add descriptive terms to narrow the results:
 | `rice` | `brown rice cooked usda` |
 | `oats` | `oats rolled raw usda` |
 
-Adding **`cooked`** or **`raw`** targets the USDA Foundation Foods and SR Legacy
-datasets, which cover whole foods with full nutrient profiles (including amino
-acid data for protein completeness). Adding **`usda`** further filters toward
-those non-branded entries.
+Adding **`cooked`** or **`raw`** targets the USDA Foundation Foods and SR Legacy datasets, which cover whole foods with full nutrient profiles (including amino acid data for protein completeness). Adding **`usda`** further filters toward those non-branded entries.
 
-The program will display a tip automatically when most of your search results
-are branded products.
+The program will display a tip automatically when most of your search results are branded products.
 
 ### Analyzing a portion
 
@@ -389,19 +363,13 @@ The copy is saved as a fresh user-drafted entry with a new negative ID, complete
 
 #### No amino acid data — USDA suggestion
 
-Some USDA entries — particularly SR Legacy and Branded foods — omit amino acid
-data. If the selected food has none, numa will display:
+Some USDA entries — particularly SR Legacy and Branded foods — omit amino acid data. If the selected food has none, numa will display:
 
 ```
 (No amino acid data available for protein completeness analysis.)
 ```
 
-and immediately offer to search **Foundation Foods** for an equivalent entry.
-Foundation Foods is USDA's most curated dataset and almost always includes a
-full amino acid profile. The search is pre-filled with the first keyword(s) of
-the original food name (e.g., "beans, pinto, mature seeds, cooked, boiled, with
-salt" becomes "beans"). You can accept the suggestion, refine the query if
-needed, and pick from the Foundation results without leaving the current flow.
+and immediately offer to search **Foundation Foods** for an equivalent entry. Foundation Foods is USDA's most curated dataset and almost always includes a full amino acid profile. The search is pre-filled with the first keyword(s) of the original food name (e.g., "beans, pinto, mature seeds, cooked, boiled, with salt" becomes "beans"). You can accept the suggestion, refine the query if needed, and pick from the Foundation results without leaving the current flow.
 
 #### No amino acid data — the Claude fetch workflow
 
@@ -792,10 +760,7 @@ numa.db (oxalate_links)  — user-specific table: which food maps to which oxala
 
 ### Data source
 
-Harvard T.H. Chan School of Public Health, Oxalate Table (November 2023)
-Credit: Dr. John Knight, University of Alabama School of Medicine
-URL: https://hsph.harvard.edu/wp-content/uploads/2024/07/OXALATE-TABLE-1.xlsx
-Retrieved: 2026-06-22
+Harvard T.H. Chan School of Public Health, Oxalate Table (November 2023) Credit: Dr. John Knight, University of Alabama School of Medicine URL: https://hsph.harvard.edu/wp-content/uploads/2024/07/OXALATE-TABLE-1.xlsx Retrieved: 2026-06-22
 
 ### oxalate.db schema
 
@@ -1129,15 +1094,24 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 
 `tests/test_web.py` additionally has its own `use_test_web_prefs` fixture (redirects `web/backend.py`'s own `_PREFS_FILE` constant) and a `client` fixture (FastAPI `TestClient`).
 
-### Bugs found during test restoration
+---
 
-Five missing imports were discovered in the production code (all `NameError` crashes on real user actions):
+## Maintenance
 
-- `numa_app/workflows/foods.py` — `_offer_export` not imported (crashes Foods → Analyze USDA portion)
-- `numa_app/workflows/foods.py` — `_do_list_cached_foods` not imported (crashes Foods → View cached)
-- `numa_app/workflows/foods.py` — `_do_recipe_list`, `_get_recipe_total_nutrients`, `_pick_recipe_portion` not imported (crashes Foods → Analyze recipe portion)
-- `numa_app/workflows/settings.py` — `_change_theme` not imported (crashes Settings → Color theme)
-- `numa_app/workflows/settings.py` — `_save_prefs` not imported (crashes Settings → Dietary preferences and main menu `d`)
+### Weekly sweep (Saturdays)
+
+A recurring maintenance pass, scoped to what changed since the last sweep — not a full re-audit each time.
+
+1. **Manual consolidation** — the same mechanism explained more than once (once per page/interface) that should live once in Part 4 — Shared Operations (or an existing Part 3 reference section) of `user-manual.md`, cross-linked from every place it applies; a feature documented for only one interface/page despite applying to more than one; two command/column lists for the same menu that have drifted out of sync (fix by pointing the thinner one at the canonical list, not updating both); a real behavior change that only exists in the changelog and was never written into the manual body.
+2. **Stale internal links** — every `#anchor` reference in `user-manual.md` checked against actual anchor definitions (`[name]` tags / heading IDs); also worth a pass over external URLs (footnotes, source citations) for rot.
+3. **README.md accuracy** — repo-root `README.md` (the public-facing overview: disclaimer, who it's for, key features list, download section) checked against current app behavior — a feature listed there that changed or was removed, or a new user-facing feature that should be added to the "Key features" list. Distinct from this file (`README-numa-documentation.md`), which is the internal architecture doc and still has a CLI-era cleanup pass pending.
+4. **CLAUDE.md drift** — the package-layout listing near the top of `CLAUDE.md` is hand-maintained; check it against what's actually in `numa_app/` and the repo root, since new modules added during the week won't show up unless someone remembers to add them.
+5. **Changelog pruning** — the "Recent program updates log" lives in `user-manual.md` Appendix A (moved here from Appendix K on 2026-08-05 since it's checked far more often than the other appendices). Keep roughly the **last 2 weeks** of entries. Older entries are safe to delete: `create_release.py` copies same-day entries into the release notes at push time and never re-reads the file afterward, so a pruned old entry can't retroactively change a past release's notes (stated in the manual's own `[//]: #` comment above the log).
+6. **Test coverage gaps** — cross-check the week's changelog entries against `tests/` to catch a shipped behavior change that never got a test.
+7. **CLI/web parity** — status: under active reconsideration as of 2026-08-04, since web is now the primary interface and the CLI's future is an open question. Don't assume strict parity is still the goal.
+8. **Vendored dependency check** — `web/static/vendor/bootstrap/` (CSS + JS, currently 5.3.8) is vendored locally rather than loaded from a CDN, so the app works offline. Low urgency since this is a locally-run app with no untrusted remote input reaching it, but worth a quick check for newer Bootstrap releases/patches at this cadence rather than a separate one.
+
+After a sweep: log the result as a new `user-manual.md` Appendix A entry (or a suitable per-item entry if the fixes span categories), and bump the manual's own timestamp header. Pure doc/config consolidation does not require a `version.py` bump (no application behavior changed) — but a real bug fix found via item 6 (missing test written, bug fixed) does.
 
 ---
 
@@ -1155,166 +1129,11 @@ The original design specified three phases. Phase 1 is complete.
 - Protein completeness analysis via amino acid profile
 - Full test suite
 
-### Phase 2 — In progress
-
-**Item 1: Expanded nutrient tracking — Coded | Validation in progress**
-
-- Seven additional phytonutrients and bioactive compounds tracked from the USDA database: carotenoids (beta-carotene, alpha-carotene, lycopene, lutein+zeaxanthin), choline, beta-sitosterol, and isoflavones.
-- Protein bioavailability assessment using DIAAS: a keyword lookup table covering 50+ foods shows the digestibility-adjusted protein figure alongside raw protein grams.
-- Anti-nutrient advisories: flags foods with phytate, oxalate, lectins, trypsin inhibitors, or bound niacin, with practical notes on how cooking reduces their effect. Flags are suppressed automatically when the food name indicates it has already been cooked or processed.
-- Volume-to-weight conversion: portion sizes can now be entered as volumes (e.g., `1/8 cup`, `2 tbsp`). Density is derived from the static keyword table first; USDA portion data is used as a fallback. Fraction and mixed-number input (e.g., `1/4`, `1 1/2`) also supported.
-- **Digestible complete protein (DCP) per recipe**: recipe view computes and saves DCP (grams per serving) to the database. The value is the sum of each ingredient's protein × its DIAAS score — the DIAAS score already encodes both digestibility and amino acid quality, so no further limiting-score factor is applied. This gives a single number for how much protein the recipe realistically delivers. Displayed in the recipe list as "DCP/srv". Recomputed automatically when any ingredient is added, edited, or removed. If an ingredient lacks weight or DIAAS data, the user is prompted to supply the missing information or to calculate anyway (approximate results are flagged and not saved to the database).
-
-**Item 2: Pantry — Coded ✓**
-
-- A persistent "My Pantry" list tracks protein sources currently on hand.
-- Foods can be added via USDA search (linking the full amino acid profile) or by name only for a quick entry.
-- The pantry list is stored in the local SQLite database (`pantry` table: food name, optional fdc_id, notes, date added).
-- Accessible from **Foods → My pantry**.
-
-**Item 3: Protein complementarity advisor — Coded ✓**
-
-- After any protein analysis — individual food, recipe, meal, or daily summary — numa offers to show protein complement suggestions.
-- The advisor identifies which essential amino acids are still below the FAO/WHO reference score (the "gaps"), then calculates the minimum grams of a complement food needed to bring the most limiting amino acid to exactly 1.0.
-- Suggestions are split into two lists: **Pantry** foods first (from the user's My Pantry list), then **General** suggestions from a curated built-in table of common plant protein sources. This means pantry items are always prioritized; the curated fallback covers users who haven't set up a pantry yet.
-- For each suggestion the output shows: the food name, DIAAS score, how many grams to add, and a before→after score for the top-gap amino acids.
-- `suggest_complements()` in `usda.py` uses the primary-gap algebraic solve: given the base protein and the candidate's AA/protein ratio, it computes the exact gram weight that closes the most limiting gap (working throughout in digestibility-adjusted space), then re-scores all nine essential AAs at that combined weight. Candidates whose AA/protein ratio is below the digestibility-adjusted reference are silently excluded (adding them would worsen the gap).
-- Met+Cys and Phe+Tyr are treated as combined pairs throughout gap detection and suggestion scoring, consistent with FAO 2013.
-- Suggestions are ranked: primary-gap closers first, then by number of gaps closed, then by smallest gram amount.
-- Complements that close one gap while opening a new one (e.g. Brazil nuts close Met+Cys but dilute lysine) are included with an "opens new gap" warning so users can layer complements if needed.
-- Only AAs with digestibility-adjusted score below 0.95 are treated as gaps. Near-adequate AAs (score 0.95–1.0) are excluded to avoid impractically small suggestions (e.g. 1g nutritional yeast to close a 0.6% isoleucine shortfall).
-- Pantry foods with no USDA cache entry fall back to the built-in curated table by keyword match, so name-only pantry entries still participate.
-- The advisor is called automatically at the end of: food search, portion analysis, recipe analysis, meal analysis, and daily summary — wherever amino acid data is present.
-
-**Item 4: Meal-level DIAAS analysis — Coded ✓**
-
-- Meal analysis and daily summary now compute a composite meal-level DIAAS score using the FAO 2013 pooled-IAA methodology (see `diaas.py`).
-- A true ileal digestibility coefficient is applied per ingredient before pooling, capturing amino acid complementarity across the whole meal.
-- Digestibility coefficients sourced from a three-tier lookup: ~50-entry curated literature table → category defaults → 0.82 overall default. User overrides stored in the `diaas_overrides` DB table take precedence over all.
-- Output: per-ingredient digestibility table, per-IAA composite ratio table with bar indicators, composite DIAAS, and digestible complete protein in grams.
-- Tyrosine (USDA nutrient 1218) added to `NUTRIENT_MAP` so future food fetches include it for proper Phe+Tyr combined scoring.
-- Settings menu extended with **Protein digestibility overrides** for power users who have primary-literature values for specific foods.
-- 55 new tests in `tests/test_diaas.py` covering all lookup tiers, DB CRUD, calculation correctness, complementarity, and edge cases.
-
-**Item 5: User profile and personalized RDA comparison — Coded ✓**
-
-- A user profile (age, sex, weight in kg, height in cm, activity level) is set under **Settings → User profile** (item 2) and persisted to `~/.config/numa/profile.json`.
-- Calorie target is computed via the Mifflin-St Jeor equation × an activity multiplier. Protein target scales with body weight and activity level (0.8–1.2 g/kg).
-- All other targets follow NIH/Institute of Medicine Dietary Reference Intakes: sex-specific values for iron, calcium, potassium, choline, and B vitamins; age-adjusted values for calcium (women 51+, men 70+), vitamin D (70+), fiber (50+), and vitamin B6 (51+).
-- After any **Daily Summary**, if a profile is set, numa offers "Compare to your personalized RDA targets?". The comparison table shows each tracked nutrient's intake, target, percentage of RDA, a color-coded bar (green/yellow/red), and a plain-language status note. Sodium uses the limit direction (green if under, red if over); all other nutrients use the minimum direction.
-- If no profile is set, a tip to configure one is shown instead. 28 new tests in `tests/test_profile.py`; 8 new CLI tests in `tests/test_cli.py`.
-
-**Item 6: Refactor to numa_app/ package — Coded ✓**
-
-- The monolithic `numa.py` was split into a `numa_app/` package to reduce per-file size and make individual feature areas easier to work on in isolation (particularly in offline LLM editing sessions).
-- `numa.py` is now a five-line thin entry point using stdlib `argparse`; `typer` is no longer a dependency.
-- All menu logic, rendering, services, and workflow code lives under `numa_app/` (see Project Structure above).
-- Smoke checks passed: imports resolve, `python -m compileall` clean, `--help` works.
-- The test suite has been rebuilt for the refactored structure (316 tests, all passing). The rebuild also uncovered five missing imports in `foods.py` and `settings.py` that would have caused `NameError` crashes on real user actions.
-
-**Item 7: Dietary preferences — Coded ✓**
-
-- First-run prompt asks whether complement suggestions should include animal-based foods (eggs, cheese, fish, chicken, whey).
-- Preference saved to `~/.config/numa/prefs.json` and applied to all complement suggestion flows.
-- Accessible at the main menu via `d`, and also under Settings → Dietary preferences.
-
-**Item 8: Analyze a saved recipe portion (Foods menu) — Coded ✓**
-
-- New entry in the Foods menu (item 3): select a saved recipe by ID, specify a number of servings (decimal or fraction), and view scaled nutrient totals with full protein completeness analysis.
-- Uses the same nutrient scaling and rendering pipeline as other analysis flows.
-
-**Item 9: Notes on meal/recipe ingredients — Coded ✓**  *(2026-04-11)*
-
-- Every ingredient in a recipe and every food item in a meal now has an optional **Note** field (the `notes TEXT` column was already in the DB schema; the UI prompts were missing).
-- Recipes: note is prompted after portion selection when adding an ingredient (both create and edit flows). When editing an existing ingredient, the current note is pre-filled; enter `-` to clear. The ingredient table in the edit view shows a **Note** column when any notes are present.
-- Meals: note is prompted after portion selection when adding a food item. The food item edit loop (`f`/`a`/`n`) now has an `n` option for editing the note in-place.
-- Pantry already had note support.
-
-**Item 10: User-drafted food nutritional profiles — Coded ✓**  *(2026-04-11)*
-
-- New Foods submenu item 7: **User-drafted food profiles** — create, edit, list, and delete hand-crafted nutrient profiles for foods lacking adequate official data.
-- Create flow: start from a USDA food (pre-fills existing data) or from scratch. Prompts for name, serving size, all macros, then offers a three-way amino acid choice: one-by-one in g/100g food, bulk import in g/100g protein (auto-converted), or skip. Requires a Note for source documentation.
-- Profiles are stored in the `foods` table with `user_drafted = 1` and a negative fdc_id (range −1 to −2,000,000,000, distinct from Open Food Facts ids). They behave like any other cached food in all analysis flows.
-- Edit flow walks through the same prompts with current values pre-filled.
-- Primary use case: constructing best-guess AA profiles from literature searches for specialty foods not in any public database.
-
-**Item 11: Open Food Facts integration — Coded ✓**  *(2026-04-11)*
-
-- New module `openfoodfacts.py` implements the OFF REST API (no key required, CC BY-SA 4.0 data).
-- Results from USDA and OFF are merged in all unrestricted food searches. OFF items are labeled "Open Food Facts" in the Type column; they show `✗` in the AA data column immediately (no cache lookup needed).
-- OFF items are excluded from AA-fix searches (Foundation Foods replacement flow) since OFF never contains amino acid data.
-- OFF nutrient data is in the search result already — no second HTTP call when the user selects an OFF item. The item is cached to the local DB under `data_type = "Open Food Facts"`.
-- OFF product fdc_ids are deterministic negative integers (range −2,000,000,000 to −3,000,000,000) derived from the product barcode.
-- Foods menu labels and search status text updated throughout to name both databases.
-
-**Item 12: Bug fixes and UX corrections — Coded ✓**  *(2026-04-11)*
-
-- **Settings → Editor command** (`_do_editor_command`, `_get_editor_command`): both functions were referenced in the menu but never written. Now implemented.
-- **"Display settings at launch" setting**: was stored and displayed but never checked. `run_app()` now wraps `print_startup_banner()` in `if getattr(state, "_display_program_settings", False)`. Default is off.
-- **Recipe view**: ingredient list with amounts (and per-ingredient notes) now appears before the DCP options menu, so the recipe is fully visible when the user must make decisions about missing data. Label "Instructions" renamed to "Procedure".
-- **DCP options menu**: converted from ad-hoc letter choices (`f`, `c`, `s`, `p`) to the standard numbered menu format with `b` and `q` options. Invalid input now shows a warning and re-prompts.
-- **API key corruption on paste**: `_prompt()` now skips non-printable characters (e.g., the `\x16` Ctrl+V byte injected by some terminals when pasting). `set_api_key()` also strips non-printable characters as a safety net.
-- **`sqlite3.Row` vs dict**: `.get("notes")` calls on `sqlite3.Row` objects (which don't support `.get()`) replaced with direct key access throughout `meals.py` and `recipes.py`.
-
-**Item 13: Bulk literature amino acid import — Coded ✓**  *(2026-04-11)*
-
-- The amino acid prompt in user-drafted food profiles now offers three choices instead of y/n: one-by-one (g/100g food), bulk import (g/100g protein), or skip.
-- Bulk import (`_bulk_import_aa` in `foods.py`) reads `name: value` pairs (one per line; also accepts `name = value` or `name value`). Accepted name forms: full name, 3-letter code, 1-letter code.
-- If protein content was entered in the same session, values are automatically converted: `aa_food = aa_protein × protein_g / 100`. The summary display shows the conversion for each amino acid.
-- Non-essential amino acids (alanine, arginine, glycine, etc.) are silently discarded with a note. Unrecognized names are flagged in yellow. Essential amino acids (the nine stored by the program) are shown in green with a ✓.
-- Designed for entering FAO/WHO/literature amino acid composition tables that report values in g per 100g protein — the most common format in peer-reviewed nutrition literature.
-
-**Item 14: UX fixes and recipe volume/weight — Coded ✓**  *(2026-04-13)*
-
-- **Startup banner**: First line is now `NutriMagnus ("nutrition wizard")` (bold green); second line is `Nutritional Analysis for individuals and families`. Previously a single combined line.
-- **Default-value prompt display**: All prompts with a default now show `(Press enter to keep VALUE)` before the colon, with the value rendered in the theme's blue (`default_hint` style). Nothing is pre-filled after the colon; pressing Enter on a blank input returns the stored default.
-- **Choices prompt — single keypress only**: When `choices` is provided (e.g. `y/n/q`), the prompt now accepts only valid single keystrokes. Any character not in the choices list is silently ignored, preventing multi-character input like a food name from being misread as a menu selection.
-- **Recipe create — procedure editor gate**: Opening the text editor now requires the user to press Enter first (or `b` to skip), consistent with the recipe-edit flow. Previously the editor launched immediately after printing the message.
-- **Recipe search in meal add**: The "add items to meal" search now tokenizes the query and matches a recipe if **any** word appears in its name. Previously the entire query string had to be a substring of the name, making multi-word searches like `coffee Mexican Tom` fail to find `Mexican coffee`.
-- **Recipe total volume and weight**: New optional fields `total_volume`, `total_volume_unit`, `total_weight`, `total_weight_unit` added to the `recipes` table (auto-migrated). Both fields are prompted during recipe create (after servings, before the procedure editor) and recipe edit (after name/description/servings). Input format: `NUMBER UNIT` (e.g. `4 cups`, `800 g`). Either or both may be skipped (Enter on blank). `_parse_measure()` helper handles parsing.
-
-**Item 15: Recipe UX improvements and piece-count portions — Coded ✓** *(2026-04-13)*
-
-- **Recipes menu restructured (1→6 items)**: item 3 is now a plain text view (new `_do_recipe_display`); item 4 is Edit (unchanged); item 5 is Analyze (was item 3 "View / analyze"); item 6 is Delete (was item 5).
-- **Recipe view (item 3)**: lists recipes → user picks by ID → displays full recipe text (name, description, servings, volume/weight, ingredients with notes, procedure) and returns to the menu automatically. No nutritional analysis.
-- **Ingredients menu `b` key**: `b` and `d` both proceed to the Procedure editor. `m` and `q` remain the escape hatches that skip Procedure (menu labels updated to note this). Previously `b` exited the edit entirely, bypassing Procedure.
-- **Recipe always-save on exit**: header fields in create (`_do_recipe_create`) each have their own `try/except Cancelled` so Ctrl+C at any prompt after the name still creates the record. In edit (`_do_recipe_edit`), `b`, `q`, and Ctrl+C in the meta loop now break to the save block instead of returning early — any fields already changed are written to the DB before exit. `q` specifically was saving nothing; it now saves then raises `SystemExit`.
-- **Servings default changed to 0** (was 1) in the recipe creation flow.
-- **Blank line added** before "Current recipe ingredients" heading in the ingredient-edit loop.
-- **Piece/count portion input**: a bare number (e.g. `2`) now means pieces/count, not grams — `grams = 0.0`, label `"2 pc"`. Explicit piece-unit words also accepted: `pc`, `pcs`, `piece`, `pieces`, `each`, `ea`, `count`, `ct`, `item`, `items`. Nutritional contribution of piece-count ingredients is zero in totals. Prompt hint and error message updated to explain the distinction. `_PIECE_UNITS` frozenset added to `portions.py`.
-
-**Item 16: Recipe analysis servings=0, DCP UX fixes, and display polish — Coded ✓** *(2026-04-13)*
-
-- **Servings=0 analysis**: when a recipe has no serving count, `_do_recipe_view` now shows: (1) whole-recipe nutrient totals, (2) per-100g table if total weight was recorded, (3) per-100ml and per-1-cup tables if total volume was recorded. The complement-suggestions basis menu is skipped; the analysis nutrients are used directly with a label reflecting what they represent (whole recipe / per 100 g / per 100 ml). DCP is not saved to the DB when servings=0. Export labels updated to say "whole recipe (no serving count)" instead of "whole recipe, 0 servings".
-- **Servings prompt clarified**: both the create and edit prompts now read `Number of servings  (0 = analyze by weight/volume)`.
-- **DCP missing-data Options menu loops**: the options menu (provide data / calculate anyway / skip) is now shown inside a `while True` so pressing `b` during "Provide missing data" re-displays the menu rather than exiting the analysis.
-- **DCP warning note**: a dim note is printed after the missing-ingredient list reminding the user that non-protein ingredients (spices, oil, salt) can safely be ignored in the warning.
-- **Report file path color**: path strings in the auto-save and previous-reports display are now rendered in `thistle1` (light lavender) instead of `dim`, which was unreadable on dark terminal backgrounds.
-
-**Item 18: Omega fatty acid tracking and automatic backfill — Coded ✓**  *(2026-05-31)*
-
-- Four individual omega fatty acid keys added to `NUTRIENT_MAP`: `omega3_ala_mg` (ALA, plant-based; USDA ID 1404), `omega3_epa_mg` (EPA, marine; 1278), `omega3_dha_mg` (DHA, marine; 1272), `omega6_la_mg` (linoleic acid; 1269). USDA reports these in grams; `_parse_food` multiplies by 1000 on fetch to store and display in mg.
-- All four appear in the Macronutrients group of the nutrient display table, after polyunsaturated fat, whenever data is present.
-- Added to `_DRAFT_MACROS` so custom food entry prompts them after poly fat.
-- **Automatic backfill**: both cache-return paths in `search.py` (`_fetch_food_from_result` and the main pick loop) check whether the selected USDA food is missing all four omega keys. If so, a silent USDA fetch is made, only the omega values are merged into `nutrients_json` via `db.update_food_nutrients_partial()`, and the updated nutrients are returned. Happens once per food; subsequent accesses use the cached data. User-drafted foods are never touched.
-
-**Item 17: Supplement mode, full nutrient coverage, and barcode search — Coded ✓**  *(2026-05-31)*
-
-- **Supplement / unit-based mode** added to both Create and Edit flows in Drafted Food Profiles. Treating 1 tablet = 100g internally means stored per-100g values equal per-tablet label values exactly — no weighing required. Supplement entries store a single portion `{"description": "1 tablet", "gram_weight": 100.0}` so "1 tablet" in a meal contributes those exact amounts.
-- **Edit flow supplement detection**: `_do_edit_cached_food` auto-detects supplement mode (single portion with `gram_weight=100`). For user-drafted foods not yet in supplement mode, it asks at the start of the session whether to convert; existing nutrient values are preserved as-is and the gram_weight=100 portion is added.
-- **Supplement intro text**: When entering nutrient values in supplement mode, a clear explanation is shown: values should be entered as on the label; no weighing needed; logging "1 tablet" in a meal contributes exactly those amounts.
-- **Full vitamin and mineral coverage**: `_prompt_nutrients` now walks through all 11 vitamins (A, C, D, E, K, B1, B2, B3, B6, B9, B12), 6 minerals (Ca, Fe, Mg, P, K, Zn), and 7 phytonutrients as optional sections. Previously only macros, sodium, Ca, and Fe were prompted.
-- **IU auto-conversion**: at vitamins A, D, and E prompts, input ending in `IU` is auto-converted (A: ×0.3 mcg RAE; D: ×0.025 mcg; E: ×0.67 mg). The conversion math is printed for verification.
-- **Edit option in Drafted Food Profiles menu**: option 3 is now Edit (was absent; editing previously required navigating to Food Cache). Delete moved to 4, Copy to 5.
-- **Barcode search**: at any food search prompt, a 12-digit UPC-A or 13-digit EAN barcode (digits only) triggers an Open Food Facts barcode lookup. The product name and brand are shown and the user confirms before caching. Recommended for supplement labels which rarely have USDA records.
-- **Food Cache C/N indicator columns**: replaced the wide "Confidence Note" text column with two single-character indicator columns — `C` (source/confidence note present) and `N` (curator notes present). Commands updated: `v#` shows nutrients only, `c#` shows confidence note only, `n#` shows nutrients + protein completeness + both notes (combined view).
-
-**Remaining Phase 2 items — Planned**
+### Phase 2 — Planned
 
 - Development of a slightly modified version that will run on Windows operating systems. (The developmental version is Linux-only.)
 - Nutrient trend analysis over time (charts or tables)
 - Meal planning and dietary pattern analysis
-- Transition from a menu-driven interface to graphic user interface.
 
 ### Phase 3 — Planned
 

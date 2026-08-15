@@ -784,7 +784,7 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
 
             rows.append({
                 "label":        label,
-                "value":        round(val, 3),
+                "value":        round(val),
                 "unit":         unit,
                 "pct":          pct,
                 "rda_type":     rda_type,
