@@ -234,6 +234,31 @@ table {
   table-layout: auto;
 }
 
+/* Recipe-edit's search-results table (recipe_edit.html only — meal.html's
+   copy of .add-food-table is untouched) went through several rounds of
+   table-layout:auto column-width fights: widening one column's cell
+   without widening the table starved it instead of growing it; forcing the
+   table to width:100% made whichever column had no hard cap (first Food,
+   then confirm-col) silently absorb all the leftover space as blank
+   padding; and once a %-based column width (.col-amount) was mixed with a
+   width:auto table, percentages have no solid basis to resolve against in
+   auto layout, so browsers handle it inconsistently — that's what inflated
+   confirm-col next. table-layout:fixed with an explicit <colgroup> (see
+   recipe_edit.html) sidesteps all of it: every column gets an exact,
+   deterministic width regardless of content or container. Fixed layout
+   only activates when the table's own width is a definite value, not
+   auto — hence the explicit width below, sized to the colgroup's sum
+   (1.936 + 19.8 + 3.5 + 2.5 + 5 + 28 = 60.736rem — the colgroup's last
+   <col> is 14rem with span="2", i.e. 28rem total for that colspan=2 cell;
+   a col's width applies per spanned column, not divided, so writing 28rem
+   there directly would silently mean 56rem). max-width/overflow-x:auto (on
+   the wrapping div) are the safety net for narrow viewports. */
+.add-food-table-wide {
+  table-layout: fixed;
+  width: 60.736rem;
+  max-width: 100%;
+}
+
 /* Tight padding for all cells — override the nutrient-table 2rem default */
 .add-food-table th,
 .add-food-table td {
@@ -883,4 +908,13 @@ td.compare-val-col {
   background: #1e40af;
   color: #fff;
   border-color: #1e40af;
+}
+
+@media print {
+  .navbar, .no-print, footer {
+    display: none !important;
+  }
+  .table-responsive {
+    overflow: visible !important;
+  }
 }

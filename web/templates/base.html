@@ -105,7 +105,7 @@
             <ul class="dropdown-menu numa-dropdown" aria-labelledby="nav-recipes-dropdown">
               <li>
                 <a class="dropdown-item" href="/recipes">
-                  1. <strong>Search</strong> recipes database
+                  1. <strong>Search / Create</strong> recipes
                   <span class="dd-hint">(filter by name)</span>
                 </a>
               </li>
@@ -240,6 +240,30 @@
     );
     if (inp) { inp.focus(); inp.select(); }
   }, true);
+  </script>
+  <script>
+  // Popup-style "Edit" panels (an inline <details class="popup-edit"> whose
+  // body is absolutely positioned to float over the page — meal items,
+  // recipe ingredients, "Rename / change date") behave like a native
+  // <details> disclosure: no Esc-to-close, no click-outside-to-close. That
+  // reads as broken for something that looks like a popup form — there was
+  // no way to back out of an accidental edit without either saving or
+  // reloading the page. Give every .popup-edit both dismissal paths, always
+  // discarding whatever was typed (closing a <details> doesn't submit its
+  // form) and returning focus to the summary that opened it.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('details.popup-edit[open]').forEach(function (d) {
+      d.open = false;
+      var summary = d.querySelector(':scope > summary');
+      if (summary) summary.focus();
+    });
+  });
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('details.popup-edit[open]').forEach(function (d) {
+      if (!d.contains(e.target)) d.open = false;
+    });
+  });
   </script>
   <script>
   // Remember the last search you ran on a "stateful" page (marked with
@@ -434,13 +458,7 @@
     }
 
     var dirtyForms = new Set();
-    // .add-food-form: one-shot "type an amount, click Add" search-result
-    // rows, not a form you'd navigate away from with unsaved edits worth
-    // warning about. Its submit button sits inside a flex .input-group with
-    // the amount <input> (flex:1 1 auto, min-width:0), so inserting the
-    // badge right after the button there shrank the input drastically the
-    // moment you typed anything, instead of just appending harmlessly.
-    var forms = document.querySelectorAll('form[method="post"]:not(.add-food-form)');
+    var forms = document.querySelectorAll('form[method="post"]');
 
     forms.forEach(function (form) {
       var hasEditable = form.querySelector(
@@ -449,9 +467,18 @@
       if (!hasEditable) return;
 
       var baseline = serialize(form);
+      // .add-food-form: "type an amount, click Add" search-result rows
+      // (recipe/meal ingredient search). Still tracked below for the
+      // beforeunload warning — typing an amount and then clicking away
+      // instead of "Add" used to lose it silently — but skipped for the
+      // visible badge: its submit button sits inside a flex .input-group
+      // with the amount <input> (flex:1 1 auto, min-width:0), so inserting
+      // the badge right after the button shrank that input drastically the
+      // moment you typed anything.
+      var isAddFoodForm = form.classList.contains('add-food-form');
       var submitBtn = form.querySelector('button[type=submit], input[type=submit]');
       var badge = null;
-      if (submitBtn) {
+      if (submitBtn && !isAddFoodForm) {
         badge = document.createElement('span');
         badge.className = 'unsaved-badge';
         badge.textContent = '  Unsaved changes';
@@ -461,7 +488,7 @@
       function check() {
         var dirty = serialize(form) !== baseline;
         form.classList.toggle('form-dirty', dirty);
-        if (submitBtn) submitBtn.classList.toggle('btn-dirty', dirty);
+        if (badge) submitBtn.classList.toggle('btn-dirty', dirty);
         if (dirty) dirtyForms.add(form); else dirtyForms.delete(form);
       }
 
@@ -478,6 +505,32 @@
       e.returnValue = '';
     });
   })();
+  </script>
+  <script>
+  // If the page loaded with a URL fragment (e.g. a filter/sort control
+  // whose form action carries #section-id, like Top Contributors' "Rank
+  // by" / "Show" selects — see _top_contributors.html), an autofocus field
+  // earlier on the page (the food-search box's [autofocus], or a <details>
+  // that steals focus per the toggle handler above) can win the page's
+  // scroll position instead of the fragment's target. A native [autofocus]
+  // attribute is applied by the browser as a deferred task, not synchronously
+  // during parsing — so re-asserting the fragment scroll from a same-pass
+  // inline script (as this used to do) runs BEFORE that deferred autofocus,
+  // and still loses. Doing it on the 'load' event instead guarantees every
+  // native and script-driven focus/scroll has already happened, so this
+  // reassertion genuinely runs last and wins for good. Also blur whatever
+  // stole focus, since a focused-but-offscreen field is not what the fragment
+  // pointed to and would otherwise remain the tab/scroll target.
+  if (window.location.hash) {
+    window.addEventListener('load', function () {
+      var fragTarget = document.getElementById(window.location.hash.slice(1));
+      if (!fragTarget) return;
+      if (document.activeElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+      fragTarget.scrollIntoView({ block: 'start' });
+    });
+  }
   </script>
 </body>
 </html>

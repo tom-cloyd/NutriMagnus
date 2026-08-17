@@ -129,7 +129,15 @@
       "Bash(mkdir -p /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/static/vendor/bootstrap/css /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/static/vendor/bootstrap/js)",
       "Bash(cp /tmp/bootstrap.min.css /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/static/vendor/bootstrap/css/bootstrap.min.css)",
       "Bash(cp /tmp/bootstrap.bundle.min.js /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/static/vendor/bootstrap/js/bootstrap.bundle.min.js)",
-      "Bash(pkill -f \"uvicorn web.backend:app --port 8099\")"
+      "Bash(pkill -f \"uvicorn web.backend:app --port 8099\")",
+      "Bash(awk 'NR==188,NR==300{print NR\": \"$0}' /home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa/web/templates/recipe_edit.html)",
+      "Bash(python -m pytest tests/test_web.py -k \"recipe_edit or ingredient\" -q)",
+      "Bash(curl -s \"http://127.0.0.1:8000/recipe/20/edit?q=cinnamon+ground&source=pantry&source=cache&source=recipe&source=cofid&source=afcd&source=ciqual&source=usda&source=off&source=cnf&limit=25\")",
+      "Bash(curl -s \"http://127.0.0.1:8000/recipe/57/edit?q=pancake&source=cache&source=usda&limit=25\")",
+      "Bash(curl -s \"http://127.0.0.1:8000/static/style.css\")",
+      "Bash(curl -s \"http://127.0.0.1:8000/recipe/57/edit\")",
+      "Bash(curl -s \"http://127.0.0.1:8000/recipe/57\")",
+      "Bash(kill 198841)"
     ]
   }
 }

@@ -1,20 +1,20 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-14:1845* / Reading time: 2 hours, 39 minutes
+*Updated 2026-08-16:2218* / Reading time: 2 hours, 44 minutes
 
-**NutriMagnus ("NuMa")** is an open-source computer program which provides nutritional information essential to making good food choices. [NuMa](#gloss-numa) gives a thorough analysis of the nutritional aspects of a user's food choices, with particular emphasis on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
+**NutriMagnus ("NuMa")** is an open-source computer program which provides a thorough nutritional analysis of a user's food choices. It is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
-**Eating is fundamentally about survival- all life's first priority, for we must constantly support and replace the cells in our body.** Most of the cells in our body persist for a shorter period than we do. During their lifespan they do their work using materials available to them in their immediate environment. Eventually they must be replaced by new cells, constructed again from such available materials.
+**Eating usually involves making choices, and good choice requires good information.** The three major problems impeding good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed by NuMa, in detail.
 
-**Cellular support and replacement depends upon our accessing essential materials, through eating.** While significant essential materials may already exist in the local environment of a cell, the rest have to come from elsewhere, and ultimately that means from outside our bodies. For this reason we must eat.
+**Eating is fundamentally about survival - first priority for all life.** Most of the cells in our body persist for a shorter period than we do. During their lifespan they do their work using materials available to them in their immediate environment. Eventually they must be replaced by new cells, constructed again from such available materials.
 
-**Eating usually involves making choices, and good choice requires good information.** The three major problems impeding good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed by the general domain of nutrition science. [NuMa](#gloss-numa) takes up these problems, in detail.
+**Essential materials needed for cellular support and replacement come from what we eat.** While significant essential materials may already exist in the local environment of a cell, ultimately all materials come from outside our bodies, through eating.
 
 **Both the program and its accompanying *User Manual* are an ongoing project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review; it is an advanced first draft.
 
-**User feedback is highly valued, so please give us yours!** What many software users don't realize is that with programs in active development ANY feedback is appreciated and most likely useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` or `NuMa` in the subject line, please!
+**User feedback is highly valued, so please give us yours!** With computer programs in active development ANY feedback is appreciated and most likely useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` or `NuMa` in the subject line, please!
 
-**How to come up with feedback:** First, ANY thoughts you wish to share are welcome. We know what is useful to us, but can't react at all if you don't share. If in doubt, just do it! We'll be grateful. Of particular interest to us are these topics:
+**How to come up with feedback:** First, ANY thoughts you wish to share are welcome. If in doubt, just do it! We'll be grateful. Of particular interest to us are these topics:
 
 1. Inconveniences: you notice that something seems a bit difficult to do, or you see a simpler or quicker way to do it.
 2. Missing or incomplete information: Sometimes updates and changes do not go out to every part of the program as they should, and you see a gap in the information provided.
@@ -178,7 +178,9 @@ Very recently, a Windows version of the program has been developed. It will soon
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-12), there are 641 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-16), there are 642 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+
+**The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 3.
 
 #### Validation you can replicate yourself
 
@@ -1134,6 +1136,23 @@ If you have configured a custom max limit for a nutrient, its row is highlighted
 [Phytonutrients](#gloss-phytonutrients) (carotenoids, choline, isoflavones, etc.) appear only when [USDA](#gloss-usda) data for that food includes those values -- many foods have none. Amino acids are not in this table; see the Protein Quality section below it.
 
 See [daily nutrient goals](#goals) to see how your daily goals are calculated. See [RDA](#rda) to see the Daily Intake vs. Recommended Values table.
+
+
+#### Top Contributors Table [top-contributors]
+
+Shows on meal and recipe detail pages, just above the Nutrient Analysis Table. Pick any tracked nutrient from the **Rank by** dropdown and see which foods in that meal or recipe supply the most of it, ranked highest to lowest.
+
+Columns:
+
+    Food / Recipe   Name of the contributing food, linked to its detail page.
+    Amount          This food's contribution, in the selected nutrient's unit.
+    % of total      This food's share of the summed contribution across every
+                    food in the meal or recipe (not a percent of any daily
+                    target — see [Nutrient Analysis Table](#nutrients) for that).
+
+A **Show** control next to the picker limits the list to the top 5/10/15/20/30 foods, or all of them (defaults to 10); it only offers choices that would actually shorten the list, so a meal with 6 contributors just offers "5" or "All." A "Total, all contributors" row at the bottom of the table always reflects every contributor, even when the list above it is trimmed.
+
+Ranking by **Protein** is special: instead of raw protein grams, it ranks each food by its own standalone [digestible complete protein](#dcp) ([DCP](#gloss-dcp)) — what that food alone would contribute after accounting for amino acid digestibility and completeness, using the same [DIAAS](#diaas) math as Protein Summary above it, applied to that one food in isolation. A note below the table explains this distinction and links back to Protein Summary. Because combining foods can raise a meal's *actual* DCP above what any single food scores alone — [protein complementarity](#comp) is the whole point of DIAAS — this table's total will typically be lower than, and should not be read as equal to, the real meal DCP shown in Protein Summary. Foods with no amino acid data on file don't score a DCP and are omitted from the ranking when Protein is selected.
 
 
 #### Protein Quality Table [protein-quality]
@@ -2581,6 +2600,52 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 
 Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed — that's all most readers need. (Entries used to also carry a fenced code block with fuller technical detail — files changed, root cause, implementation notes — for anyone curious about the "how"; that detail has since been folded into the corresponding commit messages and removed from here.)
 
+#### August 16
+
+**FIX: ESC AND CLICKING OUTSIDE NOW CLOSE POPUP "EDIT" FORMS WITHOUT SAVING**
+
+The floating "Edit" popups on meal items, recipe ingredients, and "Rename / change date" had no way to back out of once opened — Esc did nothing, and clicking elsewhere on the page did nothing. Both now close the popup and discard whatever you'd typed, same as canceling any other dialog.
+
+**CLARIFY: MEAL-PAGE TOP CONTRIBUTORS IS ALWAYS FOOD-LEVEL**
+
+On a meal's Top Contributors table, the column header now just says "Food" (not "Food / Recipe"), with a note underneath: any recipe used in that meal is broken into its individual foods for this table, so no row ever names a whole recipe. (A recipe's *own* Top Contributors table can legitimately show a sub-recipe by name, so it keeps the "Food / Recipe" header.)
+
+**NEW: RECIPE INTRODUCTION FIELD**
+
+Recipes now have an **Introduction** field for background — where it came from, why you like it, serving notes — anything that isn't the step-by-step procedure. On the recipe edit page it sits right after Ingredients; on the recipe's own page and on the printed/PDF version it appears right after the title. It's one of the checkboxes on the "Include on this printout" picker, so it can be left off a printout like any other section.
+
+**FIX: CHANGING "RANK BY" OR "SHOW" ON TOP CONTRIBUTORS NO LONGER JUMPS TO THE TOP OF THE PAGE**
+
+Changing the nutrient or count in the Top Contributors section (Meal/Recipe pages) reloads the page and is meant to land you back at that section. It was instead landing at the very top of the page, because a search box or "Add Food or Recipe" field further up the page could grab focus (and the scroll position that comes with it) after the intended scroll had already happened. The page now re-asserts the scroll position after everything else on the page has finished loading, so it reliably wins.
+
+**NEW: PRINT AND CSV EXPORT FOR THE FOOD COMPARISON TABLE**
+
+The Compare Foods page's nutrient comparison table now has **Print comparison table** and **Download CSV** buttons. Print opens your browser's print dialog with just the comparison table (no nav, search box, or other page chrome); the CSV download gives one row per nutrient and one column per food, ready to open in a spreadsheet.
+
+**NEW: AA COLUMN ON FOOD COMPARE PAGE**
+
+The Compare Foods page's food list now has an **AA** column showing at a glance whether each food has amino acid data (✓) or not (✗), right after the food name.
+
+#### August 15
+
+**NEW: TOP CONTRIBUTORS TABLE ON MEAL AND RECIPE PAGES**
+
+Meal and recipe pages now have a **Top Contributors** section: pick any nutrient (protein, iron, vitamin C, whatever's tracked) and see which foods in that meal or recipe supply the most of it, ranked highest to lowest with each one's share of the total, plus a "Total, all contributors" row. A **Show** control next to the nutrient picker limits the list to the top 5/10/15/20/30 or all of them (defaults to 10, and only offers choices that would actually trim the list — a meal with 6 contributors just offers 5 or All), with a count of how many qualify. Changing either control reloads the page scrolled back to this section instead of jumping to the top. Useful for spotting which ingredient is actually driving (or barely touching) a given nutrient's total.
+
+Picking **Protein** ranks by each food's own digestible complete protein (DCP) instead of raw protein grams — how much complete, digestible protein that food would contribute if it were the whole meal, the same measure behind the [DCP figure](#dcp) in Protein Summary. A note under the table explains this is a standalone, per-food number: since complementary foods can raise a meal's *actual* DCP above what any of them score alone, this table's total won't match the real meal DCP shown above it.
+
+**FIX: FOOD PAGE NO LONGER SHOWS A NONSENSE GRAM AMOUNT FOR PIECE-BASED FOODS**
+
+Opening a food's page from a recipe or meal ingredient link (rather than searching for it directly) used to always show the amount in grams, even for "piece" foods like tablets or eggs whose gram figure is really just an internal placeholder — e.g. a supplement's page showing "200 g" for what's actually 2 tablets. When the linked amount exactly matches whole portions of the food, the page now shows that instead (e.g. "2 × 1 tablet").
+
+**FIX: EDIT RECIPE'S RUNNING TOTALS NO LONGER UNDERCOUNT RECIPES-AS-INGREDIENTS**
+
+A recipe's Edit page shows live "Running totals" (calories, raw protein, DCP) that update as you add ingredients — but if the recipe used another recipe as one of its ingredients, that sub-recipe's entire nutrient contribution was silently left out of the total, understating protein (sometimes by more than half). The Edit page's totals now match the recipe's own detail page exactly.
+
+**RECIPE INGREDIENT AMOUNTS NO LONGER GET AN ESTIMATE TACKED ON**
+
+Adding or editing a recipe ingredient with a volume unit (e.g. "2 T") used to store and display an appended gram estimate, like "2 T (≈ 27.23 g)" — a density-based guess, not a measured fact, and one that could be wrong for an uncommon ingredient. Worse, saving an edit without first deleting that appended text by hand could get rejected outright. The Amount column now shows exactly what you typed, nothing more.
+
 #### August 14
 
 **FOOD, RECIPES, AND ANALYSIS MENUS NOW WORK WITHOUT AN INTERNET CONNECTION**
@@ -3590,8 +3655,75 @@ Compare the values [NuMa](#gloss-numa) shows with those in Table I-7 above. They
 
 ---
 
+#### Step 8 — Bonus: validating a protein-complement suggestion (quinoa + black beans)
 
-## L. Notes
+The steps above validate [DIAAS](#gloss-diaas)/[DCP](#gloss-dcp) for a fixed, user-chosen pair of foods. This bonus section validates the *other* half of NuMa's protein-quality math — how it decides which complement food to suggest, and how much of it — using the same quinoa (FDC 168917) from Step 1 as the starting point. See [Protein Complement Suggestions](#comp) in Part 3.B for the plain-language version of this logic.
+
+**Quinoa alone has two amino acid gaps.** Using quinoa's own digestibility coefficient (0.85, Mathai et al. 2017 — same source as Step 3) and the Table I-2 amino acid values, quinoa's digestibility-adjusted scores are:
+
+| IAA | Adjusted score | Gap? (< 0.95) |
+|-----|---------------:|:--------------:|
+| Histidine | 1.533 | No |
+| Isoleucine | 1.011 | No |
+| **Leucine** | **0.827** | **Yes — primary (lowest)** |
+| Lysine | 0.962 | No |
+| [Met+Cys](#gloss-met-cys) | 1.336 | No |
+| [Phe+Tyr](#gloss-phe-tyr) | 1.263 | No |
+| Threonine | 1.012 | No |
+| Tryptophan | 1.522 | No |
+| **Valine** | **0.894** | **Yes — secondary** |
+
+(These scores use quinoa's own [DIAAS](#gloss-diaas)-context digestibility, 0.85 — a single food is scored at its own digestibility, unlike the pinto+quinoa *meal* used in Steps 1–7, where digestibility is applied after pooling. See [Protein Completeness](#complete).)
+
+**The candidate: Black beans, cooked** — one of the 25 entries in NuMa's curated complement table[^10] (not itself in the user's pantry or cache). Per 100 g: 8.86 g protein, 0.677 g leucine, 0.452 g valine, true ileal digestibility 0.80 (FAO FNP 92, 2013 — distinct from its [DIAAS](#gloss-diaas) of 0.75; see Step 3 above for why these are different numbers).
+
+**The gap-closer formula.** NuMa solves for the grams `X` of the candidate needed so the *combined* pool's target-AA-to-protein ratio reaches the [FAO](#gloss-fao) reference, using the base food's own digestibility as the conversion factor:
+
+    alpha = candidate's target AA (g) per g of food       = 0.677 / 100   = 0.00677
+    beta  = candidate's protein (g) per g of food          = 8.86  / 100   = 0.0886
+    R     = FAO reference (g AA / g protein), inflated
+            for the base food's digestibility                = (61.0 / 1000) / 0.85 = 0.071765
+    X     = (R × base_protein − base_target_AA) / (alpha − R × beta)
+          = (0.071765 × 4.40 − 0.261) / (0.00677 − 0.071765 × 0.0886)
+          = 0.054765 / 0.0004119
+          ≈ 132.96 g   →  NuMa displays **133 g** (rounded)
+
+**Checking the result.** Adding 133 g of black beans to the 100 g of quinoa gives a combined pool of 16.18 g protein. Recomputing every IAA ratio against this new pool (same method as Table I-7) shows both original gaps closed — and, as a side effect neither targeted directly, every other IAA stays comfortably clear too:
+
+| IAA | New adjusted score | Gap? |
+|-----|--------------------:|:----:|
+| Histidine | 1.846 | No |
+| Isoleucine | 1.353 | No |
+| **Leucine** | **1.176** | **No — closed** |
+| Lysine | 1.224 | No |
+| [Met+Cys](#gloss-met-cys) | 1.242 | No |
+| [Phe+Tyr](#gloss-phe-tyr) | 1.352 | No |
+| Threonine | 1.491 | No |
+| Tryptophan | 1.720 | No |
+| **Valine** | **1.214** | **No — closed** |
+
+This confirms NuMa's Tier 1 result exactly: `gaps_closed: 2`, `new_complete: True`, `closes_primary: True` — a single food closed both gaps, so no Tier 3 two-food cascade (Part 3.D) was needed here.
+
+**"Total digestible complete protein" — a food page shows an approximation, not the exact pooled figure.** A single food's own page has no ingredient-by-ingredient breakdown to work from — unlike a meal or recipe, it is just one food plus a hypothetical complement — so NuMa falls back to a simpler scale-based estimate rather than the exact per-ingredient pooling used in Steps 1–7 above. The formula:
+
+    new_adj_min = (lowest raw score in the combined pool, from the table above) × quinoa's own digestibility
+                = 1.17647 × 0.85 = 1.00000
+    old_adj_min = quinoa's own adjusted leucine score (its worst AA before adding anything)
+                = 0.82657
+    scale       = min(1.0, new_adj_min ÷ old_adj_min)
+                = min(1.0, 1.00000 ÷ 0.82657) = min(1.0, 1.2098) = 1.0   (capped)
+    Total digestible complete protein
+                = (base protein + protein added) × scale
+                = (4.40 g + 11.787 g) × 1.0 = 16.187 g  →  displayed as **16.2 g**
+
+The scale factor is capped at 1.0 because a food can never be "more than 100% complete" for DCP purposes — once the combination's weakest amino acid clears the reference, NuMa credits the *entire* combined raw protein pool as digestible and complete. This is a looser approximation than the exact pooled calculation in Steps 1–7 (which applies each food's own digestibility to each amino acid individually, then takes the true minimum ratio) — `numa_app/services/complements.py` documents this trade-off explicitly, noting it can differ from the exact figure by 15–20 g on a real meal. It is used here only because a plain food page has nothing more granular to pool from; meal, recipe, and daily-summary contexts (which do have a real ingredient list) use the exact method instead.
+
+**Reproduce this in NuMa:** open a food page for quinoa, cooked ([FDC](#gloss-fdc) 168917), and look at its [Protein Complement Suggestions](#comp) section. Black beans, cooked should appear in the "General" tier at 133 g, showing "Leucine: 0.83→1.00" and "Valine: 0.89→1.03" under Effect, "Adds: 8.8 g digestible protein (from 11.8 g raw)", and "Total digestible complete protein: 16.2 g" — matching every figure derived above.
+
+---
+
+
+## Notes
 
 [^1]: Lippman, D., Stump, M., Veazey, E., Guimarães, S. T., Rosenfeld, R., Kelly, J. H., Ornish, D., & Katz, D. L. (2024). Foundations of Lifestyle Medicine and its Evolution. *Mayo Clinic Proceedings: Innovations, Quality & Outcomes, 8(1)*, 97–111. https://doi.org/10.1016/j.mayocpiqo.2023.11.004
 

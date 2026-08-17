@@ -4,6 +4,7 @@
 {% block title %}NutriMagnus — Compare Foods{% endblock %}
 
 {% block content %}
+<div class="no-print">
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
@@ -125,6 +126,7 @@
       <tr>
         <th class="muted" style="width:6rem">ID</th>
         <th>Food</th>
+        <th title="Amino acid data availability">AA</th>
         <th>Type</th>
         <th class="num-col">Amount (g)</th>
         <th></th>
@@ -135,6 +137,7 @@
       <tr>
         <td class="muted"><small>{{ e.fdc_id if e.fdc_id > 0 else 'OFF' }}</small></td>
         <td><a href="/food/{{ e.fdc_id }}">{{ e.name }}</a>{{ food_id_tag(e.fdc_id) }}</td>
+        <td class="{% if e.has_aa %}text-success{% else %}text-danger{% endif %}" title="{% if e.has_aa %}Amino acid data available{% else %}No amino acid data{% endif %}">{{ "✓" if e.has_aa else "✗" }}</td>
         <td class="muted">{{ e.data_type }}</td>
         <td class="num-col" style="width:9rem">
           <input type="number" name="amounts_{{ e.fdc_id }}"
@@ -162,16 +165,19 @@
   </div>
 </form>
 {% endif %}
+</div>
 
 {# ── Comparison table ── #}
 {% if compare_groups and entries|length >= 2 %}
 <hr id="comparison">
-<div class="d-flex align-items-center gap-3 mb-1">
+<div class="d-flex align-items-center gap-3 mb-1 no-print">
   <h4 class="mb-0">Nutrient comparison</h4>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="sortCompareColumns()">Sort columns by checked nutrients</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSortBadges()">Clear sort</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">Print comparison table</button>
+  <a href="/food/compare/export.csv?ids={{ ids_str }}&amounts={{ amounts_str }}" class="btn btn-sm btn-outline-secondary">Download CSV</a>
 </div>
-<p class="muted">Check nutrients in the order you want to sort by, then click Sort. Highest value per row is highlighted. Values scaled to the specified gram amount.</p>
+<p class="muted no-print">Check nutrients in the order you want to sort by, then click Sort. Highest value per row is highlighted. Values scaled to the specified gram amount.</p>
 
 <div class="table-responsive">
 <table class="table table-sm table-bordered compare-table" id="compare-table">
@@ -298,6 +304,7 @@
 
 {# ── Save this comparison ── #}
 {% if entries|length >= 2 %}
+<div class="no-print">
 <hr>
 <form method="post" action="/food/compare/save" class="d-flex align-items-center gap-2" style="max-width:36rem">
   <input type="hidden" name="ids" value="{{ ids_str }}">
@@ -307,6 +314,7 @@
          placeholder="Give it a name…" style="max-width:18rem">
   <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Save comparison</button>
 </form>
+</div>
 {% endif %}
 
 {% endblock %}

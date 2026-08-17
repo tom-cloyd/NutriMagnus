@@ -1,0 +1,80 @@
+{# Shared "Top Contributors" table for meal.html / recipe_detail.html — a
+   nutrient picker plus a ranked list of which items in this meal/recipe
+   contribute the most to the selected nutrient. Backed by
+   numa_app.services.top_contributors.rank_contributors(); the picker is a
+   GET form (same pattern as the Items "Sort by" control), so the result is
+   bookmarkable and needs no JS beyond the existing onchange-submit idiom. #}
+{% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False) %}
+<div class="d-flex flex-wrap align-items-center gap-3">
+  <h3 class="section-heading mb-0">Top Contributors {{ manual_link("top-contributors") }}</h3>
+  <form method="get" action="{{ form_action }}#sec-contributors" class="d-flex flex-wrap align-items-center gap-2">
+    {{ extra_hidden | safe }}
+    <label class="muted mb-0" for="rank_nutrient"><small>Rank by</small></label>
+    <select name="rank" id="rank_nutrient" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      {% for group_name, opts in contributor_options %}
+      <optgroup label="{{ group_name }}">
+        {% for key, label in opts %}
+        <option value="{{ key }}" {% if key == contributor_rank %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endfor %}
+    </select>
+    {% if top_n_options|length > 1 %}
+    <label class="muted mb-0" for="contrib_top_n"><small>Show</small></label>
+    <select name="top_n" id="contrib_top_n" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      {% for opt in top_n_options %}
+      <option value="{{ opt }}" {% if opt == top_n %}selected{% endif %}>{{ "All" if opt == "all" else opt }}</option>
+      {% endfor %}
+    </select>
+    <span class="muted"><small>of {{ contributor_count }}</small></span>
+    {% else %}
+    <span class="muted"><small>{{ contributor_count }} contributor{{ "s" if contributor_count != 1 else "" }}</small></span>
+    {% endif %}
+  </form>
+</div>
+{% if contributors %}
+<table class="nutrient-table mt-2">
+  <thead>
+    <tr>
+      <th>{% if always_food_level %}Food{% else %}Food / Recipe{% endif %}</th>
+      <th class="num-col">{% if is_dcp %}Digestible Complete Protein (standalone){% else %}Amount{% endif %}</th>
+      <th class="num-col">% of total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in contributors %}
+    <tr>
+      <td>
+        {% if c.recipe_id %}
+        <a href="/recipe/{{ c.recipe_id }}">{{ c.food_name }}</a>{{ food_id_tag(None, recipe_id=c.recipe_id) }}
+        {% elif c.fdc_id %}
+        <a href="/food/{{ c.fdc_id }}">{{ c.food_name }}</a>{{ food_id_tag(c.fdc_id) }}
+        {% else %}
+        {{ c.food_name }}
+        {% endif %}
+      </td>
+      <td class="num-col">{{ c.amount | round(1) }}&thinsp;{{ contributor_unit }}</td>
+      <td class="num-col">{{ c.pct }}%</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr class="fw-bold">
+      <td>Total, all contributors</td>
+      <td class="num-col">{{ contributor_total | round(1) }}&thinsp;{{ contributor_unit }}</td>
+      <td class="num-col">100%</td>
+    </tr>
+  </tfoot>
+</table>
+{% if always_food_level %}
+<p class="muted mt-1"><small>Any recipe used in this meal is broken down into its individual foods here — no row ever represents a whole recipe by name.</small></p>
+{% endif %}
+{% if is_dcp %}
+<p class="muted mt-1"><small>Ranked by each food's own <strong>digestible complete protein (DCP)</strong> — what that food alone would contribute after amino-acid digestibility and completeness, not raw protein grams. These are standalone, per-food figures: combining foods can raise a meal's <em>actual</em> DCP above what any of them score alone (that's the whole point of protein complementarity), so this table's total won't match the real meal DCP in <a href="#sec-protein-summary">Protein Summary</a> above.</small></p>
+{% endif %}
+{% else %}
+<p class="muted">No data available for this nutrient.</p>
+{% endif %}
+{% endmacro %}

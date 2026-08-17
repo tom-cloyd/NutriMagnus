@@ -113,33 +113,19 @@ def _normalize_unit_display(label: str) -> str:
     return result
 
 
-_HAS_WEIGHT_RE = re.compile(r'\b\d[\d.]*\s*(gr|g|oz|lbs?|kg)\b', re.IGNORECASE)
-
-
 def _ing_amount_display(unit_label: str | None, grams: float | None, food_name: str = "") -> str:
-    """Return a display string for an ingredient amount.
-
-    Normalizes the stored unit label, then appends the gram weight in
-    parentheses when the label is volume-only and grams are known. When
-    the label is weight-only instead, appends an approximate volume
-    measure in parentheses when a density estimate is available for
-    *food_name* (via volume_hint).
+    """Return a display string for an ingredient amount: exactly what was
+    typed (normalized), with no appended estimate. A density-based grams or
+    volume estimate looks like a fact but is a guess, and appending it made
+    the string this value is re-parsed from (on inline edit) fail unless the
+    user manually stripped it back out first.
     """
     label = _normalize_unit_display(unit_label or "")
-    if grams and grams > 0:
-        if not re.search(r'\d', label):
-            # Legacy rows can store a bare unit ("g", "cup") with no quantity
-            # baked into the label; fall back to the known gram weight so the
-            # displayed string always starts with a re-parseable number.
-            label = f"{grams:.4g} g"
-            hint = volume_hint(grams, food_name) if food_name else None
-            return f"{label} ({hint})" if hint else label
-        if not _HAS_WEIGHT_RE.search(label):
-            label = f"{label} ({grams:.4g} g)"
-        else:
-            hint = volume_hint(grams, food_name) if food_name else None
-            if hint:
-                label = f"{label} ({hint})"
+    if grams and grams > 0 and not re.search(r'\d', label):
+        # Legacy rows can store a bare unit ("g", "cup") with no quantity
+        # baked into the label; fall back to the known gram weight so the
+        # displayed string always starts with a re-parseable number.
+        return f"{grams:.4g} g"
     return label
 
 

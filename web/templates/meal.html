@@ -4,6 +4,7 @@
 {% import "_result_limit_input.html" as _rli %}
 {% import "_ul_column.html" as _ul %}
 {% import "_rda_definition_footer.html" as _rda_note %}
+{% import "_top_contributors.html" as _contrib %}
 {% block title %}NutriMagnus — {{ meal.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -23,6 +24,11 @@
   {% if items %}
   <li class="sb-item" data-target="sec-items">
     <a class="sb-toggle" href="#sec-items">Items</a>
+  </li>
+  {% endif %}
+  {% if contributor_options %}
+  <li class="sb-item" data-target="sec-contributors">
+    <a class="sb-toggle" href="#sec-contributors">Top Contributors</a>
   </li>
   {% endif %}
   {% if nutrient_sections %}
@@ -134,7 +140,7 @@
 
   <a href="/meal/{{ meal.id }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">Print / Save as PDF</a>
 
-  <details class="d-inline-block">
+  <details class="d-inline-block popup-edit">
     <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Rename / change date</summary>
     <div class="card card-body mt-1 p-2" style="min-width:22rem;position:absolute;z-index:10">
       <form method="post" action="/meal/{{ meal.id }}/rename">
@@ -408,7 +414,7 @@
           {% if item.notes %}<small class="muted">{{ item.notes }}</small>{% endif %}
         </td>
         <td>
-          <details>
+          <details class="popup-edit">
             <summary class="btn btn-outline-secondary btn-sm" style="list-style:none;cursor:pointer">Edit</summary>
             <div class="card card-body p-2 mt-1" style="min-width:20rem;position:absolute;z-index:10">
               <form method="post" action="/meal/{{ meal.id }}/update/{{ item.id }}" class="d-flex flex-column gap-2">
@@ -504,10 +510,20 @@
 </details>
 {% endif %}
 
+{# ── Top Contributors ─────────────────────────────────────────────────── #}
+{% if contributor_options %}
+<section id="sec-contributors" class="analysis-section">
+  {{ _contrib.render("/meal/" ~ meal.id, contributor_options, contributor_rank, contributors,
+                      contributor_total, contributor_count, contributor_unit,
+                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp,
+                      always_food_level=True) }}
+</section>
+{% endif %}
+
 {# ── Nutritional Analysis ─────────────────────────────────────────────── #}
 {% if nutrient_sections %}
 <section id="sec-nutrients" class="analysis-section">
-  <h3 class="section-heading">Nutritional Analysis for {{ meal.name }} {{ manual_link("nutrients") }}</h3>
+  <h3 class="section-heading">Nutritional Analysis for <em>{{ meal.name }}, {{ meal.meal_date }}</em> {{ manual_link("nutrients") }}</h3>
 
   {% if not has_profile %}
   <p class="rda-no-profile">

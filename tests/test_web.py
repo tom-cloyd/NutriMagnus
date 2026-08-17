@@ -449,6 +449,49 @@ def test_recipe_new_edit_and_add_ingredient(client: TestClient, cached_food, db_
     assert ingredients[0]["amount"] == 200.0
 
 
+def test_recipe_introduction_save_and_display(client: TestClient, db_conn) -> None:
+    resp = client.post("/recipe/new", data={"name": "Chili", "servings": 4}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+
+    resp = client.post(
+        f"/recipe/{recipe_id}/introduction",
+        data={"introduction": "A family recipe from grandma."},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["introduction"] == "A family recipe from grandma."
+
+    # Shows on the edit page, right after Ingredients.
+    edit_resp = client.get(f"/recipe/{recipe_id}/edit")
+    assert edit_resp.text.index("sec-ingredients") < edit_resp.text.index("sec-introduction")
+    assert "A family recipe from grandma." in edit_resp.text
+
+    # Shows on the detail page and the print page, right after the title.
+    detail_resp = client.get(f"/recipe/{recipe_id}")
+    assert "A family recipe from grandma." in detail_resp.text
+
+    print_resp = client.get(f"/recipe/{recipe_id}/print")
+    assert print_resp.text.index("Chili") < print_resp.text.index("A family recipe from grandma.")
+    assert "Introduction" in print_resp.text  # section checkbox label
+
+    # Unchecking "Introduction" in the print section picker hides it — it is
+    # not mandatory.
+    hidden_resp = client.get(f"/recipe/{recipe_id}/print", params={
+        "sections": ["ingredients"], "sections_submitted": "1",
+    })
+    assert "A family recipe from grandma." not in hidden_resp.text
+
+    # Saving other recipe metadata must not clobber the introduction.
+    client.post(
+        f"/recipe/{recipe_id}/edit",
+        data={"name": "Chili", "description": "Spicy", "servings": 6},
+        follow_redirects=False,
+    )
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["introduction"] == "A family recipe from grandma."
+
+
 def test_recipe_print_defaults_to_all_available_sections(client: TestClient, cached_food, db_conn) -> None:
     resp = client.post("/recipe/new", data={"name": "Chicken Bowl", "servings": 2}, follow_redirects=False)
     recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])

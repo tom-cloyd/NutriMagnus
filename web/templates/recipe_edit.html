@@ -149,6 +149,175 @@
   </form>
 </details>
 
+{# ── Add ingredient ───────────────────────────────────────────────────── #}
+<div class="mt-3">
+    <details id="add-ingredient-section" {% if show_add_section %}open{% endif %}>
+      <summary><strong>Add Ingredient</strong></summary>
+
+      <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search>
+        <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
+        <div class="input-group mb-1" style="max-width:28rem">
+          <input type="text" class="form-control" name="q" value="{{ q }}"
+                 placeholder="Search foods…" autofocus>
+          <button type="submit" class="btn btn-primary">Search</button>
+          <button type="button" class="btn btn-outline-secondary"
+                  onclick="this.form.querySelectorAll('input[name=source]').forEach(cb => cb.checked = true); this.form.submit();"
+                  title="Check every source filter and re-run the search">Reset all sources to ON</button>
+        </div>
+        <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
+        <div class="mb-2">{{ _rli.input(limit) }}</div>
+        {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
+      </form>
+
+      {% if search_results %}
+      {# A checkbox's own <tr> sits inside the results table below, which also
+         contains each row's independent "Add to recipe" <form> — HTML forms
+         can't nest, so this form wraps only the button/panel, and each
+         checkbox references it by id via the form="" attribute instead. #}
+      <form method="post" action="/recipe/{{ recipe.id }}/confirm-aa" id="confirm-aa-form">
+        <input type="hidden" name="q" value="{{ q }}">
+        {% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
+        <input type="hidden" name="limit" value="{{ limit }}">
+        <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
+          <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
+            Fetch full details for selected
+          </button>
+          <small class="muted">Confirms whether a <span class="text-warning">~✓</span> food really has amino acid data — search results don't carry nutrient data, only the food's name and type, so this is a guess until fetched.</small>
+        </div>
+      </form>
+      <div style="overflow-x:auto">
+      <table class="nutrient-table add-food-table add-food-table-wide">
+        <colgroup>
+          <col style="width:1.936rem">
+          <col style="width:19.8rem">
+          <col style="width:3.5rem">
+          <col style="width:2.5rem">
+          <col style="width:5rem">
+          <!-- span="2" applies its width to EACH spanned column, not
+               divided — 14rem here means 28rem total for the Amount→Add
+               cell (colspan=2), not 56rem. Getting this wrong once already
+               made the Amount column silently eat ~74% of the table. -->
+          <col span="2" style="width:14rem">
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="confirm-col" style="width:2rem">
+              <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
+                     aria-label="Select all unconfirmed">
+            </th>
+            <th>Food</th>
+            <th class="col-id">ID#</th>
+            <th title="Amino acid data">AA</th>
+            <th class="col-source">Source</th>
+            <th class="col-amount" colspan="2">Amount &rarr; Add</th>
+          </tr>
+        </thead>
+        <tbody id="add-ingredient-tbody">
+          {% for food in search_results %}
+          <tr>
+            <td class="confirm-col">
+              {% if food.aa == "~✓" %}
+              <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
+                     form="confirm-aa-form" aria-label="Select {{ food.name }} to fetch full details">
+              {% endif %}
+            </td>
+            <td>
+              {% if food._type == "recipe" %}<a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
+              {% else %}<a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>{% endif %}
+              {% if food.data_type or food.brand %}
+              <br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
+              {% endif %}
+            </td>
+            <td class="col-id muted"><small>{% if food._type == "recipe" %}{{ food.recipe_id }}{% elif food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% endif %}</small></td>
+            <td>
+              {% if food._type == "recipe" %}<span class="muted">—</span>
+              {% elif food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+              {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
+              {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+            {% if food._type == "recipe" %}
+            <td class="col-amount" colspan="2">
+              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add-recipe" class="add-food-form">
+                <input type="hidden" name="ref_recipe_id" value="{{ food.recipe_id }}">
+                <input type="hidden" name="recipe_name" value="{{ food.name }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                <div class="input-group" style="max-width:20rem">
+                  <input type="number" class="form-control" name="servings" value="1"
+                         min="0.01" max="999" step="0.01" aria-label="Servings" required>
+                  <span class="input-group-text">serving{% if food.servings != 1 %}s{% endif %}
+                    <small class="muted ms-1">({{ food.servings | round(2) }} total)</small>
+                  </span>
+                  <button type="submit" class="btn btn-primary">Add to recipe</button>
+                </div>
+              </form>
+            </td>
+            {% else %}
+            <td class="col-amount" colspan="2">
+              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add" class="add-food-form">
+                <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+                <input type="hidden" name="food_name" value="{{ food.name }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                {% if food.portions %}
+                <div class="mb-1"><small class="muted">
+                  Portions:
+                  {% for p in food.portions %}
+                  <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+                  {% endfor %}
+                </small></div>
+                {% endif %}
+                <div class="input-group" style="width:100%">
+                  <input type="text" class="form-control" name="portion_str"
+                         placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1, 6 p1"
+                         aria-label="Amount" required>
+                  <button type="submit" class="btn btn-primary">Add to recipe</button>
+                </div>
+                <div style="font-size:0.8rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <script>
+      (function () {
+        var tbody = document.getElementById('add-ingredient-tbody');
+        var confirmForm = document.getElementById('confirm-aa-form');
+        var confirmPanel = document.getElementById('confirm-aa-panel');
+        var submitBtn = confirmForm.querySelector('[data-confirm-aa-submit]');
+        var selectAll = tbody.closest('table').querySelector('[data-confirm-aa-select-all]');
+
+        function refreshConfirmUI() {
+          var boxes = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'));
+          confirmPanel.style.display = boxes.length ? '' : 'none';
+          if (submitBtn) submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
+          // No row has its own checkbox to pair with the header "select all"
+          // checkbox — left visible, it reads as a stray, misplaced first-row
+          // checkbox sitting on the column-header line instead. Hide it.
+          if (selectAll) selectAll.closest('th').style.visibility = boxes.length ? '' : 'hidden';
+        }
+        tbody.addEventListener('change', function (e) {
+          if (e.target.matches('[data-confirm-aa-checkbox]')) refreshConfirmUI();
+        });
+        if (selectAll) {
+          selectAll.addEventListener('change', function () {
+            Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'))
+              .forEach(function (b) { b.checked = selectAll.checked; });
+            refreshConfirmUI();
+          });
+        }
+        refreshConfirmUI();
+      })();
+      </script>
+      {% elif q %}
+      <p>No results for <strong>{{ q }}</strong>.</p>
+      {% endif %}
+    </details>
+</div>
+
 {# ── Ingredients ──────────────────────────────────────────────────────── #}
 {% if error %}
 <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -207,7 +376,7 @@
 
         {# Edit inline #}
         <td>
-          <details>
+          <details class="popup-edit">
             <summary class="btn btn-outline-secondary btn-sm" style="list-style:none;cursor:pointer">Edit</summary>
             <div class="card card-body p-2 mt-1" style="min-width:22rem;position:absolute;right:0;z-index:10">
               <form method="post" action="/recipe/{{ recipe.id }}/ingredient/{{ ing.id }}/edit"
@@ -256,170 +425,51 @@
   {% endif %}
 </details>
 
-{# ── Add ingredient ───────────────────────────────────────────────────── #}
-<div class="mt-3">
-    <details id="add-ingredient-section" {% if show_add_section %}open{% endif %}>
-      <summary><strong>Add Ingredient</strong></summary>
-
-      <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search>
-        <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-        <div class="input-group mb-1" style="max-width:28rem">
-          <input type="text" class="form-control" name="q" value="{{ q }}"
-                 placeholder="Search foods…" autofocus>
-          <button type="submit" class="btn btn-primary">Search</button>
-          <button type="button" class="btn btn-outline-secondary"
-                  onclick="this.form.querySelectorAll('input[name=source]').forEach(cb => cb.checked = true); this.form.submit();"
-                  title="Check every source filter and re-run the search">Reset all sources to ON</button>
-        </div>
-        <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
-        <div class="mb-2">{{ _rli.input(limit) }}</div>
-        {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
-      </form>
-
-      {% if search_results %}
-      {# A checkbox's own <tr> sits inside the results table below, which also
-         contains each row's independent "Add to recipe" <form> — HTML forms
-         can't nest, so this form wraps only the button/panel, and each
-         checkbox references it by id via the form="" attribute instead. #}
-      <form method="post" action="/recipe/{{ recipe.id }}/confirm-aa" id="confirm-aa-form">
-        <input type="hidden" name="q" value="{{ q }}">
-        {% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
-        <input type="hidden" name="limit" value="{{ limit }}">
-        <div class="d-flex align-items-center gap-2 mb-2" id="confirm-aa-panel" style="display:none">
-          <button type="submit" class="btn btn-sm btn-outline-secondary" disabled data-confirm-aa-submit>
-            Fetch full details for selected
-          </button>
-          <small class="muted">Confirms whether a <span class="text-warning">~✓</span> food really has amino acid data — search results don't carry nutrient data, only the food's name and type, so this is a guess until fetched.</small>
-        </div>
-      </form>
-      <table class="nutrient-table add-food-table">
-        <thead>
-          <tr>
-            <th class="confirm-col" style="width:2rem">
-              <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
-                     aria-label="Select all unconfirmed">
-            </th>
-            <th>Food</th>
-            <th class="col-id">ID#</th>
-            <th title="Amino acid data">AA</th>
-            <th class="col-source">Source</th>
-            <th colspan="2">Amount &rarr; Add</th>
-          </tr>
-        </thead>
-        <tbody id="add-ingredient-tbody">
-          {% for food in search_results %}
-          <tr>
-            <td class="confirm-col">
-              {% if food.aa == "~✓" %}
-              <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
-                     form="confirm-aa-form" aria-label="Select {{ food.name }} to fetch full details">
-              {% endif %}
-            </td>
-            <td>
-              {% if food._type == "recipe" %}<a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
-              {% else %}<a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>{% endif %}
-              {% if food.data_type or food.brand %}
-              <br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
-              {% endif %}
-            </td>
-            <td class="col-id muted"><small>{% if food._type == "recipe" %}{{ food.recipe_id }}{% elif food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% endif %}</small></td>
-            <td>
-              {% if food._type == "recipe" %}<span class="muted">—</span>
-              {% elif food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
-              {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
-              {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
-              {% else %}<span class="muted">—</span>{% endif %}
-            </td>
-            <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
-            {% if food._type == "recipe" %}
-            <td colspan="2">
-              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add-recipe" class="add-food-form">
-                <input type="hidden" name="ref_recipe_id" value="{{ food.recipe_id }}">
-                <input type="hidden" name="recipe_name" value="{{ food.name }}">
-                <input type="hidden" name="q" value="{{ q }}">
-                <div class="input-group" style="max-width:20rem">
-                  <input type="number" class="form-control" name="servings" value="1"
-                         min="0.01" max="999" step="0.01" aria-label="Servings" required>
-                  <span class="input-group-text">serving{% if food.servings != 1 %}s{% endif %}
-                    <small class="muted ms-1">({{ food.servings | round(2) }} total)</small>
-                  </span>
-                  <button type="submit" class="btn btn-primary">Add to recipe</button>
-                </div>
-              </form>
-            </td>
-            {% else %}
-            <td colspan="2">
-              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add" class="add-food-form">
-                <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
-                <input type="hidden" name="food_name" value="{{ food.name }}">
-                <input type="hidden" name="q" value="{{ q }}">
-                {% if food.portions %}
-                <div class="mb-1"><small class="muted">
-                  Portions:
-                  {% for p in food.portions %}
-                  <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
-                  {% endfor %}
-                </small></div>
-                {% endif %}
-                <div class="input-group" style="max-width:28rem">
-                  <input type="text" class="form-control" name="portion_str"
-                         placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1, 6 p1"
-                         aria-label="Amount" required>
-                  <button type="submit" class="btn btn-primary">Add to recipe</button>
-                </div>
-                <div style="font-size:0.8rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
-              </form>
-            </td>
-            {% endif %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      <script>
-      (function () {
-        var tbody = document.getElementById('add-ingredient-tbody');
-        var confirmForm = document.getElementById('confirm-aa-form');
-        var confirmPanel = document.getElementById('confirm-aa-panel');
-        var submitBtn = confirmForm.querySelector('[data-confirm-aa-submit]');
-        var selectAll = tbody.closest('table').querySelector('[data-confirm-aa-select-all]');
-
-        function refreshConfirmUI() {
-          var boxes = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'));
-          confirmPanel.style.display = boxes.length ? '' : 'none';
-          if (submitBtn) submitBtn.disabled = !boxes.some(function (b) { return b.checked; });
-          // No row has its own checkbox to pair with the header "select all"
-          // checkbox — left visible, it reads as a stray, misplaced first-row
-          // checkbox sitting on the column-header line instead. Hide it.
-          if (selectAll) selectAll.closest('th').style.visibility = boxes.length ? '' : 'hidden';
-        }
-        tbody.addEventListener('change', function (e) {
-          if (e.target.matches('[data-confirm-aa-checkbox]')) refreshConfirmUI();
-        });
-        if (selectAll) {
-          selectAll.addEventListener('change', function () {
-            Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'))
-              .forEach(function (b) { b.checked = selectAll.checked; });
-            refreshConfirmUI();
-          });
-        }
-        refreshConfirmUI();
-      })();
-      </script>
-      {% elif q %}
-      <p>No results for <strong>{{ q }}</strong>.</p>
-      {% endif %}
-    </details>
-</div>
+{# ── Introduction ─────────────────────────────────────────────────────── #}
+<section class="mt-3" id="sec-introduction">
+  <h3 class="section-heading">Introduction</h3>
+  <p class="muted mb-1" style="max-width:44rem">Background or general information about this recipe — not the step-by-step procedure.</p>
+  <form method="post" action="/recipe/{{ recipe.id }}/introduction" style="max-width:44rem">
+    <textarea class="form-control" name="introduction" rows="5"
+              placeholder="Origin, background, tips, serving suggestions…">{{ recipe.introduction or '' }}</textarea>
+    <div class="d-flex gap-2 mt-2">
+      <button type="submit" class="btn btn-primary btn-sm">Save introduction</button>
+    </div>
+  </form>
+</section>
 
 {% endblock %}
 
-{% if search_results %}
 {% block scripts %}
+{% if search_results %}
 <script>
 (function () {
   var inp = document.querySelector('.add-food-form input[name="portion_str"]');
   if (inp) inp.focus();
 })();
 </script>
-{% endblock %}
 {% endif %}
+<script>
+// Adding/editing/moving/removing an ingredient posts a form and the server
+// redirects back to this same page — a fresh navigation, which browsers
+// scroll to the top of by default, throwing you back up from wherever in
+// the ingredient list you were working. Save the scroll offset right
+// before those specific submits and restore it once after the reload.
+// Placed after the portion_str autofocus script above so it runs second
+// and wins: focusing that input triggers its own scroll-into-view, which
+// this then overrides.
+(function () {
+  var key = 'numa-recipe-edit-scroll-{{ recipe.id }}';
+  document.addEventListener('submit', function (e) {
+    var action = e.target.getAttribute('action') || '';
+    if (!/\/ingredient\/|\/confirm-aa\b/.test(action)) return;
+    sessionStorage.setItem(key, String(window.scrollY));
+  });
+  var saved = sessionStorage.getItem(key);
+  if (saved !== null) {
+    sessionStorage.removeItem(key);
+    window.scrollTo(0, parseInt(saved, 10) || 0);
+  }
+})();
+</script>
+{% endblock %}

@@ -13,6 +13,7 @@ Docs: README-numa-documentation.md, Print / export
 PRINT_SECTION_LABELS: dict[str, str] = {
     "items":           "Foods & recipes in this meal",
     "meals_list":      "Meals breakdown",
+    "introduction":     "Introduction",
     "ingredients":      "Ingredients",
     "procedure":        "Procedure",
     "nutrient_table":   "Nutrient table",

@@ -67,6 +67,7 @@ def init_db() -> None:
                 serving_size    TEXT,
                 complete        INTEGER NOT NULL DEFAULT 0,
                 instructions    TEXT,
+                introduction    TEXT,
                 dcp_g           REAL,
                 dcp_computed_at TEXT,
                 created_at      TEXT    DEFAULT (date('now'))
@@ -153,6 +154,7 @@ def init_db() -> None:
             "total_volume_unit TEXT",
             "total_weight      REAL",
             "total_weight_unit TEXT",
+            "introduction      TEXT",
         ):
             try:
                 conn.execute(f"ALTER TABLE recipes ADD COLUMN {_col}")
@@ -549,17 +551,18 @@ def recipe_create(conn: sqlite3.Connection, name: str, description: str,
                   total_weight: float | None = None,
                   total_weight_unit: str | None = None,
                   serving_size: str | None = None,
-                  complete: bool = False) -> int:
+                  complete: bool = False,
+                  introduction: str | None = None) -> int:
     cur = conn.execute("""
         INSERT INTO recipes (name, description, servings, instructions,
                              total_volume, total_volume_unit,
                              total_weight, total_weight_unit,
-                             serving_size, complete)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             serving_size, complete, introduction)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (name, description or None, servings, instructions or None,
           total_volume, total_volume_unit or None,
           total_weight, total_weight_unit or None,
-          serving_size or None, 1 if complete else 0))
+          serving_size or None, 1 if complete else 0, introduction or None))
     assert cur.lastrowid is not None
     return cur.lastrowid
 
@@ -767,15 +770,16 @@ def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
                   total_weight: float | None = None,
                   total_weight_unit: str | None = None,
                   serving_size: str | None = None,
-                  complete: bool = False) -> None:
+                  complete: bool = False,
+                  introduction: str | None = None) -> None:
     conn.execute(
         "UPDATE recipes SET name=?, description=?, servings=?, instructions=?, "
         "total_volume=?, total_volume_unit=?, total_weight=?, total_weight_unit=?, "
-        "serving_size=?, complete=? WHERE id=?",
+        "serving_size=?, complete=?, introduction=? WHERE id=?",
         (name, description or None, servings, instructions or None,
          total_volume, total_volume_unit or None,
          total_weight, total_weight_unit or None,
-         serving_size or None, 1 if complete else 0, recipe_id)
+         serving_size or None, 1 if complete else 0, introduction or None, recipe_id)
     )
     conn.execute(
         "UPDATE meal_items SET food_name=? WHERE item_type='recipe' AND recipe_id=?",

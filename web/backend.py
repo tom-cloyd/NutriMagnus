@@ -50,6 +50,7 @@ from numa_app.services.diet_aware import b12_deficiency_note, iron_zinc_bioavail
 from numa_app.services.recipe_nutrients import (
     atomic_recipe_ingredients, best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients,
 )
+from numa_app.services.top_contributors import rank_contributors, rank_contributors_by_dcp
 from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services import search_ranking as _search_ranking
 from numa_app.services import print_sections as _print_sections
@@ -194,8 +195,11 @@ def _parse_portion_str(
                 f"for this food. Enter weight in g or oz instead."
             )
         grams = round(number * ml_per * density, 2)
-        label = f"{number:g} {unit} (≈ {grams:.4g} g)"
-        return grams, label
+        # Store exactly what was typed, not "2 T (≈ 27.23 g)" — the estimated
+        # gram figure is a density guess, not a fact, and baking it into the
+        # stored label meant re-submitting an unedited amount (e.g. re-saving
+        # after just fixing a typo in the notes field) could fail to parse.
+        return grams, f"{number:g} {unit}"
 
     return None, f'Unit "{unit}" not recognised. Try: g, oz, lb, cup, T, tsp, ml, p1, 6 p1.'
 
@@ -806,6 +810,78 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
         if rows:
             sections.append({"name": group_name, "rows": rows})
     return sections
+
+
+def _contributor_rank_options(nutrients: dict) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Nutrient picker options for the Top Contributors table: grouped like
+    the main Nutritional Analysis table, filtered to nutrients with a
+    nonzero total (no point offering to rank by something that's all zero)."""
+    groups = []
+    for group_name, keys in _NUTRIENT_GROUPS:
+        opts = []
+        for key in keys:
+            if not nutrients.get(key):
+                continue
+            label, unit = _usda.nutrient_label(key)
+            if key == "protein_g":
+                label = "Protein — Digestible Complete"
+            opts.append((key, f"{label} ({unit})"))
+        if opts:
+            groups.append((group_name, opts))
+    return groups
+
+
+def _default_rank_key(options: list[tuple[str, list[tuple[str, str]]]]) -> str | None:
+    for _, opts in options:
+        for key, _label in opts:
+            if key == "protein_g":
+                return key
+    for _, opts in options:
+        if opts:
+            return opts[0][0]
+    return None
+
+
+_CONTRIBUTOR_TOP_N_OPTIONS = ["5", "10", "15", "20", "30", "all"]
+_DEFAULT_CONTRIBUTOR_TOP_N = "10"
+
+
+def _resolve_contributor_top_n(value: str | None) -> str:
+    return value if value in _CONTRIBUTOR_TOP_N_OPTIONS else _DEFAULT_CONTRIBUTOR_TOP_N
+
+
+def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, conn) -> dict:
+    """Rank + slice ingredients for the Top Contributors table.
+
+    Returns {"items", "total", "count", "top_n", "top_n_options", "is_dcp"} —
+    `items` is sliced to top_n, `count` is how many nonzero contributors
+    exist before slicing (for the "N of M shown" hint), `total` is the full
+    sum across all contributors regardless of how many are shown.
+    `top_n_options` is trimmed to values that would actually show fewer
+    items than "all" — no point offering "Show 30" when only 6 foods
+    contribute — and `top_n` is normalized to "all" if it wouldn't have
+    trimmed anything anyway.
+
+    Ranking by protein_g is special-cased to rank by each food's own
+    standalone digestible complete protein (DCP) instead of raw protein
+    grams — see rank_contributors_by_dcp() for why that's not the same as
+    each food's share of the meal's real (complementarity-boosted) DCP."""
+    if not rank:
+        return {"items": [], "total": 0.0, "count": 0, "top_n": "all",
+                "top_n_options": ["all"], "is_dcp": False}
+    is_dcp = rank == "protein_g"
+    result = rank_contributors_by_dcp(ingredients, conn) if is_dcp else rank_contributors(ingredients, rank)
+    items = result["items"]
+    count = len(items)
+    top_n_options = [o for o in _CONTRIBUTOR_TOP_N_OPTIONS if o == "all" or int(o) < count] or ["all"]
+    if top_n != "all" and int(top_n) >= count:
+        top_n = "all"
+    if top_n not in top_n_options:
+        top_n = "all"
+    if top_n != "all":
+        items = items[:int(top_n)]
+    return {"items": items, "total": result["total"], "count": count,
+            "top_n": top_n, "top_n_options": top_n_options, "is_dcp": is_dcp}
 
 
 def _load_rda(profile=None) -> dict | None:
@@ -1882,6 +1958,7 @@ def _load_compare_entries(ids: list[int], amounts: list[float]) -> list[dict]:
             "amount":    amount,
             "nutrients": nutrients,
             "cached":    cached is not None,
+            "has_aa":    _usda.has_amino_acid_data(nutrients_100g),
         })
     return entries
 
@@ -1970,6 +2047,20 @@ async def food_compare_get(
         "source_filters": _FOOD_COMPARE_SOURCE_FILTERS,
         "source_labels":  _SEARCH_SOURCE_LABELS,
     })
+
+
+@app.get("/food/compare/export.csv")
+async def food_compare_export_csv(ids: str = "", amounts: str = ""):
+    id_list, amount_list = _parse_ids_amounts(ids, amounts)
+    entries = _load_compare_entries(id_list, amount_list) if id_list else []
+    compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
+    csv_text = _csv_export.compare_to_csv(entries, compare_groups)
+    filename = f"numa_food_compare_{datetime.date.today().isoformat()}.csv"
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.post("/food/compare/add", response_class=RedirectResponse)
@@ -3265,6 +3356,27 @@ def _food_detail_context(
         else:
             amount = parsed_g if parsed_g > 0 else 100.0
             portion_label = parsed_label
+    elif amount != 100.0 and portions:
+        # A bare gram amount with no portion_str (e.g. a recipe/meal
+        # ingredient's "view this food" link, which only passes the raw
+        # gram total) can exactly match N of this food's defined portions.
+        # That matters most for "piece" foods (tablet, egg, slice, …) whose
+        # portion gram_weight is an internal scaling placeholder rather than
+        # a literal weight — e.g. a user-drafted supplement's "1 tablet"
+        # portion set to 100g purely so its per-100g-basis nutrients scale
+        # to "1 tablet" correctly. Showing the raw figure there ("200 g")
+        # reads as nonsense for something that's really "2 tablets". Recover
+        # a portion-based label whenever the match is exact enough to be
+        # intentional, not a coincidental round number.
+        for _p in portions:
+            _gw = _p.get("gram_weight") or 0
+            if _gw <= 0:
+                continue
+            _multiple = amount / _gw
+            if abs(_multiple - round(_multiple)) < 0.01:
+                _n = round(_multiple)
+                portion_label = _p["description"] if _n == 1 else f"{_n:g} × {_p['description']}"
+                break
 
     # Scale nutrient display values; protein analysis uses per-100g ratios so stays unscaled
     display_nutrients = _usda.scale_nutrients(nutrients, amount) if amount != 100.0 else nutrients
@@ -4125,13 +4237,15 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                      limit: int | None = None,
                      ignore_complements: list[str] = Query(default=[]),
                      unignore: list[str] = Query(default=[]),
-                     comp_sort: str | None = None, diaas_sort: str | None = None):
+                     comp_sort: str | None = None, diaas_sort: str | None = None,
+                     rank: str | None = None, top_n: str | None = None):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
     source = _resolve_source_filter(source, "sort_food_search_source")
     limit = _resolve_result_limit(limit)
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
+    top_n = _resolve_contributor_top_n(top_n)
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
         if not meal:
@@ -4145,6 +4259,12 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
 
     items, total_nutrients, diaas_result, meal_ingredients = _meal_totals(meal_id)
     items = _sort_meal_items_display(items, item_sort)
+
+    contributor_options = _contributor_rank_options(total_nutrients)
+    if not rank or rank not in {k for _, opts in contributor_options for k, _ in opts}:
+        rank = _default_rank_key(contributor_options)
+    with _db.get_db() as conn:
+        contributor_result = _build_contributors(meal_ingredients, rank, top_n, conn)
 
     # Search results for add-food panel
     search_results = []
@@ -4257,6 +4377,15 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "has_day_pct":         daily_nutrients is not None,
         "sibling_meals":       sibling_meals,
         "add_error":           add_error,
+        "contributor_options": contributor_options,
+        "contributor_rank":    rank,
+        "contributor_unit":    _usda.nutrient_label(rank)[1] if rank else "",
+        "contributors":        contributor_result["items"],
+        "contributor_total":   contributor_result["total"],
+        "contributor_count":   contributor_result["count"],
+        "contributor_top_n":         contributor_result["top_n"],
+        "contributor_top_n_options": contributor_result["top_n_options"],
+        "contributor_is_dcp":        contributor_result["is_dcp"],
     })
 
 
@@ -5538,7 +5667,9 @@ async def recipe_compare_remove(
 
 def _recipe_detail_context(recipe_id: int, servings: float | None,
                             ignore_complements: list[str], unignore: list[str],
-                            comp_sort: str | None = None, diaas_sort: str | None = None) -> dict | None:
+                            comp_sort: str | None = None, diaas_sort: str | None = None,
+                            rank: str | None = None, top_n: str | None = None) -> dict | None:
+    top_n = _resolve_contributor_top_n(top_n)
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -5593,10 +5724,25 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
     ]
     oxalate = _oxalate_for_items(ox_items)
 
+    contributor_options = _contributor_rank_options(scaled)
+    if not rank or rank not in {k for _, opts in contributor_options for k, _ in opts}:
+        rank = _default_rank_key(contributor_options)
+    with _db.get_db() as conn:
+        contributor_result = _build_contributors(diaas_ingredients, rank, top_n, conn)
+
     return {
         "recipe":                   dict(recipe),
         "ingredients":              ingredients,
         "servings":                 servings,
+        "contributor_options":      contributor_options,
+        "contributor_rank":         rank,
+        "contributor_unit":         _usda.nutrient_label(rank)[1] if rank else "",
+        "contributors":             contributor_result["items"],
+        "contributor_total":        contributor_result["total"],
+        "contributor_count":        contributor_result["count"],
+        "contributor_top_n":        contributor_result["top_n"],
+        "contributor_top_n_options": contributor_result["top_n_options"],
+        "contributor_is_dcp":       contributor_result["is_dcp"],
         "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits) if scaled else [],
         "diaas":                    diaas_display,
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
@@ -5616,11 +5762,12 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
 async def recipe_detail(request: Request, recipe_id: int, servings: float | None = None,
                          ignore_complements: list[str] = Query(default=[]),
                          unignore: list[str] = Query(default=[]),
-                         comp_sort: str | None = None, diaas_sort: str | None = None):
+                         comp_sort: str | None = None, diaas_sort: str | None = None,
+                         rank: str | None = None, top_n: str | None = None):
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
     ctx = _recipe_detail_context(recipe_id, servings, ignore_complements, unignore,
-                                  comp_sort=comp_sort, diaas_sort=diaas_sort)
+                                  comp_sort=comp_sort, diaas_sort=diaas_sort, rank=rank, top_n=top_n)
     if ctx is None:
         return RedirectResponse("/recipes", status_code=303)
     return templates.TemplateResponse(request, "recipe_detail.html", ctx)
@@ -5650,6 +5797,8 @@ async def recipe_export_csv(recipe_id: int):
 
 def _recipe_available_sections(ctx: dict) -> list[str]:
     available = []
+    if ctx.get("recipe", {}).get("introduction"):
+        available.append("introduction")
     if ctx.get("ingredients"):
         available.append("ingredients")
     if ctx.get("recipe", {}).get("instructions"):
@@ -5733,25 +5882,17 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
             if not _ing["ref_recipe_id"]:
                 _ing["amount_display"] = _ing_amount_display(_ing["unit"], _ing["amount"], _ing["food_name"])
 
-        # Running nutrition totals for edit-page live feedback
-        _ns_total: dict = {}
-        _ns_diaas_ings: list = []
-        for _ing in ingredients:
-            if _ing["ref_recipe_id"] or not _ing["fdc_id"]:
-                continue
-            _cached = _db.get_cached_food(conn, _ing["fdc_id"])
-            if not _cached or not _cached["nutrients_json"]:
-                continue
-            _nuts = json.loads(_cached["nutrients_json"])
-            _scaled = _usda.scale_nutrients(_nuts, float(_ing["amount"]))
-            for k, v in _scaled.items():
-                _ns_total[k] = _ns_total.get(k, 0.0) + v
-            _ns_diaas_ings.append({
-                "food_name":      _ing["food_name"],
-                "nutrients_100g": _nuts,
-                "grams":          float(_ing["amount"]),
-                "fdc_id":         _ing["fdc_id"],
-            })
+        # Running nutrition totals for edit-page live feedback — reuse the
+        # same shared recipe-nutrient helpers the recipe detail page uses
+        # (recipe_total_nutrients recurses into sub-recipe ingredients;
+        # atomic_recipe_ingredients + meal_level_diaas treats each sub-recipe
+        # as one already-computed food for DCP pooling), so a recipe that
+        # uses another recipe as an ingredient shows the same totals here as
+        # on its detail page — the previous hand-rolled loop here only
+        # walked direct food ingredients and silently dropped every
+        # sub-recipe ingredient's entire nutrient contribution.
+        _ns_total = recipe_total_nutrients(recipe_id, conn)
+        _ns_diaas_ings = atomic_recipe_ingredients(recipe_id, conn)
         _ns_dcp: float | None = None
         if _ns_diaas_ings:
             try:
@@ -5868,12 +6009,14 @@ async def recipe_edit_post(
 ):
     tw = float(total_weight) if total_weight.strip() else None
     with _db.get_db() as conn:
+        existing = _db.recipe_get(conn, recipe_id)
         _db.recipe_update(
             conn, recipe_id,
             name=name.strip(), description=description.strip(),
             servings=max(1.0, servings), instructions=instructions.strip(),
             total_weight=tw, total_weight_unit=total_weight_unit if tw else None,
             complete=bool(complete),
+            introduction=existing["introduction"] if existing else None,
         )
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return RedirectResponse(f"/recipe/{recipe_id}/edit?saved=1", status_code=303)
@@ -5919,6 +6062,7 @@ async def recipe_copy_post(recipe_id: int):
             instructions=src["instructions"] or "",
             total_weight=src["total_weight"],
             total_weight_unit=src["total_weight_unit"],
+            introduction=src["introduction"],
         )
         for ing in _db.recipe_get_ingredients(conn, recipe_id):
             _db.recipe_add_ingredient(
@@ -6150,21 +6294,27 @@ async def recipe_instructions_post(recipe_id: int, instructions: str = Form(""))
             total_weight=recipe["total_weight"],
             total_weight_unit=recipe["total_weight_unit"],
             complete=bool(recipe["complete"]),
+            introduction=recipe["introduction"],
         )
     return RedirectResponse(f"/recipe/{recipe_id}#sec-procedure", status_code=303)
 
 
-@app.get("/recipe/{recipe_id}/print", response_class=HTMLResponse)
-async def recipe_print(request: Request, recipe_id: int):
+@app.post("/recipe/{recipe_id}/introduction", response_class=RedirectResponse)
+async def recipe_introduction_post(recipe_id: int, introduction: str = Form("")):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
             return RedirectResponse("/recipes", status_code=303)
-        ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
-    return templates.TemplateResponse(request, "recipe_print.html", {
-        "recipe":      dict(recipe),
-        "ingredients": ingredients,
-    })
+        _db.recipe_update(
+            conn, recipe_id,
+            name=recipe["name"], description=recipe["description"] or "",
+            servings=recipe["servings"], instructions=recipe["instructions"] or "",
+            total_weight=recipe["total_weight"],
+            total_weight_unit=recipe["total_weight_unit"],
+            complete=bool(recipe["complete"]),
+            introduction=introduction.strip(),
+        )
+    return RedirectResponse(f"/recipe/{recipe_id}/edit#sec-introduction", status_code=303)
 
 
 @app.get("/summary/trend", response_class=HTMLResponse)

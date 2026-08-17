@@ -68,6 +68,9 @@
 
 <h1>{{ title }}</h1>
 {% if subtitle %}<p class="meta">{{ subtitle }}</p>{% endif %}
+{% if "introduction" in enabled and recipe and recipe.introduction %}
+<p style="white-space:pre-wrap;line-height:1.6">{{ recipe.introduction }}</p>
+{% endif %}
 
 {% if not enabled %}
 <p class="muted">Nothing selected — check a box above and click "Update selection" to include content.</p>

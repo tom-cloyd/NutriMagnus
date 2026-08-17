@@ -49,3 +49,16 @@ def foods_to_csv(rows: list) -> str:
                 record[key] = nutrients[key]
         writer.writerow(record)
     return buf.getvalue()
+
+
+def compare_to_csv(entries: list[dict], compare_groups: list[dict]) -> str:
+    """Render the food-compare nutrient table (nutrient rows x food columns) to CSV text."""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Nutrient", "Unit"] + [f'{e["name"]} ({e["amount"]}g)' for e in entries])
+    for group in compare_groups:
+        writer.writerow([group["name"]])
+        for row in group["rows"]:
+            values = [cell["value"] if cell["value"] is not None else "" for cell in row["cells"]]
+            writer.writerow([row["label"], row["unit"]] + values)
+    return buf.getvalue()

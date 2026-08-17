@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "_ul_column.html" as _ul %}
 {% import "_rda_definition_footer.html" as _rda_note %}
+{% import "_top_contributors.html" as _contrib %}
 {% block title %}NutriMagnus — {{ recipe.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -25,6 +26,11 @@
   <li class="sb-item" data-target="sec-procedure">
     <a class="sb-toggle" href="#sec-procedure">Procedure</a>
   </li>
+  {% if contributor_options %}
+  <li class="sb-item" data-target="sec-contributors">
+    <a class="sb-toggle" href="#sec-contributors">Top Contributors</a>
+  </li>
+  {% endif %}
   {% if nutrient_sections %}
   <li class="sb-item" data-target="sec-nutrients">
     <a class="sb-toggle" href="#sec-nutrients">Nutritional Analysis</a>
@@ -118,6 +124,10 @@
 
 {% if recipe.description %}
 <p class="muted mb-2">{{ recipe.description }}</p>
+{% endif %}
+
+{% if recipe.introduction %}
+<p class="mb-2" style="white-space:pre-wrap;line-height:1.6">{{ recipe.introduction }}</p>
 {% endif %}
 
 {# ── Actions ──────────────────────────────────────────────────────────── #}
@@ -318,6 +328,16 @@
   })();
   </script>
 </section>
+
+{# ── Top Contributors ─────────────────────────────────────────────────── #}
+{% if contributor_options %}
+<section id="sec-contributors" class="analysis-section">
+  {{ _contrib.render("/recipe/" ~ recipe.id, contributor_options, contributor_rank, contributors,
+                      contributor_total, contributor_count, contributor_unit,
+                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp,
+                      extra_hidden='<input type="hidden" name="servings" value="' ~ servings ~ '">') }}
+</section>
+{% endif %}
 
 {# ── Nutritional Analysis ─────────────────────────────────────────────── #}
 {% if nutrient_sections %}
