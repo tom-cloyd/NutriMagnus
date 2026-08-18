@@ -166,7 +166,7 @@
         </div>
         <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
         <div class="mb-2">{{ _rli.input(limit) }}</div>
-        {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
+        {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </form>
 
       {% if search_results %}

@@ -24,7 +24,7 @@
   <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
   <div class="mb-3">{{ _rli.input(limit) }}</div>
   <p class="muted mb-2"><small>Type a food name, an <a href="/manual#gloss-fdc-id" target="_blank" rel="noopener">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
-  {% if query %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
+  {% if query %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
 </form>
 
 {% if error %}

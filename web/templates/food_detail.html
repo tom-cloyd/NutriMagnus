@@ -85,6 +85,10 @@
   {% if protein and protein.dcp_g is not none and protein.protein_raw %}
   <p class="muted mb-1"><small>{% if portion_label %}{{ portion_label }}{% if " g" not in portion_label %} / {{ amount }}&thinsp;g{% endif %}{% else %}{{ amount }}&thinsp;g{% endif %} &rArr;
     {{ protein.dcp_g }}&thinsp;g digestible complete protein &mdash; {{ (100 * protein.dcp_g / protein.protein_raw) | round | int }}% of {{ protein.protein_raw }}&thinsp;g raw protein</small></p>
+  {% set unusable_g = (protein.protein_raw - protein.dcp_g) | round(1) %}
+  {% if unusable_g > 0 %}
+  <p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / protein.protein_raw) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
+  {% endif %}
   {% endif %}
   <p class="muted">
     {% if food.brand %}{{ food.brand }} &middot; {% endif %}
@@ -264,7 +268,7 @@
 
 {# ── Protein Quality ──────────────────────────────────────────────────── #}
 <section id="sec-protein-quality" class="analysis-section">
-  <h3 class="section-heading">Protein Quality {{ manual_link("protein-quality") }} {{ manual_link("fao", "About the FAO reference") }}</h3>
+  <h3 class="section-heading">Protein Quality <span class="manual-link-paren">({{ manual_link("protein-quality") }})</span> <span class="manual-link-paren">({{ manual_link("fao", "About the FAO reference") }})</span></h3>
 
   {% if protein %}
   <div class="protein-meta">

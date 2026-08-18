@@ -11,13 +11,13 @@ Requires: pip install markdown  (already in requirements.txt)
 
 Heading anchor convention
 -------------------------
-Headings that end with [anchor] in the source markdown (e.g. "### Title [foo]")
-are the same sections used by the in-program ?help system.  This script strips
-the bracketed tag from the visible heading text and sets the HTML id to that
-short tag, so internal links can use clean short fragments like #foo instead of
-the long auto-slugged form.
+Headings that end with {: #foo} in the source markdown (e.g. "### Title {: #foo}")
+get a short, stable HTML id via the attr_list extension's inline-attribute
+syntax, instead of the long auto-slugged form the toc extension would
+otherwise generate from the heading text. These are the same short IDs used
+by the in-program ?help system and by manual_link() in the web app.
 
-Headings without a bracketed tag get auto-slugged ids from the toc extension.
+Headings without a {: #foo} tag get auto-slugged ids from the toc extension.
 """
 from __future__ import annotations
 
@@ -38,13 +38,6 @@ OUTPUT = PROJECT_ROOT / "user-manual.html"
 PAGE_TITLE = "NutriMagnus User Manual"
 WORDS_PER_MINUTE = 225
 
-# Matches a markdown heading that ends with a [short-anchor] tag.
-# Groups: (hashes, title_text, anchor)
-_ANCHOR_RE = re.compile(
-    r'^(#{1,6})\s+(.+?)\s+\[([a-z][a-z0-9-]*)\]\s*$',
-    re.MULTILINE,
-)
-
 # The manual's second line: "*Updated YYYY-MM-DD:HHMM* / Reading time: ..."
 # The timestamp is bumped by hand per CLAUDE.md convention; only the reading
 # time portion is regenerated here.
@@ -52,14 +45,6 @@ _HEADER_LINE_RE = re.compile(
     r'^(\*Updated \d{4}-\d{2}-\d{2}:\d{4}\*) / Reading time: .+$',
     re.MULTILINE,
 )
-
-
-def preprocess(text: str) -> str:
-    """Strip [anchor] from heading display text; inject {#anchor} for attr_list."""
-    def _replace(m: re.Match) -> str:
-        hashes, title, anchor = m.group(1), m.group(2).strip(), m.group(3)
-        return f'{hashes} {title} {{#{anchor}}}'
-    return _ANCHOR_RE.sub(_replace, text)
 
 
 def count_words(markdown_text: str) -> int:
@@ -865,8 +850,6 @@ def main() -> None:
         SOURCE.write_text(updated_raw, encoding="utf-8")
         raw = updated_raw
 
-    processed = preprocess(raw)
-
     md = markdown.Markdown(
         extensions=[
             TocExtension(
@@ -881,7 +864,7 @@ def main() -> None:
         ],
     )
 
-    body = md.convert(processed)
+    body = md.convert(raw)
     toc_html = md.toc  # populated after convert(); sidebar version
 
     html = HTML_TEMPLATE.format(css=CSS, toc=toc_html, body=body, js=JS, title=PAGE_TITLE)

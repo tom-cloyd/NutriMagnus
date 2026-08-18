@@ -14,7 +14,7 @@
 </head>
 <body>
   {% set path = request.url.path %}
-  <nav class="navbar navbar-expand-md navbar-dark mb-3" style="background-color: #1a3a6b;">
+  <nav class="navbar navbar-expand-md navbar-dark mb-3 sticky-top" id="main-navbar" style="background-color: #1a3a6b;">
     <div class="container-fluid">
       <a class="navbar-brand site-title" href="/">NutriMagnus</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
@@ -192,6 +192,24 @@
   </footer>
 
   <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script>
+  // Keep --nav-height (used by style.css's scroll-padding-top) matched to
+  // the sticky navbar's actual height, so #anchor jumps land below it
+  // instead of underneath it. Height changes on window resize (mobile
+  // toggler wraps to two rows at some widths) and when the collapsed
+  // mobile menu opens/closes.
+  (function () {
+    var nav = document.getElementById('main-navbar');
+    if (!nav) return;
+    function syncNavHeight() {
+      document.documentElement.style.setProperty('--nav-height', nav.offsetHeight + 'px');
+    }
+    syncNavHeight();
+    window.addEventListener('resize', syncNavHeight);
+    nav.addEventListener('shown.bs.collapse', syncNavHeight);
+    nav.addEventListener('hidden.bs.collapse', syncNavHeight);
+  })();
+  </script>
   {% block scripts %}{% endblock %}
   <script>
   // Search boxes across the app (query/search/q inputs) carry the
@@ -266,11 +284,26 @@
   });
   </script>
   <script>
+  // "Select all sources" (data-select-all-sources, in the Source filter row)
+  // re-checks every source checkbox in that row without touching search text,
+  // sort, or result-limit settings — unlike "Clear search", which resets all
+  // of those. Delegated so it works on every page that includes the Source
+  // filter row, not just pages with a persisted search form.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-select-all-sources]');
+    if (!btn) return;
+    e.preventDefault();
+    var group = btn.closest('[role="group"]');
+    if (!group) return;
+    group.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = true; });
+  });
+  </script>
+  <script>
   // Remember the last search you ran on a "stateful" page (marked with
   // data-persist-search on its search <form>) so that leaving to look
   // something up elsewhere and coming straight back — with a plain link,
   // not the browser Back button — restores your results instead of making
-  // you re-type the search. A "Reset search" control (data-reset-search)
+  // you re-type the search. A "Clear search" control (data-reset-search)
   // forgets it and returns to the page's clean default state.
   (function () {
     var form = document.querySelector('form[data-persist-search]');
@@ -303,7 +336,7 @@
         e.preventDefault();
         sessionStorage.removeItem(KEY);
         // Breadcrumb links (e.g. "Meals") carry their own destination —
-        // follow it. The in-page "Reset search" button has href="#", so
+        // follow it. The in-page "Clear search" button has href="#", so
         // it just reloads this page with the search cleared.
         var href = el.getAttribute('href');
         window.location.href = (href && href !== '#') ? href : window.location.pathname;

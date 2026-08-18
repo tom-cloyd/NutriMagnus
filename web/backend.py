@@ -3575,6 +3575,12 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
             "src_tag":              src_tag,
             "dcp_g":                round(p * eff_score, 1) if has_aa else None,
         })
+    # Highest raw protein first. dcp_g is protein_g times one fixed meal-wide
+    # score for every AA-having row, so sorting by protein already reproduces
+    # DCP order there for free — and unlike dcp_g (None for no-AA-data foods),
+    # protein_g is never missing, so a food that's a big protein contributor
+    # but lacks AA data still surfaces near the top instead of at the bottom.
+    ing_rows.sort(key=lambda r: r["protein_g"], reverse=True)
     aa_p = diaas_result.get("aa_protein_g") or total_p
     raw_dcp = diaas_result.get("digestible_complete_protein_g") or 0
     dcp_g = round(raw_dcp, 1)

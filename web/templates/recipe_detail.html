@@ -120,6 +120,10 @@
 {% if diaas and diaas.dcp_g is not none and diaas.total_protein_g %}
 <p class="muted mb-1"><small>{{ servings }} serving{% if servings != 1 %}s{% endif %} analyzed &rArr;
   {{ diaas.dcp_g }}&thinsp;g digestible complete protein &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</small></p>
+{% set unusable_g = (diaas.total_protein_g - diaas.dcp_g) | round(1) %}
+{% if unusable_g > 0 %}
+<p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
+{% endif %}
 {% endif %}
 
 {% if recipe.description %}
@@ -131,7 +135,12 @@
 {% endif %}
 
 {# ── Actions ──────────────────────────────────────────────────────────── #}
-<div class="d-flex flex-wrap gap-2 mb-3">
+{# align-items-start: without it, a flex row's default stretch makes a bare
+   <a class="btn"> child fill the row's full height, while a <button> nested
+   inside a <form> child absorbs that same stretch invisibly on the form
+   instead — same button height, different rendered height depending on
+   markup shape. flex-start makes every child size to its own content. #}
+<div class="d-flex flex-wrap align-items-start gap-2 mb-3">
   <a href="/recipe/{{ recipe.id }}/edit" class="btn btn-sm btn-outline-primary">Edit recipe</a>
   <a href="/recipe/{{ recipe.id }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">Print / save recipe</a>
   <a href="/recipe/{{ recipe.id }}/export.csv" class="btn btn-sm btn-outline-secondary"
@@ -409,6 +418,7 @@
 
   {% if diaas.ing_rows %}
   <h5 class="mt-3" id="pq-digestibility">Ingredients: digestibility</h5>
+  <p class="muted mb-2"><small>How each ingredient's own protein fed into the pooled DIAAS/DCP totals above: its digestibility coefficient, how much survives digestion, and how much of it counts as complete protein once every ingredient in the recipe is pooled together. Sorted by raw protein, highest first.</small></p>
   <table class="nutrient-table">
     <thead>
       <tr>
@@ -450,6 +460,7 @@
   <p class="muted mt-1"><small>Foods without a meaningful amount of protein (&lt;0.1&thinsp;g) are omitted from this table.</small></p>
   {% endif %}
   <p class="muted mt-1"><small>DCP (digestible complete protein) requires both a digestible protein figure and AA data — foods without AA data show "—".</small></p>
+  <p class="muted mt-1"><small>This DCP is each ingredient's raw protein multiplied by the same single recipe-wide score — every ingredient with AA data gets the same multiplier, so this figure is not that ingredient's own standalone quality, and two ingredients can show the same DCP here simply because they contributed the same grams of protein, even with very different amino acid profiles. (It's also why this table is sorted by raw protein rather than by DCP — with one shared multiplier, the two orderings already agree.) For each ingredient's own quality on its own, see <a href="#sec-contributors">Top Contributors</a>.</small></p>
   {% endif %}
 
   {% if diaas.iaa_rows %}

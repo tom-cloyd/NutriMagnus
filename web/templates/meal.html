@@ -119,10 +119,19 @@
 {% if diaas and diaas.dcp_g is not none and diaas.total_protein_g %}
 <p class="muted mb-1"><small>{{ items|length }} item{% if items|length != 1 %}s{% endif %} &rArr;
   {{ diaas.dcp_g }}&thinsp;g digestible complete protein &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</small></p>
+{% set unusable_g = (diaas.total_protein_g - diaas.dcp_g) | round(1) %}
+{% if unusable_g > 0 %}
+<p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
+{% endif %}
 {% endif %}
 
 {# ── Management actions ───────────────────────────────────────────────── #}
-<div class="d-flex flex-wrap gap-2 mb-3">
+{# align-items-start: without it, a flex row's default stretch makes a bare
+   <a class="btn"> child fill the row's full height, while a <button> nested
+   inside a <form> child absorbs that same stretch invisibly on the form
+   instead — same button height, different rendered height depending on
+   markup shape. flex-start makes every child size to its own content. #}
+<div class="d-flex flex-wrap align-items-start gap-2 mb-3">
 
   <form method="post" action="/meal/{{ meal.id }}/complete" style="margin:0">
     {% if meal.complete %}
@@ -179,10 +188,14 @@
       <input type="text" class="form-control" name="q" value="{{ q }}"
              placeholder="Search foods or recipes…" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
-      {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear search and return to this page's default state">Reset search</a>{% endif %}
+      {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
     </div>
-    <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
-    <div class="mb-3">{{ _rli.input(limit) }}</div>
+    <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels, show_redo=False) }}</div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <button type="submit" class="btn btn-sm btn-outline-primary"
+              title="Re-run the search with the current source selection">Redo search</button>
+      {{ _rli.input(limit) }}
+    </div>
   </form>
 
   {% if q %}
@@ -614,6 +627,7 @@
 
   {% if diaas.ing_rows %}
   <h4 class="mt-3" id="pq-digestibility">Meal foods: Digestibility</h4>
+  <p class="muted mb-2"><small>How each food's own protein fed into the pooled DIAAS/DCP totals above: its digestibility coefficient, how much survives digestion, and how much of it counts as complete protein once every food in the meal is pooled together. Sorted by raw protein, highest first.</small></p>
   <table class="nutrient-table">
     <thead>
       <tr>
@@ -648,6 +662,7 @@
   <p class="muted mt-1"><small>Foods without a meaningful amount of protein (&lt;0.1&thinsp;g) are omitted from this table.</small></p>
   {% endif %}
   <p class="muted mt-1"><small>DCP (digestible complete protein) requires both a digestible protein figure and AA data — foods without AA data show "—".</small></p>
+  <p class="muted mt-1"><small>This DCP is each food's raw protein multiplied by the same single meal-wide score — every food with AA data gets the same multiplier, so this figure is not that food's own standalone quality, and two foods can show the same DCP here simply because they contributed the same grams of protein, even with very different amino acid profiles. (It's also why this table is sorted by raw protein rather than by DCP — with one shared multiplier, the two orderings already agree.) For each food's own quality on its own, see <a href="#sec-contributors">Top Contributors</a>.</small></p>
   {% endif %}
 
   {% if diaas.iaa_rows %}

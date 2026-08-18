@@ -12,9 +12,9 @@ the exact names below (nutrimagnus, nutrimagnus.png) must stay in sync with
 that script.
 
 Release notes are pulled from user-manual.md's Appendix A ("Recent program
-updates log") section matching today's date (#### Month Day), falling back
-to a generic message if that section doesn't exist yet (e.g. no manual
-changes were logged today).
+updates log") section matching today's date (#### Month Day program updates),
+falling back to a generic message if that section doesn't exist yet (e.g. no
+manual changes were logged today).
 
 Requires GITHUB_TOKEN in the environment (inside GitHub Actions this is the
 automatic per-run token, granted `contents: write` by the workflow; for
@@ -56,7 +56,7 @@ def _tag_for(version_str: str) -> str:
 
 
 def _release_notes_for_today() -> str:
-    today_heading = "#### " + datetime.date.today().strftime("%B %-d")
+    today_heading = "#### " + datetime.date.today().strftime("%B %-d") + " program updates"
     if not MANUAL_FILE.exists():
         return "Automated build from main."
     lines = MANUAL_FILE.read_text().splitlines()

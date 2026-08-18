@@ -1,6 +1,7 @@
-{% macro select(current, source_filters, source_labels, field_name="source") %}
+{% macro select(current, source_filters, source_labels, field_name="source", show_redo=True) %}
 <div class="d-flex flex-wrap align-items-center gap-2" role="group" aria-label="Source filter">
   <label class="muted me-1 mb-0"><small><strong>Source</strong></small></label>
+  <span class="me-1">{{ manual_link("food-data", "What are these sources?") }}</span>
   {% for key in source_filters %}
   <div class="form-check form-check-inline mb-0">
     <input type="checkbox" class="form-check-input" id="{{ field_name }}-{{ key }}"
@@ -11,7 +12,11 @@
     </label>
   </div>
   {% endfor %}
+  <button type="button" class="btn btn-sm btn-outline-secondary" data-select-all-sources
+          title="Check every source above, without changing your search text or other settings">Select all sources</button>
+  {% if show_redo %}
   <button type="submit" class="btn btn-sm btn-outline-primary"
           title="Re-run the search with the current source selection">Redo search</button>
+  {% endif %}
 </div>
 {% endmacro %}

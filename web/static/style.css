@@ -50,6 +50,21 @@ details[open] > summary::before {
   content: "▼ ";
 }
 
+/* ── Sticky navbar ───────────────────────────────────────────────────── */
+
+/* The navbar stays pinned to the top of the viewport (see #main-navbar's
+   sticky-top class in base.html). --nav-height is kept in sync with the
+   navbar's actual rendered height by JS (it changes when the mobile menu
+   collapses/expands), so that jumping to any #anchor link scrolls the
+   target clear of the pinned navbar instead of hiding it underneath. */
+:root {
+  --nav-height: 56px;
+}
+
+html {
+  scroll-padding-top: var(--nav-height);
+}
+
 /* ── Navbar links ────────────────────────────────────────────────────── */
 
 .navbar .nav-link,
@@ -687,8 +702,8 @@ td:first-child, th:first-child {
 
 .analysis-sidebar {
   position: sticky;
-  top: 1rem;
-  max-height: calc(100vh - 5rem);
+  top: calc(var(--nav-height) + 1rem);
+  max-height: calc(100vh - var(--nav-height) - 2rem);
   overflow-y: auto;
   background: #f8fafc;
   border: 1px solid #dee2e6;
@@ -806,6 +821,13 @@ h4 { font-size: 1.2rem; }
 }
 
 .manual-link:hover { color: #1a3a6b; text-decoration: underline; }
+
+/* A manual-link wrapped in literal parentheses (e.g. two links on one
+   heading: "Protein Quality (Learn more) (About the FAO reference)") — the
+   link's own margin-left above is meant to separate it from preceding
+   heading text, but reused as-is it pushes the link text away from its own
+   opening paren too. Tighten to a single space's worth inside parens. */
+.manual-link-paren .manual-link { margin-left: 0.2rem; }
 
 /* ── Protein summary card ────────────────────────────────────────────── */
 

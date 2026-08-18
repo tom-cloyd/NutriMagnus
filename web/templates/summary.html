@@ -191,7 +191,7 @@
 {# DIAAS #}
 {% if diaas %}
 <details id="sec-diaas" open>
-  <summary><strong>Protein Quality — Full Day (DIAAS)</strong> {{ manual_link("dcp") }} {{ manual_link("fao", "About the FAO reference") }}</summary>
+  <summary><strong>Protein Quality — Full Day (DIAAS)</strong> <span class="manual-link-paren">({{ manual_link("dcp") }})</span> <span class="manual-link-paren">({{ manual_link("fao", "About the FAO reference") }})</span></summary>
   <div class="protein-meta">
     <p><strong>Composite DIAAS:</strong>
       {% if diaas.score is not none %}{{ "%.3f"|format(diaas.score) }}{% else %}N/A{% endif %}
@@ -262,6 +262,7 @@
 
   {% if diaas.ing_rows %}
   <h4 class="mt-3">Per-ingredient breakdown</h4>
+  <p class="muted mb-2"><small>How each food's own protein fed into the pooled DIAAS/DCP totals above. Sorted by raw protein, highest first.</small></p>
   <table class="nutrient-table">
     <thead>
       <tr>
