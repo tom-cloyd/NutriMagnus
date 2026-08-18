@@ -47,8 +47,12 @@ numa_app/
   services/
     aa_estimate.py     — estimate a food's AA profile by scaling another food's
                          AA values to its own protein content: estimate_aa(), source_note()
+    claude_fetch.py     — prompt-building and response-parsing for the Claude AI
+                         amino-acid/nutrient fetch workflow behind Food Cache pages
     complements.py     — shared complement-suggestion math: aa_effects(),
                          two_step_combo(), build_complement_display()
+    csv_export.py       — Food Cache CSV export: foods_to_csv()
+    csv_import.py       — Food Cache CSV import: parse_foods_csv()
     day_profile.py     — per-day profile pinning: get_profile_for_date(),
                          ensure_day_profile(), backfill_missing_day_profiles(),
                          set_day_profile_override(), protein_target_for_date() —
@@ -60,17 +64,34 @@ numa_app/
                          seed_if_fresh_install() runs once on app startup for a
                          truly empty DB; load_demo_data()/clear_demo_data() back
                          the Settings toggle for anyone who cleared it
+    diet_aware.py       — diet-preference-aware analysis notes (iron/zinc RDA bump etc.)
+                         for the daily summary / RDA comparison views
     food_ids.py        — classify_food_id() — food/recipe ID → (id_str, source_label)
+    food_import.py      — shared nutrient-key validation and per-serving conversion
+                         for manually-compiled food imports; used by claude_fetch.py,
+                         import_foods.py, and import_json_folder.py
     static_source_lookup.py — StaticSource class: shared local-search/lookup
                          machinery for bundled static datasets (CoFID/AFCD/
                          CIQUAL); cofid_lookup.py etc. are thin wrappers around it
     glycemic_load.py    — shared GL aggregation: compute_glycemic_load()
     manual_build.py     — rebuild_manual_if_stale(), used by the /manual route
     meal_bcp.py         — shared meal-DCP fallback: recipe_dcp_fallback()
+    meal_list_columns.py — nutrient-column picker logic shared by Meals & Log,
+                         Recent Days / Daily Summary, and the Nutrient Plot picker
+    nutrient_trend.py   — multi-day nutrient averaging for the trend view
+    plotting.py          — line-plot rendering for the Daily Summary nutrient plot
     portions.py         — _parse_portion_input() — portion-string parsing
+    print_sections.py   — shared vocabulary/prefs resolution for printable
+                         nutritional-analysis "what to include" checkboxes
     rda_status.py       — shared RDA/limit percent-of-target classification: rda_status()
+    recipe_csv.py        — Recipe CSV export/import (recipes.csv + foods.csv pair,
+                         including sub-recipes and ingredient nutrient/portion data)
+    recipe_dcp.py         — auto-recompute of a recipe's per-serving DCP after edits
     recipe_nutrients.py — shared recursive recipe-ingredient expansion:
                          expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
+    search_ranking.py   — food-search relevance ranking: relevance_key()
+    top_contributors.py — rank a meal's/recipe's ingredients by contribution to
+                         one nutrient, for the "Top Contributors" analysis section
 
 web/
   backend.py           — the FastAPI app: all routes
@@ -170,7 +191,8 @@ Essential AAs: all `aa_` keys except `aa_cystine_g` and `aa_tyrosine_g`.
 
 Any turn that changes numa's user-facing behavior (new feature, bug fix, threshold change —
 not pure layout/wording tweaks, since the owner is currently numa's only user and already
-knows about those) ends with a new entry under today's `#### Month Day` heading in
+knows about those) ends with a new entry under today's `#### Month Day program updates`
+heading in
 **Appendix A, "Recent program updates log"** (near the top of Part 9 — moved here from
 Appendix K on 2026-08-05 since it's checked far more often than the other appendices),
 plus the `version.py`/manual timestamp bump above.

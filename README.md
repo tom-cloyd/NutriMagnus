@@ -31,6 +31,9 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Personalized nutrient targets** — set a custom "optimal" target above the standard RDA for any nutrient (e.g. higher Vitamin D for older adults), and custom max limits that warn you as you approach them
 - **Personal pantry** — keep a list of protein sources on hand; the complement advisor draws from it first
 - **Glycemic load tracking** — see the glycemic load of foods, recipes, and full meals
+- **Nutrient trends over time** — average your intake over 7, 14, or 30 days, or plot any nutrient across your logged days, to catch a chronic shortfall a single day's numbers would hide
+- **CSV export/import** — move foods and recipes between installs, or edit them in a spreadsheet
+- **Archive** — hide a food, pantry entry, or recipe you're not currently using without deleting it
 - **Printable reports** — generate a print/PDF-ready report for any food, meal, or full day, with a checkbox choice of which sections to include
 - **Extensive built-in help** — "Learn more" links throughout the app jump straight to the relevant section of the full User Manual, built in and readable without leaving the app
 

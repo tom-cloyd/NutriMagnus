@@ -12,6 +12,7 @@ import datetime
 import io
 import json
 import pathlib
+import re
 import zipfile
 
 import pytest
@@ -281,6 +282,25 @@ def test_recipe_export_csv_then_import_round_trip(client: TestClient) -> None:
         assert sub_ings[0]["food_name"] == "Round Trip Quinoa"
         foods = [f["name"] for f in _db.list_cached_foods(conn)]
         assert "Round Trip Quinoa" in foods
+
+
+def test_recipe_edit_running_totals_include_subrecipe_ingredient(client: TestClient) -> None:
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 222223, "Running Totals Quinoa", "Foundation", None, None, None,
+                        {"calories": 100.0, "protein_g": 5.0}, [])
+        sub_id = _db.recipe_create(conn, "Running Totals Cooked Quinoa", "", 2, "Boil it.")
+        _db.recipe_add_ingredient(conn, sub_id, 222223, "Running Totals Quinoa", 100.0, "100 g")
+        main_id = _db.recipe_create(conn, "Running Totals Quinoa Bowl", "", 1, "Combine.")
+        _db.recipe_add_ingredient(conn, main_id, 0, "Running Totals Cooked Quinoa", 1.0,
+                                   "1 serving", ref_recipe_id=sub_id)
+
+    resp = client.get(f"/recipe/{main_id}/edit")
+    assert resp.status_code == 200
+    # Sub-recipe is 2 servings of 100 g quinoa (5 g protein/100 g) = 5 g protein
+    # for the whole batch; the main recipe uses 1 of those 2 servings, so its
+    # running total must include 2.5 g of protein from the sub-recipe alone —
+    # a hand-rolled direct-ingredients-only loop would show 0 g here.
+    assert "2.5&thinsp;g" in resp.text
 
 
 def test_food_search_by_barcode_prefers_cache_over_off(
@@ -613,6 +633,77 @@ def test_custom_profile_create(client: TestClient, db_conn) -> None:
         "SELECT * FROM foods WHERE name = 'My Homemade Granola' AND user_drafted = 1"
     ).fetchone()
     assert row is not None
+
+
+def test_food_detail_bare_gram_amount_recovers_piece_portion_label(client: TestClient, db_conn) -> None:
+    import json as _json
+    # A "piece" food whose portion gram_weight is a scaling placeholder, not
+    # a literal weight — e.g. a supplement where "1 tablet" == 100 g so its
+    # per-100g nutrients scale to "1 tablet" correctly.
+    fdc_id = 999004
+    portions = [{"description": "1 tablet", "gram_weight": 100.0}]
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (fdc_id, "Vitamin D Tablets", "User Drafted", None, None, None,
+         _json.dumps({"vitamin_d_mcg": 25.0}), _json.dumps(portions)),
+    )
+    db_conn.commit()
+
+    # A recipe/meal ingredient link passes only a bare gram total (no
+    # portion_str) — here, 2 tablets' worth.
+    resp = client.get(f"/food/{fdc_id}", params={"amount": "200"})
+    assert resp.status_code == 200
+    assert "2 × 1 tablet" in resp.text
+    assert "200 g" not in resp.text
+
+
+def test_nutrient_sections_ul_css_reflects_near_and_over_limit() -> None:
+    max_limits = {"sodium_mg": 2300.0}
+    # Under 90% of the limit: no warning at all.
+    rows = backend._nutrient_sections(
+        {"sodium_mg": 500.0}, daily_nutrients={"sodium_mg": 1000.0}, max_limits=max_limits,
+    )
+    row = next(r for s in rows for r in s["rows"] if r["label"].lower().startswith("sodium"))
+    assert row["ul_css"] is None
+
+    # 95% of the limit: "near" warning.
+    rows = backend._nutrient_sections(
+        {"sodium_mg": 500.0}, daily_nutrients={"sodium_mg": 2185.0}, max_limits=max_limits,
+    )
+    row = next(r for s in rows for r in s["rows"] if r["label"].lower().startswith("sodium"))
+    assert row["ul_css"] == "limit-near"
+
+    # At/over the limit: "over" warning.
+    rows = backend._nutrient_sections(
+        {"sodium_mg": 500.0}, daily_nutrients={"sodium_mg": 2400.0}, max_limits=max_limits,
+    )
+    row = next(r for s in rows for r in s["rows"] if r["label"].lower().startswith("sodium"))
+    assert row["ul_css"] == "limit-over"
+
+
+def test_custom_profile_copy_nutrients_overwrites_with_source_values(
+    client: TestClient, db_conn, cached_food: dict
+) -> None:
+    resp = client.post(
+        "/food/custom-profiles/create", data={"name": "Blank Draft"}, follow_redirects=False,
+    )
+    draft_id = int(resp.headers["location"].rsplit("/", 1)[-1].split("?")[0])
+
+    resp = client.post(
+        f"/food/custom-profiles/{draft_id}/copy-nutrients",
+        data={"source_fdc_id": cached_food["fdcId"]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "nutrients_applied=ok" in resp.headers["location"]
+
+    row = db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (draft_id,)).fetchone()
+    copied = json.loads(row["nutrients_json"])
+    # A raw, unscaled copy of the source's per-100g values — not scaled to
+    # the draft's own (nonexistent) protein content.
+    assert copied["protein_g"] == cached_food["nutrients"]["protein_g"]
+    assert copied["aa_lysine_g"] == cached_food["nutrients"]["aa_lysine_g"]
 
 
 def test_settings_profile_update(client: TestClient) -> None:
@@ -1760,3 +1851,68 @@ def test_food_compare_save_load_rename_delete(client: TestClient, cached_food, s
     assert resp.status_code == 303
     assert db_conn.execute("SELECT * FROM saved_comparisons WHERE id = ?", (cmp_id,)).fetchone() is None
 
+
+def test_unusable_protein_line_renders_for_incomplete_food(client: TestClient, db_conn):
+    import json as _json
+    nutrients = dict(SAMPLE_NUTRIENTS)
+    nutrients["aa_lysine_g"] = 0.2  # force a limiting amino acid gap
+    fdc_id = 999001
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (fdc_id, "Chicken, broilers or fryers, breast, meat only, raw", "SR Legacy", None, 100.0, "g", _json.dumps(nutrients), "[]"),
+    )
+    db_conn.commit()
+    resp = client.get(f"/food/{fdc_id}", params={"amount": "100"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert "cannot be built into tissue" in html
+    assert "unusable-protein-fate" in html
+    # Numeric cross-check: the displayed grams and percent must agree with
+    # each other and with the 31 g raw protein SAMPLE_NUTRIENTS carries at a
+    # 100 g portion — not just that the line renders at all.
+    m = re.search(r'([\d.]+)&thinsp;g \((\d+)%\) of that protein cannot be built', html)
+    assert m is not None
+    unusable_g, unusable_pct = float(m.group(1)), int(m.group(2))
+    raw_protein_g = 31.0
+    assert 0 < unusable_g < raw_protein_g
+    assert unusable_pct == round(100 * unusable_g / raw_protein_g)
+
+
+def test_food_detail_dcp_summary_line_percent_matches_grams(client: TestClient, db_conn):
+    import json as _json
+    nutrients = dict(SAMPLE_NUTRIENTS)
+    nutrients["aa_lysine_g"] = 0.2  # force a limiting amino acid gap
+    fdc_id = 999003
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (fdc_id, "Chicken, broilers or fryers, breast, meat only, raw", "SR Legacy", None, 100.0, "g", _json.dumps(nutrients), "[]"),
+    )
+    db_conn.commit()
+    resp = client.get(f"/food/{fdc_id}", params={"amount": "100"})
+    assert resp.status_code == 200
+    html = resp.text
+    m = re.search(r'([\d.]+)&thinsp;g digestible complete protein &mdash; (\d+)% of ([\d.]+)&thinsp;g raw protein', html)
+    assert m is not None
+    dcp_g, pct, raw_g = float(m.group(1)), int(m.group(2)), float(m.group(3))
+    assert raw_g == 31.0  # SAMPLE_NUTRIENTS protein_g at a 100 g portion
+    assert 0 < dcp_g < raw_g
+    assert pct == round(100 * dcp_g / raw_g)
+
+
+def test_unusable_protein_line_absent_for_complete_food(client: TestClient, db_conn):
+    import json as _json
+    fdc_id = 999002
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (fdc_id, "Chicken, broilers or fryers, breast, meat only, raw", "SR Legacy", None, 100.0, "g", _json.dumps(SAMPLE_NUTRIENTS), "[]"),
+    )
+    db_conn.commit()
+    resp = client.get(f"/food/{fdc_id}", params={"amount": "100"})
+    assert resp.status_code == 200
+    # A DIAAS of 1.0 (complete protein, no limiting amino acid) leaves
+    # unusable_g at 0, and the line must be suppressed entirely — not shown
+    # as "0.0 g (0%)".
+    assert "cannot be built into tissue" not in resp.text
