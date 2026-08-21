@@ -95,16 +95,20 @@
    checkbox instead points back at this form via its own `form="claude-fetch-form"`
    attribute, which HTML allows even when the input isn't a descendant. #}
 <form method="post" action="/food/cache/claude-fetch" id="claude-fetch-form"></form>
+{# Compare form is likewise external — same nesting restriction as claude-fetch-form above. #}
+<form method="post" action="/food/compare/add-multiple" id="compare-form"></form>
 <p class="muted mb-1"><small>Check the box next to any food below (or click "Select all missing AA data"), then click "Fetch missing data from Claude AI" to build a ready-to-paste prompt asking Claude AI to fill in that food's missing amino acid or nutrient data. {{ manual_link("fetch") }}</small></p>
 <p class="mb-2">
   <button type="submit" form="claude-fetch-form" class="btn btn-sm btn-primary">Fetch missing data from Claude AI</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectMissingAA()">Select all missing AA data</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectNone()">Clear selection</button>
+  <button type="submit" form="compare-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 8)</button>
 </p>
 <table class="table table-sm table-hover align-middle">
   <thead class="table-light">
     <tr>
       <th></th>
+      <th title="Select to add to Compare Foods">Compare</th>
       <th>ID</th>
       <th>Name</th>
       <th>Type</th>
@@ -121,6 +125,10 @@
       <td>
         <input type="checkbox" class="form-check-input claude-fetch-cb" form="claude-fetch-form"
                name="fdc_id" value="{{ food.fdc_id }}" data-has-aa="{{ 1 if food.has_aa else 0 }}">
+      </td>
+      <td>
+        <input type="checkbox" class="form-check-input" form="compare-form"
+               name="fdc_id" value="{{ food.fdc_id }}" aria-label="Select {{ food.name }} to compare">
       </td>
       <td class="muted" style="white-space:nowrap">
         {% if food.fdc_id < 0 %}OFF
@@ -194,7 +202,7 @@
     </tr>
     {% if food.notes or food.curator_notes %}
     <tr id="notes-row-{{ food.fdc_id }}" style="display:none">
-      <td colspan="9" style="padding-top:0; padding-bottom:0.5rem; border-top:none">
+      <td colspan="10" style="padding-top:0; padding-bottom:0.5rem; border-top:none">
         {% if food.notes %}
         <div class="mt-1"><small><strong>Source/confidence:</strong><br>{{ food.notes }}</small></div>
         {% endif %}

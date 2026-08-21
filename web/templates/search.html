@@ -54,6 +54,17 @@
   </form>
   {% endif %}
 </div>
+{# Compare forms are external to confirm-aa-form — a checkbox can reference a
+   form by id even when it isn't nested inside it, which is how these two
+   coexist with the confirm-aa checkboxes in the same table without nesting
+   forms (invalid HTML). One form per compare destination since a food and a
+   recipe can't be compared on the same page. #}
+<form method="post" action="/food/compare/add-multiple" id="compare-food-form"></form>
+<form method="post" action="/recipe/compare/add-multiple" id="compare-recipe-form"></form>
+<p class="mb-2">
+  <button type="submit" form="compare-food-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected foods (up to 8)</button>
+  <button type="submit" form="compare-recipe-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected recipes (up to 6)</button>
+</p>
 <form method="post" action="/food/confirm-aa" id="confirm-aa-form">
   <input type="hidden" name="query" value="{{ query }}">
   <input type="hidden" name="sort" value="{{ sort }}">
@@ -72,6 +83,7 @@
           <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
                  aria-label="Select all unconfirmed">
         </th>
+        <th title="Select to add to Compare Foods or Compare Recipes">Compare</th>
         <th class="muted" style="width:6rem">ID</th>
         <th title="Amino acid data">AA</th>
         <th title="Glycemic index (annotated)">GI</th>
@@ -84,10 +96,10 @@
       </tr>
     </thead>
     <tbody id="search-tbody">
-      {% for food in results %}{{ _sr.row(food) }}{% endfor %}
+      {% for food in results %}{{ _sr.row(food, show_compare=true) }}{% endfor %}
       {% if not is_barcode_query and external_source_labels %}
       <tr id="search-api-loading" class="food-meta-row">
-        <td colspan="10"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>
+        <td colspan="11"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>
       </tr>
       {% endif %}
     </tbody>

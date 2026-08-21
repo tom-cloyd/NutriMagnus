@@ -118,8 +118,8 @@
 </div>
 
 {% if diaas and diaas.dcp_g is not none and diaas.total_protein_g %}
-<p class="muted mb-1"><small>{{ servings }} serving{% if servings != 1 %}s{% endif %} analyzed &rArr;
-  {{ diaas.dcp_g }}&thinsp;g digestible complete protein &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</small></p>
+<p class="mb-1">{{ servings }} serving{% if servings != 1 %}s{% endif %} analyzed &rArr;
+  <strong>{{ diaas.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</p>
 {% set unusable_g = (diaas.total_protein_g - diaas.dcp_g) | round(1) %}
 {% if unusable_g > 0 %}
 <p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>

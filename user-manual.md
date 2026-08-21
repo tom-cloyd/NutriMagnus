@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-20:2140* / Reading time: 2 hours, 49 minutes
+*Updated 2026-08-20:2227* / Reading time: 2 hours, 50 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides a thorough nutritional analysis of a user's food choices. It is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -122,11 +122,33 @@ This program necessarily uses some specialized vocabulary. You have two options:
 
 The five items in the top navigation bar correspond to the five major things you can do with the program:
 
-- **Foods** — Search the [USDA](#gloss-usda) and Open Food Facts[^3] databases; analyze the nutrients in a specific portion of any food or recipe; compare up to eight foods side-by-side; manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles; annotate foods with glycemic index and [DIAAS](#gloss-diaas) estimates.
-- **Recipes** — Create and save recipes with ingredients and instructions; browse, copy, and delete saved recipes; develop a recipe iteratively with nutritional feedback after each ingredient change; analyze a recipe portion for full nutrient data, protein quality, and complement suggestions.
-- **Meals & Log** — Record what you eat by date; add foods and recipes to meals; analyze individual meals or the combined total for a full day; search your entire meal history for any food.
-- **Analysis** — A growing set of preset analyses. **Daily summary - [DCP](#gloss-dcp) and goals**: combined nutrient totals for today or any past date, compared against personalized [RDA](#gloss-rda) targets, plus a list of recent days with meals. **Food use in meals**: rank which foods were used across a chosen set of date ranges and/or meals, with a frequency histogram. **Food use in recipes**: the same ranking, but for which foods and sub-recipes appear as ingredients across your recipes. Both Food Use pages can also bulk-substitute one food or recipe for another across the current selection — see [Substituting a Food or Recipe](#fooduse-substitute).
-- **Settings** — Set your color theme, personal profile (age, sex, weight, height, activity level), dietary preferences, editor command, and advanced options including your personal [USDA](#gloss-usda) [API key](#food-data) (a free code from USDA's website that raises how many food searches you can do) and protein digestibility overrides.
+- **Foods**
+    - Search the [USDA](#gloss-usda) and Open Food Facts[^3] databases
+    - Analyze the nutrients in a specific portion of any food or recipe
+    - Compare up to eight foods side-by-side
+    - Manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles
+    - Annotate foods with glycemic index and [DIAAS](#gloss-diaas) estimates
+- **Recipes**
+    - Create and save recipes with ingredients and instructions
+    - Browse, copy, and delete saved recipes
+    - Develop a recipe iteratively with nutritional feedback after each ingredient change
+    - Analyze a recipe portion for full nutrient data, protein quality, and complement suggestions
+- **Meals & Log**
+    - Record what you eat by date
+    - Add foods and recipes to meals
+    - Analyze individual meals or the combined total for a full day, to monitor intake of any nutrient(s) of particular interest
+    - Search your entire meal history for any food
+- **Analysis** — a growing set of preset analyses
+    - **Daily summary — [DCP](#gloss-dcp) and goals**: combined nutrient totals for today or any past date, compared against personalized [RDA](#gloss-rda) targets, plus a list of recent days with meals
+    - **Food use in meals**: rank which foods were used across a chosen set of date ranges and/or meals, with a frequency histogram
+    - **Food use in recipes**: the same ranking, but for which foods and sub-recipes appear as ingredients across your recipes
+    - Both Food Use pages can also bulk-substitute one food or recipe for another across the current selection — see [Substituting a Food or Recipe](#fooduse-substitute)
+- **Settings**
+    - Color theme
+    - Personal profile (age, sex, weight, height, activity level)
+    - Dietary preferences
+    - Editor command
+    - Advanced options: your personal [USDA](#gloss-usda) [API key](#food-data) (a free code from USDA's website that increases how many food searches you can do), and protein digestibility overrides
 
 **Detailed how-to guides for each menu area follow later in this manual.** If you prefer to learn by example before reading explanations, skip ahead to [Sample Workflows](#sample-workflows) at the end of this introduction — it points you to a set of annotated walkthroughs.
 
@@ -202,7 +224,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-20), there are 691 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-20), there are 697 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 3.
 
@@ -1624,6 +1646,8 @@ Columns:
 
 To select: click the result. If the food is not yet in your cache, NuMa fetches and saves it automatically.
 
+**Compare selected.**{: #compare-checkboxes} Every row also has a checkbox in its own **Compare** column — check the foods and/or recipes you want, then click **Compare nutrition of selected foods (up to 8)** or **Compare nutrition of selected recipes (up to 6)** above the table to jump straight to [Compare Foods](#food-comparison) or [Compare Recipes](#recipe-comparison) with those items already added, no need to redo the search there. Foods and recipes use separate checkboxes and buttons since the two comparison pages can't mix them. The same checkbox-and-button pair appears on [Food Cache](#food-cache-web), [My Pantry](#pantry)'s pantry list, and the [Recipes list](#recipes-menu-web) — each jumps into the matching comparison page from wherever you're already looking at a food or recipe.
+
 **Sort order.** Results can be ordered two ways — a dropdown above the results table lets you switch, and your choice is remembered as the default for next time:
 
     Best match to name (default)   See "Ordering food search results" in
@@ -1998,7 +2022,7 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 Add up to eight foods (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
 
 #### Food Cache {: #food-cache-web}
-Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 4 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; use Archive instead, or remove it from those places first. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning.
+Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 4 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; use Archive instead, or remove it from those places first. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Compare Foods](#food-comparison) with the checked items.
 
 **Check database integrity.**{: #db-check} Scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited database file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by ID — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
 
@@ -2017,7 +2041,7 @@ Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here —
 
 #### My Pantry
 
-Foods you keep on hand — see [My Pantry](#pantry) in Part 4 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 4.
+Foods you keep on hand — see [My Pantry](#pantry) in Part 4 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 4. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Compare Foods](#food-comparison) with the checked items; a quick-add item with no linked data can't be compared.
 
 #### Custom food profiles
 
@@ -2032,7 +2056,7 @@ A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](
 A food's page shows, in order: **Protein Summary** (DCP), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos — each can be [ignored and recalculated](#ignore-complement)), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or SR Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
 
 ### F. Using the Recipes menu {: #recipes-menu-web}
-The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 5.
+The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 5. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 4 — for jumping straight into [Compare Recipes](#recipe-comparison) with the checked recipes.
 
 Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically, and cascades to every recipe that depends on it too — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 5. You don't need **Recompute DCP for all recipes** just because you changed one recipe; it's there for after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
 
@@ -2538,6 +2562,14 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed — that's all most readers need. (Entries used to also carry a fenced code block with fuller technical detail — files changed, root cause, implementation notes — for anyone curious about the "how"; that detail has since been folded into the corresponding commit messages and removed from here.)
 
 #### August 20 program updates
+
+**NEW: JUMP FROM ANY SEARCH RESULTS OR LIST STRAIGHT INTO COMPARE FOODS/RECIPES**
+
+Foods search results, Food Cache, My Pantry, and the Recipes list all now have a **Compare** checkbox next to each row, plus a **Compare nutrition of selected** button above the list — check the items you want, click the button, and land on Compare Foods (or Compare Recipes) with those items already added, no need to redo the search there. On Foods search, where a result can be either a food or a recipe, foods and recipes get separate checkboxes and buttons since the two comparison pages can't mix them. [learn more...](#compare-checkboxes)
+
+**CLARIFY: THE DCP LINE UNDER A FOOD/RECIPE/MEAL/DAY TITLE IS NOW VISUALLY DISTINCT, NOT JUST GRAY METADATA**
+
+The digestible complete protein (DCP) summary line just under a food, recipe, meal, or day page's title — added August 17 — was styled identically to the brand/serving-size metadata right below it: small, gray, and easy to skim past entirely. It's now normal-sized black text with the key figure bolded and labeled "(DCP)" explicitly, so it reads as the headline stat it's meant to be rather than incidental page furniture. The data itself was always there and correct — this was a pure legibility fix.
 
 **CLARIFY: COMPLEMENT SUGGESTIONS SPELL OUT WHOSE "RAW" PROTEIN IS BEING ADDED**
 

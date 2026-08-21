@@ -66,9 +66,16 @@
   <p class="muted">No recipes yet. <a href="/recipe/new">Create your first recipe</a>, or <a href="/settings#starter-data">load starter data</a> to explore the app.</p>
   {% endif %}
 {% else %}
+{# External form — each row has its own copy/archive/delete forms, so nesting isn't
+   allowed; checkboxes point back at this form via `form="compare-recipe-form"`. #}
+<form method="post" action="/recipe/compare/add-multiple" id="compare-recipe-form"></form>
+<p class="mb-2">
+  <button type="submit" form="compare-recipe-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 6)</button>
+</p>
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>
+      <th title="Select to add to Compare Recipes">Compare</th>
       <th style="width:3rem">ID</th>
       <th>Name</th>
       <th>Description</th>
@@ -82,6 +89,10 @@
   <tbody>
     {% for r in recipes %}
     <tr{% if r.archived %} class="text-muted"{% endif %}>
+      <td>
+        <input type="checkbox" class="form-check-input" form="compare-recipe-form"
+               name="recipe_id" value="{{ r.id }}" aria-label="Select {{ r.name }} to compare">
+      </td>
       <td class="muted">{{ r.id }}</td>
       <td><a href="/recipe/{{ r.id }}"><strong>{{ r.name }}</strong></a>
         {% if r.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}

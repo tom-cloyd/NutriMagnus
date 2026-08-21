@@ -13,6 +13,7 @@ import io
 import json
 import pathlib
 import re
+import urllib.parse
 import zipfile
 
 import pytest
@@ -1921,6 +1922,91 @@ def test_food_compare_add_multiple_remove_amounts(client: TestClient, cached_foo
     assert "amounts=150.0" in resp.headers["location"]
 
 
+def test_food_compare_add_multiple_caps_at_8_with_message(client: TestClient) -> None:
+    """The compare-checkbox entry points on Foods search / Food Cache / My Pantry
+    post straight to add-multiple without visiting /food/compare first, so this
+    route — not just the single-add route — must enforce the 8-food cap and say
+    what happened rather than silently dropping the rest."""
+    fdc_ids = list(range(900001, 900011))  # 10 ids, one over the cap
+    resp = client.post(
+        "/food/compare/add-multiple", data={"fdc_id": fdc_ids}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    ids_param = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query)["ids"][0]
+    assert len(ids_param.split(",")) == 8
+    assert "error=" in location
+    assert "skipped+2" in location
+
+
+def test_recipe_compare_add_multiple_caps_at_6_with_message(client: TestClient, db_conn) -> None:
+    ids = []
+    for i in range(8):
+        rid = db_conn.execute(
+            "INSERT INTO recipes (name, servings) VALUES (?, 1)", (f"Recipe {i}",)
+        ).lastrowid
+        ids.append(rid)
+    db_conn.commit()
+    resp = client.post(
+        "/recipe/compare/add-multiple", data={"recipe_id": ids}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    ids_param = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query)["ids"][0]
+    assert len(ids_param.split(",")) == 6
+    assert "error=" in location
+    assert "skipped+2" in location
+
+
+def test_food_cache_has_compare_checkbox_and_form(client: TestClient, cached_food) -> None:
+    """Regression test: Food Cache rows must offer a way to jump straight into
+    Compare Foods with the checked items, without redoing the search there."""
+    resp = client.get("/food/cache")
+    assert resp.status_code == 200
+    assert 'id="compare-form"' in resp.text
+    assert 'action="/food/compare/add-multiple"' in resp.text
+    assert f'form="compare-form"' in resp.text
+    assert "Compare nutrition of selected (up to 8)" in resp.text
+
+
+def test_pantry_has_compare_checkbox_and_form(client: TestClient, cached_food, db_conn) -> None:
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)", (cached_food["name"], cached_food["fdcId"])
+    )
+    db_conn.commit()
+    resp = client.get("/pantry")
+    assert resp.status_code == 200
+    assert 'id="compare-pantry-form"' in resp.text
+    assert 'action="/food/compare/add-multiple"' in resp.text
+    assert "Compare nutrition of selected (up to 8)" in resp.text
+
+
+def test_recipes_list_has_compare_checkbox_and_form(client: TestClient, db_conn) -> None:
+    db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Soup', 1)")
+    db_conn.commit()
+    resp = client.get("/recipes")
+    assert resp.status_code == 200
+    assert 'id="compare-recipe-form"' in resp.text
+    assert 'action="/recipe/compare/add-multiple"' in resp.text
+    assert "Compare nutrition of selected (up to 6)" in resp.text
+
+
+def test_food_search_has_compare_checkboxes_for_foods_and_recipes(
+    client: TestClient, cached_food, db_conn
+) -> None:
+    """Foods search can return both foods and recipes in one list (matching by
+    name) — each row's checkbox must route to the matching compare form since
+    a food and a recipe can't be added to the same comparison."""
+    db_conn.execute(f"INSERT INTO recipes (name, servings) VALUES ('{cached_food['name']}', 1)")
+    db_conn.commit()
+    resp = client.get("/food/search", params={"query": cached_food["name"]})
+    assert resp.status_code == 200
+    assert 'id="compare-food-form"' in resp.text
+    assert 'id="compare-recipe-form"' in resp.text
+    assert f'form="compare-food-form" name="fdc_id" value="{cached_food["fdcId"]}"' in resp.text
+    assert 'form="compare-recipe-form" name="recipe_id"' in resp.text
+
+
 def test_food_compare_uncached_food_shows_add_button_then_caches(
     client: TestClient, cached_food, monkeypatch, db_conn,
 ) -> None:
@@ -2024,7 +2110,7 @@ def test_food_detail_dcp_summary_line_percent_matches_grams(client: TestClient, 
     resp = client.get(f"/food/{fdc_id}", params={"amount": "100"})
     assert resp.status_code == 200
     html = resp.text
-    m = re.search(r'([\d.]+)&thinsp;g digestible complete protein &mdash; (\d+)% of ([\d.]+)&thinsp;g raw protein', html)
+    m = re.search(r'([\d.]+)&thinsp;g digestible complete protein \(DCP\)</strong> &mdash; (\d+)% of ([\d.]+)&thinsp;g raw protein', html)
     assert m is not None
     dcp_g, pct, raw_g = float(m.group(1)), int(m.group(2)), float(m.group(3))
     assert raw_g == 31.0  # SAMPLE_NUTRIENTS protein_g at a 100 g portion

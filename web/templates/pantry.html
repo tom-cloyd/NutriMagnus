@@ -135,9 +135,16 @@
 {# ── Pantry list ── #}
 {% if items %}
 <p class="result-count">{{ items|length }} item{% if items|length != 1 %}s{% endif %} in pantry</p>
+{# External form — each row has its own archive/remove forms, so nesting isn't allowed;
+   checkboxes point back at this form via `form="compare-pantry-form"`. #}
+<form method="post" action="/food/compare/add-multiple" id="compare-pantry-form"></form>
+<p class="mb-2">
+  <button type="submit" form="compare-pantry-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 8)</button>
+</p>
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>
+      <th title="Select to add to Compare Foods">Compare</th>
       <th>Food</th>
       <th>FDC link</th>
       <th>Type</th>
@@ -152,6 +159,12 @@
   <tbody>
     {% for item in items %}
     <tr{% if item.archived %} class="text-muted"{% endif %}>
+      <td>
+        {% if item.fdc_id %}
+        <input type="checkbox" class="form-check-input" form="compare-pantry-form"
+               name="fdc_id" value="{{ item.fdc_id }}" aria-label="Select {{ item.food_name }} to compare">
+        {% endif %}
+      </td>
       <td>
         {% if item.fdc_id %}
         <a href="/food/{{ item.fdc_id }}"><strong>{{ item.food_name }}</strong></a>

@@ -2090,23 +2090,33 @@ async def food_compare_add(
 
 @app.post("/food/compare/add-multiple", response_class=RedirectResponse)
 async def food_compare_add_multiple(request: Request, ids: str = Form(""), amounts: str = Form("")):
+    """Bulk-add checked foods to the comparison — used both by Compare Foods'
+    own "add via search" panel and by the compare checkboxes on Foods search,
+    Food Cache, and My Pantry (which post straight here to jump into a
+    comparison without first landing on this page)."""
     form = await request.form()
     fdc_ids = form.getlist("fdc_id")
     id_list, amount_list = _parse_ids_amounts(ids, amounts)
+    added = skipped = 0
     for fdc_id_str in fdc_ids:
         try:
             fdc_id = int(fdc_id_str)
         except (ValueError, TypeError):
             continue
-        if fdc_id not in id_list and len(id_list) < 8:
-            id_list.append(fdc_id)
-            amount_list.append(100.0)
+        if fdc_id in id_list:
+            continue
+        if len(id_list) >= 8:
+            skipped += 1
+            continue
+        id_list.append(fdc_id)
+        amount_list.append(100.0)
+        added += 1
     ids_str = ",".join(str(i) for i in id_list)
     amounts_str = ",".join(str(a) for a in amount_list)
-    return RedirectResponse(
-        f"/food/compare?ids={ids_str}&amounts={amounts_str}",
-        status_code=303,
-    )
+    url = f"/food/compare?ids={ids_str}&amounts={amounts_str}"
+    if skipped:
+        url += f"&error=Added+{added}%2C+skipped+{skipped}+%E2%80%94+maximum+8+foods"
+    return RedirectResponse(url, status_code=303)
 
 
 @app.post("/food/compare/remove", response_class=RedirectResponse)
@@ -5690,18 +5700,30 @@ async def recipe_compare_add(
 
 @app.post("/recipe/compare/add-multiple", response_class=RedirectResponse)
 async def recipe_compare_add_multiple(request: Request, ids: str = Form(""), unit: str = Form("serving")):
+    """Bulk-add checked recipes to the comparison — used both by Compare
+    Recipes' own "add via search" panel and by the compare checkboxes on
+    Foods search and the Recipes list (which post straight here)."""
     form = await request.form()
     recipe_id_strs = form.getlist("recipe_id")
     id_list = _parse_recipe_compare_ids(ids)
+    added = skipped = 0
     for rid_str in recipe_id_strs:
         try:
             rid = int(rid_str)
         except (ValueError, TypeError):
             continue
-        if rid not in id_list and len(id_list) < _MAX_COMPARE_RECIPES:
-            id_list.append(rid)
+        if rid in id_list:
+            continue
+        if len(id_list) >= _MAX_COMPARE_RECIPES:
+            skipped += 1
+            continue
+        id_list.append(rid)
+        added += 1
     ids_str = ",".join(str(i) for i in id_list)
-    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
+    url = f"/recipe/compare?ids={ids_str}&unit={unit}"
+    if skipped:
+        url += f"&error=Added+{added}%2C+skipped+{skipped}+%E2%80%94+maximum+{_MAX_COMPARE_RECIPES}+recipes"
+    return RedirectResponse(url, status_code=303)
 
 
 @app.post("/recipe/compare/remove", response_class=RedirectResponse)

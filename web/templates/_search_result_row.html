@@ -1,4 +1,4 @@
-{% macro row(food) %}
+{% macro row(food, show_compare=false) %}
 <tr>
   <td class="confirm-col">
     {% if food.aa == "~✓" %}
@@ -6,6 +6,17 @@
            aria-label="Select {{ food.name }} to fetch full details">
     {% endif %}
   </td>
+  {% if show_compare %}
+  <td>
+    {% if food._type == "recipe" %}
+    <input type="checkbox" form="compare-recipe-form" name="recipe_id" value="{{ food.recipe_id }}"
+           aria-label="Select {{ food.name }} to compare recipes">
+    {% else %}
+    <input type="checkbox" form="compare-food-form" name="fdc_id" value="{{ food.fdc_id }}"
+           aria-label="Select {{ food.name }} to compare foods">
+    {% endif %}
+  </td>
+  {% endif %}
   <td class="muted"><small>
     {% if food._type == "recipe" %}{{ food.recipe_id }}
     {% elif food.fdc_id > 0 %}{{ food.fdc_id }}
