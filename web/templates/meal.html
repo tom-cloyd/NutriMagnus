@@ -209,6 +209,9 @@
       <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
+    {% if omitted_sources %}
+    <small class="text-danger" title="Check the Source filter below to include these again">Omitted from search: {{ omitted_sources | join(', ') }}</small>
+    {% endif %}
   </form>
   {# A checkbox's own <tr> sits inside the results table below, which also
      contains each row's independent "Add to meal" <form> — HTML forms can't
@@ -242,7 +245,15 @@
       </tr>
     </thead>
     <tbody id="add-food-tbody">
-      {% for food in search_results %}{{ _sr.add_food_row(meal.id, food, q) }}{% endfor %}
+      {% set ns = namespace(seen_local=false, divider_shown=false) %}
+      {% for food in search_results %}
+        {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
+        {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
+      <tr class="search-group-divider"><td colspan="7"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+        {% set ns.divider_shown = true %}
+        {% endif %}
+        {{ _sr.add_food_row(meal.id, food, q) }}
+      {% endfor %}
       {% if external_source_labels %}
       <tr id="add-food-api-loading" class="food-meta-row">
         <td colspan="7"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>

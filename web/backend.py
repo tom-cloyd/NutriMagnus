@@ -351,10 +351,13 @@ def _static_source_candidates(query: str, keys: list[str] | None = None) -> list
 # Data-source filter for search results, offered next to the query box on
 # every food-search screen in the app. A user can check any combination of
 # sources; checking none is treated the same as checking all (there's no
-# useful "show nothing" state). Order here is display/checkbox order.
+# useful "show nothing" state). Order here is display/checkbox order — USDA
+# and Open Food Facts (the two primary, most-used external sources) lead the
+# external group, ahead of the smaller regional static datasets (CoFID/AFCD/
+# CIQUAL) and Canadian Nutrient File.
 _SEARCH_SOURCE_FILTERS = (["pantry", "cache", "recipe"]
-                           + [key for key, _ in _STATIC_SOURCES]
-                           + [key for key, _, _fn in _LIVE_SOURCES])
+                           + [key for key, _, _fn in _LIVE_SOURCES]
+                           + [key for key, _ in _STATIC_SOURCES])
 _SEARCH_SOURCE_LABELS = {
     "pantry": "PANTRY — Pantry",
     "cache":  "CACHE — Food Cache",
@@ -436,6 +439,18 @@ def _resolve_source_filter(raw: list[str] | None, pref_key: str,
     return valid
 
 
+def _omitted_source_labels(sources: list[str], valid_sources: list[str] = _SEARCH_SOURCE_FILTERS) -> list[str]:
+    """Short uppercase codes (PANTRY, USDA, ...) for every source currently
+    unchecked in the Source filter, in filter order. The Source filter is
+    "sticky" — a box unchecked once stays unchecked on every search box in
+    the app until re-checked — which made a food silently and permanently
+    missing from results easy to mistake for a search or ranking bug rather
+    than a filter setting. Empty when every source is checked."""
+    if set(sources) >= set(valid_sources):
+        return []
+    return [s.upper() for s in valid_sources if s not in sources]
+
+
 def _filter_search_results_by_source(results: list[dict], sources: list[str] | None) -> list[dict]:
     """Restrict search results to the given data sources ('pantry', 'cache',
     'recipe', 'usda', 'off'), or return everything when sources is empty/unset
@@ -448,6 +463,41 @@ def _filter_search_results_by_source(results: list[dict], sources: list[str] | N
         return results
     allowed = set(sources)
     return [r for r in results if r.get("source") in allowed]
+
+
+_LOCAL_SEARCH_SOURCES = {"pantry", "cache", "recipe"}
+
+
+def _cap_results_preserving_local(results: list[dict], limit: int) -> list[dict]:
+    """Cap a sorted, already-source-filtered result list to `limit`, and group
+    it into two blocks — every local (pantry/cache/recipe) match first, then
+    external (USDA/OFF/CNF) matches — each block keeping its existing
+    relative (relevance) order. Templates render these as two visually
+    distinct sections (see is_local_source()) so a food you already have
+    never has to be found by scrolling past a wall of external results.
+
+    `limit` exists to bound how many *external* results get fetched and
+    shown — see _SEARCH_RESULT_LIMIT_DEFAULT's docstring — not to hide a food
+    the user already has, so a local match can push the *count* of external
+    results shown below `limit`, but a local match is never dropped or
+    reordered behind a weaker external one to make room for it. Regression
+    case: searching "vitamins daily" for a cached "Complete multivitamin"
+    (a weak text match — no literal "daily" in the name) used to bury it,
+    or drop it entirely, under dozens of branded USDA/OFF products literally
+    named "Daily Vitamins".
+    """
+    local = [r for r in results if r.get("source") in _LOCAL_SEARCH_SOURCES]
+    if len(results) <= limit:
+        return local + [r for r in results if r.get("source") not in _LOCAL_SEARCH_SOURCES]
+    if not local:
+        return results[:limit]
+    external_slots = max(0, limit - len(local))
+    external = [r for r in results if r.get("source") not in _LOCAL_SEARCH_SOURCES][:external_slots]
+    return local + external
+
+
+def _is_local_source(source: str) -> bool:
+    return source in _LOCAL_SEARCH_SOURCES
 
 # How many results a food search shows by default, and the ceiling a user can
 # raise it to via the "Show up to ___ search results" box next to the Source
@@ -651,6 +701,7 @@ def _manual_link(anchor: str, text: str = "Learn more") -> str:
     )
 
 templates.env.globals["manual_link"] = _manual_link
+templates.env.globals["is_local_source"] = _is_local_source
 
 def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
     """Render the '(#id, SOURCE)' annotation shown on its own line under a food/recipe name."""
@@ -1377,7 +1428,8 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                 error = f"Barcode {_bc_digits} not found in Open Food Facts. Try searching by product name instead."
         ctx = {"results": results, "query": query, "error": error, "sort": sort, "source": source,
                "limit": limit, "external_source_labels": _external_source_labels(source),
-               "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS}
+               "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
+               "omitted_sources": _omitted_source_labels(source)}
         if extra_ctx:
             ctx.update(extra_ctx)
         return templates.TemplateResponse(request, template, ctx)
@@ -1394,11 +1446,12 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
         # much better external one just by rendering first.
         results = _search_local_results(query)
         results = _sort_search_results(results, query, sort)
-        results = _filter_search_results_by_source(results, source)[:limit]
+        results = _cap_results_preserving_local(_filter_search_results_by_source(results, source), limit)
 
     ctx = {"results": results, "query": query, "error": error, "sort": sort, "source": source,
            "limit": limit, "external_source_labels": _external_source_labels(source),
-           "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS}
+           "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
+           "omitted_sources": _omitted_source_labels(source)}
     if extra_ctx:
         ctx.update(extra_ctx)
     return templates.TemplateResponse(request, template, ctx)
@@ -1450,7 +1503,7 @@ async def food_search_api_results(request: Request, query: str = "", sort: str |
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
         external = _external_food_search_results(query, exclude_ids, query, sort, sources=source, limit=limit)
         results = _sort_search_results(local + external, query, sort)
-        results = _filter_search_results_by_source(results, source)[:limit]
+        results = _cap_results_preserving_local(_filter_search_results_by_source(results, source), limit)
     return templates.TemplateResponse(request, "_search_api_rows.html", {"results": results})
 
 
@@ -1469,7 +1522,7 @@ async def food_analyze_portion_api_results(request: Request, query: str = "", so
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
         external = _external_food_search_results(query, exclude_ids, query, sort, sources=source, limit=limit)
         results = _sort_search_results(local + external, query, sort)
-        results = _filter_search_results_by_source(results, source)[:limit]
+        results = _cap_results_preserving_local(_filter_search_results_by_source(results, source), limit)
     return templates.TemplateResponse(request, "_analyze_portion_api_rows.html", {"results": results})
 
 
@@ -1687,7 +1740,7 @@ async def food_convert_get(request: Request, q: str = "", source: list[str] | No
                     "convert_url": f"/food/convert/recipe/{r['id']}",
                 })
         search_results = _sort_search_results(search_results, q, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _filter_search_results_by_source(search_results, source)[:limit]
+        search_results = _cap_results_preserving_local(_filter_search_results_by_source(search_results, source), limit)
     return templates.TemplateResponse(request, "food_convert.html", {
         "query":          q,
         "search_results": search_results,
@@ -2027,7 +2080,7 @@ async def food_compare_get(
             if not search_results:
                 search_error = f"USDA API unavailable: {exc}"
         search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _filter_search_results_by_source(search_results, source)[:limit]
+        search_results = _cap_results_preserving_local(_filter_search_results_by_source(search_results, source), limit)
 
     with _db.get_db() as conn:
         saved_lists = _db.saved_comparison_list(conn)
@@ -2729,7 +2782,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
                 pass
 
         search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _filter_search_results_by_source(search_results, source)[:limit]
+        search_results = _cap_results_preserving_local(_filter_search_results_by_source(search_results, source), limit)
 
     link_name = next((i["food_name"] for i in items if i["id"] == link_id), None) if link_id else None
 
@@ -4330,7 +4383,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     search_results = []
     if q:
         search_results = _sort_search_results(_meal_add_food_local_results(q), q, sort)
-        search_results = _filter_search_results_by_source(search_results, source)[:limit]
+        search_results = _cap_results_preserving_local(_filter_search_results_by_source(search_results, source), limit)
 
     with _db.get_db() as conn:
         day_profile_obj = _day_profile.get_profile_for_date(conn, meal["meal_date"])
@@ -4429,6 +4482,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "external_source_labels": _external_source_labels(source),
         "source_filters":      _SEARCH_SOURCE_FILTERS,
         "source_labels":       _SEARCH_SOURCE_LABELS,
+        "omitted_sources":     _omitted_source_labels(source),
         "search_results":      search_results,
         "today":               datetime.date.today().isoformat(),
         "has_profile":         rda is not None,
@@ -4605,7 +4659,7 @@ async def meal_search_api_results(request: Request, meal_id: int, q: str = "", s
         exclude_ids = {r["fdc_id"] for r in local if r.get("fdc_id")}
         external = _external_food_search_results(api_query, exclude_ids, q, sort, sources=source, limit=limit)
         results = _sort_search_results(local + external, q, sort)
-        results = _filter_search_results_by_source(results, source)[:limit]
+        results = _cap_results_preserving_local(_filter_search_results_by_source(results, source), limit)
 
     return templates.TemplateResponse(request, "_add_food_api_rows.html", {
         "meal_id": meal_id,
@@ -6038,7 +6092,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         except Exception:
             pass
         search_results = _sort_search_results(search_results, q, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _filter_search_results_by_source(search_results, source)[:limit]
+        search_results = _cap_results_preserving_local(_filter_search_results_by_source(search_results, source), limit)
 
     return templates.TemplateResponse(request, "recipe_edit.html", {
         "recipe":             dict(recipe),

@@ -58,7 +58,15 @@
     </tr>
   </thead>
   <tbody id="ap-tbody">
-    {% for food in results %}{{ _sr.row(food) }}{% endfor %}
+    {% set ns = namespace(seen_local=false, divider_shown=false) %}
+    {% for food in results %}
+      {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
+      {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
+    <tr class="search-group-divider"><td colspan="8"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+      {% set ns.divider_shown = true %}
+      {% endif %}
+      {{ _sr.row(food) }}
+    {% endfor %}
     {% if not is_barcode_query and external_source_labels %}
     <tr id="ap-api-loading" class="food-meta-row">
       <td colspan="8"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>

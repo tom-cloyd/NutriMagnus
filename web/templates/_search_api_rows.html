@@ -1,2 +1,10 @@
 {% import "_search_result_row.html" as _sr %}
-{% for food in results %}{{ _sr.row(food, show_compare=true) }}{% endfor %}
+{% set ns = namespace(seen_local=false, divider_shown=false) %}
+{% for food in results %}
+  {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
+  {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
+<tr class="search-group-divider"><td colspan="11"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+  {% set ns.divider_shown = true %}
+  {% endif %}
+  {{ _sr.row(food, show_compare=true) }}
+{% endfor %}

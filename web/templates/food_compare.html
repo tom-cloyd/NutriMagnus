@@ -100,7 +100,13 @@
       </tr>
     </thead>
     <tbody>
+      {% set ns = namespace(seen_local=false, divider_shown=false) %}
       {% for r in search_results %}
+        {% if is_local_source(r.source) %}{% set ns.seen_local = true %}{% endif %}
+        {% if not is_local_source(r.source) and ns.seen_local and not ns.divider_shown %}
+      <tr class="search-group-divider"><td colspan="6"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+        {% set ns.divider_shown = true %}
+        {% endif %}
       <tr>
         <td><input type="checkbox" name="fdc_id" value="{{ r.fdc_id }}" class="row-chk"></td>
         <td class="muted"><small>{{ r.fdc_id if r.fdc_id > 0 else 'OFF' }}</small></td>

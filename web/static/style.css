@@ -140,6 +140,18 @@ td.muted, th.muted, small.muted, span.muted, p.muted, li.muted {
   font-size: 1em;
 }
 
+/* Divider between local (pantry/cache/recipe) and external (USDA/OFF/CNF)
+   search results — see is_local_source() / _cap_results_preserving_local()
+   in web/backend.py. Local matches are always grouped first regardless of
+   sort mode, so this marks where "your own data" ends and "everything
+   else" begins. */
+.search-group-divider td {
+  background: #f4f4f4;
+  padding: 0.25rem 0.5rem;
+  border-top: 1px solid #ccc;
+  border-bottom: 1px solid #ccc;
+}
+
 /* ── Tables ──────────────────────────────────────────────────────────── */
 
 table {

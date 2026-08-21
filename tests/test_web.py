@@ -2007,6 +2007,168 @@ def test_food_search_has_compare_checkboxes_for_foods_and_recipes(
     assert 'form="compare-recipe-form" name="recipe_id"' in resp.text
 
 
+class TestCapResultsPreservingLocal:
+    """_cap_results_preserving_local() — regression coverage for a real bug:
+    a food already in the user's own cache/pantry could vanish from search
+    results entirely once merged with a flood of external (USDA/OFF) matches
+    that out-ranked it on relevance, because the plain [:limit] slice applied
+    to the merged list didn't distinguish "free, already-known local match"
+    from "another external result." Reported case: searching "vitamins
+    daily" for a cached food named "Complete multivitamin" (no literal
+    "daily" in the name) — dozens of branded OFF products literally named
+    "Daily Vitamins" ranked higher, burying or (past limit=25) dropping it
+    entirely. Local results are now always grouped ahead of external ones —
+    each block keeps its own relevance order — so a known food is never
+    found only by scrolling past a wall of external near-duplicates."""
+
+    def _mk(self, source: str, n: int) -> list[dict]:
+        return [{"source": source, "name": f"{source} {i}"} for i in range(n)]
+
+    def test_under_limit_still_groups_local_first(self):
+        results = self._mk("usda", 3) + self._mk("cache", 2)
+        capped = backend._cap_results_preserving_local(results, 10)
+        assert len(capped) == 5
+        assert [r["source"] for r in capped] == ["cache", "cache", "usda", "usda", "usda"]
+
+    def test_local_result_survives_even_when_ranked_last(self):
+        """The exact reported scenario: one weak local match buried behind
+        many stronger external ones, past the limit."""
+        results = self._mk("off", 30) + self._mk("cache", 1)
+        capped = backend._cap_results_preserving_local(results, 25)
+        assert len(capped) == 25
+        assert any(r["source"] == "cache" for r in capped)
+
+    def test_external_results_fill_remaining_slots_in_order(self):
+        results = [{"source": "pantry", "name": "P"}] + self._mk("usda", 30)
+        capped = backend._cap_results_preserving_local(results, 5)
+        assert len(capped) == 5
+        assert capped[0]["name"] == "P"
+        assert [r["name"] for r in capped[1:]] == ["usda 0", "usda 1", "usda 2", "usda 3"]
+
+    def test_more_local_results_than_limit_keeps_all_of_them(self):
+        """The cap bounds external volume, not the user's own data — if
+        local matches alone exceed `limit`, none are dropped."""
+        results = self._mk("pantry", 10) + self._mk("usda", 10)
+        capped = backend._cap_results_preserving_local(results, 5)
+        assert len(capped) == 10
+        assert all(r["source"] == "pantry" for r in capped)
+
+    def test_no_local_results_behaves_like_plain_slice(self):
+        results = self._mk("usda", 10)
+        assert backend._cap_results_preserving_local(results, 5) == results[:5]
+
+
+def test_meal_search_api_results_keeps_cached_food_past_result_limit(
+    client: TestClient, db_conn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End-to-end regression test for the same bug: a cached food that only
+    weakly matches the query must still appear in the meal page's async
+    add-food search results, even when 30 external results rank higher and
+    the limit is 25."""
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json, user_drafted) "
+        "VALUES (?, ?, ?, ?, ?, 1)",
+        (555001, "Complete multivitamin (Equate Adults 50+)", "User Drafted",
+         json.dumps({"protein_g": 0}), "[]"),
+    )
+    meal_id = db_conn.execute(
+        "INSERT INTO meals (name, meal_date) VALUES ('Lunch', '2026-01-01')"
+    ).lastrowid
+    db_conn.commit()
+
+    fake_results = [
+        {"fdcId": 900000 + i, "description": f"Daily Vitamins Brand {i}",
+         "dataType": "Branded", "brandOwner": "Some Brand"}
+        for i in range(30)
+    ]
+    monkeypatch.setattr(backend._usda, "search_foods", lambda *a, **kw: fake_results)
+
+    resp = client.get(
+        f"/meal/{meal_id}/search-api-results",
+        params={"q": "vitamins daily", "sort": "relevance",
+                "source": ["pantry", "cache", "usda", "off", "cnf"], "limit": 25},
+    )
+    assert resp.status_code == 200
+    assert "Complete multivitamin" in resp.text
+    # Local result must lead the list, ahead of the divider into external results.
+    local_pos = resp.text.index("Complete multivitamin")
+    divider_pos = resp.text.index("search-group-divider")
+    assert local_pos < divider_pos
+
+
+def test_food_search_groups_local_results_before_external_divider(
+    client: TestClient, cached_food, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Foods search page renders local-only results synchronously, then JS
+    fetches /food/search-api-results for the merged local+external set — the
+    divider (and the grouping bug) only shows up in that async response.
+    A cached food must render before the "external sources" divider even
+    when many external results rank higher on relevance."""
+    fake_results = [
+        {"fdcId": 900000 + i, "description": f"{cached_food['name']} Brand {i}",
+         "dataType": "Branded", "brandOwner": "Some Brand"}
+        for i in range(30)
+    ]
+    monkeypatch.setattr(backend._usda, "search_foods", lambda *a, **kw: fake_results)
+
+    resp = client.get(
+        "/food/search-api-results", params={"query": cached_food["name"], "sort": "relevance"}
+    )
+    assert resp.status_code == 200
+    assert "search-group-divider" in resp.text
+    local_pos = resp.text.index(cached_food["name"])
+    divider_pos = resp.text.index("search-group-divider")
+    assert local_pos < divider_pos
+
+
+class TestOmittedSourceLabels:
+    """_omitted_source_labels() — surfaces a silently unchecked Source filter
+    box directly, rather than leaving a user to conclude a missing result is
+    a ranking bug. Regression case: a user's Source filter was missing
+    "recipe" (unchecked once, remembered as the sticky default everywhere),
+    so a recipe match never appeared in any sort mode — with no on-page
+    indication that a source was excluded at all."""
+
+    def test_all_sources_checked_returns_nothing_omitted(self):
+        assert backend._omitted_source_labels(list(backend._SEARCH_SOURCE_FILTERS)) == []
+
+    def test_missing_source_reported_uppercase(self):
+        sources = [s for s in backend._SEARCH_SOURCE_FILTERS if s != "recipe"]
+        assert backend._omitted_source_labels(sources) == ["RECIPE"]
+
+    def test_multiple_missing_sources_reported_in_filter_order(self):
+        sources = [s for s in backend._SEARCH_SOURCE_FILTERS if s not in ("cache", "usda", "off")]
+        assert backend._omitted_source_labels(sources) == ["CACHE", "USDA", "OFF"]
+
+
+def test_food_search_shows_omitted_sources_warning_next_to_sort_by(client: TestClient) -> None:
+    resp = client.get("/food/search", params={"query": "chicken", "source": ["pantry", "cache"]})
+    assert resp.status_code == 200
+    assert "Omitted from search:" in resp.text
+    assert "RECIPE" in resp.text.split("Omitted from search:")[1][:200]
+
+
+def test_meal_view_shows_omitted_sources_warning_next_to_sort_by(client: TestClient, db_conn) -> None:
+    meal_id = db_conn.execute(
+        "INSERT INTO meals (name, meal_date) VALUES ('Lunch', '2026-01-01')"
+    ).lastrowid
+    db_conn.commit()
+    resp = client.get(f"/meal/{meal_id}", params={"q": "chicken", "source": ["pantry", "cache"]})
+    assert resp.status_code == 200
+    assert "Omitted from search:" in resp.text
+
+
+def test_search_source_filters_lead_with_usda_and_off(client: TestClient) -> None:
+    """USDA and Open Food Facts are the two primary external sources — they
+    must appear ahead of the smaller regional datasets (CoFID/AFCD/CIQUAL)
+    and Canadian Nutrient File in the Source filter checkbox row."""
+    filters = backend._SEARCH_SOURCE_FILTERS
+    assert filters.index("usda") < filters.index("cofid")
+    assert filters.index("off") < filters.index("cofid")
+    assert filters.index("usda") < filters.index("afcd")
+    assert filters.index("off") < filters.index("ciqual")
+
+
 def test_food_compare_uncached_food_shows_add_button_then_caches(
     client: TestClient, cached_food, monkeypatch, db_conn,
 ) -> None:
