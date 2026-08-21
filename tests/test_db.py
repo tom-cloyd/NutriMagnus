@@ -571,6 +571,55 @@ class TestArchiving:
         with _db.get_db() as conn:
             assert _db.get_cached_food(conn, 1) is not None
 
+    def test_check_db_integrity_clean_db_finds_nothing(self):
+        with _db.get_db() as conn:
+            _db.cache_food(conn, SAMPLE_FDC_ID, "Chicken breast", "SR Legacy",
+                           None, 100.0, "g", SAMPLE_NUTRIENTS)
+            _db.pantry_add(conn, "Chicken breast", fdc_id=SAMPLE_FDC_ID)
+        with _db.get_db() as conn:
+            issues = _db.check_db_integrity(conn)
+        assert all(v == [] for v in issues.values())
+
+    def test_check_db_integrity_finds_orphaned_pantry_entry(self):
+        """Regression test: deleting a still-referenced cached food (possible
+        before food_cache_delete() started refusing to do so) leaves a pantry
+        entry pointing at an fdc_id with no data behind it — opening that
+        food's page then fails since it's treated as "not cached" and the app
+        tries to re-fetch it from USDA by fdc_id."""
+        with _db.get_db() as conn:
+            _db.cache_food(conn, SAMPLE_FDC_ID, "Chicken breast", "SR Legacy",
+                           None, 100.0, "g", SAMPLE_NUTRIENTS)
+            _db.pantry_add(conn, "Chicken breast", fdc_id=SAMPLE_FDC_ID)
+            # Simulate the food having been deleted out from under the pantry
+            # entry (the exact scenario food_cache_delete() now refuses).
+            conn.execute("DELETE FROM foods WHERE fdc_id = ?", (SAMPLE_FDC_ID,))
+
+        with _db.get_db() as conn:
+            issues = _db.check_db_integrity(conn)
+        assert len(issues["orphaned_pantry"]) == 1
+        assert issues["orphaned_pantry"][0]["fdc_id"] == SAMPLE_FDC_ID
+        assert issues["orphaned_recipe_ingredients"] == []
+        assert issues["orphaned_meal_items"] == []
+
+    def test_repair_db_integrity_removes_orphaned_entries(self):
+        with _db.get_db() as conn:
+            _db.cache_food(conn, SAMPLE_FDC_ID, "Chicken breast", "SR Legacy",
+                           None, 100.0, "g", SAMPLE_NUTRIENTS)
+            _db.pantry_add(conn, "Chicken breast", fdc_id=SAMPLE_FDC_ID)
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            _db.recipe_add_ingredient(conn, rid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
+            mid = _db.meal_create(conn, "Lunch", "2025-03-15")
+            _db.meal_add_food(conn, mid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
+            conn.execute("DELETE FROM foods WHERE fdc_id = ?", (SAMPLE_FDC_ID,))
+
+        with _db.get_db() as conn:
+            counts = _db.repair_db_integrity(conn)
+        assert counts == {"orphaned_pantry": 1, "orphaned_recipe_ingredients": 1, "orphaned_meal_items": 1}
+
+        with _db.get_db() as conn:
+            issues = _db.check_db_integrity(conn)
+        assert all(v == [] for v in issues.values())
+
     def test_pantry_archive_restore_roundtrip(self):
         with _db.get_db() as conn:
             pid = _db.pantry_add(conn, "Tofu")

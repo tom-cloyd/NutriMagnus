@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-17:1933* / Reading time: 2 hours, 48 minutes
+*Updated 2026-08-20:2140* / Reading time: 2 hours, 49 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides a thorough nutritional analysis of a user's food choices. It is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -10,7 +10,7 @@
 
 **Essential materials needed for cellular support and replacement come from what we eat.** While significant essential materials may already exist in the local environment of a cell, ultimately all materials come from outside our bodies, through eating.
 
-**Both the program and its accompanying *User Manual* are an ongoing project.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review; it is an advanced first draft.
+**Both the program and its accompanying *User Manual* are in continuing active development.** They are modified frequently. Both are already quite sophisticated, but new versions will be made available quickly for those already using the program. However, the manual has not yet received a careful editorial review of all its parts. It is an advanced first draft.
 
 **User feedback is highly valued, so please give us yours!** With computer programs in active development ANY feedback is appreciated and most likely useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` or `NuMa` in the subject line, please!
 
@@ -188,17 +188,25 @@ Very recently, a Windows version of the program has been developed. It will soon
 - **Canadian Nutrient File** — Health Canada's reference database; particularly good amino acid coverage, which helps with DIAAS calculations.
 - **UK CoFID** (Composition of Foods Integrated Dataset) — ~2,900 UK foods from Public Health England/DHSC; strong on macros, minerals, and vitamins, but has no amino acid data of its own.
 - **Australian AFCD** (Australian Food Composition Database) — ~1,600 Australian foods from FSANZ; also has real amino acid coverage, like Canadian Nutrient File.
-- **French CIQUAL** — ~3,200 French/European foods from ANSES; like CoFID, no amino acid data. See [Food data — where it comes from and how it is stored](#food-data) in Part 8 for more on all six of NuMa's sources.
+- **French CIQUAL** — ~3,200 French/European foods from ANSES; like CoFID, no amino acid data. 
+
+See [Food data — where it comes from and how it is stored](#food-data) in Part 8 for more on all six of NuMa's sources.
+
+In additions, the following internal data sources are used:
+
 - **Harvard T.H. Chan School of Public Health oxalate table**[^11] — a 433-food reference table used to fill in [oxalate](#gloss-oxalate) content when [Oxalate data](#oxalate) is switched on in Settings. (This is optional and is off by default.)
 - **Foster-Powell/Holt/Brand-Miller glycemic index table**[^8] — a published reference table used to fill in [Glycemic Index](#gi) estimates automatically, rather than requiring you to type them in from scratch.
 - **NuMa's own curated protein-complement table**[^10] — a built-in list of 25 common protein sources used as a fallback for amino-acid data in complement suggestions, when your own data doesn't cover a gap.
 - **Your own data** — foods saved to your [Pantry](#pantry), and [recipes you have analyzed](#recipes-menu-web), are consulted ahead of every other source above.
 
+
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-17), there are 653 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-20), there are 691 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 3.
+
+**The Claude AI fetch/import workflow also has its own dedicated test coverage** — prompt building, response parsing (fenced and bare JSON, malformed-JSON warnings), per-block validation, and the per-serving-to-per-100g label conversion arithmetic (`tests/test_claude_fetch.py`, 24 tests), plus the two web routes behind it (`tests/test_web.py`, 5 tests). See [Fetching missing amino acid data with Claude AI](#fetch) in Part 6.
 
 #### Validation you can replicate yourself
 
@@ -284,7 +292,7 @@ Don't want a particular suggestion? See [ignoring a complement suggestion](#igno
 
 
 ### C. Amino acid estimates in complement suggestions {: #comp-estimate}
-A [complement suggestion](#comp) needs amino acid data for the suggested food to compute how much of it closes a gap. Most of the time that comes from the food's own real, measured data. When it doesn't, NuMa falls back to the same built-in reference table of 25 common protein sources[^10] used to fill gaps in [Protein Complement Suggestions](#comp) (soy protein isolate, nutritional yeast, oats, and the like) rather than leaving you with no suggestion at all. Two tags tell you when that fallback happened:
+A [complement suggestion](#comp) needs amino acid data for the suggested food to compute how much of it closes a gap. Most of the time that comes from the food's own real, measured data. When it doesn't, NuMa falls back to its built-in reference table of 25 common protein sources[^10] (soy protein isolate, nutritional yeast, oats, and the like) — the same last-resort data source described above in [Protein Complement Suggestions](#comp) — rather than leaving you with no suggestion at all. Two tags tell you when that fallback happened:
 
   "(estimated)" — the suggested food is a real item from your pantry, recipes, or food cache, but it has no amino acid panel of its own. NuMa matched its name against the built-in reference table and scaled that table's amino acid profile to this food's own protein content.
 
@@ -1990,9 +1998,17 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 Add up to eight foods (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
 
 #### Food Cache {: #food-cache-web}
-Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 4 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete**. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using.
+Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 4 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; use Archive instead, or remove it from those places first. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning.
 
-**Fetching missing amino acid data with Claude AI.** Some foods — especially branded or prepared items — arrive without amino acid data. Check the boxes next to the foods you want (or click "Select all missing AA data" to grab every food currently missing it), then click **Fetch missing data from Claude AI**. This builds a ready-to-send prompt and shows it on its own page with a **Copy prompt to clipboard** button. From there:
+**Check database integrity.**{: #db-check} Scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited database file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by ID — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
+
+- **Pantry entries** — low impact; removing one only takes it off your pantry list.
+- **Recipe ingredients** — removing one deletes that ingredient line from its recipe; the recipe's nutrient totals recalculate without it.
+- **Logged meal items** — removing one deletes that food/recipe from a day's logged meal history; that day's totals recalculate without it, same as if it had never been logged.
+- **Sub-recipe references** — non-destructive; nothing is deleted, the ingredient is just flagged "recipe (deleted)" (the same label used everywhere else a referenced recipe is gone) instead of erroring.
+- **Unreadable nutrient/portion data** — never auto-repaired; each food gets its own **Refresh** (re-fetch from USDA) and **Delete** buttons so you decide.
+
+**Fetching missing amino acid data with Claude AI.**{: #fetch} Some foods — especially branded or prepared items — arrive without amino acid data. Check the boxes next to the foods you want (or click "Select all missing AA data" to grab every food currently missing it), then click **Fetch missing data from Claude AI**. This builds a ready-to-send prompt and shows it on its own page with a **Copy prompt to clipboard** button. From there:
 
 1. Go to [claude.ai](https://claude.ai) — open a **new chat** (not an existing one) — paste the prompt, and send.
 2. When Claude finishes, copy its entire reply (all of it, including every ` ```json ` block — if Claude splits its answer across multiple messages, copy each one and paste them together).
@@ -2520,6 +2536,42 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "NEEDED BELOW: glean all up to and including 'FIX: EDITING A FOOD NOW RECOMPUTES'. After that, they have not been committed yet."
 
 Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed — that's all most readers need. (Entries used to also carry a fenced code block with fuller technical detail — files changed, root cause, implementation notes — for anyone curious about the "how"; that detail has since been folded into the corresponding commit messages and removed from here.)
+
+#### August 20 program updates
+
+**CLARIFY: COMPLEMENT SUGGESTIONS SPELL OUT WHOSE "RAW" PROTEIN IS BEING ADDED**
+
+Every protein-complement suggestion's "Adds: X g digestible protein (from Y g raw)" line left "raw" ambiguous — raw protein in what, exactly? It now reads "from Y g raw protein in this addition" for a single suggestion, or "raw protein combined" for a two-food pairing — making clear it's the protein contributed by the suggested food(s) at that serving size, not the base food's own protein. Appears everywhere complement suggestions do: food, recipe, meal, daily-summary, and trend pages.
+
+**CLARIFY: FOOD CACHE NOW EXPLAINS THE CLAUDE AI FETCH BUTTONS BEFORE YOU CLICK THEM**
+
+The checkbox-and-button pair for fetching missing amino acid data via Claude AI used to appear on the Food Cache page with no explanation — just "Select all missing AA data" and "Fetch missing data from Claude AI" buttons with no context. A brief line above them now explains what checking a box and clicking Fetch actually does, with a **Learn more** link to the full walkthrough. [learn more...](#fetch)
+
+**NEW: CHECK DATABASE INTEGRITY — FIND AND FIX BROKEN FOOD/RECIPE REFERENCES**
+
+Foods → **Check database integrity** (also on the Food Cache page) scans for pantry entries, recipe ingredients, and logged meal items that still point at a food or recipe no longer in the cache — previously undetectable except by the food page failing to open ("USDA API 400: bad request" for an Open Food Facts food). Each kind of problem gets its own fix button with a plain-language note on what that fix actually changes (a pantry-entry removal is harmless; a recipe-ingredient or logged-meal-item removal recalculates that recipe's or day's totals without it) — they're deliberately not bundled into one "fix everything" button. Deleting a food from the cache also now refuses when a pantry entry, recipe, or meal still uses it, so this situation can no longer happen through normal use — Archive is offered instead. [learn more...](#db-check)
+
+**FIX: "LEARN MORE" ON THE FETCH-FROM-CLAUDE-AI PAGE NOW JUMPS TO THE RIGHT SECTION**
+
+The "Learn more" link on Food Cache → Fetch missing data from Claude AI pointed at a manual anchor that didn't exist, so it always landed on the manual's title page instead of the explanation. It now jumps straight to "Fetching missing amino acid data with Claude AI" in the Food Cache section. [learn more...](#fetch)
+
+**NEW: PRUNE UNUSED FOODS LETS YOU UNCHECK ANY FOOD YOU WANT TO KEEP**
+
+Foods → Food Cache → Prune Unused Foods now lists every unused food with a checkbox, checked by default. Uncheck any you'd rather keep before clicking "Prune checked foods" — previously the page always deleted every listed food with no way to exclude individual ones. Pruning still permanently deletes the food from the cache (a real database delete, not an archive) — Check all / Uncheck all buttons are provided for convenience.
+
+**FIX: PLANT-BASED-ONLY PREFERENCE NOW APPLIES TO YOUR OWN PANTRY AND RECIPE COMPLEMENT SUGGESTIONS**
+
+Setting Dietary Preference to "Plant based only" (or "Vegetarian") in Settings only ever filtered the built-in reference-table complement suggestions — an animal-sourced food sitting in My Pantry, or in one of your own analyzed recipes, could still turn up as a suggested complement (e.g. "Organic Eggs" suggested alongside peanut butter). Both preferences now also apply to your own pantry items and recipes. [learn more...](#comp)
+
+**FIX: SETTINGS NO LONGER SHOWS A STALE "DIETARY PREFERENCE SAVED" MESSAGE**
+
+The "✓ Dietary preference saved" confirmation on the Settings page used to stay on screen even after you changed the radio selection without clicking Save preference — making it look like the new, unsaved choice had already been saved. Changing the selection now clears that message until you actually save again.
+
+#### August 18 program updates
+
+**DIAAS-BOOSTING TABLES NOW EXPLAIN THEIR COLUMNS AND SHOW % INCREASE**
+
+The "DIAAS-Boosting Options" tables on the meal, full-day, food, and recipe pages now label the DCP column "DCP achieved" (matching the Protein Complement Suggestions table) and add a "% increase" column, with a footer note spelling out what each column means. The graduated-addition tables on the meal and recipe pages gained the same footer note. [learn more...](#comp)
 
 #### August 17 program updates
 
@@ -3567,7 +3619,7 @@ This confirms NuMa's Tier 1 result exactly: `gaps_closed: 2`, `new_complete: Tru
 
 The scale factor is capped at 1.0 because a food can never be "more than 100% complete" for DCP purposes — once the combination's weakest amino acid clears the reference, NuMa credits the *entire* combined raw protein pool as digestible and complete. This is a looser approximation than the exact pooled calculation in Steps 1–7 (which applies each food's own digestibility to each amino acid individually, then takes the true minimum ratio) — `numa_app/services/complements.py` documents this trade-off explicitly, noting it can differ from the exact figure by 15–20 g on a real meal. It is used here only because a plain food page has nothing more granular to pool from; meal, recipe, and daily-summary contexts (which do have a real ingredient list) use the exact method instead.
 
-**Reproduce this in NuMa:** open a food page for quinoa, cooked ([FDC](#gloss-fdc) 168917), and look at its [Protein Complement Suggestions](#comp) section. Black beans, cooked should appear in the "General" tier at 133 g, showing "Leucine: 0.83→1.00" and "Valine: 0.89→1.03" under Effect, "Adds: 8.8 g digestible protein (from 11.8 g raw)", and "Total digestible complete protein: 16.2 g" — matching every figure derived above.
+**Reproduce this in NuMa:** open a food page for quinoa, cooked ([FDC](#gloss-fdc) 168917), and look at its [Protein Complement Suggestions](#comp) section. Black beans, cooked should appear in the "General" tier at 133 g, showing "Leucine: 0.83→1.00" and "Valine: 0.89→1.03" under Effect, "Adds: 8.8 g digestible protein (from 11.8 g raw protein in this addition)", and "Total digestible complete protein: 16.2 g" — matching every figure derived above.
 
 ---
 

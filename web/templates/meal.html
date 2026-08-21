@@ -783,6 +783,7 @@
     {% endfor %}
     </tbody>
   </table>
+  <p class="mb-1 muted"><small>DCP achieved: total digestible complete protein in the meal after adding this amount. % increase: DCP achieved's rise over the meal's current DCP.</small></p>
   {% else %}
   <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
   {% endif %}
@@ -795,7 +796,7 @@
   </small></p>
   {% endif %}
   <p class="mb-1 muted"><small>
-    Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein at full serving (from {{ s.protein_added }}&thinsp;g raw)
+    Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein at full serving (from {{ s.protein_added }}&thinsp;g raw protein in this addition)
   </small></p>
   <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>
     Total digestible complete protein with full serving: <strong>{{ s.total_dig }}&thinsp;g</strong>
@@ -898,7 +899,7 @@
       {% endfor %}
     </small></p>
     {% endif %}
-    <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw)</small></p>
+    <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw protein combined)</small></p>
     <p class="mb-0 muted"><small>Total digestible complete protein with both foods: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
   </div>
   {% endfor %}
@@ -938,18 +939,20 @@
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
     </p>
     {% if s.steps %}
-    <table class="table table-sm mb-0 mt-1" style="max-width:32rem">
-      <thead><tr><th>Add to meal</th><th>Meal DIAAS</th><th>DCP</th></tr></thead>
+    <table class="table table-sm mb-1 mt-1" style="max-width:36rem">
+      <thead><tr><th>Add to meal</th><th>Meal DIAAS</th><th>DCP<br>achieved</th><th>%<br>increase</th></tr></thead>
       <tbody>
       {% for step in s.steps %}
       <tr>
         <td>{{ step.grams }}&thinsp;g{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}</td>
         <td>{{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(step.new_diaas) }}</strong></td>
         <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% endif %}</td>
+        <td>{% if step.pct_increase is not none %}+{{ "%.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
       </tbody>
     </table>
+    <p class="mb-1 muted"><small>Meal DIAAS: the pooled digestibility-adjusted amino acid score for the whole meal, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in the meal after adding this amount. % increase: DCP achieved's rise over the meal's current DCP.</small></p>
     {% else %}
     <p class="mb-1"><strong>Add to meal:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
     {% if s.current_diaas is not none and s.new_diaas is not none %}

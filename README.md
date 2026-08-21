@@ -2,7 +2,7 @@
 
 **NutriMagnus ("nutrition wizard")** is a free, open-source nutritional analysis program for individuals and families — with particular depth for people eating plant-based diets.
 
-It analyzes individual foods, recipes, and full daily meals using data from the USDA FoodData Central database (300,000+ foods) and Open Food Facts (millions of packaged products worldwide). No subscription, no account. An internet connection is needed to look up a food for the first time; anything already looked up is cached locally and works offline from then on.
+It analyzes individual foods, recipes, and full daily meals using data from the USDA FoodData Central database (300,000+ foods) and Open Food Facts (millions of packaged products worldwide), as well as 4 other international data sources, plus several more that are internal to the program. No subscription or account is needed for any of this access. An internet connection is needed to look up a food for the first time; anything already looked up is cached locally and works offline from then on.
 
 ---
 
@@ -46,6 +46,8 @@ Anyone who wants to understand what they're actually eating — especially peopl
 *(Windows version coming.)*
 
 A User Manual is built into the app — open it anytime from the nav bar, or follow a "Learn more" link from the relevant page.
+
+**Want to know when a new version ships?** Click **Watch → Custom → Releases** at the top of this page — GitHub will notify you directly, and it's the only way to hear about updates without checking back yourself.
 
 ---
 

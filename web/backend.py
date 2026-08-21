@@ -2231,7 +2231,7 @@ _FOOD_CACHE_SORT_KEYS = {
 @app.get("/food/cache", response_class=HTMLResponse)
 async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
                           show_archived: bool | None = None, archived: int = 0, restored: int = 0,
-                          still_used: int = 0, imported: int = 0):
+                          still_used: int = 0, imported: int = 0, delete_blocked: int = 0):
     sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
@@ -2275,6 +2275,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
         "restored":      restored,
         "still_used":    still_used,
         "imported":      imported,
+        "delete_blocked": delete_blocked,
     })
 
 
@@ -2298,12 +2299,18 @@ async def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
 @app.post("/food/cache/delete", response_class=RedirectResponse)
 async def food_cache_delete(fdc_id: int = Form(...), q: str = Form(""),
                              sort: str = Form(""), show_archived: int = Form(0)):
+    """Delete a cached food — refused if a pantry entry, recipe, or meal still
+    references it, since that would silently orphan the reference (it would
+    keep pointing at an fdc_id with no data behind it, breaking that food's
+    page). Use Archive instead to hide a still-referenced food."""
+    params = {"q": q, "sort": sort, "show_archived": show_archived}
     with _db.get_db() as conn:
+        refs = _db.food_references(conn, fdc_id)
+        if refs["pantry"] or refs["recipes"] or refs["meals"]:
+            params["delete_blocked"] = 1
+            return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
         _db.delete_cached_food(conn, fdc_id)
-    return RedirectResponse(
-        f"/food/cache?{urlencode({'q': q, 'sort': sort, 'show_archived': show_archived})}",
-        status_code=303,
-    )
+    return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -2448,10 +2455,41 @@ async def food_cache_prune_get(request: Request):
 
 
 @app.post("/food/cache/prune", response_class=RedirectResponse)
-async def food_cache_prune_post():
+async def food_cache_prune_post(request: Request):
+    """Delete unused cache foods, except any the user unchecked on the preview
+    page — `delete_ids` carries only the checked (still-checked) rows."""
+    form = await request.form()
+    delete_ids = {int(v) for v in form.getlist("delete_ids")}
     with _db.get_db() as conn:
-        deleted = _db.prune_unused_cached_foods(conn)
+        unused = _db.list_unused_cached_foods(conn)
+        keep_ids = {row["fdc_id"] for row in unused if row["fdc_id"] not in delete_ids}
+        deleted = _db.prune_unused_cached_foods(conn, keep_ids=keep_ids)
     return RedirectResponse(f"/food/cache?pruned={len(deleted)}", status_code=303)
+
+
+@app.get("/food/cache/db-check", response_class=HTMLResponse)
+async def food_cache_db_check_get(request: Request, repaired: int = 0):
+    """Scan for referential-integrity problems (see db.check_db_integrity)."""
+    with _db.get_db() as conn:
+        issues = _db.check_db_integrity(conn)
+    total = sum(len(v) for v in issues.values())
+    return templates.TemplateResponse(request, "food_cache_db_check.html", {
+        "issues": issues,
+        "total": total,
+        "repairable": total - len(issues["bad_json"]),
+        "repaired": repaired,
+    })
+
+
+@app.post("/food/cache/db-check/repair", response_class=RedirectResponse)
+async def food_cache_db_check_repair(category: str = Form(default="")):
+    """category: one of db.REPAIRABLE_ISSUE_CATEGORIES to fix just that kind
+    of problem, or "" (the "Remove all" button) to fix every repairable kind
+    at once."""
+    categories = {category} if category else None
+    with _db.get_db() as conn:
+        counts = _db.repair_db_integrity(conn, categories=categories)
+    return RedirectResponse(f"/food/cache/db-check?repaired={sum(counts.values())}", status_code=303)
 
 
 @app.get("/food/cache/{fdc_id}/portions", response_class=HTMLResponse)
@@ -2784,7 +2822,8 @@ async def pantry_archive(pantry_id: int):
 
 
 @app.get("/food/custom-profiles", response_class=HTMLResponse)
-async def food_custom_profiles_get(request: Request, copy_q: str = Query(default="")):
+async def food_custom_profiles_get(request: Request, copy_q: str = Query(default=""),
+                                    delete_blocked: int = 0):
     with _db.get_db() as conn:
         rows = _db.list_user_drafted_foods(conn)
         copy_results = []
@@ -2796,6 +2835,7 @@ async def food_custom_profiles_get(request: Request, copy_q: str = Query(default
         "copy_q": copy_q.strip(),
         "copy_results": copy_results,
         "copied": False,
+        "delete_blocked": delete_blocked,
     })
 
 
@@ -2823,7 +2863,11 @@ async def food_custom_profiles_create(name: str = Form(...)):
 
 @app.post("/food/custom-profiles/delete/{fdc_id}", response_class=RedirectResponse)
 async def food_custom_profiles_delete(fdc_id: int):
+    """Refused if still referenced — see food_cache_delete()'s docstring for why."""
     with _db.get_db() as conn:
+        refs = _db.food_references(conn, fdc_id)
+        if refs["pantry"] or refs["recipes"] or refs["meals"]:
+            return RedirectResponse("/food/custom-profiles?delete_blocked=1", status_code=303)
         _db.delete_cached_food(conn, fdc_id)
     return RedirectResponse("/food/custom-profiles", status_code=303)
 

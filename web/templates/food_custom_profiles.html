@@ -15,6 +15,9 @@
 {% if copied %}
 <div class="alert alert-success">Draft created — edit its nutrients below.</div>
 {% endif %}
+{% if delete_blocked %}
+<div class="alert alert-danger">Can't delete that profile — it's still used in a pantry entry, recipe, or logged meal. Remove it from those places first.</div>
+{% endif %}
 
 {# ── Create form ── #}
 <div class="card mb-3" style="max-width:36rem">

@@ -171,7 +171,7 @@
   </summary>
 
   {% if saved == 'diet' %}
-  <p class="status-met mt-2"><strong>&#10003; Dietary preference saved.</strong></p>
+  <p class="status-met mt-2" id="diet-saved-msg"><strong>&#10003; Dietary preference saved.</strong></p>
   {% endif %}
 
   <form method="post" action="/settings/diet" class="mt-2">
@@ -179,7 +179,8 @@
     <div class="form-check">
       <input class="form-check-input" type="radio" name="diet_pref"
              id="diet-{{ key }}" value="{{ key }}"
-             {{ 'checked' if diet_pref == key }}>
+             {{ 'checked' if diet_pref == key }}
+             onchange="document.getElementById('diet-saved-msg')?.remove()">
       <label class="form-check-label" for="diet-{{ key }}">{{ label }}</label>
     </div>
     {% endfor %}

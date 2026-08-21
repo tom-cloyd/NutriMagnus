@@ -401,19 +401,173 @@ def list_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool 
     """).fetchall()
 
 
-def prune_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool = False) -> list[sqlite3.Row]:
-    """Delete every cache food not referenced by pantry, recipes, or meals.
+def prune_unused_cached_foods(
+    conn: sqlite3.Connection, *, include_drafted: bool = False, keep_ids: set[int] | None = None
+) -> list[sqlite3.Row]:
+    """Delete cache foods not referenced by pantry, recipes, or meals.
+
+    `keep_ids`: fdc_ids to leave alone even though they're unused — e.g. rows
+    the user unchecked on the prune-preview page. None (the default) deletes
+    every unused food, matching the old all-or-nothing behavior.
 
     Returns the rows that were deleted (fdc_id, name, data_type, brand,
-    user_drafted), so a caller can report or log what was removed. See
+    user_drafted), so a caller can report or log what was removed. Re-derives
+    the unused set itself rather than trusting a caller-supplied id list, so a
+    food that became referenced (or was archived) between page load and
+    submit can't be deleted by a stale/tampered form. See
     list_unused_cached_foods() for the include_drafted semantics — callers
     that want a confirm-before-delete flow should call that first and pass
     the same include_drafted value here.
     """
     unused = list_unused_cached_foods(conn, include_drafted=include_drafted)
-    for row in unused:
+    to_delete = [row for row in unused if not keep_ids or row["fdc_id"] not in keep_ids]
+    for row in to_delete:
         conn.execute("DELETE FROM foods WHERE fdc_id = ?", (row["fdc_id"],))
-    return unused
+    return to_delete
+
+
+def check_db_integrity(conn: sqlite3.Connection) -> dict[str, list[dict]]:
+    """Scan for referential-integrity problems the app's own code paths should
+    never create, but a past bug (or a manually edited DB) can — chiefly a
+    pantry/recipe/meal row that still points at an fdc_id no longer in the
+    foods cache (e.g. deleted via /food/cache/delete before that route
+    refused to delete still-referenced foods). Opening such a food's page
+    fails, since it's treated as "not cached" and the app tries to re-fetch
+    it from USDA by fdc_id — which errors for negative (Open Food Facts)
+    fdc_ids and returns the wrong food for reused-looking positive ones.
+
+    Read-only — does not modify the database. See repair_db_integrity() to
+    clean up what this finds.
+
+    Returns a dict keyed by issue category, each a list of plain dicts
+    describing the offending row:
+        orphaned_pantry            — pantry entries pointing at a missing food
+        orphaned_recipe_ingredients — recipe ingredients pointing at a missing
+                                      food (sub-recipe ingredients are excluded;
+                                      those are tracked separately via
+                                      ref_recipe_id/ref_recipe_deleted, see
+                                      orphaned_recipe_refs)
+        orphaned_meal_items        — meal items pointing at a missing food or recipe
+        orphaned_recipe_refs       — recipe-ingredient sub-recipe references
+                                      pointing at a missing recipe without
+                                      ref_recipe_deleted having been set (should
+                                      be unreachable via delete_recipe(), which
+                                      sets that flag itself — a backstop for drift)
+        bad_json                   — foods rows whose nutrients_json/portions_json
+                                      isn't valid JSON
+    """
+    issues: dict[str, list[dict]] = {
+        "orphaned_pantry": [], "orphaned_recipe_ingredients": [],
+        "orphaned_meal_items": [], "orphaned_recipe_refs": [], "bad_json": [],
+    }
+
+    for row in conn.execute("""
+        SELECT id, food_name, fdc_id FROM pantry
+        WHERE fdc_id IS NOT NULL AND fdc_id NOT IN (SELECT fdc_id FROM foods)
+    """):
+        issues["orphaned_pantry"].append(dict(row))
+
+    for row in conn.execute("""
+        SELECT ri.id, ri.recipe_id, r.name AS recipe_name, ri.food_name, ri.fdc_id
+        FROM recipe_ingredients ri
+        LEFT JOIN recipes r ON r.id = ri.recipe_id
+        WHERE ri.ref_recipe_id IS NULL AND ri.fdc_id != 0
+          AND ri.fdc_id NOT IN (SELECT fdc_id FROM foods)
+    """):
+        issues["orphaned_recipe_ingredients"].append(dict(row))
+
+    for row in conn.execute("""
+        SELECT mi.id, mi.meal_id, m.meal_date, mi.food_name, mi.fdc_id
+        FROM meal_items mi
+        LEFT JOIN meals m ON m.id = mi.meal_id
+        WHERE mi.item_type = 'food' AND mi.fdc_id IS NOT NULL
+          AND mi.fdc_id NOT IN (SELECT fdc_id FROM foods)
+    """):
+        issues["orphaned_meal_items"].append(dict(row))
+
+    for row in conn.execute("""
+        SELECT mi.id, mi.meal_id, m.meal_date, mi.food_name, mi.recipe_id
+        FROM meal_items mi
+        LEFT JOIN meals m ON m.id = mi.meal_id
+        WHERE mi.item_type = 'recipe' AND mi.recipe_id IS NOT NULL
+          AND mi.recipe_id NOT IN (SELECT id FROM recipes)
+    """):
+        issues["orphaned_meal_items"].append(dict(row))
+
+    for row in conn.execute("""
+        SELECT id, recipe_id, food_name, ref_recipe_id FROM recipe_ingredients
+        WHERE ref_recipe_id IS NOT NULL AND ref_recipe_deleted = 0
+          AND ref_recipe_id NOT IN (SELECT id FROM recipes)
+    """):
+        issues["orphaned_recipe_refs"].append(dict(row))
+
+    for row in conn.execute("SELECT fdc_id, name, nutrients_json, portions_json FROM foods"):
+        for field in ("nutrients_json", "portions_json"):
+            val = row[field]
+            if val is None:
+                continue
+            try:
+                json.loads(val)
+            except (ValueError, TypeError):
+                issues["bad_json"].append({"fdc_id": row["fdc_id"], "name": row["name"], "field": field})
+
+    return issues
+
+
+REPAIRABLE_ISSUE_CATEGORIES = (
+    "orphaned_pantry", "orphaned_recipe_ingredients", "orphaned_meal_items", "orphaned_recipe_refs",
+)
+
+
+def repair_db_integrity(conn: sqlite3.Connection, categories: set[str] | None = None) -> dict[str, int]:
+    """Remove or fix the dangling rows check_db_integrity() finds — the food
+    or recipe they point at is genuinely gone, so there's nothing left to
+    repoint them at. Re-scans internally rather than trusting a
+    caller-supplied issue list, for the same staleness reason
+    prune_unused_cached_foods() re-scans.
+
+    `categories`: which of REPAIRABLE_ISSUE_CATEGORIES to act on. None (the
+    default) acts on all of them. Lets the web UI offer one "Remove these"
+    button per category — each has a very different real-world consequence
+    (deleting a pantry entry vs. deleting an ingredient out of a recipe vs.
+    deleting a food from a day's logged meal history vs. flagging a
+    sub-recipe reference as deleted, non-destructively), so bundling them
+    into one action would hide that from the user.
+
+    bad_json is deliberately never auto-repaired, in any category set — a
+    malformed nutrients blob needs a human decision (fix by hand, delete, or
+    re-fetch), not a silent deletion.
+
+    Returns counts of rows removed/fixed per category.
+    """
+    issues = check_db_integrity(conn)
+    active = categories if categories is not None else set(REPAIRABLE_ISSUE_CATEGORIES)
+    counts: dict[str, int] = {}
+
+    if "orphaned_pantry" in active and issues["orphaned_pantry"]:
+        ids = [r["id"] for r in issues["orphaned_pantry"]]
+        conn.executemany("DELETE FROM pantry WHERE id = ?", [(i,) for i in ids])
+        counts["orphaned_pantry"] = len(ids)
+
+    if "orphaned_recipe_ingredients" in active and issues["orphaned_recipe_ingredients"]:
+        ids = [r["id"] for r in issues["orphaned_recipe_ingredients"]]
+        conn.executemany("DELETE FROM recipe_ingredients WHERE id = ?", [(i,) for i in ids])
+        counts["orphaned_recipe_ingredients"] = len(ids)
+
+    if "orphaned_meal_items" in active and issues["orphaned_meal_items"]:
+        ids = [r["id"] for r in issues["orphaned_meal_items"]]
+        conn.executemany("DELETE FROM meal_items WHERE id = ?", [(i,) for i in ids])
+        counts["orphaned_meal_items"] = len(ids)
+
+    if "orphaned_recipe_refs" in active and issues["orphaned_recipe_refs"]:
+        ids = [r["id"] for r in issues["orphaned_recipe_refs"]]
+        conn.executemany(
+            "UPDATE recipe_ingredients SET ref_recipe_id = NULL, ref_recipe_deleted = 1 WHERE id = ?",
+            [(i,) for i in ids],
+        )
+        counts["orphaned_recipe_refs"] = len(ids)
+
+    return counts
 
 
 def _singular_variant(word: str) -> str | None:

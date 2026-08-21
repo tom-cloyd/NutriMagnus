@@ -394,10 +394,15 @@ def build_complement_display(
         steps_out = []
         for step in s.get("steps", []):
             step_dcp = exact_dcp(ingredients, [(name, comp_nutrients, step.get("grams"))])
+            if step_dcp is None:
+                step_dcp = step.get("dcp")
+            pct_increase = (round((step_dcp - base_digestible) / base_digestible * 100, 1)
+                            if step_dcp is not None and base_digestible > 0 else None)
             steps_out.append({
                 **step,
                 "amount_note": _amount_note(step["grams"], name) if step.get("grams") else None,
-                "dcp": step_dcp if step_dcp is not None else step.get("dcp"),
+                "dcp": step_dcp,
+                "pct_increase": pct_increase,
             })
         return {
             "name":              name,

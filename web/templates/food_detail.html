@@ -425,7 +425,7 @@
     {% endfor %}
   </small></p>
   {% endif %}
-  <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw)</small></p>
+  <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw protein in this addition)</small></p>
   <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
   {% if s.opens_new_gap %}
   <p class="mb-0 rda-near"><small>&#9888; Closes gap but opens a new one — consider layering.</small></p>
@@ -518,7 +518,7 @@
       {% endfor %}
     </small></p>
     {% endif %}
-    <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw)</small></p>
+    <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw protein combined)</small></p>
     <p class="mb-0 muted"><small>Total digestible complete protein: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
   </div>
   {% endfor %}
@@ -555,18 +555,20 @@
     <p class="mb-1 muted"><small>Current meal DIAAS: {{ "%.2f"|format(s.current_diaas) }}</small></p>
     {% endif %}
     {% if s.steps %}
-    <table class="table table-sm mb-1" style="max-width:28rem">
-      <thead><tr><th>Add</th><th>Meal DIAAS</th><th>DCP</th></tr></thead>
+    <table class="table table-sm mb-1" style="max-width:32rem">
+      <thead><tr><th>Add</th><th>Meal DIAAS</th><th>DCP<br>achieved</th><th>%<br>increase</th></tr></thead>
       <tbody>
       {% for step in s.steps %}
       <tr>
         <td>{{ step.grams }}&thinsp;g{% if step.amount_note %} <small class="muted">({{ step.amount_note }})</small>{% endif %}</td>
         <td><span class="{% if step.new_diaas >= 0.9 %}status-met{% elif step.new_diaas >= 0.7 %}rda-near{% else %}rda-low{% endif %}">{{ "%.2f"|format(step.new_diaas) }}</span></td>
         <td>{% if step.dcp is not none %}<strong>{{ "%.1f"|format(step.dcp) }}&thinsp;g</strong>{% else %}&mdash;{% endif %}</td>
+        <td>{% if step.pct_increase is not none %}+{{ "%.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
       </tbody>
     </table>
+    <p class="mb-1 muted"><small>Meal DIAAS: the pooled digestibility-adjusted amino acid score for the meal this food is paired into, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in that meal after adding this amount. % increase: DCP achieved's rise over the meal's current DCP.</small></p>
     {% else %}
     <p class="mb-1 muted"><small>Serve alongside: <strong>{{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} ({{ s.amount_note }}){% endif %}</strong></small></p>
     {% endif %}

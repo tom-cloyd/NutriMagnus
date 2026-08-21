@@ -945,15 +945,6 @@ def suggest_complements(
         diaas_improvers.sort(key=lambda r: (-r["new_diaas"], r["grams"]))
         return gap_closers, diaas_improvers
 
-    exclude_lower = {n.lower() for n in (exclude_names or ())}
-    if exclude_lower:
-        pantry_candidates = [c for c in pantry_candidates if c["name"].lower() not in exclude_lower]
-
-    pantry_gap_closers, pantry_diaas_improvers = _build_suggestions(pantry_candidates)
-
-    # General suggestions from the curated table, filtered by dietary preference.
-    pantry_names_lower = {c["name"].lower() for c in pantry_candidates}
-
     def _diet_allows(c: dict) -> bool:
         if not c.get("animal", False):
             return True
@@ -962,6 +953,26 @@ def suggest_complements(
         if diet_pref == "vegetarian":
             return bool(c.get("dairy_egg", False))
         return False  # plant_only
+
+    def _diet_allows_by_name(name: str) -> bool:
+        """Like _diet_allows, but for a pantry/recipe candidate that isn't itself a
+        curated-table entry — matched against the table by name (same keyword match
+        used elsewhere) so real foods like "Organic Eggs" are still diet-filtered.
+        Foods with no curated match are allowed through (no basis to exclude them).
+        """
+        entry = _find_complement_by_name(name)
+        return _diet_allows(entry) if entry else True
+
+    exclude_lower = {n.lower() for n in (exclude_names or ())}
+    if exclude_lower:
+        pantry_candidates = [c for c in pantry_candidates if c["name"].lower() not in exclude_lower]
+    if diet_pref != "all":
+        pantry_candidates = [c for c in pantry_candidates if _diet_allows_by_name(c["name"])]
+
+    pantry_gap_closers, pantry_diaas_improvers = _build_suggestions(pantry_candidates)
+
+    # General suggestions from the curated table, filtered by dietary preference.
+    pantry_names_lower = {c["name"].lower() for c in pantry_candidates}
 
     # Index cache_candidates (real foods matching a curated entry by name) so the
     # general tier prefers real cached data over the entry's generic profile.

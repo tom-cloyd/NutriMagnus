@@ -61,6 +61,7 @@ _SMOKE_ROUTES = [
     "/food/convert",
     "/food/cache",
     "/food/cache/prune",
+    "/food/cache/db-check",
     "/pantry",
     "/food/custom-profiles",
     "/food/annotate",
@@ -1123,13 +1124,143 @@ def test_food_cache_delete_preserves_search_filter(client: TestClient, cached_fo
     ).fetchone() is None
 
 
-def test_food_cache_prune_deletes_unreferenced(client: TestClient, cached_food, db_conn) -> None:
-    resp = client.post("/food/cache/prune", follow_redirects=False)
+def test_food_cache_delete_refuses_when_still_referenced(client: TestClient, cached_food, db_conn) -> None:
+    """Regression test: deleting a food still used by a pantry entry used to
+    silently orphan that pantry entry — opening its food page later 400'd
+    trying to re-fetch the (often negative, non-USDA) fdc_id from USDA."""
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
+        (cached_food["name"], cached_food["fdcId"]),
+    )
+    db_conn.commit()
+    resp = client.post("/food/cache/delete", data={"fdc_id": cached_food["fdcId"]}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert "delete_blocked=1" in resp.headers["location"]
+    assert db_conn.execute(
+        "SELECT * FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone() is not None
+
+
+def test_food_cache_db_check_and_repair(client: TestClient, cached_food, db_conn) -> None:
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
+        (cached_food["name"], cached_food["fdcId"]),
+    )
+    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],))
+    db_conn.commit()
+
+    resp = client.get("/food/cache/db-check")
+    assert resp.status_code == 200
+    assert "1</strong> problem" in resp.text
+
+    resp = client.post("/food/cache/db-check/repair", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "repaired=1" in resp.headers["location"]
+    assert db_conn.execute("SELECT * FROM pantry WHERE fdc_id = ?", (cached_food["fdcId"],)).fetchone() is None
+
+
+def test_food_cache_db_check_repair_scoped_to_one_category(client: TestClient, cached_food, db_conn) -> None:
+    """Each problem category has its own "Remove these" button — posting
+    category=orphaned_pantry must not touch an orphaned recipe ingredient
+    found in the same scan."""
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
+        (cached_food["name"], cached_food["fdcId"]),
+    )
+    rid = db_conn.execute(
+        "INSERT INTO recipes (name, servings) VALUES ('Soup', 1)"
+    ).lastrowid
+    db_conn.execute(
+        "INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit) VALUES (?, ?, ?, 100, 'g')",
+        (rid, cached_food["fdcId"], cached_food["name"]),
+    )
+    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],))
+    db_conn.commit()
+
+    resp = client.post(
+        "/food/cache/db-check/repair", data={"category": "orphaned_pantry"}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    assert "repaired=1" in resp.headers["location"]
+    assert db_conn.execute("SELECT * FROM pantry WHERE fdc_id = ?", (cached_food["fdcId"],)).fetchone() is None
+    assert db_conn.execute(
+        "SELECT * FROM recipe_ingredients WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone() is not None
+
+
+def test_food_cache_explains_claude_fetch_before_the_buttons(client: TestClient, cached_food) -> None:
+    """Regression test: the checkbox/button pair for "Fetch missing data from
+    Claude AI" used to appear with no explanation of what it does — confusing
+    on its own. There must be a brief inline explanation plus a manual link
+    right above those buttons."""
+    resp = client.get("/food/cache")
+    assert resp.status_code == 200
+    assert "Fetch missing data from Claude AI" in resp.text
+    assert "/manual#fetch" in resp.text
+
+
+def test_claude_fetch_builds_prompt_for_selected_cached_foods(client: TestClient, cached_food) -> None:
+    resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [cached_food["fdcId"]]})
+    assert resp.status_code == 200
+    assert str(cached_food["fdcId"]) in resp.text
+    assert cached_food["name"] in resp.text
+    assert "1 food" in resp.text
+
+
+def test_claude_fetch_no_matching_foods_shows_warning(client: TestClient) -> None:
+    resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [999999]})
+    assert resp.status_code == 200
+    assert "could be found" in resp.text
+
+
+def test_claude_import_preview_shows_review_without_saving(client: TestClient, db_conn) -> None:
+    response_text = '```json\n{"name": "Chicken breast", "fdc_id": 171477, "fdc_type": "SR Legacy", "protein_g": 31.0}\n```'
+    resp = client.post("/food/cache/claude-import", data={"response_text": response_text, "action": "preview"})
+    assert resp.status_code == 200
+    assert "Chicken breast" in resp.text
+    assert db_conn.execute("SELECT * FROM foods WHERE fdc_id = 171477").fetchone() is None
+
+
+def test_claude_import_confirm_saves_to_cache(client: TestClient, db_conn) -> None:
+    response_text = '```json\n{"name": "Chicken breast", "fdc_id": 171477, "fdc_type": "SR Legacy", "protein_g": 31.0}\n```'
+    resp = client.post(
+        "/food/cache/claude-import",
+        data={"response_text": response_text, "action": "confirm"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "imported=1" in resp.headers["location"]
+    row = db_conn.execute("SELECT * FROM foods WHERE fdc_id = 171477").fetchone()
+    assert row is not None
+    assert row["name"] == "Chicken breast"
+
+
+def test_claude_import_no_json_shows_no_blocks_error_not_crash(client: TestClient) -> None:
+    resp = client.post("/food/cache/claude-import", data={"response_text": "Sorry, no data available.", "action": "preview"})
+    assert resp.status_code == 200
+    assert "No JSON blocks found" in resp.text
+
+
+def test_food_cache_prune_deletes_checked(client: TestClient, cached_food, db_conn) -> None:
+    """The preview page's checkboxes are named delete_ids; only checked ones are removed."""
+    resp = client.post(
+        "/food/cache/prune", data={"delete_ids": str(cached_food["fdcId"])}, follow_redirects=False
+    )
     assert resp.status_code == 303
     assert "pruned=1" in resp.headers["location"]
     assert db_conn.execute(
         "SELECT * FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
     ).fetchone() is None
+
+
+def test_food_cache_prune_keeps_unchecked(client: TestClient, cached_food, db_conn) -> None:
+    """Unchecking a food on the preview page (omitting it from delete_ids) keeps it."""
+    resp = client.post("/food/cache/prune", data={}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert "pruned=0" in resp.headers["location"]
+    assert db_conn.execute(
+        "SELECT * FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone() is not None
 
 
 def test_food_cache_archive_hides_and_restore_reveals(client: TestClient, cached_food, db_conn) -> None:

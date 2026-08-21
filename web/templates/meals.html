@@ -67,8 +67,8 @@
     </div>
   </form>
   <div>
-    <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
     <div><small class="muted">Find every meal that contains a given food, e.g. "tofu"</small></div>
+    <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
   </div>
   <form method="post" action="/meals/compute-bcp" class="d-flex gap-2 align-items-end">
     <input type="hidden" name="redirect_to" value="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}&limit={{ limit }}">
@@ -82,11 +82,12 @@
     </div>
     <button type="submit" class="btn btn-sm btn-outline-secondary">Calculate</button>
   </form>
-  <small class="muted">DCP = bioavailable (digestible) complete protein{% if protein_target %} · goal = {{ protein_target|int }} g/day{% endif %}</small>
+  <small class="muted">DCP = bioavailable (digestible) complete protein{% if protein_target %} · profile goal = {{ protein_target|int }} g/day{% endif %}</small>
 </div>
 
 {# ── Meal list ────────────────────────────────────────────────────────── #}
 {% if meals %}
+<p class="muted"><small>Specify nutrients you want in this table here: <a href="/settings#meal-list-nutrients">Settings &rarr; Meals &amp; Log columns</a></small></p>
 <p style="font-size:0.85em" class="mb-1">
   Showing {{ meals|length }} of {{ total }} meal{% if total != 1 %}s{% endif %}
   {% if date_filter %}<span class="muted"> on or before {{ date_filter }}</span>{% endif %}
@@ -195,7 +196,6 @@
   </tbody>
 </table>
 <p class="muted"><small>* Day DCP / % goal includes a meal not yet marked complete — the total may change as you keep editing that meal.</small></p>
-<p class="muted"><small>Specify nutrients you want in this table here: <a href="/settings#meal-list-nutrients">Settings &rarr; Meals &amp; Log columns</a></small></p>
 
 {% else %}
 <p class="muted mt-2">

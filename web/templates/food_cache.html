@@ -52,6 +52,8 @@
      title="Download the foods listed below (name, nutrients, portions) as a CSV file">Export CSV</a>
   <a href="/food/cache/import-csv" class="btn btn-sm btn-outline-secondary"
      title="Import foods from a CSV file exported from this or another NuMa install">Import CSV</a>
+  <a href="/food/cache/db-check" class="btn btn-sm btn-outline-secondary"
+     title="Check for pantry/recipe/meal entries pointing at a food that's no longer in the cache">Check database integrity</a>
 </p>
 
 {% if pruned %}
@@ -74,6 +76,9 @@
 {% if refresh_error is defined and refresh_error %}
 <div class="alert alert-danger">{{ refresh_error }}</div>
 {% endif %}
+{% if delete_blocked %}
+<div class="alert alert-danger">Can't delete that food — it's still used in a pantry entry, recipe, or logged meal. Use Archive instead, or remove it from those places first.</div>
+{% endif %}
 
 {% if q %}
 <p class="result-count">
@@ -90,6 +95,7 @@
    checkbox instead points back at this form via its own `form="claude-fetch-form"`
    attribute, which HTML allows even when the input isn't a descendant. #}
 <form method="post" action="/food/cache/claude-fetch" id="claude-fetch-form"></form>
+<p class="muted mb-1"><small>Check the box next to any food below (or click "Select all missing AA data"), then click "Fetch missing data from Claude AI" to build a ready-to-paste prompt asking Claude AI to fill in that food's missing amino acid or nutrient data. {{ manual_link("fetch") }}</small></p>
 <p class="mb-2">
   <button type="submit" form="claude-fetch-form" class="btn btn-sm btn-primary">Fetch missing data from Claude AI</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectMissingAA()">Select all missing AA data</button>

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Database Integrity Check{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache">Food Cache</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Database Integrity Check</li>
+  </ol>
+</nav>
+
+<h2>Database Integrity Check {{ manual_link("db-check") }}</h2>
+<p class="muted">Looks for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the database — a food page for one of these will fail to open. This can't happen through normal use anymore (deleting a still-used food is now refused), but can be left over from before that fix, or from a manually edited database file.</p>
+
+{% if repaired %}
+<div class="alert alert-success">Fixed {{ repaired }} problem{% if repaired != 1 %}s{% endif %}.</div>
+{% endif %}
+
+{% if total == 0 %}
+<p class="muted">No problems found — every pantry entry, recipe ingredient, and meal item points at a food or recipe that still exists.</p>
+<a href="/food/cache" class="btn btn-outline-secondary btn-sm">Back to Food Cache</a>
+{% else %}
+<p><strong>{{ total }}</strong> problem{% if total != 1 %}s{% endif %} found. Each kind below is fixed separately, since each has a different real effect on your data — read the note before clicking.</p>
+
+{% if issues.orphaned_pantry %}
+<h5 class="mt-4">Pantry entries pointing at a missing food ({{ issues.orphaned_pantry|length }})</h5>
+<p class="muted mb-1"><small>Low impact: these are just entries in My Pantry. Removing them only takes the food off your pantry list — nothing else references pantry entries.</small></p>
+<div class="table-responsive mb-2">
+  <table class="table table-sm" style="max-width:44rem">
+    <thead class="table-light"><tr><th>Pantry entry</th><th>Missing FDC ID</th></tr></thead>
+    <tbody>
+      {% for r in issues.orphaned_pantry %}
+      <tr><td>{{ r.food_name }}</td><td class="muted">{{ r.fdc_id }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<form method="post" action="/food/cache/db-check/repair" class="mb-2">
+  <input type="hidden" name="category" value="orphaned_pantry">
+  <button type="submit" class="btn btn-outline-danger btn-sm"
+          onclick="return confirm('Remove {{ issues.orphaned_pantry|length }} pantry entr{{ "y" if issues.orphaned_pantry|length == 1 else "ies" }} pointing at a food that no longer exists? This only removes them from My Pantry. Cannot be undone.')">
+    Remove {{ issues.orphaned_pantry|length }} pantry entr{% if issues.orphaned_pantry|length == 1 %}y{% else %}ies{% endif %}
+  </button>
+</form>
+{% endif %}
+
+{% if issues.orphaned_recipe_ingredients %}
+<h5 class="mt-4">Recipe ingredients pointing at a missing food ({{ issues.orphaned_recipe_ingredients|length }})</h5>
+<p class="muted mb-1"><small><strong>Changes recipes:</strong> removing one of these deletes that ingredient line from its recipe. The recipe's protein and other nutrient totals will be recalculated without it — check the recipe afterward if that matters to you. (If the food still exists, re-fetch it instead — see Food Cache — rather than removing the ingredient.)</small></p>
+<div class="table-responsive mb-2">
+  <table class="table table-sm" style="max-width:44rem">
+    <thead class="table-light"><tr><th>Recipe</th><th>Ingredient</th><th>Missing FDC ID</th></tr></thead>
+    <tbody>
+      {% for r in issues.orphaned_recipe_ingredients %}
+      <tr><td><a href="/recipe/{{ r.recipe_id }}">{{ r.recipe_name or ("Recipe #" ~ r.recipe_id) }}</a></td><td>{{ r.food_name }}</td><td class="muted">{{ r.fdc_id }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<form method="post" action="/food/cache/db-check/repair" class="mb-2">
+  <input type="hidden" name="category" value="orphaned_recipe_ingredients">
+  <button type="submit" class="btn btn-outline-danger btn-sm"
+          onclick="return confirm('Remove {{ issues.orphaned_recipe_ingredients|length }} recipe ingredient(s) pointing at a food that no longer exists? This deletes those lines from their recipes and recalculates recipe totals without them. Cannot be undone.')">
+    Remove {{ issues.orphaned_recipe_ingredients|length }} recipe ingredient{% if issues.orphaned_recipe_ingredients|length != 1 %}s{% endif %}
+  </button>
+</form>
+{% endif %}
+
+{% if issues.orphaned_meal_items %}
+<h5 class="mt-4">Logged meal items pointing at a missing food or recipe ({{ issues.orphaned_meal_items|length }})</h5>
+<p class="muted mb-1"><small><strong>Changes your logged history:</strong> removing one of these deletes that food/recipe entry from that day's logged meal. That day's nutrient totals will be recalculated without it — this is the same as if you'd never logged it.</small></p>
+<div class="table-responsive mb-2">
+  <table class="table table-sm" style="max-width:44rem">
+    <thead class="table-light"><tr><th>Meal date</th><th>Item</th></tr></thead>
+    <tbody>
+      {% for r in issues.orphaned_meal_items %}
+      <tr><td>{% if r.meal_id %}<a href="/meal/{{ r.meal_id }}">{{ r.meal_date or ("Meal #" ~ r.meal_id) }}</a>{% else %}{{ r.meal_date or "—" }}{% endif %}</td><td>{{ r.food_name }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<form method="post" action="/food/cache/db-check/repair" class="mb-2">
+  <input type="hidden" name="category" value="orphaned_meal_items">
+  <button type="submit" class="btn btn-outline-danger btn-sm"
+          onclick="return confirm('Remove {{ issues.orphaned_meal_items|length }} logged meal item(s) pointing at a food/recipe that no longer exists? This deletes those entries from your meal history and recalculates that day\'s totals without them. Cannot be undone.')">
+    Remove {{ issues.orphaned_meal_items|length }} meal item{% if issues.orphaned_meal_items|length != 1 %}s{% endif %}
+  </button>
+</form>
+{% endif %}
+
+{% if issues.orphaned_recipe_refs %}
+<h5 class="mt-4">Sub-recipe references pointing at a missing recipe ({{ issues.orphaned_recipe_refs|length }})</h5>
+<p class="muted mb-1"><small><strong>Non-destructive:</strong> nothing is deleted. This just flags the ingredient line as "recipe (deleted)" — the same label NuMa already shows when you delete a recipe that other recipes use as an ingredient — instead of it silently erroring.</small></p>
+<div class="table-responsive mb-2">
+  <table class="table table-sm" style="max-width:44rem">
+    <thead class="table-light"><tr><th>In recipe</th><th>Ingredient</th></tr></thead>
+    <tbody>
+      {% for r in issues.orphaned_recipe_refs %}
+      <tr><td><a href="/recipe/{{ r.recipe_id }}">Recipe #{{ r.recipe_id }}</a></td><td>{{ r.food_name }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<form method="post" action="/food/cache/db-check/repair" class="mb-2">
+  <input type="hidden" name="category" value="orphaned_recipe_refs">
+  <button type="submit" class="btn btn-outline-secondary btn-sm"
+          onclick="return confirm('Flag {{ issues.orphaned_recipe_refs|length }} sub-recipe reference(s) as \'recipe (deleted)\'? Nothing is deleted — this only fixes the display.')">
+    Flag {{ issues.orphaned_recipe_refs|length }} reference{% if issues.orphaned_recipe_refs|length != 1 %}s{% endif %} as deleted
+  </button>
+</form>
+{% endif %}
+
+{% if issues.bad_json %}
+<h5 class="mt-4">Cached foods with unreadable nutrient/portion data ({{ issues.bad_json|length }})</h5>
+<p class="muted mb-1"><small><strong>Needs your judgment — not auto-fixed.</strong> For each food below: <strong>Refresh</strong> re-fetches its data from USDA and replaces the unreadable field (only works for USDA foods, not Open Food Facts). <strong>Delete</strong> removes the food entirely — refused if it's still used in a pantry entry, recipe, or meal.</small></p>
+<div class="table-responsive mb-2">
+  <table class="table table-sm" style="max-width:44rem">
+    <thead class="table-light"><tr><th>Food</th><th>FDC ID</th><th>Field</th><th></th></tr></thead>
+    <tbody>
+      {% for r in issues.bad_json %}
+      <tr>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a></td>
+        <td class="muted">{{ r.fdc_id }}</td>
+        <td class="muted">{{ r.field }}</td>
+        <td style="white-space:nowrap">
+          {% if r.fdc_id > 0 %}
+          <form method="post" action="/food/cache/{{ r.fdc_id }}/refresh" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
+                    onclick="return confirm('Re-fetch nutrients from USDA for {{ r.name | replace("'", "\\'") }}? This replaces its nutrient data.')">
+              Refresh
+            </button>
+          </form>
+          {% endif %}
+          <form method="post" action="/food/cache/delete" style="display:inline">
+            <input type="hidden" name="fdc_id" value="{{ r.fdc_id }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger"
+                    onclick="return confirm('Delete {{ r.name | replace("'", "\\'") }} from cache? Refused if still in use.')">
+              Delete
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<a href="/food/cache" class="btn btn-outline-secondary btn-sm mt-2">Back to Food Cache</a>
+{% endif %}
+{% endblock %}

@@ -11,14 +11,19 @@
 </nav>
 
 <h2>Prune Unused Foods</h2>
-<p class="muted">Foods below are not referenced by any pantry entry, recipe ingredient, or logged meal item. User-drafted foods (created or edited by hand) are protected and never listed here.</p>
+<p class="muted">Foods below are not referenced by any pantry entry, recipe ingredient, or logged meal item. User-drafted foods (created or edited by hand) are protected and never listed here. Every box starts checked; uncheck any food you want to keep — deleting a food from the cache <strong>cannot be undone</strong>.</p>
 
 {% if unused %}
-<p><strong>{{ unused|length }}</strong> unused food{% if unused|length != 1 %}s{% endif %} will be deleted from the cache.</p>
+<p><strong id="prune-count">{{ unused|length }}</strong> food{% if unused|length != 1 %}s{% endif %} checked for deletion.
+  <button type="button" class="btn btn-link btn-sm p-0 align-baseline" onclick="pruneSetAll(true)">Check all</button> ·
+  <button type="button" class="btn btn-link btn-sm p-0 align-baseline" onclick="pruneSetAll(false)">Uncheck all</button>
+</p>
+<form method="post" action="/food/cache/prune" id="prune-form">
 <div class="table-responsive mb-3">
   <table class="table table-sm table-hover" style="max-width:44rem">
     <thead class="table-light">
       <tr>
+        <th></th>
         <th>ID</th>
         <th>Name</th>
         <th>Type</th>
@@ -27,6 +32,7 @@
     <tbody>
       {% for f in unused %}
       <tr>
+        <td><input type="checkbox" name="delete_ids" value="{{ f.fdc_id }}" checked onchange="pruneUpdateCount()"></td>
         <td class="muted" style="white-space:nowrap">{% if f.fdc_id < 0 %}OFF{% else %}{{ f.fdc_id }}{% endif %}</td>
         <td>{{ f.name }}{{ food_id_tag(f.fdc_id) }}</td>
         <td class="muted"><small>{{ f.data_type or "—" }}</small></td>
@@ -35,13 +41,25 @@
     </tbody>
   </table>
 </div>
-<form method="post" action="/food/cache/prune" class="d-flex gap-2">
-  <button type="submit" class="btn btn-danger btn-sm"
-          onclick="return confirm('Delete {{ unused|length }} unused food{{ "s" if unused|length != 1 else "" }} from cache? This cannot be undone.')">
-    Prune {{ unused|length }} food{% if unused|length != 1 %}s{% endif %}
-  </button>
-  <a href="/food/cache" class="btn btn-outline-secondary btn-sm">Cancel</a>
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-danger btn-sm" id="prune-submit"
+            onclick="return confirm(document.querySelectorAll('input[name=delete_ids]:checked').length + ' food(s) checked for deletion. This cannot be undone. Continue?')">
+      Prune checked foods
+    </button>
+    <a href="/food/cache" class="btn btn-outline-secondary btn-sm">Cancel</a>
+  </div>
 </form>
+<script>
+function pruneUpdateCount() {
+  const n = document.querySelectorAll('input[name=delete_ids]:checked').length;
+  document.getElementById('prune-count').textContent = n;
+  document.getElementById('prune-submit').disabled = (n === 0);
+}
+function pruneSetAll(checked) {
+  document.querySelectorAll('input[name=delete_ids]').forEach(cb => cb.checked = checked);
+  pruneUpdateCount();
+}
+</script>
 {% else %}
 <p class="muted">Nothing to prune — every cached food is referenced by a pantry entry, recipe, or meal.</p>
 <a href="/food/cache" class="btn btn-outline-secondary btn-sm">Back to Food Cache</a>
