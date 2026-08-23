@@ -16,7 +16,7 @@
 
 <form method="get" action="/food/search" data-persist-search="query">
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-  <div class="input-group mb-2">
+  <div class="input-group mb-2" style="max-width: 40%">
     <input type="text" class="form-control" name="query" value="{{ query }}"
            placeholder="e.g. salmon, oat bran, lentils" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>

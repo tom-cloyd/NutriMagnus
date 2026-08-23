@@ -366,18 +366,22 @@ def set_food_archived(conn: sqlite3.Connection, fdc_id: int, archived: bool) -> 
     conn.execute("UPDATE foods SET archived = ? WHERE fdc_id = ?", (1 if archived else 0, fdc_id))
 
 
-def food_references(conn: sqlite3.Connection, fdc_id: int) -> dict[str, int]:
-    """Return counts of pantry entries, recipe ingredients, and meal items still referencing this food."""
-    pantry_n = conn.execute(
-        "SELECT COUNT(*) FROM pantry WHERE fdc_id = ?", (fdc_id,)
-    ).fetchone()[0]
-    recipe_n = conn.execute(
-        "SELECT COUNT(*) FROM recipe_ingredients WHERE fdc_id = ?", (fdc_id,)
-    ).fetchone()[0]
-    meal_n = conn.execute(
-        "SELECT COUNT(*) FROM meal_items WHERE item_type = 'food' AND fdc_id = ?", (fdc_id,)
-    ).fetchone()[0]
-    return {"pantry": pantry_n, "recipes": recipe_n, "meals": meal_n}
+def food_references(conn: sqlite3.Connection, fdc_id: int) -> dict[str, list[int]]:
+    """Return the ids of pantry entries, recipes, and meals still referencing this food.
+
+    Each list is truthy/falsy exactly like the counts this used to return, so
+    callers that only check `if refs["pantry"]` etc. still work unchanged.
+    """
+    pantry_ids = [r[0] for r in conn.execute(
+        "SELECT id FROM pantry WHERE fdc_id = ?", (fdc_id,)
+    ).fetchall()]
+    recipe_ids = [r[0] for r in conn.execute(
+        "SELECT DISTINCT recipe_id FROM recipe_ingredients WHERE fdc_id = ?", (fdc_id,)
+    ).fetchall()]
+    meal_ids = [r[0] for r in conn.execute(
+        "SELECT DISTINCT meal_id FROM meal_items WHERE item_type = 'food' AND fdc_id = ?", (fdc_id,)
+    ).fetchall()]
+    return {"pantry": pantry_ids, "recipes": recipe_ids, "meals": meal_ids}
 
 
 def list_unused_cached_foods(conn: sqlite3.Connection, *, include_drafted: bool = False) -> list[sqlite3.Row]:

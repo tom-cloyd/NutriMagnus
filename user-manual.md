@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-20:2322* / Reading time: 2 hours, 51 minutes
+*Updated 2026-08-23:0652* / Reading time: 2 hours, 51 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides a thorough nutritional analysis of a user's food choices. It is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -2564,6 +2564,46 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "NEEDED BELOW: glean all up to and including 'FIX: EDITING A FOOD NOW RECOMPUTES'. After that, they have not been committed yet."
 
 Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed.
+
+#### August 22 program updates
+
+**NEW: FOOD USE IN MEALS AND FOOD USE IN RECIPES NOW LINK EACH FOOD/RECIPE NAME TO ITS ANALYSIS PAGE**
+
+The Food Use in Meals and Food Use in Recipes tables listed each food and recipe by name only, with no way to jump to that food's or recipe's own nutritional analysis page short of re-searching for it elsewhere. Every row's name is now a link — to `/food/{id}` for a food, `/recipe/{id}` for a recipe — except where there's genuinely nothing to link to (a deleted recipe, or a food added without a linked USDA/Open Food Facts/etc. id).
+
+```
+Scope: web/templates/analysis_food_use.html, web/templates/analysis_food_use_recipes.html.
+Both already had fdc_id/recipe_id/kind (and, for Food Use in Meals, a deleted flag)
+per row from web/backend.py's analysis_food_use / analysis_food_use_recipes routes;
+this only changed the row-name markup, no backend/query changes.
+```
+
+#### August 21 program updates
+
+**CLARIFY: "CAN'T DELETE THAT FOOD" NOW NAMES AND LINKS EVERY PANTRY ENTRY, RECIPE, AND MEAL BLOCKING IT**
+
+Food Cache → Delete used to refuse with a generic "it's still used in a pantry entry, recipe, or logged meal" message, giving no way to find which ones without hunting through Pantry, Recipes, and Meals & Log by hand. It now lists every blocking pantry entry, recipe, and meal by id, each one linked straight to the place you'd remove or replace that food — e.g. "pantry: 34 | recipe: 12 | meal: 9, 72".
+
+```
+Scope: db.py (food_references — now returns id lists instead of counts;
+still truthy/falsy the same way so existing callers were untouched), web/backend.py
+(food_cache_delete passes the blocked ids through as blocked_pantry/blocked_recipes/
+blocked_meals query params, food_cache_get parses them back into lists), web/templates/
+food_cache.html (renders each id as a link: pantry ids to /pantry, recipe ids to
+/recipe/{id}/edit, meal ids to /meal/{id}).
+```
+
+**NEW: REMOVE A FOOD FROM YOUR PANTRY DIRECTLY FROM SEARCH RESULTS**
+
+Searching My Pantry for a food already in your pantry used to just label its search-results row "Already in pantry" with no action available — removing it meant scrolling down to find the matching row in the pantry list below. That row now has a **Remove from pantry** button instead, so you can add or remove a food from the same search results table.
+
+```
+Scope: web/backend.py (pantry_get), web/templates/pantry.html. Search results whose
+source is "pantry" now carry the underlying pantry row's id (pantry_id_by_fdc, built
+from the same items list used to render the pantry table below); the template swaps
+the static "Already in pantry" label for a form posting to the existing
+/pantry/remove/{pantry_id} route when that id is present.
+```
 
 #### August 20 program updates
 

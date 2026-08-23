@@ -98,7 +98,16 @@
       <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>
       <td>
         {% if r.source == "pantry" and not link_id %}
+        {% if r.pantry_id %}
+        <form method="post" action="/pantry/remove/{{ r.pantry_id }}" style="display:inline">
+          <button type="submit" class="btn btn-sm btn-outline-danger"
+                  onclick="return confirm('Remove {{ r.name | replace("'", "\\'") }} from pantry?')">
+            Remove from pantry
+          </button>
+        </form>
+        {% else %}
         <span class="muted"><small>Already in pantry</small></span>
+        {% endif %}
         {% else %}
         <form method="post" action="/pantry/add" style="display:inline">
           <input type="hidden" name="fdc_id" value="{{ r.fdc_id }}">

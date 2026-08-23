@@ -2294,7 +2294,8 @@ _FOOD_CACHE_SORT_KEYS = {
 @app.get("/food/cache", response_class=HTMLResponse)
 async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
                           show_archived: bool | None = None, archived: int = 0, restored: int = 0,
-                          still_used: int = 0, imported: int = 0, delete_blocked: int = 0):
+                          still_used: int = 0, imported: int = 0, delete_blocked: int = 0,
+                          blocked_pantry: str = "", blocked_recipes: str = "", blocked_meals: str = ""):
     sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
@@ -2339,6 +2340,9 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
         "still_used":    still_used,
         "imported":      imported,
         "delete_blocked": delete_blocked,
+        "blocked_pantry":  [int(i) for i in blocked_pantry.split(",") if i],
+        "blocked_recipes": [int(i) for i in blocked_recipes.split(",") if i],
+        "blocked_meals":   [int(i) for i in blocked_meals.split(",") if i],
     })
 
 
@@ -2371,6 +2375,12 @@ async def food_cache_delete(fdc_id: int = Form(...), q: str = Form(""),
         refs = _db.food_references(conn, fdc_id)
         if refs["pantry"] or refs["recipes"] or refs["meals"]:
             params["delete_blocked"] = 1
+            if refs["pantry"]:
+                params["blocked_pantry"] = ",".join(str(i) for i in refs["pantry"])
+            if refs["recipes"]:
+                params["blocked_recipes"] = ",".join(str(i) for i in refs["recipes"])
+            if refs["meals"]:
+                params["blocked_meals"] = ",".join(str(i) for i in refs["meals"])
             return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
         _db.delete_cached_food(conn, fdc_id)
     return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
@@ -2726,6 +2736,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
     search_error: str | None = None
     if search:
         pantry_ids = {i["fdc_id"] for i in items if i["fdc_id"]}
+        pantry_id_by_fdc = {i["fdc_id"]: i["id"] for i in items if i["fdc_id"]}
         with _db.get_db() as conn:
             cached = _db.search_cached_foods(conn, search)
         seen: set[int] = set()
@@ -2742,6 +2753,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
                 "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 "off_code":  "",
                 "aa":        "✓" if _usda.has_amino_acid_data(nuts) else "✗",
+                "pantry_id": pantry_id_by_fdc.get(row["fdc_id"]),
             })
         if "usda" in source:
             try:

@@ -77,7 +77,24 @@
 <div class="alert alert-danger">{{ refresh_error }}</div>
 {% endif %}
 {% if delete_blocked %}
-<div class="alert alert-danger">Can't delete that food — it's still used in a pantry entry, recipe, or logged meal. Use Archive instead, or remove it from those places first.</div>
+<div class="alert alert-danger">
+  Deletion not possible. Food used in these places:
+  <strong>
+    {% if blocked_pantry %}
+    pantry: {% for pid in blocked_pantry %}<a href="/pantry">{{ pid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    {% if blocked_recipes or blocked_meals %} | {% endif %}
+    {% endif %}
+    {% if blocked_recipes %}
+    recipe: {% for rid in blocked_recipes %}<a href="/recipe/{{ rid }}/edit">{{ rid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    {% if blocked_meals %} | {% endif %}
+    {% endif %}
+    {% if blocked_meals %}
+    meal: {% for mid in blocked_meals %}<a href="/meal/{{ mid }}">{{ mid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    {% endif %}
+  </strong>
+  <br>
+  <small class="muted">Use Archive instead, or remove/replace the food in one of these places first.</small>
+</div>
 {% endif %}
 
 {% if q %}

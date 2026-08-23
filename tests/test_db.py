@@ -554,7 +554,7 @@ class TestArchiving:
 
         with _db.get_db() as conn:
             refs = _db.food_references(conn, SAMPLE_FDC_ID)
-        assert refs == {"pantry": 1, "recipes": 1, "meals": 1}
+        assert refs == {"pantry": [1], "recipes": [rid], "meals": [mid]}
 
     def test_archived_unreferenced_food_protected_from_prune(self):
         with _db.get_db() as conn:
