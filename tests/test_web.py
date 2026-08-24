@@ -388,6 +388,27 @@ def test_pantry_add_and_remove(client: TestClient, db_conn) -> None:
     assert db_conn.execute("SELECT * FROM pantry WHERE id = ?", (row["id"],)).fetchone() is None
 
 
+def test_pantry_search_shows_remove_button_for_food_already_in_pantry(client: TestClient, cached_food, db_conn) -> None:
+    """Regression test: searching My Pantry for a food already there used to
+    just label the row "Already in pantry" with no action — removing it
+    meant scrolling to the pantry list below. The row should offer a Remove
+    from pantry button that posts to the existing per-row remove route."""
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
+        (cached_food["name"], cached_food["fdcId"]),
+    )
+    db_conn.commit()
+    pantry_id = db_conn.execute(
+        "SELECT id FROM pantry WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone()["id"]
+
+    resp = client.get("/pantry", params={"search": cached_food["name"]})
+    assert resp.status_code == 200
+    assert "Remove from pantry" in resp.text
+    assert f"/pantry/remove/{pantry_id}" in resp.text
+    assert "Already in pantry" not in resp.text
+
+
 def test_meal_create_add_food_complete_delete(client: TestClient, cached_food, db_conn) -> None:
     resp = client.post(
         "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
@@ -1141,6 +1162,15 @@ def test_food_cache_delete_refuses_when_still_referenced(client: TestClient, cac
         "SELECT * FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
     ).fetchone() is not None
 
+    # Regression test: the refusal used to give a generic "still used" message
+    # with no way to find which pantry entry/recipe/meal was blocking it. The
+    # redirect should carry the blocking pantry id, and the Food Cache page
+    # should render it as a link to /pantry.
+    assert "blocked_pantry=" in resp.headers["location"]
+    follow = client.get(resp.headers["location"])
+    assert follow.status_code == 200
+    assert 'href="/pantry"' in follow.text
+
 
 def test_food_cache_db_check_and_repair(client: TestClient, cached_food, db_conn) -> None:
     db_conn.execute(
@@ -1694,6 +1724,35 @@ def test_food_use_analysis_shows_recipe_current_name_after_rename(client: TestCl
     resp = client.get("/analysis/food-use", params={"ranges_raw": "2026-07-01:2026-07-31"})
     assert "Chili Verde" in resp.text
     assert "<strong>Chili</strong>" not in resp.text
+
+
+def test_food_use_analysis_links_food_and_recipe_names_to_analysis_pages(client: TestClient, cached_food: dict) -> None:
+    """Regression test: Food Use in Meals used to list each food/recipe by
+    plain name, with no way to jump to its own analysis page short of
+    re-searching for it elsewhere."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Stew", "servings": 2}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+    client.post(
+        f"/meal/{meal_id}/add-recipe",
+        data={"recipe_id": recipe_id, "recipe_name": "Stew", "servings": 1, "mode": "recipe"},
+        follow_redirects=False,
+    )
+
+    resp = client.get("/analysis/food-use", params={"ranges_raw": "2026-07-01:2026-07-31"})
+    assert resp.status_code == 200
+    assert f'href="/food/{cached_food["fdcId"]}"' in resp.text
+    assert f'href="/recipe/{recipe_id}"' in resp.text
 
 
 def test_food_use_recipes_page_lists_ingredient_usage(client: TestClient, cached_food: dict) -> None:

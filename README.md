@@ -34,6 +34,9 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Nutrient trends over time** — average your intake over 7, 14, or 30 days, or plot any nutrient across your logged days, to catch a chronic shortfall a single day's numbers would hide
 - **CSV export/import** — move foods and recipes between installs, or edit them in a spreadsheet
 - **Archive** — hide a food, pantry entry, or recipe you're not currently using without deleting it
+- **Side-by-side comparison** — compare up to 8 foods or 6 recipes at once, nutrient by nutrient; jump in directly from any search or list page
+- **Food use analysis** — see how often a food shows up across your logged meals or saved recipes, with bulk substitution to fold a duplicate entry into one
+- **Database integrity check** — find and repair any pantry entry, recipe ingredient, or logged meal item left pointing at a deleted food or recipe
 - **Printable reports** — generate a print/PDF-ready report for any food, meal, or full day, with a checkbox choice of which sections to include
 - **Extensive built-in help** — "Learn more" links throughout the app jump straight to the relevant section of the full User Manual, built in and readable without leaving the app
 

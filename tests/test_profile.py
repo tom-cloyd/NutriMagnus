@@ -217,9 +217,7 @@ class TestComputeUpperLimits:
             "vitamin_c_mg": 2000.0,
             "vitamin_d_mcg": 100.0,
             "vitamin_e_mg": 1000.0,
-            "niacin_mg": 35.0,
             "b6_mg": 100.0,
-            "folate_mcg": 1000.0,
             "choline_mg": 3500.0,
         }
 

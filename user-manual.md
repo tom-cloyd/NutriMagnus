@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-23:0652* / Reading time: 2 hours, 51 minutes
+*Updated 2026-08-23:0749* / Reading time: 2 hours, 52 minutes
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides a thorough nutritional analysis of a user's food choices. It is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -224,7 +224,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-20), there are 710 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-23), there are 712 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 3.
 
@@ -826,7 +826,7 @@ Revised Optimal targets are per-nutrient, not per-day -- there is no single "opt
 NuMa tracks three tiers of daily maximum, from broadest to narrowest:
 
 - **Sodium's built-in RDA-tier limit.** Sodium is the one nutrient with a "limit" type right in the standard [RDA](#rda) calculation itself (Part 4, Section Q) — 2300 mg/day, the Chronic Disease Risk Reduction Intake. This is separate from the tier below and isn't configurable.
-- **Built-in Tolerable Upper Intake Levels (UL).** Fourteen more nutrients carry a real risk of harm from chronic excess, most often from supplementing rather than food alone. NuMa applies the standard adult UL for these automatically — no setup required — using the same age/sex-band pattern as the RDA table:
+- **Built-in Tolerable Upper Intake Levels (UL).** Twelve more nutrients carry a real risk of harm from chronic excess, most often from supplementing rather than food alone. NuMa applies the standard adult UL for these automatically — no setup required — using the same age/sex-band pattern as the RDA table:
 
     | Nutrient | Adult UL | Age band |
     |---|---|---|
@@ -840,12 +840,10 @@ NuMa tracks three tiers of daily maximum, from broadest to narrowest:
     | Vitamin C | 2000 mg | No |
     | Vitamin D | 100 mcg | No |
     | Vitamin E | 1000 mg | No |
-    | Niacin | 35 mg | No |
     | Vitamin B6 | 100 mg | No |
-    | Folate | 1000 mcg | No |
     | Choline | 3500 mg | No |
 
-    Source: NIH Office of Dietary Supplements / Institute of Medicine Dietary Reference Intake UL summary tables[^9]. Five other tracked nutrients (potassium, thiamin, riboflavin, vitamin B12, vitamin K) simply have no established UL — the DRI tables mark these "ND" (not determinable from available data), which is different from "no risk at any dose." Magnesium is deliberately left out even though the DRI table publishes a 350 mg/day figure: that number applies only to *supplemental* (pill-form) magnesium, not intake from food, and NuMa sums whole-food magnesium — applying it here would flag entirely ordinary diets as "over the limit."
+    Source: NIH Office of Dietary Supplements / Institute of Medicine Dietary Reference Intake UL summary tables[^9]. Five other tracked nutrients (potassium, thiamin, riboflavin, vitamin B12, vitamin K) simply have no established UL — the DRI tables mark these "ND" (not determinable from available data), which is different from "no risk at any dose." Magnesium, niacin, and folate are deliberately left out even though the DRI table publishes ULs for them (350 mg, 35 mg, and 1000 mcg respectively): each of those figures applies only to *supplemental* or fortified-food forms, not to the nutrient as it naturally occurs in whole food — niacin's UL guards against a flushing reaction specific to synthetic nicotinic acid/nicotinamide, and folate's guards against synthetic folic acid, neither of which whole-food niacin or folate triggers. NuMa sums whole-food intake for all three, so applying their published ULs here would flag entirely ordinary diets as "over the limit" for a risk that doesn't actually apply to them. If you take a supplement containing any of the three, that supplemental amount is exactly what the real UL is meant to track — use a [custom max limit](#maxlimits) below to watch it.
 - **Your own custom max limits.** On top of (or instead of) the built-in defaults, you can set your own personal daily maximum for any nutrient -- useful if your situation calls for a stricter cap than the general guideline, or a cap on a nutrient that has no standard upper limit at all. A custom limit you set always takes precedence over the built-in default for that nutrient.
 
 Configure your own max limits in the same place as Revised Optimal targets: **Settings → 7. Nutrient Targets**.
@@ -2026,7 +2024,7 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 Add up to eight foods (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
 
 #### Food Cache {: #food-cache-web}
-Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 4 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; use Archive instead, or remove it from those places first. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Compare Foods](#food-comparison) with the checked items.
+Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 4 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Compare Foods](#food-comparison) with the checked items.
 
 **Check database integrity.**{: #db-check} Scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited database file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by ID — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
 
@@ -2045,7 +2043,7 @@ Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here —
 
 #### My Pantry
 
-Foods you keep on hand — see [My Pantry](#pantry) in Part 4 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 4. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Compare Foods](#food-comparison) with the checked items; a quick-add item with no linked data can't be compared.
+Foods you keep on hand — see [My Pantry](#pantry) in Part 4 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 4. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Compare Foods](#food-comparison) with the checked items; a quick-add item with no linked data can't be compared.
 
 #### Custom food profiles
 
@@ -2509,7 +2507,7 @@ Ideas below are listed in their current likely probability of being implemented.
 Foods and recipes can now both be exported to CSV and imported back in — on this or another NuMa install — via **Export CSV**/**Import CSV** buttons on the [Food Cache](#food-cache-web) list and on each [recipe](#recipes)'s page. A recipe's export is self-contained: it bundles every sub-recipe and food ingredient's full data along with it, so nothing has to already exist on the receiving end for the import to work, and anything that already matches by name is reused rather than duplicated. See the August 11 entries in [Recent program updates](#a-recent-program-updates-log) for full detail.
 
 ### Expanding Revised Optimal (Recent Research) targets {: #expand-revised-optimal}
-☑ **Age/sex-banded RDA (completed, existing feature)** and ☑ **research-backed maximum nutrient levels (completed 2026-08-11)** are both done — see [Daily Nutrient Goals](#goals) for the full RDA age/sex band table and [Maximum Nutrient Limits](#maxlimits) for all 14 built-in Tolerable Upper Intake Levels, each sourced to the NIH DRI tables[^9].
+☑ **Age/sex-banded RDA (completed, existing feature)** and ☑ **research-backed maximum nutrient levels (completed 2026-08-11)** are both done — see [Daily Nutrient Goals](#goals) for the full RDA age/sex band table and [Maximum Nutrient Limits](#maxlimits) for all 12 built-in Tolerable Upper Intake Levels, each sourced to the NIH DRI tables[^9].
 
 ☐ **What's still open:** the [Revised Optimal (Recent Research)](#optimal) tier — the *above-RDA* targets, as distinct from the RDA itself — only has built-in defaults for three nutrients today: vitamin D[^12] and EPA+DHA[^13]. Candidates for a future addition, each needing its own specific citation the way those two already have (not a bulk table import like the RDA/UL work, since there's no single unified source for "beyond-RDA" targets — see the tradeoff discussed when this feature was scoped):
 
@@ -2561,9 +2559,34 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 
 [//]: # "Aside from being an update log for the user to access, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day program updates). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
-[//]: # "NEEDED BELOW: glean all up to and including 'FIX: EDITING A FOOD NOW RECOMPUTES'. After that, they have not been committed yet."
 
 Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed.
+
+#### August 23 program updates
+
+**NIACIN AND FOLATE NO LONGER FALSELY FLAG NORMAL DIETS AS OVER THE LIMIT**
+
+The **UL** column on nutrient analysis tables no longer warns about niacin (B3) or folate (B9) from ordinary food intake. Their published upper limits only apply to synthetic/supplemental forms (fortified food or pills) — whole-food niacin and folate don't carry the same risk, the same reasoning already applied to magnesium. Every table with a UL column now also carries a "Special note re: UL scope" callout right in the table footer explaining this in plain language, rather than leaving it to a manual page few people open. If you take a supplement containing niacin, folate, or magnesium, set a [custom max limit](#maxlimits) to track that. [learn more...](#maxlimits)
+
+```
+Scope: profile.py (compute_upper_limits() no longer includes niacin_mg or
+folate_mcg, doc comment explains why — mirrors the existing magnesium
+exclusion), tests/test_profile.py (expected UL dict updated),
+web/templates/_ul_column.html (note() macro gained an inline "Special note
+re: UL scope" callout, shown on every nutrient table with a UL column —
+food/recipe/meal/daily summary/trend/print), user-manual.md (Maximum
+Nutrient Limits table and counts updated from 14 to 12 built-in ULs).
+```
+
+**MAINTENANCE: WEEKLY SWEEP — 3 TEST GAPS CLOSED, README FEATURE LIST CAUGHT UP, CHANGELOG PRUNED**
+
+Item 1 (CLAUDE.md drift) and item 2 (vendored Bootstrap, still 5.3.8, current) found nothing to fix. Item 6 (test coverage) found three real gaps from the last few days of shipped changes and closed all of them: the Food Cache delete-refusal page rendering a food/pantry/recipe/meal blocker as an actual link, the My Pantry search results' "Remove from pantry" button, and Food Use in Meals/Recipes linking each row to its own analysis page — each now has a regression test. Item 5 (README.md) added three shipped features that were missing from the public "Key features" list: side-by-side comparison, food-use analysis, and the database integrity checker. Item 4 (manual consolidation) folded the delete-blocker and pantry-remove-button behavior into the manual body itself, and removed a stale internal editorial note that had outlived its purpose. Item 3 pruned the changelog back to roughly the last two weeks. Item 7 (link check) found nothing broken in-manual, but turned up something outside the manual's scope worth a look: `https://github.com/tom-cloyd/NutriMagnus` and its `/releases` page both return a genuine 404 right now, not a bot-block — worth confirming the repo's current visibility/location before the next release announcement, since `README.md`'s Download section and clone instructions point there.
+
+```
+Scope: tests/test_web.py (3 new/extended tests), README.md (Key features list),
+user-manual.md (Food Cache and My Pantry sections in Part 6, stray editorial
+note removed from Appendix A header, test-count sentence in Part 1).
+```
 
 #### August 22 program updates
 
@@ -2824,62 +2847,6 @@ A new "Compare recipes" button on the Recipes page lets you pick up to six recip
 **FOOD, RECIPE, AND MEAL PAGES NOW SHOW A ONE-LINE DCP SUMMARY UNDER THE TITLE**
 
 Right below the name of a food, recipe, meal, or full day, you now see how much digestible complete protein (DCP) it delivers relative to its total raw protein — e.g. "100.0 g ⇒ 1.5 g digestible complete protein — 52% of 2.9 g raw protein" for a food, or "1.0 serving analyzed ⇒ 8.8 g digestible complete protein — 81% of 10.9 g raw protein" for a recipe — so you don't have to scroll to the Protein Summary section to see that ratio. The leading segment shows what's being analyzed (the food's current portion, the recipe's servings-analyzed count, a meal's item count, or a day's meal count); the percentage is the food's protein-quality score (digestibility × limiting-amino-acid ratio) expressed as "% of raw protein retained as DCP." [learn more...](#dcp)
-
-#### August 8 program updates
-
-**COPY A WHOLE NUTRIENT PROFILE FROM ANOTHER FOOD WHEN CREATING A CUSTOM FOOD**
-
-The Edit Custom Profile page now has a "Copy a full nutrient profile from another food" search box, alongside the existing amino-acid estimator. Use it to seed a blank draft with a similar food's complete per-100g values (including amino acids) before hand-editing — a raw, unscaled copy, not the protein-scaled estimate the AA tool does. The two tools are independent and either can overwrite fields the other set.
-
-#### August 7 program updates
-
-**PROTEIN COMPLEMENT AND DIAAS-BOOSTER SUGGESTIONS NOW EXPLAIN THEIR ORDER AND LET YOU CHOOSE IT**
-
-The meal, recipe, and food analysis pages never stated how "Protein Complement Suggestions" and "DIAAS-Boosting Options" were ordered — and it turned out the two sections used different rules, with a stale note incorrectly claiming a "50g or less" exception that only really applies to the separate "Two-food combinations" list. Both sections now show a plain-language note explaining their actual rule, and each has its own "Sort by" dropdown: **Greatest effect** (new default — most amino-acid gaps closed / highest resulting DIAAS score, as applicable) or **Smallest addition** (fewest grams needed — the previous default for Complement Suggestions). Your choice is remembered, the same way the Food Cache sort is. "Two-food combinations" and "Two-Step Combinations" also gained corrected explanatory notes (no toggle — their order is fixed/derived).
-
-**FIX: EDITING A FOOD NOW RECOMPUTES ANY RECIPE'S PROTEIN-QUALITY SCORE THAT DEPENDS ON IT**
-
-Previously, changing a food's nutrient data — including bringing in amino acid data via "estimate it from a similar food" — only updated that food. Any recipe using it kept its old, now-stale DCP (protein-quality) score until you happened to re-edit that recipe. Food edits now recompute DCP for every recipe (and, transitively, every recipe of a recipe) that uses the changed food, the same way editing a recipe directly already did. If a recompute step itself fails, it's now logged instead of silently vanishing — see the new [System Issues](#system-issues-howto) section under Settings, and a one-time banner on the home page when something needs a look. Clicking **Retry** on a System Issues entry re-runs the recompute right then and only clears the entry if it actually succeeds — it never just hides a still-broken recipe.
-
-#### August 6 program updates
-
-**NEW: THE MANUAL'S SEARCH NOW FINDS TOPICS, NOT JUST TEXT**
-
-The sidebar search box (web version) searches differently now: type any words in any order and NuMa finds sections containing *all* of them, then lists matching section titles to jump to — instead of only highlighting an exact phrase wherever it appears verbatim. A new "Only show things you can do" checkbox further narrows results to sections that contain an instruction (add, edit, change, remove, and similar words), for when you're trying to do something rather than understand something. See [Using this manual's search](#search-howto) (new, Part 7 D) for the full explanation, linked from the search box itself, the "How to read this Manual" front matter, and the "can't find it" troubleshooting entry.
-
-**MANUAL/UI: "SAMPLE DATA" RENAMED TO "STARTER DATA" THROUGHOUT**
-
-Settings → 9 is now "Starter Data," matching what it actually is — real curated content, not throwaway sample fixtures. Same behavior, same content, just consistent naming: the section heading, button labels, empty-state links on Food Cache/Pantry/Recipes, and the manual all now say "starter data."
-
-**NEW: A ONE-FILE LINUX INSTALLER**
-
-The planned Linux release now has a real installer: `scripts/install-linux.sh` is the single file a user will download, and running it fetches the program and a (placeholder) icon from the latest GitHub release, then adds NuMa to the applications menu. Nothing outside the user's own account is touched and no admin password is needed. Not yet exercised against a real cut release — see Part 1, Section C above for the current state of the release plan.
-
-**NEW: A FRESH INSTALL NOW COMES WITH STARTER FOODS AND RECIPES ALREADY LOADED**
-
-A brand-new install's Food Cache, Pantry, and Recipes list are no longer empty — a small set of USDA-verified foods and two protein-complementary recipes are there from the first launch, ready to explore or build on. Their names all begin with an asterisk (e.g. `* Black Beans & Rice`) so you can always tell them apart from anything you add yourself. If you clear them from [Settings](#settings) and want them back, the same load/clear toggle still works.
-
-#### August 4 program updates
-
-**NEW: SAMPLE DATA — ONE-CLICK EXAMPLE FOODS, PANTRY, AND RECIPES FOR A FRESH INSTALL**
-
-A brand-new install can now load one-click sample data — foods, a pantry, and two recipes — so you can see NuMa's protein-complementarity feature working right away instead of building everything up by hand. Find it at Settings → 9. Sample Data; "Clear sample data" removes exactly what was added and nothing else. [learn more...](#starter-data)
-
-**RELEASE PIPELINE NOW PACKAGES THE WEB APP INSTEAD OF THE REMOVED CLI, AND RUNS TESTS FIRST**
-
-Releases are now built straight from the web app, not the retired CLI, and only ship after the full test suite passes — so a broken build can no longer become a public release.
-
-**REMOVED THE INTERACTIVE TERMINAL CLI**
-
-The old terminal-based interface is gone. NuMa is web-only now — nothing changes for you if you were already using the web app.
-
-**MANUAL, CLAUDE.md, AND README FULLY SWEPT FOR CLI-ERA CONTENT AFTER THE CLI REMOVAL**
-
-The manual, README, and project instructions were combed through and rewritten to describe the web app only — no more leftover CLI-era instructions to trip you up.
-
-**NEW MANUAL SECTION: WHAT TO DO WHEN NO BRAND OR EQUIVALENT OF A FOOD HAS AMINO ACID DATA ANYWHERE IN USDA**
-
-New troubleshooting guidance for when no version of a food anywhere in USDA has ever had its amino acids measured: build a "proxy food" from an ingredient that supplies essentially all the target food's protein, then either save it as a labeled draft or edit the original food's AA fields directly. Includes a full worked example. [learn more...](#ts-no-aa-anywhere)
 
 ---
 

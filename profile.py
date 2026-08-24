@@ -573,6 +573,15 @@ def compute_upper_limits(profile: UserProfile) -> dict[str, float]:
     magnesium, not intake from food — since NuMa sums whole-food magnesium,
     applying it here would flag entirely ordinary diets as "over the limit."
 
+    Niacin and folate are excluded for the same reason. The niacin UL (35
+    mg) applies only to synthetic nicotinic acid/nicotinamide (supplements,
+    fortified food) — the flushing reaction it guards against doesn't occur
+    with niacin naturally present in food. The folate UL (1000 mcg) applies
+    only to synthetic folic acid (supplements, fortified food) — naturally
+    occurring food folate has no established upper limit. NuMa sums
+    whole-food niacin and folate, so applying either UL here would flag
+    ordinary diets as "over the limit" for a risk that doesn't apply to them.
+
     Sodium already has its own dedicated "limit"-type row in compute_rda()
     (2300 mg/day, the Chronic Disease Risk Reduction intake) — a lower, more
     clinically relevant threshold than a formal UL (which the DRI tables
@@ -595,9 +604,7 @@ def compute_upper_limits(profile: UserProfile) -> dict[str, float]:
         "vitamin_c_mg":  2000.0,
         "vitamin_d_mcg": 100.0,
         "vitamin_e_mg":  1000.0,
-        "niacin_mg":     35.0,
         "b6_mg":         100.0,
-        "folate_mcg":    1000.0,
         "choline_mg":    3500.0,
     }
 
