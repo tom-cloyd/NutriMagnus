@@ -2,7 +2,9 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-23:0749
+UPDATED: 2026-08-25:1231
+
+Last monthly accuracy check: not yet performed (see Maintenance → Monthly deep check, below).
 
 ---
 
@@ -1110,6 +1112,8 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 
 ## Maintenance
 
+**One-time addendum, next sweep only (added 2026-08-25):** after finishing that sweep, do a dedicated pass removing all remaining mentions of the retired CLI from both `user-manual.md` and this file — the CLI was removed 2026-08-04, and the owner wants its history fully retired rather than kept as a passing reference (as of 2026-08-25: roughly 6 spots in `user-manual.md`, 1 in this file — grep both for `CLI`, `command line`, and `command-line` to find the current set, since more may accumulate by then). This includes the `CLI` glossary entry in `user-manual.md` and the "previously a dual CLI+web project" framing at the top of `CLAUDE.md` and this file — rewrite any surrounding sentence that only makes sense in contrast to a CLI so it reads cleanly on its own, don't just delete the CLI-specific clause and leave an orphaned sentence. Delete this addendum paragraph once the pass is done — it's a one-time task, not a recurring checklist item.
+
 ### Weekly sweep (Saturdays)
 
 A recurring maintenance pass, scoped to what changed since the last sweep — not a full re-audit each time. **Run the items in this order** — it's not arbitrary: pruning has to happen before the items that scan the changelog (so they're not reading entries about to be deleted), and the link check has to happen last (so it catches anything the manual-editing items introduce).
@@ -1125,6 +1129,19 @@ A recurring maintenance pass, scoped to what changed since the last sweep — no
 Items 4-6 all scan the same two-week changelog window for gaps, just against three different targets (manual body, README, test suite) — do a single read-through of the changelog and produce three gap-lists from it, rather than re-reading the same entries three separate times (the first full sweep, 2026-08-17, ran two separate audits that each re-read the same window from scratch).
 
 After a sweep: log the result as a new `user-manual.md` Appendix A entry (or a suitable per-item entry if the fixes span categories), and bump the manual's own timestamp header. Pure doc/config consolidation does not require a `version.py` bump (no application behavior changed) — but a real bug fix found via item 6 (missing test written, bug fixed) does.
+
+### Monthly deep check (first weekly sweep of each month)
+
+This file (`README-numa-documentation.md`) doesn't get checked for accuracy by the weekly sweep above — it's the internal architecture doc, long and slow-changing enough that a weekly check isn't warranted, but it still drifts. Fold this into whichever weekly sweep falls first in a new month (check the "Last monthly accuracy check" date in the header above — if it's not in the current month, this is due):
+
+- **Project Structure** — the full file/module tree, not just `CLAUDE.md`'s shorter hand-maintained copy (item 1 of the weekly sweep already covers that one); check every listed file still exists and every one-line description still matches what the file does.
+- **Architecture / Web Interface / Data Storage** sections — re-read against the actual current routes, templates, and schema for anything that's quietly gone stale (a renamed route, a removed template, a schema change).
+- **Setup / Running the Program** — commands and paths still correct (venv setup, `python web/launcher.py`, requirements).
+- **Test Suite** section — counts and fixture descriptions still match `tests/`.
+
+**Also do a full `user-manual.md` audit this same week** — check the "Last full audit" date in the manual's own header (right below the "Updated" line); if it's not in the current month, this is due. Weekly sweep item 4 (Manual consolidation) only checks what changed since the last sweep — real but gradual drift (a section that was always subtly wrong, or drifted slowly across many small edits with no single triggering changelog entry) can slip past that every week and never get caught. A full audit reads every Part and Appendix against actual current app behavior, the same way item 4 does for a two-week window, just for the whole document. **This subsumes weekly item 4 for that week — skip item 4 separately, since the full audit already covers everything it would have found.** When done, update the manual's "Last full audit" line to today's date, same rule as the accuracy-check date above: update it every time the audit runs, even if nothing needed fixing.
+
+When done, update the "Last monthly accuracy check" line in this file's header to today's date, regardless of whether anything needed fixing — that line is what tells the next sweep whether this check is due, so it must be updated every time the check runs, not just when it finds something.
 
 ---
 

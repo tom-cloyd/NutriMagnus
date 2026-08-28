@@ -16,6 +16,47 @@
 <p class="numa-error">{{ error }}</p>
 {% endif %}
 
+{# ── Saved lists panel ── #}
+{% if saved_lists %}
+<details class="mb-3">
+  <summary><strong>Use a saved list</strong>
+    <span class="muted">({{ saved_lists|length }})</span>
+  </summary>
+  <table class="table table-sm table-hover mt-2" style="max-width:52rem">
+    <thead class="table-light">
+      <tr><th>Name</th><th>Recipes</th><th>Saved</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for s in saved_lists %}
+      <tr>
+        <td>
+          <a href="/recipe/compare/load/{{ s.id }}">{{ s.name }}</a>
+          <form method="post" action="/recipe/compare/saved/rename" class="d-inline-flex align-items-center gap-1 ms-2">
+            <input type="hidden" name="cmp_id" value="{{ s.id }}">
+            <input type="hidden" name="ids" value="{{ ids_str }}">
+            <input type="hidden" name="unit" value="{{ unit }}">
+            <input type="text" name="name" value="{{ s.name }}"
+                   class="form-control form-control-sm" style="max-width:14rem">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
+          </form>
+        </td>
+        <td class="muted">{{ s.recipe_ids | fromjson | length }}</td>
+        <td class="muted">{{ s.created_at[:10] }}</td>
+        <td>
+          <form method="post" action="/recipe/compare/saved/delete" style="display:inline">
+            <input type="hidden" name="cmp_id" value="{{ s.id }}">
+            <input type="hidden" name="ids" value="{{ ids_str }}">
+            <input type="hidden" name="unit" value="{{ unit }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
 {# ── Add recipe search ── #}
 <form method="get" action="/recipe/compare" class="mb-2">
   <input type="hidden" name="ids" value="{{ ids_str }}">
@@ -281,6 +322,19 @@
 </script>
 {% elif entries|length == 1 %}
 <p class="muted">Add at least one more recipe to see the comparison tables.</p>
+{% endif %}
+
+{# ── Save this comparison ── #}
+{% if entries|length >= 2 %}
+<hr>
+<form method="post" action="/recipe/compare/save" class="d-flex align-items-center gap-2" style="max-width:36rem">
+  <input type="hidden" name="ids" value="{{ ids_str }}">
+  <input type="hidden" name="unit" value="{{ unit }}">
+  <label for="save-name" class="text-nowrap mb-0"><strong>Save this list:</strong></label>
+  <input type="text" id="save-name" name="name" class="form-control form-control-sm"
+         placeholder="Give it a name…" style="max-width:18rem">
+  <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Save comparison</button>
+</form>
 {% endif %}
 
 {% endblock %}

@@ -986,3 +986,9 @@ class TestGetDensityGPerMl:
         """"sage" must not match as a substring of "sausage" (false positive
         density from an unrelated spice keyword)."""
         assert _usda.get_density_g_per_ml("Sausage, pork, fresh, cooked", []) is None
+
+    def test_protein_isolate_and_concentrate_have_density(self):
+        """Regression test: user-reported bug — "Soy protein isolate" had no
+        density data, so volume units (e.g. "2 T") were rejected."""
+        assert _usda.get_density_g_per_ml("Soy protein isolate", []) == pytest.approx(0.50)
+        assert _usda.get_density_g_per_ml("Pea protein concentrate", []) == pytest.approx(0.50)

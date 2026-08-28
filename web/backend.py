@@ -653,6 +653,10 @@ def _pantry_fdc_ids(conn) -> set[int]:
     return {r["fdc_id"] for r in _db.pantry_list(conn) if r["fdc_id"]}
 
 
+def _pantry_id_by_fdc(conn) -> dict[int, int]:
+    return {r["fdc_id"]: r["id"] for r in _db.pantry_list(conn) if r["fdc_id"]}
+
+
 def _current_diet_pref() -> str:
     """Return the saved dietary preference, validated, defaulting to 'all'."""
     pref = _load_prefs_file().get("diet_pref", "all")
@@ -1295,11 +1299,14 @@ async def index(request: Request):
         )
     with _db.get_db() as conn:
         unacked_errors = [dict(r) for r in _db.list_unacked_recompute_errors(conn)]
+        db_issues = _db.check_db_integrity(conn)
+    db_issue_count = sum(len(v) for v in db_issues.values())
     return templates.TemplateResponse(
         request, "home.html", {
             "home_body": _render_home_md(), "version": VERSION,
             "diet_label": diet_label, "profile_label": profile_label,
             "unacked_errors": unacked_errors,
+            "db_issue_count": db_issue_count,
         }
     )
 
@@ -1326,7 +1333,7 @@ def _search_local_results(query: str) -> list[dict]:
         all_recipes = _db.recipe_list(conn)
         cached = _db.search_cached_foods(conn, query)
         annotations = _db.annotations_for_fdcids(conn, [row["fdc_id"] for row in cached])
-        pantry_ids = _pantry_fdc_ids(conn)
+        pantry_id_by_fdc = _pantry_id_by_fdc(conn)
     for row in cached:
         with _db.get_db() as conn:
             full = _db.get_cached_food(conn, row["fdc_id"])
@@ -1337,7 +1344,8 @@ def _search_local_results(query: str) -> list[dict]:
             "name":      row["name"],
             "data_type": row["data_type"],
             "brand":     row["brand"] or "",
-            "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
+            "source":    "pantry" if row["fdc_id"] in pantry_id_by_fdc else "cache",
+            "pantry_id": pantry_id_by_fdc.get(row["fdc_id"]),
             "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
             "gi":        round(ann["gi_estimate"]) if ann and ann["gi_estimate"] is not None else None,
             "diaas":     round(ann["diaas_estimate"], 2) if ann and ann["diaas_estimate"] is not None else None,
@@ -2295,6 +2303,7 @@ _FOOD_CACHE_SORT_KEYS = {
 async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
                           show_archived: bool | None = None, archived: int = 0, restored: int = 0,
                           still_used: int = 0, imported: int = 0, delete_blocked: int = 0,
+                          blocked_fdc_id: int | None = None,
                           blocked_pantry: str = "", blocked_recipes: str = "", blocked_meals: str = ""):
     sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
@@ -2340,6 +2349,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
         "still_used":    still_used,
         "imported":      imported,
         "delete_blocked": delete_blocked,
+        "blocked_fdc_id":  blocked_fdc_id,
         "blocked_pantry":  [int(i) for i in blocked_pantry.split(",") if i],
         "blocked_recipes": [int(i) for i in blocked_recipes.split(",") if i],
         "blocked_meals":   [int(i) for i in blocked_meals.split(",") if i],
@@ -2375,6 +2385,7 @@ async def food_cache_delete(fdc_id: int = Form(...), q: str = Form(""),
         refs = _db.food_references(conn, fdc_id)
         if refs["pantry"] or refs["recipes"] or refs["meals"]:
             params["delete_blocked"] = 1
+            params["blocked_fdc_id"] = fdc_id
             if refs["pantry"]:
                 params["blocked_pantry"] = ",".join(str(i) for i in refs["pantry"])
             if refs["recipes"]:
@@ -2898,7 +2909,9 @@ async def pantry_archive(pantry_id: int):
 
 @app.get("/food/custom-profiles", response_class=HTMLResponse)
 async def food_custom_profiles_get(request: Request, copy_q: str = Query(default=""),
-                                    delete_blocked: int = 0):
+                                    delete_blocked: int = 0, blocked_fdc_id: int | None = None,
+                                    blocked_pantry: str = "",
+                                    blocked_recipes: str = "", blocked_meals: str = ""):
     with _db.get_db() as conn:
         rows = _db.list_user_drafted_foods(conn)
         copy_results = []
@@ -2911,6 +2924,10 @@ async def food_custom_profiles_get(request: Request, copy_q: str = Query(default
         "copy_results": copy_results,
         "copied": False,
         "delete_blocked": delete_blocked,
+        "blocked_fdc_id":  blocked_fdc_id,
+        "blocked_pantry":  [int(i) for i in blocked_pantry.split(",") if i],
+        "blocked_recipes": [int(i) for i in blocked_recipes.split(",") if i],
+        "blocked_meals":   [int(i) for i in blocked_meals.split(",") if i],
     })
 
 
@@ -2942,7 +2959,14 @@ async def food_custom_profiles_delete(fdc_id: int):
     with _db.get_db() as conn:
         refs = _db.food_references(conn, fdc_id)
         if refs["pantry"] or refs["recipes"] or refs["meals"]:
-            return RedirectResponse("/food/custom-profiles?delete_blocked=1", status_code=303)
+            params: dict[str, str] = {"delete_blocked": "1", "blocked_fdc_id": str(fdc_id)}
+            if refs["pantry"]:
+                params["blocked_pantry"] = ",".join(str(i) for i in refs["pantry"])
+            if refs["recipes"]:
+                params["blocked_recipes"] = ",".join(str(i) for i in refs["recipes"])
+            if refs["meals"]:
+                params["blocked_meals"] = ",".join(str(i) for i in refs["meals"])
+            return RedirectResponse(f"/food/custom-profiles?{urlencode(params)}", status_code=303)
         _db.delete_cached_food(conn, fdc_id)
     return RedirectResponse("/food/custom-profiles", status_code=303)
 
@@ -3280,30 +3304,73 @@ async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = 
     return RedirectResponse(f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=ok", status_code=303)
 
 
+def _duplicate_food_as_draft(conn, cached) -> int:
+    """Create a new user-drafted food that's a nutrient-for-nutrient copy of
+    an existing cached food, named "Copy of ...". Returns the new fdc_id."""
+    new_id = _db.next_user_drafted_fdc_id(conn)
+    nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
+    portions_json = cached["portions_json"]
+    portions: list[dict] = []
+    if portions_json and portions_json != "null":
+        portions = json.loads(portions_json)
+    _db.cache_food(
+        conn,
+        fdc_id=new_id,
+        name=f"Copy of {cached['name']}",
+        data_type="User Drafted",
+        brand=cached["brand"],
+        serving_size=cached["serving_size"],
+        serving_unit=cached["serving_unit"],
+        nutrients=nutrients,
+        portions=portions,
+        user_drafted=True,
+    )
+    return new_id
+
+
 @app.post("/food/custom-profiles/copy/{fdc_id}", response_class=RedirectResponse)
 async def food_custom_profiles_copy(fdc_id: int):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         if not cached:
             return RedirectResponse("/food/custom-profiles", status_code=303)
-        new_id = _db.next_user_drafted_fdc_id(conn)
-        nutrients = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
-        portions_json = cached["portions_json"]
-        portions: list[dict] = []
-        if portions_json and portions_json != "null":
-            portions = json.loads(portions_json)
-        _db.cache_food(
-            conn,
-            fdc_id=new_id,
-            name=f"Copy of {cached['name']}",
-            data_type="User Drafted",
-            brand=cached["brand"],
-            serving_size=cached["serving_size"],
-            serving_unit=cached["serving_unit"],
-            nutrients=nutrients,
-            portions=portions,
-            user_drafted=True,
-        )
+        new_id = _duplicate_food_as_draft(conn, cached)
+    return RedirectResponse(f"/food/custom-profiles/{new_id}/edit", status_code=303)
+
+
+@app.post("/food/custom-profiles/copy-from-search", response_class=RedirectResponse)
+async def food_custom_profiles_copy_from_search(fdc_id: int = Form(...), off_code: str = Form("")):
+    """Shortcut from Food Search results: duplicate a search result as an
+    editable custom-profile draft in one step, without a detour through the
+    Custom Profiles page's own "copy a cached food as a draft" search box.
+    Unlike copy/{fdc_id} above, the result may not be cached yet (a live
+    USDA/OFF/etc. hit the user hasn't opened before), so it's fetched first
+    same as pantry-add and meal-add-food do for uncached search results.
+    Landing on the new draft's edit page, its AA-source search box is the
+    next step for copying amino acid data from a different food (see
+    numa_app/services/aa_estimate.py)."""
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        try:
+            detail = _fetch_uncached_food_detail(fdc_id, off_code)
+        except Exception:
+            return RedirectResponse("/food/custom-profiles", status_code=303)
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn, fdc_id=detail["fdcId"], name=detail["name"],
+                data_type=detail.get("dataType", ""),
+                brand=detail.get("brand"),
+                serving_size=detail.get("servingSize"),
+                serving_unit=detail.get("servingUnit"),
+                nutrients=detail.get("nutrients", {}),
+                portions=detail.get("portions", []),
+            )
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
+            cached = _db.get_cached_food(conn, detail["fdcId"])
+
+    with _db.get_db() as conn:
+        new_id = _duplicate_food_as_draft(conn, cached)
     return RedirectResponse(f"/food/custom-profiles/{new_id}/edit", status_code=303)
 
 
@@ -5730,6 +5797,9 @@ async def recipe_compare_get(
     protein_quality_rows = _build_protein_quality_rows(entries) if len(entries) >= 2 else []
     ids_str = ",".join(str(e["id"]) for e in entries)
 
+    with _db.get_db() as conn:
+        saved_lists = _db.saved_recipe_comparison_list(conn)
+
     return templates.TemplateResponse(request, "recipe_compare.html", {
         "entries":              entries,
         "ingredient_rows":      ingredient_rows,
@@ -5741,6 +5811,7 @@ async def recipe_compare_get(
         "unit":                 unit,
         "error":                error,
         "max_recipes":          _MAX_COMPARE_RECIPES,
+        "saved_lists":          saved_lists,
     })
 
 
@@ -5801,6 +5872,57 @@ async def recipe_compare_remove(
     id_list = [i for i in _parse_recipe_compare_ids(ids) if i != remove_id]
     ids_str = ",".join(str(i) for i in id_list)
     return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
+
+
+@app.post("/recipe/compare/save", response_class=RedirectResponse)
+async def recipe_compare_save(
+    name: str = Form(""),
+    ids:  str = Form(""),
+    unit: str = Form("serving"),
+):
+    id_list = _parse_recipe_compare_ids(ids)
+    if len(id_list) >= 2:
+        with _db.get_db() as conn:
+            _db.saved_recipe_comparison_save(conn, name.strip() or "Untitled", id_list, unit)
+    ids_str = ",".join(str(i) for i in id_list)
+    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
+
+
+@app.get("/recipe/compare/load/{cmp_id}", response_class=RedirectResponse)
+async def recipe_compare_load(cmp_id: int):
+    with _db.get_db() as conn:
+        row = _db.saved_recipe_comparison_get(conn, cmp_id)
+    if not row:
+        return RedirectResponse("/recipe/compare", status_code=303)
+    ids_str = ",".join(str(i) for i in json.loads(row["recipe_ids"]))
+    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={row['unit']}", status_code=303)
+
+
+@app.post("/recipe/compare/saved/rename", response_class=RedirectResponse)
+async def recipe_compare_saved_rename(
+    cmp_id: int = Form(...),
+    name:   str = Form(""),
+    ids:    str = Form(""),
+    unit:   str = Form("serving"),
+):
+    new_name = name.strip() or "Untitled"
+    with _db.get_db() as conn:
+        _db.saved_recipe_comparison_rename(conn, cmp_id, new_name)
+    url = f"/recipe/compare?ids={ids}&unit={unit}" if ids else "/recipe/compare"
+    return RedirectResponse(url, status_code=303)
+
+
+@app.post("/recipe/compare/saved/delete", response_class=RedirectResponse)
+async def recipe_compare_saved_delete(
+    cmp_id: int = Form(...),
+    ids:    str = Form(""),
+    unit:   str = Form("serving"),
+):
+    with _db.get_db() as conn:
+        _db.saved_recipe_comparison_delete(conn, cmp_id)
+    ids_str = ids.strip()
+    url = f"/recipe/compare?ids={ids_str}&unit={unit}" if ids_str else "/recipe/compare"
+    return RedirectResponse(url, status_code=303)
 
 
 def _recipe_detail_context(recipe_id: int, servings: float | None,
@@ -5993,7 +6115,8 @@ async def recipe_print(
 
 @app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
 async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = "",
-                           relinked: str = "", source: list[str] | None = Query(default=None),
+                           relinked: str = "", relinked_to: str = "",
+                           source: list[str] | None = Query(default=None),
                            limit: int | None = None):
     # Keep the "Add Ingredient" panel open across a reload triggered from
     # inside it (Search, Reset all sources to ON, Refresh search) even when
@@ -6015,6 +6138,9 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
             _g = _broken_groups.setdefault(_row["matched_name"], {"matched_name": _row["matched_name"], "meals": [], "recipes": []})
             _g["recipes"].append(_row)
         broken_groups = sorted(_broken_groups.values(), key=lambda g: g["matched_name"])
+        for _g in broken_groups:
+            _g["candidates"] = _db.find_relink_candidates(conn, _g["matched_name"])
+        all_recipes_for_relink = _db.recipe_list(conn) if broken_groups else []
         ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
         for _ing in ingredients:
             if not _ing["ref_recipe_id"]:
@@ -6116,7 +6242,9 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         "error":              error,
         "nutrition_summary":  nutrition_summary,
         "broken_groups":      broken_groups,
+        "all_recipes_for_relink": all_recipes_for_relink,
         "relinked":           relinked,
+        "relinked_to":        relinked_to,
         "source":             source,
         "limit":              limit,
         "source_filters":     _SEARCH_SOURCE_FILTERS,
@@ -6125,13 +6253,20 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
 
 
 @app.post("/recipe/{recipe_id}/relink", response_class=RedirectResponse)
-async def recipe_relink_post(recipe_id: int, matched_name: str = Form(...)):
+async def recipe_relink_post(recipe_id: int, matched_name: str = Form(...), target_recipe_id: int = Form(...)):
+    """recipe_id is only where to redirect back to (the edit page the user was
+    on) — target_recipe_id (picked from the candidate/all-recipes dropdown,
+    defaulting to recipe_id) is where the broken refs actually get relinked,
+    since the user may be recreating a different recipe than the one they
+    happen to be editing right now."""
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
-        if not recipe:
+        target = _db.recipe_get(conn, target_recipe_id)
+        if not recipe or not target:
             return RedirectResponse("/recipes", status_code=303)
-        m, r = _db.relink_recipe_refs(conn, matched_name, recipe_id)
-    return RedirectResponse(f"/recipe/{recipe_id}/edit?relinked={m},{r}", status_code=303)
+        m, r = _db.relink_recipe_refs(conn, matched_name, target_recipe_id)
+    params = urlencode({"relinked": f"{m},{r}", "relinked_to": target["name"]})
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?{params}", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/edit", response_class=RedirectResponse)
@@ -7173,10 +7308,17 @@ async def analysis_food_use(
     sort: str = Query(default="frequency"),
     substituted: int = Query(default=0),
     error: str = Query(default=""),
+    sub_kind: str = Query(default=""),
+    sub_id: int | None = Query(default=None),
 ):
     """Food use in meals: frequency-of-use table across a chosen set of meals.
 
     mode selects EITHER date range(s) ("range") OR meal IDs ("ids") — never both.
+
+    sub_kind/sub_id pre-fill the "Replace this" side of the substitute form —
+    used to deep-link here from a delete-blocked message (Food Cache, Custom
+    Food Profiles) with the blocking food already selected as the thing to
+    replace, scoped to exactly the meals that were blocking the deletion.
     """
     if ranges_raw is None:
         today = datetime.date.today()
@@ -7245,6 +7387,8 @@ async def analysis_food_use(
         "submitted":     bool(ranges or requested_ids),
         "substituted":   substituted,
         "error":         error,
+        "sub_kind":      sub_kind,
+        "sub_id":        sub_id,
     })
 
 
@@ -7326,12 +7470,20 @@ async def analysis_food_use_recipes(
     sort: str = Query(default="frequency"),
     substituted: int = Query(default=0),
     error: str = Query(default=""),
+    sub_kind: str = Query(default=""),
+    sub_id: int | None = Query(default=None),
 ):
     """Food use in recipes: frequency-of-use table across a chosen set of
     (container) recipes — how many of them use a given food or sub-recipe as
     an ingredient, directly or nested. mode selects ALL recipes ("all",
     default), a date range by when the recipe was created ("range"), or
-    specific recipe IDs ("ids")."""
+    specific recipe IDs ("ids").
+
+    sub_kind/sub_id pre-fill the "Replace this" side of the substitute form —
+    used to deep-link here from a delete-blocked message (Food Cache, Custom
+    Food Profiles) with the blocking food already selected as the thing to
+    replace, scoped to exactly the recipes that were blocking the deletion.
+    """
     with _db.get_db() as conn:
         recipes_by_id, ranges, missing_ids = _parse_food_use_recipes_selection(conn, mode, ranges_raw, recipe_ids)
     requested_ids = _parse_id_list_tokens(recipe_ids) if mode == "ids" else []
@@ -7391,6 +7543,8 @@ async def analysis_food_use_recipes(
         "submitted":      mode == "all" or bool(ranges or requested_ids),
         "substituted":    substituted,
         "error":          error,
+        "sub_kind":       sub_kind,
+        "sub_id":         sub_id,
     })
 
 

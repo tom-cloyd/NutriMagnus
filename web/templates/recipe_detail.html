@@ -547,6 +547,8 @@
 {# ── Complement Suggestions ───────────────────────────────────────────── #}
 {% if complements and not complements.no_data %}
 
+{% macro per_serving_note(grams) %}{% if recipe.servings and recipe.servings > 1 and grams %} <span class="muted">(&asymp;{{ "%.1f"|format(grams / recipe.servings) }}&thinsp;g per serving)</span>{% endif %}{% endmacro %}
+
 {% macro suggest_card(s, verb) %}
 <div class="card card-body mb-2 p-2" style="max-width:38rem">
   <label class="mb-1 d-inline-flex align-items-center gap-1" style="font-size:.8rem">
@@ -566,7 +568,7 @@
     <tbody>
     {% for step in s.grad_steps %}
     <tr{% if loop.last %} class="table-success"{% endif %}>
-      <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
+      <td><strong>{{ step.grams }}&thinsp;g</strong>{{ per_serving_note(step.grams) }}{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
       <td>{{ step.dig_protein }}&thinsp;g</td>
       <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
       <td>{% if step.pct_increase is not none %}+{{ "%.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
@@ -579,7 +581,7 @@
   </table>
   <p class="mb-1 muted"><small>DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP.</small></p>
   {% else %}
-  <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
+  <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{{ per_serving_note(s.grams) }}{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
   {% endif %}
   {% if s.aa_effects %}
   <p class="mb-1 muted"><small>Effect:
@@ -608,6 +610,9 @@
   <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
   <p class="muted mt-1"><small>Every essential amino acid — including whichever one shows as "limiting" above — already meets or exceeds the FAO reference level. "Limiting" identifies the amino acid with the smallest margin, not a deficiency. {{ manual_link("gap") }}</small></p>
   {% else %}
+  {% if recipe.servings and recipe.servings > 1 %}
+  <p class="muted mt-2"><small><strong>Amounts below are sized to the whole recipe ({{ recipe.servings }} servings)</strong>, not one serving — that's the only way to act on a suggestion (add an ingredient to the batch). Each amount also shows its per-serving equivalent in parentheses. {{ manual_link("comp-recipe-scale", "Learn more") }}</small></p>
+  {% endif %}
   <p class="muted mt-2"><small>{{ complements.comp_ranking_note }}</small></p>
   <p class="mb-1">
     <label class="muted me-1" style="font-size:.8rem"><small>Sort by</small></label>
@@ -673,7 +678,7 @@
       {% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
     {% for f in p.foods %}
-    <p class="mb-1 ms-2"><strong>Add to recipe: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>{{ food_id_tag(f.fdc_id, f.get('recipe_id')) }}
+    <p class="mb-1 ms-2"><strong>Add to recipe: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>{{ per_serving_note(f.grams) }}{{ food_id_tag(f.fdc_id, f.get('recipe_id')) }}
       {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
     </p>
     {% endfor %}
@@ -728,7 +733,7 @@
       <tbody>
       {% for step in s.steps %}
       <tr>
-        <td>{{ step.grams }}&thinsp;g{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}</td>
+        <td>{{ step.grams }}&thinsp;g{{ per_serving_note(step.grams) }}{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}</td>
         <td>{{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(step.new_diaas) }}</strong></td>
         <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% endif %}</td>
         <td>{% if step.pct_increase is not none %}+{{ "%.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
@@ -738,7 +743,7 @@
     </table>
     <p class="mb-1 muted"><small>Recipe DIAAS: the pooled digestibility-adjusted amino acid score for the whole recipe, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP.</small></p>
     {% else %}
-    <p class="mb-1"><strong>Add to recipe:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
+    <p class="mb-1"><strong>Add to recipe:</strong> {{ s.grams | round | int }}&thinsp;g{{ per_serving_note(s.grams) }}{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
     {% if s.current_diaas is not none and s.new_diaas is not none %}
     <p class="mb-1 muted"><small>Recipe DIAAS: {{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(s.new_diaas) }}</strong></small></p>
     {% endif %}
@@ -757,7 +762,7 @@
   {% for combo in complements.two_step_combos %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1 fw-semibold">Combination {{ loop.index }}</p>
-    <p class="mb-1"><strong>Step 1 &mdash; Add {{ combo.step1.grams }}&thinsp;g{% if combo.step1.amount_note %} ({{ combo.step1.amount_note }}){% endif %} {{ combo.step1.name }}</strong>{{ food_id_tag(combo.step1.fdc_id) }}
+    <p class="mb-1"><strong>Step 1 &mdash; Add {{ combo.step1.grams }}&thinsp;g{% if combo.step1.amount_note %} ({{ combo.step1.amount_note }}){% endif %} {{ combo.step1.name }}</strong>{{ per_serving_note(combo.step1.grams) }}{{ food_id_tag(combo.step1.fdc_id) }}
       {% if combo.step1.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step1.diaas) }}</small>{% endif %}
     </p>
     {% if combo.step1.aa_effects %}
@@ -769,7 +774,7 @@
     {% endif %}
     <p class="mb-1 muted"><small>DCP: {{ combo.step1.dcp_before }}&thinsp;g &rarr; <strong>{{ combo.step1.dcp_after }}&thinsp;g</strong></small></p>
     {% if combo.step2 %}
-    <p class="mb-1 mt-1"><strong>Step 2 &mdash; Add {{ combo.step2.grams }}&thinsp;g{% if combo.step2.amount_note %} ({{ combo.step2.amount_note }}){% endif %} {{ combo.step2.name }}</strong>{{ food_id_tag(combo.step2.fdc_id) }}
+    <p class="mb-1 mt-1"><strong>Step 2 &mdash; Add {{ combo.step2.grams }}&thinsp;g{% if combo.step2.amount_note %} ({{ combo.step2.amount_note }}){% endif %} {{ combo.step2.name }}</strong>{{ per_serving_note(combo.step2.grams) }}{{ food_id_tag(combo.step2.fdc_id) }}
       {% if combo.step2.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(combo.step2.diaas) }}</small>{% endif %}
     </p>
     <p class="mb-1 muted"><small>Recipe DIAAS &rarr; <strong>{{ "%.2f"|format(combo.step2.new_diaas) }}</strong></small></p>

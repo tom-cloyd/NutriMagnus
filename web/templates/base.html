@@ -303,6 +303,16 @@
     if (!group) return;
     group.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = true; });
   });
+  // "Unselect all" (data-unselect-all-sources) — same delegated pattern as
+  // "Select all sources" above, but unchecks every source checkbox instead.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-unselect-all-sources]');
+    if (!btn) return;
+    e.preventDefault();
+    var group = btn.closest('[role="group"]');
+    if (!group) return;
+    group.querySelectorAll('input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
+  });
   </script>
   <script>
   // Remember the last search you ran on a "stateful" page (marked with

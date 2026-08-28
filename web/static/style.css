@@ -152,6 +152,34 @@ td.muted, th.muted, small.muted, span.muted, p.muted, li.muted {
   border-bottom: 1px solid #ccc;
 }
 
+/* Search-results table can show two independent checkboxes per row (confirm
+   amino-acid data vs. add to comparison) — colored distinctly, with a legend
+   above the table, so it's clear at a glance they're not the same control. */
+.checkbox-confirm-aa {
+  accent-color: #e6870d;   /* orange */
+}
+
+.checkbox-compare {
+  accent-color: #7b2cbf;   /* purple */
+}
+
+.checkbox-legend-swatch {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 0.15rem;
+  margin-right: 0.2rem;
+  vertical-align: -0.1rem;
+}
+
+.checkbox-legend-swatch-confirm-aa {
+  background: #e6870d;
+}
+
+.checkbox-legend-swatch-compare {
+  background: #7b2cbf;
+}
+
 /* ── Tables ──────────────────────────────────────────────────────────── */
 
 table {

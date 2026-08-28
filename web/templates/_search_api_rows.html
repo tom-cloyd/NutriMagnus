@@ -1,9 +1,13 @@
 {% import "_search_result_row.html" as _sr %}
-{% set ns = namespace(seen_local=false, divider_shown=false) %}
+{% set ns = namespace(seen_local=false, divider_shown=false, local_header_shown=false) %}
 {% for food in results %}
+  {% if is_local_source(food.source) and not ns.local_header_shown %}
+<tr class="search-group-divider"><td colspan="12"><small class="muted">From your pantry, food cache, and recipes</small></td></tr>
+  {% set ns.local_header_shown = true %}
+  {% endif %}
   {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
   {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
-<tr class="search-group-divider"><td colspan="11"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+<tr class="search-group-divider"><td colspan="12"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
   {% set ns.divider_shown = true %}
   {% endif %}
   {{ _sr.row(food, show_compare=true) }}

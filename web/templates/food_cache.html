@@ -93,7 +93,24 @@
     {% endif %}
   </strong>
   <br>
-  <small class="muted">Use Archive instead, or remove/replace the food in one of these places first.</small>
+  <small class="muted">
+    Use Archive instead (button above), or clear each place first, then come back and delete — either
+    remove this food from each place, or replace it there with a different food:
+    <ul class="mb-0">
+      {% if blocked_pantry %}
+      <li>Pantry — <strong>remove:</strong> open <a href="/pantry">Pantry</a> and click that entry's "Remove" button.
+      <strong>Replace:</strong> remove it, then use Pantry's "Add" to add a different food instead.</li>
+      {% endif %}
+      {% if blocked_recipes %}
+      <li>Recipe — <strong>remove:</strong> open the recipe's edit page (link above) and click the &#x2715; next to the ingredient line using this food.
+      <strong>Replace:</strong> <a href="/analysis/food-use-recipes?mode=ids&amp;recipe_ids={{ blocked_recipes|join(',') }}&amp;sub_kind=food&amp;sub_id={{ blocked_fdc_id }}">swap it for a different food in all {{ blocked_recipes|length }} recipe{{ 's' if blocked_recipes|length != 1 }} at once</a>.</li>
+      {% endif %}
+      {% if blocked_meals %}
+      <li>Meal — <strong>remove:</strong> open the meal (link above) and click the &#x2715; next to the food item line using this food.
+      <strong>Replace:</strong> <a href="/analysis/food-use?mode=ids&amp;meal_ids={{ blocked_meals|join(',') }}&amp;sub_kind=food&amp;sub_id={{ blocked_fdc_id }}">swap it for a different food in all {{ blocked_meals|length }} meal{{ 's' if blocked_meals|length != 1 }} at once</a>.</li>
+      {% endif %}
+    </ul>
+  </small>
 </div>
 {% endif %}
 

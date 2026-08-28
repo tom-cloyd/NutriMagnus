@@ -729,6 +729,51 @@ def test_custom_profile_copy_nutrients_overwrites_with_source_values(
     assert copied["aa_lysine_g"] == cached_food["nutrients"]["aa_lysine_g"]
 
 
+def test_copy_from_search_creates_draft_from_cached_food(
+    client: TestClient, db_conn, cached_food: dict
+) -> None:
+    """Food Search's "Copy as draft to add AA data" shortcut for a food
+    already in the local cache — should skip the fetch and go straight to
+    duplicating it as an editable draft."""
+    resp = client.post(
+        "/food/custom-profiles/copy-from-search",
+        data={"fdc_id": cached_food["fdcId"]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    draft_id = int(resp.headers["location"].rsplit("/", 2)[-2])
+    row = db_conn.execute(
+        "SELECT name, user_drafted, nutrients_json FROM foods WHERE fdc_id = ?", (draft_id,)
+    ).fetchone()
+    assert row is not None
+    assert row["user_drafted"] == 1
+    assert row["name"] == f"Copy of {cached_food['name']}"
+    copied = json.loads(row["nutrients_json"])
+    assert copied["protein_g"] == cached_food["nutrients"]["protein_g"]
+
+
+def test_copy_from_search_fetches_uncached_food_first(client: TestClient, db_conn, monkeypatch) -> None:
+    """Same shortcut for a live search result not yet in the local cache —
+    fetches and caches it first (same path pantry-add/meal-add-food use for
+    uncached results), then duplicates the now-cached food as a draft."""
+    from tests.conftest import SAMPLE_FOOD_DETAIL
+
+    monkeypatch.setattr(backend._usda, "get_food_detail", lambda fdc_id: SAMPLE_FOOD_DETAIL)
+    resp = client.post(
+        "/food/custom-profiles/copy-from-search",
+        data={"fdc_id": SAMPLE_FOOD_DETAIL["fdcId"]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    draft_id = int(resp.headers["location"].rsplit("/", 2)[-2])
+    row = db_conn.execute(
+        "SELECT name, user_drafted FROM foods WHERE fdc_id = ?", (draft_id,)
+    ).fetchone()
+    assert row is not None
+    assert row["user_drafted"] == 1
+    assert row["name"] == f"Copy of {SAMPLE_FOOD_DETAIL['name']}"
+
+
 def test_settings_profile_update(client: TestClient) -> None:
     resp = client.post(
         "/settings",
@@ -1172,6 +1217,88 @@ def test_food_cache_delete_refuses_when_still_referenced(client: TestClient, cac
     assert 'href="/pantry"' in follow.text
 
 
+def test_food_cache_delete_blocked_offers_bulk_replace_link(client: TestClient, cached_food, db_conn) -> None:
+    """The delete-blocked message must not only explain how to remove the
+    food from each blocking recipe/meal one at a time — it should also link
+    to the existing Food Use substitution tools, pre-selected to exactly the
+    blocking recipes/meals with this food as the thing to replace, so a
+    bulk swap is one click away instead of requiring the user to hunt for
+    the substitution feature and re-enter the same IDs."""
+    rid = db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Soup', 1)").lastrowid
+    db_conn.execute(
+        "INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit) VALUES (?, ?, ?, 100, 'g')",
+        (rid, cached_food["fdcId"], cached_food["name"]),
+    )
+    meal_id = db_conn.execute("INSERT INTO meals (name, meal_date) VALUES ('Lunch', '2026-01-01')").lastrowid
+    db_conn.execute(
+        "INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit) VALUES (?, 'food', ?, ?, 100, 'g')",
+        (meal_id, cached_food["fdcId"], cached_food["name"]),
+    )
+    db_conn.commit()
+
+    resp = client.post("/food/cache/delete", data={"fdc_id": cached_food["fdcId"]}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert f"blocked_fdc_id={cached_food['fdcId']}" in resp.headers["location"]
+
+    follow = client.get(resp.headers["location"])
+    assert follow.status_code == 200
+    expected_recipe_link = (
+        f"/analysis/food-use-recipes?mode=ids&amp;recipe_ids={rid}"
+        f"&amp;sub_kind=food&amp;sub_id={cached_food['fdcId']}"
+    )
+    expected_meal_link = (
+        f"/analysis/food-use?mode=ids&amp;meal_ids={meal_id}"
+        f"&amp;sub_kind=food&amp;sub_id={cached_food['fdcId']}"
+    )
+    assert expected_recipe_link in follow.text
+    assert expected_meal_link in follow.text
+
+    # Following the recipe-replace link pre-selects those recipes and
+    # pre-fills the substitute form with this food as "old".
+    replace_resp = client.get(
+        f"/analysis/food-use-recipes?mode=ids&recipe_ids={rid}&sub_kind=food&sub_id={cached_food['fdcId']}"
+    )
+    assert replace_resp.status_code == 200
+    assert f'value="{cached_food["fdcId"]}"' in replace_resp.text
+    assert "<details class=\"mb-3\" open>" in replace_resp.text
+
+    # Regression test: the usage table below the substitute form lists every
+    # food/recipe currently used in the selection, including the one being
+    # replaced — that row must be clearly marked as the replace target, not
+    # left looking like a candidate to replace *with*, and the panel must
+    # point the user at a real way to find a replacement's ID (Food Search /
+    # Recipes) rather than leaving them to guess.
+    assert "replacing this" in replace_resp.text
+    assert 'href="/food/search"' in replace_resp.text
+    assert 'href="/recipes"' in replace_resp.text
+
+
+def test_custom_profile_delete_refuses_when_still_referenced(client: TestClient, db_conn) -> None:
+    """Same blocked-delete treatment as Food Cache: naming exactly which
+    pantry entry/recipe/meal is blocking deletion, with a link to it, rather
+    than a generic "remove it from those places first" with no way to find
+    where "those places" are."""
+    create_resp = client.post(
+        "/food/custom-profiles/create", data={"name": "My Homemade Granola"}, follow_redirects=False,
+    )
+    fdc_id = int(create_resp.headers["location"].rsplit("/", 1)[-1])
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES ('My Homemade Granola', ?)", (fdc_id,)
+    )
+    db_conn.commit()
+
+    resp = client.post(f"/food/custom-profiles/delete/{fdc_id}", follow_redirects=False)
+    assert resp.status_code == 303
+    assert "delete_blocked=1" in resp.headers["location"]
+    assert "blocked_pantry=" in resp.headers["location"]
+    assert db_conn.execute("SELECT * FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone() is not None
+
+    follow = client.get(resp.headers["location"])
+    assert follow.status_code == 200
+    assert 'href="/pantry"' in follow.text
+    assert "click that entry" in follow.text
+
+
 def test_food_cache_db_check_and_repair(client: TestClient, cached_food, db_conn) -> None:
     db_conn.execute(
         "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
@@ -1529,6 +1656,51 @@ def test_recipe_compare_add_remove_and_cap(client: TestClient, cached_food) -> N
     assert "error=Maximum" in resp.headers["location"]
 
 
+def test_recipe_compare_save_load_rename_delete(client: TestClient, cached_food, db_conn) -> None:
+    r1 = _make_recipe(client, "Recipe One", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+    r2 = _make_recipe(client, "Recipe Two", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+
+    resp = client.post(
+        "/recipe/compare/save",
+        data={"name": "My Recipe Comparison", "ids": f"{r1},{r2}", "unit": "serving"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    row = db_conn.execute("SELECT * FROM saved_recipe_comparisons WHERE name = 'My Recipe Comparison'").fetchone()
+    assert row is not None
+    cmp_id = row["id"]
+
+    # A single-recipe "comparison" isn't saved — need at least 2 to compare.
+    resp = client.post(
+        "/recipe/compare/save", data={"name": "Too Few", "ids": str(r1), "unit": "serving"},
+        follow_redirects=False,
+    )
+    assert db_conn.execute("SELECT * FROM saved_recipe_comparisons WHERE name = 'Too Few'").fetchone() is None
+
+    resp = client.get(f"/recipe/compare/load/{cmp_id}", follow_redirects=False)
+    assert resp.status_code == 303
+    assert str(r1) in resp.headers["location"]
+    assert str(r2) in resp.headers["location"]
+
+    # The saved-list panel shows up on the plain, no-ids landing page too.
+    resp = client.get("/recipe/compare")
+    assert resp.status_code == 200
+    assert "My Recipe Comparison" in resp.text
+    assert "/recipe/compare/load/" in resp.text
+
+    resp = client.post(
+        "/recipe/compare/saved/rename", data={"cmp_id": cmp_id, "name": "Renamed Comparison"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    renamed = db_conn.execute("SELECT * FROM saved_recipe_comparisons WHERE id = ?", (cmp_id,)).fetchone()
+    assert renamed["name"] == "Renamed Comparison"
+
+    resp = client.post("/recipe/compare/saved/delete", data={"cmp_id": cmp_id}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert db_conn.execute("SELECT * FROM saved_recipe_comparisons WHERE id = ?", (cmp_id,)).fetchone() is None
+
+
 def test_recipe_compare_ingredient_table_shows_shared_and_unique(
     client: TestClient, cached_food, second_cached_food,
 ) -> None:
@@ -1578,11 +1750,13 @@ def test_recipe_compare_protein_quality_section(client: TestClient, cached_food)
 
 def test_recreated_recipe_offers_relink_to_broken_refs(client: TestClient, db_conn) -> None:
     """Deleting a recipe used in a meal leaves a dangling reference; a
-    re-created recipe with a fuzzily-matching name (shares a word, not
+    re-created recipe with a fuzzily-matching name (shares 2+ words, not
     necessarily identical) should surface a relink offer on its edit page,
-    and posting to /relink should reattach the meal item."""
+    and posting to /relink should reattach the meal item. A single shared
+    word (e.g. both names merely containing "stew") is deliberately too weak
+    a signal and must not match — see db.MIN_RELINK_SHARED_WORDS."""
     recipe_id = int(
-        client.post("/recipe/new", data={"name": "Beef Stew", "servings": 3}, follow_redirects=False)
+        client.post("/recipe/new", data={"name": "Beef Noodle Stew", "servings": 3}, follow_redirects=False)
         .headers["location"].split("/recipe/")[1].split("/")[0]
     )
     meal_id = int(
@@ -1591,13 +1765,20 @@ def test_recreated_recipe_offers_relink_to_broken_refs(client: TestClient, db_co
     )
     client.post(
         f"/meal/{meal_id}/add-recipe",
-        data={"recipe_id": recipe_id, "recipe_name": "Beef Stew", "servings": 1, "mode": "recipe"},
+        data={"recipe_id": recipe_id, "recipe_name": "Beef Noodle Stew", "servings": 1, "mode": "recipe"},
         follow_redirects=False,
     )
     client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
 
+    unrelated_id = int(
+        client.post("/recipe/new", data={"name": "Chicken Stew", "servings": 2}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    resp = client.get(f"/recipe/{unrelated_id}/edit")
+    assert "still reference a deleted recipe" not in resp.text
+
     new_id = int(
-        client.post("/recipe/new", data={"name": "Chicken Stew", "servings": 4}, follow_redirects=False)
+        client.post("/recipe/new", data={"name": "Chicken Noodle Stew", "servings": 4}, follow_redirects=False)
         .headers["location"].split("/recipe/")[1].split("/")[0]
     )
     assert new_id != recipe_id
@@ -1605,11 +1786,15 @@ def test_recreated_recipe_offers_relink_to_broken_refs(client: TestClient, db_co
     resp = client.get(f"/recipe/{new_id}/edit")
     assert resp.status_code == 200
     assert "still reference a deleted recipe" in resp.text
-    assert "Beef Stew" in resp.text
+    assert "Beef Noodle Stew" in resp.text
 
-    resp = client.post(f"/recipe/{new_id}/relink", data={"matched_name": "Beef Stew"}, follow_redirects=False)
+    resp = client.post(
+        f"/recipe/{new_id}/relink",
+        data={"matched_name": "Beef Noodle Stew", "target_recipe_id": new_id},
+        follow_redirects=False,
+    )
     assert resp.status_code == 303
-    assert resp.headers["location"] == f"/recipe/{new_id}/edit?relinked=1,0"
+    assert resp.headers["location"] == f"/recipe/{new_id}/edit?relinked=1%2C0&relinked_to=Chicken+Noodle+Stew"
 
     item = db_conn.execute("SELECT * FROM meal_items WHERE meal_id = ?", (meal_id,)).fetchone()
     assert item["recipe_id"] == new_id
@@ -1617,6 +1802,71 @@ def test_recreated_recipe_offers_relink_to_broken_refs(client: TestClient, db_co
     resp = client.get(f"/recipe/{new_id}/edit?relinked=1,0")
     assert "Relinked 1 meal item(s)" in resp.text
     assert "still reference a deleted recipe" not in resp.text
+
+
+def test_relink_offers_alternative_target_recipe(client: TestClient, db_conn) -> None:
+    """The relink form isn't locked to the recipe currently being edited —
+    the user may be recreating a different recipe than the one they happen
+    to have open, so relinking should be able to target any live recipe that
+    plausibly matches, or any recipe at all via the "All recipes" picker."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Beef Noodle Stew", "servings": 3}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(
+        f"/meal/{meal_id}/add-recipe",
+        data={"recipe_id": recipe_id, "recipe_name": "Beef Noodle Stew", "servings": 1, "mode": "recipe"},
+        follow_redirects=False,
+    )
+    client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
+
+    # A second, unrelated-by-name recipe is the one the user actually meant
+    # to relink to.
+    actual_target_id = int(
+        client.post("/recipe/new", data={"name": "Pork Chili", "servings": 2}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    editing_id = int(
+        client.post("/recipe/new", data={"name": "Chicken Noodle Stew", "servings": 4}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+
+    resp = client.get(f"/recipe/{editing_id}/edit")
+    assert resp.status_code == 200
+    assert 'value="{}"'.format(actual_target_id) in resp.text
+
+    resp = client.post(
+        f"/recipe/{editing_id}/relink",
+        data={"matched_name": "Beef Noodle Stew", "target_recipe_id": actual_target_id},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == f"/recipe/{editing_id}/edit?relinked=1%2C0&relinked_to=Pork+Chili"
+
+    item = db_conn.execute("SELECT * FROM meal_items WHERE meal_id = ?", (meal_id,)).fetchone()
+    assert item["recipe_id"] == actual_target_id
+
+
+def test_home_page_shows_db_integrity_banner(client: TestClient, cached_food, db_conn) -> None:
+    """The opening page should surface a referential-integrity problem
+    without the user having to know to visit /food/cache/db-check."""
+    resp = client.get("/")
+    assert "UPDATE:" not in resp.text
+
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
+        (cached_food["name"], cached_food["fdcId"]),
+    )
+    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],))
+    db_conn.commit()
+
+    resp = client.get("/")
+    assert "UPDATE:" in resp.text
+    assert "/food/cache/db-check" in resp.text
 
 
 def test_broken_recipe_refs_listing_page(client: TestClient) -> None:
@@ -2174,10 +2424,15 @@ def test_food_search_groups_local_results_before_external_divider(
         "/food/search-api-results", params={"query": cached_food["name"], "sort": "relevance"}
     )
     assert resp.status_code == 200
-    assert "search-group-divider" in resp.text
+    assert "From USDA, Open Food Facts, and other external sources" in resp.text
     local_pos = resp.text.index(cached_food["name"])
-    divider_pos = resp.text.index("search-group-divider")
+    divider_pos = resp.text.index("From USDA, Open Food Facts, and other external sources")
     assert local_pos < divider_pos
+    # The local results also get their own heading, above the cached food's
+    # own row, so the top section isn't unlabeled the way the bottom one used
+    # to be alone in having a caption.
+    local_header_pos = resp.text.index("From your pantry, food cache, and recipes")
+    assert local_header_pos < local_pos < divider_pos
 
 
 class TestOmittedSourceLabels:
@@ -2354,3 +2609,129 @@ def test_unusable_protein_line_absent_for_complete_food(client: TestClient, db_c
     # unusable_g at 0, and the line must be suppressed entirely — not shown
     # as "0.0 g (0%)".
     assert "cannot be built into tissue" not in resp.text
+
+
+def test_recipe_complement_shows_per_serving_note(client: TestClient) -> None:
+    """Recipe-page complement suggestions note the whole-batch scaling and show
+    a per-serving equivalent alongside the whole-batch grams, since suggestion
+    amounts are sized to the recipe's full total across all servings."""
+    low_lysine = dict(SAMPLE_NUTRIENTS)
+    low_lysine["aa_lysine_g"] = 0.6
+    fdc_id = 900010
+
+    with _db.get_db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json) VALUES (?, ?, ?, ?)",
+            (fdc_id, "Low-lysine recipe test food", "SR Legacy", json.dumps(low_lysine)),
+        )
+        conn.commit()
+        rid = _db.recipe_create(conn, "Per-serving note test recipe", "", 4, "")
+        _db.recipe_add_ingredient(conn, rid, fdc_id, "Low-lysine recipe test food", 300.0, "g", None)
+        conn.commit()
+
+    resp = client.get(f"/recipe/{rid}")
+    assert resp.status_code == 200
+    assert "Protein Complement Suggestions" in resp.text
+    assert "sized to the whole recipe" in resp.text
+    assert "per serving" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# End-to-end coverage for the /food/custom-profiles/{fdc_id}/copy-aa route —
+# item #3 ("cross-source data plausibility") from the 2026-08-28 testing
+# discussion, part 2: since CoFID and CIQUAL structurally carry no amino-acid
+# data at all (see user-manual.md Part 2E), and Open Food Facts branded items
+# rarely do either, this route (backed by
+# numa_app/services/aa_estimate.estimate_aa — see its own property tests in
+# tests/test_estimate_aa_properties.py) is the ONLY way a food from those
+# sources ever ends up with usable AA data. That makes this route load-
+# bearing for roughly half of numa's data sources, not a minor convenience
+# feature, so it gets its own real route-level test rather than relying on
+# estimate_aa()'s unit tests alone to imply the wiring around it works.
+# ---------------------------------------------------------------------------
+
+def test_copy_aa_estimates_amino_acids_for_source_with_no_native_aa_data(
+    client: TestClient, cached_food, db_conn
+) -> None:
+    """Simulates the exact scenario a CoFID/CIQUAL food is in: a cached food
+    with real protein_g but no amino acid data at all. Using the /copy-aa
+    route to borrow AA data from a food that DOES have it (here, the
+    standard `cached_food` chicken-breast fixture, same shape as a real USDA
+    entry) must leave the target with a full, correctly-scaled AA profile
+    and a source note documenting where the estimate came from."""
+    # A CoFID-shaped food: has protein and macros, but zero AA fields —
+    # exactly what cofid_lookup.py / ciqual_lookup.py return today.
+    no_aa_fdc_id = 900001
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?, ?, 'CoFID', ?, '[]')",
+        (no_aa_fdc_id, "Cheddar cheese, CoFID sample", json.dumps({
+            "protein_g": 25.0, "calories": 400.0, "fat_g": 34.0,
+        })),
+    )
+    db_conn.commit()
+
+    resp = client.post(
+        f"/food/custom-profiles/{no_aa_fdc_id}/copy-aa",
+        data={"source_fdc_id": cached_food["fdcId"], "off_code": ""},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "aa_applied=ok" in resp.headers["location"]
+
+    row = db_conn.execute(
+        "SELECT nutrients_json, notes, user_drafted FROM foods WHERE fdc_id = ?",
+        (no_aa_fdc_id,),
+    ).fetchone()
+    updated_nutrients = json.loads(row["nutrients_json"])
+
+    # The target's own protein_g (25.0) vs the chicken source's (31.0 per
+    # SAMPLE_NUTRIENTS in conftest.py) gives a scale factor of 25/31.
+    expected_factor = 25.0 / SAMPLE_NUTRIENTS["protein_g"]
+    assert updated_nutrients["aa_leucine_g"] == pytest.approx(
+        SAMPLE_NUTRIENTS["aa_leucine_g"] * expected_factor, rel=1e-4
+    )
+    assert updated_nutrients["aa_lysine_g"] == pytest.approx(
+        SAMPLE_NUTRIENTS["aa_lysine_g"] * expected_factor, rel=1e-4
+    )
+    # Non-AA fields the target already had must survive untouched.
+    assert updated_nutrients["calories"] == 400.0
+    assert updated_nutrients["protein_g"] == 25.0
+
+    assert "estimated by scaling from" in row["notes"]
+    assert row["user_drafted"] == 1
+
+    # And the edit page itself should render the applied AA data without error.
+    edit_resp = client.get(f"/food/custom-profiles/{no_aa_fdc_id}/edit")
+    assert edit_resp.status_code == 200
+
+
+def test_copy_aa_shows_error_flag_when_source_has_no_aa_data(
+    client: TestClient, db_conn
+) -> None:
+    """Mirror case: if the CHOSEN source also has no AA data (e.g. the user
+    picked another CoFID food by mistake), the route must redirect with an
+    error flag rather than silently writing empty/zero AA data."""
+    target_id, source_id = 900002, 900003
+    for fdc_id, name in ((target_id, "Target, no AA"), (source_id, "Source, no AA")):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+            "VALUES (?, ?, 'CoFID', ?, '[]')",
+            (fdc_id, name, json.dumps({"protein_g": 10.0})),
+        )
+    db_conn.commit()
+
+    resp = client.post(
+        f"/food/custom-profiles/{target_id}/copy-aa",
+        data={"source_fdc_id": source_id, "off_code": ""},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "aa_applied=error" in resp.headers["location"]
+
+    row = db_conn.execute(
+        "SELECT nutrients_json FROM foods WHERE fdc_id = ?", (target_id,)
+    ).fetchone()
+    # Target's nutrients must be unchanged — no AA keys introduced.
+    unchanged = json.loads(row["nutrients_json"])
+    assert unchanged == {"protein_g": 10.0}

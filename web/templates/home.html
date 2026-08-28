@@ -2,6 +2,14 @@
 {% block title %}NutriMagnus{% endblock %}
 
 {% block content %}
+{% if db_issue_count %}
+<div class="alert alert-warning mt-4">
+  <strong>UPDATE:</strong> the database check found <strong>{{ db_issue_count }}</strong>
+  referential-integrity issue{{ 's' if db_issue_count != 1 }} (e.g. a pantry entry, recipe
+  ingredient, or logged meal item pointing at a food or recipe that no longer exists).
+  Review and repair them on the <a href="/food/cache/db-check">Database check</a> page.
+</div>
+{% endif %}
 {% if unacked_errors %}
 <div class="alert alert-warning mt-4">
   <strong>{{ unacked_errors|length }} recalculation{{ 's' if unacked_errors|length != 1 }} failed</strong> and

@@ -1,0 +1,30 @@
+name: Tests
+
+# Runs the pytest suite on every push and pull request, so the 731+ tests in
+# tests/ are actually exercised automatically instead of depending on a human
+# remembering to run `pytest` locally before committing. This is deliberately
+# separate from release.yml: this workflow never builds a binary and never
+# publishes anything, it only reports pass/fail. release.yml still runs its
+# own `pytest -q` step immediately before every manual release build, so a
+# release can never ship without a green test run either.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.12-slim
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Run tests
+        run: pytest -q

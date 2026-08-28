@@ -13,6 +13,7 @@
 </nav>
 
 <h2>Edit Recipe {{ manual_link("recipe-ingredients") }}</h2>
+<p class="muted mt-n2 mb-2"><small>{{ recipe.name }} &middot; ID {{ recipe.id }}</small></p>
 
 {% if saved %}
 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -23,7 +24,8 @@
 {% if relinked %}
 {% set relinked_parts = relinked.split(",") %}
 <div class="alert alert-success alert-dismissible fade show" role="alert">
-  Relinked {{ relinked_parts[0] }} meal item(s) and {{ relinked_parts[1] }} recipe ingredient(s) to this recipe.
+  Relinked {{ relinked_parts[0] }} meal item(s) and {{ relinked_parts[1] }} recipe ingredient(s)
+  to {{ ("“" + relinked_to + "”") if relinked_to else "this recipe" }}.
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
 {% endif %}
@@ -32,10 +34,25 @@
 <div class="alert alert-warning" role="alert">
   <strong>{{ g.meals|length }}</strong> meal(s) and <strong>{{ g.recipes|length }}</strong> recipe(s)
   still reference a deleted recipe named <strong>{{ g.matched_name }}</strong>
-  — a possible match for <strong>{{ recipe.name }}</strong>.
-  <form method="post" action="/recipe/{{ recipe.id }}/relink" class="d-inline">
+  — sharing 2+ words with <strong>{{ recipe.name }}</strong>.
+  <form method="post" action="/recipe/{{ recipe.id }}/relink" class="d-inline-flex align-items-center gap-2 flex-wrap mt-1">
     <input type="hidden" name="matched_name" value="{{ g.matched_name }}">
-    <button type="submit" class="btn btn-sm btn-warning ms-2">Relink these to this recipe</button>
+    <label class="mb-0" for="relink-target-{{ loop.index }}">Relink to</label>
+    <select class="form-select form-select-sm d-inline-block" style="width:auto" id="relink-target-{{ loop.index }}" name="target_recipe_id">
+      {% if g.candidates %}
+      <optgroup label="Suggested (shares 2+ words with &ldquo;{{ g.matched_name }}&rdquo;)">
+        {% for c in g.candidates %}
+        <option value="{{ c.id }}" {{ "selected" if c.id == recipe.id else "" }}>{{ c.name }}</option>
+        {% endfor %}
+      </optgroup>
+      {% endif %}
+      <optgroup label="All recipes">
+        {% for r in all_recipes_for_relink if r.id not in g.candidates|map(attribute="id")|list %}
+        <option value="{{ r.id }}" {{ "selected" if (not g.candidates and r.id == recipe.id) else "" }}>{{ r.name }}</option>
+        {% endfor %}
+      </optgroup>
+    </select>
+    <button type="submit" class="btn btn-sm btn-warning">Relink</button>
   </form>
 </div>
 {% endfor %}
@@ -43,7 +60,7 @@
 {# ── Metadata form ────────────────────────────────────────────────────── #}
 <details open>
   <summary><strong>Recipe details</strong></summary>
-  <form method="post" action="/recipe/{{ recipe.id }}/edit" class="mt-3">
+  <form method="post" action="/recipe/{{ recipe.id }}/edit" id="recipe-details-form" class="mt-3">
     <p class="muted mb-2" style="font-size:0.85rem"><span class="text-danger">*</span> required field</p>
     <div class="row mb-2">
       <div class="col-lg-7">
@@ -476,6 +493,42 @@
     sessionStorage.removeItem(key);
     window.scrollTo(0, parseInt(saved, 10) || 0);
   }
+})();
+</script>
+<script>
+// Adding an ingredient is a separate form/request from the "Recipe details"
+// form (name, servings, instructions, etc.) above it — so unsaved edits
+// there are silently left behind (and can be lost) if you go straight to
+// adding an ingredient without clicking "Save recipe details" first. Warn
+// before that happens, and if the user chooses to proceed, save the
+// pending details automatically so nothing gets lost.
+(function () {
+  var detailsForm = document.getElementById('recipe-details-form');
+  if (!detailsForm) return;
+  var dirty = false;
+  detailsForm.addEventListener('input', function () { dirty = true; });
+  detailsForm.addEventListener('change', function () { dirty = true; });
+
+  document.addEventListener('submit', function (e) {
+    if (!dirty) return;
+    var action = e.target.getAttribute('action') || '';
+    if (!/\/ingredient\/add(-recipe)?$/.test(action)) return;
+    e.preventDefault();
+    var proceed = confirm(
+      'You have unsaved changes in Recipe details (name, servings, instructions, etc.) above.\n\n' +
+      'Adding this ingredient will save those changes automatically. Continue?'
+    );
+    if (!proceed) return;
+    var addForm = e.target;
+    fetch(detailsForm.action, {method: 'POST', body: new FormData(detailsForm)})
+      .then(function () {
+        dirty = false;
+        addForm.submit();
+      })
+      .catch(function () {
+        alert('Could not save recipe details — the ingredient was not added. Please try again.');
+      });
+  });
 })();
 </script>
 {% endblock %}

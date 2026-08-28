@@ -240,20 +240,24 @@ class TestRecipes:
         assert item["recipe_id"] == rid
 
     def test_find_broken_recipe_refs_is_fuzzy_by_word(self):
-        """A broken reference stored as "Beef Stew" should surface when
-        creating a recipe named "Chicken Stew" (shared word "stew"), but not
-        when creating one named "Chicken Soup" (no shared word)."""
+        """A broken reference stored as "Beef Noodle Stew" should surface when
+        creating a recipe named "Chicken Noodle Stew" (shares 2 words: noodle,
+        stew), but a single shared word ("Chicken Stew" shares only "stew")
+        is too weak a signal and must not match, nor should an unrelated name
+        ("Chicken Soup", no shared words)."""
         with _db.get_db() as conn:
-            rid = _db.recipe_create(conn, "Beef Stew", "", 4, "")
+            rid = _db.recipe_create(conn, "Beef Noodle Stew", "", 4, "")
             meal_id = _db.meal_create(conn, "Dinner", "2026-01-03")
-            _db.meal_add_recipe(conn, meal_id, rid, "Beef Stew", 1)
+            _db.meal_add_recipe(conn, meal_id, rid, "Beef Noodle Stew", 1)
             _db.recipe_delete(conn, rid)
 
         with _db.get_db() as conn:
-            hit = _db.find_broken_recipe_refs(conn, "Chicken Stew")
+            hit = _db.find_broken_recipe_refs(conn, "Chicken Noodle Stew")
+            one_word = _db.find_broken_recipe_refs(conn, "Chicken Stew")
             miss = _db.find_broken_recipe_refs(conn, "Chicken Soup")
         assert len(hit["meals"]) == 1
-        assert hit["meals"][0]["matched_name"] == "Beef Stew"
+        assert hit["meals"][0]["matched_name"] == "Beef Noodle Stew"
+        assert one_word == {"meals": [], "recipes": []}
         assert miss == {"meals": [], "recipes": []}
 
     def test_list_all_broken_recipe_refs(self):

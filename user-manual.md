@@ -1,6 +1,8 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-23:0749* / Reading time: 2 hours, 52 minutes
+*Updated 2026-08-27:2001* / Reading time: 2 hours, 55 minutes
+
+*Last full audit: not yet performed (see README-numa-documentation.md → Maintenance → Monthly deep check)*
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides a thorough nutritional analysis of a user's food choices. It is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -224,7 +226,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-23), there are 712 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-27), there are 731 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 3.
 
@@ -307,6 +309,12 @@ If single-food options open a secondary gap, Tier 3 two-food combinations show h
 If only [DIAAS](#gloss-diaas)-boosting options are shown (Tier 2), the underlying problem is that the base food is not highly digestible. Adding a well-digested, amino-acid-rich food improves the overall protein quality of the meal even without closing any single gap definitively. This is nutritionally meaningful — a meal [DIAAS](#gloss-diaas) of 0.90 means 90% of the protein is both complete and digestible.
 
 You do not need to eat [complement foods](#gloss-complement-food) at the same meal — meeting daily totals is sufficient for healthy adults. See also [DIAAS](#diaas) and [limiting amino acid](#gap) for background.
+
+#### RECIPE ANALYSIS: AMOUNTS ARE SIZED TO THE WHOLE BATCH {: #comp-recipe-scale}
+
+When you analyze a recipe (its own page, not a portion-analysis or meal/day view), every gram amount in this section — gap closers, [DIAAS](#gloss-diaas)-boosting steps, two-food combinations, two-step combinations — is calculated against the recipe's full total protein across **all of its servings**, not one serving. This is deliberate: the only way to act on a suggestion is to add an ingredient to the whole recipe batch, so the math solves for the whole batch's amino acid gap, not a single portion of it.
+
+This is why a recipe suggestion can look large — for example, 80+ g of soy protein isolate to close a lysine gap in a 4-serving recipe. That is not a serving-size recommendation; it is how much to add to the pot so that every serving, once divided out, ends up amino-acid-complete. Each recipe suggestion also shows the per-serving equivalent alongside the whole-batch amount, so you can see what one serving actually gets.
 
 Data sources, checked in this order: your [pantry](#pantry) (Foods → [My Pantry](#gloss-my-pantry)) and any [recipes you have analyzed](#recipes-menu-web); then your broader food cache (any food you've ever looked up, matched by name against the built-in reference list below); then that built-in list itself[^10], filtered by your dietary preferences (see [dietary preferences](#diet)). The suggestion header tells you exactly which sources were considered for that run. See [amino acid estimates in suggestions](#comp-estimate) for what it means when a suggestion is tagged "(estimated)" or "(generic estimate)".
 
@@ -1439,20 +1447,34 @@ Meals, scoped to ingredients of the recipes currently selected — see
 [Substituting a Food or Recipe](#fooduse-substitute).
 
 
-#### Substituting a Food or Recipe {: #fooduse-substitute}
+#### Substituting (Replacing) a Food or Recipe {: #fooduse-substitute}
 Both Food Use in Meals and Food Use in Recipes have a **Substitute a food or
 recipe** panel that bulk-replaces every occurrence of one food or recipe
 with another, restricted to whatever's currently selected on that page (the
 same date range(s) or ID list you searched with).
 
+You can also reach this replacement tool directly from a blocked deletion:
+if Food Cache or Custom Food Profiles refuses to delete a food because it's
+still used in a recipe or a meal, the "swap it for a different food" link in
+that message brings you here with those exact recipes/meals already
+selected and the food already filled in as the one to replace — you only
+need to supply the replacement's kind and ID.
+
 This is the tool for the common situation where a rename — or re-adding a
 food from a search instead of reusing what was already in your cache — has
 left what looks like two different foods, when really it's one food you
-just want to consolidate under a single, newer entry. Look up each item's ID
-number from the results table, then fill in:
+just want to consolidate under a single, newer entry. Fill in:
 
     Replace this   The old item's kind (Food or Recipe) and ID number.
     With this      The replacement's kind and ID number.
+
+The results table below the form shows what's *currently used* in this
+selection, not a list of foods you could replace with — it's there so you
+can confirm what you're about to change (the item you're replacing, if any,
+is marked "replacing this" in that table). To find the ID of the
+**replacement** item, look it up on [Food Search](#food-search) or the
+Recipes list (both open in a new tab from links right above the form) —
+each shows the ID in its results.
 
 You can mix kinds — replace a food with a recipe or vice versa — since both
 meal items and recipe ingredients can point at either one. The amount and
@@ -1577,7 +1599,7 @@ The **ingredient table** has one row per distinct ingredient name across the rec
 
 The **nutrient table** reuses the same layout as [food comparison](#food-comparison) — all nutrient groups, highest value per row highlighted, sortable by checked nutrients. A toggle switches the basis between **Per serving** (each recipe's nutrients divided by its own serving count — the fair way to compare recipes with different batch sizes) and **Whole recipe** (the full batch as authored).
 
-To run a comparison: Recipes -> Compare recipes. Search adds from your own saved recipes only (recipe comparison doesn't reach out to USDA/OFF, since a recipe only exists in your database).
+To run a comparison: Recipes -> Compare recipes. Search adds from your own saved recipes only (recipe comparison doesn't reach out to USDA/OFF, since a recipe only exists in your database). As with [Compare Foods](#food-comparison), you can save the recipe list under a name for quick reuse in future sessions — previously saved lists are offered at the start of the comparison flow.
 
 
 #### Recipe Ingredient List {: #recipe-ingredients}
@@ -1596,6 +1618,8 @@ Columns:
     Food    Ingredient name.
 
 Nested recipes (ID = recipe) have their nutrients scaled automatically from their recorded serving count and total weight.
+
+**Unsaved recipe-details edits and adding an ingredient.** The Recipe details fields (name, servings, instructions, etc.) at the top of the Edit Recipe page save separately from the ingredient list — clicking "Add to recipe" doesn't normally touch them. If you've changed one of those fields without clicking "Save recipe details" yet and then add an ingredient, a warning appears: adding the ingredient will save those pending changes for you rather than silently discard them. Choose Cancel to go back and finish editing those fields first, or Continue to save them and add the ingredient in one step.
 
 
 #### USDA Food Search Results {: #food-search}
@@ -1744,6 +1768,8 @@ To edit nutrient data: Foods -> [Food Cache](#gloss-food-cache), find the food, 
 To create a new custom profile: Foods -> Drafted Food Profiles -> Create. See [Food Cache](#food-cache-web) for an alternative way to get missing data (e.g. amino acid data from Claude AI for foods not in [USDA](#gloss-usda)).
 
 **Estimating amino acids by copying from another food.** Whenever you're prompted for a food's amino acid profile (creating a drafted profile, copying a cached food, or editing any food's data), a third option lets you search for and pick a similar food that already has amino acid data, instead of typing values in or pasting from literature. The picked food's amino acids are **scaled to match this food's own protein content** (not copied raw) — a food with less protein than the source gets proportionally less amino acid content, and vice versa — the same scaling already used by hand in this app's built-in curated foods (e.g. amino acids scaled between fresh and dried okara). A note documenting the source food and scale factor is suggested automatically for the Note field. On the web app, the same picker appears as an "Estimate amino acids from another food" panel on the custom-profile edit page ([Custom Food Profiles](#custom-foods)); editing any food's data this way marks it user-drafted, same as any other edit.
+
+On the web app, [Food Search](#food-search) has a shortcut into this workflow: any search result missing confirmed amino acid data shows a **Copy as draft to add AA data** link right in its row. Clicking it duplicates that food as an editable draft and takes you straight to its edit page, AA-source search box ready — skipping the separate trip through Custom Food Profiles' own "Copy a cached food as a draft" search.
 
 
 #### My Pantry Table {: #pantry}
@@ -2357,7 +2383,7 @@ If more than one ingredient contributes meaningfully to the protein (a flour ble
 
 Once you have a proxy food — blended or not — holding the numbers you need, there are two different ways to turn it into a usable estimate for your actual food. Pick whichever fits how you'll use that food going forward:
 
-**Option 1 — create a new, clearly-labeled draft (the general-purpose default).** Foods → Custom Food Profiles → **Copy a cached food as a draft**, pick the real food you're missing AA data for (it copies that food's full nutrient snapshot — protein included — into a brand-new, independent entry), rename the copy something unambiguous like "Graham Cracker, generic (estimated AA)," then run the AA-copying picker on *that* draft, scaling from your proxy food. Because the original cached food is never touched, USDA can still refresh its full nutrient profile and portions automatically if that entry ever changes. The tradeoff: this new draft doesn't retroactively reach meals or recipes that already reference the *original* food — those keep pointing at the un-estimated entry until you go swap the reference over by hand.
+**Option 1 — create a new, clearly-labeled draft (the general-purpose default).** Foods → Custom Food Profiles → **Copy a cached food as a draft**, pick the real food you're missing AA data for (it copies that food's full nutrient snapshot — protein included — into a brand-new, independent entry), rename the copy something unambiguous like "Graham Cracker, generic (estimated AA)," then run the AA-copying picker on *that* draft, scaling from your proxy food. Web app: [Food Search](#food-search)'s **Copy as draft to add AA data** link does the "copy as draft" half of this step in one click, right from the search results row. Because the original cached food is never touched, USDA can still refresh its full nutrient profile and portions automatically if that entry ever changes. The tradeoff: this new draft doesn't retroactively reach meals or recipes that already reference the *original* food — those keep pointing at the un-estimated entry until you go swap the reference over by hand.
 
 **Option 2 — edit the original food's AA fields directly (a deliberate exception).** If you know you'll always be logging this exact product, editing its AA data in place is often more practical: every past and future meal or recipe that already references it picks up the estimate immediately, with nothing to swap. The cost is real, though — editing *any* of a food's data marks the entire record user-modified, not just the amino acid fields, so NuMa will never again silently refresh its full nutrient profile, portions, or anything else on it from USDA; you're taking permanent manual ownership of that specific record. That's an easy trade when the food is unlikely to gain real measured data any other way — a specific branded product like Nabisco Honey Maid Grahams already has its macronutrients measured and isn't about to grow USDA amino acid data on its own, so there's little future refresh being given up.
 
@@ -2560,7 +2586,189 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "Aside from being an update log for the user to access, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day program updates). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
 
-Each entry below has a bold title and one or two plain-language sentences about what you can now do or what changed.
+Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
+
+#### August 27 program updates
+
+**SUBSTITUTE PANEL NO LONGER LOOKS LIKE ITS USAGE TABLE IS A LIST OF REPLACEMENT CANDIDATES**
+
+The Food Use in Meals / Food Use in Recipes substitute-a-food-or-recipe panel showed an unlabeled table of what's currently used in your selection, easy to mistake for a menu of foods you could pick as the replacement — including the very food you're trying to replace, sitting right there in the list. That table now says plainly it's a usage summary, not a replacement picker, marks the item you're replacing as "replacing this," and links straight to Food Search / Recipes (each opens in a new tab and shows IDs) for finding the replacement's ID. [learn more...](#fooduse-substitute)
+
+```
+Scope: web/templates/analysis_food_use.html and analysis_food_use_recipes.html
+(panel intro text now explains the table's purpose and links to /food/search
+and /recipes for ID lookup; each results row computes is_replace_target by
+comparing sub_kind/sub_id against the row's kind/fdc_id/recipe_id and shows
+a "replacing this" badge when it matches), user-manual.md (#fooduse-substitute
+updated to match — no longer tells the reader to read the replacement's ID
+off the results table).
+```
+
+**BLOCKED-DELETE MESSAGES NOW OFFER A ONE-CLICK BULK REPLACE, NOT JUST REMOVAL INSTRUCTIONS**
+
+The delete-blocked message on Food Cache and Custom Food Profiles previously only explained how to remove the food from each blocking recipe/meal one at a time. It now also links each blocking recipe/meal group to the existing Food Use substitution tools, pre-selected to exactly those recipes/meals with this food already chosen as the one to replace — so swapping in a different food everywhere it's used, in one action, is one click away. [learn more...](#fooduse-substitute)
+
+```
+Scope: web/backend.py (food_cache_delete/food_custom_profiles_delete now
+pass blocked_fdc_id through the redirect; analysis_food_use() and
+analysis_food_use_recipes() gained optional sub_kind/sub_id query params
+that pre-fill the substitute form's "Replace this" side and auto-expand
+its <details>), web/templates/food_cache.html and food_custom_profiles.html
+(delete-blocked alert links to /analysis/food-use-recipes?mode=ids&recipe_ids=...
+and /analysis/food-use?mode=ids&meal_ids=... with sub_kind/sub_id set),
+web/templates/analysis_food_use.html and analysis_food_use_recipes.html
+(old_kind/old_id inputs take their default from sub_kind/sub_id).
+```
+
+**BLOCKED-DELETE MESSAGES (FOOD CACHE, CUSTOM FOOD PROFILES) NOW SPELL OUT HOW TO CLEAR EACH BLOCKER**
+
+Trying to delete a food that's still used in a pantry entry, recipe, or logged meal used to just name the blocking item(s) (or, for Custom Food Profiles, not even that — see below) and say "remove/replace the food first," without saying how. Both pages now give a short numbered how-to per blocker type: which button to click on the Pantry page, which control to use on the recipe's edit page, which control to use on the meal page.
+
+Custom Food Profiles' delete-blocked message previously didn't name the blocking item(s) at all, unlike Food Cache's — it now does too, with the same linked pantry/recipe/meal ids.
+
+```
+Scope: web/backend.py (food_custom_profiles_delete/food_custom_profiles_get
+now carry blocked_pantry/blocked_recipes/blocked_meals through the redirect,
+mirroring food_cache_delete()), web/templates/food_cache.html and
+food_custom_profiles.html (delete-blocked alert now lists linked
+pantry/recipe/meal ids plus a per-category how-to list instead of a
+generic "remove/replace the food" line).
+```
+
+**RECIPE-RELINK SUGGESTIONS NO LONGER FIRE ON A SINGLE COINCIDENTAL WORD, AND YOU CAN NOW RELINK TO ANY RECIPE**
+
+Editing a recipe used to offer to relink dangling "deleted recipe" references based on sharing just one word with the recipe's name — generic words like "protein" could trigger a nonsensical suggestion. It now requires sharing 2+ words (or an exact name match). The relink form also no longer assumes you meant the recipe you're currently editing — a dropdown lets you pick any suggested match or any recipe at all as the relink target. Separately, the opening page now shows an UPDATE banner if the database check (Food Cache > Database check) finds any referential-integrity problems, instead of requiring a visit to that page to notice.
+
+```
+Scope: db.py (find_broken_recipe_refs/find_relink_candidates now require
+MIN_RELINK_SHARED_WORDS=2 shared words, or an exact case-insensitive name
+match, via new _name_matches_for_relink() helper; new
+find_relink_candidates() lists live recipes plausibly matching a deleted
+recipe's name), web/backend.py (recipe_edit_get attaches candidates +
+all_recipes_for_relink per broken group; recipe_relink_post takes a
+target_recipe_id form field instead of always relinking to the recipe
+being edited; index() runs check_db_integrity() and passes db_issue_count),
+web/templates/recipe_edit.html (relink form now has a target-recipe
+<select> with suggested/all-recipes optgroups), web/templates/home.html
+(new UPDATE banner linking to /food/cache/db-check).
+```
+
+#### August 26 program updates
+
+**NEW: DELETE BUTTONS ON FOOD SEARCH RESULTS, AND A ONE-CLICK "UNSELECT ALL" FOR THE SOURCE FILTER**
+
+Food Search rows now carry a Delete column: a pantry match gets "Remove from pantry," a food-cache match gets "Delete" (refused if something still references it, same as Food Cache's own Delete), and a recipe match gets "Delete" for the recipe — each asks for confirmation first. Separately, the Source filter row (already had "Select all sources") now also has an "Unselect all" button.
+
+```
+Scope: web/backend.py (_search_local_results()/_pantry_id_by_fdc() now attach
+a pantry_id to pantry-sourced rows so the row can call the existing
+/pantry/remove/{pantry_id} route), web/templates/_search_result_row.html
+(new Delete column, reusing the existing /pantry/remove/{id},
+/food/cache/delete, and /recipe/{id}/delete routes and their confirm()
+patterns from pantry.html/food_cache.html/recipes.html), web/templates/
+search.html and _search_api_rows.html (header cell and colspan bump),
+web/templates/_source_filter_select.html + base.html (new
+data-unselect-all-sources button, delegated click handler mirroring the
+existing data-select-all-sources one).
+```
+
+#### August 25 program updates
+
+**NEW: ADDING AN INGREDIENT NOW WARNS ABOUT AND AUTO-SAVES ANY UNSAVED RECIPE DETAILS**
+
+On the Edit Recipe page, the Recipe details fields (name, servings, instructions, etc.) save separately from the ingredient list — editing one of those fields and then clicking "Add to recipe" without first clicking "Save recipe details" used to leave that edit sitting unsaved, easy to lose track of. Now, adding an ingredient while any recipe-detail field has an unsaved change shows a warning first; choosing to continue saves those pending changes automatically along with adding the ingredient. [learn more...](#recipe-ingredients)
+
+```
+Scope: web/templates/recipe_edit.html (recipe-details-form given an id;
+new script tracks input/change events on it, intercepts submission of the
+"add ingredient" and "add sub-recipe as ingredient" forms via a confirm()
+warning, then POSTs the details form via fetch before letting the original
+add-ingredient submit proceed). No backend route changes — this reuses the
+existing /recipe/{id}/edit save endpoint and the existing
+/recipe/{id}/ingredient/add(-recipe) endpoints, just sequenced from the
+client side.
+```
+
+**NEW: COMPARE RECIPES CAN NOW SAVE AND RELOAD COMPARISON LISTS, LIKE COMPARE FOODS ALREADY COULD**
+
+Compare Recipes had no way to save a set of recipes you'd compared before — every visit started from a blank list. It now works exactly like Compare Foods: a "Save this list" box at the bottom names and stores your current comparison, and a "Use a saved list" panel at the top of the page — including the very first, empty-list view — lets you reload, rename, or delete any saved comparison. [learn more...](#recipe-comparison)
+
+```
+Scope: db.py (new saved_recipe_comparisons table and
+saved_recipe_comparison_save/list/get/rename/delete() functions, mirroring
+the existing food-comparison saved_comparisons table), web/backend.py (new
+/recipe/compare/save, /recipe/compare/load/{cmp_id},
+/recipe/compare/saved/rename, /recipe/compare/saved/delete routes;
+recipe_compare_get() now loads saved_lists), web/templates/recipe_compare.html
+(new saved-lists panel and "Save this list" form, both copied from
+food_compare.html's equivalent markup), tests/test_web.py (new
+save/load/rename/delete regression test), user-manual.md (Recipe Comparison
+Tables section).
+```
+
+**FIXED: A FAST CLICK ON A LOCAL FOOD SEARCH RESULT'S COMPARE CHECKBOX COULD GET SILENTLY DISCARDED, AND THE LOCAL-RESULTS SECTION NOW HAS ITS OWN HEADING**
+
+Food Search renders your own pantry/cache/recipe matches instantly, then quietly replaces the whole results table a moment later once USDA/Open Food Facts respond, merging both sets together. Checking a compare checkbox on one of those instant local results *before* that replace finished got silently wiped out — the checkbox just looked broken, with no error or explanation. Checked boxes now carry across that replace. Separately, the local-results section at the top of the table now has its own "From your pantry, food cache, and recipes" heading, matching the "From USDA, Open Food Facts, and other external sources" heading the external section already had — the top section wasn't previously labeled at all.
+
+```
+Scope: web/templates/search.html (JS captures checked compare/confirm-aa
+checkbox values before replacing #search-tbody's innerHTML, re-applies them
+by value afterward; new local-results divider row), web/templates/_search_api_rows.html
+(same new divider, kept in sync with search.html since both render the same
+table body), tests/test_web.py (existing divider-ordering test extended to
+also check the new local heading).
+```
+
+**NEW: "COPY AS DRAFT TO ADD AA DATA" SHORTCUT ON FOOD SEARCH RESULTS**
+
+Any Food Search result missing confirmed amino acid data now shows a **Copy as draft to add AA data** link right in its row. Clicking it duplicates that food as an editable custom-profile draft and takes you straight to its edit page with the amino-acid-source search box ready — the one-click version of the "search, then go to Custom Food Profiles, then search again" path this previously required. [learn more...](#ts-no-aa-anywhere)
+
+```
+Scope: web/backend.py (new /food/custom-profiles/copy-from-search route,
+shared _duplicate_food_as_draft() helper factored out of the existing
+copy/{fdc_id} route), web/templates/_search_result_row.html (new per-row
+form/button; confirm-aa-form restructured to a form= reference instead of
+DOM nesting so each row can hold its own independent form),
+web/templates/search.html (confirm-aa-form now closes before the results
+table, select-all checkbox looked up by id instead of by form-descendant
+query), tests/test_web.py (2 new tests, cached and uncached source),
+user-manual.md (Drafted Food Profiles List and the "no AA data anywhere"
+troubleshooting entry both mention the shortcut).
+```
+
+**SEARCH-RESULT CHECKBOXES ARE NOW COLOR-CODED WITH A LEGEND**
+
+Food Search result rows can carry two different checkboxes — one to confirm amino acid data on an unconfirmed food, one to add the food to a comparison — and it wasn't obvious they were two separate controls when both appeared on the same row. The "confirm AA" checkbox is now orange and the "compare" checkbox is now purple, with a small legend above the results table explaining what each one does.
+
+```
+Scope: web/templates/_search_result_row.html (checkbox-confirm-aa /
+checkbox-compare classes), web/templates/search.html (select-all checkbox
+recolored, new legend above the results table), web/static/style.css
+(accent-color rules + legend swatches).
+```
+
+**PROTEIN POWDERS NOW ACCEPT TABLESPOON/CUP AMOUNTS WHEN ADDED TO A RECIPE, AND THE EDIT-RECIPE PAGE NOW SHOWS THE RECIPE'S ID**
+
+Adding an ingredient like "Soy protein isolate" to a recipe using a volume amount (e.g. `2 T`) was silently rejected with "no density data is available for this food" — the density lookup only recognized "protein powder" and "whey powder" by name, not "protein isolate" or "protein concentrate". Those are now recognized too. Separately, the Edit Recipe page now shows the recipe's ID number under its title, matching other pages that display it.
+
+```
+Scope: usda_nutrients.py (_DENSITY_TABLE gained "protein isolate" and
+"protein concentrate" keywords alongside the existing "protein powder"/"whey
+powder" entry), tests/test_usda.py (regression test), web/templates/recipe_edit.html
+(recipe ID shown under the page title).
+```
+
+**RECIPE COMPLEMENT SUGGESTIONS NOW EXPLAIN THEIR WHOLE-BATCH SIZING AND SHOW A PER-SERVING AMOUNT**
+
+Protein Complement Suggestions on a recipe's own page size every gram amount to the recipe's full total across all its servings, not one serving — that's intentional, since the only way to act on a suggestion is to add an ingredient to the whole batch. But a 4-serving recipe could show "add 83 g of soy protein isolate" with no indication that figure was for the whole pot, not one bowl. A note now appears at the top of the section for any recipe with more than one serving explaining this, with a link to further detail in the manual, and every gram amount throughout the section (gap closers, graduated steps, DIAAS boosters, two-food and two-step combinations) now also shows its per-serving equivalent in parentheses. [learn more...](#comp-recipe-scale)
+
+```
+Scope: user-manual.md (new "Recipe analysis: amounts are sized to the whole
+batch" subsection under Protein Complement Suggestions, #comp-recipe-scale),
+web/templates/recipe_detail.html (top-of-section note for multi-serving
+recipes; new per_serving_note() macro applied to every grams display in the
+complements section), tests/test_web.py (new regression test).
+```
 
 #### August 23 program updates
 

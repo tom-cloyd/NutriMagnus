@@ -3,6 +3,8 @@
   <td class="confirm-col">
     {% if food.aa == "~✓" %}
     <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
+           form="confirm-aa-form"
+           class="checkbox-confirm-aa"
            aria-label="Select {{ food.name }} to fetch full details">
     {% endif %}
   </td>
@@ -10,9 +12,11 @@
   <td>
     {% if food._type == "recipe" %}
     <input type="checkbox" form="compare-recipe-form" name="recipe_id" value="{{ food.recipe_id }}"
+           class="checkbox-compare"
            aria-label="Select {{ food.name }} to compare recipes">
     {% else %}
     <input type="checkbox" form="compare-food-form" name="fdc_id" value="{{ food.fdc_id }}"
+           class="checkbox-compare"
            aria-label="Select {{ food.name }} to compare foods">
     {% endif %}
   </td>
@@ -36,10 +40,46 @@
     <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
     {% else %}
     <a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
+    {% if food.aa != "✓" %}
+    <br>
+    <form method="post" action="/food/custom-profiles/copy-from-search" class="d-inline">
+      <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+      <input type="hidden" name="off_code" value="{{ food.off_code or '' }}">
+      <button type="submit" class="btn btn-link btn-sm p-0" style="font-size:0.8rem"
+              title="Create an editable draft copy of this food — then use its own AA-source search to copy amino acid data onto it from another food">
+        Copy as draft to add AA data
+      </button>
+    </form>
+    {% endif %}
     {% endif %}
   </td>
   <td class="muted">{{ food.brand or "—" }}</td>
   <td class="muted">{{ food.data_type }}</td>
   <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+  <td>
+    {% if food._type == "recipe" %}
+    <form method="post" action="/recipe/{{ food.recipe_id }}/delete" style="display:inline">
+      <button type="submit" class="btn btn-sm btn-outline-danger"
+              onclick="return confirm('Delete recipe {{ food.name | replace("'", "\\'") }}? This cannot be undone.')">
+        Delete
+      </button>
+    </form>
+    {% elif food.source == "pantry" and food.pantry_id %}
+    <form method="post" action="/pantry/remove/{{ food.pantry_id }}" style="display:inline">
+      <button type="submit" class="btn btn-sm btn-outline-danger"
+              onclick="return confirm('Remove {{ food.name | replace("'", "\\'") }} from pantry?')">
+        Remove from pantry
+      </button>
+    </form>
+    {% elif food.source == "cache" %}
+    <form method="post" action="/food/cache/delete" style="display:inline">
+      <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+      <button type="submit" class="btn btn-sm btn-outline-danger"
+              onclick="return confirm('Delete {{ food.name | replace("'", "\\'") }} from cache?')">
+        Delete
+      </button>
+    </form>
+    {% endif %}
+  </td>
 </tr>
 {% endmacro %}

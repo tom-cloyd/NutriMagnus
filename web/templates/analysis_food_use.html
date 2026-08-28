@@ -82,15 +82,22 @@
 <p class="text-warning">Meal ID(s) not found: {{ missing_ids|join(", ") }}</p>
 {% endif %}
 
-<details class="mb-3">
+<details class="mb-3" {% if sub_id %}open{% endif %}>
   <summary><strong>Substitute a food or recipe</strong> {{ manual_link("fooduse-substitute") }}</summary>
   <p class="muted mt-2 mb-2">
     <small>Replace every occurrence of one food or recipe with another, across the meals selected above —
     handy when a name change (or a food re-added under a new entry) has left what looks like two different
-    foods, and you want to fold the older one into the newer. Find each item's ID number in the table below.
-    Only items added <em>directly</em> to a meal are reachable here; a food used inside a recipe is part of
-    that recipe's own ingredient list — substitute it from
-    <a href="/analysis/food-use-recipes">Food Use in Recipes</a> instead.</small>
+    foods, and you want to fold the older one into the newer. Only items added <em>directly</em> to a meal
+    are reachable here; a food used inside a recipe is part of that recipe's own ingredient list —
+    substitute it from <a href="/analysis/food-use-recipes">Food Use in Recipes</a> instead.</small>
+  </p>
+  <p class="muted mb-2">
+    <small>The table below (once you've searched) shows what's <em>currently used</em> in this selection —
+    it isn't a list of foods you can replace with, and the item you're replacing appears in it too (marked
+    "replacing this"). To find the ID of the food or recipe you want as the <strong>replacement</strong>,
+    look it up first: <a href="/food/search" target="_blank" rel="noopener">Food Search</a> (opens in a new
+    tab — its results table shows each food's ID) or <a href="/recipes" target="_blank" rel="noopener">Recipes</a>
+    for a recipe's ID.</small>
   </p>
   {% if error %}
   <p class="text-danger"><small>{{ error }}</small></p>
@@ -109,10 +116,10 @@
       <label class="form-label mb-0" for="old_kind"><small>Replace this</small></label>
       <div class="d-flex gap-1">
         <select class="form-select form-select-sm" name="old_kind" id="old_kind" style="max-width:6.5rem">
-          <option value="food">Food</option>
-          <option value="recipe">Recipe</option>
+          <option value="food" {% if sub_kind != "recipe" %}selected{% endif %}>Food</option>
+          <option value="recipe" {% if sub_kind == "recipe" %}selected{% endif %}>Recipe</option>
         </select>
-        <input type="number" class="form-control form-control-sm" name="old_id" placeholder="ID #" required style="max-width:7rem">
+        <input type="number" class="form-control form-control-sm" name="old_id" placeholder="ID #" required style="max-width:7rem" value="{{ sub_id or '' }}">
       </div>
     </div>
     <div>
@@ -158,6 +165,9 @@
       </thead>
       <tbody>
         {% for r in rows %}
+        {% set is_replace_target = sub_id and (
+             (sub_kind == "recipe" and r.kind == "recipe" and r.recipe_id == sub_id) or
+             (sub_kind != "recipe" and r.kind != "recipe" and r.fdc_id == sub_id)) %}
         <tr>
           <td class="muted">{% if r.fdc_id %}{{ r.fdc_id }}{% endif %}</td>
           <td>
@@ -169,6 +179,7 @@
               {% else %}{{ r.name }}{% endif %}
             {% endif %}
             {{ food_id_tag(r.fdc_id, recipe_id=(r.recipe_id if r.kind == "recipe" else None)) }}
+            {% if is_replace_target %}<span class="badge text-bg-warning ms-1">replacing this</span>{% endif %}
           </td>
           <td class="muted">
             {% if r.kind == "recipe" and r.deleted %}<span class="text-danger">recipe (deleted)</span>

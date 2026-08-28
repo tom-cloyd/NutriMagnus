@@ -1378,7 +1378,8 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("butter",),                                              0.91),
     # Powders / flours
     (("cocoa powder",),                                         0.47),
-    (("protein powder", "whey powder"),                         0.50),
+    (("protein powder", "whey powder", "protein isolate",
+      "protein concentrate"),                                   0.50),
     (("baking powder", "baking soda"),                          0.90),
     (("powdered sugar", "confectioner",),                       0.56),
     (("brown sugar",),                                          0.93),

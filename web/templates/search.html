@@ -79,11 +79,30 @@
     </button>
     <small class="muted">Confirms whether a <span class="text-warning">~✓</span> food really has amino acid data — search results don't carry nutrient data, only the food's name and type, so this is a guess until fetched.</small>
   </div>
+  {% if results %}
+  <p class="mb-2 checkbox-legend">
+    <small class="muted">
+      <span class="checkbox-legend-swatch checkbox-legend-swatch-confirm-aa"></span> = confirm amino acid data
+      &nbsp;&nbsp;
+      <span class="checkbox-legend-swatch checkbox-legend-swatch-compare"></span> = add to comparison
+      — a row can show both if it qualifies for each
+    </small>
+  </p>
+  {% endif %}
+</form>
+{# confirm-aa-form closes here, above the table, rather than wrapping it —
+   that leaves each row free to hold its own independent "Copy as draft"
+   <form> (see _search_result_row.html) without nesting forms (invalid
+   HTML). The confirm-aa checkboxes below reference the form by id via
+   form="confirm-aa-form" instead of relying on DOM nesting, same trick
+   already used for the compare-food-form/compare-recipe-form checkboxes. #}
   <table class="table table-sm table-hover" id="search-table" {% if not results and is_barcode_query %}style="display:none"{% endif %}>
     <thead class="table-light">
       <tr>
         <th class="confirm-col" style="width:2rem">
-          <input type="checkbox" data-confirm-aa-select-all title="Select all unconfirmed (~✓)"
+          <input type="checkbox" data-confirm-aa-select-all id="confirm-aa-select-all"
+                 title="Select all unconfirmed (~✓)"
+                 class="checkbox-confirm-aa"
                  aria-label="Select all unconfirmed">
         </th>
         <th title="Select to add to Compare Foods or Compare Recipes">Compare</th>
@@ -96,26 +115,30 @@
         <th>Brand</th>
         <th>Type</th>
         <th>Source</th>
+        <th>Delete</th>
       </tr>
     </thead>
     <tbody id="search-tbody">
-      {% set ns = namespace(seen_local=false, divider_shown=false) %}
+      {% set ns = namespace(seen_local=false, divider_shown=false, local_header_shown=false) %}
       {% for food in results %}
+        {% if is_local_source(food.source) and not ns.local_header_shown %}
+      <tr class="search-group-divider"><td colspan="12"><small class="muted">From your pantry, food cache, and recipes</small></td></tr>
+        {% set ns.local_header_shown = true %}
+        {% endif %}
         {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
         {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
-      <tr class="search-group-divider"><td colspan="11"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+      <tr class="search-group-divider"><td colspan="12"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
         {% set ns.divider_shown = true %}
         {% endif %}
         {{ _sr.row(food, show_compare=true) }}
       {% endfor %}
       {% if not is_barcode_query and external_source_labels %}
       <tr id="search-api-loading" class="food-meta-row">
-        <td colspan="11"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>
+        <td colspan="12"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>
       </tr>
       {% endif %}
     </tbody>
   </table>
-</form>
 <p id="search-no-results" class="muted" {% if results or not is_barcode_query %}style="display:none"{% endif %}>No results for <strong>{{ query }}</strong>.</p>
 <script>
 (function () {
@@ -124,7 +147,7 @@
   var confirmForm = document.getElementById('confirm-aa-form');
   var confirmPanel = document.getElementById('confirm-aa-panel');
   var submitBtn = confirmForm.querySelector('[data-confirm-aa-submit]');
-  var selectAll = confirmForm.querySelector('[data-confirm-aa-select-all]');
+  var selectAll = document.getElementById('confirm-aa-select-all');
 
   function refreshConfirmUI() {
     var boxes = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'));
@@ -155,8 +178,31 @@
     .then(function (html) {
       // Server response is the FULL merged+re-sorted result set (local +
       // external), not just new rows — replace, don't append, so a weak
-      // local match can't stay pinned above a better external one.
+      // local match can't stay pinned above a better external one. Local
+      // results render instantly, so a user who checks one of their
+      // pantry/cache boxes right away (before this fetch — USDA/OFF calls —
+      // resolves) would otherwise see that checkbox silently un-check the
+      // moment this replace happens. Carry any already-checked boxes'
+      // values across the replace so a fast click doesn't get wiped out.
+      var checkedFood = Array.prototype.slice.call(tbody.querySelectorAll('.checkbox-compare[name="fdc_id"]:checked'))
+        .map(function (b) { return b.value; });
+      var checkedRecipe = Array.prototype.slice.call(tbody.querySelectorAll('.checkbox-compare[name="recipe_id"]:checked'))
+        .map(function (b) { return b.value; });
+      var checkedAA = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]:checked'))
+        .map(function (b) { return b.value; });
       tbody.innerHTML = html;
+      checkedFood.forEach(function (v) {
+        var el = tbody.querySelector('.checkbox-compare[name="fdc_id"][value="' + v + '"]');
+        if (el) el.checked = true;
+      });
+      checkedRecipe.forEach(function (v) {
+        var el = tbody.querySelector('.checkbox-compare[name="recipe_id"][value="' + v + '"]');
+        if (el) el.checked = true;
+      });
+      checkedAA.forEach(function (v) {
+        var el = tbody.querySelector('[data-confirm-aa-checkbox][value="' + v + '"]');
+        if (el) el.checked = true;
+      });
       if (html.trim()) {
         table.style.display = '';
       } else {

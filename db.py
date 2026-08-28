@@ -251,6 +251,16 @@ def init_db() -> None:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_recipe_comparisons (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT    NOT NULL,
+                recipe_ids TEXT    NOT NULL,
+                unit       TEXT    NOT NULL DEFAULT 'serving',
+                created_at TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+
         for _col in ("bcp_g REAL", "bcp_computed_at TEXT", "day_pct_goal REAL", "calories REAL",
                      "nutrients_snapshot_json TEXT"):
             try:
@@ -1036,18 +1046,33 @@ def _all_broken_recipe_refs(conn: sqlite3.Connection) -> tuple[list[sqlite3.Row]
     return meals, recipes
 
 
+MIN_RELINK_SHARED_WORDS = 2
+
+
+def _name_matches_for_relink(candidate_name: str, target_name: str, target_words: set[str]) -> bool:
+    """True if `candidate_name` is plausibly the same recipe as `target_name`:
+    either an exact match (case/whitespace-insensitive — always allowed, even
+    for a single-word name like "Chili" recreated as "Chili"), or sharing at
+    least MIN_RELINK_SHARED_WORDS words. A single shared word (e.g. both
+    names merely containing "protein") is too weak a signal on its own — see
+    recipe_edit's broken_groups for the false-match case this was tightened
+    to avoid."""
+    if candidate_name.strip().lower() == target_name.strip().lower():
+        return True
+    return len(_name_words(candidate_name) & target_words) >= MIN_RELINK_SHARED_WORDS
+
+
 def find_broken_recipe_refs(conn: sqlite3.Connection, name: str) -> dict:
     """Fuzzy-find meal_items and recipe_ingredients rows left dangling by a
     deleted recipe, for offering to relink them when a recipe is (re-)created.
-    A row matches if it shares at least one word (case-insensitive) with
-    `name` — e.g. creating "Chicken Stew" will surface a broken reference
-    stored as "Beef Stew" or just "Stew", not only an exact-name match.
+    See _name_matches_for_relink for the match rule.
 
     Because a fuzzy search can turn up broken refs left by more than one
     distinct deleted recipe, each row carries its original name as
     `matched_name` — callers should offer/relink one matched_name group at a
     time (see relink_recipe_refs) rather than assuming every match belongs
-    to the same original recipe.
+    to the same original recipe. See find_relink_candidates() for offering
+    alternative target recipes beyond the one currently being edited.
 
     Returns {"meals": [rows...], "recipes": [rows...]}.
     """
@@ -1055,9 +1080,31 @@ def find_broken_recipe_refs(conn: sqlite3.Connection, name: str) -> dict:
     if not words:
         return {"meals": [], "recipes": []}
     all_meals, all_recipes = _all_broken_recipe_refs(conn)
-    meals = [row for row in all_meals if _name_words(row["matched_name"]) & words]
-    recipes = [row for row in all_recipes if _name_words(row["matched_name"]) & words]
+    meals = [row for row in all_meals if _name_matches_for_relink(row["matched_name"], name, words)]
+    recipes = [row for row in all_recipes if _name_matches_for_relink(row["matched_name"], name, words)]
     return {"meals": meals, "recipes": recipes}
+
+
+def find_relink_candidates(conn: sqlite3.Connection, matched_name: str) -> list[dict]:
+    """Live recipes plausibly matching `matched_name` (the deleted recipe's
+    original name) per _name_matches_for_relink, ranked by how many words
+    they share — offered as alternative relink targets alongside whichever
+    recipe the user happens to be editing, since that may not be the recipe
+    they actually meant to recreate.
+
+    Returns [{"id", "name", "shared_words"}, ...] sorted by shared_words desc,
+    then name.
+    """
+    words = _name_words(matched_name)
+    if not words:
+        return []
+    candidates = []
+    for row in conn.execute("SELECT id, name FROM recipes"):
+        if _name_matches_for_relink(row["name"], matched_name, words):
+            shared = len(_name_words(row["name"]) & words)
+            candidates.append({"id": row["id"], "name": row["name"], "shared_words": shared})
+    candidates.sort(key=lambda c: (-c["shared_words"], c["name"].lower()))
+    return candidates
 
 
 def list_all_broken_recipe_refs(conn: sqlite3.Connection) -> dict:
@@ -1757,6 +1804,42 @@ def saved_comparison_rename(conn: sqlite3.Connection, cmp_id: int, name: str) ->
 
 def saved_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
     cur = conn.execute("DELETE FROM saved_comparisons WHERE id = ?", (cmp_id,))
+    return cur.rowcount > 0
+
+
+def saved_recipe_comparison_save(
+    conn: sqlite3.Connection,
+    name: str,
+    recipe_ids: list[int],
+    unit: str,
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO saved_recipe_comparisons (name, recipe_ids, unit) VALUES (?, ?, ?)",
+        (name, json.dumps(recipe_ids), unit),
+    )
+    return cur.lastrowid
+
+
+def saved_recipe_comparison_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT id, name, recipe_ids, unit, created_at FROM saved_recipe_comparisons ORDER BY created_at DESC"
+    ).fetchall()
+
+
+def saved_recipe_comparison_get(conn: sqlite3.Connection, cmp_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT id, name, recipe_ids, unit, created_at FROM saved_recipe_comparisons WHERE id = ?",
+        (cmp_id,),
+    ).fetchone()
+
+
+def saved_recipe_comparison_rename(conn: sqlite3.Connection, cmp_id: int, name: str) -> bool:
+    cur = conn.execute("UPDATE saved_recipe_comparisons SET name = ? WHERE id = ?", (name, cmp_id))
+    return cur.rowcount > 0
+
+
+def saved_recipe_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
+    cur = conn.execute("DELETE FROM saved_recipe_comparisons WHERE id = ?", (cmp_id,))
     return cur.rowcount > 0
 
 
