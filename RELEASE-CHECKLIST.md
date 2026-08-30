@@ -6,18 +6,17 @@ phases in order — later phases assume earlier ones are done.
 
 Two corrections to keep in mind while reading old chat sessions:
 - The program is **NutriMagnus** ("NuMa"), not NutraMagnus.
-- It moved off Codeberg to **GitHub** on 2026-08-05 (Codeberg's ToS bans AI-majority-authored
-  code — a real risk given the commit history). All release tooling now targets
-  `github.com/tom-cloyd/NutriMagnus`. Older chat sessions that mention Codeberg,
-  `.forgejo/workflows/`, or `program-updates.md` are superseded — treat them as history only.
+- All release tooling targets **GitHub**, `github.com/tom-cloyd/NutriMagnus`. Older chat
+  sessions that mention `.forgejo/workflows/` or `program-updates.md` are superseded —
+  treat them as history only.
 
 ---
 
 ## Phase 0 — Repo hygiene (5 min, do first)
 
 - [x] Delete the stale `.forgejo/workflows/release.yml` — it's still tracked in git
-      (`git ls-files .forgejo/`) even though the project no longer uses Codeberg Actions.
-      Leaving it risks confusion about which workflow is authoritative.
+      (`git ls-files .forgejo/`) even though the project no longer uses that workflow
+      host. Leaving it risks confusion about which workflow is authoritative.
 - [x] `git status` — confirm a clean tree before starting (uncommitted files have
       silently accumulated between sessions before).
 

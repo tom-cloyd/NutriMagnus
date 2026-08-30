@@ -4,11 +4,6 @@ Nutritional analysis web app (FastAPI). USDA FoodData Central + Open Food Facts.
 
 Full architecture docs: `README-numa-documentation.md`
 
-Note: this was previously a dual CLI+web project. The interactive terminal CLI was removed
-2026-08-04 — the owner never used it and expected no other users to either. This file is
-fully updated for the web-only codebase. `README-numa-documentation.md` may still have
-CLI-era mechanics pending its own cleanup pass.
-
 ---
 
 ## Run / Test

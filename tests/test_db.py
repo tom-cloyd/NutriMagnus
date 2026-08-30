@@ -128,6 +128,34 @@ class TestFoodCache:
         names = {r["name"] for r in results}
         assert "Salmon, Atlantic" not in names
 
+    def test_search_cached_foods_generic_word_alone_does_not_trigger_or_fallback(self):
+        """A user-drafted food shouldn't surface via the any-word OR fallback
+        just because it shares a generic prep/state word (raw, cooked, etc.)
+        with the query — e.g. "orange raw" must not surface "Raw Brazil Nuts"."""
+        with _db.get_db() as conn:
+            _db.cache_food(conn, 1, "Raw Brazil Nuts", "SR Legacy", None,
+                            100.0, "g", {}, user_drafted=True)
+            _db.cache_food(conn, 2, "Orange, raw", "SR Legacy", None,
+                            100.0, "g", {}, user_drafted=True)
+
+        with _db.get_db() as conn:
+            results = _db.search_cached_foods(conn, "orange raw")
+        names = {r["name"] for r in results}
+        assert "Orange, raw" in names
+        assert "Raw Brazil Nuts" not in names
+
+    def test_search_cached_foods_or_fallback_still_works_for_non_generic_words(self):
+        """The OR fallback itself must still work when the query word isn't a
+        generic stopword — only the generic-word-alone case is excluded."""
+        with _db.get_db() as conn:
+            _db.cache_food(conn, 1, "D3 50 mcg", "Branded", None,
+                            100.0, "g", {}, user_drafted=True)
+
+        with _db.get_db() as conn:
+            results = _db.search_cached_foods(conn, "vitamin d")
+        names = {r["name"] for r in results}
+        assert "D3 50 mcg" in names
+
 
 # ---------------------------------------------------------------------------
 # Recipes

@@ -2,9 +2,9 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-27:2241
+UPDATED: 2026-08-30:1043
 
-Last monthly accuracy check: not yet performed (see Maintenance → Monthly deep check, below).
+Last monthly accuracy check: 2026-08-30.
 
 ---
 
@@ -64,7 +64,7 @@ numa/
   platform_utils.py                — Cross-platform data-dir path resolution
   version.py                       — Single-source-of-truth VERSION stamp
   requirements.txt                 — Python dependencies (fastapi, uvicorn, Jinja2, Markdown, python-multipart;
-                                     pytest/httpx for test/dev)
+                                     pytest/httpx/hypothesis for test/dev)
   import_foods.py, import_json_folder.py, import_gi_seed.py
                                     — standalone maintenance scripts, independent of the web app
                                      (numa_gen_prompt.py, numa_import_claude.py also exist locally
@@ -82,26 +82,39 @@ numa/
       claude_fetch.py                — Claude AI amino-acid-fetch prompt building and response import
       complements.py                — shared complement-suggestion display math: aa_effects(),
                                       two_step_combo(), build_complement_display()
+      csv_export.py                  — Food Cache CSV export: foods_to_csv(), compare_to_csv()
+      csv_import.py                  — Food Cache CSV import: parse_foods_csv(), import_foods(),
+                                      resolve_or_import_foods()
       day_profile.py                 — per-day profile pinning: get_profile_for_date(), ensure_day_profile()
+      demo_data.py                   — starter foods/pantry/recipes, loaded from starter_data.json:
+                                      seed_if_fresh_install() (runs once on a truly empty DB),
+                                      load_demo_data()/clear_demo_data()/restore_selected() back the
+                                      Settings starter-data toggle
       diet_aware.py                  — B12/iron/zinc bioavailability notes based on dietary preference
       food_ids.py                    — classify_food_id() — food/recipe ID → (id_str, source_label)
       food_import.py                 — shared food-cache import logic (used by import_foods.py etc.)
       glycemic_load.py               — shared glycemic load aggregation: compute_glycemic_load()
       manual_build.py                — rebuild_manual_if_stale(), used by the web app's /manual route
       meal_bcp.py                    — shared meal-DCP fallback: recipe_dcp_fallback()
-      meal_list_columns.py           — shared Meals & Log custom-column logic
+      meal_list_columns.py           — nutrient-column picker logic shared by Meals & Log, Recent
+                                      Days/Daily Summary, and the Nutrient Plot picker
       nutrient_trend.py              — multiday nutrient trend averaging
       plotting.py                    — nutrient trend line-chart rendering
       portions.py                    — _parse_portion_input() — portion-string parsing
+      print_sections.py              — shared vocabulary/prefs resolution for printable
+                                      nutritional-analysis "what to include" checkboxes
       rda_status.py                  — shared RDA/limit percent-of-target classification: rda_status()
+      recipe_csv.py                  — Recipe CSV export/import (recipes.csv + foods.csv pair,
+                                      including sub-recipes and ingredient nutrient/portion data)
       recipe_dcp.py                  — shared auto-recompute of a recipe's per-serving DCP: recompute_recipe_dcp()
       recipe_nutrients.py            — shared recursive recipe-ingredient expansion:
                                       expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
-      search.py                      — _refresh_cache_if_missing_aa(), used by recipe_nutrients.py
       search_ranking.py              — shared food-search relevance ranking: relevance_key()
       static_source_lookup.py        — StaticSource class: shared local-search/lookup machinery
                                        for bundled static datasets (CoFID/AFCD/CIQUAL);
                                        cofid_lookup.py etc. are thin wrappers around it
+      top_contributors.py            — rank a meal's/recipe's ingredients by contribution to one
+                                      nutrient (or DCP), for the "Top Contributors" analysis section
   user-manual.md                   — Essential instructions, tips, and reference material for
                                      users; plain-text sections keyed by {: #anchor} for inline display
   oxalate.py                       — Read-only access to oxalate.db: get_oxalate_db(), search_similar(),
@@ -114,28 +127,62 @@ numa/
                                      Committed to repo; rebuilt by build_oxalate_db.py
   web/                             — Local web interface (FastAPI + Jinja2)
     backend.py                     — All routes, helpers, and template context builders
+    launcher.py                    — Starts uvicorn and opens a browser tab
+    home_body.cache                — Cached rendered HTML of home.md (invalidated when home.md is newer)
     static/
-      style.css                    — Site-wide custom CSS (Bootstrap 5 base)
+      style.css                    — Site-wide custom CSS
+      icon-256.png                 — App icon
+      vendor/bootstrap/            — Vendored Bootstrap 5 CSS+JS (offline use, no CDN)
     templates/
-      base.html                    — Shared layout: navbar, Bootstrap CDN links, keyboard-shortcut JS
+      base.html                    — Shared layout: navbar, vendored Bootstrap links, keyboard-shortcut JS
       home.html                    — Landing page (rendered from home.md)
-      search.html                  — Food search results (USDA + cache)
+      search.html                  — Food search results (USDA + cache + recipes)
+      _search_result_row.html, _search_api_rows.html, _add_food_row.html,
+      _add_food_api_rows.html      — Search-results-table partials reused across food/meal/recipe add flows
+      _analyze_portion_result_row.html, _analyze_portion_api_rows.html
+                                    — Portion-analysis result-row partials
+      _source_filter_select.html   — Reusable "Source" filter checkbox row (with select-all)
+      _result_limit_input.html     — Reusable search result-count limit control
+      _diet_pref_quick.html        — Inline dietary-preference quick-switcher partial
+      _rda_definition_footer.html  — Shared RDA/limit-column definitions footer
+      _top_contributors.html       — Top Contributors table partial (food/recipe/meal analyses)
+      _ul_column.html              — Shared upper-limit column partial for nutrient tables
       food_detail.html             — Single food nutrient breakdown with RDA % and protein quality
       food_analyze_portion.html    — Select food + enter grams → nutrient table
       food_analyze_recipe_portion.html — Select saved recipe + servings → nutrient table
       food_convert.html            — Portion ↔ weight conversion (density lookup)
       food_compare.html            — Side-by-side nutrient comparison (up to 6 foods, save/load)
-      food_cache.html              — Browse/search cached foods; delete from cache
+      food_cache.html              — Browse/search cached foods; delete/archive from cache
+      food_cache_prune.html        — Preview/confirm pruning of unused cached foods
+      food_cache_portions.html     — Manage a cached food's USDA-style named portions
+      food_cache_import_csv.html   — Import foods from a CSV file into the cache
+      food_cache_db_check.html     — Database integrity check + repair for the food cache
       food_custom_profiles.html    — List user-drafted food profiles; create/delete
+      food_custom_edit.html        — Edit a food's nutrients (drafted profiles and Food Cache share this)
       food_annotate.html           — Browse foods for GI/DIAAS annotation; edit annotation form
-      pantry.html                  — My Pantry: add/remove foods on hand
+      claude_fetch.html            — Build a Claude AI amino-acid/nutrient fetch prompt for a food
+      claude_import.html           — Import a pasted Claude AI response into the food cache
+      pantry.html                  — My Pantry: add/remove/archive foods on hand
       meals.html                   — Meal list with Complete column, date filter, search link
       meal.html                    — Meal view/edit: items, inline edit, add food/recipe, manage actions
       meal_day.html                — Full-day combined nutrient + DIAAS analysis across all meals on a date
       meals_search.html            — Search all meal history; flat occurrences + summary-by-food tables
-      recipes.html                 — Recipes placeholder (stub)
-      summary.html                 — Daily summary placeholder (stub)
-      settings.html                — User profile, dietary preferences, USDA API key, DIAAS overrides
+      recipes.html                 — Recipe browse/search list (Recent, complete/incomplete, broken refs link)
+      recipe_new.html              — Create a new recipe
+      recipe_detail.html           — Recipe view: ingredients, DCP, protein quality, print/export links
+      recipe_edit.html             — Recipe edit: ingredients, instructions, servings, weight/volume
+      recipe_compare.html          — Side-by-side recipe comparison (save/load, like food_compare.html)
+      recipe_import_csv.html       — Import a recipes.csv + foods.csv bundle
+      recipe_broken_refs.html      — List recipes whose ingredient references are broken; relink/substitute
+      analysis_food_use.html       — Analysis: frequency of a food's use across meals/date ranges
+      analysis_food_use_recipes.html — Analysis: frequency of a food's use across recipes
+      summary.html                 — Daily summary landing page (Recent Days list)
+      trend.html                   — Multiday nutrient trend averaging view
+      nutrient_plot.html           — Nutrient trend line-chart picker/display
+      nutrient_plot_print.html     — Print-formatted nutrient plot
+      print.html                   — Shared printable nutritional-analysis page (food/recipe/meal/day)
+      settings.html                — User profile, dietary preferences, USDA API key, DIAAS overrides,
+                                     nutrient targets, starter-data toggle, system-issues list
       manual.html                  — Rendered user-manual.md
   .venv/                           — Python virtual environment (not committed)
 ```
@@ -172,7 +219,7 @@ Dependencies (`requirements.txt`):
 | `Jinja2`          | Template rendering                         |
 | `Markdown`        | Renders the manual and other markdown text |
 | `python-multipart`| Form-data parsing (FastAPI dependency)     |
-| `pytest`, `httpx` | Test suite / test client (test/dev only)   |
+| `pytest`, `httpx`, `hypothesis` | Test suite / test client / property-based tests (test/dev only) |
 
 > **Note:** `requests` is not a dependency; HTTP uses stdlib `urllib`.
 
@@ -210,7 +257,7 @@ For first-run setup, see the [NutriMagnus User Manual](user-manual.html).
 
 ## Menu Structure
 
-numa has five top-level nav areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary - DCP and goals** (the original per-day nutrient/RDA workflow) and **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs). For a complete description of every page and workflow, see the [NutriMagnus User Manual](user-manual.html).
+numa has five top-level nav areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary - DCP and goals** (the original per-day nutrient/RDA workflow), **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs, with a substitution action), and **Food use in recipes** (the same frequency/substitution analysis, scoped to recipe ingredients instead of logged meals). For a complete description of every page and workflow, see the [NutriMagnus User Manual](user-manual.html).
 
 ---
 
@@ -616,6 +663,13 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 | `pantry`             | User's protein-source inventory (food name, optional fdc_id, notes) |
 | `food_annotations`   | Per-food user-supplied estimates (GI, DIAAS, prep context), keyed by fdc_id; also stores `gi_no_prompt` / `diaas_no_prompt` suppression flags |
 | `diaas_overrides`    | User-set true ileal digestibility coefficients, keyed by food name (used by meal-level DIAAS in `diaas.py`; distinct from per-food annotations above) |
+| `saved_comparisons`  | Named, saved Compare Foods lists (`/food/compare/save` and friends) |
+| `saved_recipe_comparisons` | Named, saved Compare Recipes lists (`/recipe/compare/save` and friends) |
+| `day_bcp_cache`      | Cached per-day best-complete-protein figure, invalidated on relevant edits |
+| `day_profile`        | Per-date pinned profile snapshot — see `numa_app/services/day_profile.py` below |
+| `recompute_errors`   | Logged DCP-cascade recompute failures — see below |
+
+(`oxalate_links` also lives in `numa.db`; documented separately under [Oxalate Data](#oxalate-data) below since it belongs to that subsystem.)
 
 `recipes.total_volume` / `recipes.total_volume_unit` and `recipes.total_weight` / `recipes.total_weight_unit` store the user-entered batch size (e.g. 4.0 / "cups", 800.0 / "g"). Both pairs are nullable — either or both may be omitted. Added via `ALTER TABLE` migration so existing databases are upgraded automatically on first run.
 
@@ -862,76 +916,141 @@ All FastAPI routes and backend helpers are in this single file. Key patterns:
 
 ### Route reference
 
+`web/backend.py` currently defines **142** routes. The tables below group the ones most useful to
+know by name; several large, mostly-mechanical groups (per-row edit/move/archive endpoints, saved
+comparison-list CRUD, print/export variants) are summarized as a single row rather than listed
+individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the exhaustive, current list.
+
 #### Foods
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/food/search` | Food search form |
-| POST | `/food/search` | Food search results (USDA + cache + recipes) |
+| GET/POST | `/food/search` | Food search form / results (USDA + cache + recipes) |
 | POST | `/search` | Legacy alias for POST `/food/search` |
-| GET | `/food/analyze-portion` | Portion analysis form |
-| POST | `/food/analyze-portion` | Portion analysis results |
-| GET | `/food/analyze-recipe-portion` | Recipe portion analysis form |
-| POST | `/food/analyze-recipe-portion` | Recipe portion analysis results |
+| GET | `/food/search-api-results` | Background/async search results partial |
+| GET | `/food/analyze-portion-api-results` | Background/async portion-analysis results partial |
+| POST | `/food/confirm-aa` | Batch-fetch full nutrient detail for checked `"~✓"` search results (see `search.html` below) |
+| GET/POST | `/food/analyze-portion` | Portion analysis form / results |
+| GET/POST | `/food/analyze-recipe-portion` | Recipe portion analysis form / results |
 | GET | `/food/convert` | Portion conversion search |
 | GET | `/food/convert/{fdc_id}` | Portion conversion detail for a specific food |
+| GET | `/food/convert/recipe/{recipe_id}` | Portion conversion detail for a recipe |
 | GET | `/food/compare` | Food comparison table (query params: `ids=`, `amounts=`, `search=`) |
-| POST | `/food/compare/add` | Add a food to the comparison |
-| POST | `/food/compare/remove` | Remove a food from the comparison |
-| POST | `/food/compare/amounts` | Update gram amounts for compared foods |
+| GET | `/food/compare/export.csv` | Export the current comparison as CSV |
+| POST | `/food/compare/add`, `add-multiple`, `remove`, `cache-food`, `amounts` | Manage the current comparison list |
 | POST | `/food/compare/save` | Save the current comparison list |
 | GET | `/food/compare/load/{cmp_id}` | Load a saved comparison |
-| POST | `/food/compare/saved/delete` | Delete a saved comparison |
-| GET | `/food/cache` | Browse/search cached foods |
+| POST | `/food/compare/saved/rename`, `saved/delete` | Manage saved comparisons |
+| GET | `/food/cache` | Browse/search cached foods (`show_archived` supported) |
+| GET | `/food/cache/export.csv` | Export the food cache as CSV |
 | POST | `/food/cache/delete` | Remove a food from the cache |
-| GET | `/food/cache/prune` | Preview foods unused by pantry/recipes/meals before pruning |
-| POST | `/food/cache/prune` | Delete all foods unused by pantry/recipes/meals (user-drafted foods protected) |
+| POST | `/food/cache/{fdc_id}/archive` | Archive/restore a cached food |
+| POST | `/food/cache/claude-fetch` | Build a Claude AI fetch prompt for a food |
+| GET/POST | `/food/cache/claude-import` | Import a pasted Claude AI response |
+| GET/POST | `/food/cache/import-csv` | Import foods from a CSV file |
+| GET/POST | `/food/cache/prune` | Preview / delete foods unused by pantry/recipes/meals (user-drafted foods protected) |
+| GET/POST | `/food/cache/db-check`, `/food/cache/db-check/repair` | Database integrity check and repair |
+| GET | `/food/cache/{fdc_id}/portions` | Manage a cached food's named portions |
+| POST | `/food/cache/{fdc_id}/portions/add`, `portions/delete` | Add/delete a named portion |
+| POST | `/food/cache/{fdc_id}/refresh` | Re-fetch a food's nutrients from its source API |
 | GET | `/food/custom-profiles` | List user-drafted food profiles |
 | POST | `/food/custom-profiles/create` | Create a new drafted profile |
 | POST | `/food/custom-profiles/delete/{fdc_id}` | Delete a drafted profile |
-| GET | `/food/annotate` | Browse foods for annotation |
-| GET | `/food/annotate/{fdc_id}` | Edit annotation form |
-| POST | `/food/annotate/{fdc_id}` | Save annotation |
+| GET/POST | `/food/custom-profiles/{fdc_id}/edit` | Edit a food's nutrients (drafted profiles and Food Cache share this) |
+| POST | `/food/custom-profiles/{fdc_id}/copy-aa` | Estimate AA profile by scaling from another food (`aa_estimate.py`) |
+| POST | `/food/custom-profiles/{fdc_id}/copy-nutrients` | Copy a whole nutrient profile from another food |
+| POST | `/food/custom-profiles/copy/{fdc_id}`, `copy-from-search` | Start a new drafted profile pre-filled from an existing food |
+| GET | `/food/annotate` | Browse foods for GI/DIAAS annotation |
+| GET/POST | `/food/annotate/{fdc_id}` | Edit / save an annotation |
+| POST | `/food/annotate/{fdc_id}/skip-forever`, `clear` | Suppress future prompts / clear an annotation |
 | GET | `/food/{fdc_id}` | Food detail with nutrient table and protein quality (registered last among `/food/*`) |
+| GET | `/food/{fdc_id}/print` | Printable food detail page |
 
 #### Pantry
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/pantry` | Pantry list |
+| GET | `/pantry` | Pantry list (`show_archived` supported) |
 | POST | `/pantry/add` | Add a food to pantry |
 | POST | `/pantry/remove/{pantry_id}` | Remove a food from pantry |
+| POST | `/pantry/{pantry_id}/archive` | Archive/restore a pantry entry |
 
 #### Meals
 
 | Method | Path | Description |
 |---|---|---|
 | GET | `/meals` | Meal list (query params: `show_all=`, `date=YYYY-MM-DD`) |
+| POST | `/meals/compute-bcp` | Recompute DCP for all complete recipes referenced across meals |
 | POST | `/meals/create` | Create a new meal |
+| POST | `/meals/delete-day` | Delete every meal on a given date |
 | GET | `/meals/search` | Search meal history by food name (query param: `q=`) |
 | GET | `/meal/{meal_id}` | Meal view/edit (query param: `q=` for food search) |
-| POST | `/meal/{meal_id}/add` | Add a food to a meal |
-| POST | `/meal/{meal_id}/add-recipe` | Add a recipe to a meal |
+| GET | `/meal/{meal_id}/print` | Printable meal page |
+| GET | `/meal/{meal_id}/search-api-results` | Background/async add-food search results partial |
+| POST | `/meal/{meal_id}/confirm-aa`, `refresh-aa` | Batch-fetch/refresh AA data for a meal's items |
+| POST | `/meal/{meal_id}/add`, `add-recipe` | Add a food / recipe to a meal |
 | POST | `/meal/{meal_id}/remove/{item_id}` | Remove an item from a meal |
+| POST | `/meal/{meal_id}/update/{item_id}` | Edit an item's amount and notes |
 | POST | `/meal/{meal_id}/rename` | Rename a meal |
 | POST | `/meal/{meal_id}/complete` | Toggle meal complete/incomplete |
 | POST | `/meal/{meal_id}/delete` | Delete a meal |
-| POST | `/meal/{meal_id}/update/{item_id}` | Edit an item's amount and notes |
 | POST | `/meal/{meal_id}/merge` | Merge selected meals on the same date into one |
 | GET | `/meal/{meal_id}/day` | Full-day analysis for all meals on the same date as this meal |
+| GET | `/meal/{meal_id}/day/print` | Printable full-day analysis |
+| POST | `/meal/{meal_id}/day/profile` | Set/override the profile pinned to that day |
 
-#### Settings, Recipes, Summary
+#### Recipes
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/settings` | Settings page (profile, diet, API key, DIAAS overrides, RDA table) |
-| POST | `/settings` | Save user profile |
+| POST | `/recipes/compute-bcp` | Recompute DCP for every complete recipe |
+| GET | `/recipes` | Recipe browse/search list |
+| GET | `/recipes/broken-refs` | List recipes with broken ingredient references |
+| GET/POST | `/recipe/import-csv` | Import a recipes.csv + foods.csv bundle |
+| GET/POST | `/recipe/new` | Create a new recipe |
+| GET | `/recipe/compare` | Recipe comparison table |
+| POST | `/recipe/compare/add`, `add-multiple`, `remove`, `save` | Manage the current recipe comparison list |
+| GET | `/recipe/compare/load/{cmp_id}` | Load a saved recipe comparison |
+| POST | `/recipe/compare/saved/rename`, `saved/delete` | Manage saved recipe comparisons |
+| GET | `/recipe/{recipe_id}` | Recipe detail (ingredients, DCP, protein quality) |
+| GET | `/recipe/{recipe_id}/export.csv` | Export one recipe as CSV |
+| GET | `/recipe/{recipe_id}/print` | Printable recipe page |
+| GET/POST | `/recipe/{recipe_id}/edit` | Recipe edit form / save |
+| POST | `/recipe/{recipe_id}/relink` | Relink a broken ingredient reference to a different food |
+| POST | `/recipe/{recipe_id}/delete`, `archive`, `copy` | Delete / archive-restore / duplicate a recipe |
+| POST | `/recipe/{recipe_id}/confirm-aa` | Batch-fetch AA data for the recipe's ingredients |
+| POST | `/recipe/{recipe_id}/ingredient/add`, `add-recipe` | Add a food / sub-recipe ingredient |
+| POST | `/recipe/{recipe_id}/ingredient/{ing_id}/remove`, `edit`, `move` | Manage one ingredient row |
+| POST | `/recipe/{recipe_id}/instructions`, `introduction` | Save the recipe's instructions / intro text |
+
+#### Analysis / Summary
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/summary` | Daily summary landing page (Recent Days list) |
+| GET | `/summary/{meal_date}` | Daily summary for one date |
+| POST | `/summary/{meal_date}/profile` | Set/override the profile pinned to that date |
+| GET | `/summary/trend` | Multiday nutrient trend view |
+| GET | `/summary/nutrient-plot`, `nutrient-plot/image`, `nutrient-plot/print` | Nutrient trend line-chart picker, rendered image, and print view |
+| GET | `/analysis/food-use` | Frequency of a food's use across meals/date ranges |
+| POST | `/analysis/food-use/substitute` | Substitute one food for another across matched meal items |
+| GET | `/analysis/food-use-recipes` | Frequency of a food's use across recipes |
+| POST | `/analysis/food-use-recipes/substitute` | Substitute one food for another across matched recipe ingredients |
+
+#### Settings, misc
+
+| Method | Path | Description |
+|---|---|---|
+| GET/POST | `/settings` | Settings page (profile, diet, API key, DIAAS overrides, RDA table) / save profile |
 | POST | `/settings/diet` | Save dietary preference |
 | POST | `/settings/api-key` | Save USDA API key |
-| POST | `/settings/diaas-override` | Add/update a DIAAS digestibility override |
-| POST | `/settings/diaas-override/delete` | Delete a DIAAS override |
-| GET | `/recipes` | Recipes stub page (not yet implemented) |
-| GET | `/summary` | Daily summary stub page (not yet implemented) |
+| POST | `/settings/search-boost` | Save the Foundation/SR-Legacy search-boost page size |
+| POST | `/settings/diaas-override`, `diaas-override/delete` | Add/update or delete a DIAAS digestibility override |
+| POST | `/settings/nutrient-target`, `nutrient-target/load-defaults` | Edit / reset Profile Optimal targets and max limits |
+| POST | `/settings/starter-data/load`, `clear`, `restore` | Load / clear / selectively restore demo starter data |
+| POST | `/settings/meal-nutrients` | Save the Meals & Log custom-column selection |
+| POST | `/settings/recompute-error/{error_id}/resolve` | Retry a failed DCP recompute (Settings > System Issues) |
+| POST | `/recompute-errors/ack-banner` | Dismiss the home-page recompute-error banner |
 | GET | `/manual` | Rendered user-manual.md |
 | GET | `/` | Home page |
 
@@ -939,9 +1058,9 @@ All FastAPI routes and backend helpers are in this single file. Key patterns:
 
 #### `base.html`
 
-Shared layout wrapper. Includes Bootstrap 5 CDN, `/static/style.css`, the top navbar with dropdown menus, a footer, and the keyboard-shortcut JS. All other templates extend this.
+Shared layout wrapper. Includes the vendored Bootstrap 5 CSS/JS (`web/static/vendor/bootstrap/` — not a CDN, so the app works offline), `/static/style.css`, the top navbar with dropdown menus, a footer, and the keyboard-shortcut JS. All other templates extend this.
 
-The navbar marks the active section by comparing `request.url.path` to each nav link's prefix. Foods and Analysis (Daily summary, Food use in meals) are dropdowns; Recipes, Meals, Settings, and Manual are top-level links.
+The navbar marks the active section by comparing `request.url.path` to each nav link's prefix. Foods, Recipes, and Analysis (Daily summary, Food use in meals/recipes) are dropdowns; Meals, Settings, and Manual are top-level links.
 
 **Unsaved-changes warning.** A third inline script in `base.html` generically tracks every `form[method="post"]` containing at least one non-hidden editable field: it snapshots the form's serialized state (`FormData` → `URLSearchParams`) on load, re-checks on `input`/`change`, and toggles a `.form-dirty` class on the form plus `.btn-dirty` on its submit button (CSS in `web/static/style.css`) and a JS-injected `.unsaved-badge` ("Unsaved changes") span. A `beforeunload` listener warns if any tracked form is still dirty. Forms with no editable fields (delete/move/mark-complete one-click actions) and GET forms (search/filter) are excluded automatically by the selector, so no per-template opt-out markup is needed.
 
@@ -989,7 +1108,7 @@ Side-by-side nutrient comparison. Up to 6 foods; amounts are independently adjus
 
 #### `food_cache.html`
 
-Browsable/searchable table of all cached foods. Columns: FDC ID, name, data type, brand, AA data flag, GI annotation, DIAAS, notes. The DIAAS column shows your saved annotation (marked ★) when one exists, otherwise the keyword-matched reference-table value (see "Per-food DIAAS via annotations" above) for foods with amino acid data — blank otherwise. Each row links to `/food/{fdc_id}` and `/food/annotate/{fdc_id}`. Supports deletion.
+Browsable/searchable table of all cached foods. Columns: FDC ID, name, data type, brand, AA data flag, GI annotation, DIAAS, notes. The DIAAS column shows your saved annotation (marked ★) when one exists, otherwise the keyword-matched reference-table value (see "Per-food DIAAS via annotations" above) for foods with amino acid data — blank otherwise. Each row links to `/food/{fdc_id}` and `/food/annotate/{fdc_id}`. Supports deletion, archive/restore, CSV export, and links to prune/import-CSV/db-check sub-pages.
 
 #### `food_custom_profiles.html`
 
@@ -1040,20 +1159,75 @@ Meal history search. Query param `q=` searches food names across all logged meal
 
 #### `recipes.html`
 
-Placeholder stub. Recipes are not yet implemented in the web interface.
+Recipe browse/search list. Fully implemented — no longer a stub. Recent recipes (via `recipe_list_recent()`), complete/incomplete status, a link to `recipes/broken-refs`, and links into `recipe_new.html`, `recipe_compare.html`, and `recipe_import_csv.html`.
+
+#### `recipe_new.html`
+
+Form to create a new recipe (name, description, servings, total weight/volume).
+
+#### `recipe_detail.html`
+
+Recipe view page: ingredients (with sub-recipe expansion), per-serving DCP, protein quality (DIAAS) section, print and CSV-export links, and workflow actions (edit, delete, archive, copy, relink broken references).
+
+#### `recipe_edit.html`
+
+Recipe edit page: add/remove/reorder ingredients (food or sub-recipe), inline ingredient edit, instructions/introduction text, servings, and total weight/volume. The "Add Ingredient" search form uses the same `data-persist-search` mechanism as `meal.html`.
+
+#### `recipe_compare.html`
+
+Side-by-side recipe comparison, mirroring `food_compare.html`: multiple recipes, save/load named comparison lists.
+
+#### `recipe_import_csv.html`
+
+Import a `recipes.csv` + `foods.csv` bundle (`numa_app/services/recipe_csv.py`), including sub-recipes.
+
+#### `recipe_broken_refs.html`
+
+Lists recipes whose ingredient references point at a deleted/missing food or recipe; offers relink and substitute actions.
+
+#### `food_cache_prune.html`, `food_cache_portions.html`, `food_cache_import_csv.html`, `food_cache_db_check.html`
+
+Food Cache sub-pages: preview/confirm pruning of unreferenced cached foods; manage a food's named portions; import foods from CSV; and a database integrity check with a repair action.
+
+#### `food_custom_edit.html`
+
+Nutrient-editing form shared by Food Cache edits and Drafted Food Profiles edits (see "Editing rule" above) — macros, minerals, vitamins, phytonutrients, and amino acids, plus the AA copy/estimate picker described under `aa_estimate.py`.
+
+#### `claude_fetch.html`, `claude_import.html`
+
+Build a Claude AI prompt requesting a food's amino-acid/nutrient profile, then paste and import Claude's response into the food cache (`numa_app/services/claude_fetch.py`).
+
+#### `analysis_food_use.html`, `analysis_food_use_recipes.html`
+
+Analysis pages under the Analysis dropdown: frequency of a given food's use across logged meals (with date-range filters) and across recipes, respectively, each with a substitute-this-food-everywhere action.
 
 #### `summary.html`
 
-Placeholder stub. Daily summary is not yet implemented in the web interface.
+Daily summary landing page — no longer a stub. Lists Recent Days (via the day-analysis machinery shared with `meal_day.html`) and links into a specific date's summary (`/summary/{meal_date}`), the multiday trend view, and the nutrient plot.
+
+#### `trend.html`
+
+Multiday nutrient trend view: averages a chosen set of nutrients across a date range (`numa_app/services/nutrient_trend.py`).
+
+#### `nutrient_plot.html`, `nutrient_plot_print.html`
+
+Line-chart view of a chosen nutrient's day-by-day totals over a date range (`numa_app/services/plotting.py`), and a print-formatted variant.
+
+#### `print.html`
+
+Shared printable-page template used by the various `.../print` routes (food, meal, day, recipe, nutrient plot) — driven by `numa_app/services/print_sections.py`'s "what to include" checkbox vocabulary.
 
 #### `settings.html`
 
-Three forms on one page:
+Several forms on one page:
 
 - **User profile**: age, sex, weight (kg or lb), height (cm or ft+in), activity level → computes and displays the RDA table
 - **Dietary preferences**: radio buttons (all animal foods / vegetarian / plant-based only)
-- **USDA API key**: text input with show/hide toggle
+- **USDA API key**: plain-text input (shows the current key directly when one is saved), plus the Foundation/SR-Legacy search-boost page-size control
 - **DIAAS digestibility overrides**: table of existing overrides with delete buttons; add-new form (food name, digestibility 0–1, optional notes)
+- **Nutrient Targets**: Profile Optimal targets and custom max limits, per nutrient
+- **Starter data**: load/clear/selectively-restore the bundled demo data
+- **System Issues**: unresolved `recompute_errors` entries with a Retry action
 
 #### `manual.html`
 
@@ -1077,7 +1251,7 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 
 ## Test Suite
 
-**712 tests**, all passing.
+**733 tests**, all passing.
 
 Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `pythonpath = .`).
 
@@ -1089,14 +1263,32 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_db.py` | Schema creation, all CRUD helpers, cascade deletes, rollback on exception |
 | `tests/test_usda.py` | `scale_nutrients`, `sum_nutrients`, `_parse_food`, `protein_completeness`, `nutrient_label`, `get_diaas`, `get_antinutrient_flags`, `suggest_complements`, `get_density_g_per_ml` |
 | `tests/test_diaas.py` | `get_digestibility` (all tiers), `meal_level_diaas` (edge cases, complementarity, pairing, gap flags), DIAAS override CRUD |
+| `tests/test_diaas_properties.py` | Property-based tests for `diaas.py`'s `meal_level_diaas()`/`get_digestibility()`, complementing `test_diaas.py`'s known-combination checks |
 | `tests/test_profile.py` | `load_profile`, `save_profile`, `bmr`, `compute_rda` (sex/age/activity variants), `compute_optimal`, `get_max_limits`, unit conversion helpers |
 | `tests/test_web.py` | FastAPI `TestClient` tests: every parameter-free page render, food search/detail, and all mutating POST workflows — pantry, meals (create/add/complete/delete/rename/merge/refresh-aa/add-recipe), recipes (new/edit/delete/copy/ingredient add-edit-move), custom profiles, settings (profile/DIAAS-override), food-cache delete/prune, annotate, and compare (add/add-multiple/remove/amounts/save/load/rename/delete) |
 | `tests/test_complements.py` | `numa_app/services/complements.py`: `aa_effects()` digestibility rescaling, `two_step_combo()`, `build_complement_display()` gap detection |
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
+| `tests/test_recipe_csv.py` | `numa_app/services/recipe_csv.py`: recipe CSV export/import, sub-recipe closure collection, two-pass dedup-and-create import |
 | `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL rollup via `gl_g`, partial totals alongside blockers |
 | `tests/test_meal_bcp.py` | `numa_app/services/meal_bcp.py`: `recipe_dcp_fallback()` sums precomputed recipe `dcp_g` when ingredient-level AA data is unavailable |
 | `tests/test_rda_status.py` | `numa_app/services/rda_status.py`: `rda_status()` tier boundaries for minimum/target and limit-type nutrients; `limit_warning()` 90%/100% thresholds |
 | `tests/test_food_import.py` | `numa_app/services/food_import.py`: `VALID_NUTRIENT_KEYS` completeness, `convert_per_serving()` scaling/validation, `validate_and_strip()` key/type filtering |
+| `tests/test_food_cascade.py` | The food-edit → recipe DCP cascade (`recipe_dcp.cascade_food_change`) and the `recompute_errors` log it feeds on a failed cascade step |
+| `tests/test_aa_estimate.py` | `numa_app/services/aa_estimate.py`: `estimate_aa()` scaling a food's AA profile from another food's, hand-picked cases |
+| `tests/test_estimate_aa_properties.py` | Property-based tests for `estimate_aa()`, complementing `test_aa_estimate.py` |
+| `tests/test_portions.py` | `numa_app/services/portions.py`: `_ing_amount_display()` and related portion-string formatting |
+| `tests/test_day_profile.py` | `numa_app/services/day_profile.py`: per-day profile pinning, backfill, and override behavior |
+| `tests/test_diet_aware.py` | `numa_app/services/diet_aware.py`: diet-preference-aware RDA-comparison notes (vegetarian/plant-based) |
+| `tests/test_nutrient_trend.py` | `numa_app/services/nutrient_trend.py`: multi-day nutrient averaging for the N-day trend view |
+| `tests/test_csv_import.py` | `numa_app/services/csv_import.py`: Food Cache CSV import parsing |
+| `tests/test_claude_fetch.py` | `numa_app/services/claude_fetch.py`: prompt-building and response-parsing for the Claude AI fetch/import workflow |
+| `tests/test_demo_data.py` | `numa_app/services/demo_data.py`: load/clear starter foods/pantry/recipes, fresh-install auto-seeding, idempotency, and that real data is never touched |
+| `tests/test_export_starter_data.py` | `scripts/export_starter_data.py`: starred-recipe/sub-recipe export behavior for regenerating `starter_data.json` |
+| `tests/test_refresh_starter_data.py` | `scripts/refresh_starter_data.py`: refreshing existing `starter_data.json` entries from the live cache by stable ID rather than by name |
+| `tests/test_cnf.py` | `cnf_api.py`: id assignment, local name-search over a mocked food list, nutrient mapping (network calls mocked) |
+| `tests/test_cofid.py` | `cofid_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
+| `tests/test_afcd.py` | `afcd_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
+| `tests/test_ciqual.py` | `ciqual_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
 
 ### Test infrastructure
 
@@ -1113,8 +1305,6 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 ---
 
 ## Maintenance
-
-**One-time addendum, next sweep only (added 2026-08-25):** after finishing that sweep, do a dedicated pass removing all remaining mentions of the retired CLI from both `user-manual.md` and this file — the CLI was removed 2026-08-04, and the owner wants its history fully retired rather than kept as a passing reference (as of 2026-08-25: roughly 6 spots in `user-manual.md`, 1 in this file — grep both for `CLI`, `command line`, and `command-line` to find the current set, since more may accumulate by then). This includes the `CLI` glossary entry in `user-manual.md` and the "previously a dual CLI+web project" framing at the top of `CLAUDE.md` and this file — rewrite any surrounding sentence that only makes sense in contrast to a CLI so it reads cleanly on its own, don't just delete the CLI-specific clause and leave an orphaned sentence. Delete this addendum paragraph once the pass is done — it's a one-time task, not a recurring checklist item.
 
 ### Weekly sweep (Saturdays)
 
