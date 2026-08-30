@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-27:2001* / Reading time: 2 hours, 55 minutes
+*Updated 2026-08-27:2241* / Reading time: 2 hours, 55 minutes
 
 *Last full audit: not yet performed (see README-numa-documentation.md → Maintenance → Monthly deep check)*
 
@@ -1674,13 +1674,16 @@ To select: click the result. If the food is not yet in your cache, NuMa fetches 
 
     Best match to name (default)   See "Ordering food search results" in
                                     Part 5 for how this ranking works.
-    Pantry, Cache, then Other       Groups results strictly by where they
-                                    came from (Pantry, then Cache, then
-                                    Recipe, then USDA/OFF) regardless of
-                                    match quality; within each group, the
-                                    same relevance ranking applies.
+    Pantry, Cache, then Other       Same match-quality ranking, but when two
+                                    or more results are tied on how well they
+                                    matched your search, your own Pantry,
+                                    then Cache, then Recipe entries sort
+                                    ahead of USDA/OFF/other external results
+                                    within that tie. It never lets a weaker
+                                    match from your own data outrank a
+                                    stronger external match.
 
-Both modes always show your own Pantry/Food Cache/Recipe matches in one section ahead of USDA/Open Food Facts/Canadian Nutrient File results, in their own labeled section below a divider — "Pantry, Cache, then Other" additionally splits that leading section into its three sources separately, rather than ranking them together by match quality.
+Both modes group your own Pantry/Food Cache/Recipe matches under their own heading above a divider, with external results below — but that heading reflects where the top-ranked matches happen to sort, not a hard rule; a strong external match can still land ahead of a weak local one under either sort mode.
 
 See [Ordering food search results](#search-ranking) in Part 5 for the full explanation.
 
@@ -1853,7 +1856,7 @@ The setting is saved between sessions and applies to both the interactive comple
 ### C. Ordering food search results {: #search-ranking}
 When you search for a food — whether from the Food Search page, the Meals & Log "Add Food or Recipe" panel, or a recipe's ingredient search — NuMa has to decide what order to show the matches in. That's a harder problem than it sounds, because "best match" usually means several different things at once: does the name contain your search words? All of them, or just some? And does it matter which words a near-miss is missing?
 
-**The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. This relevance ranking decides the order *within* two groups shown separately: your own Pantry/Food Cache/Recipe matches always appear first, as their own labeled section, no matter how weak the text match — a labeled divider then separates them from the ranked USDA/Open Food Facts/Canadian Nutrient File results below. A food you already have is never something you have to out-scroll a wall of external near-duplicates to find. (Earlier versions of NuMa tried instead to rank one single combined list by text match first and source second — which meant a food already in your cache could rank so far down a page of external results that it was effectively invisible, or even get trimmed off the visible list entirely by the results-shown limit. An even earlier version had the opposite problem — pantry/cache items always outranked everything regardless of match quality, so an unrelated pantry item could show up ahead of the food you actually typed. Grouping into two sections, each internally relevance-ranked, avoids both failure modes.)
+**The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. Your own Pantry/Food Cache/Recipe matches only sort ahead of USDA/Open Food Facts/Canadian Nutrient File results when they're tied on that match quality — a genuinely better external match is never buried beneath a weak or coincidental match from your own data. The results table still shows your local matches under their own "From your pantry, food cache, and recipes" heading, with a divider before the external results below, but that's a display grouping over a single relevance-ranked list, not a hard "local always first" rule — the two groups can interleave if a later block of external results actually matches better. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
 
 **Word order matters, too.** If you type more than one search word, NuMa treats the order you typed them in as a signal of what matters most to you. Suppose you search `milk dry instant` because there are two kinds of dry milk — instant and non-instant — and you specifically want the instant kind, but you've put "dry" before "instant" because that's the more important distinguishing word to you. If nothing in your data matches all three words, NuMa prefers a match on `milk` + `dry` over a match on `milk` + `instant`, precisely because you typed "dry" first. In effect, the words you type earlier act as your stated priorities — a partial match that preserves your earlier words beats one that preserves only a later one, even when both partial matches contain the same number of words.
 
@@ -1863,7 +1866,7 @@ This means you can deliberately front-load your most important search word when 
 
 **When several results tie on text relevance, USDA data quality breaks the tie before name length does.** A dozen near-identical branded listings (say, a dozen "INSTANT NONFAT DRY MILK" products) can match your search words exactly as well as the one or two Foundation/SR Legacy foods actually named that — and branded names are often shorter, which used to let them win the final tiebreak even though they're the ones least likely to carry real amino acid data. Ties are now broken by data quality first (Foundation/SR Legacy, then Survey/Experimental, then Branded/Open Food Facts) and only fall back to shorter-name-wins after that, so the reference food most likely to actually answer your question surfaces before its branded look-alikes.
 
-**Your own data is always checked first.** Before NuMa ever reaches out to USDA or Open Food Facts, it checks your local Food Cache and Pantry — a match there appears instantly, with no network round-trip, in its own section at the top of the list. USDA and Open Food Facts results are still fetched right behind it (not only when the local check comes up empty), so a food newer than your cache, or one you've never looked up before, still turns up — it just takes a moment longer to appear, filling in below a labeled divider as its own relevance-ranked section rather than being interleaved with your local matches. A 12- or 13-digit barcode (UPC-A or EAN-13) skips general search entirely and goes straight to a direct Open Food Facts lookup by that exact code.
+**Your own data is always checked first.** Before NuMa ever reaches out to USDA or Open Food Facts, it checks your local Food Cache and Pantry — a match there appears instantly, with no network round-trip. USDA and Open Food Facts results are still fetched right behind it (not only when the local check comes up empty), so a food newer than your cache, or one you've never looked up before, still turns up — it just takes a moment longer to appear. Once those external results arrive, the whole list (local and external together) is re-ranked by match quality as described above, so a stronger external match can end up ahead of a weaker local one rather than being stuck below it. A 12- or 13-digit barcode (UPC-A or EAN-13) skips general search entirely and goes straight to a direct Open Food Facts lookup by that exact code.
 
 **Search result depth.** Plain, unprocessed foods (the ones most likely to carry full amino acid data) can get buried under branded or prepared-dish matches for the same word — USDA's own relevance ranking can push something like "Potatoes, flesh and skin, raw" 15–20 results deep for a plain "potato" search, or return two dozen canned/branded products before a plain cooked bean shows up for "pinto beans." To counter this, NuMa runs a second search pass restricted to Foundation Foods and SR Legacy (USDA's most complete, least processed data), so those results aren't lost in the noise. How many results that second pass fetches is configurable (Settings → Advanced settings → Search result depth) — the default of 25 is enough for the vast majority of searches; set it higher if you still don't see the food you expect, or to 0 to remove the cap entirely (every matching result USDA returns, in one page — a higher number means a slightly slower search).
 
@@ -2651,6 +2654,20 @@ being edited; index() runs check_db_integrity() and passes db_issue_count),
 web/templates/recipe_edit.html (relink form now has a target-recipe
 <select> with suggested/all-recipes optgroups), web/templates/home.html
 (new UPDATE banner linking to /food/cache/db-check).
+```
+
+**FOOD SEARCH NO LONGER SURFACES (LET ALONE TOP-RANKS) FOODS MATCHING ONLY A GENERIC WORD**
+
+Searching a multi-word query like "orange raw" could surface a user-drafted cached food like "Raw Brazil Nuts" — which shares nothing with "orange" — just because it contained the word "raw." Worse, under "Pantry, Cache, then Other" sort mode, that coincidental match could rank above every genuine "orange" result, since source category was compared before match quality. Generic prep/state words (raw, cooked, fresh, dried, frozen, canned, whole, ground, sliced, diced, chopped, boiled, roasted, baked, grilled, steamed, plain) can no longer trigger a match on their own. "Pantry, Cache, then Other" mode also now always ranks by how many query words matched first — pantry/cache only get listed ahead of other sources when they're tied on match quality, never when they matched fewer words.
+
+```
+Scope: db.py (search_cached_foods's user-drafted any-word fallback now
+excludes a new _OR_FALLBACK_STOPWORDS set of generic prep/state words from
+triggering a match by themselves), web/backend.py (_sort_search_results's
+"grouped" mode now sorts by match count/word-mask from
+numa_app.services.search_ranking.relevance_key first, with source category
+only breaking ties between equally-good matches, instead of comparing
+category before match quality at all).
 ```
 
 #### August 26 program updates

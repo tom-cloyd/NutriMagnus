@@ -584,6 +584,16 @@ def repair_db_integrity(conn: sqlite3.Connection, categories: set[str] | None = 
     return counts
 
 
+# Generic prep/state words common across many unrelated food names — too weak
+# to justify surfacing a user-drafted food on their own in the OR-fallback
+# search (see search_cached_foods).
+_OR_FALLBACK_STOPWORDS = {
+    "raw", "cooked", "fresh", "dried", "frozen", "canned", "whole",
+    "ground", "sliced", "diced", "chopped", "boiled", "roasted", "baked",
+    "grilled", "steamed", "plain",
+}
+
+
 def _singular_variant(word: str) -> str | None:
     """Return a plausible singular form of `word`, or None if not plural-looking."""
     lw = word.lower()
@@ -619,7 +629,12 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
     and_cond = " AND ".join(and_groups)
     and_rows = conn.execute(f"{select} WHERE {and_cond} {archived_clause} ORDER BY name", and_params).fetchall()
     # Any-word match for user-drafted foods — so "vitamin d" finds "D3 50 mcg" etc.
-    or_params = [f"%{v}%" for variants in word_variants for v in variants]
+    # Generic prep/state words are excluded from triggering this fallback on
+    # their own: "orange raw" shouldn't surface "Raw Brazil Nuts" just because
+    # both happen to contain "raw" — that's a coincidence, not a real match.
+    or_match_words = [w for w in match_words if w.lower() not in _OR_FALLBACK_STOPWORDS] or match_words
+    or_word_variants = [[w] + ([_singular_variant(w)] if _singular_variant(w) and _singular_variant(w) != w else []) for w in or_match_words]
+    or_params = [f"%{v}%" for variants in or_word_variants for v in variants]
     or_cond = " OR ".join("name LIKE ?" for _ in or_params)
     or_rows = conn.execute(
         f"{select} WHERE user_drafted = 1 AND ({or_cond}) {archived_clause} ORDER BY name", or_params

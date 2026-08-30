@@ -554,14 +554,21 @@ def _sort_search_results(results: list[dict], query: str, mode: str) -> list[dic
     specific words matched (earlier query words outrank later ones — see
     numa_app.services.search_ranking) and only then by source category
     (pantry/cache/recipe/external). "Pantry, Cache, then Other" mode instead
-    sorts strictly by source category first, for users who want their own
-    data ahead of everything else regardless of match quality."""
+    breaks match-quality ties by source category before the rest of the
+    relevance tiebreakers — own data sorts ahead of external only among
+    results that matched the query equally well, never displacing a
+    stronger external match."""
     if mode == "grouped":
-        return sorted(
-            results,
-            key=lambda r: (_SEARCH_CATEGORY_RANK.get(r["source"], 9),
-                            _search_ranking.relevance_key(r["name"], query, data_type=r.get("data_type", ""))),
-        )
+        def _grouped_key(r):
+            rel = _search_ranking.relevance_key(r["name"], query, data_type=r.get("data_type", ""))
+            # Match quality (how many query words matched, then which ones)
+            # always outranks source category — "own data first" only breaks
+            # ties among results matching the query equally well, so a
+            # weaker match from your own pantry/cache can never bury a
+            # stronger match from an external source.
+            return (rel[0], rel[1], _SEARCH_CATEGORY_RANK.get(r["source"], 9), rel)
+
+        return sorted(results, key=_grouped_key)
     return sorted(
         results,
         key=lambda r: _search_ranking.relevance_key(r["name"], query, r["source"], r.get("data_type", "")),

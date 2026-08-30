@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-25:1231
+UPDATED: 2026-08-27:2241
 
 Last monthly accuracy check: not yet performed (see Maintenance → Monthly deep check, below).
 
@@ -302,7 +302,9 @@ See the [User Manual](user-manual.html) for usage documentation on food search, 
 - `DATA_TYPE_RANK` (`Foundation`/`SR Legacy`→0, `Survey (FNDDS)`/`Experimental`→1, `Branded`/`Open Food Facts`→2) — breaks ties among results that are otherwise identical on text relevance and source. Without this, a wall of near-identical branded product names (e.g. a dozen listings all named "INSTANT NONFAT DRY MILK") can bury the one Foundation/SR Legacy food that actually carries amino acid data, since the remaining tiebreakers (below) have no way to prefer it — a longer, more descriptive USDA reference name loses to a terse branded one on `len(name)` alone. This restores the property the original "search deeper into Foundation/SR Legacy" boost pass (see `get_search_boost_page_size()`) was designed to provide by list position, before `relevance_key` started re-sorting its output.
 - `exact`, `prefix`, `len(name)`, `name` — final tiebreakers: exact string match, then prefix match, then shorter name, then alphabetical.
 
-The web app additionally offers a "Pantry, Cache, then Other" sort mode (`_sort_search_results()` in `web/backend.py`) that sorts by `SOURCE_RANK` *before* `relevance_key`, for users who deliberately want their own library first regardless of match quality. "Best match to name" (the default) uses `relevance_key` as shown above, with source only as the final tiebreaker.
+The web app additionally offers a "Pantry, Cache, then Other" sort mode (`_sort_search_results()` in `web/backend.py`) that sorts by `(count, mask)` — i.e. match quality — before `SOURCE_RANK`, same as `relevance_key`, but breaks ties on match quality by `SOURCE_RANK` before falling through to the rest of `relevance_key`'s tiebreakers. So a food from the user's own Pantry/Food Cache/Recipes only sorts ahead of an external result when the two are otherwise tied on how well they matched the query — it can never displace a genuinely better external match. "Best match to name" (the default) uses `relevance_key` as shown above unmodified, with source only as a tiebreaker there too, just later in the tuple (after `DATA_TYPE_RANK`).
+
+`search_cached_foods()` in `db.py` also excludes a `_OR_FALLBACK_STOPWORDS` set (generic prep/state words like "raw", "cooked", "fresh") from the any-word OR-fallback used for `user_drafted` foods — a food can't surface in search purely because it happens to share one of these generic words with the query.
 
 The results table always includes an **AA data** column (✓ confirmed / ~✓ likely / ✗ none) and an **Ann** column showing which foods have GI and/or DIAAS estimates saved (`GI`, `DI`, or `GI DI` in green; `·····` if none). Use these columns to pick the option with the richest existing data before committing to a fetch.
 
