@@ -58,7 +58,7 @@
     <input type="hidden" name="sort" value="{{ sort }}">
     <input type="hidden" name="date" value="{{ date_filter }}">
     <div>
-      <label class="form-label mb-1" for="meals-limit">Number of meals to show</label>
+      <label class="form-label mb-1" for="meals-limit">Number shown</label>
       <div class="d-flex gap-2">
         <input type="number" min="1" class="form-control form-control-sm" id="meals-limit"
                name="limit" value="{{ limit }}" style="width:5rem">
@@ -88,13 +88,10 @@
 {# ── Meal list ────────────────────────────────────────────────────────── #}
 {% if meals %}
 <p class="muted"><small>Specify nutrients you want in this table here: <a href="/settings#meal-list-nutrients">Settings &rarr; Meals &amp; Log columns</a></small></p>
-<p style="font-size:0.85em" class="mb-1">
-  Showing {{ meals|length }} of {{ total }} meal{% if total != 1 %}s{% endif %}
-  {% if date_filter %}<span class="muted"> on or before {{ date_filter }}</span>{% endif %}
-  {% if hidden > 0 %}
-  — <strong>{{ hidden }} not shown</strong> <span class="muted">(raise "Number of meals to show" above to see more)</span>
-  {% endif %}
-</p>
+<hr style="margin:1.5em 0 0 0">
+<h3 class="mb-2">Selected meals
+  <small class="muted fw-normal" style="font-size:0.875rem">(Showing {{ meals|length }} of {{ total }} meal{% if total != 1 %}s{% endif %}{% if date_filter %} on or before {{ date_filter }}{% endif %}{% if hidden > 0 %} — {{ hidden }} not shown. Raise "Number shown" above to see more{% endif %})</small>
+</h3>
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>

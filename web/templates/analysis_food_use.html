@@ -26,22 +26,38 @@
     </div>
   </div>
 
-  <div class="mb-3" id="range-block">
-    <label class="form-label" for="ranges_raw">Date ranges <small class="muted">(one per line, <code>YYYY-MM-DD:YYYY-MM-DD</code>)</small></label>
-    <textarea class="form-control" id="ranges_raw" name="ranges_raw" rows="3" style="max-width:50%"
-              placeholder="2026-01-01:2026-01-31">{{ ranges_raw or "" }}</textarea>
-  </div>
-  <div class="mb-3" id="ids-block">
-    <label class="form-label" for="meal_ids">Meal IDs <small class="muted">(comma or space separated, ranges like <code>12-32</code> allowed)</small></label>
-    <input type="text" class="form-control" id="meal_ids" name="meal_ids" value="{{ meal_ids_raw or "" }}" placeholder="12, 15, 18, 20-25">
-  </div>
-
-  <div class="mb-3 form-check">
-    <input class="form-check-input" type="checkbox" id="protein_only" name="protein_only" value="true" {% if protein_only %}checked{% endif %}>
-    <label class="form-check-label" for="protein_only">Only protein-containing foods <small class="muted">(protein_g &gt; 0 per 100g)</small></label>
+  <div class="d-flex gap-4 flex-wrap">
+    <div class="mb-3" id="range-block" style="max-width:22rem">
+      <label class="form-label" for="ranges_raw">Date ranges <small class="muted">(one per line, <code>YYYY-MM-DD:YYYY-MM-DD</code>)</small></label>
+      <textarea class="form-control" id="ranges_raw" name="ranges_raw" rows="3"
+                placeholder="2026-01-01:2026-01-31">{{ ranges_raw or "" }}</textarea>
+    </div>
+    <div class="mb-3" id="ids-block" style="max-width:22rem">
+      <label class="form-label" for="meal_ids">Meal IDs <small class="muted">(comma or space separated, ranges like <code>12-32</code> allowed)</small></label>
+      <input type="text" class="form-control" id="meal_ids" name="meal_ids" value="{{ meal_ids_raw or "" }}" placeholder="12, 15, 18, 20-25">
+    </div>
   </div>
 
-  <button type="submit" name="sort" value="{{ sort or 'frequency' }}" class="btn btn-primary btn-sm">Analyze</button>
+  <div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="protein_only" name="protein_only" value="true" {% if protein_only %}checked{% endif %}>
+      <label class="form-check-label" for="protein_only">Only protein-containing foods <small class="muted">(protein_g &gt; 0 per 100g)</small></label>
+    </div>
+    <button type="submit" name="sort" value="{{ sort or 'frequency' }}" class="btn btn-primary btn-sm">Analyze</button>
+    {% if submitted and rows %}
+    <div class="d-flex align-items-center gap-2">
+      <span class="muted">Sort by:</span>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Sort">
+        <button type="submit" name="sort" value="frequency"
+                class="btn {% if sort == 'frequency' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Frequency</button>
+        <button type="submit" name="sort" value="food"
+                class="btn {% if sort == 'food' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Food</button>
+        <button type="submit" name="sort" value="id"
+                class="btn {% if sort == 'id' %}btn-primary{% else %}btn-outline-secondary{% endif %}">ID</button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
 </form>
 
 <script>
@@ -138,18 +154,10 @@
 
 {% if submitted %}
   {% if rows %}
-  <p class="muted">{{ total_meals }} meal(s) across {{ total_days }} distinct day(s){% if protein_only %} &middot; protein-containing foods only{% endif %}.</p>
-  <div class="mb-2">
-    <span class="muted me-2">Sort by:</span>
-    <div class="btn-group btn-group-sm" role="group" aria-label="Sort">
-      <button type="submit" form="food-use-form" name="sort" value="frequency"
-              class="btn {% if sort == 'frequency' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Frequency</button>
-      <button type="submit" form="food-use-form" name="sort" value="food"
-              class="btn {% if sort == 'food' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Food</button>
-      <button type="submit" form="food-use-form" name="sort" value="id"
-              class="btn {% if sort == 'id' %}btn-primary{% else %}btn-outline-secondary{% endif %}">ID</button>
-    </div>
-  </div>
+  <hr style="margin:1.5em 0 0 0">
+  <h3 class="mb-2">Foods used in selected meals
+    <small class="muted fw-normal" style="font-size:0.875rem">({{ total_meals }} meal(s) across {{ total_days }} distinct day(s){% if protein_only %} &middot; protein-containing foods only{% endif %})</small>
+  </h3>
   <div class="table-responsive">
     <table class="table table-sm table-hover" style="max-width:76rem">
       <thead class="table-light">

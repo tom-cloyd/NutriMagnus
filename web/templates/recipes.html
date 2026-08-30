@@ -8,9 +8,7 @@
   <a href="/recipe/new" class="btn btn-primary btn-sm">+ New recipe</a>
 </div>
 
-<p class="muted mb-3"><small>{{ total_count }} recipe{% if total_count != 1 %}s{% endif %} in database</small></p>
-
-<div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+<div class="d-flex flex-wrap align-items-center gap-3 mb-3">
   <form method="get" action="/recipes">
     <input type="hidden" name="sort" value="{{ sort }}">
     <div class="input-group" style="max-width:28rem">
@@ -35,11 +33,6 @@
       <label class="form-check-label muted" for="show_archived"><small>Show archived</small></label>
     </div>
   </form>
-  <form method="post" action="/recipes/compute-bcp">
-    <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}{% if sort %}{% if q %}&{% else %}?{% endif %}sort={{ sort }}{% endif %}{% if show_archived %}{% if q or sort %}&{% else %}?{% endif %}show_archived=1{% endif %}">
-    <button type="submit" class="btn btn-sm btn-outline-secondary">Recompute DCP for all recipes</button>
-  </form>
-  <a href="/recipes/broken-refs" class="btn btn-sm btn-outline-secondary">Broken recipe references</a>
   <small class="muted">DCP = digestible complete protein per serving · NC = not computed</small>
 </div>
 
@@ -69,9 +62,18 @@
 {# External form — each row has its own copy/archive/delete forms, so nesting isn't
    allowed; checkboxes point back at this form via `form="compare-recipe-form"`. #}
 <form method="post" action="/recipe/compare/add-multiple" id="compare-recipe-form"></form>
-<p class="mb-2">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <button type="submit" form="compare-recipe-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 6)</button>
-</p>
+  <form method="post" action="/recipes/compute-bcp" style="display:inline">
+    <input type="hidden" name="redirect_to" value="/recipes{% if q %}?q={{ q }}{% endif %}{% if sort %}{% if q %}&{% else %}?{% endif %}sort={{ sort }}{% endif %}{% if show_archived %}{% if q or sort %}&{% else %}?{% endif %}show_archived=1{% endif %}">
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Recompute DCP for all recipes</button>
+  </form>
+  <a href="/recipes/broken-refs" class="btn btn-sm btn-outline-secondary">Show broken recipe references</a>
+</div>
+<hr style="margin:1.5em 0 0 0">
+<h3 class="mb-2">Selected recipes in internal database
+  <small class="muted fw-normal" style="font-size:0.875rem">({{ total_count }} recipe{% if total_count != 1 %}s{% endif %} in database / {{ recipes|length }} shown{% if recipes|length != total_count %}, {{ total_count - recipes|length }} not shown{% endif %})</small>
+</h3>
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>

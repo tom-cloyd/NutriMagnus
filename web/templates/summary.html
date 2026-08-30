@@ -49,9 +49,8 @@
 
 {# ── Date picker ──────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
-  <a href="/summary/{{ today }}" class="btn btn-sm btn-outline-primary">Today's summary</a>
   <div class="d-flex gap-2 align-items-end">
-    <label class="form-label mb-0" for="summary-date">Go to date</label>
+    <label class="form-label mb-0" for="summary-date">Most recent date to show</label>
     <input type="date" class="form-control form-control-sm" id="summary-date"
            value="{{ date_detail or today }}"
            onchange="window.location='/summary/'+this.value">
@@ -63,8 +62,13 @@
 {# ── Recent days table ────────────────────────────────────────────────── #}
 {% set show_pct_col = day_rows|selectattr('pct_goal', 'none')|list|length < day_rows|length %}
 <details {% if not date_detail %}open{% endif %}>
-  <summary><strong>Recent Days with Meals</strong></summary>
+  <summary style="display:inline-flex;align-items:center;gap:0.75rem;width:auto">
+    <strong>Recent Days with Meals</strong>
+    <a href="/summary/{{ today }}" class="btn btn-sm btn-outline-primary"
+       onclick="event.stopPropagation()">Today's summary</a>
+  </summary>
   {% if day_rows %}
+  <p class="muted mb-1 mt-2"><small>Specify nutrients you want in this table here: <a href="/settings#meal-list-nutrients">Settings &rarr; Meals &amp; Log columns</a></small></p>
   <div style="overflow-x:auto">
   <table class="table table-sm table-hover mt-2" style="width:auto">
     <thead class="table-light">
