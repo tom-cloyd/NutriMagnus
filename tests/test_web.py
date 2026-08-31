@@ -1885,7 +1885,10 @@ def test_home_page_shows_version_note_prominently(client: TestClient) -> None:
     assert f"NutriMagnus version {VERSION} — {VERSION_NOTE}" in resp.text
 
 
-def test_version_note_sits_directly_below_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_version_note_sits_inside_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When there's an update available, VERSION_NOTE appears inside that
+    same alert box, directly below the first line — not as a separate box,
+    and not duplicated."""
     from numa_app.services import update_check as _update_check
     from version import VERSION_NOTE
 
@@ -1894,10 +1897,12 @@ def test_version_note_sits_directly_below_update_available_banner(client: TestCl
         lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000"},
     )
     resp = client.get("/")
+    assert resp.text.count(VERSION_NOTE) == 1
     update_banner_pos = resp.text.index("UPDATE AVAILABLE:")
     note_pos = resp.text.index(VERSION_NOTE)
-    unacked_or_welcome_pos = resp.text.index("Welcome to NutriMagnus")
-    assert update_banner_pos < note_pos < unacked_or_welcome_pos
+    welcome_pos = resp.text.index("Welcome to NutriMagnus")
+    assert update_banner_pos < note_pos < welcome_pos
+    assert "alert-secondary" not in resp.text
 
 
 def test_home_page_shows_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

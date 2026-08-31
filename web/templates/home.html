@@ -27,6 +27,9 @@
 <div class="alert alert-info mt-4">
   <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
   (you're running {{ version }}).
+  {% if version_note %}
+  <br><small>NutriMagnus version {{ version }} — {{ version_note }}</small>
+  {% endif %}
   {% if self_update_available %}
   <form method="post" action="/update-now" class="mt-2 mb-0"
         onsubmit="return confirm('Download and install NutriMagnus ' + '{{ update_available.tag }}' + ' now? This replaces the running program; your data is untouched. You will need to quit and reopen NutriMagnus afterward.');">
@@ -38,7 +41,7 @@
   {% endif %}
 </div>
 {% endif %}
-{% if version_note %}
+{% if version_note and not update_available %}
 <div class="alert alert-secondary mt-4 mb-0 py-2">
   <small>NutriMagnus version {{ version }} — {{ version_note }}</small>
 </div>

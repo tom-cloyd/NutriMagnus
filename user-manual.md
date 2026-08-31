@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-31:0916* / Reading time: 4 hours, 22 minutes
+*Updated 2026-08-31:1033* / Reading time: 4 hours, 22 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -2595,14 +2595,15 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 **FIX: THE CURRENT-BUILD VERSION NOTE WAS BURIED IN FINE PRINT AT THE PAGE BOTTOM**
 
-The plain-language note describing what changed in your current build (`version.py`'s `VERSION_NOTE`) used to appear only in small grey text at the very bottom of the home page — easy to miss entirely. It now shows in its own light box near the top of the page, directly below the UPDATE AVAILABLE banner when one is showing, so it's actually seen.
+The plain-language note describing what changed in your current build (`version.py`'s `VERSION_NOTE`) used to appear only in small grey text at the very bottom of the home page — easy to miss entirely. It now shows near the top of the page: when there's an update available, it appears as a second line inside that same UPDATE AVAILABLE box, right below the first line; otherwise it gets its own light box in that same spot. The bare version number stays in the small print at the page bottom either way, for reference.
 
 ```
-Scope: web/templates/home.html (version_note moved from the page-bottom
-small print into a dedicated alert-secondary box positioned right after
-the update_available block; the bare version number stays in the
-page-bottom small print, unchanged). tests/test_web.py (2 new tests
-covering placement).
+Scope: web/templates/home.html (version_note now renders as a line inside
+the update_available alert box when one is shown — not a separate box
+below it — falling back to its own alert-secondary box only when there's
+no update available, so it's never shown twice; the bare version number
+stays in the page-bottom small print, unchanged). tests/test_web.py (2
+new tests covering both placements and no duplication).
 ```
 
 **NEW: ONE-CLICK "UPDATE NOW" BUTTON ON THE UPDATE-AVAILABLE BANNER**
