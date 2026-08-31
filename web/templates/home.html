@@ -10,11 +10,32 @@
   Review and repair them on the <a href="/food/cache/db-check">Database check</a> page.
 </div>
 {% endif %}
+{% if updated %}
+<div class="alert alert-success mt-4">
+  <strong>UPDATED:</strong> NutriMagnus has been updated. Quit and reopen it (from your usual
+  icon or shortcut) to start using the new version.
+</div>
+{% endif %}
+{% if update_error %}
+<div class="alert alert-danger mt-4">
+  <strong>UPDATE FAILED:</strong> {{ update_error }} Nothing was changed — NutriMagnus is still
+  running the version it was before. You can try again, or update manually — see
+  <a href="https://github.com/tom-cloyd/NutriMagnus/releases/latest" target="_blank" rel="noopener">the latest release on GitHub</a>.
+</div>
+{% endif %}
 {% if update_available %}
 <div class="alert alert-info mt-4">
   <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
-  (you're running {{ version }}). See <a href="{{ update_available.url }}" target="_blank" rel="noopener">what's new on GitHub</a>
-  to download it.
+  (you're running {{ version }}).
+  {% if self_update_available %}
+  <form method="post" action="/update-now" class="mt-2 mb-0"
+        onsubmit="return confirm('Download and install NutriMagnus ' + '{{ update_available.tag }}' + ' now? This replaces the running program; your data is untouched. You will need to quit and reopen NutriMagnus afterward.');">
+    <button type="submit" class="btn btn-sm btn-primary">Update now</button>
+    <a href="{{ update_available.url }}" target="_blank" rel="noopener" class="ms-2">what's new</a>
+  </form>
+  {% else %}
+  See <a href="{{ update_available.url }}" target="_blank" rel="noopener">what's new on GitHub</a> to download it.
+  {% endif %}
 </div>
 {% endif %}
 {% if unacked_errors %}

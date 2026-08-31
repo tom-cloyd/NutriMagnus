@@ -1885,6 +1885,38 @@ def test_home_page_shows_update_available_banner(client: TestClient, monkeypatch
     assert "UPDATE AVAILABLE:" in resp.text
     assert "v2099-01-01-0000" in resp.text
     assert "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000" in resp.text
+    # Not running as a packaged install in tests, so no self-update button —
+    # just the plain link to what's new.
+    assert "Update now" not in resp.text
+
+
+def test_update_now_button_shown_only_for_packaged_install(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from numa_app.services import update_check as _update_check
+    from numa_app.services import self_update as _self_update
+
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000"},
+    )
+    monkeypatch.setattr(_self_update, "is_available", lambda: True)
+    resp = client.get("/")
+    assert "Update now" in resp.text
+    assert 'action="/update-now"' in resp.text
+
+
+def test_update_now_route_success_and_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from numa_app.services import self_update as _self_update
+
+    monkeypatch.setattr(_self_update, "perform_update", lambda: {"ok": True})
+    resp = client.post("/update-now", follow_redirects=True)
+    assert resp.status_code == 200
+    assert "UPDATED:" in resp.text
+
+    monkeypatch.setattr(_self_update, "perform_update", lambda: {"ok": False, "error": "Download failed: offline"})
+    resp = client.post("/update-now", follow_redirects=True)
+    assert resp.status_code == 200
+    assert "UPDATE FAILED:" in resp.text
+    assert "Download failed: offline" in resp.text
 
 
 def test_broken_recipe_refs_listing_page(client: TestClient) -> None:

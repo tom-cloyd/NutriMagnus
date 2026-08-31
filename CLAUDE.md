@@ -85,6 +85,10 @@ numa_app/
     recipe_nutrients.py — shared recursive recipe-ingredient expansion:
                          expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
     search_ranking.py   — food-search relevance ranking: relevance_key()
+    self_update.py        — perform_update(): self-replace the running packaged
+                         Linux binary from the latest GitHub release, for the
+                         home page's "Update Now" button; is_available() gates
+                         it to a packaged (PyInstaller) Linux install only
     top_contributors.py — rank a meal's/recipe's ingredients by contribution to
                          one nutrient, for the "Top Contributors" analysis section
     update_check.py      — check_for_update(): GitHub latest-release check for
