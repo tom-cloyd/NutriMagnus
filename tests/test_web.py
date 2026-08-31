@@ -1947,6 +1947,7 @@ def test_update_now_route_success_and_failure(client: TestClient, monkeypatch: p
     resp = client.post("/update-now", follow_redirects=True)
     assert resp.status_code == 200
     assert "UPDATED:" in resp.text
+    assert "Close this browser tab, then relaunch" in resp.text
 
     monkeypatch.setattr(_self_update, "perform_update", lambda: {"ok": False, "error": "Download failed: offline"})
     resp = client.post("/update-now", follow_redirects=True)
