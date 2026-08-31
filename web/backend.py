@@ -1159,6 +1159,7 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
     total_mg = 0.0
     rows: list[dict] = []
     qualitative: list[dict] = []
+    qualitative_seen: set = set()
     missing: list[str] = []
 
     for item in items:
@@ -1197,12 +1198,17 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
                     "confirmed": info["confirmed"],
                 })
             else:
-                # Volume-based serving — density unknown, category only
-                qualitative.append({
-                    "name":      name,
-                    "category":  info["category"],
-                    "confirmed": info["confirmed"],
-                })
+                # Volume-based serving — density unknown, category only.
+                # It's a category, not a quantity, so the same food showing
+                # up more than once in the meal/recipe shouldn't repeat here.
+                dedupe_key = fdc_id if fdc_id else name.lower()
+                if dedupe_key not in qualitative_seen:
+                    qualitative_seen.add(dedupe_key)
+                    qualitative.append({
+                        "name":      name,
+                        "category":  info["category"],
+                        "confirmed": info["confirmed"],
+                    })
         else:
             missing.append(name)
 

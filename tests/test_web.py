@@ -2767,3 +2767,33 @@ def test_oxalate_qualitative_list_sorted_high_to_low_then_alphabetical(monkeypat
         "Almonds",             # moderate
         "Apples", "Spinach",   # low, alphabetical
     ]
+
+
+def test_oxalate_qualitative_list_deduplicates_repeated_food(monkeypatch) -> None:
+    """The same food appearing more than once in a meal/recipe (e.g. used in
+    two sub-recipes) must only show up once in the qualitative list, since
+    it's a category, not a summed quantity — a repeat here would just be
+    visual noise, not a second data point."""
+    import oxalate as _ox
+
+    monkeypatch.setattr(_ox, "is_available", lambda: True)
+    monkeypatch.setattr(
+        backend, "_oxalate_info",
+        lambda fdc_id, name: {
+            "mg_per_100g": None, "mg_per_serving": 5.0, "serving_size": "1 cup",
+            "category": "high", "confirmed": True,
+        },
+    )
+    monkeypatch.setattr(backend, "_serving_str_to_grams", lambda s: None)
+
+    # Same fdc_id twice (two uses of the same cached food), plus a food with
+    # no fdc_id (a manually-typed pantry-style entry) repeated by name twice.
+    items = [
+        {"fdc_id": 42, "food_name": "Spinach", "amount_g": 100},
+        {"fdc_id": 42, "food_name": "Spinach", "amount_g": 50},
+        {"fdc_id": None, "food_name": "Rhubarb", "amount_g": 100},
+        {"fdc_id": None, "food_name": "rhubarb", "amount_g": 100},
+    ]
+    result = backend._oxalate_for_items(items)
+
+    assert [row["name"] for row in result["qualitative"]] == ["Rhubarb", "Spinach"]
