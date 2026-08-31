@@ -1869,6 +1869,37 @@ def test_home_page_shows_db_integrity_banner(client: TestClient, cached_food, db
     assert "/food/cache/db-check" in resp.text
 
 
+def test_home_page_shows_version_note_prominently(client: TestClient) -> None:
+    """version_note (version.py's VERSION_NOTE) describes what changed in
+    the build you're actually running — it needs to be somewhere a user
+    will see it, not just in the fine print at the very bottom."""
+    from version import VERSION, VERSION_NOTE
+
+    resp = client.get("/")
+    assert VERSION_NOTE in resp.text
+    # The note appears in its own prominent box, ahead of the "Welcome to
+    # NutriMagnus" heading — not only in the small print at the page foot.
+    note_pos = resp.text.index(VERSION_NOTE)
+    welcome_pos = resp.text.index("Welcome to NutriMagnus")
+    assert note_pos < welcome_pos
+    assert f"NutriMagnus version {VERSION} — {VERSION_NOTE}" in resp.text
+
+
+def test_version_note_sits_directly_below_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from numa_app.services import update_check as _update_check
+    from version import VERSION_NOTE
+
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000"},
+    )
+    resp = client.get("/")
+    update_banner_pos = resp.text.index("UPDATE AVAILABLE:")
+    note_pos = resp.text.index(VERSION_NOTE)
+    unacked_or_welcome_pos = resp.text.index("Welcome to NutriMagnus")
+    assert update_banner_pos < note_pos < unacked_or_welcome_pos
+
+
 def test_home_page_shows_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """A newer GitHub release should surface as a dismissable-by-upgrading
     banner; no_update_check (conftest.py) keeps this off by default."""

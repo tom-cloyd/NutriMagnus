@@ -38,6 +38,11 @@
   {% endif %}
 </div>
 {% endif %}
+{% if version_note %}
+<div class="alert alert-secondary mt-4 mb-0 py-2">
+  <small>NutriMagnus version {{ version }} — {{ version_note }}</small>
+</div>
+{% endif %}
 {% if unacked_errors %}
 <div class="alert alert-warning mt-4">
   <strong>{{ unacked_errors|length }} recalculation{{ 's' if unacked_errors|length != 1 }} failed</strong> and
@@ -69,5 +74,5 @@
   {{ home_body | safe }}
 </article>
 
-<p class="text-secondary mt-4"><small>NutriMagnus version {{ version }}{% if version_note %} — {{ version_note }}{% endif %}</small></p>
+<p class="text-secondary mt-4"><small>NutriMagnus version {{ version }}</small></p>
 {% endblock %}
