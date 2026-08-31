@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-31:1051* / Reading time: 4 hours, 23 minutes
+*Updated 2026-08-31:1104* / Reading time: 4 hours, 23 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -477,7 +477,7 @@ If you'd rather fix the underlying recipe yourself instead of using Retry, re-ed
 
 A one-time banner also appears on the home page whenever there's a System Issues entry you haven't seen yet, with a **Got it. Don't remind me again.** checkbox — checking it hides the banner (the entry still stays listed under Settings until it's actually resolved), and any *new* failure after that brings the banner back.
 
-**The home page also checks GitHub for a newer NuMa release**, showing an **UPDATE AVAILABLE** banner with a link to what's new if one exists. This check is quick (a couple of seconds at most) and fails silently if you're offline or GitHub is unreachable — it never blocks the home page from loading. A short plain-language note about what changed in your current build (e.g. "minor problem fixes") always appears near the top of the home page in its own light box — directly below the UPDATE AVAILABLE banner when one is showing — whether or not an update is available. The bare version number also stays in the small print at the very bottom, for reference.
+**The home page also checks GitHub for a newer NuMa release**, showing an **UPDATE AVAILABLE** banner with a link to what's new if one exists. This check is quick (a couple of seconds at most) and fails silently if you're offline or GitHub is unreachable — it never blocks the home page from loading. A short plain-language note about what changed in your current build, labeled **NEW VERSION NOTE:** (e.g. "NEW VERSION NOTE: minor problem fixes"), always appears near the top of the home page in its own light box — directly below the UPDATE AVAILABLE banner when one is showing — whether or not an update is available. The bare version number also stays in the small print at the very bottom, for reference.
 
 **If you installed NuMa via the Linux installer, the banner also has an Update Now button** that downloads and installs the new version for you — no terminal, no manual download. Click it, confirm, and NuMa fetches the latest release and swaps itself in place; your data is completely untouched (it lives in a separate location the update never touches). You'll see a message telling you to close the browser tab and relaunch NuMa once it's done — the version you're currently running keeps working right up until you do. If you're running NuMa from source instead (a developer checkout), the button doesn't appear — you'll see the plain "what's new on GitHub" link instead, since there's no packaged install for it to replace.
 
@@ -2592,6 +2592,18 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
 
 #### August 31 program updates
+
+**BUILD-NOTE LINE NOW LABELED "NEW VERSION NOTE:", AND ITS BROKEN RENAME FIXED**
+
+The plain-language note about your current build now reads "NEW VERSION NOTE: ..." instead of repeating the version number a second time on that line (the number's already in the line above it, or the page-bottom small print). Separately, `version.py`'s note constant was renamed to `NEW_VERSION_NOTE`; the web app's own import of the old name was fixed to match (it briefly wouldn't start otherwise), and one of the two places that line is rendered had been missed in the wording update, leaving stale text visible in the UPDATE AVAILABLE banner specifically — that's fixed too.
+
+```
+Scope: version.py (VERSION_NOTE renamed to NEW_VERSION_NOTE), web/backend.py
+(import and template-context key updated to match), web/templates/home.html
+(both the update_available and standalone renderings of the note now read
+"NEW VERSION NOTE: ..."). tests/test_web.py (updated to the new name and
+an assertion added that was missing on the merged-into-banner case).
+```
 
 **FIX: "UPDATE AVAILABLE" BANNER STILL SHOWED RIGHT AFTER A SUCCESSFUL UPDATE**
 

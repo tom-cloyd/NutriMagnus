@@ -28,7 +28,7 @@
   <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
   (you're running {{ version }}).
   {% if version_note %}
-  <br><small>NutriMagnus version {{ version }} — {{ version_note }}</small>
+  <br><small>NEW VERSION NOTE: {{ version_note }}</small>
   {% endif %}
   {% if self_update_available %}
   <form method="post" action="/update-now" class="mt-2 mb-0"
@@ -43,7 +43,7 @@
 {% endif %}
 {% if version_note and not update_available %}
 <div class="alert alert-secondary mt-4 mb-0 py-2">
-  <small>NutriMagnus version {{ version }} — {{ version_note }}</small>
+  <small>NEW VERSION NOTE: {{ version_note }}</small>
 </div>
 {% endif %}
 {% if unacked_errors %}

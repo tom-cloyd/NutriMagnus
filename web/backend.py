@@ -44,7 +44,7 @@ from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, volume_hint
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
-from version import VERSION, VERSION_NOTE
+from version import VERSION, NEW_VERSION_NOTE
 from numa_app.services import update_check as _update_check
 from numa_app.services import self_update as _self_update
 from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
@@ -1326,7 +1326,7 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
     update_available = None if updated else await run_in_threadpool(_update_check.check_for_update, VERSION)
     return templates.TemplateResponse(
         request, "home.html", {
-            "home_body": _render_home_md(), "version": VERSION, "version_note": VERSION_NOTE,
+            "home_body": _render_home_md(), "version": VERSION, "version_note": NEW_VERSION_NOTE,
             "diet_label": diet_label, "profile_label": profile_label,
             "unacked_errors": unacked_errors,
             "db_issue_count": db_issue_count,
