@@ -1319,7 +1319,11 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
         unacked_errors = [dict(r) for r in _db.list_unacked_recompute_errors(conn)]
         db_issues = _db.check_db_integrity(conn)
     db_issue_count = sum(len(v) for v in db_issues.values())
-    update_available = await run_in_threadpool(_update_check.check_for_update, VERSION)
+    # Right after a successful self-update, the running process hasn't
+    # restarted yet — VERSION in memory is still the old value, so the
+    # check would (correctly, but confusingly) still report the release
+    # just installed as "available." Skip it until the next real launch.
+    update_available = None if updated else await run_in_threadpool(_update_check.check_for_update, VERSION)
     return templates.TemplateResponse(
         request, "home.html", {
             "home_body": _render_home_md(), "version": VERSION, "version_note": VERSION_NOTE,

@@ -1,4 +1,4 @@
-VERSION = "2026-08-31:1048"
+VERSION = "2026-08-31:1051"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see
@@ -9,4 +9,4 @@ VERSION = "2026-08-31:1048"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented — see top of User Manual for details"
-VERSION_NOTE = "update-success message now says close tab + relaunch, not quit"
+VERSION_NOTE = "no more stale update-available banner right after updating"

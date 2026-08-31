@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-31:1048* / Reading time: 4 hours, 22 minutes
+*Updated 2026-08-31:1051* / Reading time: 4 hours, 23 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -2592,6 +2592,15 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
 
 #### August 31 program updates
+
+**FIX: "UPDATE AVAILABLE" BANNER STILL SHOWED RIGHT AFTER A SUCCESSFUL UPDATE**
+
+After clicking Update Now, the just-updated confirmation and the "there's an update available" banner could both show at once — confusing, since one says you're done and the other says you're not. The running process doesn't reload its own version number until it's relaunched, so the availability check still (accurately, but unhelpfully) saw the old version and flagged the release you just installed as available. That check is now skipped for the one page load right after a successful update.
+
+```
+Scope: web/backend.py (index() skips the update_check call when the
+updated query param is set). tests/test_web.py (1 new assertion).
+```
 
 **FIX: "UPDATE NOW" SUCCESS MESSAGE TOLD YOU TO QUIT AN APP WITH NO VISIBLE WINDOW TO QUIT**
 

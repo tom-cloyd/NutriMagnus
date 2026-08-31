@@ -1943,11 +1943,20 @@ def test_update_now_button_shown_only_for_packaged_install(client: TestClient, m
 def test_update_now_route_success_and_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     from numa_app.services import self_update as _self_update
 
+    from numa_app.services import update_check as _update_check
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000"},
+    )
     monkeypatch.setattr(_self_update, "perform_update", lambda: {"ok": True})
     resp = client.post("/update-now", follow_redirects=True)
     assert resp.status_code == 200
     assert "UPDATED:" in resp.text
     assert "Close this browser tab, then relaunch" in resp.text
+    # The process hasn't restarted, so VERSION in memory is still the old
+    # value — the stale "UPDATE AVAILABLE" banner must not linger alongside
+    # the just-updated confirmation.
+    assert "UPDATE AVAILABLE:" not in resp.text
 
     monkeypatch.setattr(_self_update, "perform_update", lambda: {"ok": False, "error": "Download failed: offline"})
     resp = client.post("/update-now", follow_redirects=True)
