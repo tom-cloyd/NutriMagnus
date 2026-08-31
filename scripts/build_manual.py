@@ -50,7 +50,12 @@ _HEADER_LINE_RE = re.compile(
 def count_words(markdown_text: str) -> int:
     """Word count of the manual body, ignoring code and link targets."""
     text = _HEADER_LINE_RE.sub('', markdown_text, count=1)
-    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    # Fenced code blocks only — the fence must be alone at the start of its
+    # own line (per CommonMark), not just any three backticks anywhere. An
+    # inline mention like "every ` ```json ` block" in prose is not a fence
+    # and must not be treated as one, or everything between it and the next
+    # real fence gets misread as one giant code block and dropped.
+    text = re.sub(r'^```.*?\n^```[ \t]*$', '', text, flags=re.DOTALL | re.MULTILINE)
     text = re.sub(r'`[^`]*`', '', text)
     text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
     return len(text.split())

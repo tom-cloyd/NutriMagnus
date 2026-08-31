@@ -1869,6 +1869,24 @@ def test_home_page_shows_db_integrity_banner(client: TestClient, cached_food, db
     assert "/food/cache/db-check" in resp.text
 
 
+def test_home_page_shows_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A newer GitHub release should surface as a dismissable-by-upgrading
+    banner; no_update_check (conftest.py) keeps this off by default."""
+    from numa_app.services import update_check as _update_check
+
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" not in resp.text
+
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000"},
+    )
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" in resp.text
+    assert "v2099-01-01-0000" in resp.text
+    assert "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000" in resp.text
+
+
 def test_broken_recipe_refs_listing_page(client: TestClient) -> None:
     """/recipes/broken-refs lists every dangling reference for browsing,
     independent of any specific recipe being (re-)created."""

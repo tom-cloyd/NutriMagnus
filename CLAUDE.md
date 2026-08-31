@@ -87,6 +87,9 @@ numa_app/
     search_ranking.py   — food-search relevance ranking: relevance_key()
     top_contributors.py — rank a meal's/recipe's ingredients by contribution to
                          one nutrient, for the "Top Contributors" analysis section
+    update_check.py      — check_for_update(): GitHub latest-release check for
+                         the home-page "update available" banner; cached
+                         in-process, fails silently offline
 
 web/
   backend.py           — the FastAPI app: all routes

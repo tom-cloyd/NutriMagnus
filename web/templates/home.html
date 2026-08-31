@@ -10,6 +10,13 @@
   Review and repair them on the <a href="/food/cache/db-check">Database check</a> page.
 </div>
 {% endif %}
+{% if update_available %}
+<div class="alert alert-info mt-4">
+  <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
+  (you're running {{ version }}). See <a href="{{ update_available.url }}" target="_blank" rel="noopener">what's new on GitHub</a>
+  to download it.
+</div>
+{% endif %}
 {% if unacked_errors %}
 <div class="alert alert-warning mt-4">
   <strong>{{ unacked_errors|length }} recalculation{{ 's' if unacked_errors|length != 1 }} failed</strong> and
@@ -41,5 +48,5 @@
   {{ home_body | safe }}
 </article>
 
-<p class="text-secondary mt-4"><small>NutriMagnus version {{ version }}</small></p>
+<p class="text-secondary mt-4"><small>NutriMagnus version {{ version }}{% if version_note %} — {{ version_note }}{% endif %}</small></p>
 {% endblock %}

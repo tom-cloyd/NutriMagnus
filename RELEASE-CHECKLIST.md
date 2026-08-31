@@ -87,7 +87,7 @@ Two corrections to keep in mind while reading old chat sessions:
       https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2026-08-10-1857
       This is the first time this has ever run end-to-end — the note below (and the
       matching one in `user-manual.md` Part 1, Section C) is now stale/superseded.
-- [ ] **On a genuinely clean machine/account** (not one with `~/.local/bin/nutrimagnus`
+- [x] **On a genuinely clean machine/account** (not one with `~/.local/bin/nutrimagnus`
       already present from dev use), run:
       ```bash
       curl -fL https://github.com/tom-cloyd/NutriMagnus/releases/latest/download/install-linux.sh | bash
@@ -95,7 +95,11 @@ Two corrections to keep in mind while reading old chat sessions:
       Confirm: binary lands in `~/.local/bin`, icon in `~/.local/share/icons`, `.desktop`
       entry appears, and — the one thing no session confirms doing — actually find
       "NutriMagnus" in a real GNOME/KDE applications menu, not just check the files exist.
-- [ ] Click-launch it from that menu entry and confirm it opens a browser tab cleanly.
+      Done 2026-08-31 — repo had to be flipped from private to public first (the curl
+      404'd against a private repo's release asset URL); after that the install worked
+      cleanly and starter recipes/food cache seeded correctly.
+- [x] Click-launch it from that menu entry and confirm it opens a browser tab cleanly.
+      Done 2026-08-31 — launched perfectly.
 
 ## Phase 4 — Manual finalization
 
@@ -111,17 +115,24 @@ Two corrections to keep in mind while reading old chat sessions:
       was wrong to begin with, just under-cross-referenced. Done 2026-08-10 — added the
       same Ubuntu/glibc compatibility note there too, pointing to "For developers."
 
-## Phase 5 — Optional polish (non-blocking)
+## Phase 5 — Optional polish (non-blocking
 
 - [ ] Swap the placeholder icon (`web/static/icon-256.png`, a green "N" monogram) for
       real branding whenever ready — no code changes needed elsewhere, the installer
       just downloads whatever's at that release-asset name.
-- [ ] CSV export/import for food/recipe data — logged in the manual's Part 9 as a
-      future idea, not this release.
+- [x] CSV export/import for food/recipe data. Already built and wired in
+      (`numa_app/services/csv_export.py`, `csv_import.py`, `recipe_csv.py`; routes
+      `/food/cache/export.csv`, `/food/cache/import-csv`, `/recipe/{id}/export.csv`,
+      `/recipe/import-csv`) — this checklist item was just stale. Verified 2026-08-31.
 
 ## Deferred, not part of this release
 
 - Windows build/installer (Phase 4's item 5) — explicitly waits until Linux is proven
   end-to-end.
-- The update-check-against-latest-release feature floated in earlier chats — never got
-  built; not blocking.
+
+## Done since the last pass through this checklist
+
+- [x] The update-check-against-latest-release feature floated in earlier chats — built
+      2026-08-31 (`numa_app/services/update_check.py`, home page banner). Checks GitHub's
+      latest-release API against `version.py`'s `VERSION`, cached in-process, fails
+      silently offline. See today's `user-manual.md` Appendix A entry for detail.

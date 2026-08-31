@@ -21,6 +21,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
 
 import afcd_lookup as _afcd
 import ciqual_lookup as _ciqual
@@ -43,7 +44,8 @@ from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, volume_hint
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
-from version import VERSION
+from version import VERSION, VERSION_NOTE
+from numa_app.services import update_check as _update_check
 from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
 from numa_app.services.rda_status import rda_status, limit_warning
 from numa_app.services.diet_aware import b12_deficiency_note, iron_zinc_bioavailability_note
@@ -1316,12 +1318,14 @@ async def index(request: Request):
         unacked_errors = [dict(r) for r in _db.list_unacked_recompute_errors(conn)]
         db_issues = _db.check_db_integrity(conn)
     db_issue_count = sum(len(v) for v in db_issues.values())
+    update_available = await run_in_threadpool(_update_check.check_for_update, VERSION)
     return templates.TemplateResponse(
         request, "home.html", {
-            "home_body": _render_home_md(), "version": VERSION,
+            "home_body": _render_home_md(), "version": VERSION, "version_note": VERSION_NOTE,
             "diet_label": diet_label, "profile_label": profile_label,
             "unacked_errors": unacked_errors,
             "db_issue_count": db_issue_count,
+            "update_available": update_available,
         }
     )
 

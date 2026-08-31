@@ -181,6 +181,17 @@ def no_cnf(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_cnf, "get_food_detail_by_id", lambda *a, **kw: None)
 
 
+@pytest.fixture(autouse=True)
+def no_update_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Stub out the GitHub release check on the home page so tests never hit
+    the network and never see a stale/flaky "update available" banner.
+    Same role as no_off/no_cnf above.
+    """
+    from numa_app.services import update_check as _update_check
+    monkeypatch.setattr(_update_check, "check_for_update", lambda *a, **kw: None)
+
+
 # ---------------------------------------------------------------------------
 # Direct DB connection for assertions
 # ---------------------------------------------------------------------------
