@@ -1208,6 +1208,8 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
 
     if not rows and not qualitative:
         return None
+    cat_rank = {cat: i for i, cat in enumerate(_ox.CATEGORY_ORDER)}
+    qualitative.sort(key=lambda r: (cat_rank.get(r["category"], len(cat_rank)), r["name"].lower()))
     return {
         "total_mg":   round(total_mg, 1) if rows else None,
         "rows":       rows,

@@ -2735,3 +2735,35 @@ def test_copy_aa_shows_error_flag_when_source_has_no_aa_data(
     # Target's nutrients must be unchanged — no AA keys introduced.
     unchanged = json.loads(row["nutrients_json"])
     assert unchanged == {"protein_g": 10.0}
+
+
+def test_oxalate_qualitative_list_sorted_high_to_low_then_alphabetical(monkeypatch) -> None:
+    """The 'Categorical report only' anti-nutrients list on meal/recipe pages
+    must be sorted by oxalate category (high to low), then alphabetically by
+    food name within each category — previously it was left in whatever
+    order the ingredients happened to be listed in."""
+    import oxalate as _ox
+
+    monkeypatch.setattr(_ox, "is_available", lambda: True)
+
+    # Every item lands in the qualitative branch: a volume-based serving
+    # (density unknown) with only mg_per_serving data, no mg_per_100g.
+    fake_info = {
+        1: {"mg_per_100g": None, "mg_per_serving": 5.0, "serving_size": "1 cup", "category": "low", "confirmed": True},
+        2: {"mg_per_100g": None, "mg_per_serving": 5.0, "serving_size": "1 cup", "category": "very high", "confirmed": True},
+        3: {"mg_per_100g": None, "mg_per_serving": 5.0, "serving_size": "1 cup", "category": "moderate", "confirmed": True},
+        4: {"mg_per_100g": None, "mg_per_serving": 5.0, "serving_size": "1 cup", "category": "very high", "confirmed": True},
+        5: {"mg_per_100g": None, "mg_per_serving": 5.0, "serving_size": "1 cup", "category": "low", "confirmed": True},
+    }
+    names = {1: "Spinach", 2: "Zucchini", 3: "Almonds", 4: "Beets", 5: "Apples"}
+    monkeypatch.setattr(backend, "_oxalate_info", lambda fdc_id, name: fake_info[fdc_id])
+    monkeypatch.setattr(backend, "_serving_str_to_grams", lambda s: None)  # not a weight → stays qualitative
+
+    items = [{"fdc_id": fdc_id, "food_name": name, "amount_g": 100} for fdc_id, name in names.items()]
+    result = backend._oxalate_for_items(items)
+
+    assert [row["name"] for row in result["qualitative"]] == [
+        "Beets", "Zucchini",   # very high, alphabetical
+        "Almonds",             # moderate
+        "Apples", "Spinach",   # low, alphabetical
+    ]

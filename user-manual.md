@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-30:1308* / Reading time: 2 hours, 56 minutes
+*Updated 2026-08-30:2255* / Reading time: 2 hours, 56 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -226,7 +226,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-30), there are 733 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-30), there are 734 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 3.
 
@@ -2593,6 +2593,16 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
 
 #### August 30 program updates
+
+**ANTI-NUTRIENT CATEGORY LIST NOW SORTED HIGH TO LOW**
+
+On meal, recipe, and food pages, the "Categorical report only — no quantitative data available" oxalate list (foods with only a category, not an exact milligram figure) now sorts by severity, very high to negligible, and alphabetically by food name within each category, instead of appearing in whatever order the ingredients happened to be listed in.
+
+```
+Scope: web/backend.py's _oxalate_for_items(), used by the meal, recipe, and
+food detail routes. Sorts the qualitative list against oxalate.py's existing
+CATEGORY_ORDER tuple. tests/test_web.py: new regression test.
+```
 
 **MAINTENANCE: CLI REFERENCES FULLY RETIRED, README ARCHITECTURE DOC BROUGHT CURRENT, DOZENS OF STALE MANUAL PASSAGES FIXED**
 
