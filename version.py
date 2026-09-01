@@ -1,4 +1,4 @@
-VERSION = "2026-08-31:2040"
+VERSION = "2026-08-31:2122"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see

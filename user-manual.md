@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-31:2040* / Reading time: 4 hours, 24 minutes
+*Updated 2026-08-31:2122* / Reading time: 4 hours, 24 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -2595,7 +2595,7 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 **CHOOSE HOW OFTEN YOU'RE TOLD ABOUT NEW VERSIONS, AND ALWAYS SEE YOUR CURRENT ONE**
 
-Settings now has an "Update Notifications" section where you can set how often the "new version available" banner shows up on the home page: daily (the default), weekly, or monthly. The banner's build note also names that setting directly, with a link to change it. Separately, the home page now always shows a line under the Welcome heading — "Current version date: ..." plus the build note — so you can check what you're running without scrolling to the page footer.
+Settings now has an "Update Notifications" section where you can set how often the "new version available" banner shows up on the home page: daily (the default), weekly, or monthly. The banner's build note also names that setting directly, with a link to change it. Separately, the home page now always shows a line under the Welcome heading — "Current version date: ..." — so you can check what you're running without scrolling to the page footer; that line shows only the date, not the build note, which stays exclusive to the update-available banner.
 
 ```
 Scope: web/backend.py (_current_update_notify_frequency(), _should_show_update_notice()
@@ -2603,7 +2603,7 @@ gating index()'s update_available via a saved prefs.json frequency + last-shown-
 new POST /settings/update-notify-frequency route). web/templates/settings.html (new
 "Update Notifications" section). web/templates/home.html (frequency note added next to
 NEW VERSION NOTE in the banner; new always-visible "Current version date" line below
-Welcome). tests/test_web.py (updated for the note now appearing twice by design).
+Welcome, date only). tests/test_web.py (updated accordingly).
 ```
 
 **BUILD-NOTE LINE NOW LABELED "NEW VERSION NOTE:", AND ITS BROKEN RENAME FIXED**
