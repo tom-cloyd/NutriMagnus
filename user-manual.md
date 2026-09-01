@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-31:2157* / Reading time: 4 hours, 25 minutes
+*Updated 2026-08-31:2330* / Reading time: 4 hours, 26 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -2604,6 +2604,24 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
 
 #### August 31 program updates
+
+**FIX: A NEWER RELEASE COULD STAY HIDDEN BEHIND ONE ALREADY SEEN THAT DAY**
+
+The daily/weekly/monthly notification-frequency setting was meant to throttle repeat notices about the *same* release, not hide a *different, newer* one that showed up later the same day — but that's what it was doing: once the banner had shown once today, a second release published an hour later wouldn't surface until tomorrow. It now always shows a release you haven't been told about yet, regardless of the frequency window; the frequency setting only limits repeat notices about a release you've already seen.
+
+**THE UPDATE NOW BUTTON NOW SHOWS A DOWNLOADING SPINNER**
+
+Clicking Update Now used to leave the button sitting there with no feedback while the new binary downloaded in the background — easy to mistake for nothing having happened, especially on a slower connection. It now disables itself and shows a spinner with "Downloading…" the moment you confirm, so it's clear the update is actually in progress.
+
+```
+Scope: web/backend.py (_should_show_update_notice() now takes the candidate
+release's tag and only applies the frequency window when it matches the tag
+last shown — a new prefs.json key, update_notice_last_shown_tag, tracks
+this). web/templates/home.html (Update Now form's confirm handler moved out
+of an inline onsubmit into a proper <script> block, disables the button and
+swaps in a Bootstrap spinner on confirm). tests/test_web.py (new coverage
+for the frequency-vs-newer-release interaction).
+```
 
 **CHOOSE HOW OFTEN YOU'RE TOLD ABOUT NEW VERSIONS, AND ALWAYS SEE YOUR CURRENT ONE**
 

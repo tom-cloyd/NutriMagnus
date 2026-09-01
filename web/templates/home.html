@@ -33,11 +33,26 @@
     — <a href="/settings#update-notifications">change via Settings</a>)</span></small>
   {% endif %}
   {% if self_update_available %}
-  <form method="post" action="/update-now" class="mt-2 mb-0"
-        onsubmit="return confirm('Download and install NutriMagnus ' + '{{ update_available.tag }}' + ' now? This replaces the running program; your data is untouched. You will need to quit and reopen NutriMagnus afterward.');">
-    <button type="submit" class="btn btn-sm btn-primary">Update now</button>
+  <form method="post" action="/update-now" class="mt-2 mb-0" id="update-now-form">
+    <button type="submit" id="update-now-btn" class="btn btn-sm btn-primary">Update now</button>
     <a href="{{ update_available.url }}" target="_blank" rel="noopener" class="ms-2">what's new</a>
   </form>
+  <script>
+    (function () {
+      var form = document.getElementById('update-now-form');
+      var btn = document.getElementById('update-now-btn');
+      form.addEventListener('submit', function (event) {
+        if (!confirm('Download and install NutriMagnus {{ update_available.tag }} now? ' +
+                      'This replaces the running program; your data is untouched. ' +
+                      'You will need to quit and reopen NutriMagnus afterward.')) {
+          event.preventDefault();
+          return;
+        }
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Downloading…';
+      });
+    })();
+  </script>
   {% else %}
   See <a href="{{ update_available.url }}" target="_blank" rel="noopener">what's new on GitHub</a> to download it.
   {% endif %}

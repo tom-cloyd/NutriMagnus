@@ -687,12 +687,21 @@ def _current_update_notify_frequency() -> str:
     return freq if freq in _VALID_UPDATE_NOTIFY_FREQS else "daily"
 
 
-def _should_show_update_notice() -> bool:
+def _should_show_update_notice(tag: str) -> bool:
     """Whether the "update available" banner should be shown on this page load,
     per the saved notification-frequency preference (daily/weekly/monthly) —
     gates only how often the already-cached update_check result is surfaced to
-    the user, not how often GitHub itself is polled."""
+    the user, not how often GitHub itself is polled. A release newer than the
+    one last shown always gets through regardless of the frequency window —
+    the setting throttles repeat notices about the *same* release, not
+    whether you're told about a *different, newer* one that showed up since."""
     prefs = _load_prefs_file()
+    if prefs.get("update_notice_last_shown_tag") != tag:
+        _save_prefs_file({
+            "update_notice_last_shown_at": datetime.date.today().isoformat(),
+            "update_notice_last_shown_tag": tag,
+        })
+        return True
     interval_days = _UPDATE_NOTIFY_FREQ_DAYS[_current_update_notify_frequency()]
     last_shown = prefs.get("update_notice_last_shown_at")
     if last_shown:
@@ -1359,7 +1368,7 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
     # check would (correctly, but confusingly) still report the release
     # just installed as "available." Skip it until the next real launch.
     update_available = None if updated else await run_in_threadpool(_update_check.check_for_update, VERSION)
-    if update_available and not _should_show_update_notice():
+    if update_available and not _should_show_update_notice(update_available["tag"]):
         update_available = None
     return templates.TemplateResponse(
         request, "home.html", {

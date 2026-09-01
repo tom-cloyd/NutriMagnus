@@ -1928,6 +1928,38 @@ def test_home_page_shows_update_available_banner(client: TestClient, monkeypatch
     assert "Update now" not in resp.text
 
 
+def test_update_notice_frequency_gate_lets_a_newer_release_through(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The daily/weekly/monthly notification frequency throttles repeat
+    notices about the *same* release, not whether a *different, newer*
+    release that showed up since gets shown — otherwise the default daily
+    setting would hide a second same-day release until the next day."""
+    from numa_app.services import update_check as _update_check
+
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://example.invalid/v2099-01-01-0000"},
+    )
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" in resp.text
+
+    # Same release again on a same-day reload: suppressed — daily allows
+    # only one notice per day for a given release.
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" not in resp.text
+
+    # A newer release than the one already shown today must get through
+    # immediately, not wait for tomorrow's daily window.
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-02-02-0000", "url": "https://example.invalid/v2099-02-02-0000"},
+    )
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" in resp.text
+    assert "v2099-02-02-0000" in resp.text
+
+
 def test_update_now_button_shown_only_for_packaged_install(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     from numa_app.services import update_check as _update_check
     from numa_app.services import self_update as _self_update
