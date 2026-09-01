@@ -43,11 +43,6 @@
   {% endif %}
 </div>
 {% endif %}
-{% if version_note and not update_available %}
-<div class="alert alert-secondary mt-4 mb-0 py-2">
-  <small>NEW VERSION NOTE: {{ version_note }}</small>
-</div>
-{% endif %}
 {% if unacked_errors %}
 <div class="alert alert-warning mt-4">
   <strong>{{ unacked_errors|length }} recalculation{{ 's' if unacked_errors|length != 1 }} failed</strong> and
@@ -72,7 +67,7 @@
     {% else %}
     Active profile: not set — <a href="/settings">configure under Settings</a>
     {% endif %}
-    <br>Current version date: {{ version_date }}
+    <br>Current version date: {{ version_date }}{% if version_note %} (Version note: {{ version_note }}){% endif %}
   </small></p>
 </div>
 

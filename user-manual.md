@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-31:2135* / Reading time: 4 hours, 24 minutes
+*Updated 2026-08-31:2157* / Reading time: 4 hours, 25 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -259,6 +259,18 @@ NuMa's web app runs in your ordinary browser. This makes program development, wh
 
 Launch NuMa the way it was set up on your computer — a desktop icon, an Applications-menu entry, or a shortcut someone set up for you. It opens automatically in your browser, normally at a browser address like `http://127.0.0.1:8000` — this just means "this computer, talking to itself," not an address on the internet, so don't worry if the exact numbers you see differ. If the page doesn't load right away, wait a few seconds and reload — the program is still starting up.
 
+#### What you see on the home page {: #home-page-tour}
+
+Right below the **Welcome to NutriMagnus** heading is a small block of status lines:
+
+- **Dietary preferences** — your current setting (e.g. "All animal foods"), with a link straight to Settings to change it.
+- **Active profile** — a one-line summary of your profile (age, sex, weight, height, activity level), or "not set" with a link to configure one if you haven't yet.
+- **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`. Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build.
+
+Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub (with an **Update Now** button if you're running the packaged Linux install, otherwise a plain link to what's new). That banner repeats the build note as its own line, plus a note on how often you're being notified about new releases and a link to change that in **Settings → Update Notifications** (daily, weekly, or monthly — daily by default).
+
+**When does NuMa actually check for a new release?** Every time the home page loads — at launch, on a manual reload, or by navigating back to it from anywhere else in the program — it asks whether a newer version exists. That check itself is cached for a few hours, so bouncing back to the home page repeatedly doesn't re-contact GitHub every time; it just reuses the last answer until the cache expires. Separately, even when a newer version genuinely is available, whether the **UPDATE AVAILABLE** banner is actually shown to you on a given visit is throttled again by your daily/weekly/monthly notification-frequency setting — so you won't see it more often than you asked to.
+
 ### B. Finding your way around
 
 Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
@@ -477,7 +489,7 @@ If you'd rather fix the underlying recipe yourself instead of using Retry, re-ed
 
 A one-time banner also appears on the home page whenever there's a System Issues entry you haven't seen yet, with a **Got it. Don't remind me again.** checkbox — checking it hides the banner (the entry still stays listed under Settings until it's actually resolved), and any *new* failure after that brings the banner back.
 
-**The home page also checks GitHub for a newer NuMa release**, showing an **UPDATE AVAILABLE** banner with a link to what's new if one exists. This check is quick (a couple of seconds at most) and fails silently if you're offline or GitHub is unreachable — it never blocks the home page from loading. A short plain-language note about what changed in your current build, labeled **NEW VERSION NOTE:** (e.g. "NEW VERSION NOTE: minor problem fixes"), always appears near the top of the home page in its own light box — directly below the UPDATE AVAILABLE banner when one is showing — whether or not an update is available. The bare version number also stays in the small print at the very bottom, for reference.
+**The home page also checks GitHub for a newer NuMa release**, showing an **UPDATE AVAILABLE** banner with a link to what's new if one exists. This check is quick (a couple of seconds at most) and fails silently if you're offline or GitHub is unreachable — it never blocks the home page from loading. See [What you see on the home page](#home-page-tour) for exactly where the current build's version stamp and build note appear, how often the check itself runs, and how the **Settings → Update Notifications** frequency setting controls how often the banner is shown.
 
 **If you installed NuMa via the Linux installer, the banner also has an Update Now button** that downloads and installs the new version for you — no terminal, no manual download. Click it, confirm, and NuMa fetches the latest release and swaps itself in place; your data is completely untouched (it lives in a separate location the update never touches). You'll see a message telling you to close the browser tab and relaunch NuMa once it's done — the version you're currently running keeps working right up until you do. If you're running NuMa from source instead (a developer checkout), the button doesn't appear — you'll see the plain "what's new on GitHub" link instead, since there's no packaged install for it to replace.
 
@@ -2595,16 +2607,18 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 **CHOOSE HOW OFTEN YOU'RE TOLD ABOUT NEW VERSIONS, AND ALWAYS SEE YOUR CURRENT ONE**
 
-Settings now has an "Update Notifications" section where you can set how often the "new version available" banner shows up on the home page: daily (the default), weekly, or monthly. The banner's build note also names that setting directly, with a link to change it. Separately, the home page now always shows a line under the Welcome heading — "Current version date: yyyy-mm-dd:hhmm" — so you can check exactly what you're running, down to the minute, without scrolling to the page footer; that line shows only the version stamp, not the build note, which stays exclusive to the update-available banner.
+Settings now has an "Update Notifications" section where you can set how often the "new version available" banner shows up on the home page: daily (the default), weekly, or monthly. The banner's build note also names that setting directly, with a link to change it. Separately, the home page now always shows a line under the Welcome heading — "Current version date: yyyy-mm-dd:hhmm" — so you can check exactly what you're running, down to the minute, without scrolling to the page footer; whenever a build note is set it follows in parentheses as "(Version note: ...)" on that same line. The build note no longer gets its own standalone box further up the page. See [What you see on the home page](#home-page-tour) for the full rundown, including exactly when the update check itself runs.
 
 ```
 Scope: web/backend.py (_current_update_notify_frequency(), _should_show_update_notice()
 gating index()'s update_available via a saved prefs.json frequency + last-shown-date pair;
 new POST /settings/update-notify-frequency route; version_date passed as the full
-VERSION stamp, not just its date portion). web/templates/settings.html (new "Update
-Notifications" section). web/templates/home.html (frequency note added next to NEW
-VERSION NOTE in the banner; new always-visible "Current version date" line below
-Welcome showing the full date:time stamp). tests/test_web.py (updated accordingly).
+VERSION stamp). web/templates/settings.html (new "Update Notifications" section).
+web/templates/home.html (frequency note added next to NEW VERSION NOTE in the banner;
+the old standalone "NEW VERSION NOTE" box removed; the always-visible "Current version
+date" line below Welcome now carries the build note in parentheses). tests/test_web.py
+(updated accordingly). user-manual.md (new "What you see on the home page" tour, Part 3
+Section A). README-numa-documentation.md (matching, fuller technical writeup).
 ```
 
 **BUILD-NOTE LINE NOW LABELED "NEW VERSION NOTE:", AND ITS BROKEN RENAME FIXED**

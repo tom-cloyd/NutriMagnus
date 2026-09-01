@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-30:1043
+UPDATED: 2026-08-31:2157
 
 Last monthly accuracy check: 2026-08-30.
 
@@ -1071,6 +1071,14 @@ The navbar marks the active section by comparing `request.url.path` to each nav 
 #### `home.html`
 
 Renders the content of `home.md` (project root) as HTML. The markdown file is rendered once at startup and cached in `web/home_body.cache`; the cache is invalidated if `home.md` is newer.
+
+**Status lines below the Welcome heading.** Three lines, `<br>`-separated inside one `<p class="muted mb-0"><small>` block: dietary preference, active profile, and `Current version date: {{ version_date }}` — `version_date` is `index()`'s full `VERSION` string (`web/backend.py`), i.e. the `yyyy-mm-dd:hhmm` stamp from `version.py`, not just its date portion. Whenever `NEW_VERSION_NOTE` (`version.py`) is non-empty it's appended in parentheses on that same line as `(Version note: {{ version_note }})`. This is the only place the build note shows when no update is available — there is no separate standalone box for it (there used to be; removed since it duplicated the same information already on this line).
+
+**Update-check flow.** `index()` calls `_update_check.check_for_update(VERSION)` (`numa_app/services/update_check.py`) on every load of `/` — launch, manual reload, or navigating back to Home from elsewhere — except immediately after a successful in-place update (`updated=1` query param), since the running process's in-memory `VERSION` is still stale until relaunch. `check_for_update()` compares the tag-ified current version against GitHub's latest-release tag via plain string comparison (safe because `VERSION` is a fixed-width, lexically-sortable stamp) and returns `{"tag": ..., "url": ...}` or `None`; it never raises, so a network failure or offline state is silently treated as "no update." Its own module-level cache (`_CACHE_TTL_SECONDS = 6 * 60 * 60`) means repeated home-page loads within a 6-hour window reuse the last GitHub response rather than making a fresh call each time; the cache key includes the version string, so it self-invalidates the moment `VERSION` changes (e.g. right after a self-update).
+
+**Notification-frequency gate.** Even when `check_for_update()` reports a real update, `index()` only lets the **UPDATE AVAILABLE** banner through if `_should_show_update_notice()` (`web/backend.py`) says so — otherwise it sets `update_available = None` before rendering, same as the post-update suppression case. That helper reads the saved `update_notify_frequency` pref (`"daily"` / `"weekly"` / `"monthly"`, default `"daily"`, validated against `_VALID_UPDATE_NOTIFY_FREQS`) and an `update_notice_last_shown_at` ISO date, both in `prefs.json`; if fewer days than the frequency's interval (`_UPDATE_NOTIFY_FREQ_DAYS`: 1/7/30) have elapsed since the last time the banner was shown, it returns `False` without touching `prefs.json`. Otherwise it stamps today's date into `update_notice_last_shown_at` and returns `True`. This is a display throttle only — it never affects the 6-hour network-cache TTL above, which keeps polling GitHub at its own fixed cadence regardless of the user's notification preference. The setting itself lives in Settings → "Update Notifications" (`settings.html`, `POST /settings/update-notify-frequency`), following the same radio-button/`prefs.json` pattern as the Dietary Preferences section (`diet_pref`).
+
+**When the banner does show**, its build-note line also names the current frequency setting in a muted aside with a link to `/settings#update-notifications`, so the note doubles as a reminder of how often you've asked to be told.
 
 #### `search.html`
 

@@ -1871,25 +1871,24 @@ def test_home_page_shows_db_integrity_banner(client: TestClient, cached_food, db
 
 def test_home_page_shows_version_note_prominently(client: TestClient) -> None:
     """version_note (version.py's NEW_VERSION_NOTE) describes what changed
-    in the build you're actually running — it needs to be somewhere a user
-    will see it, not just in the fine print at the very bottom."""
+    in the build you're actually running — with no update pending, it shows
+    in parentheses next to the "Current version date" line below Welcome,
+    not just in the fine print at the very bottom, and not in a standalone
+    box of its own."""
     from version import NEW_VERSION_NOTE
 
     resp = client.get("/")
     assert NEW_VERSION_NOTE in resp.text
-    # The note appears in its own prominent box, ahead of the "Welcome to
-    # NutriMagnus" heading — not only in the small print at the page foot.
-    note_pos = resp.text.index(NEW_VERSION_NOTE)
-    welcome_pos = resp.text.index("Welcome to NutriMagnus")
-    assert note_pos < welcome_pos
-    assert f"NEW VERSION NOTE: {NEW_VERSION_NOTE}" in resp.text
+    assert f"(Version note: {NEW_VERSION_NOTE})" in resp.text
+    assert "alert-secondary" not in resp.text
+    assert "NEW VERSION NOTE:" not in resp.text
 
 
 def test_version_note_sits_inside_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """When there's an update available, NEW_VERSION_NOTE appears inside
     that same alert box, directly below the first line — not as a separate
-    box, and not repeated in the always-visible "Current version date" line
-    below the Welcome heading (that line shows only the date, not the note)."""
+    box. It also appears a second time, in parentheses on the always-visible
+    "Current version date" line below the Welcome heading."""
     from numa_app.services import update_check as _update_check
     from version import NEW_VERSION_NOTE
 
@@ -1898,9 +1897,9 @@ def test_version_note_sits_inside_update_available_banner(client: TestClient, mo
         lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000"},
     )
     resp = client.get("/")
-    assert resp.text.count(NEW_VERSION_NOTE) == 1
+    assert resp.text.count(NEW_VERSION_NOTE) == 2
     assert f"NEW VERSION NOTE: {NEW_VERSION_NOTE}" in resp.text
-    assert f"Current version date:" in resp.text
+    assert f"(Version note: {NEW_VERSION_NOTE})" in resp.text
     update_banner_pos = resp.text.index("UPDATE AVAILABLE:")
     note_pos = resp.text.index(NEW_VERSION_NOTE)
     welcome_pos = resp.text.index("Welcome to NutriMagnus")
