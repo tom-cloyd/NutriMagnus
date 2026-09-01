@@ -1364,7 +1364,7 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
     return templates.TemplateResponse(
         request, "home.html", {
             "home_body": _render_home_md(), "version": VERSION, "version_note": NEW_VERSION_NOTE,
-            "version_date": VERSION.split(":")[0],
+            "version_date": VERSION,
             "diet_label": diet_label, "profile_label": profile_label,
             "unacked_errors": unacked_errors,
             "db_issue_count": db_issue_count,
