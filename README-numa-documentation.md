@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-31:2157
+UPDATED: 2026-08-31:2233
 
 Last monthly accuracy check: 2026-08-30.
 
@@ -1079,6 +1079,12 @@ Renders the content of `home.md` (project root) as HTML. The markdown file is re
 **Notification-frequency gate.** Even when `check_for_update()` reports a real update, `index()` only lets the **UPDATE AVAILABLE** banner through if `_should_show_update_notice()` (`web/backend.py`) says so — otherwise it sets `update_available = None` before rendering, same as the post-update suppression case. That helper reads the saved `update_notify_frequency` pref (`"daily"` / `"weekly"` / `"monthly"`, default `"daily"`, validated against `_VALID_UPDATE_NOTIFY_FREQS`) and an `update_notice_last_shown_at` ISO date, both in `prefs.json`; if fewer days than the frequency's interval (`_UPDATE_NOTIFY_FREQ_DAYS`: 1/7/30) have elapsed since the last time the banner was shown, it returns `False` without touching `prefs.json`. Otherwise it stamps today's date into `update_notice_last_shown_at` and returns `True`. This is a display throttle only — it never affects the 6-hour network-cache TTL above, which keeps polling GitHub at its own fixed cadence regardless of the user's notification preference. The setting itself lives in Settings → "Update Notifications" (`settings.html`, `POST /settings/update-notify-frequency`), following the same radio-button/`prefs.json` pattern as the Dietary Preferences section (`diet_pref`).
 
 **When the banner does show**, its build-note line also names the current frequency setting in a muted aside with a link to `/settings#update-notifications`, so the note doubles as a reminder of how often you've asked to be told.
+
+**Why a freshly-published release can go undetected for a while, and how to force a recheck.** `_cache`/`_cache_checked_at` (`update_check.py`) are plain module-level globals — a per-*process* cache, not a per-page-load or per-user one. If the running server process already checked GitHub (and got "no update") before a new release went live, that `None` answer sticks around in memory for up to 6 hours regardless of how many times the home page is reloaded in the meantime — reloading the page re-runs `check_for_update()`, but the function just returns its cached answer without making a new network call. The fix is to restart the process, since a brand-new process starts with an empty cache and checks GitHub fresh on its very first home-page load. Two ways to do that:
+- **Just relaunch NutriMagnus** (click its icon/shortcut again, or re-run the packaged binary). `web/launcher.py`'s `main()` already detects that its port is occupied and kills the old process for you before starting a new one (`fuser -k {port}/tcp` on Linux/Mac, `taskkill` via `netstat` on Windows) — this is the same port-conflict handling that lets you just launch NuMa again without manually stopping anything first, and it happens to also be the simplest way to force a fresh update check.
+- **Kill it manually first**, if you'd rather: the packaged Linux binary runs as a process named `nutrimagnus` (`pkill nutrimagnus`, or `pkill -f nutrimagnus` if that doesn't match); running from source, it's `pkill -f "web/launcher.py"` (or `Ctrl+C` in the terminal it's running in). Then relaunch normally.
+
+Either way, waiting up to 6 hours without restarting works too — the cache expires on its own — but restarting is instant.
 
 #### `search.html`
 
