@@ -216,6 +216,14 @@ _DIET_LABELS = {
 }
 _VALID_DIET_PREFS = {"all", "vegetarian", "plant_only"}
 
+_UPDATE_NOTIFY_FREQ_LABELS = {
+    "daily":   "Daily",
+    "weekly":  "Weekly",
+    "monthly": "Monthly",
+}
+_UPDATE_NOTIFY_FREQ_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
+_VALID_UPDATE_NOTIFY_FREQS = set(_UPDATE_NOTIFY_FREQ_LABELS)
+
 
 def _load_prefs_file() -> dict:
     if _PREFS_FILE.exists():
@@ -672,6 +680,31 @@ def _current_diet_pref() -> str:
     pref = _load_prefs_file().get("diet_pref", "all")
     return pref if pref in _VALID_DIET_PREFS else "all"
 
+
+def _current_update_notify_frequency() -> str:
+    """Return the saved update-notification frequency, validated, defaulting to 'daily'."""
+    freq = _load_prefs_file().get("update_notify_frequency", "daily")
+    return freq if freq in _VALID_UPDATE_NOTIFY_FREQS else "daily"
+
+
+def _should_show_update_notice() -> bool:
+    """Whether the "update available" banner should be shown on this page load,
+    per the saved notification-frequency preference (daily/weekly/monthly) —
+    gates only how often the already-cached update_check result is surfaced to
+    the user, not how often GitHub itself is polled."""
+    prefs = _load_prefs_file()
+    interval_days = _UPDATE_NOTIFY_FREQ_DAYS[_current_update_notify_frequency()]
+    last_shown = prefs.get("update_notice_last_shown_at")
+    if last_shown:
+        try:
+            elapsed = (datetime.date.today() - datetime.date.fromisoformat(last_shown)).days
+            if elapsed < interval_days:
+                return False
+        except ValueError:
+            pass
+    _save_prefs_file({"update_notice_last_shown_at": datetime.date.today().isoformat()})
+    return True
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     # Apply schema/migrations on web server startup, since the web app owns
@@ -730,6 +763,8 @@ def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
 templates.env.globals["food_id_tag"] = _food_id_tag
 templates.env.globals["diet_labels"] = _DIET_LABELS
 templates.env.globals["current_diet_pref"] = _current_diet_pref
+templates.env.globals["update_notify_freq_labels"] = _UPDATE_NOTIFY_FREQ_LABELS
+templates.env.globals["current_update_notify_frequency"] = _current_update_notify_frequency
 
 # ---------------------------------------------------------------------------
 # Nutrient display groups (ordered for presentation)
@@ -1324,9 +1359,12 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
     # check would (correctly, but confusingly) still report the release
     # just installed as "available." Skip it until the next real launch.
     update_available = None if updated else await run_in_threadpool(_update_check.check_for_update, VERSION)
+    if update_available and not _should_show_update_notice():
+        update_available = None
     return templates.TemplateResponse(
         request, "home.html", {
             "home_body": _render_home_md(), "version": VERSION, "version_note": NEW_VERSION_NOTE,
+            "version_date": VERSION.split(":")[0],
             "diet_label": diet_label, "profile_label": profile_label,
             "unacked_errors": unacked_errors,
             "db_issue_count": db_issue_count,
@@ -5332,6 +5370,8 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "saved":                saved,
         "diet_pref":            diet_pref,
         "diet_labels":          _DIET_LABELS,
+        "update_notify_frequency": _current_update_notify_frequency(),
+        "update_notify_freq_labels": _UPDATE_NOTIFY_FREQ_LABELS,
         "api_key":              api_key,
         "search_boost_page_size": search_boost_page_size,
         "diaas_overrides":      diaas_overrides,
@@ -5394,6 +5434,15 @@ async def settings_diet_post(diet_pref: str = Form(...), next: str = Form(None))
     if next and next.startswith("/") and not next.startswith("//"):
         return RedirectResponse(next, status_code=303)
     return RedirectResponse("/settings?saved=diet", status_code=303)
+
+
+@app.post("/settings/update-notify-frequency", response_class=RedirectResponse)
+async def settings_update_notify_frequency_post(update_notify_frequency: str = Form(...), next: str = Form(None)):
+    if update_notify_frequency in _VALID_UPDATE_NOTIFY_FREQS:
+        _save_prefs_file({"update_notify_frequency": update_notify_frequency})
+    if next and next.startswith("/") and not next.startswith("//"):
+        return RedirectResponse(next, status_code=303)
+    return RedirectResponse("/settings?saved=update_notify_frequency", status_code=303)
 
 
 @app.post("/settings/api-key", response_class=RedirectResponse)

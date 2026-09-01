@@ -541,6 +541,30 @@
   </details>
 </details>
 
+{# ── Update notifications ─────────────────────────────────────────────── #}
+<details id="update-notifications">
+  <summary><strong>Update Notifications</strong>
+    <span class="muted"> — how often to show the "new version available" notice</span>
+  </summary>
+
+  {% if saved == 'update_notify_frequency' %}
+  <p class="status-met mt-2" id="update-notify-saved-msg"><strong>&#10003; Notification frequency saved.</strong></p>
+  {% endif %}
+
+  <form method="post" action="/settings/update-notify-frequency" class="mt-2">
+    {% for key, label in update_notify_freq_labels.items() %}
+    <div class="form-check">
+      <input class="form-check-input" type="radio" name="update_notify_frequency"
+             id="update-notify-{{ key }}" value="{{ key }}"
+             {{ 'checked' if update_notify_frequency == key }}
+             onchange="document.getElementById('update-notify-saved-msg')?.remove()">
+      <label class="form-check-label" for="update-notify-{{ key }}">{{ label }}</label>
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save preference</button>
+  </form>
+</details>
+
 {# ── 10. System issues ───────────────────────────────────────────────── #}
 <details id="system-issues" {% if recompute_errors %}open{% endif %}>
   <summary data-ak="0"><u class="ak">0</u>. <strong>System Issues</strong>

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-31:1104* / Reading time: 4 hours, 23 minutes
+*Updated 2026-08-31:2040* / Reading time: 4 hours, 24 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -2592,6 +2592,19 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
 
 #### August 31 program updates
+
+**CHOOSE HOW OFTEN YOU'RE TOLD ABOUT NEW VERSIONS, AND ALWAYS SEE YOUR CURRENT ONE**
+
+Settings now has an "Update Notifications" section where you can set how often the "new version available" banner shows up on the home page: daily (the default), weekly, or monthly. The banner's build note also names that setting directly, with a link to change it. Separately, the home page now always shows a line under the Welcome heading — "Current version date: ..." plus the build note — so you can check what you're running without scrolling to the page footer.
+
+```
+Scope: web/backend.py (_current_update_notify_frequency(), _should_show_update_notice()
+gating index()'s update_available via a saved prefs.json frequency + last-shown-date pair;
+new POST /settings/update-notify-frequency route). web/templates/settings.html (new
+"Update Notifications" section). web/templates/home.html (frequency note added next to
+NEW VERSION NOTE in the banner; new always-visible "Current version date" line below
+Welcome). tests/test_web.py (updated for the note now appearing twice by design).
+```
 
 **BUILD-NOTE LINE NOW LABELED "NEW VERSION NOTE:", AND ITS BROKEN RENAME FIXED**
 

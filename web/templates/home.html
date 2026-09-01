@@ -28,7 +28,9 @@
   <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
   (you're running {{ version }}).
   {% if version_note %}
-  <br><small>NEW VERSION NOTE: {{ version_note }}</small>
+  <br><small>NEW VERSION NOTE: {{ version_note }}
+    <span class="muted">(notified {{ update_notify_freq_labels.get(current_update_notify_frequency(), '') | lower }}
+    — <a href="/settings#update-notifications">change via Settings</a>)</span></small>
   {% endif %}
   {% if self_update_available %}
   <form method="post" action="/update-now" class="mt-2 mb-0"
@@ -70,6 +72,7 @@
     {% else %}
     Active profile: not set — <a href="/settings">configure under Settings</a>
     {% endif %}
+    <br>Current version date: {{ version_date }}{% if version_note %} — {{ version_note }}{% endif %}
   </small></p>
 </div>
 
