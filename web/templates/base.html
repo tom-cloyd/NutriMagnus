@@ -151,7 +151,7 @@
               <li>
                 <a class="dropdown-item" href="/summary">
                   1. <strong>Daily summary</strong>
-                  <span class="dd-hint">(DCP and goals)</span>
+                  <span class="dd-hint">(DCP, trends, plot)</span>
                 </a>
               </li>
               <li>
@@ -232,10 +232,79 @@
   // always starts pre-filled with "all day").
   document.querySelectorAll('input[autofocus]').forEach(function (inp) {
     var name = (inp.getAttribute('name') || '').toLowerCase();
-    if (['q', 'query', 'search'].indexOf(name) === -1 || !inp.value) return;
+    if (['q', 'query', 'search'].indexOf(name) === -1) return;
     var form = inp.closest('form');
     var btn = form && form.querySelector('button[type="submit"], input[type="submit"]');
-    if (btn) btn.focus();
+    if (!btn) return;
+    if (inp.value) btn.focus();
+    // Same idea, live: picking an entry from the browser's own remembered-
+    // values dropdown (built from past submissions of this field) fills the
+    // box without the page reloading, so the case above never runs. That
+    // fill is reported as an 'input' event with inputType
+    // 'insertReplacementText' (Chrome/Firefox) rather than manual typing —
+    // move focus on to the button the same way, since Enter would just do
+    // that anyway.
+    inp.addEventListener('input', function (e) {
+      if (e.inputType === 'insertReplacementText') btn.focus();
+    });
+  });
+  </script>
+  <script>
+  // "Did you mean" suggestions for a search box that came up empty — shared
+  // by every search box in the app (see /search/suggestions and
+  // numa_app.services.search_suggest for how matches are found). Called
+  // with the page's own .search-no-results element once that element is
+  // actually showing (a page whose results are known synchronously at
+  // render time does this itself, below; a page whose final result set
+  // isn't known until an async fetch resolves — meal.html, search.html,
+  // food_analyze_portion.html — calls it from that fetch's empty-results
+  // branch instead).
+  window.numaInitSearchSuggestions = function (noResultsEl) {
+    if (!noResultsEl || noResultsEl.dataset.suggestFetched) return;
+    var query = noResultsEl.dataset.query;
+    var field = noResultsEl.dataset.field;
+    if (!query || !field) return;
+    noResultsEl.dataset.suggestFetched = '1';
+    var container = document.createElement('span');
+    container.className = 'search-suggestions';
+    noResultsEl.insertAdjacentElement('afterend', container);
+    fetch('/search/suggestions?query=' + encodeURIComponent(query))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var suggestions = data.suggestions || [];
+        if (!suggestions.length) return;
+        container.appendChild(document.createTextNode('Did you mean: '));
+        suggestions.forEach(function (s, idx) {
+          var params = new URLSearchParams(window.location.search);
+          params.set(field, s);
+          var a = document.createElement('a');
+          a.href = window.location.pathname + '?' + params.toString();
+          a.textContent = s;
+          container.appendChild(a);
+          if (idx < suggestions.length - 1) container.appendChild(document.createTextNode(', '));
+        });
+        var hint = document.createElement('small');
+        hint.className = 'muted ms-2';
+        hint.textContent = '(press Esc to close)';
+        container.appendChild(hint);
+        container.classList.add('search-suggestions-shown');
+        function onEsc(e) {
+          if (e.key !== 'Escape') return;
+          container.style.display = 'none';
+          document.removeEventListener('keydown', onEsc);
+        }
+        document.addEventListener('keydown', onEsc);
+      })
+      .catch(function () {});
+  };
+  document.addEventListener('DOMContentLoaded', function () {
+    // Pages whose results are known synchronously (not the three async
+    // search pages, whose element starts inline-hidden and gets shown —
+    // and this called — from their own fetch instead).
+    document.querySelectorAll('.search-no-results[data-query]').forEach(function (el) {
+      if (el.style.display === 'none') return;
+      window.numaInitSearchSuggestions(el);
+    });
   });
   </script>
   <script>

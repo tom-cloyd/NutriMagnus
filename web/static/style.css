@@ -972,6 +972,23 @@ td.compare-val-col {
   border-color: #1e40af;
 }
 
+.search-no-results {
+  display: inline-block;
+  background: #ffd94d;
+  color: #3f3000;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  margin: 0;
+}
+
+.search-suggestions {
+  display: inline-block;
+  margin-left: 0.5rem;
+}
+.search-suggestions a {
+  margin-right: 0.15rem;
+}
+
 @media print {
   .navbar, .no-print, footer {
     display: none !important;

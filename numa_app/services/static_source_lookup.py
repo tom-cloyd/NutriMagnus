@@ -102,6 +102,11 @@ class StaticSource:
             "_static_code":     code,
         }
 
+    def all_names(self) -> list[str]:
+        """Every food name in this dataset — used by search_suggest.py to
+        build its did-you-mean corpus, not by search itself."""
+        return [rec["name"] for rec in self._records() if rec.get("name")]
+
     def get_food_detail_by_id(self, fdc_id: int) -> dict | None:
         """Look up full detail directly by a source-scoped fdc_id (no cached
         search result on hand). Returns None if not found."""

@@ -142,6 +142,20 @@ def test_food_search_source_filter_option_labels_show_abbreviation_and_full_name
     assert "OFF — Open Food Facts" in resp.text
 
 
+def test_search_suggestions_endpoint(client: TestClient) -> None:
+    """The shared "did you mean" endpoint (see base.html's
+    numaInitSearchSuggestions, called by every search box's no-results
+    element) — a misspelling of a word in the bundled static datasets gets
+    corrected without needing anything cached locally first."""
+    resp = client.get("/search/suggestions", params={"query": "brocoli"})
+    assert resp.status_code == 200
+    assert "broccoli" in resp.json()["suggestions"]
+
+    resp = client.get("/search/suggestions", params={"query": ""})
+    assert resp.status_code == 200
+    assert resp.json()["suggestions"] == []
+
+
 def test_meal_add_food_source_filter_isolates_usda(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1879,7 +1893,8 @@ def test_home_page_shows_version_note_prominently(client: TestClient) -> None:
 
     resp = client.get("/")
     assert NEW_VERSION_NOTE in resp.text
-    assert f"(Version note: {NEW_VERSION_NOTE})" in resp.text
+    assert f"(Version note: {NEW_VERSION_NOTE} —" in resp.text
+    assert "#a-recent-program-updates-log" in resp.text
     assert "alert-secondary" not in resp.text
     assert "NEW VERSION NOTE:" not in resp.text
 
@@ -1898,8 +1913,9 @@ def test_version_note_sits_inside_update_available_banner(client: TestClient, mo
     )
     resp = client.get("/")
     assert resp.text.count(NEW_VERSION_NOTE) == 2
-    assert f"NEW VERSION NOTE: {NEW_VERSION_NOTE}" in resp.text
-    assert f"(Version note: {NEW_VERSION_NOTE})" in resp.text
+    assert f"NEW VERSION NOTE: {NEW_VERSION_NOTE} —" in resp.text
+    assert f"(Version note: {NEW_VERSION_NOTE} —" in resp.text
+    assert resp.text.count("#a-recent-program-updates-log") == 2
     update_banner_pos = resp.text.index("UPDATE AVAILABLE:")
     note_pos = resp.text.index(NEW_VERSION_NOTE)
     welcome_pos = resp.text.index("Welcome to NutriMagnus")
@@ -2927,3 +2943,129 @@ def test_oxalate_qualitative_list_deduplicates_repeated_food(monkeypatch) -> Non
     result = backend._oxalate_for_items(items)
 
     assert [row["name"] for row in result["qualitative"]] == ["Rhubarb", "Spinach"]
+
+
+def test_recent_days_protein_leads_and_calories_now_optional(client: TestClient, cached_food) -> None:
+    """Protein is Recent Days' one truly mandatory column and comes first,
+    ahead of Day DCP — Calories/Carbs/Fiber used to be mandatory too but are
+    now ordinary Settings-picker choices like any other nutrient (see
+    MANDATORY_DAY_COLUMNS/MEALS_LIST_FIXED_KEYS in meal_list_columns.py)."""
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary")
+    assert r.status_code == 200
+    text = r.text
+    # Column order: Protein header should appear before Day DCP header
+    protein_pos = text.index(">Protein<")
+    dcp_pos = text.index(">Day DCP<")
+    assert protein_pos < dcp_pos, "Protein should come before Day DCP"
+    assert "Full nutrient analysis" in text
+
+    # Settings section 8 should now list Calories as pickable
+    r2 = client.get("/settings")
+    assert 'name="pos_calories"' in r2.text
+    assert 'name="pos_protein_g"' in r2.text
+
+
+def test_nutrient_plot_home_page_toggle_is_prominent(client: TestClient, cached_food) -> None:
+    """The "Show this plot on the Home page" control was easy to miss as a
+    plain checkbox buried below the download/print buttons — it's now a
+    highlighted alert box, and switches to a confirmation state once on."""
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=calories")
+    assert "alert-info" in r.text
+    assert "Show this plot on the Home page" in r.text
+
+    import html
+    import re
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r.text).group(1))
+    r2 = client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=True)
+    assert "alert-success" in r2.text
+    assert "Showing on the Home page" in r2.text
+
+
+def test_nutrient_plot_plot_button_and_wording(client: TestClient, cached_food) -> None:
+    """The Plot button lives outside the settings <form> now (associated via
+    the HTML5 form="" attribute) so it can sit at the very bottom of the
+    page, after Per-nutrient scaling factors, beside the home-page toggle —
+    not buried partway up the right-hand column."""
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=protein_g")
+    text = r.text
+    assert 'id="nutrient-plot-form"' in text
+    assert 'form="nutrient-plot-form"' in text
+    assert "Per-nutrient scaling factors" in text
+    assert "step 2" not in text
+    assert "Highlight nutrient (make red)" in text
+    # Plot button should appear after the closing </form> (i.e. after Per-nutrient section)
+    form_close = text.index("</form>")
+    plot_btn = text.index('form="nutrient-plot-form"')
+    assert plot_btn > form_close
+    assert "alert-info" in text or "alert-success" in text
+
+
+def test_nutrient_plot_scale_factor_auto_link(client: TestClient, cached_food) -> None:
+    """The "Auto" link next to Scale factor only shows once a value has
+    actually been set (nothing to reset to auto otherwise) — clicking it
+    clears just that field via JS and re-submits the rest of the form
+    unchanged, rather than requiring the user to clear everything."""
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    # No scale_factor set -> no Auto link
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=protein_g")
+    assert 'id="scale-factor-auto"' not in r.text
+
+    # scale_factor explicitly set -> Auto link appears
+    r2 = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=protein_g&scale_factor=3.5")
+    assert 'id="scale-factor-auto"' in r2.text
+
+
+def test_home_page_nutrient_plot_notice(client: TestClient, cached_food) -> None:
+    """A brief notice pointing to Nutrient Plot only shows once there's
+    actually something to plot (a logged meal) and only until the user has
+    already put a plot on the home page — no point nudging them again."""
+    # No meals logged yet -> no notice
+    r = client.get("/")
+    assert "Nutrient Plot" not in r.text
+
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    # Meals logged, no home plot yet -> notice shows, with both links
+    r2 = client.get("/")
+    assert "Nutrient Plot" in r2.text
+    assert "#nutrient-plot" in r2.text
+    assert 'href="/summary/nutrient-plot"' in r2.text
+
+    # Once a plot is actually shown on the home page, the nudge goes away
+    import html
+    import re
+    plot_resp = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=protein_g")
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', plot_resp.text).group(1))
+    client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
+    r3 = client.get("/")
+    assert "You can chart nutrients" not in r3.text

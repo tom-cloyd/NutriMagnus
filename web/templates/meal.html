@@ -184,17 +184,22 @@
   <form method="get" action="/meal/{{ meal.id }}" data-persist-search>
     <input type="hidden" name="sort" value="{{ sort }}">
     <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-    <div class="input-group mb-2" style="max-width:50%">
-      <input type="text" class="form-control" name="q" value="{{ q }}"
-             placeholder="Search foods or recipes…" autofocus>
-      <button type="submit" class="btn btn-primary">Search</button>
-      {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+      <div class="input-group" style="max-width:50%">
+        <input type="text" class="form-control" name="q" value="{{ q }}"
+               placeholder="Search foods or recipes…" autofocus>
+        <button type="submit" class="btn btn-primary">Search</button>
+        {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
+      </div>
+      <span id="add-food-no-results" class="search-no-results" style="display:none"
+            data-query="{{ q }}" data-field="q">No results for <strong>{{ q }}</strong>.</span>
     </div>
-    <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels, show_redo=False) }}</div>
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <div class="mb-3">
+      {% call _srcf.select(source, source_filters, source_labels, show_redo=False) %}
       <button type="submit" class="btn btn-sm btn-outline-primary"
               title="Re-run the search with the current source selection">Redo search</button>
       {{ _rli.input(limit) }}
+      {% endcall %}
     </div>
   </form>
 
@@ -261,7 +266,6 @@
       {% endif %}
     </tbody>
   </table>
-  <p id="add-food-no-results" class="muted" style="display:none">No results for <strong>{{ q }}</strong>.</p>
   <p class="muted mt-1" style="font-size:0.8rem">
     AA: ✓ confirmed &middot; ~✓ likely (Foundation/SR Legacy, not yet fetched) &middot; ✗ none &nbsp;&nbsp;
     GI = glycemic index &middot; DIAAS = protein digestibility score &nbsp;&nbsp;
@@ -300,6 +304,21 @@
     }
     refreshConfirmUI();
 
+    // Once results are showing, the natural next action is to type an
+    // amount into the first one — put the cursor straight there. A plain
+    // synchronous call here would be undone by base.html's later
+    // autofocus-to-Search-button script (this block runs first, but that
+    // script runs right after it in document order and unconditionally
+    // steals focus back whenever the search box already holds a value);
+    // deferring one tick with setTimeout(0) runs this after every
+    // synchronous script on the page — including that one — has finished,
+    // so this focus wins instead.
+    function focusFirstResultField() {
+      var inp = tbody.querySelector('input[name="portion_str"], input[name="servings"]');
+      if (inp) inp.focus();
+    }
+    setTimeout(focusFirstResultField, 0);
+
     if (!loadingRow) return;  // neither USDA nor Open Food Facts selected — nothing more to fetch
 
     var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}, limit: {{ limit | tojson }}});
@@ -307,27 +326,19 @@
     fetch('/meal/{{ meal.id }}/search-api-results?' + params.toString())
       .then(function (r) { return r.text(); })
       .then(function (html) {
-        // Was focus still on a field from the initial (pre-fetch) render?
-        // If so, the innerHTML replace below is about to destroy it, so
-        // restore focus to the new first result afterward. If the user has
-        // since clicked/tabbed elsewhere (or off the page), leave it alone.
-        var hadRowFocus = tbody.contains(document.activeElement);
-
         // Server response is the FULL merged+re-sorted result set (local +
         // external), not just new rows — replace, don't append, so a weak
         // local match can't stay pinned above a better external one.
         tbody.innerHTML = html;
         if (html.trim()) {
           table.style.display = '';
+          focusFirstResultField();
         } else {
           table.style.display = 'none';
           noResults.style.display = '';
+          window.numaInitSearchSuggestions(noResults);
         }
         refreshConfirmUI();
-        if (hadRowFocus) {
-          var inp = tbody.querySelector('input[name="portion_str"], input[name="servings"]');
-          if (inp) inp.focus();
-        }
       })
       .catch(function () {
         loadingRow.querySelector('small').textContent = 'Search failed — reload to retry.';
@@ -738,10 +749,13 @@
     {% endif %}
   </div>
 
-  <p class="muted mt-1"><small>AA data: local cache &nbsp;&middot;&nbsp;
+  <p class="muted mt-1"><small>Amino acid values above come from this app's local food cache, not a live lookup.
+    {% if diaas.missing %}
     <form method="post" action="/meal/{{ meal.id }}/refresh-aa" style="display:inline">
-      <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Refresh from USDA</button>
+      <button type="submit" class="btn btn-link btn-sm p-0 align-baseline" title="Checks USDA for amino acid data on the foods below that are missing it, and saves what it finds.">Refresh from USDA</button>
     </form>
+    &mdash; some foods in this meal (see <a href="#sec-missing-aa">Missing Amino Acid Profiles</a> below) are missing amino acid data; this fetches it if USDA has it.
+    {% endif %}
   </small></p>
 </section>
 {% endif %}

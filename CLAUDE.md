@@ -85,6 +85,9 @@ numa_app/
     recipe_nutrients.py — shared recursive recipe-ingredient expansion:
                          expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
     search_ranking.py   — food-search relevance ranking: relevance_key()
+    search_suggest.py   — local "did you mean" suggestions for a search that
+                         returned no results: suggest() (difflib against
+                         cached foods/pantry/recipes + bundled static datasets)
     self_update.py        — perform_update(): self-replace the running packaged
                          Linux binary from the latest GitHub release, for the
                          home page's "Update Now" button; is_available() gates

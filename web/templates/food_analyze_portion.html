@@ -23,10 +23,14 @@
 
 <form method="post" action="/food/analyze-portion">
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-  <div class="input-group mb-3">
-    <input type="text" class="form-control" name="query" value="{{ query }}"
-           placeholder="e.g. salmon, oat bran, lentils" autofocus>
-    <button type="submit" class="btn btn-primary">Search</button>
+  <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+    <div class="input-group" style="max-width: 40%">
+      <input type="text" class="form-control" name="query" value="{{ query }}"
+             placeholder="e.g. salmon, oat bran, lentils" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+    <span id="ap-no-results" class="search-no-results" {% if results or not is_barcode_query %}style="display:none"{% endif %}
+          data-query="{{ query }}" data-field="query">No results for <strong>{{ query }}</strong>.</span>
   </div>
   <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
     {{ _srcf.select(source, source_filters, source_labels) }}
@@ -74,7 +78,6 @@
     {% endif %}
   </tbody>
 </table>
-<p id="ap-no-results" class="muted" {% if results or not is_barcode_query %}style="display:none"{% endif %}>No results for <strong>{{ query }}</strong>.</p>
 <script>
 (function () {
   var loadingRow = document.getElementById('ap-api-loading');
@@ -98,6 +101,7 @@
       } else {
         table.style.display = 'none';
         noResults.style.display = '';
+        window.numaInitSearchSuggestions(noResults);
       }
       var totalRows = tbody.querySelectorAll('tr').length;
       countEl.textContent = totalRows + ' result' + (totalRows != 1 ? 's' : '') + ' for ';

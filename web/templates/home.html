@@ -28,7 +28,7 @@
   <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
   (you're running {{ version }}).
   {% if version_note %}
-  <br><small>NEW VERSION NOTE: {{ version_note }}
+  <br><small>NEW VERSION NOTE: {{ version_note }} — {{ manual_link("a-recent-program-updates-log", "see what changed") }}
     <span class="muted">(notified {{ update_notify_freq_labels.get(current_update_notify_frequency(), '') | lower }}
     — <a href="/settings#update-notifications">change via Settings</a>)</span></small>
   {% endif %}
@@ -82,13 +82,24 @@
     {% else %}
     Active profile: not set — <a href="/settings">configure under Settings</a>
     {% endif %}
-    <br>Current version date: {{ version_date }}{% if version_note %} (Version note: {{ version_note }}){% endif %}
+    <br>Current version date: {{ version_date }}{% if version_note %} (Version note: {{ version_note }} — <a href="/manual#a-recent-program-updates-log" target="_blank" rel="noopener">see what changed</a>){% endif %}
   </small></p>
+  {% if show_plot_notice %}
+  <p class="mt-2 mb-0"><small>You can chart nutrients from your logged meals and show that plot right here — see <a href="/summary/nutrient-plot">Nutrient Plot</a> {{ manual_link("nutrient-plot") }}.</small></p>
+  {% endif %}
 </div>
 
 <article class="mt-4" style="max-width: 48rem;">
   {{ home_body | safe }}
 </article>
+
+{% if home_plot_qs %}
+<div class="mt-3">
+  <img src="/summary/nutrient-plot/image?{{ home_plot_qs }}" alt="Your nutrient plot"
+       style="width:88%;max-width:88%;border:1px solid #d7dce4;border-radius:4px">
+  <p class="muted mt-1"><small><a href="/summary/nutrient-plot?{{ home_plot_qs }}">Edit this plot</a></small></p>
+</div>
+{% endif %}
 
 <p class="text-secondary mt-4"><small>NutriMagnus version {{ version }}</small></p>
 {% endblock %}

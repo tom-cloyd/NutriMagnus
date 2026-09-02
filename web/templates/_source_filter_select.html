@@ -20,5 +20,6 @@
   <button type="submit" class="btn btn-sm btn-outline-primary"
           title="Re-run the search with the current source selection">Redo search</button>
   {% endif %}
+  {% if caller %}{{ caller() }}{% endif %}
 </div>
 {% endmacro %}

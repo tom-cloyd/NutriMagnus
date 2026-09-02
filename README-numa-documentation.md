@@ -128,14 +128,15 @@ numa/
   web/                             — Local web interface (FastAPI + Jinja2)
     backend.py                     — All routes, helpers, and template context builders
     launcher.py                    — Starts uvicorn and opens a browser tab
-    home_body.cache                — Cached rendered HTML of home.md (invalidated when home.md is newer)
+    home_body.cache                — Cached rendered HTML of the home-page about text, excerpted live from
+                                     user-manual.md's Preface (invalidated when user-manual.md is newer)
     static/
       style.css                    — Site-wide custom CSS
       icon-256.png                 — App icon
       vendor/bootstrap/            — Vendored Bootstrap 5 CSS+JS (offline use, no CDN)
     templates/
       base.html                    — Shared layout: navbar, vendored Bootstrap links, keyboard-shortcut JS
-      home.html                    — Landing page (rendered from home.md)
+      home.html                    — Landing page (about text excerpted live from user-manual.md's Preface)
       search.html                  — Food search results (USDA + cache + recipes)
       _search_result_row.html, _search_api_rows.html, _add_food_row.html,
       _add_food_api_rows.html      — Search-results-table partials reused across food/meal/recipe add flows
@@ -356,6 +357,19 @@ The web app additionally offers a "Pantry, Cache, then Other" sort mode (`_sort_
 The results table always includes an **AA data** column (✓ confirmed / ~✓ likely / ✗ none) and an **Ann** column showing which foods have GI and/or DIAAS estimates saved (`GI`, `DI`, or `GI DI` in green; `·····` if none). Use these columns to pick the option with the richest existing data before committing to a fetch.
 
 After viewing the full nutrient breakdown, the program now offers to immediately proceed to portion analysis for the same food — saving you from navigating back to "Analyze a food portion".
+
+#### `search_suggest.py` — did-you-mean search suggestions
+
+Every search box in the app (Food Search, Add Food or Recipe, Add Ingredient, Compare Foods/Recipes, My Pantry, Convert a Portion) shows a "Did you mean: …" suggestion beside its "No results for …" badge when `numa_app/services/search_suggest.py`'s `suggest(conn, query, limit=3)` finds a close match — fully local, stdlib `difflib`, no network call.
+
+`suggest()` splits the query into words and, for each word not already a recognized token, tries `difflib.get_close_matches()` against two corpora in priority order:
+
+1. **Local corpus** — every word (≥4 letters) appearing in this install's own cached foods, pantry items, and recipe names (`_local_tokens()`). Cutoff `0.65` — looser, since this corpus is small and low-noise, and a name you've actually searched or saved before is the most likely thing you meant; re-searching it is also guaranteed to find something.
+2. **Static corpus** — the same treatment applied to the ~7,600 food names bundled across the CoFID/AFCD/CIQUAL static datasets (`static_source_lookup.StaticSource.all_names()`, `_static_tokens()`, `functools.lru_cache`d once per process since those files never change at runtime). Cutoff `0.72` — stricter, since this corpus is larger and generic-ingredient-only; it only supplements the local corpus when local matches fall short of `limit`.
+
+Only static/local corpora are used — there is no bundled catalog of every branded product name, so a brand never searched/cached before on this install (and absent from the three national food-composition tables, which list generic ingredients) won't get a suggestion. `suggest()` just returns `[]` in that case, same as "nothing close enough found."
+
+**Wiring:** `GET /search/suggestions?query=...` (`web/backend.py`) returns `{"suggestions": [...]}`. Every page's `.search-no-results` element carries `data-query`/`data-field` attributes; `base.html`'s `window.numaInitSearchSuggestions(el)` fetches suggestions and renders them as links (built from the *current* URL's query string with only the `data-field` param swapped, so other filters/hidden fields — source, sort, limit, a Compare page's `ids`/`amounts`, Pantry's `link_id` — survive the click) plus a "(press Esc to close)" hint. A page whose result set is known synchronously at render time (Compare Foods/Recipes, My Pantry, Convert a Portion, Add Ingredient) calls this automatically via a `DOMContentLoaded` scan for any visible `.search-no-results[data-query]`; the three async-search pages (Food Search, Add Food or Recipe, Analyze a Food Portion — whose final result set isn't known until their own USDA/OFF fetch resolves) call it explicitly from that fetch's empty-results branch instead.
 
 #### Too many branded results?
 
@@ -1032,6 +1046,7 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | POST | `/summary/{meal_date}/profile` | Set/override the profile pinned to that date |
 | GET | `/summary/trend` | Multiday nutrient trend view |
 | GET | `/summary/nutrient-plot`, `nutrient-plot/image`, `nutrient-plot/print` | Nutrient trend line-chart picker, rendered image, and print view |
+| POST | `/summary/nutrient-plot/home-pref` | Toggle showing the current nutrient plot on the home page |
 | GET | `/analysis/food-use` | Frequency of a food's use across meals/date ranges |
 | POST | `/analysis/food-use/substitute` | Substitute one food for another across matched meal items |
 | GET | `/analysis/food-use-recipes` | Frequency of a food's use across recipes |
@@ -1070,7 +1085,9 @@ The navbar marks the active section by comparing `request.url.path` to each nav 
 
 #### `home.html`
 
-Renders the content of `home.md` (project root) as HTML. The markdown file is rendered once at startup and cached in `web/home_body.cache`; the cache is invalidated if `home.md` is newer.
+Renders the home page's about text from `user-manual.md`'s Preface — `_extract_manual_preface()` (`web/backend.py`) pulls everything from right after the "*Last full audit...*" line up to the next `---` rule, so the home page and the manual's Preface can't drift out of sync (there used to be a separate hand-copied `home.md`; retired 2026-09-01). `_render_home_md()` renders the full Preface plus a closing paragraph and caches the result HTML in `web/home_body.cache`, invalidated when `user-manual.md` is newer. When a nutrient plot is also showing on the home page (see below), `_render_home_md_short()` renders just the Preface's first paragraph plus a "...continued at beginning of User Manual" link instead, uncached (cheap enough not to bother).
+
+**Home-page nutrient plot.** A user can opt to show one of their saved Nutrient Plot configurations near the top of the home page — a "Show this plot on the Home page" checkbox on `nutrient_plot.html` (`POST /summary/nutrient-plot/home-pref`) stores the plot's full querystring in `prefs.json` (`home_nutrient_plot_qs`, `home_nutrient_plot_enabled`). `index()` reads that pref and, if enabled, passes `home_plot_qs` to the template, which renders `/summary/nutrient-plot/image?{{ home_plot_qs }}` at 88% width (a ~12% reduction) so it fits comfortably alongside the shortened about text, with an "Edit this plot" link back to the full page.
 
 **Status lines below the Welcome heading.** Three lines, `<br>`-separated inside one `<p class="muted mb-0"><small>` block: dietary preference, active profile, and `Current version date: {{ version_date }}` — `version_date` is `index()`'s full `VERSION` string (`web/backend.py`), i.e. the `yyyy-mm-dd:hhmm` stamp from `version.py`, not just its date portion. Whenever `NEW_VERSION_NOTE` (`version.py`) is non-empty it's appended in parentheses on that same line as `(Version note: {{ version_note }})`. This is the only place the build note shows when no update is available — there is no separate standalone box for it (there used to be; removed since it duplicated the same information already on this line).
 

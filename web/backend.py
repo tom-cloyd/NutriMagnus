@@ -56,6 +56,7 @@ from numa_app.services.recipe_nutrients import (
 from numa_app.services.top_contributors import rank_contributors, rank_contributors_by_dcp
 from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services import search_ranking as _search_ranking
+from numa_app.services import search_suggest as _search_suggest
 from numa_app.services import print_sections as _print_sections
 
 # In a PyInstaller onefile build, backend.py is bundled as a flattened
@@ -65,10 +66,39 @@ from numa_app.services import print_sections as _print_sections
 _WEB_DIR     = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__file__).parent
 _PROJECT_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else _WEB_DIR.parent
 _MANUAL     = _PROJECT_ROOT / "user-manual.html"
-_HOME_MD    = _PROJECT_ROOT / "home.md"
+_MANUAL_MD  = _PROJECT_ROOT / "user-manual.md"
 _PREFS_FILE = Path.home() / ".local" / "share" / "numa" / "prefs.json"
 
 _HOME_CACHE = _WEB_DIR / "home_body.cache"
+
+# The home page's about text used to live in its own home.md, hand-copied
+# from the manual's Preface and prone to drifting out of sync with it. It's
+# now excerpted live from user-manual.md instead — everything from right
+# after the "*Last full audit...*" line up to the next "---" rule (the
+# Preface, before "## How to read this Manual").
+_HOME_CLOSING_PARAGRAPH = (
+    "(Excerpted from the Preface of the *User Manual* — for access to the "
+    "full manual, use the link in the main menu above.)"
+)
+
+
+def _extract_manual_preface() -> str:
+    if not _MANUAL_MD.exists():
+        return ""
+    lines = _MANUAL_MD.read_text(encoding="utf-8").splitlines()
+    start = None
+    for i, line in enumerate(lines):
+        if line.startswith("*Last full audit"):
+            start = i + 1
+            break
+    if start is None:
+        return ""
+    end = len(lines)
+    for i in range(start, len(lines)):
+        if lines[i].strip() == "---":
+            end = i
+            break
+    return "\n".join(lines[start:end]).strip()
 
 # Strip these prep-state words from USDA API queries
 _SEARCH_PREP_WORDS = {
@@ -84,12 +114,26 @@ _SEARCH_PREP_WORDS = {
 _SEARCH_META_WORDS = {"usda", "off", "openfoodfacts", "cnf"}
 
 def _render_home_md() -> str:
-    if not _HOME_MD.exists():
-        return ""
-    if _HOME_CACHE.exists() and _HOME_CACHE.stat().st_mtime >= _HOME_MD.stat().st_mtime:
+    """Full-length home-page about text: the manual's Preface plus the
+    closing paragraph, cached to web/home_body.cache (invalidated when
+    user-manual.md is newer)."""
+    if _HOME_CACHE.exists() and _MANUAL_MD.exists() and _HOME_CACHE.stat().st_mtime >= _MANUAL_MD.stat().st_mtime:
         return _HOME_CACHE.read_text(encoding="utf-8")
-    html = _md.markdown(_HOME_MD.read_text(encoding="utf-8"), extensions=["footnotes"])
+    preface = _extract_manual_preface()
+    md_text = (preface + "\n\n" + _HOME_CLOSING_PARAGRAPH) if preface else _HOME_CLOSING_PARAGRAPH
+    html = _md.markdown(md_text, extensions=["footnotes"])
     _HOME_CACHE.write_text(html, encoding="utf-8")
+    return html
+
+
+def _render_home_md_short() -> str:
+    """First paragraph of the manual's Preface only, plus a link back to
+    the manual — used in place of the full about text when a nutrient plot
+    is also showing on the home page, so the two fit together."""
+    preface = _extract_manual_preface()
+    first_para = preface.split("\n\n", 1)[0] if preface else ""
+    html = _md.markdown(first_para, extensions=["footnotes"]) if first_para else ""
+    html += '<p>...continued at beginning of <a href="/manual">User Manual</a>.</p>'
     return html
 
 # ---------------------------------------------------------------------------
@@ -1362,6 +1406,7 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
     with _db.get_db() as conn:
         unacked_errors = [dict(r) for r in _db.list_unacked_recompute_errors(conn)]
         db_issues = _db.check_db_integrity(conn)
+        has_any_meals = _db.meal_count_recent(conn) > 0
     db_issue_count = sum(len(v) for v in db_issues.values())
     # Right after a successful self-update, the running process hasn't
     # restarted yet — VERSION in memory is still the old value, so the
@@ -1370,9 +1415,14 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
     update_available = None if updated else await run_in_threadpool(_update_check.check_for_update, VERSION)
     if update_available and not _should_show_update_notice(update_available["tag"]):
         update_available = None
+    prefs = _load_prefs_file()
+    home_plot_qs = prefs.get("home_nutrient_plot_qs") if prefs.get("home_nutrient_plot_enabled") else None
     return templates.TemplateResponse(
         request, "home.html", {
-            "home_body": _render_home_md(), "version": VERSION, "version_note": NEW_VERSION_NOTE,
+            "home_body": _render_home_md_short() if home_plot_qs else _render_home_md(),
+            "home_plot_qs": home_plot_qs,
+            "show_plot_notice": has_any_meals and not home_plot_qs,
+            "version": VERSION, "version_note": NEW_VERSION_NOTE,
             "version_date": VERSION,
             "diet_label": diet_label, "profile_label": profile_label,
             "unacked_errors": unacked_errors,
@@ -1618,6 +1668,17 @@ async def food_analyze_portion_api_results(request: Request, query: str = "", so
         results = _sort_search_results(local + external, query, sort)
         results = _cap_results_preserving_local(_filter_search_results_by_source(results, source), limit)
     return templates.TemplateResponse(request, "_analyze_portion_api_rows.html", {"results": results})
+
+
+@app.get("/search/suggestions")
+async def search_suggestions_api(query: str = "") -> dict:
+    """Did-you-mean suggestions for a search box that came up empty —
+    called by JS (see base.html's numaInitSearchSuggestions) once a page's
+    own search-no-results element becomes visible. Shared by every search
+    box in the app; see numa_app.services.search_suggest for how matches
+    are found (fully local, no network call)."""
+    with _db.get_db() as conn:
+        return {"suggestions": _search_suggest.suggest(conn, query)}
 
 
 @app.post("/food/confirm-aa", response_class=RedirectResponse)
@@ -4249,11 +4310,16 @@ def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None,
     meals = [dict(m) for m in meals_rows]
     hidden = max(0, total - len(meals))
 
-    # Extra user-chosen nutrient columns (stored in prefs.json).
+    # Extra user-chosen nutrient columns (stored in prefs.json). Drop
+    # Calories — this list already shows it via its own fixed column below,
+    # so picking it here too would just duplicate it (Recent Days, sharing
+    # this same picker, still shows it if chosen — see MEALS_LIST_FIXED_KEYS).
     from numa_app.services.meal_list_columns import (
         sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, format_value as _meal_format_value,
+        MEALS_LIST_FIXED_KEYS,
     )
-    nutrient_keys = _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
+    nutrient_keys = [k for k in _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
+                      if k not in MEALS_LIST_FIXED_KEYS]
     meal_nutrient_cols = [{"key": k, "label": _meal_label_for(k)} for k in nutrient_keys]
     for m in meals:
         snapshot = json.loads(m["nutrients_snapshot_json"]) if m.get("nutrients_snapshot_json") else None
@@ -7000,7 +7066,7 @@ def _nutrient_plot_ylabel(chosen: list[str], series: list[dict]) -> str:
 
 
 def _nutrient_plot_default_title(dates: list[str]) -> str:
-    return f"Key nutrients, {dates[0]} to {dates[-1]}" if dates else "Key nutrients"
+    return f"Key nutrients consumed, {dates[0]} to {dates[-1]}" if dates else "Key nutrients consumed"
 
 
 def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | None,
@@ -7083,6 +7149,12 @@ async def nutrient_plot_page(
           if has_plot else "")
 
     available = [(_DCP_PLOT_KEY, _DCP_PLOT_LABEL)] + plot_nutrient_choices()
+    available_dicts = [{"key": k, "label": lbl} for k, lbl in available]
+    # Split into 3 columns for the checklist, filled top-to-bottom left-to-
+    # right (item 1..k in column 1, k+1..2k in column 2, ...) rather than
+    # round-robin, so each column reads as a contiguous chunk of the list.
+    _col_size = -(-len(available_dicts) // 3)  # ceil
+    available_nutrient_columns = [available_dicts[i:i + _col_size] for i in range(0, len(available_dicts), _col_size)]
     nutrient_factor_rows = [{
         "key":         k,
         "label":       _plot_label_for(k),
@@ -7090,14 +7162,20 @@ async def nutrient_plot_page(
         "placeholder": _fmt_plot_factor(auto_individual.get(k, 1.0)),
     } for k in chosen]
 
+    prefs = _load_prefs_file()
+    is_home_plot = bool(has_plot and prefs.get("home_nutrient_plot_enabled")
+                         and prefs.get("home_nutrient_plot_qs") == qs)
+
     return templates.TemplateResponse(request, "nutrient_plot.html", {
-        "available_nutrients": [{"key": k, "label": lbl} for k, lbl in available],
+        "available_nutrients": available_dicts,
+        "available_nutrient_columns": available_nutrient_columns,
         "chosen":     chosen,
         "days_back":  days_back or "",
         "anchor_date": anchor,
         "dates":      dates,
         "has_plot":   has_plot,
         "qs":         qs,
+        "is_home_plot": is_home_plot,
         "max_nutrients": MAX_PLOT_NUTRIENTS,
         "scale_factor": scale_factor if user_factor else "",
         "scale_factor_placeholder": _fmt_plot_factor(default_factor) if default_factor else "auto",
@@ -7107,6 +7185,19 @@ async def nutrient_plot_page(
         "grayscale":  grayscale,
         "smoothing":  smoothing_n,
     })
+
+
+@app.post("/summary/nutrient-plot/home-pref")
+async def nutrient_plot_home_pref(qs: str = Form(...), enabled: str | None = Form(None)):
+    """"Show this plot on the Home page" toggle on the Nutrient Plot page —
+    stores the full plot querystring in prefs.json so index() can reuse it
+    (server-rendered; the home page has no client JS state of its own to
+    read a browser-stored preference from)."""
+    if enabled:
+        _save_prefs_file({"home_nutrient_plot_qs": qs, "home_nutrient_plot_enabled": True})
+    else:
+        _save_prefs_file({"home_nutrient_plot_enabled": False})
+    return RedirectResponse(f"/summary/nutrient-plot?{qs}", status_code=303)
 
 
 @app.get("/summary/nutrient-plot/image")
@@ -7198,16 +7289,18 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
     page-wide profile/target, since different days can be pinned to
     different profiles with different targets. Also attaches the user's
     chosen extra nutrient columns (shared with Meals & Log), aggregated per
-    day rather than per meal, plus the mandatory Protein/Calories/Carbs/Fiber
-    columns every Recent Days row always shows."""
+    day rather than per meal, plus the mandatory Protein column every Recent
+    Days row always shows first."""
     from numa_app.services.meal_list_columns import (
         sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, day_nutrient_values,
         MANDATORY_DAY_COLUMNS, MANDATORY_DAY_KEYS,
     )
     show_profile = len(_profile.list_profiles()) > 1
-    # Drop any mandatory key the user separately picked as a Meals & Log
-    # column (that picker still allows it) — Recent Days already shows it,
-    # via its own fixed column below, so it would otherwise appear twice.
+    # Drop Protein if the user separately picked it as a Meals & Log column
+    # (that picker still allows it) — Recent Days already shows it via its
+    # own fixed column below, so it would otherwise appear twice. Calories/
+    # Carbs/Fiber are no longer mandatory here, so they pass through
+    # normally if picked (same as any other nutrient).
     nutrient_keys = [k for k in _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
                      if k not in MANDATORY_DAY_KEYS]
     day_rows = []

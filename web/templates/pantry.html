@@ -48,10 +48,13 @@
 <form method="get" action="/pantry" class="mb-2">
   {% if link_id %}<input type="hidden" name="link_id" value="{{ link_id }}">{% endif %}
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-  <div class="input-group mb-2" style="max-width:36rem">
-    <input type="text" class="form-control" name="search" value="{{ search }}"
-           placeholder="e.g. rolled oats, chicken breast" autofocus>
-    <button type="submit" class="btn btn-primary">Search</button>
+  <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <div class="input-group" style="max-width:36rem">
+      <input type="text" class="form-control" name="search" value="{{ search }}"
+             placeholder="e.g. rolled oats, chicken breast" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+    {% if search and not search_results %}<span class="search-no-results" data-query="{{ search }}" data-field="search">No results for <strong>{{ search }}</strong>.</span>{% endif %}
   </div>
   <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
   {{ _rli.input(limit) }}
@@ -122,8 +125,6 @@
     {% endfor %}
   </tbody>
 </table>
-{% elif search %}
-<p>No results for <strong>{{ search }}</strong>.</p>
 {% endif %}
 
 {# ── Quick add without search — no USDA amino acid data ── #}

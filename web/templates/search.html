@@ -14,12 +14,19 @@
 
 <h2>Food Search {{ manual_link("food-search") }}</h2>
 
+{% set _bc = query.replace(" ", "").replace("-", "") %}
+{% set is_barcode_query = _bc.isdigit() and (_bc|length == 12 or _bc|length == 13) %}
+
 <form method="get" action="/food/search" data-persist-search="query">
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-  <div class="input-group mb-2" style="max-width: 40%">
-    <input type="text" class="form-control" name="query" value="{{ query }}"
-           placeholder="e.g. salmon, oat bran, lentils" autofocus>
-    <button type="submit" class="btn btn-primary">Search</button>
+  <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <div class="input-group" style="max-width: 40%">
+      <input type="text" class="form-control" name="query" value="{{ query }}"
+             placeholder="e.g. salmon, oat bran, lentils" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+    <span id="search-no-results" class="search-no-results" {% if results or not is_barcode_query %}style="display:none"{% endif %}
+          data-query="{{ query }}" data-field="query">No results for <strong>{{ query }}</strong>.</span>
   </div>
   <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
   <div class="mb-3">{{ _rli.input(limit) }}</div>
@@ -30,9 +37,6 @@
 {% if error %}
 <p class="numa-error">{{ error }}</p>
 {% endif %}
-
-{% set _bc = query.replace(" ", "").replace("-", "") %}
-{% set is_barcode_query = _bc.isdigit() and (_bc|length == 12 or _bc|length == 13) %}
 
 {% if query %}
 <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
@@ -139,7 +143,6 @@
       {% endif %}
     </tbody>
   </table>
-<p id="search-no-results" class="muted" {% if results or not is_barcode_query %}style="display:none"{% endif %}>No results for <strong>{{ query }}</strong>.</p>
 <script>
 (function () {
   var tbody = document.getElementById('search-tbody');
@@ -208,6 +211,7 @@
       } else {
         table.style.display = 'none';
         noResults.style.display = '';
+        window.numaInitSearchSuggestions(noResults);
       }
       var totalRows = tbody.querySelectorAll('tr').length;
       countEl.textContent = totalRows + ' result' + (totalRows != 1 ? 's' : '') + ' for ';

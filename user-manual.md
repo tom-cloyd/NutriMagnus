@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-08-31:2330* / Reading time: 4 hours, 26 minutes
+*Updated 2026-09-01:1938* / Reading time: 4 hours, 32 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -229,7 +229,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-08-31), there are 753 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-01), there are 761 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
@@ -1034,6 +1034,8 @@ If you pick nutrients with different units (e.g. Protein in g alongside Sodium i
 **The legend sits below the chart**, wrapped horizontally rather than stacked in a tall column, so it never overlaps a data line and stays compact and print-friendly.
 
 **Print or save it.** "Print / Save as PDF" opens a stripped-down, print-friendly page with the chart and your browser's print dialog. "Download PNG" and "Download SVG" save the chart as an image file — see [Plot File Formats](#plot-file-formats) for which one to pick.
+
+**Show this plot on the Home page.** Once you've plotted something, a "Show this plot on the Home page" checkbox appears next to the Plot button. Check it and that exact chart (same nutrients, range, and styling, at a slightly smaller size) shows up near the top of the Home page every time NuMa opens, with an "Edit this plot" link back here. Only one plot can be shown this way at a time — checking a different plot's box replaces whichever one was showing before. Your Nutrient Plot settings (which nutrients, date range, scaling, ...) are remembered automatically the next time you visit this page, even after closing and reopening NuMa — a "Reset to defaults" link appears whenever that happened, in case you'd rather start over.
 
 
 #### Plot File Formats — PNG vs. SVG {: #plot-file-formats}
@@ -2602,6 +2604,180 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
 
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
+
+#### September 1 program updates
+
+**HOME PAGE NOW POINTS OUT NUTRIENT PLOT ONCE YOU'VE LOGGED SOMETHING TO PLOT**
+
+Once you've logged at least one meal, a brief line appears on the Home page letting you know you can chart nutrients from your logged days and show that chart right here — with links straight to the Nutrient Plot page and to the manual section explaining it. It disappears again once you've actually put a plot on the Home page, since at that point you're already using the feature.
+
+```
+Scope: web/backend.py — index() now checks _db.meal_count_recent(conn) > 0
+(has_any_meals) and passes show_plot_notice = has_any_meals and not
+home_plot_qs. web/templates/home.html — new notice line under the status
+lines, linking to /summary/nutrient-plot and manual_link("nutrient-plot").
+user-manual.md — new "Show this plot on the Home page" paragraph under the
+Nutrient Plot section (#nutrient-plot), documenting a feature added earlier
+today that the manual hadn't caught up to yet.
+```
+
+**NUTRIENT PLOT'S SCALE FACTOR HAS A ONE-CLICK "AUTO" RESET**
+
+Once you'd typed your own number into Scale factor, the only way back to NuMa's computed default was clearing the field by hand (and remembering that blank means auto). An **Auto** link now appears right next to the Scale factor label whenever a value is set — click it and that one field clears and re-plots, leaving every other setting (nutrients, date range, title, ...) exactly as it was.
+
+```
+Scope: web/templates/nutrient_plot.html — {% if scale_factor %} anchor
+(#scale-factor-auto) next to the Scale factor label; a small script clears
+the #scale_factor input and calls #nutrient-plot-form's requestSubmit()
+rather than resetting the whole page.
+```
+
+**RECENT DAYS NOW LEADS WITH PROTEIN, AND CALORIES/CARBS/FIBER ARE ORDINARY COLUMN CHOICES**
+
+The Recent Days table (Daily Summary) used to always show Day DCP, then Protein/Calories/Carbs/Fiber, then Goal/% goal — an order that separated Protein from the Goal figures it's most related to. It now leads with **Protein**, then **Day DCP**, then **% goal**, then **Goal**, then whatever extra nutrients you've picked in Settings → Meals & Log columns. Calories, Carbs, and Fiber are no longer forced onto every row — they're now ordinary picks in that same Settings list, right alongside Protein, so you can add them back (or leave them off) like any other nutrient. The "Analyze" link at the end of each row now reads **Full nutrient analysis**. Separately, the main menu's Analysis → 1. Daily summary hint now reads "(DCP, trends, plot)" to reflect everything that page covers.
+
+```
+Scope: numa_app/services/meal_list_columns.py — MANDATORY_DAY_COLUMNS
+shrunk to just protein_g; AVAILABLE_NUTRIENTS no longer excludes calories
+(now list(_usda.NUTRIENT_MAP.values()) with no filter); new
+MEALS_LIST_FIXED_KEYS = {"calories"} lets Meals & Log drop it from its own
+picker-driven columns (it already has a fixed Calories column) while Recent
+Days can still show it if picked. _PLOT_HEAD_KEYS decoupled into its own
+explicit list so the Nutrient Plot picker's display order is unaffected.
+web/backend.py — _meals_list_ctx() drops MEALS_LIST_FIXED_KEYS from its
+nutrient_keys; _build_day_rows()/_meals_list_ctx() docstrings updated.
+web/templates/summary.html — column order rebuilt: mandatory_day_cols
+(Protein) now render before the Day DCP column, and % goal now renders
+before Goal; "Analyze" button text changed to "Full nutrient analysis".
+web/templates/settings.html — section 8's explanatory text rewritten to
+describe the shared-picker-with-per-list-fixed-column-skip behavior instead
+of the old "Calories is always shown and isn't listed here" line, which is
+no longer accurate. web/templates/base.html — Analysis dropdown item 1's
+hint text.
+```
+
+**A MISSPELLED SEARCH NOW OFFERS "DID YOU MEAN" SUGGESTIONS**
+
+Every search box in the app (Food Search, Add Food or Recipe, Add Ingredient, Compare Foods/Recipes, My Pantry, Convert a Portion) now offers likely corrections right next to a "No results" message — e.g. searching "brocoli" suggests **broccoli**. Click a suggestion to re-run the search with it, or press <kbd>Esc</kbd> to dismiss the suggestions and keep what you typed. This works fully offline: it checks your own previously searched/cached foods, pantry items, and recipes first, then the food names bundled with the CoFID/AFCD/CIQUAL databases — it can't invent a suggestion for a brand name it's never encountered anywhere.
+
+```
+Scope: numa_app/services/search_suggest.py (new — suggest(), a local
+difflib-based fuzzy match, no network call). web/backend.py (new
+GET /search/suggestions?query=... JSON endpoint). web/static/style.css
+(.search-suggestions styling). web/templates/base.html (shared
+numaInitSearchSuggestions() helper + DOMContentLoaded auto-loader for
+synchronously-rendered pages). web/templates/meal.html, search.html,
+food_analyze_portion.html, food_compare.html, recipe_edit.html,
+food_convert.html, pantry.html, recipe_compare.html (data-query/data-field
+attributes on each page's .search-no-results element; the three async-search
+pages call the helper explicitly once their own fetch confirms zero results).
+static_source_lookup.py + afcd_lookup.py/cofid_lookup.py/ciqual_lookup.py
+(new all_names() accessor, used to build the suggestion corpus).
+tests/test_search_suggest.py (new), tests/test_web.py (new endpoint test).
+```
+
+**MEAL PAGE'S SOURCE FILTER BUTTONS NOW SHARE ONE ROW, AND THE FIRST SEARCH RESULT GETS THE CURSOR**
+
+On a meal's "Add Food or Recipe" search, "Select all sources"/"Unselect all" used to sit on their own row above a second row holding "Redo search" and the result-limit box — now all four sit together on one row, right after the Source checkboxes. Separately, once search results are showing, the cursor now goes straight into the first result's amount field instead of sitting on the Search button — so you can start typing an amount immediately without an extra click.
+
+```
+Scope: web/templates/_source_filter_select.html (the select() macro now
+accepts a Jinja `{% call %}` block via `caller()`, rendered inside the same
+role="group" row as the source checkboxes and Select all/Unselect all
+buttons). web/templates/meal.html (Redo search + result-limit input moved
+into that call block; the add-food-tbody fetch handler now unconditionally
+focuses the first result row's portion_str/servings field once results
+render — both on the initial local-only render, via a setTimeout(0) so it
+runs after base.html's autofocus-to-Search-button script, and again when the
+async USDA/OFF merge replaces the table).
+```
+
+**NUTRIENT PLOT REMEMBERS YOUR LAST SETTINGS ACROSS BROWSER RESTARTS, AND FITS MORE ON ONE SCREEN**
+
+The Nutrient Plot page used to reset to blank defaults every time you navigated to it, even right after plotting something. It now remembers the nutrients, date range, scaling, title, and other options you last used — even after closing and reopening NuMa entirely — and brings you straight back to that plot, with a banner ("Plot options preserved from last visit here") and a one-click "Reset to defaults" link. The nutrient checklist now shows three columns at once instead of one (and is a bit shorter, so it doesn't dominate the page), with a "scroll for more nutrients" cue at its bottom edge. Beside it, six controls sit in two columns of three: Days back / Ending on / Scale factor on the left, Smoothing / Highlight nutrient (make red) / Black & white on the right. Plot title got its own full-width row below that. **Plot** is now the very last thing on the page, right before the chart itself, with the "Show this plot on the Home page" toggle right beside it — so setting everything up and clicking Plot reads top-to-bottom in the order you'd actually use it. The "Per-nutrient scaling factors" heading (renamed from "Per-nutrient factors — step 2, ...") now fits on one line.
+
+```
+Scope: web/templates/nutrient_plot.html — page-local localStorage
+(numa_nutrient_plot_qs) saves window.location.search on any load that has
+one and redirects a bare /summary/nutrient-plot load back to the saved
+querystring; a one-shot sessionStorage flag (numa_nutrient_plot_restored)
+triggers the "preserved from last visit" banner + reset link on the
+resulting load, same pattern as base.html's nav-memory flag. Nutrient
+checklist rebuilt as 3 explicit flex columns (available_nutrient_columns,
+computed in web/backend.py's nutrient_plot_page()) inside one scrollable
+box (max-height 17rem, down from 22rem) with a CSS fade + "scroll for more
+nutrients" cue pinned to its bottom edge — deliberately not CSS
+column-count, which doesn't combine reliably with overflow-y:auto. The
+settings form gained id="nutrient-plot-form"; the Plot <button> moved
+outside that form (to a trailing <div> alongside the home-page-toggle
+<form>) and references it via the HTML5 form="nutrient-plot-form"
+attribute, since two <form> elements can't nest — this is what lets Plot
+and the toggle sit side by side at the bottom while Plot still submits
+every field in the settings form above it. Highlight nutrient/Black & white
+moved from their own row (which also held Plot title) up into the second
+of the two 3-item control columns; Plot title now has its own full-width
+row. web/backend.py — _nutrient_plot_default_title() now reads "Key
+nutrients consumed, ...".
+```
+
+**A SAVED NUTRIENT PLOT CAN NOW SHOW ON THE HOME PAGE, AND THE HOME PAGE'S ABOUT TEXT IS NOW LIVE FROM THE MANUAL**
+
+Nutrient Plot has a new "Show this plot on the Home page" checkbox — check it and that exact plot (same nutrients, range, and styling, at a slightly reduced size) appears near the top of the Home page every time NuMa opens, with an "Edit this plot" link back to the full page. That checkbox sits inside a highlighted box right under the Download/Print buttons (originally a plain, easy-to-miss checkbox — moved up and boxed for visibility), and switches to a green "✓ Showing on the Home page" confirmation once it's on. When a plot is showing this way, the Home page's about text shortens to just its opening paragraph plus a "...continued at beginning of User Manual" link, so the two fit together. Separately, the Home page's about text (previously a hand-maintained `home.md`, prone to drifting out of sync) now reads live from the User Manual's own Preface, so the two can never disagree again. The Plot title box is also twice as wide as it was, so a longer title doesn't get cut off from view.
+
+```
+Scope: web/templates/nutrient_plot.html (new "Show this plot on the Home
+page" checkbox, POST /summary/nutrient-plot/home-pref, styled as an
+alert-info/alert-success box with a checked-state label swap; Plot title
+input's max-width doubled from 32rem to 64rem and set to flex-grow). web/backend.py —
+new route stores the plot's full querystring in prefs.json
+(home_nutrient_plot_qs, home_nutrient_plot_enabled); index() reads it and
+passes home_plot_qs to home.html, which renders
+/summary/nutrient-plot/image?{{ home_plot_qs }} at 88% width. home.md
+retired — _extract_manual_preface() reads user-manual.md directly
+(everything between the "*Last full audit...*" line and the next "---"
+rule); _render_home_md() (full Preface, cached in web/home_body.cache,
+invalidated when user-manual.md is newer) and _render_home_md_short()
+(first paragraph + manual link, used only when a home-page plot is also
+showing) both build on it. nutrimagnus.spec no longer bundles home.md.
+```
+
+**MEAL PAGE'S "REFRESH FROM USDA" NOW EXPLAINS ITSELF, AND ONLY APPEARS WHEN IT'D DO SOMETHING**
+
+The "Meal amino acid ratios" table used to end with an unexplained "AA data: local cache" line and a "Refresh from USDA" button, even when there was nothing for it to fetch. That line now says plainly that the amino acid values shown come from the local food cache, not a live lookup, and the "Refresh from USDA" button only appears when a food in the meal is actually missing amino acid data — with a note pointing to the Missing Amino Acid Profiles section explaining which food(s) and why it matters.
+
+```
+Scope: web/templates/meal.html — the AA-data footer line under the "Meal amino
+acid ratios" table now wraps the refresh form/button in `{% if diaas.missing %}`
+and adds explanatory text; button also gets a title tooltip.
+```
+
+**PICKING A REMEMBERED SEARCH FROM THE BROWSER'S OWN DROPDOWN MOVES ON TO SEARCH AGAIN**
+
+Every search box (Add Food or Recipe, Add Ingredient, Foods: Search, and others) that carries the browser's own remembered-entries dropdown had stopped moving focus on to the Search button once you picked an old entry from that dropdown — you had to click or Tab to it yourself. That live-selection case now works again, alongside the existing behavior where a freshly reloaded results page already puts focus on Search.
+
+```
+Scope: web/templates/base.html — the shared autofocus-to-Search-button script
+(scoped to input[autofocus] named q/query/search) now also attaches a live
+'input' listener, moving focus to the button when the fired event's
+inputType is 'insertReplacementText' (how Chrome/Firefox report a value set
+by picking a browser-remembered entry, as opposed to typing).
+```
+
+**"NO RESULTS" NOW SITS RIGHT NEXT TO THE SEARCH BOX, HIGHLIGHTED IN YELLOW**
+
+Every search box in the app (Food Search, Add Food or Recipe on a meal, Add Ingredient on a recipe, Compare Foods/Recipes, My Pantry, Convert a Portion) used to print "No results for ..." as a plain line somewhere below the (empty) results table — easy to miss, especially once the table itself had scrolled out of view. It now appears directly beside the Search button, on a yellow highlighted background, so it's impossible to miss right where you were just looking.
+
+```
+Scope: web/static/style.css (new .search-no-results class — yellow background,
+padding, rounded corners). web/templates/meal.html, search.html,
+food_analyze_portion.html, food_compare.html, recipe_edit.html,
+food_convert.html, pantry.html, recipe_compare.html — the "No results for"
+line moved from below the results table into the search box's own flex row,
+as a <span class="search-no-results"> (kept as <span id=...> with its
+existing display:none toggle on the two async-search pages, meal.html and
+search.html/food_analyze_portion.html, so existing JS keeps working
+unchanged).
+```
 
 #### August 31 program updates
 

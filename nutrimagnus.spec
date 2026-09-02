@@ -13,7 +13,6 @@ a = Analysis(
         # and static/ as its *siblings* at the bundle root, not under web/.
         ('web/templates', 'templates'),
         ('web/static', 'static'),
-        ('home.md', '.'),
         ('user-manual.md', '.'),
         ('user-manual.html', '.'),
         ('scripts/build_manual.py', 'scripts'),

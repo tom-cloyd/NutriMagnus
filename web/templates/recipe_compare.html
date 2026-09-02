@@ -61,11 +61,14 @@
 <form method="get" action="/recipe/compare" class="mb-2">
   <input type="hidden" name="ids" value="{{ ids_str }}">
   <input type="hidden" name="unit" value="{{ unit }}">
-  <div class="input-group" style="max-width:36rem">
-    <input type="text" class="form-control" name="search"
-           value="{{ search }}"
-           placeholder="Search your recipes to add…" autofocus>
-    <button type="submit" class="btn btn-primary">Search</button>
+  <div class="d-flex align-items-center flex-wrap gap-2">
+    <div class="input-group" style="max-width:36rem">
+      <input type="text" class="form-control" name="search"
+             value="{{ search }}"
+             placeholder="Search your recipes to add…" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+    {% if search and not search_results %}<span class="search-no-results" data-query="{{ search }}" data-field="search">No results for <strong>{{ search }}</strong>.</span>{% endif %}
   </div>
 </form>
 
@@ -97,8 +100,6 @@
     </tbody>
   </table>
 </form>
-{% elif search %}
-<p>No results for <strong>{{ search }}</strong>.</p>
 {% endif %}
 
 {# ── Current recipes list ── #}

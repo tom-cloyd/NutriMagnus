@@ -74,13 +74,13 @@
     <thead class="table-light">
       <tr>
         <th>Date</th>
-        <th class="num-col" style="white-space:nowrap">Day DCP</th>
         {% for col in mandatory_day_cols %}
         <th class="num-col" style="white-space:nowrap;line-height:1.2"{% if col.title %} title="{{ col.title }}"{% endif %}>{{ col_header(col.label) }}</th>
         {% endfor %}
+        <th class="num-col" style="white-space:nowrap">Day DCP</th>
         {% if show_pct_col %}
-        <th class="num-col" title="That date's own protein target">Goal</th>
         <th class="num-col" title="Day DCP ÷ that date's own protein target">% goal</th>
+        <th class="num-col" title="That date's own protein target">Goal</th>
         {% endif %}
         {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
         {% for col in day_nutrient_cols %}
@@ -93,6 +93,11 @@
       {% for r in day_rows %}
       <tr{% if r.meal_date == date_detail %} class="table-active"{% endif %}>
         <td>{{ r.meal_date }}</td>
+        {% for col in mandatory_day_cols %}
+        <td class="num-col">
+          {% if r.mandatory_values[col.key] is not none %}{{ r.mandatory_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endfor %}
         <td class="num-col" style="white-space:nowrap">
           {% if r.day_bcp is not none %}
           <span class="status-met">{{ "%.1f"|format(r.day_bcp) }} g</span>
@@ -100,21 +105,16 @@
           <span class="muted">—</span>
           {% endif %}
         </td>
-        {% for col in mandatory_day_cols %}
-        <td class="num-col">
-          {% if r.mandatory_values[col.key] is not none %}{{ r.mandatory_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
-        </td>
-        {% endfor %}
         {% if show_pct_col %}
-        <td class="num-col">
-          {% if r.goal is not none %}{{ r.goal|int }}&thinsp;g{% else %}<span class="muted">—</span>{% endif %}
-        </td>
         <td class="num-col">
           {% if r.pct_goal is not none %}
           <span class="{% if r.pct_goal >= 100 %}status-met{% elif r.pct_goal >= 75 %}status-near{% else %}status-low{% endif %}">{{ r.pct_goal|int }}%</span>
           {% else %}
           <span class="muted">—</span>
           {% endif %}
+        </td>
+        <td class="num-col">
+          {% if r.goal is not none %}{{ r.goal|int }}&thinsp;g{% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
         {% if show_profile_col %}
@@ -125,7 +125,7 @@
           {% if r.nutrient_values[col.key] is not none %}{{ r.nutrient_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endfor %}
-        <td><a href="/summary/{{ r.meal_date }}" class="btn btn-sm btn-link p-0">Analyze</a></td>
+        <td><a href="/summary/{{ r.meal_date }}" class="btn btn-sm btn-link p-0">Full nutrient analysis</a></td>
       </tr>
       {% endfor %}
     </tbody>

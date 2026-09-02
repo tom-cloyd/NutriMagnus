@@ -13,37 +13,38 @@ import usda as _usda
 
 MAX_MEAL_LIST_NUTRIENTS = 6
 
-# Ordered choices for the picker — every NUTRIENT_MAP key except calories,
-# which is always shown as its own fixed column.
-AVAILABLE_NUTRIENTS: list[tuple[str, str, str]] = [
-    (key, label, unit)
-    for key, label, unit in _usda.NUTRIENT_MAP.values()
-    if key != "calories"
-]
+# Ordered choices for the picker — every NUTRIENT_MAP key. Each consuming
+# list (Meals & Log, Recent Days) drops whichever keys it already shows via
+# its own fixed column, so the same picker/positions can be shared between
+# them without ever duplicating a column — see MEALS_LIST_FIXED_KEYS and
+# MANDATORY_DAY_KEYS below.
+AVAILABLE_NUTRIENTS: list[tuple[str, str, str]] = list(_usda.NUTRIENT_MAP.values())
 
-# format_value/day_nutrient_values are general-purpose (any NUTRIENT_MAP key
-# can be passed in, not just the picker-eligible AVAILABLE_NUTRIENTS ones —
-# e.g. Recent Days' mandatory Calories column below), so this is built from
-# the full map, not the calories-excluding AVAILABLE_NUTRIENTS.
 _BY_KEY = {key: (label, unit) for key, label, unit in _usda.NUTRIENT_MAP.values()}
 _AVAILABLE_KEYS = {key for key, _label, _unit in AVAILABLE_NUTRIENTS}
 
-# Recent Days (Daily Summary) always shows these four, right after Day DCP —
-# unlike AVAILABLE_NUTRIENTS above, they aren't a user choice. Day DCP is
+# Meals & Log always shows Calories as its own fixed column (meals.html) —
+# picking it here would just duplicate it, so _meals_list_ctx() (backend.py)
+# drops it from that list's own picker-driven columns.
+MEALS_LIST_FIXED_KEYS = {"calories"}
+
+# Recent Days (Daily Summary) always shows Protein first, ahead of even Day
+# DCP — unlike AVAILABLE_NUTRIENTS above, it isn't a user choice. Day DCP is
 # digestibility-adjusted; Protein here is the raw (unadjusted) total, which
-# is why it needs its own column instead of just reusing Day DCP.
+# is why it needs its own column instead of just reusing Day DCP. Calories/
+# Carbs/Fiber used to be mandatory here too; they're now ordinary picker
+# choices like any other nutrient, dropped from Meals & Log only if that
+# list's own MEALS_LIST_FIXED_KEYS applies to them (it doesn't).
 MANDATORY_DAY_COLUMNS: list[tuple[str, str, str | None]] = [
     ("protein_g", "Protein (g)",  "Raw protein — not digestibility-adjusted. See Day DCP for the digestible complete protein figure."),
-    ("calories",  "Calories",     None),
-    ("carbs_g",   "Carbs (g)",    "Carbohydrates (sugars, starches)"),
-    ("fiber_g",   "Fiber (g)",    None),
 ]
 MANDATORY_DAY_KEYS: list[str] = [key for key, _label, _tip in MANDATORY_DAY_COLUMNS]
 
-# Same four, first, for the web Nutrient Plot picker — it has no separate
-# fixed Calories column making it redundant there, so Calories is included
-# (AVAILABLE_NUTRIENTS above deliberately excludes it).
-_PLOT_HEAD_KEYS = MANDATORY_DAY_KEYS
+# Display order for the web Nutrient Plot picker: Protein/Calories/Carbs/
+# Fiber first, then everything else — independent of MANDATORY_DAY_KEYS
+# above (that's about which Recent Days columns are fixed, not display
+# order), so shrinking the mandatory set doesn't reshuffle this picker.
+_PLOT_HEAD_KEYS = ["protein_g", "calories", "carbs_g", "fiber_g"]
 _PLOT_LABEL_OVERRIDES = {"carbs_g": "Carbohydrates (Sugars, starches)"}
 
 
@@ -55,13 +56,11 @@ def label_for(key: str) -> str:
 
 def sanitize(keys: list[str]) -> list[str]:
     """Drop unknown keys and enforce the display cap, preserving order.
-    Checked against AVAILABLE_NUTRIENTS (not the broader _BY_KEY), so
-    calories can't be picked here — it's always shown via its own fixed
-    column on Meals & Log. This picker is shared with Recent Days, where
-    Protein/Carbs/Fiber are also separately mandatory (see
-    MANDATORY_DAY_KEYS) — callers building Recent Days' optional columns
-    should drop those themselves rather than lose them here, since Meals &
-    Log still offers them as a normal choice."""
+    This picker/its positions are shared by Meals & Log and Recent Days;
+    each of those drops whatever it already shows via its own fixed
+    column(s) — MEALS_LIST_FIXED_KEYS and MANDATORY_DAY_KEYS respectively —
+    from what sanitize() returns here, rather than losing it from the
+    shared picker entirely (the other list may still want to show it)."""
     return [k for k in keys if k in _AVAILABLE_KEYS][:MAX_MEAL_LIST_NUTRIENTS]
 
 
@@ -73,8 +72,8 @@ def format_value(key: str, value: float) -> str:
 
 def plot_nutrient_choices() -> list[tuple[str, str]]:
     """(key, display label) pairs for the web Nutrient Plot picker, in display
-    order: Protein/Calories/Carbs/Fiber first (see MANDATORY_DAY_COLUMNS),
-    then every other tracked nutrient in NUTRIENT_MAP's declared order."""
+    order: Protein/Calories/Carbs/Fiber first (see _PLOT_HEAD_KEYS), then
+    every other tracked nutrient in NUTRIENT_MAP's declared order."""
     ordered_keys = _PLOT_HEAD_KEYS + [k for k in _BY_KEY if k not in _PLOT_HEAD_KEYS]
     choices = []
     for key in ordered_keys:

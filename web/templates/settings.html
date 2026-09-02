@@ -408,7 +408,7 @@
 {# ── 8. Meals & Log columns ──────────────────────────────────────────── #}
 <details id="meal-list-nutrients">
   <summary data-ak="8"><u class="ak">8</u>. <strong>Meals &amp; Log columns</strong>
-    <span class="muted"> — extra nutrients shown as columns on the Meals &amp; Log list</span>
+    <span class="muted"> — extra nutrients shown as columns on the Meals &amp; Log list and Recent Days</span>
     {{ manual_link("meal-columns") }}
   </summary>
 
@@ -418,7 +418,10 @@
 
   <p class="mt-2 muted"><small>
     Give each nutrient you want shown a position (1 = leftmost, up to {{ meal_list_nutrients_max }}).
-    Leave blank to hide it. Calories is always shown and isn't listed here.
+    Leave blank to hide it. These positions apply to both the Meals &amp; Log list and Recent Days
+    (Daily Summary) — a nutrient already shown there as its own fixed column (Calories on Meals &amp; Log;
+    Protein on Recent Days) is simply skipped on that one list even if given a position, and still shows
+    on the other.
   </small></p>
   <form method="post" action="/settings/meal-nutrients">
     <table class="table table-sm table-hover mt-2" style="max-width:500px">

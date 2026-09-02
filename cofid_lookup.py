@@ -54,3 +54,7 @@ def get_food_detail(cofid_result: dict) -> dict:
 
 def get_food_detail_by_id(fdc_id: int) -> dict | None:
     return _source.get_food_detail_by_id(fdc_id)
+
+
+def all_names() -> list[str]:
+    return _source.all_names()
