@@ -115,7 +115,7 @@ Two corrections to keep in mind while reading old chat sessions:
       was wrong to begin with, just under-cross-referenced. Done 2026-08-10 — added the
       same Ubuntu/glibc compatibility note there too, pointing to "For developers."
 
-## Phase 5 — Optional polish (non-blocking
+## Phase 5 — Optional polish (non-blocking)
 
 - [ ] Swap the placeholder icon (`web/static/icon-256.png`, a green "N" monogram) for
       real branding whenever ready — no code changes needed elsewhere, the installer

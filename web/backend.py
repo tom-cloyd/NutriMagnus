@@ -6755,8 +6755,9 @@ async def recipe_introduction_post(recipe_id: int, introduction: str = Form(""))
 
 @app.get("/summary/trend", response_class=HTMLResponse)
 async def summary_trend(request: Request, days: int = Query(7)):
-    """Multiday average nutrient intake vs. RDA — surfaces chronic shortfalls
-    (B12, iron, iodine, vitamin D, ...) a single day's snapshot can't."""
+    """Nutrient averages across the last N days vs. RDA — surfaces chronic
+    shortfalls (B12, iron, iodine, vitamin D, ...) a single day's snapshot
+    can't."""
     if days not in (7, 14, 30):
         days = 7
 
@@ -6766,15 +6767,13 @@ async def summary_trend(request: Request, days: int = Query(7)):
     with _db.get_db() as conn:
         meals = _db.meal_list_by_date_range(conn, start.isoformat(), end.isoformat())
         daily_totals: dict[str, dict[str, float]] = {}
-        all_ingredients: list = []
         day_dcp: dict[str, float] = {}
         for meal in meals:
-            _, nutrients, ingredients = _meal_expand_for_diaas(meal["id"], conn)
+            _, nutrients, _ingredients = _meal_expand_for_diaas(meal["id"], conn)
             if nutrients:
                 day = daily_totals.setdefault(meal["meal_date"], {})
                 for key, val in nutrients.items():
                     day[key] = day.get(key, 0.0) + val
-            all_ingredients.extend(ingredients)
             if meal["bcp_g"] is not None:
                 day_dcp[meal["meal_date"]] = day_dcp.get(meal["meal_date"], 0.0) + meal["bcp_g"]
 
@@ -6803,23 +6802,6 @@ async def summary_trend(request: Request, days: int = Query(7)):
     avg_dcp = round(sum(day_dcp.values()) / len(day_dcp), 1) if day_dcp else None
     avg_dcp_pct = round(avg_dcp / protein_target * 100, 0) if avg_dcp is not None and protein_target else None
 
-    # Pool amino acids across the whole window (not averaged — pooling totals
-    # first and averaging per-day both produce identical gap ratios here,
-    # since get_aa_gaps() only compares AA-to-protein ratios, so pooling is
-    # simpler and avoids an extra averaging pass).
-    aa_nutrients: dict = {}
-    for ing in all_ingredients:
-        if _usda.has_amino_acid_data(ing["nutrients_100g"]):
-            scaled = _usda.scale_nutrients(ing["nutrients_100g"], ing["grams"], base_size=100.0)
-            for k, v in scaled.items():
-                aa_nutrients[k] = aa_nutrients.get(k, 0.0) + v
-
-    trend_pooled_tid: float | None = None
-    if all_ingredients:
-        with _db.get_db() as conn:
-            trend_diaas_result = _diaas.meal_level_diaas(all_ingredients, conn)
-        trend_pooled_tid = _diaas.pooled_tid(trend_diaas_result)
-
     return templates.TemplateResponse(request, "trend.html", {
         "days":              days,
         "start":             start.isoformat(),
@@ -6831,8 +6813,6 @@ async def summary_trend(request: Request, days: int = Query(7)):
         "has_optimal":       bool(optimal),
         "has_ul":             bool(max_limits),
         "diet_notes":        _diet_aware_daily_notes(avg_nutrients, rda) if num_days else {},
-        "complements":       _complement_suggestions(aa_nutrients, trend_pooled_tid, context="daily",
-                                                      ingredients=all_ingredients) if aa_nutrients else None,
         "end_profile_name":  end_profile_row["profile_name"] if end_profile_row else None,
         "differing_profile_dates": differing_dates,
         "avg_dcp":           avg_dcp,

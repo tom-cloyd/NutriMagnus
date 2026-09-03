@@ -38,6 +38,23 @@ OUTPUT = PROJECT_ROOT / "user-manual.html"
 PAGE_TITLE = "NutriMagnus User Manual"
 WORDS_PER_MINUTE = 225
 
+# Two footnote refs with nothing (or just a bare comma) between them render
+# as run-together digits, e.g. [^4][^5] -> "45" -- indistinguishable from a
+# single footnote "45" and misleading to click. The fix is a *superscript*
+# comma placed outside both refs' <a> tags: [^4]<sup>,</sup>[^5]. This regex
+# matches the two broken forms so a forgotten instance fails the build
+# instead of silently shipping.
+ADJACENT_FOOTNOTES_RE = re.compile(r"\[\^[^\]]+\],?\[\^[^\]]+\]")
+
+
+def check_adjacent_footnotes(raw: str) -> list[tuple[int, str]]:
+    """Return (line_number, matched_text) for every un-separated pair of
+    adjacent footnote references in raw markdown source."""
+    return [
+        (raw.count("\n", 0, m.start()) + 1, m.group(0))
+        for m in ADJACENT_FOOTNOTES_RE.finditer(raw)
+    ]
+
 # The manual's second line: "*Updated YYYY-MM-DD:HHMM* / Reading time: ..."
 # The timestamp is bumped by hand per CLAUDE.md convention; only the reading
 # time portion is regenerated here.
@@ -56,6 +73,9 @@ def count_words(markdown_text: str) -> int:
     # and must not be treated as one, or everything between it and the next
     # real fence gets misread as one giant code block and dropped.
     text = re.sub(r'^```.*?\n^```[ \t]*$', '', text, flags=re.DOTALL | re.MULTILINE)
+    # HTML comments (e.g. hidden "Scope:" developer detail) render invisibly
+    # too, so they shouldn't count toward reading time either.
+    text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
     text = re.sub(r'`[^`]*`', '', text)
     text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
     return len(text.split())
@@ -592,9 +612,19 @@ JS = """\
     });
   }
 
+  function parseQuery(query) {
+    // "quoted" -> a single exact phrase/substring, spaces and all -- for
+    // when the user wants literal text, not an AND-of-words search. Falls
+    // back to AND-of-words if the quotes aren't a matched pair wrapping the
+    // whole query.
+    var m = /^"(.+)"$/.exec(query);
+    if (m && m[1].trim()) return [m[1].toLowerCase()];
+    return query.toLowerCase().split(/\\s+/).filter(Boolean);
+  }
+
   function runSearch() {
     var query = input.value.trim();
-    currentWords = query.length < 2 ? [] : query.toLowerCase().split(/\\s+/).filter(Boolean);
+    currentWords = query.length < 2 ? [] : parseQuery(query);
     closeSectionHighlights();
     openSection = null;
     var funcMode = funcCheckbox.checked;
@@ -808,7 +838,7 @@ HTML_TEMPLATE = """\
   <a class="toc-page-title" href="#content">{title}</a>
   <div id="search-box">
     <div id="search-input-wrap">
-      <input id="search-input" type="search" placeholder="Search manual… (all words must match)"
+      <input id="search-input" type="search" placeholder='Search manual… (all words must match, or "exact phrase")'
              autocomplete="off" spellcheck="false">
       <button id="search-clear" type="button" title="Clear search" aria-label="Clear search">X</button>
     </div>
@@ -845,6 +875,17 @@ def main() -> None:
         sys.exit(f"Error: source not found: {SOURCE}")
 
     raw = SOURCE.read_text(encoding="utf-8")
+
+    bad_pairs = check_adjacent_footnotes(raw)
+    if bad_pairs:
+        lines = "\n".join(f"  line {n}: {text}" for n, text in bad_pairs)
+        sys.exit(
+            "Error: adjacent footnote references with no visible separator "
+            "(renders as run-together digits, e.g. \"45\"):\n"
+            f"{lines}\n"
+            "Fix by inserting a superscript comma between them, e.g. "
+            "[^4]<sup>,</sup>[^5]"
+        )
 
     word_count = count_words(raw)
     reading_time = reading_time_str(word_count)

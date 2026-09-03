@@ -1,4 +1,4 @@
-VERSION = "2026-09-03:1039"
+VERSION = "2026-09-03:1117"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see
@@ -12,4 +12,4 @@ VERSION = "2026-09-03:1039"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "significant improvements implemented"
+NEW_VERSION_NOTE = "minor function added or improved"

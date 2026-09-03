@@ -98,7 +98,7 @@ numa/
       meal_bcp.py                    — shared meal-DCP fallback: recipe_dcp_fallback()
       meal_list_columns.py           — nutrient-column picker logic shared by Meals & Log, Recent
                                       Days/Daily Summary, and the Nutrient Plot picker
-      nutrient_trend.py              — multiday nutrient trend averaging
+      nutrient_trend.py              — nutrient averaging across days
       plotting.py                    — nutrient trend line-chart rendering
       portions.py                    — _parse_portion_input() — portion-string parsing
       print_sections.py              — shared vocabulary/prefs resolution for printable
@@ -178,7 +178,7 @@ numa/
       analysis_food_use.html       — Analysis: frequency of a food's use across meals/date ranges
       analysis_food_use_recipes.html — Analysis: frequency of a food's use across recipes
       summary.html                 — Daily summary landing page (Recent Days list)
-      trend.html                   — Multiday nutrient trend averaging view
+      trend.html                   — nutrient averages across days view
       nutrient_plot.html           — Nutrient trend line-chart picker/display
       nutrient_plot_print.html     — Print-formatted nutrient plot
       print.html                   — Shared printable nutritional-analysis page (food/recipe/meal/day)
@@ -1044,7 +1044,7 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | GET | `/summary` | Daily summary landing page (Recent Days list) |
 | GET | `/summary/{meal_date}` | Daily summary for one date |
 | POST | `/summary/{meal_date}/profile` | Set/override the profile pinned to that date |
-| GET | `/summary/trend` | Multiday nutrient trend view |
+| GET | `/summary/trend` | Nutrient averages across days view |
 | GET | `/summary/nutrient-plot`, `nutrient-plot/image`, `nutrient-plot/print` | Nutrient trend line-chart picker, rendered image, and print view |
 | POST | `/summary/nutrient-plot/home-pref` | Toggle showing the current nutrient plot on the home page |
 | GET | `/analysis/food-use` | Frequency of a food's use across meals/date ranges |
@@ -1234,11 +1234,11 @@ Analysis pages under the Analysis dropdown: frequency of a given food's use acro
 
 #### `summary.html`
 
-Daily summary landing page — no longer a stub. Lists Recent Days (via the day-analysis machinery shared with `meal_day.html`) and links into a specific date's summary (`/summary/{meal_date}`), the multiday trend view, and the nutrient plot.
+Daily summary landing page — no longer a stub. Lists Recent Days (via the day-analysis machinery shared with `meal_day.html`) and links into a specific date's summary (`/summary/{meal_date}`), the nutrient averages view, and the nutrient plot.
 
 #### `trend.html`
 
-Multiday nutrient trend view: averages a chosen set of nutrients across a date range (`numa_app/services/nutrient_trend.py`).
+Nutrient averages across days view: averages a chosen set of nutrients across a date range (`numa_app/services/nutrient_trend.py`).
 
 #### `nutrient_plot.html`, `nutrient_plot_print.html`
 

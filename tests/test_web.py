@@ -1087,32 +1087,6 @@ def test_summary_trend_averages_across_logged_days(client: TestClient, cached_fo
     assert resp.status_code == 200
 
 
-def test_summary_trend_shows_pooled_complement_suggestions(client: TestClient) -> None:
-    """A lysine gap spread across two logged days is pooled and shown with
-    forward-looking 'upcoming meals' framing on the trend page."""
-    low_lysine = dict(SAMPLE_NUTRIENTS)
-    low_lysine["aa_lysine_g"] = 0.6  # push below the FAO reference to create a real gap
-    fdc_id = 900002
-
-    with _db.get_db() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json) VALUES (?, ?, ?, ?)",
-            (fdc_id, "Low-lysine test food", "SR Legacy", json.dumps(low_lysine)),
-        )
-        conn.commit()
-        today = datetime.date.today().isoformat()
-        yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
-        for d in (today, yesterday):
-            meal_id = _db.meal_create(conn, "Lunch", d)
-            _db.meal_add_food(conn, meal_id, fdc_id, "Low-lysine test food", 150.0, "g")
-        conn.commit()
-
-    resp = client.get("/summary/trend?days=7")
-    assert resp.status_code == 200
-    assert "Protein Complement Suggestions" in resp.text
-    assert "Add to upcoming meals" in resp.text
-
-
 def test_meal_complement_sort_toggle_and_persistence(client: TestClient) -> None:
     """comp_sort/diaas_sort query params reorder the meal's suggestion sections
     and are remembered on later requests that omit them (like other list sorts,

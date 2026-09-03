@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-03:1039* / Reading time: 4 hours, 32 minutes
+*Updated 2026-09-03:1117* / Reading time: 4 hours, 34 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -229,7 +229,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-02), there are 767 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-03), there are 767 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
@@ -373,11 +373,11 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 **Step 3 — Check the Daily Summary.** Click **Analysis → 1. Daily summary**. The Recent Days table lists every date you've logged: Day DCP, then Protein, Calories, Carbs, and Fiber (built in for every day, right after Day DCP), then your goal in grams and % of it. Click any date to reopen that day's full analysis.
 
-**Step 4 — Catch a chronic pattern with Multiday Nutrient Trend.** From the Daily Summary page, click **Multiday nutrient trend** and choose a 7, 14, or 30-day window. NuMa averages your intake over that window and compares it to your RDA targets — surfacing a nutrient that's persistently a little low, the kind of gap a single good or bad day would hide.
+**Step 4 — Catch a chronic pattern with Nutrient Averages Across Days.** From the Daily Summary page, click **Nutrient averages across days** and choose a 7, 14, or 30-day window. NuMa averages your intake over that window and compares it to your RDA targets — surfacing a nutrient that's persistently a little low, the kind of gap a single good or bad day would hide.
 
 **Step 5 — See the shape of it with Nutrient Plot.** Click **Nutrient plot** instead. Check Day DCP and Protein (or any other nutrient you're curious about), then click **Plot**. NuMa draws a line chart across your logged days — sometimes a shape on a chart makes a pattern obvious in a way a table of numbers doesn't.
 
-**What you learned:** Analyzing a full day rolls up everything you ate; Daily Summary tracks that day by day; Multiday Trend and Nutrient Plot turn many days into a pattern you can act on — two different views (numbers-against-target, and shape-over-time) of the same underlying data.
+**What you learned:** Analyzing a full day rolls up everything you ate; Daily Summary tracks that day by day; Nutrient Averages Across Days and Nutrient Plot turn many days into a pattern you can act on — two different views (numbers-against-target, and shape-over-time) of the same underlying data.
 
 ---
 
@@ -452,7 +452,7 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 
 ### H. Using the Analysis menu
 
-- **Daily summary** — a table of recent days with Day DCP and % of goal; pick a date to see that day's full analysis (same sections as the full-day meal view). From here, follow the **Multiday nutrient trend** link to see 7/14/30-day averages — useful for catching a chronic shortfall that a single good or bad day would hide.
+- **Daily summary** — a table of recent days with Day DCP and % of goal; pick a date to see that day's full analysis (same sections as the full-day meal view). From here, follow the **Nutrient averages across days** link to see 7/14/30-day averages — useful for catching a chronic shortfall that a single good or bad day would hide.
 - **Food use in meals** — see how often you've eaten a given food or recipe. Choose either a date range or a specific list of meal IDs, optionally limit results to protein-containing foods, and get a sortable table with a visual frequency bar.
 - **Food use in recipes** — the same idea, but for your recipe book: see how many of your recipes use a given food or sub-recipe as an ingredient. Choose all recipes, a date-created range, or a specific list of recipe IDs.
 
@@ -987,19 +987,19 @@ All minerals and vitamins use age- and sex-specific values from the Dietary Refe
 
 Nutrients without established [DRIs](#gloss-dri) ([phytonutrients](#gloss-phytonutrients), amino acids) have no goal shown. The "% today" column and "Daily goal" column are blank for those rows.
 
-See [RDA](#rda) for a general overview of where these values come from. If the standard RDA isn't the number you actually want to hit for a given nutrient, see [Profile Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits). A single day's numbers are only a snapshot -- see [Multiday Nutrient Trend](#trend) for how to spot a shortfall that persists across many days.
+See [RDA](#rda) for a general overview of where these values come from. If the standard RDA isn't the number you actually want to hit for a given nutrient, see [Profile Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits). A single day's numbers are only a snapshot -- see [Nutrient Averages Across Days](#trend) for how to spot a shortfall that persists across many days.
 
 
-### R. Multiday Nutrient Trend {: #trend}
+### R. Nutrient Averages Across Days {: #trend}
 Every other RDA comparison in NuMa -- food, recipe, meal, daily summary -- looks at a single day. That's the right window for "did today's meals cover me," but it's the wrong window for a nutrient that's chronically a little short: one low day is unremarkable, but the same shortfall repeated for two weeks straight is exactly the kind of pattern a single-day view can never show you, because you'd have to remember and compare each day yourself.
 
-**Access it via the "Multiday nutrient trend" button on the Daily Summary page.** Choose a window -- last 7, 14, or 30 days -- and NuMa averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Profile Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
+**Access it via the "Nutrient averages across days" button on the Daily Summary page.** Choose a window -- last 7, 14, or 30 days -- and NuMa averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Profile Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
 
-**Only logged days count.** If you ask for a 30-day trend but only logged meals on 12 of those days, the average is computed over those 12 days -- unlogged days are treated as "no data," not as a zero-intake day. Diluting the average with days you simply didn't track would understate your real intake and could hide the exact shortfall this view exists to surface. The screen tells you how many logged days went into the average (e.g. "Averaging over 12 logged day(s) out of the last 30").
+**Only logged days count.** If you ask for a 30-day average but only logged meals on 12 of those days, the average is computed over those 12 days -- unlogged days are treated as "no data," not as a zero-intake day. Diluting the average with days you simply didn't track would understate your real intake and could hide the exact shortfall this view exists to surface. The screen tells you how many logged days went into the average (e.g. "Averaging over 12 logged day(s) out of the last 30").
 
-This is the same B12/iron/zinc-aware analysis described in [Diet-Aware Bioavailability and Deficiency Notes](#diet-bioavailability) -- a trend view is often where a B12 or iron pattern actually becomes visible, since a single low day rarely triggers concern on its own.
+This is the same B12/iron/zinc-aware analysis described in [Diet-Aware Bioavailability and Deficiency Notes](#diet-bioavailability) -- this averaged view is often where a B12 or iron pattern actually becomes visible, since a single low day rarely triggers concern on its own.
 
-**Multi-day protein complementarity.** Below the nutrient comparison, the trend view also pools every amino-acid-containing food logged across the window's days and runs the same [complement suggestion](#comp) analysis normally shown for a single day -- but framed for forward planning ("Add to upcoming meals" rather than "Add to your day"), since the gap it found accumulated across several days, not one meal you can still fix. A gap that only shows up when pooled across the whole window -- rather than in any single day's suggestions -- is exactly the kind of small, persistent shortfall this view is meant to catch.
+This view does not offer protein complement suggestions -- complementation only matters within the roughly 24-hour window your body actually digests and pools amino acids together, so a suggestion pooled across a week or more of eating isn't something you could act on. For an actionable complement suggestion, use [Protein Complement Suggestions](#comp) on a specific day's summary, a meal, or a recipe.
 
 
 ### S. Nutrient Plot {: #nutrient-plot}
@@ -1057,7 +1057,7 @@ Your profile isn't fixed forever -- weight, activity level, or even which named 
 
 **Changing a day's profile.** Sometimes the automatic pin doesn't match reality -- illness or travel rarely starts exactly at midnight. Open that day's summary and use the **Change** control next to "Profile:" (on the day's Summary or Full Day page) to pick a different saved profile. The day is marked "(manually set)" afterward and its DCP/RDA numbers recompute immediately against the new pin.
 
-**Multiday trend.** The [Multiday Nutrient Trend](#trend) view spans many days at once, so it scores against the profile pinned to the *most recent* day in the window (today, for the usual "last N days"). If any day inside the window was pinned to a different profile, a note discloses which dates and profile differed, rather than silently blending two profiles' targets into one average.
+**Nutrient averages across days.** The [Nutrient Averages Across Days](#trend) view spans many days at once, so it scores against the profile pinned to the *most recent* day in the window (today, for the usual "last N days"). If any day inside the window was pinned to a different profile, a note discloses which dates and profile differed, rather than silently blending two profiles' targets into one average.
 
 **Existing data.** If you're upgrading from a version of NuMa that didn't have this feature, every day you'd already logged gets pinned to whichever profile is active the first time you open NuMa after upgrading -- you don't need to open or edit anything for this to happen.
 
@@ -1130,7 +1130,7 @@ The max-limit warning is independent of the Revised Optimal target feature -- yo
 ### X. Diet-Aware Bioavailability and Deficiency Notes {: #diet-bioavailability}
 Your [dietary preference](#diet) setting (Settings → Dietary preferences) is used for more than filtering protein complement suggestions -- it also shapes two parts of your daily RDA comparison, because a vegetarian or plant-based diet changes not just *what* nutrients you're likely getting, but how much of certain ones your body can actually use.
 
-**Iron and zinc targets are raised on vegetarian and plant-based settings.** Absorbable iron comes in two forms: heme iron (from meat, fish, and poultry, absorbed efficiently) and non-heme iron (from plants, absorbed far less efficiently, and further blocked by phytate in legumes and grains -- see [Antinutrients](#antinutrients)). Zinc absorption is reduced by the same phytate. Rather than silently under-representing this, NuMa raises the iron RDA by 1.8x[^4][^5] and the zinc RDA by 1.5x[^4][^6] when your dietary preference is set to Vegetarian or Plant-based only -- figures drawn from the Institute of Medicine's Dietary Reference Intake report and the NIH Office of Dietary Supplements' fact sheets for these two minerals. This appears as a normal, higher Daily Goal on the RDA comparison and Daily Nutrient Targets screens, with an explanatory note alongside it. Setting your preference back to "All animal foods" returns both targets to their standard values.
+**Iron and zinc targets are raised on vegetarian and plant-based settings.** Absorbable iron comes in two forms: heme iron (from meat, fish, and poultry, absorbed efficiently) and non-heme iron (from plants, absorbed far less efficiently, and further blocked by phytate in legumes and grains -- see [Antinutrients](#antinutrients)). Zinc absorption is reduced by the same phytate. Rather than silently under-representing this, NuMa raises the iron RDA by 1.8x[^4]<sup>,</sup>[^5] and the zinc RDA by 1.5x[^4]<sup>,</sup>[^6] when your dietary preference is set to Vegetarian or Plant-based only -- figures drawn from the Institute of Medicine's Dietary Reference Intake report and the NIH Office of Dietary Supplements' fact sheets for these two minerals. This appears as a normal, higher Daily Goal on the RDA comparison and Daily Nutrient Targets screens, with an explanatory note alongside it. Setting your preference back to "All animal foods" returns both targets to their standard values.
 
 **A B12 warning appears for the Plant-based only setting when intake is low.** Vitamin B12 is almost exclusively animal-sourced[^7] -- unlike most nutrient shortfalls, a persistently low B12 reading on a fully plant-based diet isn't something more food logging or dietary variety fixes; it typically means a B12 supplement or B12-fortified food is needed.[^7] NuMa shows this warning only when your dietary preference is Plant-based only *and* today's B12 intake is under 50% of the RDA -- vegetarians (who still eat dairy and eggs) aren't flagged, since those foods are a legitimate B12 source and an occasional low day isn't a structural gap the way it is for a fully plant-based diet. The 50% figure is NuMa's own conservative trigger for surfacing the warning, not a clinical diagnostic threshold -- an actual B12 deficiency is properly diagnosed by a blood test (serum B12, methylmalonic acid, or homocysteine), not by a single day's logged intake.
 
@@ -2342,7 +2342,9 @@ University of Sydney. (n.d.). Glycemic Index Database. Retrieved August 2, 2026,
 ### D. Using this manual's search {: #search-howto}
 Use the sidebar search box near the top of the table of contents.
 
-**It searches whole words, not phrases, and requires all of them.** Type `portion size` and NuMa looks for sections that contain *both* words somewhere — not necessarily next to each other, not in the order you typed them. This is different from typing a whole phrase and expecting an exact match: `edit portion` (as a phrase) will find nothing, because that exact wording never appears anywhere in the manual, even though the idea is covered extensively. If a search comes up empty, the fix is usually to drop a word, not add one — start with just the noun you care about (`portion`), see what comes back, then add a second word only if the list is too long to skim.
+**By default it searches whole words, not phrases, and requires all of them.** Type `portion size` and NuMa looks for sections that contain *both* words somewhere — not necessarily next to each other, not in the order you typed them. This is different from typing a whole phrase and expecting an exact match: `edit portion` (as a phrase) will find nothing, because that exact wording never appears anywhere in the manual, even though the idea is covered extensively. If a search comes up empty, the fix is usually to drop a word, not add one — start with just the noun you care about (`portion`), see what comes back, then add a second word only if the list is too long to skim.
+
+**Wrap your search in double quotes for an exact phrase instead.** Typing `"iron and zinc targets"` (quotes included) looks for that literal run of text instead of AND-ing separate words — useful when you're trying to relocate a specific sentence you remember reading, rather than explore a topic. Since it has to match verbatim, an exact-phrase search is more likely to come up empty than the default word search; if it does, drop the quotes and search the same words the normal way.
 
 **Results are sections, not raw text.** Instead of jumping straight to every individual occurrence of your words scattered across the whole manual, search shows you a short list of section headings that contain all of them — click one (or press **Enter** to jump straight to the top match) to open it, and NuMa highlights every matching word within that section so you can see at a glance where they landed. **Enter**/**Shift+Enter** (or the &#x25B2;/&#x25BC; buttons) then step between highlighted words inside that one section, not across the whole document.
 
@@ -2603,7 +2605,74 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "Aside from being an update log for the user to access, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day program updates). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
 
-Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
+Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed.
+
+<!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
+<!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the changelog. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 3 program updates
+
+**MANUAL SEARCH SUPPORTS EXACT-PHRASE MATCHING IN QUOTES**
+
+The manual's sidebar search normally requires all your words to appear somewhere in a section, in any order — great for exploring a topic, but no help when you're trying to relocate a specific sentence you remember reading. Wrap your search in double quotes, e.g. `"iron and zinc targets"`, and it now looks for that literal run of text instead. [Learn more...](#search-howto)
+
+<!--
+```
+Scope: scripts/build_manual.py — new parseQuery() in the search JS: a
+query matching /^"(.+)"$/ (quotes wrapping the whole trimmed input) becomes
+a single-element currentWords array holding the phrase verbatim (lowercased,
+spaces included) instead of the usual per-word split; the existing
+indexOf-based section filter and highlightWordInRoot() both already worked
+on arbitrary substrings, so no other code needed to change. Input
+placeholder updated to mention the quote syntax. user-manual.md — new
+paragraph under "Using this manual's search" documenting it.
+```
+-->
+
+**CHANGELOG "SCOPE:" TECHNICAL DETAIL IS NO LONGER SHOWN**
+
+The Appendix A changelog entries below used to carry a "Scope:" block under each item with developer-facing detail (files touched, root cause) — of no value to the average reader. Those blocks (and the sentence above pointing them out) are now hidden from the manual and from GitHub's release notes; they remain in the underlying markdown source for anyone editing the manual or auditing past changes.
+
+**ADJACENT FOOTNOTES NOW GET A VISIBLE SUPERSCRIPT COMMA, AND THE BUILD CATCHES IT IF ONE IS MISSED**
+
+Two footnotes referenced back-to-back (e.g. after "1.8x") used to render as run-together digits like "45" — indistinguishable from a single footnote numbered 45, and misleading to click. They now show as two separately-clickable superscript numbers joined by a small superscript comma. `scripts/build_manual.py` also now refuses to build the manual (and a new test fails) if a future edit reintroduces the unfixed form, so this can't silently regress.
+
+<!--
+```
+Scope: user-manual.md — the two adjacent-footnote instances in the
+Diet-Aware Bioavailability section now separate each pair of refs with a
+raw <sup>,</sup> tag instead of writing them back-to-back. Python-Markdown
+passes raw inline HTML through untouched (no safe_mode set), so that tag
+renders as a genuine superscript comma outside both footnotes' <a> tags --
+not underlined, not part of either link. scripts/build_manual.py — new
+check_adjacent_footnotes() regex scan run at the top of main(), before
+conversion; exits with line numbers and a fix example if any two footnote
+refs are found written directly adjacent, with nothing or only a bare
+comma between them. tests/test_manual_format.py — new test calling the
+same check so a plain pytest run also catches a regression, not just a
+manual rebuild.
+```
+-->
+
+**"MULTIDAY NUTRIENT TREND" IS NOW "NUTRIENT AVERAGES ACROSS DAYS," AND NO LONGER OFFERS PROTEIN COMPLEMENT SUGGESTIONS**
+
+This page was always an N-day average, not a day-by-day trend, so it's renamed to say exactly that. It also no longer offers protein complement suggestions: those suggestions were pooled across the entire 7/14/30-day window, but complementary proteins only work if you eat them within roughly the same 24-hour digestion window — a suggestion spanning a week or more of eating isn't something you could actually act on. For an actionable complement suggestion, use the one already on a specific day's summary, a meal, or a recipe.
+
+<!--
+```
+Scope: web/backend.py — summary_trend() no longer builds aa_nutrients or
+calls _complement_suggestions(); the pooled-DIAAS/all_ingredients plumbing
+that only fed that section was removed. web/templates/trend.html — title,
+breadcrumb, and header renamed to "Nutrient averages across {{ days }} days";
+the entire "Protein Complement Suggestions — Pooled Across Window" <details>
+block removed. web/templates/summary.html — link label updated to match.
+user-manual.md — Appendix section R retitled and its complement paragraph
+replaced with a pointer to the single-day version; other "Multiday
+[Nutrient] Trend" references updated throughout. tests/test_web.py —
+removed test_summary_trend_shows_pooled_complement_suggestions (asserted
+the now-removed feature).
+```
+-->
 
 #### September 2 program updates
 
@@ -2611,6 +2680,7 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 A new checkbox, **Always end on the last complete day**, sits next to the Show this plot on the Home page button on the Nutrient Plot page. Turn it on and the plot's end date stops being frozen at whatever "Ending on" date was current when you saved it — instead it always shows through yesterday (the last fully-logged day), sliding forward automatically every day. Handy for the Home page plot in particular, since without it the plot would otherwise stay stuck on its original end date until you revisited the page and re-saved it.
 
+<!--
 ```
 Scope: web/backend.py — _nutrient_plot_params() gains a rolling flag that
 overrides anchor_date with (today - 1 day) and, in "all logged days" mode,
@@ -2622,6 +2692,7 @@ web/templates/nutrient_plot.html — new checkbox beside the home-page
 toggle; the Ending on field disables itself with an explanatory note while
 rolling is active.
 ```
+-->
 
 #### September 1 program updates
 
@@ -2629,6 +2700,7 @@ rolling is active.
 
 Once you've logged at least one meal, a brief line appears on the Home page letting you know you can chart nutrients from your logged days and show that chart right here — with links straight to the Nutrient Plot page and to the manual section explaining it. It disappears again once you've actually put a plot on the Home page, since at that point you're already using the feature.
 
+<!--
 ```
 Scope: web/backend.py — index() now checks _db.meal_count_recent(conn) > 0
 (has_any_meals) and passes show_plot_notice = has_any_meals and not
@@ -2638,22 +2710,26 @@ user-manual.md — new "Show this plot on the Home page" paragraph under the
 Nutrient Plot section (#nutrient-plot), documenting a feature added earlier
 today that the manual hadn't caught up to yet.
 ```
+-->
 
 **NUTRIENT PLOT'S SCALE FACTOR HAS A ONE-CLICK "AUTO" RESET**
 
 Once you'd typed your own number into Scale factor, the only way back to NuMa's computed default was clearing the field by hand (and remembering that blank means auto). An **Auto** link now appears right next to the Scale factor label whenever a value is set — click it and that one field clears and re-plots, leaving every other setting (nutrients, date range, title, ...) exactly as it was.
 
+<!--
 ```
 Scope: web/templates/nutrient_plot.html — {% if scale_factor %} anchor
 (#scale-factor-auto) next to the Scale factor label; a small script clears
 the #scale_factor input and calls #nutrient-plot-form's requestSubmit()
 rather than resetting the whole page.
 ```
+-->
 
 **RECENT DAYS NOW LEADS WITH PROTEIN, AND CALORIES/CARBS/FIBER ARE ORDINARY COLUMN CHOICES**
 
 The Recent Days table (Daily Summary) used to always show Day DCP, then Protein/Calories/Carbs/Fiber, then Goal/% goal — an order that separated Protein from the Goal figures it's most related to. It now leads with **Protein**, then **Day DCP**, then **% goal**, then **Goal**, then whatever extra nutrients you've picked in Settings → Meals & Log columns. Calories, Carbs, and Fiber are no longer forced onto every row — they're now ordinary picks in that same Settings list, right alongside Protein, so you can add them back (or leave them off) like any other nutrient. The "Analyze" link at the end of each row now reads **Full nutrient analysis**. Separately, the main menu's Analysis → 1. Daily summary hint now reads "(DCP, trends, plot)" to reflect everything that page covers.
 
+<!--
 ```
 Scope: numa_app/services/meal_list_columns.py — MANDATORY_DAY_COLUMNS
 shrunk to just protein_g; AVAILABLE_NUTRIENTS no longer excludes calories
@@ -2673,11 +2749,13 @@ of the old "Calories is always shown and isn't listed here" line, which is
 no longer accurate. web/templates/base.html — Analysis dropdown item 1's
 hint text.
 ```
+-->
 
 **A MISSPELLED SEARCH NOW OFFERS "DID YOU MEAN" SUGGESTIONS**
 
 Every search box in the app (Food Search, Add Food or Recipe, Add Ingredient, Compare Foods/Recipes, My Pantry, Convert a Portion) now offers likely corrections right next to a "No results" message — e.g. searching "brocoli" suggests **broccoli**. Click a suggestion to re-run the search with it, or press <kbd>Esc</kbd> to dismiss the suggestions and keep what you typed. This works fully offline: it checks your own previously searched/cached foods, pantry items, and recipes first, then the food names bundled with the CoFID/AFCD/CIQUAL databases — it can't invent a suggestion for a brand name it's never encountered anywhere.
 
+<!--
 ```
 Scope: numa_app/services/search_suggest.py (new — suggest(), a local
 difflib-based fuzzy match, no network call). web/backend.py (new
@@ -2693,11 +2771,13 @@ static_source_lookup.py + afcd_lookup.py/cofid_lookup.py/ciqual_lookup.py
 (new all_names() accessor, used to build the suggestion corpus).
 tests/test_search_suggest.py (new), tests/test_web.py (new endpoint test).
 ```
+-->
 
 **MEAL PAGE'S SOURCE FILTER BUTTONS NOW SHARE ONE ROW, AND THE FIRST SEARCH RESULT GETS THE CURSOR**
 
 On a meal's "Add Food or Recipe" search, "Select all sources"/"Unselect all" used to sit on their own row above a second row holding "Redo search" and the result-limit box — now all four sit together on one row, right after the Source checkboxes. Separately, once search results are showing, the cursor now goes straight into the first result's amount field instead of sitting on the Search button — so you can start typing an amount immediately without an extra click.
 
+<!--
 ```
 Scope: web/templates/_source_filter_select.html (the select() macro now
 accepts a Jinja `{% call %}` block via `caller()`, rendered inside the same
@@ -2709,11 +2789,13 @@ render — both on the initial local-only render, via a setTimeout(0) so it
 runs after base.html's autofocus-to-Search-button script, and again when the
 async USDA/OFF merge replaces the table).
 ```
+-->
 
 **NUTRIENT PLOT REMEMBERS YOUR LAST SETTINGS ACROSS BROWSER RESTARTS, AND FITS MORE ON ONE SCREEN**
 
 The Nutrient Plot page used to reset to blank defaults every time you navigated to it, even right after plotting something. It now remembers the nutrients, date range, scaling, title, and other options you last used — even after closing and reopening NuMa entirely — and brings you straight back to that plot, with a banner ("Plot options preserved from last visit here") and a one-click "Reset to defaults" link. The nutrient checklist now shows three columns at once instead of one (and is a bit shorter, so it doesn't dominate the page), with a "scroll for more nutrients" cue at its bottom edge. Beside it, six controls sit in two columns of three: Days back / Ending on / Scale factor on the left, Smoothing / Highlight nutrient (make red) / Black & white on the right. Plot title got its own full-width row below that. **Plot** is now the very last thing on the page, right before the chart itself, with the "Show this plot on the Home page" toggle right beside it — so setting everything up and clicking Plot reads top-to-bottom in the order you'd actually use it. The "Per-nutrient scaling factors" heading (renamed from "Per-nutrient factors — step 2, ...") now fits on one line.
 
+<!--
 ```
 Scope: web/templates/nutrient_plot.html — page-local localStorage
 (numa_nutrient_plot_qs) saves window.location.search on any load that has
@@ -2737,11 +2819,13 @@ of the two 3-item control columns; Plot title now has its own full-width
 row. web/backend.py — _nutrient_plot_default_title() now reads "Key
 nutrients consumed, ...".
 ```
+-->
 
 **A SAVED NUTRIENT PLOT CAN NOW SHOW ON THE HOME PAGE, AND THE HOME PAGE'S ABOUT TEXT IS NOW LIVE FROM THE MANUAL**
 
 Nutrient Plot has a new "Show this plot on the Home page" checkbox — check it and that exact plot (same nutrients, range, and styling, at a slightly reduced size) appears near the top of the Home page every time NuMa opens, with an "Edit this plot" link back to the full page. That checkbox sits inside a highlighted box right under the Download/Print buttons (originally a plain, easy-to-miss checkbox — moved up and boxed for visibility), and switches to a green "✓ Showing on the Home page" confirmation once it's on. When a plot is showing this way, the Home page's about text shortens to just its opening paragraph plus a "...continued at beginning of User Manual" link, so the two fit together. Separately, the Home page's about text (previously a hand-maintained `home.md`, prone to drifting out of sync) now reads live from the User Manual's own Preface, so the two can never disagree again. The Plot title box is also twice as wide as it was, so a longer title doesn't get cut off from view.
 
+<!--
 ```
 Scope: web/templates/nutrient_plot.html (new "Show this plot on the Home
 page" checkbox, POST /summary/nutrient-plot/home-pref, styled as an
@@ -2758,21 +2842,25 @@ invalidated when user-manual.md is newer) and _render_home_md_short()
 (first paragraph + manual link, used only when a home-page plot is also
 showing) both build on it. nutrimagnus.spec no longer bundles home.md.
 ```
+-->
 
 **MEAL PAGE'S "REFRESH FROM USDA" NOW EXPLAINS ITSELF, AND ONLY APPEARS WHEN IT'D DO SOMETHING**
 
 The "Meal amino acid ratios" table used to end with an unexplained "AA data: local cache" line and a "Refresh from USDA" button, even when there was nothing for it to fetch. That line now says plainly that the amino acid values shown come from the local food cache, not a live lookup, and the "Refresh from USDA" button only appears when a food in the meal is actually missing amino acid data — with a note pointing to the Missing Amino Acid Profiles section explaining which food(s) and why it matters.
 
+<!--
 ```
 Scope: web/templates/meal.html — the AA-data footer line under the "Meal amino
 acid ratios" table now wraps the refresh form/button in `{% if diaas.missing %}`
 and adds explanatory text; button also gets a title tooltip.
 ```
+-->
 
 **PICKING A REMEMBERED SEARCH FROM THE BROWSER'S OWN DROPDOWN MOVES ON TO SEARCH AGAIN**
 
 Every search box (Add Food or Recipe, Add Ingredient, Foods: Search, and others) that carries the browser's own remembered-entries dropdown had stopped moving focus on to the Search button once you picked an old entry from that dropdown — you had to click or Tab to it yourself. That live-selection case now works again, alongside the existing behavior where a freshly reloaded results page already puts focus on Search.
 
+<!--
 ```
 Scope: web/templates/base.html — the shared autofocus-to-Search-button script
 (scoped to input[autofocus] named q/query/search) now also attaches a live
@@ -2780,11 +2868,13 @@ Scope: web/templates/base.html — the shared autofocus-to-Search-button script
 inputType is 'insertReplacementText' (how Chrome/Firefox report a value set
 by picking a browser-remembered entry, as opposed to typing).
 ```
+-->
 
 **"NO RESULTS" NOW SITS RIGHT NEXT TO THE SEARCH BOX, HIGHLIGHTED IN YELLOW**
 
 Every search box in the app (Food Search, Add Food or Recipe on a meal, Add Ingredient on a recipe, Compare Foods/Recipes, My Pantry, Convert a Portion) used to print "No results for ..." as a plain line somewhere below the (empty) results table — easy to miss, especially once the table itself had scrolled out of view. It now appears directly beside the Search button, on a yellow highlighted background, so it's impossible to miss right where you were just looking.
 
+<!--
 ```
 Scope: web/static/style.css (new .search-no-results class — yellow background,
 padding, rounded corners). web/templates/meal.html, search.html,
@@ -2796,6 +2886,7 @@ existing display:none toggle on the two async-search pages, meal.html and
 search.html/food_analyze_portion.html, so existing JS keeps working
 unchanged).
 ```
+-->
 
 #### August 31 program updates
 
@@ -2807,6 +2898,7 @@ The daily/weekly/monthly notification-frequency setting was meant to throttle re
 
 Clicking Update Now used to leave the button sitting there with no feedback while the new binary downloaded in the background — easy to mistake for nothing having happened, especially on a slower connection. It now disables itself and shows a spinner with "Downloading…" the moment you confirm, so it's clear the update is actually in progress.
 
+<!--
 ```
 Scope: web/backend.py (_should_show_update_notice() now takes the candidate
 release's tag and only applies the frequency window when it matches the tag
@@ -2816,11 +2908,13 @@ of an inline onsubmit into a proper <script> block, disables the button and
 swaps in a Bootstrap spinner on confirm). tests/test_web.py (new coverage
 for the frequency-vs-newer-release interaction).
 ```
+-->
 
 **CHOOSE HOW OFTEN YOU'RE TOLD ABOUT NEW VERSIONS, AND ALWAYS SEE YOUR CURRENT ONE**
 
 Settings now has an "Update Notifications" section where you can set how often the "new version available" banner shows up on the home page: daily (the default), weekly, or monthly. The banner's build note also names that setting directly, with a link to change it. Separately, the home page now always shows a line under the Welcome heading — "Current version date: yyyy-mm-dd:hhmm" — so you can check exactly what you're running, down to the minute, without scrolling to the page footer; whenever a build note is set it follows in parentheses as "(Version note: ...)" on that same line. The build note no longer gets its own standalone box further up the page. See [What you see on the home page](#home-page-tour) for the full rundown, including exactly when the update check itself runs.
 
+<!--
 ```
 Scope: web/backend.py (_current_update_notify_frequency(), _should_show_update_notice()
 gating index()'s update_available via a saved prefs.json frequency + last-shown-date pair;
@@ -2832,11 +2926,13 @@ date" line below Welcome now carries the build note in parentheses). tests/test_
 (updated accordingly). user-manual.md (new "What you see on the home page" tour, Part 3
 Section A). README-numa-documentation.md (matching, fuller technical writeup).
 ```
+-->
 
 **BUILD-NOTE LINE NOW LABELED "NEW VERSION NOTE:", AND ITS BROKEN RENAME FIXED**
 
 The plain-language note about your current build now reads "NEW VERSION NOTE: ..." instead of repeating the version number a second time on that line (the number's already in the line above it, or the page-bottom small print). Separately, `version.py`'s note constant was renamed to `NEW_VERSION_NOTE`; the web app's own import of the old name was fixed to match (it briefly wouldn't start otherwise), and one of the two places that line is rendered had been missed in the wording update, leaving stale text visible in the UPDATE AVAILABLE banner specifically — that's fixed too.
 
+<!--
 ```
 Scope: version.py (VERSION_NOTE renamed to NEW_VERSION_NOTE), web/backend.py
 (import and template-context key updated to match), web/templates/home.html
@@ -2844,30 +2940,36 @@ Scope: version.py (VERSION_NOTE renamed to NEW_VERSION_NOTE), web/backend.py
 "NEW VERSION NOTE: ..."). tests/test_web.py (updated to the new name and
 an assertion added that was missing on the merged-into-banner case).
 ```
+-->
 
 **FIX: "UPDATE AVAILABLE" BANNER STILL SHOWED RIGHT AFTER A SUCCESSFUL UPDATE**
 
 After clicking Update Now, the just-updated confirmation and the "there's an update available" banner could both show at once — confusing, since one says you're done and the other says you're not. The running process doesn't reload its own version number until it's relaunched, so the availability check still (accurately, but unhelpfully) saw the old version and flagged the release you just installed as available. That check is now skipped for the one page load right after a successful update.
 
+<!--
 ```
 Scope: web/backend.py (index() skips the update_check call when the
 updated query param is set). tests/test_web.py (1 new assertion).
 ```
+-->
 
 **FIX: "UPDATE NOW" SUCCESS MESSAGE TOLD YOU TO QUIT AN APP WITH NO VISIBLE WINDOW TO QUIT**
 
 After a successful in-place update, the message used to say "Quit and reopen NutriMagnus" — but the packaged install has no visible window or taskbar entry to quit from, only the browser tab. It now says "Close this browser tab, then relaunch NutriMagnus," which is both accurate (the background server process only picks up the new binary on relaunch, not just from closing the tab) and matches what a user actually sees on screen.
 
+<!--
 ```
 Scope: web/templates/home.html (UPDATED banner wording), user-manual.md
 (matching wording in the Update Now description). tests/test_web.py (1
 new assertion).
 ```
+-->
 
 **FIX: THE CURRENT-BUILD VERSION NOTE WAS BURIED IN FINE PRINT AT THE PAGE BOTTOM**
 
 The plain-language note describing what changed in your current build (`version.py`'s `VERSION_NOTE`) used to appear only in small grey text at the very bottom of the home page — easy to miss entirely. It now shows near the top of the page: when there's an update available, it appears as a second line inside that same UPDATE AVAILABLE box, right below the first line; otherwise it gets its own light box in that same spot. The bare version number stays in the small print at the page bottom either way, for reference.
 
+<!--
 ```
 Scope: web/templates/home.html (version_note now renders as a line inside
 the update_available alert box when one is shown — not a separate box
@@ -2876,11 +2978,13 @@ no update available, so it's never shown twice; the bare version number
 stays in the page-bottom small print, unchanged). tests/test_web.py (2
 new tests covering both placements and no duplication).
 ```
+-->
 
 **NEW: ONE-CLICK "UPDATE NOW" BUTTON ON THE UPDATE-AVAILABLE BANNER**
 
 If you're running the packaged Linux install, the home page's UPDATE AVAILABLE banner now has an **Update Now** button — no terminal, no manual download. It fetches the latest release and replaces the running program in place; your data lives elsewhere and is never touched. A message tells you when it's safe to quit and reopen NuMa to start using the new version — the copy you're currently running keeps working until you do. Running from source instead of the packaged install shows the plain "what's new on GitHub" link as before, since there's no packaged binary for the button to replace.
 
+<!--
 ```
 Scope: numa_app/services/self_update.py (new — perform_update() downloads
 the latest release's binary/icon from GitHub and os.replace()s the running
@@ -2892,11 +2996,13 @@ success/failure flash), web/templates/home.html (Update Now button +
 confirm() dialog, success/failure banners). tests/test_self_update.py (7
 new tests), tests/test_web.py (2 new tests).
 ```
+-->
 
 **NEW: HOME PAGE NOW CHECKS FOR A NEWER RELEASE, AND SHOWS A SHORT NOTE ABOUT WHAT CHANGED IN YOUR CURRENT VERSION**
 
 The home page now checks GitHub for a newer NuMa release each time it loads (cached for a few hours so it isn't re-checked on every visit) and shows an **UPDATE AVAILABLE** banner with a link to what's new when one exists. The version line at the bottom of the home page also now carries a short plain-language note about what changed in that build (e.g. "minor problem fixes"), instead of just the bare timestamp. The check fails silently if you're offline or GitHub is unreachable — it never delays or blocks the home page from loading.
 
+<!--
 ```
 Scope: version.py (new VERSION_NOTE constant, hand-updated alongside
 VERSION and the Appendix A entry it summarizes), numa_app/services/
@@ -2910,11 +3016,13 @@ tests/test_web.py (1 new test), tests/conftest.py (no_update_check autouse
 fixture stubs the network call for every other test, same pattern as
 no_off/no_cnf).
 ```
+-->
 
 **MANUAL: "USING THE WEB APP" MOVED RIGHT AFTER THE INTRODUCTION, AND A STALE READING-TIME FIGURE FIXED**
 
 Part 6 ("Using the Web App") now comes right after Part 2 (the introduction), as the new Part 3 — the practical how-to-operate-NuMa material now reads before the nutrition-concepts and reference parts, instead of after them. Parts 3–6 renumbered accordingly (old 3→4, 4→5, 5→6), and every cross-reference to a part number throughout the manual was updated to match. Separately, the manual's "Reading time" figure had been silently wrong for a while — undercounting by close to 20,000 words — because the script that computes it treated any three backtick characters anywhere in the text as a code-fence marker, so a single sentence in Part 3 that mentioned the triple-backtick JSON fence syntax by name was misread as the start of a code block, and everything up to the next real fence (thousands of words) got wrongly excluded from the count. Reading time is now the corrected ~4 hours 19 minutes, not the ~2 hours 56 minutes shown before.
 
+<!--
 ```
 Scope: user-manual.md (Parts 3-6 reordered/renumbered, all in-text "Part N"
 cross-references updated via a mapping pass, one prose line reworded to
@@ -2923,6 +3031,7 @@ manual.py (count_words()'s fenced-code-block regex now requires the ```
 fence to be alone at the start of its own line, per CommonMark, instead of
 matching any three backticks anywhere in the raw text).
 ```
+-->
 
 #### August 30 program updates
 
@@ -2930,6 +3039,7 @@ matching any three backticks anywhere in the raw text).
 
 On meal, recipe, and food pages, the "Categorical report only — no quantitative data available" oxalate list (foods with only a category, not an exact milligram figure) now sorts by severity, very high to negligible, and alphabetically by food name within each category, instead of appearing in whatever order the ingredients happened to be listed in. The same food appearing more than once in a meal or recipe (e.g. used in two sub-recipes) now shows up only once, since it's a category label, not a summed quantity.
 
+<!--
 ```
 Scope: web/backend.py's _oxalate_for_items(), used by the meal, recipe, and
 food detail routes. Sorts the qualitative list against oxalate.py's existing
@@ -2937,17 +3047,20 @@ CATEGORY_ORDER tuple; deduplicates by fdc_id (falling back to a
 case-insensitive name match for entries with no fdc_id) before sorting.
 tests/test_web.py: 2 new regression tests.
 ```
+-->
 
 **MAINTENANCE: CLI REFERENCES FULLY RETIRED, README ARCHITECTURE DOC BROUGHT CURRENT, DOZENS OF STALE MANUAL PASSAGES FIXED**
 
 This week's sweep closed out the one-time CLI-mention cleanup (added 2026-08-25): every remaining reference to the retired terminal CLI — the glossary entry, a "view with c#" note, a file-based Claude-response-review workflow, and a CLI-style "options 1/2/3" description of editing a meal item — is gone, replaced with the actual web-app buttons and forms. `README-numa-documentation.md`'s Project Structure, route reference, and Test Suite sections (last checked "never") were brought fully current against the real codebase: the Recipes and Daily Summary pages were still documented as unimplemented stubs, dozens of routes and templates added since were missing, and the test count was stale — all now match. A full read-through of `user-manual.md` against actual app behavior turned up and fixed real drift: wrong Settings section numbers (Dietary Preferences was labeled section 4, actually 3; "Advanced settings" doesn't exist — the API key and search-depth settings live in section 5), a wrong Foods-menu item count (nine listed, ten exist), a wrong Meals & Log default page size (documented as 15, actually 9), a stale description of Search Meal History (claimed date filtering, sorting, and pagination it doesn't have), a wrong DIAAS annotation range (documented 0–1.5, actually 0–2.0), stale Food Cache and meal-Digestibility table column lists that no longer matched the real columns, an outdated "% of RDA" table description (the real column is "% of daily target," with color-coding built into that cell rather than a separate status column), an incomplete description of Sodium's daily limit (didn't mention the 12 other nutrients that get an automatic upper-limit-based cap), and a barcode-search description implying a confirm prompt that was removed when barcode search became direct-to-result. Item 6 (test coverage) found and closed one real gap: the August 27 fix stopping generic prep/state words (raw, cooked, etc.) from triggering a spurious food-search match had no regression test; two were added, both passing — no bug found in the fix itself. Changelog pruned back to the last two weeks. This is the first monthly deep check and first full manual audit — both headers now show 2026-08-30 as their last-run date.
 
+<!--
 ```
 Scope: CLAUDE.md, README-numa-documentation.md, user-manual.md (Parts 3,
 5, 6, 7, and Appendix A), tests/test_db.py (2 new tests for
 _OR_FALLBACK_STOPWORDS). No application code changed — this was a
 documentation-accuracy sweep, not a behavior change.
 ```
+-->
 
 #### August 27 program updates
 
@@ -2955,6 +3068,7 @@ documentation-accuracy sweep, not a behavior change.
 
 The Food Use in Meals / Food Use in Recipes substitute-a-food-or-recipe panel showed an unlabeled table of what's currently used in your selection, easy to mistake for a menu of foods you could pick as the replacement — including the very food you're trying to replace, sitting right there in the list. That table now says plainly it's a usage summary, not a replacement picker, marks the item you're replacing as "replacing this," and links straight to Food Search / Recipes (each opens in a new tab and shows IDs) for finding the replacement's ID. [learn more...](#fooduse-substitute)
 
+<!--
 ```
 Scope: web/templates/analysis_food_use.html and analysis_food_use_recipes.html
 (panel intro text now explains the table's purpose and links to /food/search
@@ -2964,11 +3078,13 @@ a "replacing this" badge when it matches), user-manual.md (#fooduse-substitute
 updated to match — no longer tells the reader to read the replacement's ID
 off the results table).
 ```
+-->
 
 **BLOCKED-DELETE MESSAGES NOW OFFER A ONE-CLICK BULK REPLACE, NOT JUST REMOVAL INSTRUCTIONS**
 
 The delete-blocked message on Food Cache and Custom Food Profiles previously only explained how to remove the food from each blocking recipe/meal one at a time. It now also links each blocking recipe/meal group to the existing Food Use substitution tools, pre-selected to exactly those recipes/meals with this food already chosen as the one to replace — so swapping in a different food everywhere it's used, in one action, is one click away. [learn more...](#fooduse-substitute)
 
+<!--
 ```
 Scope: web/backend.py (food_cache_delete/food_custom_profiles_delete now
 pass blocked_fdc_id through the redirect; analysis_food_use() and
@@ -2980,6 +3096,7 @@ and /analysis/food-use?mode=ids&meal_ids=... with sub_kind/sub_id set),
 web/templates/analysis_food_use.html and analysis_food_use_recipes.html
 (old_kind/old_id inputs take their default from sub_kind/sub_id).
 ```
+-->
 
 **BLOCKED-DELETE MESSAGES (FOOD CACHE, CUSTOM FOOD PROFILES) NOW SPELL OUT HOW TO CLEAR EACH BLOCKER**
 
@@ -2987,6 +3104,7 @@ Trying to delete a food that's still used in a pantry entry, recipe, or logged m
 
 Custom Food Profiles' delete-blocked message previously didn't name the blocking item(s) at all, unlike Food Cache's — it now does too, with the same linked pantry/recipe/meal ids.
 
+<!--
 ```
 Scope: web/backend.py (food_custom_profiles_delete/food_custom_profiles_get
 now carry blocked_pantry/blocked_recipes/blocked_meals through the redirect,
@@ -2995,11 +3113,13 @@ food_custom_profiles.html (delete-blocked alert now lists linked
 pantry/recipe/meal ids plus a per-category how-to list instead of a
 generic "remove/replace the food" line).
 ```
+-->
 
 **RECIPE-RELINK SUGGESTIONS NO LONGER FIRE ON A SINGLE COINCIDENTAL WORD, AND YOU CAN NOW RELINK TO ANY RECIPE**
 
 Editing a recipe used to offer to relink dangling "deleted recipe" references based on sharing just one word with the recipe's name — generic words like "protein" could trigger a nonsensical suggestion. It now requires sharing 2+ words (or an exact name match). The relink form also no longer assumes you meant the recipe you're currently editing — a dropdown lets you pick any suggested match or any recipe at all as the relink target. Separately, the opening page now shows an UPDATE banner if the database check (Food Cache > Database check) finds any referential-integrity problems, instead of requiring a visit to that page to notice.
 
+<!--
 ```
 Scope: db.py (find_broken_recipe_refs/find_relink_candidates now require
 MIN_RELINK_SHARED_WORDS=2 shared words, or an exact case-insensitive name
@@ -3013,11 +3133,13 @@ web/templates/recipe_edit.html (relink form now has a target-recipe
 <select> with suggested/all-recipes optgroups), web/templates/home.html
 (new UPDATE banner linking to /food/cache/db-check).
 ```
+-->
 
 **FOOD SEARCH NO LONGER SURFACES (LET ALONE TOP-RANKS) FOODS MATCHING ONLY A GENERIC WORD**
 
 Searching a multi-word query like "orange raw" could surface a user-drafted cached food like "Raw Brazil Nuts" — which shares nothing with "orange" — just because it contained the word "raw." Worse, under "Pantry, Cache, then Other" sort mode, that coincidental match could rank above every genuine "orange" result, since source category was compared before match quality. Generic prep/state words (raw, cooked, fresh, dried, frozen, canned, whole, ground, sliced, diced, chopped, boiled, roasted, baked, grilled, steamed, plain) can no longer trigger a match on their own. "Pantry, Cache, then Other" mode also now always ranks by how many query words matched first — pantry/cache only get listed ahead of other sources when they're tied on match quality, never when they matched fewer words.
 
+<!--
 ```
 Scope: db.py (search_cached_foods's user-drafted any-word fallback now
 excludes a new _OR_FALLBACK_STOPWORDS set of generic prep/state words from
@@ -3027,6 +3149,7 @@ numa_app.services.search_ranking.relevance_key first, with source category
 only breaking ties between equally-good matches, instead of comparing
 category before match quality at all).
 ```
+-->
 
 #### August 26 program updates
 
@@ -3034,6 +3157,7 @@ category before match quality at all).
 
 Food Search rows now carry a Delete column: a pantry match gets "Remove from pantry," a food-cache match gets "Delete" (refused if something still references it, same as Food Cache's own Delete), and a recipe match gets "Delete" for the recipe — each asks for confirmation first. Separately, the Source filter row (already had "Select all sources") now also has an "Unselect all" button.
 
+<!--
 ```
 Scope: web/backend.py (_search_local_results()/_pantry_id_by_fdc() now attach
 a pantry_id to pantry-sourced rows so the row can call the existing
@@ -3046,6 +3170,7 @@ web/templates/_source_filter_select.html + base.html (new
 data-unselect-all-sources button, delegated click handler mirroring the
 existing data-select-all-sources one).
 ```
+-->
 
 #### August 25 program updates
 
@@ -3053,6 +3178,7 @@ existing data-select-all-sources one).
 
 On the Edit Recipe page, the Recipe details fields (name, servings, instructions, etc.) save separately from the ingredient list — editing one of those fields and then clicking "Add to recipe" without first clicking "Save recipe details" used to leave that edit sitting unsaved, easy to lose track of. Now, adding an ingredient while any recipe-detail field has an unsaved change shows a warning first; choosing to continue saves those pending changes automatically along with adding the ingredient. [learn more...](#recipe-ingredients)
 
+<!--
 ```
 Scope: web/templates/recipe_edit.html (recipe-details-form given an id;
 new script tracks input/change events on it, intercepts submission of the
@@ -3063,11 +3189,13 @@ existing /recipe/{id}/edit save endpoint and the existing
 /recipe/{id}/ingredient/add(-recipe) endpoints, just sequenced from the
 client side.
 ```
+-->
 
 **NEW: COMPARE RECIPES CAN NOW SAVE AND RELOAD COMPARISON LISTS, LIKE COMPARE FOODS ALREADY COULD**
 
 Compare Recipes had no way to save a set of recipes you'd compared before — every visit started from a blank list. It now works exactly like Compare Foods: a "Save this list" box at the bottom names and stores your current comparison, and a "Use a saved list" panel at the top of the page — including the very first, empty-list view — lets you reload, rename, or delete any saved comparison. [learn more...](#recipe-comparison)
 
+<!--
 ```
 Scope: db.py (new saved_recipe_comparisons table and
 saved_recipe_comparison_save/list/get/rename/delete() functions, mirroring
@@ -3080,11 +3208,13 @@ food_compare.html's equivalent markup), tests/test_web.py (new
 save/load/rename/delete regression test), user-manual.md (Recipe Comparison
 Tables section).
 ```
+-->
 
 **FIXED: A FAST CLICK ON A LOCAL FOOD SEARCH RESULT'S COMPARE CHECKBOX COULD GET SILENTLY DISCARDED, AND THE LOCAL-RESULTS SECTION NOW HAS ITS OWN HEADING**
 
 Food Search renders your own pantry/cache/recipe matches instantly, then quietly replaces the whole results table a moment later once USDA/Open Food Facts respond, merging both sets together. Checking a compare checkbox on one of those instant local results *before* that replace finished got silently wiped out — the checkbox just looked broken, with no error or explanation. Checked boxes now carry across that replace. Separately, the local-results section at the top of the table now has its own "From your pantry, food cache, and recipes" heading, matching the "From USDA, Open Food Facts, and other external sources" heading the external section already had — the top section wasn't previously labeled at all.
 
+<!--
 ```
 Scope: web/templates/search.html (JS captures checked compare/confirm-aa
 checkbox values before replacing #search-tbody's innerHTML, re-applies them
@@ -3093,11 +3223,13 @@ by value afterward; new local-results divider row), web/templates/_search_api_ro
 table body), tests/test_web.py (existing divider-ordering test extended to
 also check the new local heading).
 ```
+-->
 
 **NEW: "COPY AS DRAFT TO ADD AA DATA" SHORTCUT ON FOOD SEARCH RESULTS**
 
 Any Food Search result missing confirmed amino acid data now shows a **Copy as draft to add AA data** link right in its row. Clicking it duplicates that food as an editable custom-profile draft and takes you straight to its edit page with the amino-acid-source search box ready — the one-click version of the "search, then go to Custom Food Profiles, then search again" path this previously required. [learn more...](#ts-no-aa-anywhere)
 
+<!--
 ```
 Scope: web/backend.py (new /food/custom-profiles/copy-from-search route,
 shared _duplicate_food_as_draft() helper factored out of the existing
@@ -3110,33 +3242,39 @@ query), tests/test_web.py (2 new tests, cached and uncached source),
 user-manual.md (Drafted Food Profiles List and the "no AA data anywhere"
 troubleshooting entry both mention the shortcut).
 ```
+-->
 
 **SEARCH-RESULT CHECKBOXES ARE NOW COLOR-CODED WITH A LEGEND**
 
 Food Search result rows can carry two different checkboxes — one to confirm amino acid data on an unconfirmed food, one to add the food to a comparison — and it wasn't obvious they were two separate controls when both appeared on the same row. The "confirm AA" checkbox is now orange and the "compare" checkbox is now purple, with a small legend above the results table explaining what each one does.
 
+<!--
 ```
 Scope: web/templates/_search_result_row.html (checkbox-confirm-aa /
 checkbox-compare classes), web/templates/search.html (select-all checkbox
 recolored, new legend above the results table), web/static/style.css
 (accent-color rules + legend swatches).
 ```
+-->
 
 **PROTEIN POWDERS NOW ACCEPT TABLESPOON/CUP AMOUNTS WHEN ADDED TO A RECIPE, AND THE EDIT-RECIPE PAGE NOW SHOWS THE RECIPE'S ID**
 
 Adding an ingredient like "Soy protein isolate" to a recipe using a volume amount (e.g. `2 T`) was silently rejected with "no density data is available for this food" — the density lookup only recognized "protein powder" and "whey powder" by name, not "protein isolate" or "protein concentrate". Those are now recognized too. Separately, the Edit Recipe page now shows the recipe's ID number under its title, matching other pages that display it.
 
+<!--
 ```
 Scope: usda_nutrients.py (_DENSITY_TABLE gained "protein isolate" and
 "protein concentrate" keywords alongside the existing "protein powder"/"whey
 powder" entry), tests/test_usda.py (regression test), web/templates/recipe_edit.html
 (recipe ID shown under the page title).
 ```
+-->
 
 **RECIPE COMPLEMENT SUGGESTIONS NOW EXPLAIN THEIR WHOLE-BATCH SIZING AND SHOW A PER-SERVING AMOUNT**
 
 Protein Complement Suggestions on a recipe's own page size every gram amount to the recipe's full total across all its servings, not one serving — that's intentional, since the only way to act on a suggestion is to add an ingredient to the whole batch. But a 4-serving recipe could show "add 83 g of soy protein isolate" with no indication that figure was for the whole pot, not one bowl. A note now appears at the top of the section for any recipe with more than one serving explaining this, with a link to further detail in the manual, and every gram amount throughout the section (gap closers, graduated steps, DIAAS boosters, two-food and two-step combinations) now also shows its per-serving equivalent in parentheses. [learn more...](#comp-recipe-scale)
 
+<!--
 ```
 Scope: user-manual.md (new "Recipe analysis: amounts are sized to the whole
 batch" subsection under Protein Complement Suggestions, #comp-recipe-scale),
@@ -3144,6 +3282,7 @@ web/templates/recipe_detail.html (top-of-section note for multi-serving
 recipes; new per_serving_note() macro applied to every grams display in the
 complements section), tests/test_web.py (new regression test).
 ```
+-->
 
 #### August 23 program updates
 
@@ -3151,6 +3290,7 @@ complements section), tests/test_web.py (new regression test).
 
 The **UL** column on nutrient analysis tables no longer warns about niacin (B3) or folate (B9) from ordinary food intake. Their published upper limits only apply to synthetic/supplemental forms (fortified food or pills) — whole-food niacin and folate don't carry the same risk, the same reasoning already applied to magnesium. Every table with a UL column now also carries a "Special note re: UL scope" callout right in the table footer explaining this in plain language, rather than leaving it to a manual page few people open. If you take a supplement containing niacin, folate, or magnesium, set a [custom max limit](#maxlimits) to track that. [learn more...](#maxlimits)
 
+<!--
 ```
 Scope: profile.py (compute_upper_limits() no longer includes niacin_mg or
 folate_mcg, doc comment explains why — mirrors the existing magnesium
@@ -3160,16 +3300,19 @@ re: UL scope" callout, shown on every nutrient table with a UL column —
 food/recipe/meal/daily summary/trend/print), user-manual.md (Maximum
 Nutrient Limits table and counts updated from 14 to 12 built-in ULs).
 ```
+-->
 
 **MAINTENANCE: WEEKLY SWEEP — 3 TEST GAPS CLOSED, README FEATURE LIST CAUGHT UP, CHANGELOG PRUNED**
 
 Item 1 (CLAUDE.md drift) and item 2 (vendored Bootstrap, still 5.3.8, current) found nothing to fix. Item 6 (test coverage) found three real gaps from the last few days of shipped changes and closed all of them: the Food Cache delete-refusal page rendering a food/pantry/recipe/meal blocker as an actual link, the My Pantry search results' "Remove from pantry" button, and Food Use in Meals/Recipes linking each row to its own analysis page — each now has a regression test. Item 5 (README.md) added three shipped features that were missing from the public "Key features" list: side-by-side comparison, food-use analysis, and the database integrity checker. Item 4 (manual consolidation) folded the delete-blocker and pantry-remove-button behavior into the manual body itself, and removed a stale internal editorial note that had outlived its purpose. Item 3 pruned the changelog back to roughly the last two weeks. Item 7 (link check) found nothing broken in-manual, but turned up something outside the manual's scope worth a look: `https://github.com/tom-cloyd/NutriMagnus` and its `/releases` page both return a genuine 404 right now, not a bot-block — worth confirming the repo's current visibility/location before the next release announcement, since `README.md`'s Download section and clone instructions point there.
 
+<!--
 ```
 Scope: tests/test_web.py (3 new/extended tests), README.md (Key features list),
 user-manual.md (Food Cache and My Pantry sections in Part 3, stray editorial
 note removed from Appendix A header, test-count sentence in Part 1).
 ```
+-->
 
 #### August 22 program updates
 
@@ -3177,12 +3320,14 @@ note removed from Appendix A header, test-count sentence in Part 1).
 
 The Food Use in Meals and Food Use in Recipes tables listed each food and recipe by name only, with no way to jump to that food's or recipe's own nutritional analysis page short of re-searching for it elsewhere. Every row's name is now a link — to `/food/{id}` for a food, `/recipe/{id}` for a recipe — except where there's genuinely nothing to link to (a deleted recipe, or a food added without a linked USDA/Open Food Facts/etc. id).
 
+<!--
 ```
 Scope: web/templates/analysis_food_use.html, web/templates/analysis_food_use_recipes.html.
 Both already had fdc_id/recipe_id/kind (and, for Food Use in Meals, a deleted flag)
 per row from web/backend.py's analysis_food_use / analysis_food_use_recipes routes;
 this only changed the row-name markup, no backend/query changes.
 ```
+-->
 
 #### August 21 program updates
 
@@ -3190,6 +3335,7 @@ this only changed the row-name markup, no backend/query changes.
 
 Food Cache → Delete used to refuse with a generic "it's still used in a pantry entry, recipe, or logged meal" message, giving no way to find which ones without hunting through Pantry, Recipes, and Meals & Log by hand. It now lists every blocking pantry entry, recipe, and meal by id, each one linked straight to the place you'd remove or replace that food — e.g. "pantry: 34 | recipe: 12 | meal: 9, 72".
 
+<!--
 ```
 Scope: db.py (food_references — now returns id lists instead of counts;
 still truthy/falsy the same way so existing callers were untouched), web/backend.py
@@ -3198,11 +3344,13 @@ blocked_meals query params, food_cache_get parses them back into lists), web/tem
 food_cache.html (renders each id as a link: pantry ids to /pantry, recipe ids to
 /recipe/{id}/edit, meal ids to /meal/{id}).
 ```
+-->
 
 **NEW: REMOVE A FOOD FROM YOUR PANTRY DIRECTLY FROM SEARCH RESULTS**
 
 Searching My Pantry for a food already in your pantry used to just label its search-results row "Already in pantry" with no action available — removing it meant scrolling down to find the matching row in the pantry list below. That row now has a **Remove from pantry** button instead, so you can add or remove a food from the same search results table.
 
+<!--
 ```
 Scope: web/backend.py (pantry_get), web/templates/pantry.html. Search results whose
 source is "pantry" now carry the underlying pantry row's id (pantry_id_by_fdc, built
@@ -3210,6 +3358,7 @@ from the same items list used to render the pantry table below); the template sw
 the static "Already in pantry" label for a form posting to the existing
 /pantry/remove/{pantry_id} route when that id is present.
 ```
+-->
 
 #### August 20 program updates
 

@@ -1,6 +1,6 @@
 """
 nutrient_trend.py — multi-day nutrient averaging, used by the web backend
-(backend.py) for the multiday nutrient trend view.
+(backend.py) for the nutrient-averages-across-days view.
 
 Single-day summaries only ever show a snapshot; a nutrient that's chronically
 low (B12, iron, iodine, vitamin D) over many days is invisible if you only
