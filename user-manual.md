@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-01:1938* / Reading time: 4 hours, 32 minutes
+*Updated 2026-09-03:1039* / Reading time: 4 hours, 32 minutes
 
 *Last full audit: 2026-08-30*
 
@@ -229,7 +229,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-01), there are 761 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-02), there are 767 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
@@ -2604,6 +2604,24 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 [//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
 
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed. Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it.
+
+#### September 2 program updates
+
+**NUTRIENT PLOT CAN ALWAYS END ON YESTERDAY INSTEAD OF FREEZING A DATE**
+
+A new checkbox, **Always end on the last complete day**, sits next to the Show this plot on the Home page button on the Nutrient Plot page. Turn it on and the plot's end date stops being frozen at whatever "Ending on" date was current when you saved it — instead it always shows through yesterday (the last fully-logged day), sliding forward automatically every day. Handy for the Home page plot in particular, since without it the plot would otherwise stay stuck on its original end date until you revisited the page and re-saved it.
+
+```
+Scope: web/backend.py — _nutrient_plot_params() gains a rolling flag that
+overrides anchor_date with (today - 1 day) and, in "all logged days" mode,
+drops any dates after it; _nutrient_plot_qs() omits anchor_date and adds
+rolling=1 when set. nutrient_plot_page/image/print routes all accept
+rolling as a query param. nutrient_plot_home_pref() now strips any frozen
+anchor_date from the saved querystring when rolling is checked.
+web/templates/nutrient_plot.html — new checkbox beside the home-page
+toggle; the Ending on field disables itself with an explanatory note while
+rolling is active.
+```
 
 #### September 1 program updates
 

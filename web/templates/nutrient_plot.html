@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — Nutrient Plot{% endblock %}
+{# container-fluid (not the default fixed-width container) so the options
+   row (Days back/Highlight/Plot) has enough room to sit beside the
+   Nutrients checklist instead of wrapping below it at ordinary window
+   widths. #}
+{% block layout_class %}container-fluid{% endblock %}
 
 {% block content %}
 <script>
@@ -75,14 +80,20 @@
 <h2 id="nutrient-plot-heading">Nutrient Plot {{ manual_link("nutrient-plot") }}</h2>
 <p class="muted">Line plot of one or more nutrients from your logged days, day on the x-axis.</p>
 
+{% if has_plot %}
+<form method="post" action="/summary/nutrient-plot/home-pref" id="home-pref-form">
+  <input type="hidden" name="qs" value="{{ qs }}">
+</form>
+{% endif %}
+
 <form method="get" action="/summary/nutrient-plot" class="mb-3" id="nutrient-plot-form">
   <div class="mb-2 d-flex flex-wrap gap-4 align-items-start">
-    <div>
+    <div style="flex-shrink:0">
       <span class="form-label d-block">Nutrients <small class="muted">(up to {{ max_nutrients }})</small></span>
-      <div style="position:relative;max-width:44rem">
+      <div style="position:relative;max-width:28rem">
         <div style="display:flex;gap:1.5rem;max-height:17rem;overflow-y:auto;border:1px solid #d7dce4;border-radius:4px;padding:0.4rem 0.6rem 1.6rem 0.6rem">
           {% for col in available_nutrient_columns %}
-          <div style="flex:1 1 0;min-width:13rem">
+          <div style="flex:1 1 0;min-width:12.5rem">
             {% for n in col %}
             <div class="form-check m-0" style="padding-top:0.15rem;padding-bottom:0.15rem">
               <input class="form-check-input" type="checkbox" name="nutrients" id="nut-{{ n.key }}"
@@ -99,53 +110,93 @@
       </div>
     </div>
 
-    <div class="d-flex gap-3">
-      <div class="d-flex flex-column gap-2">
-        <div>
-          <label class="form-label mb-0" for="days_back">Days back <small class="muted">(blank = all logged days)</small></label>
-          <input type="number" min="1" class="form-control form-control-sm" id="days_back" name="days_back"
-                 value="{{ days_back }}" style="width:12rem" placeholder="All">
+    {# Right-side wrapper: the 3 options columns plus the Plot title field
+       directly beneath them — kept separate from the Nutrients checklist
+       above so Plot title sizes and positions itself to this group alone,
+       not the full page width. flex-basis:0 (not the default auto, which
+       resolves to this wrapper's unwrapped 3-column content width and
+       forces the *whole* wrapper below Nutrients — dragging Days back down
+       with it — the moment that content width doesn't fit) makes the
+       outer row size this wrapper from the actual leftover space instead,
+       so its own inner flex-wrap can decide column-by-column what fits. #}
+    <div style="flex:1 1 0%;min-width:0">
+      <div class="d-flex flex-wrap gap-3">
+        <div class="d-flex flex-column gap-2" style="max-width:12rem">
+          <div>
+            <label class="form-label mb-0" for="days_back" style="display:inline">Days back <small class="muted">(blank = all logged days)</small></label>
+            <input type="number" min="1" class="form-control form-control-sm" id="days_back" name="days_back"
+                   value="{{ days_back }}" style="width:4rem;display:inline-block" placeholder="All">
+          </div>
+          <div>
+            <label class="form-label mb-0" for="anchor_date">Ending on</label>
+            <input type="date" class="form-control form-control-sm" id="anchor_date" name="anchor_date"
+                   value="{{ anchor_date }}" style="width:12rem" {% if rolling %}disabled{% endif %}>
+            {% if rolling %}<div><small class="muted">Always end on last complete day (see checkbox by Home page button below).</small></div>{% endif %}
+          </div>
+          {% if rolling %}<input type="hidden" name="rolling" value="1">{% endif %}
         </div>
-        <div>
-          <label class="form-label mb-0" for="anchor_date">Ending on</label>
-          <input type="date" class="form-control form-control-sm" id="anchor_date" name="anchor_date"
-                 value="{{ anchor_date }}" style="width:12rem">
+        <div class="d-flex flex-column gap-2" style="max-width:12rem">
+          <div>
+            <label class="form-label mb-0" for="smoothing" title="Each point is averaged with its preceding days to smooth out day-to-day noise. 0 turns smoothing off and shows the original, unsmoothed data.">Smoothing (days)</label>
+            <input type="number" min="0" step="1" class="form-control form-control-sm" id="smoothing" name="smoothing"
+                   value="{{ smoothing }}" style="width:12rem">
+          </div>
+          {% if chosen %}
+          <div>
+            <label class="form-label mb-0" for="highlight" title="This nutrient always draws solid, and in color mode always red, so the one figure you're usually comparing everything else against stands out.">Highlight nutrient (make red)</label>
+            <select class="form-select form-select-sm" id="highlight" name="highlight" style="width:12rem">
+              {% for k in chosen %}
+              <option value="{{ k }}" {% if k == highlight %}selected{% endif %}>{{ available_nutrients|selectattr('key', 'equalto', k)|map(attribute='label')|first }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="grayscale" name="grayscale" value="1" {% if grayscale %}checked{% endif %}>
+            <label class="form-check-label" for="grayscale" title="Renders every line in black, using a different dash pattern per nutrient instead of color, so the chart still reads correctly on a printer that can't print color. Preview it here before you print.">Black &amp; white (printer-friendly)</label>
+          </div>
+          {% endif %}
+          <div>
+            <label class="form-label mb-0" for="scale_factor" title="Step 1: any nutrient plotted alongside a much larger- or smaller-scale one is divided by this so both stay readable on one axis. Prefilled with NuMa's computed default — change it and click Plot to try a different value.">Scale factor
+              {% if scale_factor %}<a href="#" id="scale-factor-auto" class="muted" style="font-size:0.75em" title="Clear this and use NuMa's computed default again">Auto</a>{% endif %}
+            </label>
+            <input type="number" min="0.1" step="0.1" class="form-control form-control-sm" id="scale_factor" name="scale_factor"
+                   value="{{ scale_factor }}" placeholder="{{ scale_factor_placeholder }}" style="width:12rem">
+          </div>
         </div>
-        <div>
-          <label class="form-label mb-0" for="scale_factor" title="Step 1: any nutrient plotted alongside a much larger- or smaller-scale one is divided by this so both stay readable on one axis. Prefilled with NuMa's computed default — change it and click Plot to try a different value.">Scale factor
-            {% if scale_factor %}<a href="#" id="scale-factor-auto" class="muted" style="font-size:0.75em" title="Clear this and use NuMa's computed default again">Auto</a>{% endif %}
-          </label>
-          <input type="number" min="0.1" step="0.1" class="form-control form-control-sm" id="scale_factor" name="scale_factor"
-                 value="{{ scale_factor }}" placeholder="{{ scale_factor_placeholder }}" style="width:12rem">
+
+        {# A separate flex-wrap item (not nested inside the Days back/Highlight
+           group above) so it can drop to its own line on a narrower window
+           without dragging Days back down below the Nutrients checklist with
+           it — keeping "Days back..." beside Nutrients is the constraint that
+           actually matters; Plot/the toggles wrapping on their own is fine. #}
+        <div class="d-flex flex-column gap-2" style="max-width:12rem">
+          {% if has_plot %}
+          <div class="alert {% if is_home_plot %}alert-success{% else %}alert-info{% endif %} mb-0 py-2 px-2">
+            <div class="form-check m-0">
+              <input class="form-check-input" type="checkbox" id="home-plot-toggle" name="enabled" value="1" form="home-pref-form"
+                     {% if is_home_plot %}checked{% endif %} onchange="this.form.requestSubmit()">
+              <label class="form-check-label" for="home-plot-toggle" title="Shows a smaller copy of this exact plot — same nutrients, range, and styling — near the top of the Home page.">
+                <strong>{% if is_home_plot %}&#10003; On Home page{% else %}Show on Home page{% endif %}</strong>
+              </label>
+            </div>
+            <div class="form-check m-0 mt-1">
+              <input class="form-check-input" type="checkbox" id="home-plot-rolling" name="rolling" value="1" form="home-pref-form"
+                     {% if rolling %}checked{% endif %} onchange="this.form.requestSubmit()">
+              <label class="form-check-label" for="home-plot-rolling" title="Instead of freezing the Ending on date to whatever it was when saved, the plot always shows through yesterday — the last day fully logged — sliding forward automatically each day.">
+                Roll to last complete day
+              </label>
+            </div>
+          </div>
+          {% endif %}
+          <button type="submit" form="nutrient-plot-form" class="btn btn-primary btn-sm">Plot</button>
         </div>
       </div>
-      <div class="d-flex flex-column gap-2">
-        <div>
-          <label class="form-label mb-0" for="smoothing" title="Each point is averaged with its preceding days to smooth out day-to-day noise. 0 turns smoothing off and shows the original, unsmoothed data.">Smoothing (days)</label>
-          <input type="number" min="0" step="1" class="form-control form-control-sm" id="smoothing" name="smoothing"
-                 value="{{ smoothing }}" style="width:12rem">
-        </div>
-        {% if chosen %}
-        <div>
-          <label class="form-label mb-0" for="highlight" title="This nutrient always draws solid, and in color mode always red, so the one figure you're usually comparing everything else against stands out.">Highlight nutrient (make red)</label>
-          <select class="form-select form-select-sm" id="highlight" name="highlight" style="width:12rem">
-            {% for k in chosen %}
-            <option value="{{ k }}" {% if k == highlight %}selected{% endif %}>{{ available_nutrients|selectattr('key', 'equalto', k)|map(attribute='label')|first }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="form-check mb-1">
-          <input class="form-check-input" type="checkbox" id="grayscale" name="grayscale" value="1" {% if grayscale %}checked{% endif %}>
-          <label class="form-check-label" for="grayscale" title="Renders every line in black, using a different dash pattern per nutrient instead of color, so the chart still reads correctly on a printer that can't print color. Preview it here before you print.">Black &amp; white (printer-friendly)</label>
-        </div>
-        {% endif %}
+
+      <div class="mt-2" style="max-width:38rem">
+        <label class="form-label mb-0" for="title">Plot title</label>
+        <input type="text" class="form-control form-control-sm" id="title" name="title" value="{{ title }}">
       </div>
     </div>
-  </div>
-
-  <div class="mt-2" style="max-width:64rem">
-    <label class="form-label mb-0" for="title">Plot title</label>
-    <input type="text" class="form-control form-control-sm" id="title" name="title" value="{{ title }}">
   </div>
 
   {% if chosen %}
@@ -164,25 +215,8 @@
   {% endif %}
 </form>
 
-<div class="d-flex align-items-center gap-3 mt-3 mb-3">
-  <button type="submit" form="nutrient-plot-form" class="btn btn-primary btn-sm" style="width:12rem">Plot</button>
-  {% if has_plot %}
-  <form method="post" action="/summary/nutrient-plot/home-pref"
-        class="alert {% if is_home_plot %}alert-success{% else %}alert-info{% endif %} mb-0 py-2 px-3 d-inline-block">
-    <input type="hidden" name="qs" value="{{ qs }}">
-    <div class="form-check m-0">
-      <input class="form-check-input" type="checkbox" id="home-plot-toggle" name="enabled" value="1"
-             {% if is_home_plot %}checked{% endif %} onchange="this.form.requestSubmit()">
-      <label class="form-check-label" for="home-plot-toggle" title="Shows a smaller copy of this exact plot — same nutrients, range, and styling — near the top of the Home page.">
-        <strong>{% if is_home_plot %}&#10003; Showing on the Home page{% else %}Show this plot on the Home page{% endif %}</strong>
-      </label>
-    </div>
-  </form>
-  {% endif %}
-</div>
-
 {% if has_plot %}
-<div class="mb-2">
+<div class="mb-2 mt-3">
   <img id="plot-img" src="/summary/nutrient-plot/image?{{ qs }}" alt="Nutrient plot" style="max-width:100%;border:1px solid #d7dce4;border-radius:4px">
 </div>
 <div class="d-flex gap-2 align-items-center flex-wrap">

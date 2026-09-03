@@ -2973,9 +2973,9 @@ def test_recent_days_protein_leads_and_calories_now_optional(client: TestClient,
 
 
 def test_nutrient_plot_home_page_toggle_is_prominent(client: TestClient, cached_food) -> None:
-    """The "Show this plot on the Home page" control was easy to miss as a
-    plain checkbox buried below the download/print buttons — it's now a
-    highlighted alert box, and switches to a confirmation state once on."""
+    """The "Show on Home page" control was easy to miss as a plain checkbox
+    buried below the download/print buttons — it's now a highlighted alert
+    box, and switches to a confirmation state once on."""
     today = datetime.date.today().isoformat()
     resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
     meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
@@ -2985,21 +2985,22 @@ def test_nutrient_plot_home_page_toggle_is_prominent(client: TestClient, cached_
 
     r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=calories")
     assert "alert-info" in r.text
-    assert "Show this plot on the Home page" in r.text
+    assert "Show on Home page" in r.text
 
     import html
     import re
     qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r.text).group(1))
     r2 = client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=True)
     assert "alert-success" in r2.text
-    assert "Showing on the Home page" in r2.text
+    assert "On Home page" in r2.text
 
 
 def test_nutrient_plot_plot_button_and_wording(client: TestClient, cached_food) -> None:
-    """The Plot button lives outside the settings <form> now (associated via
-    the HTML5 form="" attribute) so it can sit at the very bottom of the
-    page, after Per-nutrient scaling factors, beside the home-page toggle —
-    not buried partway up the right-hand column."""
+    """The Plot button and the Home-page toggle sit on the same line as the
+    Days back / Highlight nutrient options — associated with the main form
+    via the HTML5 form="" attribute, and (for the toggle checkboxes) with a
+    separate out-of-tree home-pref form the same way — rather than buried
+    below the whole page."""
     today = datetime.date.today().isoformat()
     resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
     meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
@@ -3010,13 +3011,16 @@ def test_nutrient_plot_plot_button_and_wording(client: TestClient, cached_food) 
     text = r.text
     assert 'id="nutrient-plot-form"' in text
     assert 'form="nutrient-plot-form"' in text
+    assert 'id="home-pref-form"' in text
+    assert 'form="home-pref-form"' in text
     assert "Per-nutrient scaling factors" in text
     assert "step 2" not in text
     assert "Highlight nutrient (make red)" in text
-    # Plot button should appear after the closing </form> (i.e. after Per-nutrient section)
-    form_close = text.index("</form>")
+    # Plot button/toggle sit before the Per-nutrient scaling section, on the
+    # same options row as Highlight nutrient — not after the closing </form>.
+    scaling_section = text.index("Per-nutrient scaling factors")
     plot_btn = text.index('form="nutrient-plot-form"')
-    assert plot_btn > form_close
+    assert plot_btn < scaling_section
     assert "alert-info" in text or "alert-success" in text
 
 
@@ -3069,3 +3073,35 @@ def test_home_page_nutrient_plot_notice(client: TestClient, cached_food) -> None
     client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
     r3 = client.get("/")
     assert "You can chart nutrients" not in r3.text
+
+
+def test_nutrient_plot_rolling_end_date(client: TestClient, cached_food) -> None:
+    """"Roll to last complete day" strips any frozen anchor_date from the
+    saved home-page querystring and adds rolling=1, and the image endpoint
+    then excludes today's (incomplete) data from the plotted range."""
+    import html
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=calories")
+    assert "Roll to last complete day" in r.text
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r.text).group(1))
+
+    r2 = client.post("/summary/nutrient-plot/home-pref",
+                      data={"qs": qs, "enabled": "1", "rolling": "1"}, follow_redirects=True)
+    assert r2.status_code == 200
+    assert "rolling=1" in str(r2.url)
+    assert "anchor_date" not in str(r2.url)
+    assert "checked" in r2.text
+
+    # Only meal logged is "today", and rolling excludes today (ends
+    # yesterday) — so no data falls in range, confirming the filter works.
+    img = client.get("/summary/nutrient-plot/image?nutrients=dcp&rolling=1")
+    assert img.status_code == 404
+
+    home = client.get("/")
+    assert "rolling=1" in home.text

@@ -6842,18 +6842,26 @@ async def summary_trend(request: Request, days: int = Query(7)):
     })
 
 
-def _nutrient_plot_params(conn, nutrients: list[str], days_back: str | None, anchor_date: str | None):
+def _nutrient_plot_params(conn, nutrients: list[str], days_back: str | None, anchor_date: str | None,
+                           rolling: bool = False):
     """Shared by the plot page and its image endpoint: validate the chosen
     nutrient keys (capped to the plotting palette's 8 colors) and resolve
     which logged dates fall in range. days_back blank/absent/<=0 means "all
     logged days"; otherwise it's the N days ending at anchor_date (default:
     the most recent logged day). days_back arrives as a string (not int)
     because the "blank = all days" form field submits "" when empty, which
-    FastAPI's query validation rejects outright for an int-typed param."""
+    FastAPI's query validation rejects outright for an int-typed param.
+    rolling=True ("always end on the last complete day") overrides
+    anchor_date with yesterday's date and, in "all logged days" mode, drops
+    any dates after it — so a saved Home page plot keeps sliding forward
+    each day instead of freezing at whatever date it was turned on."""
     valid_keys = {key for key, _label, _unit in _usda.NUTRIENT_MAP.values()} | {_DCP_PLOT_KEY}
     chosen = [k for k in nutrients if k in valid_keys][:MAX_PLOT_NUTRIENTS]
 
     all_dates = sorted(r["meal_date"] for r in _db.meal_dates_with_bcp(conn, limit=1_000_000))
+
+    if rolling:
+        anchor_date = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
 
     try:
         days_back_n = int(days_back) if days_back else None
@@ -6868,6 +6876,8 @@ def _nutrient_plot_params(conn, nutrients: list[str], days_back: str | None, anc
     else:
         anchor = anchor_date or (all_dates[-1] if all_dates else "")
         dates = all_dates
+        if rolling:
+            dates = [d for d in dates if d <= anchor]
 
     return chosen, dates, anchor
 
@@ -7072,13 +7082,16 @@ def _nutrient_plot_default_title(dates: list[str]) -> str:
 def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | None,
                        scale_factor: str | None, title: str | None,
                        highlight: str | None, grayscale: bool, smoothing: int,
-                       nutrient_factors: dict[str, str] | None = None) -> str:
+                       nutrient_factors: dict[str, str] | None = None,
+                       rolling: bool = False) -> str:
     from urllib.parse import urlencode
     params = [("nutrients", k) for k in chosen]
     if days_back:
         params.append(("days_back", days_back))
-        if anchor:
+        if anchor and not rolling:
             params.append(("anchor_date", anchor))
+    if rolling:
+        params.append(("rolling", "1"))
     if scale_factor:
         params.append(("scale_factor", scale_factor))
     if title:
@@ -7105,6 +7118,7 @@ async def nutrient_plot_page(
     highlight: str | None = Query(None),
     grayscale: bool = Query(False),
     smoothing: str | None = Query(None),
+    rolling: bool = Query(False),
 ):
     """Line plot of one or more Daily Summary nutrients over a chosen set of
     days — reuses the same per-day nutrient totals as the Recent Days table
@@ -7114,7 +7128,7 @@ async def nutrient_plot_page(
     smoothing_n = _parse_smoothing_window(smoothing)
 
     with _db.get_db() as conn:
-        chosen, dates, anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date)
+        chosen, dates, anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date, rolling=rolling)
         has_plot = bool(chosen) and bool(dates)
         highlight_key = _resolve_highlight(chosen, highlight) if has_plot else None
         raw_series = _nutrient_plot_raw_series(conn, chosen, dates, highlight_key) if has_plot else []
@@ -7145,15 +7159,19 @@ async def nutrient_plot_page(
     effective_title = title.strip() if title and title.strip() else _nutrient_plot_default_title(dates)
 
     qs = (_nutrient_plot_qs(chosen, days_back, anchor, factor_str, effective_title,
-                             highlight_key, grayscale, smoothing_n, individual_factor_strs)
+                             highlight_key, grayscale, smoothing_n, individual_factor_strs,
+                             rolling=rolling)
           if has_plot else "")
 
     available = [(_DCP_PLOT_KEY, _DCP_PLOT_LABEL)] + plot_nutrient_choices()
     available_dicts = [{"key": k, "label": lbl} for k, lbl in available]
-    # Split into 3 columns for the checklist, filled top-to-bottom left-to-
-    # right (item 1..k in column 1, k+1..2k in column 2, ...) rather than
-    # round-robin, so each column reads as a contiguous chunk of the list.
-    _col_size = -(-len(available_dicts) // 3)  # ceil
+    # Split into 2 columns for the checklist (was 3 — narrowed so the
+    # checklist box leaves enough width for the Days back/Highlight/Plot
+    # options to sit beside it instead of wrapping below it), filled
+    # top-to-bottom left-to-right (item 1..k in column 1, k+1..2k in column
+    # 2, ...) rather than round-robin, so each column reads as a contiguous
+    # chunk of the list.
+    _col_size = -(-len(available_dicts) // 2)  # ceil
     available_nutrient_columns = [available_dicts[i:i + _col_size] for i in range(0, len(available_dicts), _col_size)]
     nutrient_factor_rows = [{
         "key":         k,
@@ -7184,20 +7202,32 @@ async def nutrient_plot_page(
         "highlight":  highlight_key,
         "grayscale":  grayscale,
         "smoothing":  smoothing_n,
+        "rolling":    rolling,
     })
 
 
 @app.post("/summary/nutrient-plot/home-pref")
-async def nutrient_plot_home_pref(qs: str = Form(...), enabled: str | None = Form(None)):
+async def nutrient_plot_home_pref(qs: str = Form(...), enabled: str | None = Form(None),
+                                   rolling: str | None = Form(None)):
     """"Show this plot on the Home page" toggle on the Nutrient Plot page —
     stores the full plot querystring in prefs.json so index() can reuse it
     (server-rendered; the home page has no client JS state of its own to
-    read a browser-stored preference from)."""
+    read a browser-stored preference from). The "always end on the last
+    complete day" checkbox sits alongside it: checking it strips any frozen
+    anchor_date from the stored querystring and adds rolling=1, so every
+    future render (including the Home page's) recomputes the end date as
+    yesterday instead of replaying whatever date was current when this was
+    saved."""
+    from urllib.parse import parse_qsl, urlencode
+    params = [(k, v) for k, v in parse_qsl(qs) if k not in ("anchor_date", "rolling")]
+    if rolling:
+        params.append(("rolling", "1"))
+    final_qs = urlencode(params)
     if enabled:
-        _save_prefs_file({"home_nutrient_plot_qs": qs, "home_nutrient_plot_enabled": True})
+        _save_prefs_file({"home_nutrient_plot_qs": final_qs, "home_nutrient_plot_enabled": True})
     else:
         _save_prefs_file({"home_nutrient_plot_enabled": False})
-    return RedirectResponse(f"/summary/nutrient-plot?{qs}", status_code=303)
+    return RedirectResponse(f"/summary/nutrient-plot?{final_qs}", status_code=303)
 
 
 @app.get("/summary/nutrient-plot/image")
@@ -7213,13 +7243,14 @@ async def nutrient_plot_image(
     smoothing: str | None = Query(None),
     fmt: str = Query("png"),
     download: bool = Query(False),
+    rolling: bool = Query(False),
 ):
     from numa_app.services.plotting import line_plot_image
 
     image_format = "svg" if fmt == "svg" else "png"
 
     with _db.get_db() as conn:
-        chosen, dates, _anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date)
+        chosen, dates, _anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date, rolling=rolling)
         if not chosen or not dates:
             raise HTTPException(status_code=404, detail="No nutrients or days selected")
         highlight_key = _resolve_highlight(chosen, highlight)
@@ -7261,9 +7292,10 @@ async def nutrient_plot_print(
     highlight: str | None = Query(None),
     grayscale: bool = Query(False),
     smoothing: str | None = Query(None),
+    rolling: bool = Query(False),
 ):
     with _db.get_db() as conn:
-        chosen, dates, anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date)
+        chosen, dates, anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date, rolling=rolling)
     if not chosen or not dates:
         return RedirectResponse("/summary/nutrient-plot", status_code=303)
 
@@ -7271,7 +7303,8 @@ async def nutrient_plot_print(
     raw_factor_params = _nutrient_plot_factor_params(request.query_params, chosen)
     effective_title = title.strip() if title and title.strip() else _nutrient_plot_default_title(dates)
     qs = _nutrient_plot_qs(chosen, days_back, anchor, scale_factor, effective_title,
-                            highlight_key, grayscale, _parse_smoothing_window(smoothing), raw_factor_params)
+                            highlight_key, grayscale, _parse_smoothing_window(smoothing), raw_factor_params,
+                            rolling=rolling)
 
     return templates.TemplateResponse(request, "nutrient_plot_print.html", {
         "labels":     [_plot_label_for(k) for k in chosen],
