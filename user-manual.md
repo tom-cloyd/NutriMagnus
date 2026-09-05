@@ -1,8 +1,8 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-03:1117* / Reading time: 4 hours, 34 minutes
+*Updated 2026-09-04:1727* / Reading time: 4 hours, 37 minutes
 
-*Last full audit: 2026-08-30*
+*Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
 **NutriMagnus ("NuMa")** is an open-source computer program which provides a thorough nutritional analysis of a user's food choices. It is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -52,9 +52,9 @@ Start with what is easiest to understand: analysis of single foods and simple re
 
 **Learning a powerful tool requires time and frequent contact.** You have two critical things to learn: basic concepts (covered in [Part 4](#coreNutrition)) and the interface itself, including the functions listed on the main menu items drop-down menus. **If you don't commit to daily use of the program, for about a week, you will not get past the slow-fumbling stage.** What you are dealing with is a Boeing 727, not a Piper Cub. Learn the cockpit and you can be a world traveler! (And that learning can come gradually, but daily exposure is the key.)
 
-### C. Numa often learns from you as you use it
+### C. NuMa often learns from you as you use it
 
-While we don't yet have on-board local AI to help you with NuMa and your food questions, we do have Numa remembering recent entries you've made to text input boxes, and a number of different options you've selected. 
+While we don't yet have on-board local AI to help you with NuMa and your food questions, we do have NuMa remembering recent entries you've made to text input boxes, and a number of different options you've selected. 
 
 One huge asset is the [Food cache](#FoodCache) database you'll set up. This serves as a memory of every food you've looked up or put into your Pantry. Saved is the food name, ID number, and nutrition data. 
 
@@ -204,7 +204,7 @@ NuMa has been under intense development and is still being developed. Over time,
 Very recently, a Windows version of the program has been developed. It will soon be available for download and user trials. 
 
 
-### E. Data, testing, and validation: Why you can trust NutriMagnus (NuMa)
+### E. Data, testing, and validation: Why you can trust NutriMagnus (NuMa) {: #data-testing-validation}
 
 #### Reliable data sources
 
@@ -229,7 +229,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-03), there are 767 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-03), there are 785 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
@@ -400,7 +400,7 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 Add up to eight foods (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
 
 #### Food Cache {: #food-cache-web}
-Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Compare Foods](#food-comparison) with the checked items.
+Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
 
 **Check database integrity.**{: #db-check} Scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited database file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by ID — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
 
@@ -419,7 +419,7 @@ Every food NuMa has ever fetched from USDA or Open Food Facts[^3] lives here —
 
 #### My Pantry
 
-Foods you keep on hand — see [My Pantry](#pantry) in Part 5 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 5. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Compare Foods](#food-comparison) with the checked items; a quick-add item with no linked data can't be compared.
+Foods you keep on hand — see [My Pantry](#pantry) in Part 5 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 5. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items; a quick-add item with no linked data can't be compared.
 
 #### Custom food profiles
 
@@ -434,7 +434,7 @@ A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](
 A food's page shows, in order: **Protein Summary** (DCP), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos — each can be [ignored and recalculated](#ignore-complement)), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or SR Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
 
 ### F. Using the Recipes menu {: #recipes-menu-web}
-The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 6. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 5 — for jumping straight into [Compare Recipes](#recipe-comparison) with the checked recipes.
+The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 6. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 5 — for jumping straight into [Comparison](#comparison) with the checked recipes.
 
 Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically, and cascades to every recipe that depends on it too — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 6. You don't need **Recompute DCP for all recipes** just because you changed one recipe; it's there for after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
 
@@ -1255,6 +1255,7 @@ The sections linked from analysis output are:
 - [Archiving](#archive) — hiding foods, pantry entries, and recipes from everyday use without losing them
 - [Bioavailability](#bioavailability) — [DIAAS](#gloss-diaas) bioavailability table columns
 - [Complement suggestions](#comp) — protein [complement food](#gloss-complement-food) suggestions
+- [Comparison](#comparison) — comparison ingredient, protein-quality, and nutrient tables (mixes foods and recipes)
 - [Daily nutrient goals](#goals) — how daily nutrient goals are calculated
 - [DCP cap](#dcp-cap) — why [DCP](#gloss-dcp) is sometimes capped below the [DIAAS](#gloss-diaas) projection
 - [DIAAS](#diaas) — digestible indispensable amino acid score
@@ -1267,7 +1268,6 @@ The sections linked from analysis output are:
 - [FAO reference values](#fao) — [FAO](#gloss-fao) 2013 amino acid reference requirement
 - [Food annotation](#annotate) — annotate food picker table columns
 - [Food Cache](#cached) — [Food Cache](#gloss-food-cache) column guide
-- [Food comparison](#food-comparison) — food comparison table columns
 - [Food import](#food-import) — foods to import review table columns
 - [Food search](#food-search) — [USDA](#gloss-usda) food search results columns
 - [Food use in meals](#fooduse) — food use in meals analysis table and histogram columns
@@ -1298,7 +1298,6 @@ The sections linked from analysis output are:
 - [Protein completeness](#complete) — what makes a protein "complete"
 - [Protein quality](#protein-quality) — single-food amino acid ratios table columns
 - [RDA](#rda) — daily intake vs. recommended values table
-- [Recipe comparison](#recipe-comparison) — recipe comparison ingredient and nutrient tables
 - [Recipe ingredients](#recipe-ingredients) — recipe ingredient list columns
 - [Recipes list](#recipes) — recipes list table columns
 
@@ -1308,7 +1307,7 @@ The sections linked from analysis output are:
 #### Food Cache — Column Guide {: #cached}
 The Food Cache list shows every food you have stored locally, sortable by Name, Type, DIAAS, or GI estimate. Columns:
 
-    Compare  Checkbox to add this food to Compare Foods — see Compare selected.
+    Compare  Checkbox to add this food to Comparison — see Compare selected.
 
     ID       Database identifier.
              A plain number = USDA FoodData Central FDC ID.
@@ -1849,16 +1848,6 @@ Each row has **Edit**, **Copy**, **Archive/Restore**, and **Delete** buttons. A 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein).
 
 
-#### Recipe Comparison Tables {: #recipe-comparison}
-Shows up to six recipes side-by-side in two tables: an ingredient table and a nutrient table.
-
-The **ingredient table** has one row per distinct ingredient name across the recipes you're comparing, one column per recipe, showing that ingredient's amount in each recipe or "--" if it isn't used. Ingredients shared by two or more recipes are listed first (highlighted) — that's usually the interesting question when comparing recipes: which ingredients differ, and by how much. A sub-recipe used as an ingredient shows its serving count rather than being expanded into its own raw ingredients.
-
-The **nutrient table** reuses the same layout as [food comparison](#food-comparison) — all nutrient groups, highest value per row highlighted, sortable by checked nutrients. A toggle switches the basis between **Per serving** (each recipe's nutrients divided by its own serving count — the fair way to compare recipes with different batch sizes) and **Whole recipe** (the full batch as authored).
-
-To run a comparison: Recipes -> Compare recipes. Search adds from your own saved recipes only (recipe comparison doesn't reach out to USDA/OFF, since a recipe only exists in your database). As with [Compare Foods](#food-comparison), you can save the recipe list under a name for quick reuse in future sessions — previously saved lists are offered at the start of the comparison flow.
-
-
 #### Recipe Ingredient List {: #recipe-ingredients}
 Shows the current ingredients in a recipe during create, develop, or edit. Refreshes after each change so you can see the current state.
 
@@ -1925,7 +1914,7 @@ Columns:
 
 To select: click the result. If the food is not yet in your cache, NuMa fetches and saves it automatically.
 
-**Compare selected.**{: #compare-checkboxes} Every row also has a checkbox in its own **Compare** column — check the foods and/or recipes you want, then click **Compare nutrition of selected foods (up to 8)** or **Compare nutrition of selected recipes (up to 6)** above the table to jump straight to [Compare Foods](#food-comparison) or [Compare Recipes](#recipe-comparison) with those items already added, no need to redo the search there. Foods and recipes use separate checkboxes and buttons since the two comparison pages can't mix them. The same checkbox-and-button pair appears on [Food Cache](#food-cache-web), [My Pantry](#pantry)'s pantry list, and the [Recipes list](#recipes-menu-web) — each jumps into the matching comparison page from wherever you're already looking at a food or recipe.
+**Compare selected.**{: #compare-checkboxes} Every row also has a checkbox in its own **Compare** column — check any mix of foods and/or recipes you want, then click **Compare nutrition of selected (up to 8)** above the table to jump straight to [Comparison](#comparison) with those items already added, no need to redo the search there. The same checkbox-and-button pair appears on [Food Cache](#food-cache-web), [My Pantry](#pantry)'s pantry list, and the [Recipes list](#recipes-menu-web) — each jumps into the comparison page from wherever you're already looking at a food or recipe.
 
 **Sort order.** Results can be ordered two ways — a dropdown above the results table lets you switch, and your choice is remembered as the default for next time:
 
@@ -1944,7 +1933,7 @@ Both modes group your own Pantry/Food Cache/Recipe matches under their own headi
 
 See [Ordering food search results](#search-ranking) in Part 6 for the full explanation.
 
-**Source filter.** A row of checkboxes next to the search box itself — visible before you've even typed a query, not just after results come back — narrows the list to any combination of sources you check: Pantry, Food Cache, Recipes, USDA FoodData Central, Open Food Facts, Canadian Nutrient File, CoFID, AFCD, CIQUAL (USDA and Open Food Facts, the two most-used external sources, lead the external group). Check as many as you like; unchecking every box is treated the same as checking them all, since a filter that hides everything isn't useful. Each checkbox is labeled with the short badge used elsewhere plus its full name (e.g. "USDA — USDA FoodData Central") and re-runs the search the moment you check or uncheck it. A **Select all sources** button re-checks every box in one click. A **What are these sources? →** link next to the "Source" label jumps to [Food data — where it comes from and how it is stored](#food-data). Your choice is sticky across every search box that has this filter, the same way the sort-order choice is. It appears next to every food search in the app: the standalone Foods → Search page, Analyze a Food Portion, Convert a Portion, Compare Foods, My Pantry's "Add a food" search, the Meals & Log "Add Food or Recipe" panel, a recipe's ingredient search, and the two "copy from another food" searches on the Edit Custom Profile page.
+**Source filter.** A row of checkboxes next to the search box itself — visible before you've even typed a query, not just after results come back — narrows the list to any combination of sources you check: Pantry, Food Cache, Recipes, USDA FoodData Central, Open Food Facts, Canadian Nutrient File, CoFID, AFCD, CIQUAL (USDA and Open Food Facts, the two most-used external sources, lead the external group). Check as many as you like; unchecking every box is treated the same as checking them all, since a filter that hides everything isn't useful. Each checkbox is labeled with the short badge used elsewhere plus its full name (e.g. "USDA — USDA FoodData Central") and re-runs the search the moment you check or uncheck it. A **Select all sources** button re-checks every box in one click. A **What are these sources? →** link next to the "Source" label jumps to [Food data — where it comes from and how it is stored](#food-data). Your choice is sticky across every search box that has this filter, the same way the sort-order choice is. It appears next to every food search in the app: the standalone Foods → Search page, Analyze a Food Portion, Convert a Portion, Comparison, My Pantry's "Add a food" search, the Meals & Log "Add Food or Recipe" panel, a recipe's ingredient search, and the two "copy from another food" searches on the Edit Custom Profile page.
 
 **Omitted-source warning.** Because the Source filter is sticky, a box unchecked once (even by accident, or while narrowing down a different search) stays unchecked everywhere until you re-check it — silently, with no visual difference from a normal search. If that hides a food you expected to see, it can look exactly like a search or ranking bug rather than a filter setting. On the Foods search page and the Meals & Log "Add Food or Recipe" panel, whenever one or more sources are unchecked, a small red note appears next to the Sort by control — **Omitted from search: RECIPE**, for example — naming exactly which ones. Check the Source filter row below to bring them back.
 
@@ -1955,21 +1944,22 @@ While a live database (USDA, Open Food Facts, or Canadian Nutrient File) is bein
 See [Food Cache](#cached) for the [Food Cache](#gloss-food-cache) column guide. See [Food Cache](#food-cache-web) to learn how to get missing amino acid data via Claude AI.
 
 
-#### Food Comparison Table {: #food-comparison}
-Shows up to eight foods or recipe portions side-by-side, with all nutrient groups in one table. All values are per the portion you entered for each food, not per 100 g.
+#### Comparison Tables {: #comparison}
+Shows up to eight foods and/or recipes side-by-side, mixed in any combination, in up to three tables: an ingredient table, a protein-quality table, and a nutrient table. Every comparison is per 100 g of each item — a food's natural unit (grams) and a recipe's (servings) aren't otherwise a comparable amount to judge side by side, so rather than ask you to pick amounts that don't match across items, the page fixes every item at the same 100 g footing.
 
-The foods and portions you chose are listed above the table as Food 1, Food 2, etc. — each row also shows an **AA** column indicating at a glance whether that food has amino acid data (✓) or not (✗).
+**How a recipe's 100 g figure is worked out.**{: #comparison-estimate} A food's per-100g nutrients come straight from its cached data — no estimation involved. A recipe has no single "100 g" anything, so NuMa derives one: it adds up the raw weight of every ingredient in the recipe (each direct food ingredient contributes its own entered gram amount; a sub-recipe ingredient contributes its *own* recorded total weight ÷ its own servings, × how many of those servings this recipe uses), then scales the recipe's total nutrients — and, for the ingredient table, each ingredient's own amount — by 100 divided by that summed weight. This is always a fresh sum of the ingredients as entered; it does **not** read the recipe's own "total weight" field on its detail page (a figure you may have set by hand to account for cooking loss, water evaporating, etc.) — only a *sub*-recipe's own total weight feeds in, one level down, when it's used as an ingredient.
 
-Nutrient groups: Macronutrients, Minerals, Vitamins, [Phytonutrients](#gloss-phytonutrients), Amino Acids. Groups appear only when at least one food has data for that category.
+If any ingredient's weight can't be determined — a direct ingredient with a blank or zero amount, or a sub-recipe ingredient whose own total weight or servings isn't set — that one ingredient is left out of the sum entirely rather than guessed at. The summed weight is then a lower bound, not the true dish weight, so the recipe's 100 g figures run *higher* than they should (the same nutrient total divided by a too-small weight). NuMa marks this by appending "(estimate)" next to that recipe's name everywhere it appears in these tables, so a higher-than-expected number has a visible reason rather than looking like a data error.
 
-    Green   The highest value in that row across all foods.
-    --      No data for this nutrient in this food.
+The **ingredient table** has one row per distinct ingredient name across the items you're comparing, one column per item, showing how much of that ingredient goes into 100 g of the finished item (or "--" if it isn't used, or if a recipe's ingredient weights are incomplete). A food entry shows itself as its own single "ingredient" — always "100 g," by definition. Ingredients shared by two or more items are listed first (highlighted) — that's usually the interesting question when comparing recipes: which ingredients differ, and by how much, per 100 g of the finished dish. A sub-recipe used as an ingredient shows its (rescaled) serving count rather than being expanded into its own raw ingredients.
 
-Rows where every food shows -- are hidden automatically.
+The **protein-quality table** ([DIAAS](#diaas)-based) appears when at least one item has enough amino acid data to score: composite DIAAS score, raw protein, digestible complete protein (DCP), DCP as % of raw protein, and the limiting amino acid — all per 100 g of the item, highest value per row highlighted, "--" for an item without enough data.
 
-**Print comparison table** and **Download CSV** buttons appear above the table: Print opens your browser's print dialog with just the comparison table (no nav, search box, or other page chrome); the CSV download gives one row per nutrient and one column per food, ready to open in a spreadsheet.
+The **nutrient table** covers Macronutrients, Minerals, Vitamins, [Phytonutrients](#gloss-phytonutrients), and Amino Acids (groups appear only when at least one item has data for that category), every value per 100 g, highest value per row highlighted in green, sortable by checked nutrients, rows where every item shows "--" hidden automatically. The items you chose are listed above the table — each also shows an **AA** column indicating at a glance whether it has amino acid data (✓) or not (✗).
 
-To run a comparison: Foods -> Compare foods side-by-side. You can save the food list under a name for quick reuse in future sessions. Previously saved lists are offered at the start of the comparison flow.
+**Print comparison table** and **Download CSV** buttons appear above the nutrient table: Print opens your browser's print dialog with just that comparison table (no nav, search box, or other page chrome); the CSV download gives one row per nutrient and one column per item, ready to open in a spreadsheet.
+
+To run a comparison: click **Compare** in the main nav. Search adds both foods (reaching out to USDA/OFF like any food search) and your own saved recipes. You can save the list under a name for quick reuse in future sessions — previously saved lists are offered at the start of the comparison flow.
 
 
 #### Annotate Food Picker Table {: #annotate}
@@ -2569,7 +2559,7 @@ A step beyond the per-nutrient targets above: a small number of pre-built *bundl
 
 ### Source citations for major assertions in the manual
 
-This is basic. Claims must be backed up, and source citations are how it's done. Numa is designed around nutrition research findings. To move quickly, these findings have not been referenced in the manual. They will be as soon as possible, which is to say as soon as the program is reliably working for a number of serious users.
+This is basic. Claims must be backed up, and source citations are how it's done. NuMa is designed around nutrition research findings. To move quickly, these findings have not been referenced in the manual. They will be as soon as possible, which is to say as soon as the program is reliably working for a number of serious users.
 
 ### Plots of individual nutrients consumed daily in relation to RDAs, user-established optimums, and maximum levels.
 
@@ -2596,21 +2586,112 @@ Use the same channel as [reporting a problem](#feedback):
 
 There's no such thing as a request that's not worth mentioning. If you're not sure whether NuMa can already do what you want, ask anyway — the answer might be a feature you hadn't found yet, or it might be a real gap worth filling.
 
-
 ## Part 10 — Appendices
----
 
 ### A. Recent program updates log
 
-[//]: # "Aside from being an update log for the user to access, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day program updates). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."
-[//]: # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes."
+<!-- "Aside from being an update log for the user to access, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day program updates). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."-->
+<!-- # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes." -->
 
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed.
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the changelog. Left visible only in this markdown source for anyone editing it. -->
 
+#### September 4 program updates
+
+**COMPARE FOODS AND RECIPES TOGETHER, IN ANY MIX, IN ONE COMPARISON**
+
+Compare Foods and Compare Recipes used to be two separate pages that couldn't mix — a recipe could never be compared side-by-side with a plain food. A single **Compare** page (in the main nav) now takes any combination of up to 8 foods and/or recipes, showing an ingredient table, a protein-quality table, and a nutrient table — every one of them per 100 g of each item, since a food's natural amount (grams) and a recipe's (servings) were never a fair pair to sit side by side at whatever amount you happened to enter. A recipe's 100 g figures are estimated from its own ingredients' raw weight and marked "(estimate)" wherever that weight is incomplete. There's no amount to enter or edit — the page always compares like for like. Existing saved comparisons from the old pages aren't carried over — start a new saved list from here. [learn more...](#comparison)
+
+<!--
+```
+Scope: web/backend.py — retired /food/compare* and /recipe/compare* routes
+and their food-only/recipe-only entry-loading helpers, replaced with a
+single /compare* route family keyed by typed items ("f174" = food fdc_id,
+"r12" = recipe_id) instead of a bare int list, since a food id and a
+recipe id can now sit in the same comparison. _load_compare_entry() builds
+one always-per-100g entry shape for either kind: a food's nutrients are
+its already-fetched per-100g dict, unscaled; a recipe's are
+recipe_total_nutrients() scaled by 100/db.recipe_compute_weight() (the
+recipe's raw ingredient-weight sum) — same scale factor also rescales
+each raw ingredient's amount for the ingredient table (uniform since the
+whole dish scales together) and feeds atomic_recipe_ingredients()'s
+portion_factor for the protein-quality DIAAS call, so a food and a recipe
+share the same math end to end with no per-item amount involved.
+diaas.meal_level_diaas() already worked generically per-entry (a food is
+just a 1-ingredient "meal" to it). A food entry contributes a single
+self-referencing "100 g" row to the shared ingredient-union table so it
+appears there too. db.py — new saved_mixed_comparisons table (items JSON
+column only, no amounts); old saved_comparisons/saved_recipe_comparisons
+tables and their CRUD functions are gone from the Python API but the
+tables themselves are left in place so no existing row is dropped.
+numa_app/services/csv_export.py — compare_to_csv() header is now a plain
+"(100 g)" suffix per column. web/templates/compare.html — new unified
+template replacing food_compare.html/recipe_compare.html (both deleted);
+no amount-editing UI or /compare/amounts route, since there's nothing
+left for a per-item amount to feed; base.html, food_cache.html,
+pantry.html, recipes.html, search.html, _search_result_row.html updated
+to point at the merged add-multiple endpoint and (on search.html) a
+single compare-form/button instead of separate food/recipe ones.
+```
+-->
+
+**DAILY SUMMARY LIST NOW SHOWS CORRECT DCP AFTER LATE EDITS**
+
+The Nutrient Summary list (`/summary`) could show a stale, too-low DCP (Digestible Complete Protein) figure for a date if you edited that day's meal after last viewing its detail page — the outdated snapshot was never being refreshed. It's now kept in sync automatically whenever the day's meal is recomputed.
+
+<!--
+```
+Scope: db.py — meal_set_bcp() now deletes the day_bcp_cache row for a
+meal's date whenever that meal's bcp_g is recomputed, so a stale pooled
+snapshot (written only by visiting /summary/{date}) can't keep overriding
+the live per-meal sum that meal_dates_with_bcp() falls back to. One-time
+cleanup also purged 10 existing stale day_bcp_cache rows from the live DB
+(06-05, 06-28, 06-29, 07-09, 07-22, 07-27, 08-21, 08-22, 08-30, 09-01).
+```
+-->
+
 #### September 3 program updates
+
+**TRANSLATE A RECIPE FOR PRINTING**
+
+A recipe's page now has a "Translate for printing" button. NuMa builds a prompt containing the recipe's text (name, description, instructions, ingredient names/notes/units) and you paste it into an AI chat tool of your choice; translate it there and paste the reply back for review. You'll see the actual translated recipe before deciding to save it, and can resubmit or cancel instead if it's not right. Saved translations can be printed or removed from the recipe page any time. Ingredient units are translated with the English original in parentheses (e.g. "2 tazas (cups)"), and numbers/nutrient data are never touched by translation.
+
+<!--
+```
+Scope: numa_app/services/recipe_translate.py — new module: build_translate_prompt(),
+parse_translation_response(), validate_translation() (falls back to the
+original English text per-field with a warning; hard-rejects only on an
+ingredient-count mismatch, since that can't be safely realigned). db.py —
+new recipe_translations table plus recipe_translation_create/list/get/delete.
+web/backend.py — new routes: GET/POST /recipe/{id}/translate(/import),
+GET /recipe/{id}/translation/{tid}/print, POST .../delete; new
+_render_translated_recipe() overlays translated text onto the existing
+_recipe_detail_context() ctx before handing it to print.html. New templates
+recipe_translate.html, recipe_translate_import.html; print.html gained a
+disclaimer banner and translated-unit display, both gated on a `translated`
+flag so the normal English print/print.html output is unchanged.
+```
+-->
+
+**NEW DISCLAIMER PAGE, LINKED FROM EVERY PAGE'S FOOTER AND THE HOME PAGE**
+
+NuMa now has a standalone Disclaimer page covering data accuracy, that it makes no health or medical claims, and your own responsibility for decisions made using it. Every page's footer links to it, the home page calls it out near the top, and the manual has a short pointer to it right after the [Notes](#disclaimer) at the very end.
+
+<!--
+```
+Scope: DISCLAIMER.md — new file, the canonical disclaimer text. web/backend.py
+— new _DISCLAIMER_MD path and /disclaimer route rendering it through the
+markdown package (same pattern as the home-page about text). web/templates/
+disclaimer.html — new template extending base.html, reusing the .manual-body
+CSS class. web/templates/base.html — footer now links to /disclaimer.
+web/templates/home.html — new notice line above the existing alert banners.
+user-manual.md — new "## Disclaimer" section after the footnotes, and a new
+{: #data-testing-validation} anchor on the existing Part 2.E heading so the
+disclaimer's data-accuracy section can link to it directly.
+```
+-->
 
 **MANUAL SEARCH SUPPORTS EXACT-PHRASE MATCHING IN QUOTES**
 
@@ -3640,7 +3721,7 @@ Think of it like fuel efficiency: a car that gets 50 miles per gallon is efficie
 The [DIAAS](#gloss-diaas) table characterizes the quality of each gram. Hitting your daily protein target is about counting how many grams you eat.
 
 ### C. Plant protein sources in your pantry {: #appendix-c}
-("pantry" here has two meanings: your actual pantry, and the pantry database that is in numa (see the Foods dropdown menu), which is a list of foods in your actual pantry.)
+("pantry" here has two meanings: your actual pantry, and the pantry database that is in NuMa (see the Foods dropdown menu), which is a list of foods in your actual pantry.)
 
 This appendix profiles the plant protein sources currently kept in a typical [NuMa](#gloss-numa) pantry, including nutritional yeast, which is not a plant but is grouped here because it fills the same dietary role. For each source: what form it takes, where it comes from, its essential amino acid ([EAA](#gloss-eaa)) strengths and weaknesses relative to the [FAO](#gloss-fao) reference values described in [Appendix B](#appendix-b), and its typical role in cooking.
 
@@ -4346,4 +4427,10 @@ The scale factor is capped at 1.0 because a food can never be "more than 100% co
 [^14]: Young, V. R., & Pellett, P. L. (1994). Plant proteins in relation to human protein and amino acid nutrition. *American Journal of Clinical Nutrition, 59*(5, Suppl.), 1203S–1212S. — the basis for the modern consensus that complementary protein sources don't need to be eaten at the same meal, since the body's own daily protein turnover (roughly 250–300 g) can supply amino acids the free pool is short on.
 
 [^15]: Arentson-Lantz, E. J., Von Ruff, Z., Connolly, G., Albano, F., Kilroe, S. P., Wacher, A., Campbell, W. W., & Paddon-Jones, D. (2024). Meals containing equivalent total protein from foods providing complete, complementary, or incomplete essential amino acid profiles do not differentially affect 24-h skeletal muscle protein synthesis in healthy, middle-aged women. *The Journal of Nutrition*. Advance online publication. — a controlled feeding study finding no significant difference in acute or 24-hour muscle protein synthesis across complete, complementary, and single incomplete-protein meal conditions.
+
+---
+
+## Disclaimer {: #disclaimer}
+
+NuMa is a personal food-record and nutrient-calculation tool, not a source of medical or dietary advice, and it makes no claim about health or illness. Its figures are informed estimates pooled from third-party food databases and checked routinely for internal correctness — they are not a substitute for a physician, registered dietitian, or product label. See the full [Disclaimer](/disclaimer) for details on data accuracy, review practices, and your own responsibility when using this program.
 

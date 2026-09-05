@@ -130,7 +130,7 @@
    attribute, which HTML allows even when the input isn't a descendant. #}
 <form method="post" action="/food/cache/claude-fetch" id="claude-fetch-form"></form>
 {# Compare form is likewise external — same nesting restriction as claude-fetch-form above. #}
-<form method="post" action="/food/compare/add-multiple" id="compare-form"></form>
+<form method="post" action="/compare/add-multiple" id="compare-form"></form>
 <p class="muted mb-1"><small>Check the box next to any food below (or click "Select all missing AA data"), then click "Fetch missing data from Claude AI" to build a ready-to-paste prompt asking Claude AI to fill in that food's missing amino acid or nutrient data. {{ manual_link("fetch") }}</small></p>
 <p class="mb-2">
   <button type="submit" form="claude-fetch-form" class="btn btn-sm btn-primary">Fetch missing data from Claude AI</button>
@@ -142,7 +142,7 @@
   <thead class="table-light">
     <tr>
       <th></th>
-      <th title="Select to add to Compare Foods">Compare</th>
+      <th title="Select to add to Compare">Compare</th>
       <th>ID</th>
       <th>Name</th>
       <th>Type</th>

@@ -37,6 +37,7 @@ from numa_app.services import complements as _complements
 from numa_app.services import csv_export as _csv_export
 from numa_app.services import csv_import as _csv_import
 from numa_app.services import recipe_csv as _recipe_csv
+from numa_app.services import recipe_translate as _recipe_translate
 from numa_app.services import day_profile as _day_profile
 from numa_app.services import aa_estimate as _aa_estimate
 from numa_app.services.glycemic_load import compute_glycemic_load
@@ -67,6 +68,7 @@ _WEB_DIR     = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path(__f
 _PROJECT_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else _WEB_DIR.parent
 _MANUAL     = _PROJECT_ROOT / "user-manual.html"
 _MANUAL_MD  = _PROJECT_ROOT / "user-manual.md"
+_DISCLAIMER_MD = _PROJECT_ROOT / "DISCLAIMER.md"
 _PREFS_FILE = Path.home() / ".local" / "share" / "numa" / "prefs.json"
 
 _HOME_CACHE = _WEB_DIR / "home_body.cache"
@@ -133,7 +135,11 @@ def _render_home_md_short() -> str:
     preface = _extract_manual_preface()
     first_para = preface.split("\n\n", 1)[0] if preface else ""
     html = _md.markdown(first_para, extensions=["footnotes"]) if first_para else ""
-    html += '<p>...continued at beginning of <a href="/manual">User Manual</a>.</p>'
+    continued = ' (...continued at beginning of <a href="/manual">User Manual</a>.)'
+    if html.endswith("</p>"):
+        html = html[: -len("</p>")] + continued + "</p>"
+    else:
+        html += continued
     return html
 
 # ---------------------------------------------------------------------------
@@ -420,12 +426,6 @@ _SEARCH_SOURCE_LABELS = {
     **{key: f"{key.upper()} — {name}" for key, name in _STATIC_SOURCES},
     **{key: f"{key.upper()} — {name}" for key, name, _fn in _LIVE_SOURCES},
 }
-
-# Compare Foods (/food/compare) can't hold a recipe as a comparison entry —
-# entries are per-100g food nutrient data keyed by fdc_id, which recipes
-# don't have. Recipe-to-recipe comparison lives at /recipe/compare instead,
-# so "Recipes" is left out of this page's source filter.
-_FOOD_COMPARE_SOURCE_FILTERS = [s for s in _SEARCH_SOURCE_FILTERS if s != "recipe"]
 
 
 def _external_source_labels(sources: list[str]) -> list[str]:
@@ -2118,7 +2118,8 @@ _COMPARE_GROUPS = _usda.COMPARE_GROUPS
 
 
 def _build_compare_groups(entries: list[dict]) -> list[dict]:
-    """Build comparison group rows from a list of {name, amount, nutrients} dicts."""
+    """Build comparison group rows from a list of {name, nutrients} dicts —
+    `nutrients` is always per 100g of the item (see _load_compare_entry)."""
     groups = []
     for group_name, keys in _COMPARE_GROUPS:
         rows = []
@@ -2135,307 +2136,6 @@ def _build_compare_groups(entries: list[dict]) -> list[dict]:
         if rows:
             groups.append({"name": group_name, "rows": rows})
     return groups
-
-
-def _load_compare_entries(ids: list[int], amounts: list[float]) -> list[dict]:
-    """Load food data for comparison, scaling nutrients to given gram amounts."""
-    entries = []
-    for fdc_id, amount in zip(ids, amounts):
-        nutrients: dict = {}
-        name = str(fdc_id)
-        data_type = ""
-        with _db.get_db() as conn:
-            cached = _db.get_cached_food(conn, fdc_id)
-        if cached:
-            nutrients_100g = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
-            name = cached["name"]
-            data_type = cached["data_type"] or ""
-        else:
-            try:
-                detail = _usda.get_food_detail(fdc_id)
-                nutrients_100g = detail.get("nutrients", {})
-                name = detail["name"]
-                data_type = detail.get("dataType", "")
-            except Exception:
-                nutrients_100g = {}
-        nutrients = _usda.scale_nutrients(nutrients_100g, amount) if amount != 100.0 else nutrients_100g
-        entries.append({
-            "fdc_id":    fdc_id,
-            "name":      name,
-            "data_type": data_type,
-            "amount":    amount,
-            "nutrients": nutrients,
-            "cached":    cached is not None,
-            "has_aa":    _usda.has_amino_acid_data(nutrients_100g),
-        })
-    return entries
-
-
-def _parse_ids_amounts(ids_str: str, amounts_str: str) -> tuple[list[int], list[float]]:
-    ids = [int(x) for x in ids_str.split(",") if x.strip()] if ids_str.strip() else []
-    raw_amounts = [x.strip() for x in amounts_str.split(",") if x.strip()] if amounts_str.strip() else []
-    amounts = []
-    for i, fid in enumerate(ids):
-        try:
-            amounts.append(float(raw_amounts[i]) if i < len(raw_amounts) else 100.0)
-        except (ValueError, IndexError):
-            amounts.append(100.0)
-    return ids, amounts
-
-
-@app.get("/food/compare", response_class=HTMLResponse)
-async def food_compare_get(
-    request: Request,
-    ids: str = "",
-    amounts: str = "",
-    error: str = "",
-    search: str = "",
-    source: list[str] | None = Query(default=None),
-    limit: int | None = None,
-):
-    source = _resolve_source_filter(source, "sort_food_search_source", _FOOD_COMPARE_SOURCE_FILTERS)
-    limit = _resolve_result_limit(limit)
-    id_list, amount_list = _parse_ids_amounts(ids, amounts)
-    entries = _load_compare_entries(id_list, amount_list) if id_list else []
-    compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
-    ids_str = ",".join(str(i) for i in id_list)
-    amounts_str = ",".join(str(a) for a in amount_list)
-
-    search_results: list[dict] = []
-    search_error: str | None = None
-    search = search.strip()
-    if search:
-        with _db.get_db() as conn:
-            cached = _db.search_cached_foods(conn, search)
-            pantry_ids = _pantry_fdc_ids(conn)
-        seen: set[int] = set(id_list)  # exclude already-added foods
-        for row in cached:
-            if row["fdc_id"] not in seen:
-                seen.add(row["fdc_id"])
-                search_results.append({
-                    "fdc_id":    row["fdc_id"],
-                    "name":      row["name"],
-                    "data_type": row["data_type"],
-                    "brand":     row["brand"] or "",
-                    "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
-                })
-        try:
-            for food in _usda.search_foods(search, page_size=limit):
-                fid = food.get("fdcId")
-                if fid and fid not in seen:
-                    seen.add(fid)
-                    search_results.append({
-                        "fdc_id":    fid,
-                        "name":      food.get("description", ""),
-                        "data_type": food.get("dataType", ""),
-                        "brand":     food.get("brandOwner") or food.get("brandName") or "",
-                        "source":    "usda",
-                    })
-        except Exception as exc:
-            if not search_results:
-                search_error = f"USDA API unavailable: {exc}"
-        search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
-        search_results = _cap_results_preserving_local(_filter_search_results_by_source(search_results, source), limit)
-
-    with _db.get_db() as conn:
-        saved_lists = _db.saved_comparison_list(conn)
-
-    return templates.TemplateResponse(request, "food_compare.html", {
-        "entries":        entries,
-        "compare_groups": compare_groups,
-        "ids_str":        ids_str,
-        "amounts_str":    amounts_str,
-        "error":          error,
-        "search":         search,
-        "search_results": search_results,
-        "search_error":   search_error,
-        "saved_lists":    saved_lists,
-        "source":         source,
-        "limit":          limit,
-        "source_filters": _FOOD_COMPARE_SOURCE_FILTERS,
-        "source_labels":  _SEARCH_SOURCE_LABELS,
-    })
-
-
-@app.get("/food/compare/export.csv")
-async def food_compare_export_csv(ids: str = "", amounts: str = ""):
-    id_list, amount_list = _parse_ids_amounts(ids, amounts)
-    entries = _load_compare_entries(id_list, amount_list) if id_list else []
-    compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
-    csv_text = _csv_export.compare_to_csv(entries, compare_groups)
-    filename = f"numa_food_compare_{datetime.date.today().isoformat()}.csv"
-    return Response(
-        content=csv_text,
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@app.post("/food/compare/add", response_class=RedirectResponse)
-async def food_compare_add(
-    fdc_id: int = Form(...),
-    ids: str = Form(""),
-    amounts: str = Form(""),
-):
-    id_list, amount_list = _parse_ids_amounts(ids, amounts)
-    ids_str = ",".join(str(i) for i in id_list)
-    amounts_str = ",".join(str(a) for a in amount_list)
-    if len(id_list) >= 8:
-        return RedirectResponse(
-            f"/food/compare?ids={ids_str}&amounts={amounts_str}&error=Maximum+8+foods+allowed",
-            status_code=303,
-        )
-    if fdc_id not in id_list:
-        id_list.append(fdc_id)
-        amount_list.append(100.0)
-    ids_str = ",".join(str(i) for i in id_list)
-    amounts_str = ",".join(str(a) for a in amount_list)
-    return RedirectResponse(
-        f"/food/compare?ids={ids_str}&amounts={amounts_str}",
-        status_code=303,
-    )
-
-
-@app.post("/food/compare/add-multiple", response_class=RedirectResponse)
-async def food_compare_add_multiple(request: Request, ids: str = Form(""), amounts: str = Form("")):
-    """Bulk-add checked foods to the comparison — used both by Compare Foods'
-    own "add via search" panel and by the compare checkboxes on Foods search,
-    Food Cache, and My Pantry (which post straight here to jump into a
-    comparison without first landing on this page)."""
-    form = await request.form()
-    fdc_ids = form.getlist("fdc_id")
-    id_list, amount_list = _parse_ids_amounts(ids, amounts)
-    added = skipped = 0
-    for fdc_id_str in fdc_ids:
-        try:
-            fdc_id = int(fdc_id_str)
-        except (ValueError, TypeError):
-            continue
-        if fdc_id in id_list:
-            continue
-        if len(id_list) >= 8:
-            skipped += 1
-            continue
-        id_list.append(fdc_id)
-        amount_list.append(100.0)
-        added += 1
-    ids_str = ",".join(str(i) for i in id_list)
-    amounts_str = ",".join(str(a) for a in amount_list)
-    url = f"/food/compare?ids={ids_str}&amounts={amounts_str}"
-    if skipped:
-        url += f"&error=Added+{added}%2C+skipped+{skipped}+%E2%80%94+maximum+8+foods"
-    return RedirectResponse(url, status_code=303)
-
-
-@app.post("/food/compare/remove", response_class=RedirectResponse)
-async def food_compare_remove(
-    remove_id: int = Form(...),
-    ids: str = Form(""),
-    amounts: str = Form(""),
-):
-    id_list, amount_list = _parse_ids_amounts(ids, amounts)
-    paired = [(i, a) for i, a in zip(id_list, amount_list) if i != remove_id]
-    new_ids = [str(p[0]) for p in paired]
-    new_amounts = [str(p[1]) for p in paired]
-    return RedirectResponse(
-        f"/food/compare?ids={','.join(new_ids)}&amounts={','.join(new_amounts)}",
-        status_code=303,
-    )
-
-
-@app.post("/food/compare/cache-food", response_class=RedirectResponse)
-async def food_compare_cache_food(
-    fdc_id: int = Form(...),
-    ids: str = Form(""),
-    amounts: str = Form(""),
-):
-    with _db.get_db() as conn:
-        already_cached = _db.get_cached_food(conn, fdc_id) is not None
-    if not already_cached:
-        try:
-            detail = _usda.get_food_detail(fdc_id)
-            with _db.get_db() as conn:
-                _db.cache_food(conn, fdc_id=detail["fdcId"], name=detail["name"],
-                               data_type=detail.get("dataType", ""),
-                               brand=detail.get("brand"),
-                               serving_size=detail.get("servingSize"),
-                               serving_unit=detail.get("servingUnit"),
-                               nutrients=detail.get("nutrients", {}),
-                               portions=detail.get("portions", []))
-                _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
-        except Exception:
-            pass
-    return RedirectResponse(f"/food/compare?ids={ids}&amounts={amounts}", status_code=303)
-
-
-@app.post("/food/compare/amounts", response_class=RedirectResponse)
-async def food_compare_amounts(request: Request, ids: str = Form("")):
-    form = await request.form()
-    id_list = [int(x) for x in ids.split(",") if x.strip()] if ids.strip() else []
-    new_amounts = []
-    for fid in id_list:
-        try:
-            val = float(form.get(f"amounts_{fid}", 100.0))
-            new_amounts.append(max(1.0, val))
-        except (ValueError, TypeError):
-            new_amounts.append(100.0)
-    ids_str = ",".join(str(i) for i in id_list)
-    amounts_str = ",".join(str(a) for a in new_amounts)
-    return RedirectResponse(f"/food/compare?ids={ids_str}&amounts={amounts_str}", status_code=303)
-
-
-@app.post("/food/compare/save", response_class=RedirectResponse)
-async def food_compare_save(
-    name: str = Form(""),
-    ids: str = Form(""),
-    amounts: str = Form(""),
-):
-    id_list, amount_list = _parse_ids_amounts(ids, amounts)
-    if len(id_list) >= 2:
-        with _db.get_db() as conn:
-            _db.saved_comparison_save(conn, name.strip() or "Untitled", id_list, amount_list)
-    ids_str = ",".join(str(i) for i in id_list)
-    amounts_str = ",".join(str(a) for a in amount_list)
-    return RedirectResponse(f"/food/compare?ids={ids_str}&amounts={amounts_str}", status_code=303)
-
-
-@app.get("/food/compare/load/{cmp_id}", response_class=RedirectResponse)
-async def food_compare_load(cmp_id: int):
-    with _db.get_db() as conn:
-        row = _db.saved_comparison_get(conn, cmp_id)
-    if not row:
-        return RedirectResponse("/food/compare", status_code=303)
-    ids_str = ",".join(str(i) for i in json.loads(row["fdc_ids"]))
-    amounts_str = ",".join(str(a) for a in json.loads(row["amounts"]))
-    return RedirectResponse(f"/food/compare?ids={ids_str}&amounts={amounts_str}", status_code=303)
-
-
-@app.post("/food/compare/saved/rename", response_class=RedirectResponse)
-async def food_compare_saved_rename(
-    cmp_id: int = Form(...),
-    name: str = Form(""),
-    ids: str = Form(""),
-    amounts: str = Form(""),
-):
-    new_name = name.strip() or "Untitled"
-    with _db.get_db() as conn:
-        _db.saved_comparison_rename(conn, cmp_id, new_name)
-    url = f"/food/compare?ids={ids}&amounts={amounts}" if ids else "/food/compare"
-    return RedirectResponse(url, status_code=303)
-
-
-@app.post("/food/compare/saved/delete", response_class=RedirectResponse)
-async def food_compare_saved_delete(
-    cmp_id: int = Form(...),
-    ids: str = Form(""),
-    amounts: str = Form(""),
-):
-    with _db.get_db() as conn:
-        _db.saved_comparison_delete(conn, cmp_id)
-    ids_str = ids.strip()
-    amounts_str = amounts.strip()
-    url = f"/food/compare?ids={ids_str}&amounts={amounts_str}" if ids_str else "/food/compare"
-    return RedirectResponse(url, status_code=303)
 
 
 _FOOD_CACHE_SORT_KEYS = {
@@ -5822,33 +5522,105 @@ async def recipe_new_post(
     return RedirectResponse(f"/recipe/{rid}/edit", status_code=303)
 
 
-# Recipe comparison
+# Compare (foods + recipes, mixed)
 # ---------------------------------------------------------------------------
 
-_MAX_COMPARE_RECIPES = 6
+_MAX_COMPARE_ITEMS = 8
 
 
-def _parse_recipe_compare_ids(ids_str: str) -> list[int]:
-    return [int(x) for x in ids_str.split(",") if x.strip()] if ids_str.strip() else []
-
-
-def _load_recipe_compare_entries(conn, recipe_ids: list[int], unit: str) -> list[dict]:
-    """Load recipe data for comparison. unit='serving' scales nutrients to one
-    serving of each recipe — the fair basis for comparing recipes with
-    different batch sizes; unit='batch' uses the whole recipe as authored."""
-    entries = []
-    for rid in recipe_ids:
-        recipe = _db.recipe_get(conn, rid)
-        if not recipe:
+def _parse_compare_items(items_str: str) -> list[tuple[str, int]]:
+    """Parse the `items` query/form string ("f174,r12,f998") into
+    [(kind, id), ...] pairs — "f" = food (fdc_id), "r" = recipe (recipe_id)."""
+    items = []
+    for tok in items_str.split(","):
+        tok = tok.strip()
+        if not tok:
             continue
-        servings = float(recipe["servings"] or 1)
-        per_serving = _recipe_nutrients_per_serving(rid, conn)
-        nutrients = per_serving if unit == "serving" else {k: v * servings for k, v in per_serving.items()}
-        ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, rid)]
+        kind = "recipe" if tok[0] == "r" else "food"
+        try:
+            items.append((kind, int(tok[1:])))
+        except ValueError:
+            continue
+    return items
 
-        target_servings = 1.0 if unit == "serving" else servings
+
+def _compare_items_str(items: list[tuple[str, int]]) -> str:
+    return ",".join(f"{'r' if kind == 'recipe' else 'f'}{id_}" for kind, id_ in items)
+
+
+def _load_compare_entry(conn, kind: str, id_: int) -> dict | None:
+    """Load one comparison entry (food or recipe), normalized to a common,
+    always-per-100g shape: {kind, id, name, data_type, nutrients,
+    ingredients, diaas, cached, has_aa, weight_complete}. Every comparison
+    on this page — ingredients, protein quality, nutrients — is judged per
+    100g of the item, since a food's natural unit (grams) and a recipe's
+    (servings) aren't otherwise a comparable amount to sit side by side.
+    `ingredients` is a single self-referencing 100g row for a food (so the
+    shared-ingredient table can include it too), or the recipe's own
+    ingredients rescaled to add up to 100g of the finished dish.
+    `weight_complete` is False when a recipe's ingredient weight (and so
+    its 100g scaling) is only a lower-bound estimate — ingredients/nutrients
+    are then left empty rather than scaled against an unreliable weight."""
+    if kind == "food":
+        cached = _db.get_cached_food(conn, id_)
+        if cached:
+            nutrients_100g = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
+            name = cached["name"]
+            data_type = cached["data_type"] or ""
+        else:
+            try:
+                detail = _usda.get_food_detail(id_)
+                nutrients_100g = detail.get("nutrients", {})
+                name = detail["name"]
+                data_type = detail.get("dataType", "")
+            except Exception:
+                nutrients_100g, name, data_type = {}, str(id_), ""
         diaas_display = None
-        diaas_ingredients = _flatten_recipe_diaas_ingredients(rid, conn, target_servings)
+        if nutrients_100g:
+            try:
+                diaas_result = _diaas.meal_level_diaas(
+                    [{"food_name": name, "nutrients_100g": nutrients_100g, "grams": 100.0}], conn,
+                )
+            except Exception:
+                diaas_result = None
+            diaas_display = _build_diaas_display(diaas_result)
+        return {
+            "kind":            "food",
+            "id":              id_,
+            "name":            name,
+            "data_type":       data_type,
+            "nutrients":       nutrients_100g,
+            "ingredients":     [{"food_name": name, "ref_recipe_id": None, "display": "100 g"}],
+            "diaas":           diaas_display,
+            "cached":          cached is not None,
+            "has_aa":          _usda.has_amino_acid_data(nutrients_100g),
+            "weight_complete": True,
+        }
+
+    recipe = _db.recipe_get(conn, id_)
+    if not recipe:
+        return None
+    weight = _db.recipe_compute_weight(conn, id_)
+    batch_grams, weight_complete = weight if weight else (0.0, False)
+    scale = 100.0 / batch_grams if batch_grams else None
+
+    nutrients: dict = {}
+    ingredients: list[dict] = []
+    diaas_display = None
+    if scale:
+        batch_nutrients = recipe_total_nutrients(id_, conn)
+        nutrients = {k: v * scale for k, v in batch_nutrients.items()}
+        for ing in _db.recipe_get_ingredients(conn, id_):
+            scaled_amount = round(ing["amount"] * scale, 2)
+            unit_word = "servings" if ing["ref_recipe_id"] else "g"
+            if unit_word == "servings" and scaled_amount == 1:
+                unit_word = "serving"
+            ingredients.append({
+                "food_name":     ing["food_name"],
+                "ref_recipe_id": ing["ref_recipe_id"],
+                "display":       f"{scaled_amount:g} {unit_word}",
+            })
+        diaas_ingredients = atomic_recipe_ingredients(id_, conn, portion_factor=scale)
         if diaas_ingredients:
             try:
                 diaas_result = _diaas.meal_level_diaas(diaas_ingredients, conn)
@@ -5856,14 +5628,27 @@ def _load_recipe_compare_entries(conn, recipe_ids: list[int], unit: str) -> list
                 diaas_result = None
             diaas_display = _build_diaas_display(diaas_result)
 
-        entries.append({
-            "id":          rid,
-            "name":        recipe["name"],
-            "servings":    servings,
-            "nutrients":   nutrients,
-            "ingredients": ingredients,
-            "diaas":       diaas_display,
-        })
+    return {
+        "kind":            "recipe",
+        "id":              id_,
+        "name":            recipe["name"],
+        "data_type":       "Recipe",
+        "nutrients":       nutrients,
+        "ingredients":     ingredients,
+        "diaas":           diaas_display,
+        "cached":          True,
+        "has_aa":          diaas_display is not None,
+        "weight_complete": weight_complete,
+    }
+
+
+def _load_compare_entries(items: list[tuple[str, int]]) -> list[dict]:
+    entries = []
+    for kind, id_ in items:
+        with _db.get_db() as conn:
+            entry = _load_compare_entry(conn, kind, id_)
+        if entry:
+            entries.append(entry)
     return entries
 
 
@@ -5899,22 +5684,13 @@ def _build_protein_quality_rows(entries: list[dict]) -> list[dict]:
     return rows if any(e["diaas"] for e in entries) else []
 
 
-_GRAM_NUM_RE = re.compile(r'(\d+(?:\.\d+)?)(\s*gr?\b)')
-
-
-def _round_grams_in_label(label: str) -> str:
-    """Round any gram figure in a display label to a whole number — fractional
-    grams aren't meaningful at cooking precision, and this table is a quick
-    side-by-side scan, not a place for hundredths-of-a-gram accuracy."""
-    return _GRAM_NUM_RE.sub(lambda m: f"{round(float(m.group(1)))}{m.group(2)}", label)
-
-
 def _build_recipe_ingredient_rows(entries: list[dict]) -> list[dict]:
-    """Union of ingredient names across the given recipe entries into one row
-    per distinct ingredient, one cell per recipe holding its amount/unit (or
-    None if that recipe doesn't use it). Ingredients shared by 2+ recipes are
-    listed first — that's the interesting case for spotting why recipes
-    differ — then recipe-unique ingredients, both alphabetized."""
+    """Union of ingredient names across the given entries into one row per
+    distinct ingredient, one cell per entry holding its (already 100g-scaled)
+    display amount, or None if that entry doesn't use it. Ingredients shared
+    by 2+ entries are listed first — that's the interesting case for
+    spotting why recipes differ — then entry-unique ingredients, both
+    alphabetized."""
     rows_by_name: dict[str, dict] = {}
     for i, entry in enumerate(entries):
         for ing in entry["ingredients"]:
@@ -5923,8 +5699,7 @@ def _build_recipe_ingredient_rows(entries: list[dict]) -> list[dict]:
                 "is_recipe": bool(ing["ref_recipe_id"]),
                 "cells":     [None] * len(entries),
             })
-            display = _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"])
-            row["cells"][i] = {"display": _round_grams_in_label(display)}
+            row["cells"][i] = {"display": ing["display"]}
     rows = list(rows_by_name.values())
     for row in rows:
         row["shared_count"] = sum(1 for c in row["cells"] if c is not None)
@@ -5932,159 +5707,220 @@ def _build_recipe_ingredient_rows(entries: list[dict]) -> list[dict]:
     return rows
 
 
-@app.get("/recipe/compare", response_class=HTMLResponse)
-async def recipe_compare_get(
+@app.get("/compare", response_class=HTMLResponse)
+async def compare_get(
     request: Request,
-    ids:     str = "",
-    search:  str = "",
-    unit:    str = "serving",
-    error:   str = "",
+    items: str = "",
+    error: str = "",
+    search: str = "",
+    source: list[str] | None = Query(default=None),
+    limit: int | None = None,
 ):
-    unit = unit if unit in ("serving", "batch") else "serving"
-    id_list = _parse_recipe_compare_ids(ids)
-    search = search.strip()
-    search_results: list[dict] = []
-    with _db.get_db() as conn:
-        entries = _load_recipe_compare_entries(conn, id_list, unit)
-        if search:
-            words = search.lower().split()
-            seen = set(id_list)
-            for r in _db.recipe_list_recent(conn, limit=200):
-                if r["id"] in seen:
-                    continue
-                if any(w in r["name"].lower() for w in words):
-                    search_results.append(dict(r))
-
-    ingredient_rows = _build_recipe_ingredient_rows(entries) if len(entries) >= 2 else []
+    source = _resolve_source_filter(source, "sort_food_search_source", _SEARCH_SOURCE_FILTERS)
+    limit = _resolve_result_limit(limit)
+    item_list = _parse_compare_items(items)
+    entries = _load_compare_entries(item_list) if item_list else []
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
+    ingredient_rows = _build_recipe_ingredient_rows(entries) if len(entries) >= 2 else []
     protein_quality_rows = _build_protein_quality_rows(entries) if len(entries) >= 2 else []
-    ids_str = ",".join(str(e["id"]) for e in entries)
+    items_str = _compare_items_str(item_list)
+
+    search_results: list[dict] = []
+    search_error: str | None = None
+    search = search.strip()
+    if search:
+        seen = {(kind, id_) for kind, id_ in item_list}
+        search_results = _search_local_results(search)
+        for r in search_results:
+            key = ("recipe", r["recipe_id"]) if r.get("_type") == "recipe" else ("food", r.get("fdc_id"))
+            seen.add(key)
+        try:
+            for food in _usda.search_foods(search, page_size=limit):
+                fid = food.get("fdcId")
+                if fid and ("food", fid) not in seen:
+                    seen.add(("food", fid))
+                    search_results.append({
+                        "fdc_id":    fid,
+                        "name":      food.get("description", ""),
+                        "data_type": food.get("dataType", ""),
+                        "brand":     food.get("brandOwner") or food.get("brandName") or "",
+                        "source":    "usda",
+                    })
+        except Exception as exc:
+            if not search_results:
+                search_error = f"USDA API unavailable: {exc}"
+        search_results = _sort_search_results(search_results, search, _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES))
+        search_results = _cap_results_preserving_local(_filter_search_results_by_source(search_results, source), limit)
 
     with _db.get_db() as conn:
-        saved_lists = _db.saved_recipe_comparison_list(conn)
+        saved_lists = _db.saved_mixed_comparison_list(conn)
 
-    return templates.TemplateResponse(request, "recipe_compare.html", {
+    return templates.TemplateResponse(request, "compare.html", {
         "entries":              entries,
-        "ingredient_rows":      ingredient_rows,
         "compare_groups":       compare_groups,
+        "ingredient_rows":      ingredient_rows,
         "protein_quality_rows": protein_quality_rows,
-        "ids_str":              ids_str,
+        "items_str":            items_str,
+        "error":                error,
         "search":               search,
         "search_results":       search_results,
-        "unit":                 unit,
-        "error":                error,
-        "max_recipes":          _MAX_COMPARE_RECIPES,
+        "search_error":         search_error,
         "saved_lists":          saved_lists,
+        "source":               source,
+        "limit":                limit,
+        "source_filters":       _SEARCH_SOURCE_FILTERS,
+        "source_labels":        _SEARCH_SOURCE_LABELS,
+        "max_items":            _MAX_COMPARE_ITEMS,
     })
 
 
-@app.post("/recipe/compare/add", response_class=RedirectResponse)
-async def recipe_compare_add(
-    recipe_id: int = Form(...),
-    ids:       str = Form(""),
-    unit:      str = Form("serving"),
+@app.get("/compare/export.csv")
+async def compare_export_csv(items: str = ""):
+    item_list = _parse_compare_items(items)
+    entries = _load_compare_entries(item_list) if item_list else []
+    compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
+    csv_text = _csv_export.compare_to_csv(entries, compare_groups)
+    filename = f"numa_compare_{datetime.date.today().isoformat()}.csv"
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/compare/add", response_class=RedirectResponse)
+async def compare_add(
+    kind:    str = Form(...),
+    item_id: int = Form(...),
+    items:   str = Form(""),
 ):
-    id_list = _parse_recipe_compare_ids(ids)
-    if len(id_list) >= _MAX_COMPARE_RECIPES:
-        ids_str = ",".join(str(i) for i in id_list)
+    kind = "recipe" if kind == "recipe" else "food"
+    item_list = _parse_compare_items(items)
+    if len(item_list) >= _MAX_COMPARE_ITEMS:
         return RedirectResponse(
-            f"/recipe/compare?ids={ids_str}&unit={unit}"
-            f"&error=Maximum+{_MAX_COMPARE_RECIPES}+recipes+allowed",
+            f"/compare?items={_compare_items_str(item_list)}"
+            f"&error=Maximum+{_MAX_COMPARE_ITEMS}+items+allowed",
             status_code=303,
         )
-    if recipe_id not in id_list:
-        id_list.append(recipe_id)
-    ids_str = ",".join(str(i) for i in id_list)
-    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
+    if (kind, item_id) not in item_list:
+        item_list.append((kind, item_id))
+    return RedirectResponse(f"/compare?items={_compare_items_str(item_list)}", status_code=303)
 
 
-@app.post("/recipe/compare/add-multiple", response_class=RedirectResponse)
-async def recipe_compare_add_multiple(request: Request, ids: str = Form(""), unit: str = Form("serving")):
-    """Bulk-add checked recipes to the comparison — used both by Compare
-    Recipes' own "add via search" panel and by the compare checkboxes on
-    Foods search and the Recipes list (which post straight here)."""
+@app.post("/compare/add-multiple", response_class=RedirectResponse)
+async def compare_add_multiple(request: Request, items: str = Form("")):
+    """Bulk-add checked foods/recipes to the comparison — used both by
+    Compare's own "add via search" panel and by the compare checkboxes on
+    Foods search, Food Cache, My Pantry, and the Recipes list (which post
+    straight here to jump into a comparison without first landing on this
+    page)."""
     form = await request.form()
-    recipe_id_strs = form.getlist("recipe_id")
-    id_list = _parse_recipe_compare_ids(ids)
+    fdc_ids = form.getlist("fdc_id")
+    recipe_ids = form.getlist("recipe_id")
+    item_list = _parse_compare_items(items)
     added = skipped = 0
-    for rid_str in recipe_id_strs:
-        try:
-            rid = int(rid_str)
-        except (ValueError, TypeError):
-            continue
-        if rid in id_list:
-            continue
-        if len(id_list) >= _MAX_COMPARE_RECIPES:
-            skipped += 1
-            continue
-        id_list.append(rid)
-        added += 1
-    ids_str = ",".join(str(i) for i in id_list)
-    url = f"/recipe/compare?ids={ids_str}&unit={unit}"
+    for kind, id_strs in (("food", fdc_ids), ("recipe", recipe_ids)):
+        for id_str in id_strs:
+            try:
+                id_ = int(id_str)
+            except (ValueError, TypeError):
+                continue
+            if (kind, id_) in item_list:
+                continue
+            if len(item_list) >= _MAX_COMPARE_ITEMS:
+                skipped += 1
+                continue
+            item_list.append((kind, id_))
+            added += 1
+    url = f"/compare?items={_compare_items_str(item_list)}"
     if skipped:
-        url += f"&error=Added+{added}%2C+skipped+{skipped}+%E2%80%94+maximum+{_MAX_COMPARE_RECIPES}+recipes"
+        url += f"&error=Added+{added}%2C+skipped+{skipped}+%E2%80%94+maximum+{_MAX_COMPARE_ITEMS}+items"
     return RedirectResponse(url, status_code=303)
 
 
-@app.post("/recipe/compare/remove", response_class=RedirectResponse)
-async def recipe_compare_remove(
-    remove_id: int = Form(...),
-    ids:       str = Form(""),
-    unit:      str = Form("serving"),
+@app.post("/compare/remove", response_class=RedirectResponse)
+async def compare_remove(
+    remove_kind: str = Form(...),
+    remove_id:   int = Form(...),
+    items:       str = Form(""),
 ):
-    id_list = [i for i in _parse_recipe_compare_ids(ids) if i != remove_id]
-    ids_str = ",".join(str(i) for i in id_list)
-    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
+    remove_kind = "recipe" if remove_kind == "recipe" else "food"
+    item_list = [it for it in _parse_compare_items(items) if it != (remove_kind, remove_id)]
+    return RedirectResponse(f"/compare?items={_compare_items_str(item_list)}", status_code=303)
 
 
-@app.post("/recipe/compare/save", response_class=RedirectResponse)
-async def recipe_compare_save(
-    name: str = Form(""),
-    ids:  str = Form(""),
-    unit: str = Form("serving"),
+@app.post("/compare/cache-food", response_class=RedirectResponse)
+async def compare_cache_food(
+    fdc_id: int = Form(...),
+    items:  str = Form(""),
 ):
-    id_list = _parse_recipe_compare_ids(ids)
-    if len(id_list) >= 2:
-        with _db.get_db() as conn:
-            _db.saved_recipe_comparison_save(conn, name.strip() or "Untitled", id_list, unit)
-    ids_str = ",".join(str(i) for i in id_list)
-    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={unit}", status_code=303)
-
-
-@app.get("/recipe/compare/load/{cmp_id}", response_class=RedirectResponse)
-async def recipe_compare_load(cmp_id: int):
     with _db.get_db() as conn:
-        row = _db.saved_recipe_comparison_get(conn, cmp_id)
+        already_cached = _db.get_cached_food(conn, fdc_id) is not None
+    if not already_cached:
+        try:
+            detail = _usda.get_food_detail(fdc_id)
+            with _db.get_db() as conn:
+                _db.cache_food(conn, fdc_id=detail["fdcId"], name=detail["name"],
+                               data_type=detail.get("dataType", ""),
+                               brand=detail.get("brand"),
+                               serving_size=detail.get("servingSize"),
+                               serving_unit=detail.get("servingUnit"),
+                               nutrients=detail.get("nutrients", {}),
+                               portions=detail.get("portions", []))
+                _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
+        except Exception:
+            pass
+    return RedirectResponse(f"/compare?items={items}", status_code=303)
+
+
+@app.post("/compare/save", response_class=RedirectResponse)
+async def compare_save(
+    name:  str = Form(""),
+    items: str = Form(""),
+):
+    item_list = _parse_compare_items(items)
+    if len(item_list) >= 2:
+        with _db.get_db() as conn:
+            _db.saved_mixed_comparison_save(
+                conn, name.strip() or "Untitled",
+                [{"kind": kind, "id": id_} for kind, id_ in item_list],
+            )
+    return RedirectResponse(f"/compare?items={_compare_items_str(item_list)}", status_code=303)
+
+
+@app.get("/compare/load/{cmp_id}", response_class=RedirectResponse)
+async def compare_load(cmp_id: int):
+    with _db.get_db() as conn:
+        row = _db.saved_mixed_comparison_get(conn, cmp_id)
     if not row:
-        return RedirectResponse("/recipe/compare", status_code=303)
-    ids_str = ",".join(str(i) for i in json.loads(row["recipe_ids"]))
-    return RedirectResponse(f"/recipe/compare?ids={ids_str}&unit={row['unit']}", status_code=303)
+        return RedirectResponse("/compare", status_code=303)
+    stored_items = json.loads(row["items"])
+    items_str = ",".join(f"{'r' if it['kind'] == 'recipe' else 'f'}{it['id']}" for it in stored_items)
+    return RedirectResponse(f"/compare?items={items_str}", status_code=303)
 
 
-@app.post("/recipe/compare/saved/rename", response_class=RedirectResponse)
-async def recipe_compare_saved_rename(
+@app.post("/compare/saved/rename", response_class=RedirectResponse)
+async def compare_saved_rename(
     cmp_id: int = Form(...),
     name:   str = Form(""),
-    ids:    str = Form(""),
-    unit:   str = Form("serving"),
+    items:  str = Form(""),
 ):
     new_name = name.strip() or "Untitled"
     with _db.get_db() as conn:
-        _db.saved_recipe_comparison_rename(conn, cmp_id, new_name)
-    url = f"/recipe/compare?ids={ids}&unit={unit}" if ids else "/recipe/compare"
+        _db.saved_mixed_comparison_rename(conn, cmp_id, new_name)
+    url = f"/compare?items={items}" if items else "/compare"
     return RedirectResponse(url, status_code=303)
 
 
-@app.post("/recipe/compare/saved/delete", response_class=RedirectResponse)
-async def recipe_compare_saved_delete(
+@app.post("/compare/saved/delete", response_class=RedirectResponse)
+async def compare_saved_delete(
     cmp_id: int = Form(...),
-    ids:    str = Form(""),
-    unit:   str = Form("serving"),
+    items:  str = Form(""),
 ):
     with _db.get_db() as conn:
-        _db.saved_recipe_comparison_delete(conn, cmp_id)
-    ids_str = ids.strip()
-    url = f"/recipe/compare?ids={ids_str}&unit={unit}" if ids_str else "/recipe/compare"
+        _db.saved_mixed_comparison_delete(conn, cmp_id)
+    items_str = items.strip()
+    url = f"/compare?items={items_str}" if items_str else "/compare"
     return RedirectResponse(url, status_code=303)
 
 
@@ -6193,6 +6029,8 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
                                   comp_sort=comp_sort, diaas_sort=diaas_sort, rank=rank, top_n=top_n)
     if ctx is None:
         return RedirectResponse("/recipes", status_code=303)
+    with _db.get_db() as conn:
+        ctx["translations"] = _db.recipe_translation_list(conn, recipe_id)
     return templates.TemplateResponse(request, "recipe_detail.html", ctx)
 
 
@@ -6262,7 +6100,7 @@ async def recipe_print(
 
     return templates.TemplateResponse(request, "print.html", {
         "title":              ctx["recipe"]["name"],
-        "subtitle":           f"{ctx['servings']} serving{'s' if ctx['servings'] != 1 else ''} analyzed"
+        "subtitle":           f"#{recipe_id} / {ctx['servings']} serving{'s' if ctx['servings'] != 1 else ''} analyzed"
                               f"{' · ' + str(ctx['recipe']['servings']) + ' servings per recipe' if ctx['recipe'].get('servings') else ''}",
         "back_url":           f"/recipe/{recipe_id}",
         "back_label":         "Back to recipe",
@@ -6274,6 +6112,196 @@ async def recipe_print(
         "oxalate_agg":        ctx["oxalate"],
         **{k: v for k, v in ctx.items() if k != "oxalate"},
     })
+
+
+# ---------------------------------------------------------------------------
+# Recipe translation workflow (manual AI paste) — see
+# numa_app/services/recipe_translate.py for the prompt-building and
+# response-parsing logic. numa never calls a translation API itself: the user
+# pastes the generated prompt into their own AI chat tool, translates it, and
+# pastes the reply back for review before it's optionally saved.
+# ---------------------------------------------------------------------------
+
+def _recipe_ingredients_with_volume(conn, recipe_id: int) -> list[dict]:
+    ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
+    for ing in ingredients:
+        if not ing["ref_recipe_id"] and ing["amount"]:
+            ing["volume_display"] = volume_hint(ing["amount"], ing["food_name"])
+    return ingredients
+
+
+def _original_recipe_fields(recipe: dict, target_language: str) -> dict:
+    return {
+        "name":         recipe.get("name") or "",
+        "description":  recipe.get("description") or "",
+        "introduction": recipe.get("introduction") or "",
+        "instructions": recipe.get("instructions") or "",
+        "disclaimer":   _recipe_translate.DISCLAIMER_TEMPLATE.format(language=target_language),
+    }
+
+
+def _render_translated_recipe(ctx: dict, translated: dict) -> dict:
+    """Overlay translated display strings onto a copy of a recipe detail ctx.
+    Never touches amounts, servings, or any nutrient data."""
+    new_ctx = dict(ctx)
+
+    recipe = dict(ctx["recipe"])
+    for key in ("name", "description", "introduction", "instructions"):
+        if translated.get(key):
+            recipe[key] = translated[key]
+    new_ctx["recipe"] = recipe
+
+    translated_ingredients = translated.get("ingredients") or []
+    new_ingredients = []
+    for ing, tr in zip(ctx["ingredients"], translated_ingredients):
+        new_ing = dict(ing)
+        if tr.get("food_name"):
+            new_ing["food_name"] = tr["food_name"]
+        if tr.get("notes"):
+            new_ing["notes"] = tr["notes"]
+        orig_vol = ing.get("volume_display")
+        trans_vol = tr.get("volume_display")
+        if trans_vol and orig_vol:
+            new_ing["volume_display"] = f"{trans_vol} ({orig_vol})"
+        elif trans_vol:
+            new_ing["volume_display"] = trans_vol
+        new_ingredients.append(new_ing)
+    new_ctx["ingredients"] = new_ingredients
+
+    new_ctx["disclaimer"] = translated.get("disclaimer")
+    new_ctx["translated"] = True
+    return new_ctx
+
+
+@app.get("/recipe/{recipe_id}/translate", response_class=HTMLResponse)
+async def recipe_translate_get(request: Request, recipe_id: int, language: str = ""):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+        ingredients = _recipe_ingredients_with_volume(conn, recipe_id)
+        translations = _db.recipe_translation_list(conn, recipe_id)
+
+    language = language.strip()
+    prompt = ""
+    if language:
+        original = _original_recipe_fields(dict(recipe), language)
+        prompt = _recipe_translate.build_translate_prompt(original, ingredients, language)
+
+    return templates.TemplateResponse(request, "recipe_translate.html", {
+        "recipe":       dict(recipe),
+        "language":     language,
+        "prompt":       prompt,
+        "translations": translations,
+    })
+
+
+@app.get("/recipe/{recipe_id}/translate/import", response_class=HTMLResponse)
+async def recipe_translate_import_get(request: Request, recipe_id: int, language: str = ""):
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+    return templates.TemplateResponse(request, "recipe_translate_import.html", {
+        "recipe_id":     recipe_id,
+        "language":      language,
+        "response_text": "",
+        "preview":       None,
+    })
+
+
+@app.post("/recipe/{recipe_id}/translate/import", response_class=HTMLResponse)
+async def recipe_translate_import_post(
+    request: Request,
+    recipe_id: int,
+    response_text: str = Form(...),
+    language: str = Form(...),
+    action: str = Form("preview"),
+):
+    ctx = _recipe_detail_context(recipe_id, None, [], [])
+    if ctx is None:
+        return RedirectResponse("/recipes", status_code=303)
+
+    original = _original_recipe_fields(ctx["recipe"], language)
+    parsed = _recipe_translate.parse_translation_response(response_text)
+    clean, warnings, hard_fail = _recipe_translate.validate_translation(
+        original, ctx["ingredients"], parsed
+    )
+
+    if hard_fail:
+        return templates.TemplateResponse(request, "recipe_translate_import.html", {
+            "recipe_id":     recipe_id,
+            "language":      language,
+            "response_text": response_text,
+            "preview":       None,
+            "hard_fail":     True,
+            "warnings":      warnings,
+        })
+
+    if action == "save":
+        with _db.get_db() as conn:
+            translation_id = _db.recipe_translation_create(conn, recipe_id, language, clean)
+        return RedirectResponse(
+            f"/recipe/{recipe_id}/translation/{translation_id}/print", status_code=303
+        )
+
+    preview_ctx = _render_translated_recipe(ctx, clean)
+    return templates.TemplateResponse(request, "recipe_translate_import.html", {
+        "recipe_id":     recipe_id,
+        "language":      language,
+        "response_text": response_text,
+        "preview":       preview_ctx,
+        "hard_fail":     False,
+        "warnings":      warnings,
+    })
+
+
+@app.get("/recipe/{recipe_id}/translation/{translation_id}/print", response_class=HTMLResponse)
+async def recipe_translation_print(
+    request: Request,
+    recipe_id: int,
+    translation_id: int,
+    sections: list[str] = Query(default=[]),
+    sections_submitted: bool = Query(default=False),
+):
+    ctx = _recipe_detail_context(recipe_id, None, [], [])
+    if ctx is None:
+        return RedirectResponse("/recipes", status_code=303)
+
+    with _db.get_db() as conn:
+        row = _db.recipe_translation_get(conn, translation_id)
+    if not row or row["recipe_id"] != recipe_id:
+        return RedirectResponse(f"/recipe/{recipe_id}", status_code=303)
+
+    translated = json.loads(row["data_json"])
+    ctx = _render_translated_recipe(ctx, translated)
+
+    available = _recipe_available_sections(ctx)
+    prefs = _load_prefs_file()
+    enabled = _print_sections.resolve_sections("recipe", available, sections, sections_submitted, prefs)
+    if sections_submitted:
+        _save_prefs_file(_print_sections.save_sections("recipe", enabled, prefs))
+
+    return templates.TemplateResponse(request, "print.html", {
+        "title":              ctx["recipe"]["name"],
+        "subtitle":           f"{row['language']} translation",
+        "back_url":           f"/recipe/{recipe_id}",
+        "back_label":         "Back to recipe",
+        "fixed_params":       {},
+        "section_labels":     _print_sections.PRINT_SECTION_LABELS,
+        "available_sections": available,
+        "enabled":            enabled,
+        "portion_label":      f"{ctx['servings']} serving{'s' if ctx['servings'] != 1 else ''}",
+        "oxalate_agg":        ctx["oxalate"],
+        **{k: v for k, v in ctx.items() if k != "oxalate"},
+    })
+
+
+@app.post("/recipe/{recipe_id}/translation/{translation_id}/delete", response_class=RedirectResponse)
+async def recipe_translation_delete(recipe_id: int, translation_id: int):
+    with _db.get_db() as conn:
+        _db.recipe_translation_delete(conn, translation_id)
+    return RedirectResponse(f"/recipe/{recipe_id}", status_code=303)
 
 
 @app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
@@ -7803,3 +7831,11 @@ async def manual(request: Request):
     if not _MANUAL.exists():
         return HTMLResponse("<p>User manual not found. Run <code>make manual</code> to generate it.</p>", status_code=404)
     return HTMLResponse(_MANUAL.read_text(encoding="utf-8"))
+
+
+@app.get("/disclaimer", response_class=HTMLResponse)
+async def disclaimer(request: Request):
+    if not _DISCLAIMER_MD.exists():
+        return HTMLResponse("<p>Disclaimer not found.</p>", status_code=404)
+    body = _md.markdown(_DISCLAIMER_MD.read_text(encoding="utf-8"), extensions=["footnotes"])
+    return templates.TemplateResponse(request, "disclaimer.html", {"body": body})

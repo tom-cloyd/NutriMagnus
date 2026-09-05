@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% import "_source_filter_select.html" as _srcf %}
+{% import "_result_limit_input.html" as _rli %}
+{% block title %}NutriMagnus — Compare{% endblock %}
+
+{# A recipe's 100g scaling is estimated from its own ingredient weights —
+   flag it wherever the item's name appears in a comparison table header,
+   so a reader knows why it's an estimate rather than an exact figure.
+   with_link=true adds a "why?" link to the manual section explaining the
+   mechanism — used once, at the item's first appearance in the current
+   items list, so it isn't repeated in every table header below. #}
+{% macro estimate_note(e, with_link=false) -%}
+{% if e.kind == "recipe" and not e.weight_complete %} <span class="muted"><small>(estimate{% if with_link %} — {{ manual_link("comparison-estimate", "why?") }}{% endif %})</small></span>{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<div class="no-print">
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item active" aria-current="page">Compare</li>
+  </ol>
+</nav>
+
+<h2>Compare {{ manual_link("comparison") }}</h2>
+<p class="muted">Add up to {{ max_items }} foods and/or recipes to compare them per 100 g — the one basis that's fair to compare a food's grams against a recipe's servings on.</p>
+
+{% if error %}
+<p class="numa-error">{{ error }}</p>
+{% endif %}
+
+{# ── Saved lists panel ── #}
+{% if saved_lists %}
+<details class="mb-3">
+  <summary><strong>Use a saved list</strong>
+    <span class="muted">({{ saved_lists|length }})</span>
+  </summary>
+  <table class="table table-sm table-hover mt-2" style="max-width:52rem">
+    <thead class="table-light">
+      <tr><th>Name</th><th>Items</th><th>Saved</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for s in saved_lists %}
+      <tr>
+        <td>
+          <a href="/compare/load/{{ s.id }}">{{ s.name }}</a>
+          <form method="post" action="/compare/saved/rename" class="d-inline-flex align-items-center gap-1 ms-2">
+            <input type="hidden" name="cmp_id" value="{{ s.id }}">
+            <input type="hidden" name="items" value="{{ items_str }}">
+            <input type="text" name="name" value="{{ s.name }}"
+                   class="form-control form-control-sm" style="max-width:14rem">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
+          </form>
+        </td>
+        <td class="muted">{{ s.items | fromjson | length }}</td>
+        <td class="muted">{{ s.created_at[:10] }}</td>
+        <td>
+          <form method="post" action="/compare/saved/delete" style="display:inline">
+            <input type="hidden" name="cmp_id" value="{{ s.id }}">
+            <input type="hidden" name="items" value="{{ items_str }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{# ── Add food/recipe search ── #}
+<form method="get" action="/compare" class="mb-2">
+  <input type="hidden" name="items" value="{{ items_str }}">
+  <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
+  <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <div class="input-group" style="max-width:36rem">
+      <input type="text" class="form-control" name="search"
+             value="{{ search }}"
+             placeholder="Search for a food or recipe to add…" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+    {% if search and not search_results %}<span class="search-no-results" data-query="{{ search }}" data-field="search">No results for <strong>{{ search }}</strong>.</span>{% endif %}
+  </div>
+  <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
+  {{ _rli.input(limit) }}
+</form>
+
+{# ── Search results — user selects multiple to add ── #}
+{% if search_error %}
+<p class="numa-error">{{ search_error }}</p>
+{% endif %}
+{% if search_results %}
+<form method="post" action="/compare/add-multiple">
+  <input type="hidden" name="items" value="{{ items_str }}">
+  <p class="result-count">
+    {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
+    for <strong>{{ search }}</strong> — check items to add, then click &rArr;
+    <button type="submit" class="btn btn-primary btn-sm ms-1">Add selected to comparison</button>
+  </p>
+  <table class="table table-sm table-hover mb-2" style="max-width:56rem">
+    <thead class="table-light">
+      <tr>
+        <th style="width:2rem"></th>
+        <th class="muted" style="width:6rem">ID</th>
+        <th>Food / Recipe</th>
+        <th>Brand</th>
+        <th>Type</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% set ns = namespace(seen_local=false, divider_shown=false) %}
+      {% for r in search_results %}
+        {% if is_local_source(r.source) %}{% set ns.seen_local = true %}{% endif %}
+        {% if not is_local_source(r.source) and ns.seen_local and not ns.divider_shown %}
+      <tr class="search-group-divider"><td colspan="6"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+        {% set ns.divider_shown = true %}
+        {% endif %}
+      <tr>
+        {% if r._type == "recipe" %}
+        <td><input type="checkbox" name="recipe_id" value="{{ r.recipe_id }}" class="row-chk"></td>
+        <td class="muted"><small>—</small></td>
+        <td><a href="/recipe/{{ r.recipe_id }}"><strong>{{ r.name }}</strong></a></td>
+        <td class="muted">—</td>
+        <td class="muted">Recipe</td>
+        <td><span class="source-badge source-recipe">recipe</span></td>
+        {% else %}
+        <td><input type="checkbox" name="fdc_id" value="{{ r.fdc_id }}" class="row-chk"></td>
+        <td class="muted"><small>{{ r.fdc_id if r.fdc_id > 0 else 'OFF' }}</small></td>
+        <td><a href="/food/{{ r.fdc_id }}"><strong>{{ r.name }}</strong></a></td>
+        <td class="muted">{{ r.brand or "—" }}</td>
+        <td class="muted">{{ r.data_type }}</td>
+        <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
+{% endif %}
+
+{# ── Current items list ── #}
+{% if entries %}
+<table class="table table-sm table-hover mb-2" style="max-width:56rem">
+  <thead class="table-light">
+    <tr>
+      <th>Food / Recipe</th>
+      <th title="Amino acid data availability">AA</th>
+      <th>Type</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+    <tr>
+      <td>
+        {% if e.kind == "recipe" %}
+        <a href="/recipe/{{ e.id }}">{{ e.name }}</a>{{ food_id_tag(None, e.id) }}{{ estimate_note(e, true) }}
+        {% else %}
+        <a href="/food/{{ e.id }}">{{ e.name }}</a>{{ food_id_tag(e.id) }}
+        {% endif %}
+      </td>
+      <td class="{% if e.has_aa %}text-success{% else %}text-danger{% endif %}" title="{% if e.has_aa %}Amino acid data available{% else %}No amino acid data{% endif %}">{{ "✓" if e.has_aa else "✗" }}</td>
+      <td class="muted">{{ "Recipe" if e.kind == "recipe" else e.data_type }}</td>
+      <td>
+        <form method="post" action="/compare/remove" style="display:inline">
+          <input type="hidden" name="remove_kind" value="{{ e.kind }}">
+          <input type="hidden" name="remove_id" value="{{ e.id }}">
+          <input type="hidden" name="items" value="{{ items_str }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<div class="d-flex gap-2 mb-3">
+  {% if entries|length >= 2 %}
+  <a href="#comparison" class="btn btn-primary btn-sm">Show comparison &darr;</a>
+  {% endif %}
+  <a href="/compare" class="btn btn-outline-danger btn-sm">Clear comparison</a>
+</div>
+{% endif %}
+</div>
+
+{% if entries|length >= 2 %}
+<hr id="comparison">
+
+{# ── Ingredient comparison ── #}
+{% if ingredient_rows %}
+<h4>Ingredient comparison <span class="muted"><small>(per 100 g of each item)</small></span></h4>
+<p class="muted">Each ingredient's amount is rescaled to what it contributes to 100 g of the finished food or recipe, so recipes of different batch sizes — and a plain food alongside them — are all on the same footing. Ingredients used by more than one item are listed first and shaded grey. A food entry shows itself as its own single "ingredient" (100 g, by definition). A recipe missing a raw-ingredient weight for any component shows &mdash; throughout, since its 100 g basis can't be computed.</p>
+<div class="table-responsive">
+<table class="table table-sm table-bordered compare-table mb-4">
+  <thead class="table-light">
+    <tr>
+      <th class="compare-nutrient-col">Ingredient</th>
+      {% for e in entries %}
+      <th class="compare-val-col">{{ e.name | truncate(28) }}{{ estimate_note(e) }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in ingredient_rows %}
+    <tr class="{% if row.shared_count >= 2 %}table-secondary{% endif %}">
+      <td class="compare-nutrient-col">
+        {{ row.name }}{% if row.is_recipe %} <span class="muted"><small>(recipe)</small></span>{% endif %}
+      </td>
+      {% for cell in row.cells %}
+      <td class="compare-val-col">
+        {% if cell %}{{ cell.display }}{% else %}—{% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{# ── Protein quality comparison ── #}
+{% if protein_quality_rows %}
+<h4>Protein quality comparison <span class="muted"><small>(per 100 g of each item)</small></span> {{ manual_link("diaas") }}</h4>
+<p class="muted">DIAAS-based protein quality per 100 g of each item. Highest value per row is highlighted. Items without enough amino acid data to score show &mdash;.</p>
+<div class="table-responsive">
+<table class="table table-sm table-bordered compare-table mb-4">
+  <thead class="table-light">
+    <tr>
+      <th class="compare-nutrient-col">Metric</th>
+      {% for e in entries %}
+      <th class="compare-val-col">{{ e.name | truncate(28) }}{{ estimate_note(e) }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in protein_quality_rows %}
+    <tr>
+      <td class="compare-nutrient-col">
+        {{ row.label }} {% if row.unit %}<span class="muted">{{ row.unit }}</span>{% endif %}
+      </td>
+      {% for cell in row.cells %}
+      <td class="compare-val-col {% if cell.is_max %}compare-max{% endif %}">
+        {{ cell.value if cell.value is not none else "—" }}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{# ── Nutrient comparison ── #}
+<div class="d-flex align-items-center gap-3 mb-1 no-print">
+  <h4 class="mb-0">Nutrient comparison <span class="muted"><small>(per 100 g of each item)</small></span></h4>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="sortCompareColumns()">Sort columns by checked nutrients</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSortBadges()">Clear sort</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">Print comparison table</button>
+  <a href="/compare/export.csv?items={{ items_str }}" class="btn btn-sm btn-outline-secondary">Download CSV</a>
+</div>
+<p class="muted no-print">Check nutrients in the order you want to sort by, then click Sort. Highest value per row is highlighted. Every column is per 100 g of that food or recipe, so this compares nutrient density directly regardless of serving size.</p>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered compare-table" id="compare-table">
+  <thead class="table-light">
+    <tr>
+      <th class="compare-nutrient-col">Nutrient</th>
+      {% for e in entries %}
+      <th class="compare-val-col">
+        {{ e.name | truncate(28) }}{{ food_id_tag(e.id if e.kind == "food" else None, e.id if e.kind == "recipe" else None) }}{{ estimate_note(e) }}<br>
+        <span class="muted">100 g</span><br>
+        {% if e.kind == "food" %}
+          {% if e.cached %}
+          <span class="muted"><small>In food cache</small></span>
+          {% else %}
+          <form method="post" action="/compare/cache-food" style="display:inline">
+            <input type="hidden" name="fdc_id" value="{{ e.id }}">
+            <input type="hidden" name="items" value="{{ items_str }}">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Add to food cache</button>
+          </form>
+          {% endif %}
+        {% endif %}
+      </th>
+      {% endfor %}
+    </tr>
+  </thead>
+  {% for group in compare_groups %}
+  <tbody>
+    <tr class="table-secondary">
+      <td colspan="{{ entries|length + 1 }}"><strong>{{ group.name }}</strong></td>
+    </tr>
+    {% for row in group.rows %}
+    <tr class="compare-data-row">
+      <td class="compare-nutrient-col">
+        <span class="sort-badge" onclick="toggleSortBadge(this)"></span>{{ row.label }} <span class="muted">{{ row.unit }}</span>
+      </td>
+      {% for cell in row.cells %}
+      <td class="compare-val-col {% if cell.is_max %}compare-max{% endif %}">
+        {{ cell.value if cell.value is not none else "—" }}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+  {% endfor %}
+</table>
+</div>
+
+<script>
+(function() {
+  // Assign stable row indices to all data rows on load
+  document.querySelectorAll('#compare-table .compare-data-row').forEach((tr, i) => {
+    tr.dataset.rowIdx = i;
+  });
+
+  const sortOrder = []; // row indices in the order the user checked them
+
+  window.toggleSortBadge = function(badge) {
+    const rowIdx = badge.closest('tr').dataset.rowIdx;
+    const pos = sortOrder.indexOf(rowIdx);
+    if (pos === -1) {
+      sortOrder.push(rowIdx);
+      badge.textContent = sortOrder.length;
+      badge.classList.add('active');
+    } else {
+      sortOrder.splice(pos, 1);
+      badge.classList.remove('active');
+      badge.textContent = '';
+      // renumber remaining badges
+      sortOrder.forEach((idx, i) => {
+        document.querySelector(`#compare-table tr[data-row-idx="${idx}"] .sort-badge`).textContent = i + 1;
+      });
+    }
+  };
+
+  window.clearSortBadges = function() {
+    sortOrder.length = 0;
+    document.querySelectorAll('#compare-table .sort-badge').forEach(b => {
+      b.textContent = '';
+      b.classList.remove('active');
+    });
+  };
+
+  window.sortCompareColumns = function() {
+    if (sortOrder.length === 0) return;
+    const table = document.getElementById('compare-table');
+    const allRows = table.querySelectorAll('tr');
+    const numCols = table.querySelector('thead tr').cells.length - 1;
+
+    // Build sort keys: for each column, an array of values per selected nutrient (in order)
+    const keys = Array.from({length: numCols}, () => []);
+    for (const rowIdx of sortOrder) {
+      const tr = table.querySelector(`tr[data-row-idx="${rowIdx}"]`);
+      if (!tr) continue;
+      for (let c = 0; c < numCols; c++) {
+        const cell = tr.cells[c + 1];
+        const v = cell ? parseFloat(cell.textContent.trim()) : NaN;
+        keys[c].push(isNaN(v) ? -Infinity : v);
+      }
+    }
+
+    // Sort column indices descending (highest nutrient value first)
+    const order = Array.from({length: numCols}, (_, i) => i);
+    order.sort((a, b) => {
+      for (let k = 0; k < sortOrder.length; k++) {
+        if (keys[b][k] !== keys[a][k]) return keys[b][k] - keys[a][k];
+      }
+      return 0;
+    });
+
+    // Rearrange every row's cells (skip group-header rows which have colspan)
+    for (const row of allRows) {
+      if (row.cells.length < 2) continue;
+      const label = row.cells[0];
+      const cols = Array.from(row.cells).slice(1);
+      while (row.cells.length) row.deleteCell(0);
+      row.appendChild(label);
+      order.forEach(i => row.appendChild(cols[i]));
+    }
+  };
+})();
+</script>
+{% elif entries|length == 1 %}
+<p class="muted">Add at least one more food or recipe to see the comparison tables.</p>
+{% endif %}
+
+{# ── Save this comparison ── #}
+{% if entries|length >= 2 %}
+<div class="no-print">
+<hr>
+<form method="post" action="/compare/save" class="d-flex align-items-center gap-2" style="max-width:36rem">
+  <input type="hidden" name="items" value="{{ items_str }}">
+  <label for="save-name" class="text-nowrap mb-0"><strong>Save this list:</strong></label>
+  <input type="text" id="save-name" name="name" class="form-control form-control-sm"
+         placeholder="Give it a name…" style="max-width:18rem">
+  <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Save comparison</button>
+</form>
+</div>
+{% endif %}
+
+{% endblock %}

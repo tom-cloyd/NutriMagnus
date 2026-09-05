@@ -55,40 +55,34 @@
                   <span class="dd-hint">(no analysis)</span>
                 </a>
               </li>
-              <li>
-                <a class="dropdown-item" href="/food/compare">
-                  5. <strong>Compare</strong> foods
-                  <span class="dd-hint">(side-by-side table, up to 8)</span>
-                </a>
-              </li>
               <li><hr class="dropdown-divider"></li>
               <li>
                 <a class="dropdown-item" href="/food/cache">
-                  6. <strong>Food Cache</strong>
+                  5. <strong>Food Cache</strong>
                   <span class="dd-hint">(view, manage, get info)</span>
                 </a>
               </li>
               <li>
                 <a class="dropdown-item" href="/pantry">
-                  7. <strong>My Pantry</strong>
+                  6. <strong>My Pantry</strong>
                   <span class="dd-hint">(foods you have on hand)</span>
                 </a>
               </li>
               <li>
                 <a class="dropdown-item" href="/food/custom-profiles">
-                  8. <strong>Custom food profiles</strong>
+                  7. <strong>Custom food profiles</strong>
                   <span class="dd-hint">(create &amp; edit your own data)</span>
                 </a>
               </li>
               <li>
                 <a class="dropdown-item" href="/food/annotate">
-                  9. <strong>Annotate</strong> a food
+                  8. <strong>Annotate</strong> a food
                   <span class="dd-hint">(add GI / DIAAS estimates)</span>
                 </a>
               </li>
               <li>
                 <a class="dropdown-item" href="/food/cache/db-check">
-                  10. <strong>Check database integrity</strong>
+                  9. <strong>Check database integrity</strong>
                   <span class="dd-hint">(find &amp; fix broken references)</span>
                 </a>
               </li>
@@ -116,14 +110,8 @@
                 </a>
               </li>
               <li>
-                <a class="dropdown-item" href="/recipe/compare">
-                  2. <strong>Compare</strong> recipes
-                  <span class="dd-hint">(side-by-side ingredients &amp; nutrients)</span>
-                </a>
-              </li>
-              <li>
                 <a class="dropdown-item" href="/recipe/import-csv">
-                  3. <strong>Import CSV</strong>
+                  2. <strong>Import CSV</strong>
                   <span class="dd-hint">(bundle exported from this or another NuMa install)</span>
                 </a>
               </li>
@@ -135,6 +123,10 @@
              and the nav-memory script below for why. #}
           <li class="nav-item d-flex align-items-center">
             <a href="#" id="recipes-quick-return" class="nav-quick-return d-none"></a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if path.startswith('/compare') %}active{% endif %}"
+               href="/compare" data-ak="c" data-section="compare"><u class="ak">C</u>ompare</a>
           </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/meal') %}active{% endif %}"
@@ -190,7 +182,8 @@
   </div>
 
   <footer class="container mt-4 py-2 border-top">
-    <small class="text-secondary d-block">NuMa — local nutritional analysis &middot; data per 100 g unless noted</small>
+    <small class="text-secondary d-block">NuMa — local nutritional analysis &middot; data per 100 g unless noted
+      &middot; <a href="/disclaimer">Disclaimer</a></small>
     <small class="text-secondary" id="shortcut-hint" style="display:none">
       Keyboard shortcuts active (<kbd>Alt+Shift</kbd>+key).
       <a href="/settings">Can turn off in Settings.</a>

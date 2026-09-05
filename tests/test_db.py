@@ -338,6 +338,49 @@ class TestRecipes:
         assert recipes[0]["dcp_g"] is None
 
 
+class TestRecipeTranslations:
+    def test_create_and_get(self):
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            tid = _db.recipe_translation_create(conn, rid, "Spanish", {"name": "Sopa"})
+
+        assert isinstance(tid, int)
+        with _db.get_db() as conn:
+            translation = _db.recipe_translation_get(conn, tid)
+        assert translation["language"] == "Spanish"
+        assert json.loads(translation["data_json"])["name"] == "Sopa"
+
+    def test_list_for_recipe(self):
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            _db.recipe_translation_create(conn, rid, "Spanish", {"name": "Sopa"})
+            _db.recipe_translation_create(conn, rid, "French", {"name": "Soupe"})
+
+        with _db.get_db() as conn:
+            translations = _db.recipe_translation_list(conn, rid)
+        assert {t["language"] for t in translations} == {"Spanish", "French"}
+
+    def test_delete(self):
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            tid = _db.recipe_translation_create(conn, rid, "Spanish", {"name": "Sopa"})
+
+        with _db.get_db() as conn:
+            assert _db.recipe_translation_delete(conn, tid) is True
+
+        with _db.get_db() as conn:
+            assert _db.recipe_translation_get(conn, tid) is None
+
+    def test_delete_recipe_cascades_to_translations(self):
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            tid = _db.recipe_translation_create(conn, rid, "Spanish", {"name": "Sopa"})
+            _db.recipe_delete(conn, rid)
+
+        with _db.get_db() as conn:
+            assert _db.recipe_translation_get(conn, tid) is None
+
+
 # ---------------------------------------------------------------------------
 # Meals
 # ---------------------------------------------------------------------------

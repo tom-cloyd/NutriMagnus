@@ -261,6 +261,31 @@ def init_db() -> None:
             )
         """)
 
+        # Superseded 2026-09 by the unified /compare (mixes foods and recipes,
+        # up to 8 items) — saved_comparisons/saved_recipe_comparisons above
+        # are kept (unused) so any pre-existing rows aren't dropped, but new
+        # saves go here. `items` is a JSON array of {"kind": "food"|"recipe",
+        # "id": int} — every comparison is judged per 100g of each item, so
+        # there's no per-item amount to store.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_mixed_comparisons (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT    NOT NULL,
+                items      TEXT    NOT NULL,
+                created_at TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS recipe_translations (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+                language   TEXT    NOT NULL,
+                data_json  TEXT    NOT NULL,
+                created_at TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+
         for _col in ("bcp_g REAL", "bcp_computed_at TEXT", "day_pct_goal REAL", "calories REAL",
                      "nutrients_snapshot_json TEXT"):
             try:
@@ -875,6 +900,33 @@ def recipe_reorder_ingredients(conn: sqlite3.Connection, ordered_ids: list[int])
             "UPDATE recipe_ingredients SET sort_order = ? WHERE id = ?",
             (pos, ing_id),
         )
+
+
+def recipe_translation_create(conn: sqlite3.Connection, recipe_id: int, language: str, data: dict) -> int:
+    cur = conn.execute(
+        "INSERT INTO recipe_translations (recipe_id, language, data_json) VALUES (?, ?, ?)",
+        (recipe_id, language, json.dumps(data)),
+    )
+    return cur.lastrowid
+
+
+def recipe_translation_list(conn: sqlite3.Connection, recipe_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT id, recipe_id, language, created_at FROM recipe_translations "
+        "WHERE recipe_id = ? ORDER BY created_at DESC",
+        (recipe_id,),
+    ).fetchall()
+
+
+def recipe_translation_get(conn: sqlite3.Connection, translation_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM recipe_translations WHERE id = ?", (translation_id,)
+    ).fetchone()
+
+
+def recipe_translation_delete(conn: sqlite3.Connection, translation_id: int) -> bool:
+    cur = conn.execute("DELETE FROM recipe_translations WHERE id = ?", (translation_id,))
+    return cur.rowcount > 0
 
 
 def recipe_auto_weight(conn: sqlite3.Connection, recipe_id: int) -> float | None:
@@ -1682,6 +1734,15 @@ def meal_set_bcp(conn: sqlite3.Connection, meal_id: int, bcp_g: float | None,
         "nutrients_snapshot_json=? WHERE id=?",
         (bcp_g, calories, json.dumps(nutrients) if nutrients is not None else None, meal_id),
     )
+    # A per-meal bcp_g change can make the pooled day-level snapshot in
+    # day_bcp_cache stale (it's only refreshed by visiting /summary/{date}),
+    # so drop it and let meal_dates_with_bcp() fall back to summing bcp_g
+    # until the pooled value is recomputed.
+    conn.execute(
+        "DELETE FROM day_bcp_cache WHERE meal_date = "
+        "(SELECT meal_date FROM meals WHERE id = ?)",
+        (meal_id,),
+    )
 
 
 def meal_set_day_pct_goal(conn: sqlite3.Connection, meal_id: int, pct: float | None) -> None:
@@ -1786,75 +1847,38 @@ def update_food_nutrients_partial(conn: sqlite3.Connection, fdc_id: int, new_nut
 # Saved comparisons
 # ---------------------------------------------------------------------------
 
-def saved_comparison_save(
+def saved_mixed_comparison_save(
     conn: sqlite3.Connection,
     name: str,
-    fdc_ids: list[int],
-    amounts: list[float],
+    items: list[dict],
 ) -> int:
     cur = conn.execute(
-        "INSERT INTO saved_comparisons (name, fdc_ids, amounts) VALUES (?, ?, ?)",
-        (name, json.dumps(fdc_ids), json.dumps(amounts)),
+        "INSERT INTO saved_mixed_comparisons (name, items) VALUES (?, ?)",
+        (name, json.dumps(items)),
     )
     return cur.lastrowid
 
 
-def saved_comparison_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def saved_mixed_comparison_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     return conn.execute(
-        "SELECT id, name, fdc_ids, amounts, created_at FROM saved_comparisons ORDER BY created_at DESC"
+        "SELECT id, name, items, created_at FROM saved_mixed_comparisons ORDER BY created_at DESC"
     ).fetchall()
 
 
-def saved_comparison_get(conn: sqlite3.Connection, cmp_id: int) -> sqlite3.Row | None:
+def saved_mixed_comparison_get(conn: sqlite3.Connection, cmp_id: int) -> sqlite3.Row | None:
     return conn.execute(
-        "SELECT id, name, fdc_ids, amounts, created_at FROM saved_comparisons WHERE id = ?",
+        "SELECT id, name, items, created_at FROM saved_mixed_comparisons WHERE id = ?",
         (cmp_id,),
     ).fetchone()
 
 
-def saved_comparison_rename(conn: sqlite3.Connection, cmp_id: int, name: str) -> bool:
-    cur = conn.execute("UPDATE saved_comparisons SET name = ? WHERE id = ?", (name, cmp_id))
+def saved_mixed_comparison_rename(conn: sqlite3.Connection, cmp_id: int, name: str) -> bool:
+    cur = conn.execute("UPDATE saved_mixed_comparisons SET name = ? WHERE id = ?", (name, cmp_id))
     return cur.rowcount > 0
 
 
-def saved_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
-    cur = conn.execute("DELETE FROM saved_comparisons WHERE id = ?", (cmp_id,))
-    return cur.rowcount > 0
-
-
-def saved_recipe_comparison_save(
-    conn: sqlite3.Connection,
-    name: str,
-    recipe_ids: list[int],
-    unit: str,
-) -> int:
-    cur = conn.execute(
-        "INSERT INTO saved_recipe_comparisons (name, recipe_ids, unit) VALUES (?, ?, ?)",
-        (name, json.dumps(recipe_ids), unit),
-    )
-    return cur.lastrowid
-
-
-def saved_recipe_comparison_list(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT id, name, recipe_ids, unit, created_at FROM saved_recipe_comparisons ORDER BY created_at DESC"
-    ).fetchall()
-
-
-def saved_recipe_comparison_get(conn: sqlite3.Connection, cmp_id: int) -> sqlite3.Row | None:
-    return conn.execute(
-        "SELECT id, name, recipe_ids, unit, created_at FROM saved_recipe_comparisons WHERE id = ?",
-        (cmp_id,),
-    ).fetchone()
-
-
-def saved_recipe_comparison_rename(conn: sqlite3.Connection, cmp_id: int, name: str) -> bool:
-    cur = conn.execute("UPDATE saved_recipe_comparisons SET name = ? WHERE id = ?", (name, cmp_id))
-    return cur.rowcount > 0
-
-
-def saved_recipe_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
-    cur = conn.execute("DELETE FROM saved_recipe_comparisons WHERE id = ?", (cmp_id,))
+def saved_mixed_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
+    cur = conn.execute("DELETE FROM saved_mixed_comparisons WHERE id = ?", (cmp_id,))
     return cur.rowcount > 0
 
 

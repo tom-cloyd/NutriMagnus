@@ -575,6 +575,85 @@ def test_recipe_print_defaults_to_all_available_sections(client: TestClient, cac
     assert "Ingredients" in resp3.text
 
 
+def _create_recipe_with_ingredient(client: TestClient, cached_food: dict) -> int:
+    resp = client.post("/recipe/new", data={"name": "Chicken Bowl", "servings": 2}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "200 g"},
+        follow_redirects=False,
+    )
+    return recipe_id
+
+
+def test_recipe_translate_flow_saves_and_prints(client: TestClient, cached_food) -> None:
+    recipe_id = _create_recipe_with_ingredient(client, cached_food)
+
+    resp = client.get(f"/recipe/{recipe_id}/translate", params={"language": "Spanish"})
+    assert resp.status_code == 200
+    assert "Spanish" in resp.text
+    assert "Copy prompt" in resp.text
+
+    reply = json.dumps({
+        "name": "Tazón de Pollo",
+        "description": "",
+        "introduction": "",
+        "instructions": "",
+        "disclaimer": "Esta es una traducción al español...",
+        "ingredients": [
+            {"food_name": cached_food["name"] + " (ES)", "notes": "", "volume_display": ""},
+        ],
+    })
+    resp = client.post(
+        f"/recipe/{recipe_id}/translate/import",
+        data={"response_text": reply, "language": "Spanish", "action": "preview"},
+    )
+    assert resp.status_code == 200
+    assert "Preview" in resp.text
+    assert "Tazón de Pollo" in resp.text
+    assert "Save this translation" in resp.text
+
+    resp = client.post(
+        f"/recipe/{recipe_id}/translate/import",
+        data={"response_text": reply, "language": "Spanish", "action": "save"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert f"/recipe/{recipe_id}/translation/" in location
+
+    resp = client.get(location)
+    assert resp.status_code == 200
+    assert "Tazón de Pollo" in resp.text
+    assert "Spanish translation" in resp.text
+
+    resp = client.get(f"/recipe/{recipe_id}")
+    assert "Tazón de Pollo" not in resp.text  # original recipe untouched
+    assert "Spanish" in resp.text  # listed under Translations
+
+    translation_id = int(location.rstrip("/print").rsplit("/", 1)[-1])
+    client.post(f"/recipe/{recipe_id}/translation/{translation_id}/delete", follow_redirects=False)
+    resp = client.get(f"/recipe/{recipe_id}")
+    assert "Spanish" not in resp.text
+
+
+def test_recipe_translate_ingredient_count_mismatch_hard_fails(client: TestClient, cached_food) -> None:
+    recipe_id = _create_recipe_with_ingredient(client, cached_food)
+
+    reply = json.dumps({
+        "name": "Tazón de Pollo",
+        "description": "", "introduction": "", "instructions": "", "disclaimer": "",
+        "ingredients": [],  # recipe has 1 ingredient — this is a mismatch
+    })
+    resp = client.post(
+        f"/recipe/{recipe_id}/translate/import",
+        data={"response_text": reply, "language": "Spanish", "action": "preview"},
+    )
+    assert resp.status_code == 200
+    assert "Could not read that reply" in resp.text
+    assert "Save this translation" not in resp.text
+
+
 def test_meal_print_defaults_to_all_available_sections(client: TestClient, cached_food) -> None:
     resp = client.post(
         "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
@@ -1479,12 +1558,12 @@ def test_pantry_archive_hides_and_restore_reveals(client: TestClient, cached_foo
     assert cached_food["name"] in resp.text
 
 
-def test_food_compare_add(client: TestClient, cached_food) -> None:
+def test_compare_add(client: TestClient, cached_food) -> None:
     resp = client.post(
-        "/food/compare/add", data={"fdc_id": cached_food["fdcId"]}, follow_redirects=False,
+        "/compare/add", data={"kind": "food", "item_id": cached_food["fdcId"]}, follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert f"ids={cached_food['fdcId']}" in resp.headers["location"]
+    assert f"items=f{cached_food['fdcId']}" in resp.headers["location"]
 
 
 @pytest.fixture()
@@ -1609,126 +1688,151 @@ def _make_recipe(client: TestClient, name: str, servings: float, fdc_id: int, fo
     return recipe_id
 
 
-def test_recipe_compare_add_remove_and_cap(client: TestClient, cached_food) -> None:
+def test_compare_add_remove_and_cap(client: TestClient, cached_food) -> None:
     r1 = _make_recipe(client, "Recipe One", 1, cached_food["fdcId"], cached_food["name"], "100 g")
     r2 = _make_recipe(client, "Recipe Two", 1, cached_food["fdcId"], cached_food["name"], "100 g")
 
-    resp = client.post("/recipe/compare/add", data={"recipe_id": r1, "ids": ""}, follow_redirects=False)
+    resp = client.post(
+        "/compare/add", data={"kind": "recipe", "item_id": r1, "items": ""}, follow_redirects=False,
+    )
     assert resp.status_code == 303
     location = resp.headers["location"]
-    assert f"ids={r1}" in location
+    assert f"items=r{r1}" in location
 
-    resp = client.post("/recipe/compare/add", data={"recipe_id": r2, "ids": str(r1)}, follow_redirects=False)
-    ids_param = resp.headers["location"].split("ids=")[1].split("&")[0]
-    assert ids_param == f"{r1},{r2}"
+    resp = client.post(
+        "/compare/add", data={"kind": "recipe", "item_id": r2, "items": f"r{r1}"}, follow_redirects=False,
+    )
+    items_param = resp.headers["location"].split("items=")[1].split("&")[0]
+    assert items_param == f"r{r1},r{r2}"
 
-    resp = client.get(f"/recipe/compare?ids={r1},{r2}")
+    resp = client.get(f"/compare?items=r{r1},r{r2}")
     assert resp.status_code == 200
     assert "Recipe One" in resp.text
     assert "Recipe Two" in resp.text
     assert "Nutrient comparison" in resp.text
 
     resp = client.post(
-        "/recipe/compare/remove",
-        data={"remove_id": r1, "ids": f"{r1},{r2}"},
+        "/compare/remove",
+        data={"remove_kind": "recipe", "remove_id": r1, "items": f"r{r1},r{r2}"},
         follow_redirects=False,
     )
-    ids_param = resp.headers["location"].split("ids=")[1].split("&")[0]
-    assert ids_param == str(r2)
+    items_param = resp.headers["location"].split("items=")[1].split("&")[0]
+    assert items_param == f"r{r2}"
 
-    # Cap at _MAX_COMPARE_RECIPES (6): pad ids with dummy ids just under the cap.
-    padded_ids = ",".join(str(i) for i in range(100, 106))
+    # Cap at _MAX_COMPARE_ITEMS (8): pad items with dummy recipe ids just under the cap.
+    padded_items = ",".join(f"r{i}" for i in range(100, 108))
     resp = client.post(
-        "/recipe/compare/add", data={"recipe_id": r1, "ids": padded_ids}, follow_redirects=False,
+        "/compare/add", data={"kind": "recipe", "item_id": r1, "items": padded_items}, follow_redirects=False,
     )
     assert "error=Maximum" in resp.headers["location"]
 
 
-def test_recipe_compare_save_load_rename_delete(client: TestClient, cached_food, db_conn) -> None:
+def test_compare_mixes_food_and_recipe(client: TestClient, cached_food, second_cached_food) -> None:
+    """The whole point of the unified /compare page: a recipe and a plain
+    food can sit in the same comparison."""
+    r1 = _make_recipe(client, "A Recipe", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+
+    resp = client.get(f"/compare?items=r{r1},f{second_cached_food['fdcId']}")
+    assert resp.status_code == 200
+    assert "A Recipe" in resp.text
+    assert second_cached_food["name"] in resp.text
+    assert "Nutrient comparison" in resp.text
+
+
+def test_compare_save_load_rename_delete(client: TestClient, cached_food, db_conn) -> None:
     r1 = _make_recipe(client, "Recipe One", 1, cached_food["fdcId"], cached_food["name"], "100 g")
     r2 = _make_recipe(client, "Recipe Two", 1, cached_food["fdcId"], cached_food["name"], "100 g")
 
     resp = client.post(
-        "/recipe/compare/save",
-        data={"name": "My Recipe Comparison", "ids": f"{r1},{r2}", "unit": "serving"},
+        "/compare/save",
+        data={"name": "My Recipe Comparison", "items": f"r{r1},r{r2}"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    row = db_conn.execute("SELECT * FROM saved_recipe_comparisons WHERE name = 'My Recipe Comparison'").fetchone()
+    row = db_conn.execute("SELECT * FROM saved_mixed_comparisons WHERE name = 'My Recipe Comparison'").fetchone()
     assert row is not None
     cmp_id = row["id"]
 
-    # A single-recipe "comparison" isn't saved — need at least 2 to compare.
+    # A single-item "comparison" isn't saved — need at least 2 to compare.
     resp = client.post(
-        "/recipe/compare/save", data={"name": "Too Few", "ids": str(r1), "unit": "serving"},
+        "/compare/save", data={"name": "Too Few", "items": f"r{r1}"},
         follow_redirects=False,
     )
-    assert db_conn.execute("SELECT * FROM saved_recipe_comparisons WHERE name = 'Too Few'").fetchone() is None
+    assert db_conn.execute("SELECT * FROM saved_mixed_comparisons WHERE name = 'Too Few'").fetchone() is None
 
-    resp = client.get(f"/recipe/compare/load/{cmp_id}", follow_redirects=False)
+    resp = client.get(f"/compare/load/{cmp_id}", follow_redirects=False)
     assert resp.status_code == 303
-    assert str(r1) in resp.headers["location"]
-    assert str(r2) in resp.headers["location"]
+    assert f"r{r1}" in resp.headers["location"]
+    assert f"r{r2}" in resp.headers["location"]
 
-    # The saved-list panel shows up on the plain, no-ids landing page too.
-    resp = client.get("/recipe/compare")
+    # The saved-list panel shows up on the plain, no-items landing page too.
+    resp = client.get("/compare")
     assert resp.status_code == 200
     assert "My Recipe Comparison" in resp.text
-    assert "/recipe/compare/load/" in resp.text
+    assert "/compare/load/" in resp.text
 
     resp = client.post(
-        "/recipe/compare/saved/rename", data={"cmp_id": cmp_id, "name": "Renamed Comparison"},
+        "/compare/saved/rename", data={"cmp_id": cmp_id, "name": "Renamed Comparison"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    renamed = db_conn.execute("SELECT * FROM saved_recipe_comparisons WHERE id = ?", (cmp_id,)).fetchone()
+    renamed = db_conn.execute("SELECT * FROM saved_mixed_comparisons WHERE id = ?", (cmp_id,)).fetchone()
     assert renamed["name"] == "Renamed Comparison"
 
-    resp = client.post("/recipe/compare/saved/delete", data={"cmp_id": cmp_id}, follow_redirects=False)
+    resp = client.post("/compare/saved/delete", data={"cmp_id": cmp_id}, follow_redirects=False)
     assert resp.status_code == 303
-    assert db_conn.execute("SELECT * FROM saved_recipe_comparisons WHERE id = ?", (cmp_id,)).fetchone() is None
+    assert db_conn.execute("SELECT * FROM saved_mixed_comparisons WHERE id = ?", (cmp_id,)).fetchone() is None
 
 
-def test_recipe_compare_ingredient_table_shows_shared_and_unique(
+def test_compare_ingredient_table_shows_shared_and_unique(
     client: TestClient, cached_food, second_cached_food,
 ) -> None:
-    r1 = _make_recipe(client, "Shares Chicken", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+    """Ingredient amounts are rescaled to 100g of the finished recipe, so a
+    shared ingredient can show a different figure in each recipe even when
+    its raw amount differs — 300g chicken in a 500g batch (60g/100g) vs
+    400g chicken alone (100g/100g)."""
+    r1 = _make_recipe(client, "Shares Chicken", 1, cached_food["fdcId"], cached_food["name"], "300 g")
     client.post(
         f"/recipe/{r1}/ingredient/add",
-        data={"fdc_id": second_cached_food["fdcId"], "food_name": second_cached_food["name"], "portion_str": "50 g"},
+        data={"fdc_id": second_cached_food["fdcId"], "food_name": second_cached_food["name"], "portion_str": "200 g"},
         follow_redirects=False,
     )
-    r2 = _make_recipe(client, "Also Chicken", 1, cached_food["fdcId"], cached_food["name"], "200 g")
+    r2 = _make_recipe(client, "Also Chicken", 1, cached_food["fdcId"], cached_food["name"], "400 g")
 
-    resp = client.get(f"/recipe/compare?ids={r1},{r2}")
+    resp = client.get(f"/compare?items=r{r1},r{r2}")
     assert resp.status_code == 200
-    # Shared ingredient shows both amounts.
-    assert "100.0" in resp.text or "100" in resp.text
-    assert "200.0" in resp.text or "200" in resp.text
+    # Shared ingredient (chicken) rescaled differently per recipe's own batch size.
+    assert "60 g" in resp.text
+    assert "100 g" in resp.text
     # Unique-to-one-recipe ingredient still listed, with a "—" for the other.
     assert second_cached_food["name"] in resp.text
     assert "—" in resp.text
 
 
-def test_recipe_compare_nutrient_scaling_per_serving_vs_batch(client: TestClient, cached_food) -> None:
-    # 2 servings, 200g of a food with 31.0 g protein/100g => 62g total, 31g/serving.
-    r1 = _make_recipe(client, "Scaled Recipe", 2, cached_food["fdcId"], cached_food["name"], "200 g")
-    r2 = _make_recipe(client, "Other Recipe", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+def test_compare_nutrient_normalizes_to_100g(client: TestClient, cached_food, second_cached_food) -> None:
+    """Nutrient values are always per 100g of the finished item, regardless
+    of the recipe's batch size or serving count — diluting 100g of chicken
+    (31.0 g protein/100g) with 100g of a zero-nutrient filler halves its
+    protein density once rescaled to 100g of the resulting 200g batch."""
+    r1 = _make_recipe(client, "Diluted Recipe", 4, cached_food["fdcId"], cached_food["name"], "100 g")
+    client.post(
+        f"/recipe/{r1}/ingredient/add",
+        data={"fdc_id": second_cached_food["fdcId"], "food_name": second_cached_food["name"], "portion_str": "100 g"},
+        follow_redirects=False,
+    )
+    r2 = _make_recipe(client, "Plain Chicken", 1, cached_food["fdcId"], cached_food["name"], "100 g")
 
-    resp = client.get(f"/recipe/compare?ids={r1},{r2}&unit=serving")
+    resp = client.get(f"/compare?items=r{r1},r{r2}")
     assert resp.status_code == 200
-    assert "31.0" in resp.text  # per-serving protein for both recipes
-
-    resp = client.get(f"/recipe/compare?ids={r1},{r2}&unit=batch")
-    assert resp.status_code == 200
-    assert "62.0" in resp.text  # whole-batch protein for the 2-serving recipe
+    assert "15.5" in resp.text  # diluted recipe: 31g protein in a 200g batch -> 15.5g/100g
+    assert "31.0" in resp.text  # plain chicken: unchanged at 100g
 
 
-def test_recipe_compare_protein_quality_section(client: TestClient, cached_food) -> None:
+def test_compare_protein_quality_section(client: TestClient, cached_food) -> None:
     r1 = _make_recipe(client, "AA Recipe One", 1, cached_food["fdcId"], cached_food["name"], "100 g")
     r2 = _make_recipe(client, "AA Recipe Two", 1, cached_food["fdcId"], cached_food["name"], "200 g")
 
-    resp = client.get(f"/recipe/compare?ids={r1},{r2}")
+    resp = client.get(f"/compare?items=r{r1},r{r2}")
     assert resp.status_code == 200
     assert "Protein quality comparison" in resp.text
     assert "Composite DIAAS score" in resp.text
@@ -1837,6 +1941,17 @@ def test_relink_offers_alternative_target_recipe(client: TestClient, db_conn) ->
 
     item = db_conn.execute("SELECT * FROM meal_items WHERE meal_id = ?", (meal_id,)).fetchone()
     assert item["recipe_id"] == actual_target_id
+
+
+def test_disclaimer_page_renders(client: TestClient) -> None:
+    """The standalone /disclaimer route renders DISCLAIMER.md's content, and
+    every page's footer links to it."""
+    resp = client.get("/disclaimer")
+    assert resp.status_code == 200
+    assert "Not medical advice" in resp.text
+
+    resp = client.get("/")
+    assert '<a href="/disclaimer">Disclaimer</a>' in resp.text
 
 
 def test_home_page_shows_db_integrity_banner(client: TestClient, cached_food, db_conn) -> None:
@@ -2321,9 +2436,9 @@ def test_settings_diaas_override_set_and_delete(client: TestClient) -> None:
         assert _diaas.diaas_override_get(conn, "Lentils, cooked") is None
 
 
-def test_food_compare_add_multiple_remove_amounts(client: TestClient, cached_food, second_cached_food) -> None:
+def test_compare_add_multiple_and_remove(client: TestClient, cached_food, second_cached_food) -> None:
     resp = client.post(
-        "/food/compare/add-multiple",
+        "/compare/add-multiple",
         data={"fdc_id": [cached_food["fdcId"], second_cached_food["fdcId"]]},
         follow_redirects=False,
     )
@@ -2333,67 +2448,53 @@ def test_food_compare_add_multiple_remove_amounts(client: TestClient, cached_foo
     assert str(second_cached_food["fdcId"]) in location
 
     resp = client.post(
-        "/food/compare/remove",
-        data={"remove_id": second_cached_food["fdcId"],
-              "ids": f"{cached_food['fdcId']},{second_cached_food['fdcId']}",
-              "amounts": "100.0,100.0"},
+        "/compare/remove",
+        data={"remove_kind": "food", "remove_id": second_cached_food["fdcId"],
+              "items": f"f{cached_food['fdcId']},f{second_cached_food['fdcId']}"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
     assert str(second_cached_food["fdcId"]) not in resp.headers["location"]
 
+
+def test_compare_add_multiple_mixes_foods_and_recipes(client: TestClient, cached_food, db_conn) -> None:
+    rid = db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Soup', 1)").lastrowid
+    db_conn.commit()
     resp = client.post(
-        "/food/compare/amounts",
-        data={"ids": str(cached_food["fdcId"]), f"amounts_{cached_food['fdcId']}": "150"},
+        "/compare/add-multiple",
+        data={"fdc_id": [cached_food["fdcId"]], "recipe_id": [rid]},
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert "amounts=150.0" in resp.headers["location"]
+    location = resp.headers["location"]
+    assert f"f{cached_food['fdcId']}" in location
+    assert f"r{rid}" in location
 
 
-def test_food_compare_add_multiple_caps_at_8_with_message(client: TestClient) -> None:
-    """The compare-checkbox entry points on Foods search / Food Cache / My Pantry
-    post straight to add-multiple without visiting /food/compare first, so this
-    route — not just the single-add route — must enforce the 8-food cap and say
+def test_compare_add_multiple_caps_at_8_with_message(client: TestClient) -> None:
+    """The compare-checkbox entry points on Foods search / Food Cache / My Pantry /
+    Recipes post straight to add-multiple without visiting /compare first, so this
+    route — not just the single-add route — must enforce the 8-item cap and say
     what happened rather than silently dropping the rest."""
     fdc_ids = list(range(900001, 900011))  # 10 ids, one over the cap
     resp = client.post(
-        "/food/compare/add-multiple", data={"fdc_id": fdc_ids}, follow_redirects=False
+        "/compare/add-multiple", data={"fdc_id": fdc_ids}, follow_redirects=False
     )
     assert resp.status_code == 303
     location = resp.headers["location"]
-    ids_param = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query)["ids"][0]
-    assert len(ids_param.split(",")) == 8
-    assert "error=" in location
-    assert "skipped+2" in location
-
-
-def test_recipe_compare_add_multiple_caps_at_6_with_message(client: TestClient, db_conn) -> None:
-    ids = []
-    for i in range(8):
-        rid = db_conn.execute(
-            "INSERT INTO recipes (name, servings) VALUES (?, 1)", (f"Recipe {i}",)
-        ).lastrowid
-        ids.append(rid)
-    db_conn.commit()
-    resp = client.post(
-        "/recipe/compare/add-multiple", data={"recipe_id": ids}, follow_redirects=False
-    )
-    assert resp.status_code == 303
-    location = resp.headers["location"]
-    ids_param = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query)["ids"][0]
-    assert len(ids_param.split(",")) == 6
+    items_param = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query)["items"][0]
+    assert len(items_param.split(",")) == 8
     assert "error=" in location
     assert "skipped+2" in location
 
 
 def test_food_cache_has_compare_checkbox_and_form(client: TestClient, cached_food) -> None:
     """Regression test: Food Cache rows must offer a way to jump straight into
-    Compare Foods with the checked items, without redoing the search there."""
+    Compare with the checked items, without redoing the search there."""
     resp = client.get("/food/cache")
     assert resp.status_code == 200
     assert 'id="compare-form"' in resp.text
-    assert 'action="/food/compare/add-multiple"' in resp.text
+    assert 'action="/compare/add-multiple"' in resp.text
     assert f'form="compare-form"' in resp.text
     assert "Compare nutrition of selected (up to 8)" in resp.text
 
@@ -2406,7 +2507,7 @@ def test_pantry_has_compare_checkbox_and_form(client: TestClient, cached_food, d
     resp = client.get("/pantry")
     assert resp.status_code == 200
     assert 'id="compare-pantry-form"' in resp.text
-    assert 'action="/food/compare/add-multiple"' in resp.text
+    assert 'action="/compare/add-multiple"' in resp.text
     assert "Compare nutrition of selected (up to 8)" in resp.text
 
 
@@ -2416,24 +2517,23 @@ def test_recipes_list_has_compare_checkbox_and_form(client: TestClient, db_conn)
     resp = client.get("/recipes")
     assert resp.status_code == 200
     assert 'id="compare-recipe-form"' in resp.text
-    assert 'action="/recipe/compare/add-multiple"' in resp.text
-    assert "Compare nutrition of selected (up to 6)" in resp.text
+    assert 'action="/compare/add-multiple"' in resp.text
+    assert "Compare nutrition of selected (up to 8)" in resp.text
 
 
 def test_food_search_has_compare_checkboxes_for_foods_and_recipes(
     client: TestClient, cached_food, db_conn
 ) -> None:
     """Foods search can return both foods and recipes in one list (matching by
-    name) — each row's checkbox must route to the matching compare form since
-    a food and a recipe can't be added to the same comparison."""
+    name) — every row's checkbox now routes to the same unified compare form
+    (differing only by field name), since /compare can mix foods and recipes."""
     db_conn.execute(f"INSERT INTO recipes (name, servings) VALUES ('{cached_food['name']}', 1)")
     db_conn.commit()
     resp = client.get("/food/search", params={"query": cached_food["name"]})
     assert resp.status_code == 200
-    assert 'id="compare-food-form"' in resp.text
-    assert 'id="compare-recipe-form"' in resp.text
-    assert f'form="compare-food-form" name="fdc_id" value="{cached_food["fdcId"]}"' in resp.text
-    assert 'form="compare-recipe-form" name="recipe_id"' in resp.text
+    assert 'id="compare-form"' in resp.text
+    assert f'form="compare-form" name="fdc_id" value="{cached_food["fdcId"]}"' in resp.text
+    assert 'form="compare-form" name="recipe_id"' in resp.text
 
 
 class TestCapResultsPreservingLocal:
@@ -2603,7 +2703,7 @@ def test_search_source_filters_lead_with_usda_and_off(client: TestClient) -> Non
     assert filters.index("off") < filters.index("ciqual")
 
 
-def test_food_compare_uncached_food_shows_add_button_then_caches(
+def test_compare_uncached_food_shows_add_button_then_caches(
     client: TestClient, cached_food, monkeypatch, db_conn,
 ) -> None:
     import usda as _usda
@@ -2613,8 +2713,8 @@ def test_food_compare_uncached_food_shows_add_button_then_caches(
     monkeypatch.setattr(_usda, "get_food_detail", lambda *a, **kw: (_ for _ in ()).throw(Exception("offline")))
 
     resp = client.get(
-        "/food/compare",
-        params={"ids": f"{cached_food['fdcId']},{uncached_fdc_id}", "amounts": "100.0,100.0"},
+        "/compare",
+        params={"items": f"f{cached_food['fdcId']},f{uncached_fdc_id}"},
     )
     assert resp.status_code == 200
     assert "Add to food cache" in resp.text
@@ -2623,9 +2723,9 @@ def test_food_compare_uncached_food_shows_add_button_then_caches(
     fetched_detail = {**SAMPLE_FOOD_DETAIL, "fdcId": uncached_fdc_id}
     monkeypatch.setattr(_usda, "get_food_detail", lambda *a, **kw: fetched_detail)
     resp = client.post(
-        "/food/compare/cache-food",
+        "/compare/cache-food",
         data={"fdc_id": uncached_fdc_id,
-              "ids": f"{cached_food['fdcId']},{uncached_fdc_id}", "amounts": "100.0,100.0"},
+              "items": f"f{cached_food['fdcId']},f{uncached_fdc_id}"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
@@ -2635,34 +2735,33 @@ def test_food_compare_uncached_food_shows_add_button_then_caches(
     assert "In food cache" in resp.text
 
 
-def test_food_compare_save_load_rename_delete(client: TestClient, cached_food, second_cached_food, db_conn) -> None:
+def test_compare_save_load_rename_delete(client: TestClient, cached_food, second_cached_food, db_conn) -> None:
     resp = client.post(
-        "/food/compare/save",
+        "/compare/save",
         data={"name": "My Comparison",
-              "ids": f"{cached_food['fdcId']},{second_cached_food['fdcId']}",
-              "amounts": "100.0,100.0"},
+              "items": f"f{cached_food['fdcId']},f{second_cached_food['fdcId']}"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    row = db_conn.execute("SELECT * FROM saved_comparisons WHERE name = 'My Comparison'").fetchone()
+    row = db_conn.execute("SELECT * FROM saved_mixed_comparisons WHERE name = 'My Comparison'").fetchone()
     assert row is not None
     cmp_id = row["id"]
 
-    resp = client.get(f"/food/compare/load/{cmp_id}", follow_redirects=False)
+    resp = client.get(f"/compare/load/{cmp_id}", follow_redirects=False)
     assert resp.status_code == 303
-    assert str(cached_food["fdcId"]) in resp.headers["location"]
+    assert f"f{cached_food['fdcId']}" in resp.headers["location"]
 
     resp = client.post(
-        "/food/compare/saved/rename", data={"cmp_id": cmp_id, "name": "Renamed Comparison"},
+        "/compare/saved/rename", data={"cmp_id": cmp_id, "name": "Renamed Comparison"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    renamed = db_conn.execute("SELECT * FROM saved_comparisons WHERE id = ?", (cmp_id,)).fetchone()
+    renamed = db_conn.execute("SELECT * FROM saved_mixed_comparisons WHERE id = ?", (cmp_id,)).fetchone()
     assert renamed["name"] == "Renamed Comparison"
 
-    resp = client.post("/food/compare/saved/delete", data={"cmp_id": cmp_id}, follow_redirects=False)
+    resp = client.post("/compare/saved/delete", data={"cmp_id": cmp_id}, follow_redirects=False)
     assert resp.status_code == 303
-    assert db_conn.execute("SELECT * FROM saved_comparisons WHERE id = ?", (cmp_id,)).fetchone() is None
+    assert db_conn.execute("SELECT * FROM saved_mixed_comparisons WHERE id = ?", (cmp_id,)).fetchone() is None
 
 
 def test_unusable_protein_line_renders_for_incomplete_food(client: TestClient, db_conn):

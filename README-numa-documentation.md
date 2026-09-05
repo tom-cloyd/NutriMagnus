@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-08-31:2233
+UPDATED: 2026-09-04:1459
 
 Last monthly accuracy check: 2026-08-30.
 
@@ -109,6 +109,9 @@ numa/
       recipe_dcp.py                  — shared auto-recompute of a recipe's per-serving DCP: recompute_recipe_dcp()
       recipe_nutrients.py            — shared recursive recipe-ingredient expansion:
                                       expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
+      recipe_translate.py            — manual-paste recipe translation workflow: build_translate_prompt(),
+                                      parse_translation_response(), validate_translation() — see
+                                      "Recipe translation for printing" below
       search_ranking.py              — shared food-search relevance ranking: relevance_key()
       static_source_lookup.py        — StaticSource class: shared local-search/lookup machinery
                                        for bundled static datasets (CoFID/AFCD/CIQUAL);
@@ -152,7 +155,6 @@ numa/
       food_analyze_portion.html    — Select food + enter grams → nutrient table
       food_analyze_recipe_portion.html — Select saved recipe + servings → nutrient table
       food_convert.html            — Portion ↔ weight conversion (density lookup)
-      food_compare.html            — Side-by-side nutrient comparison (up to 6 foods, save/load)
       food_cache.html              — Browse/search cached foods; delete/archive from cache
       food_cache_prune.html        — Preview/confirm pruning of unused cached foods
       food_cache_portions.html     — Manage a cached food's USDA-style named portions
@@ -172,9 +174,9 @@ numa/
       recipe_new.html              — Create a new recipe
       recipe_detail.html           — Recipe view: ingredients, DCP, protein quality, print/export links
       recipe_edit.html             — Recipe edit: ingredients, instructions, servings, weight/volume
-      recipe_compare.html          — Side-by-side recipe comparison (save/load, like food_compare.html)
       recipe_import_csv.html       — Import a recipes.csv + foods.csv bundle
       recipe_broken_refs.html      — List recipes whose ingredient references are broken; relink/substitute
+      compare.html                 — Unified side-by-side comparison (up to 8 foods and/or recipes, mixed; save/load)
       analysis_food_use.html       — Analysis: frequency of a food's use across meals/date ranges
       analysis_food_use_recipes.html — Analysis: frequency of a food's use across recipes
       summary.html                 — Daily summary landing page (Recent Days list)
@@ -258,7 +260,7 @@ For first-run setup, see the [NutriMagnus User Manual](user-manual.html).
 
 ## Menu Structure
 
-numa has five top-level nav areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary - DCP and goals** (the original per-day nutrient/RDA workflow), **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs, with a substitution action), and **Food use in recipes** (the same frequency/substitution analysis, scoped to recipe ingredients instead of logged meals). For a complete description of every page and workflow, see the [NutriMagnus User Manual](user-manual.html).
+NuMa has five top-level nav areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary - DCP and goals** (the original per-day nutrient/RDA workflow), **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs, with a substitution action), and **Food use in recipes** (the same frequency/substitution analysis, scoped to recipe ingredients instead of logged meals). For a complete description of every page and workflow, see the [NutriMagnus User Manual](user-manual.html).
 
 ---
 
@@ -292,7 +294,7 @@ These three lists are related but distinct. Understanding the relationship preve
 
 **One source of truth — the `foods` table (the cache).**
 
-Every food — from any of numa's data sources (USDA, Open Food Facts, CNF, CoFID, AFCD, CIQUAL) or user-created — is a row in the `foods` SQLite table, uniquely identified by `fdc_id`. That row holds the name, serving metadata, `nutrients_json`, and a `user_drafted` flag.
+Every food — from any of NuMa's data sources (USDA, Open Food Facts, CNF, CoFID, AFCD, CIQUAL) or user-created — is a row in the `foods` SQLite table, uniquely identified by `fdc_id`. That row holds the name, serving metadata, `nutrients_json`, and a `user_drafted` flag.
 
 | View | What it shows | Underlying table |
 |------|--------------|-----------------|
@@ -360,7 +362,7 @@ After viewing the full nutrient breakdown, the program now offers to immediately
 
 #### `search_suggest.py` — did-you-mean search suggestions
 
-Every search box in the app (Food Search, Add Food or Recipe, Add Ingredient, Compare Foods/Recipes, My Pantry, Convert a Portion) shows a "Did you mean: …" suggestion beside its "No results for …" badge when `numa_app/services/search_suggest.py`'s `suggest(conn, query, limit=3)` finds a close match — fully local, stdlib `difflib`, no network call.
+Every search box in the app (Food Search, Add Food or Recipe, Add Ingredient, Compare, My Pantry, Convert a Portion) shows a "Did you mean: …" suggestion beside its "No results for …" badge when `numa_app/services/search_suggest.py`'s `suggest(conn, query, limit=3)` finds a close match — fully local, stdlib `difflib`, no network call.
 
 `suggest()` splits the query into words and, for each word not already a recognized token, tries `difflib.get_close_matches()` against two corpora in priority order:
 
@@ -369,7 +371,7 @@ Every search box in the app (Food Search, Add Food or Recipe, Add Ingredient, Co
 
 Only static/local corpora are used — there is no bundled catalog of every branded product name, so a brand never searched/cached before on this install (and absent from the three national food-composition tables, which list generic ingredients) won't get a suggestion. `suggest()` just returns `[]` in that case, same as "nothing close enough found."
 
-**Wiring:** `GET /search/suggestions?query=...` (`web/backend.py`) returns `{"suggestions": [...]}`. Every page's `.search-no-results` element carries `data-query`/`data-field` attributes; `base.html`'s `window.numaInitSearchSuggestions(el)` fetches suggestions and renders them as links (built from the *current* URL's query string with only the `data-field` param swapped, so other filters/hidden fields — source, sort, limit, a Compare page's `ids`/`amounts`, Pantry's `link_id` — survive the click) plus a "(press Esc to close)" hint. A page whose result set is known synchronously at render time (Compare Foods/Recipes, My Pantry, Convert a Portion, Add Ingredient) calls this automatically via a `DOMContentLoaded` scan for any visible `.search-no-results[data-query]`; the three async-search pages (Food Search, Add Food or Recipe, Analyze a Food Portion — whose final result set isn't known until their own USDA/OFF fetch resolves) call it explicitly from that fetch's empty-results branch instead.
+**Wiring:** `GET /search/suggestions?query=...` (`web/backend.py`) returns `{"suggestions": [...]}`. Every page's `.search-no-results` element carries `data-query`/`data-field` attributes; `base.html`'s `window.numaInitSearchSuggestions(el)` fetches suggestions and renders them as links (built from the *current* URL's query string with only the `data-field` param swapped, so other filters/hidden fields — source, sort, limit, the Compare page's `items`/`amounts`, Pantry's `link_id` — survive the click) plus a "(press Esc to close)" hint. A page whose result set is known synchronously at render time (Compare, My Pantry, Convert a Portion, Add Ingredient) calls this automatically via a `DOMContentLoaded` scan for any visible `.search-no-results[data-query]`; the three async-search pages (Food Search, Add Food or Recipe, Analyze a Food Portion — whose final result set isn't known until their own USDA/OFF fetch resolves) call it explicitly from that fetch's empty-results branch instead.
 
 #### Too many branded results?
 
@@ -402,11 +404,11 @@ See the [User Manual](user-manual.html) for usage documentation. Internally, the
 
 ### Protein completeness
 
-Wherever protein is analyzed (food, recipe, or meal), numa checks whether all nine essential amino acids meet FAO/WHO reference levels. See the [User Manual](user-manual.html) for output interpretation; see [Appendix B of the User Manual](user-manual.html#appendix-b) for the theory behind FAO reference values and DIAAS.
+Wherever protein is analyzed (food, recipe, or meal), NuMa checks whether all nine essential amino acids meet FAO/WHO reference levels. See the [User Manual](user-manual.html) for output interpretation; see [Appendix B of the User Manual](user-manual.html#appendix-b) for the theory behind FAO reference values and DIAAS.
 
 #### No amino acid data — building a user-drafted profile from literature
 
-When none of numa's data sources provide amino acid data for a food (Open Food Facts, CoFID, and CIQUAL never do; USDA, CNF, and AFCD sometimes lack it for a given entry), you can build a hand-crafted nutrient profile from a literature search and store it in the local cache via **Foods → 7. User-drafted food profiles → 2. Create new user-drafted profile**.
+When none of NuMa's data sources provide amino acid data for a food (Open Food Facts, CoFID, and CIQUAL never do; USDA, CNF, and AFCD sometimes lack it for a given entry), you can build a hand-crafted nutrient profile from a literature search and store it in the local cache via **Foods → 7. User-drafted food profiles → 2. Create new user-drafted profile**.
 
 **Workflow:**
 
@@ -438,7 +440,7 @@ The copy is saved as a fresh user-drafted entry with a new negative ID, complete
 
 #### No amino acid data — USDA suggestion
 
-Some USDA entries — particularly SR Legacy and Branded foods — omit amino acid data. If the selected food has none, numa will display:
+Some USDA entries — particularly SR Legacy and Branded foods — omit amino acid data. If the selected food has none, NuMa will display:
 
 ```
 (No amino acid data available for protein completeness analysis.)
@@ -448,7 +450,7 @@ and immediately offer to search **Foundation Foods** for an equivalent entry. Fo
 
 #### No amino acid data — the Claude fetch workflow
 
-When no Foundation Foods substitute is available, numa provides a two-step workflow, backed by `numa_app/services/claude_fetch.py`, to retrieve amino acid (and other nutrient) data from Claude AI (claude.ai) and import it directly into the cache.
+When no Foundation Foods substitute is available, NuMa provides a two-step workflow, backed by `numa_app/services/claude_fetch.py`, to retrieve amino acid (and other nutrient) data from Claude AI (claude.ai) and import it directly into the cache.
 
 **Access** — Food Cache: check the boxes next to foods showing the uncertain/missing AA badge (or "Select all missing AA data"), then click **Fetch missing data from Claude AI**.
 
@@ -476,11 +478,11 @@ Passing blocks are shown in a review table — name, FDC ID, calories, protein, 
 
 Import doesn't require the foods to be pre-existing cache entries — `validate_block()` only needs `name` and `fdc_id`, so a hand-pasted response (skipping Step 1 entirely) can introduce a brand-new food, e.g. a packaged product keyed by its UPC.
 
-**Per-serving input (`numa_app/services/food_import.py`).** Nutrient values normally must already be per-100g. As an alternative, a block may give `serving_size_g` + `nutrition_per_serving` (same key names as the flat shape); `validate_block()` runs these through `food_import.convert_per_serving()` (scales by `100 / serving_size_g`) before merging into `nutrients`, and appends the conversion factor to the food's notes. `food_import.VALID_NUTRIENT_KEYS` (derived from `usda_api.NUTRIENT_MAP`, so it can't drift from the nutrients numa actually understands) and `food_import.validate_and_strip()` are the single shared implementation of key validation/stripping — `claude_fetch.py`, `import_foods.py`, and `import_json_folder.py` all import from this module rather than keeping their own copies.
+**Per-serving input (`numa_app/services/food_import.py`).** Nutrient values normally must already be per-100g. As an alternative, a block may give `serving_size_g` + `nutrition_per_serving` (same key names as the flat shape); `validate_block()` runs these through `food_import.convert_per_serving()` (scales by `100 / serving_size_g`) before merging into `nutrients`, and appends the conversion factor to the food's notes. `food_import.VALID_NUTRIENT_KEYS` (derived from `usda_api.NUTRIENT_MAP`, so it can't drift from the nutrients NuMa actually understands) and `food_import.validate_and_strip()` are the single shared implementation of key validation/stripping — `claude_fetch.py`, `import_foods.py`, and `import_json_folder.py` all import from this module rather than keeping their own copies.
 
 #### No amino acid data — `import_foods.py` (scripted alternative)
 
-For stable, literature-sourced food records that need to survive repeated numa updates, `import_foods.py` is a standalone Python script that bypasses the interactive workflow. Food dicts are hardcoded in its `_FOODS` list (one per food, with the same nutrient key conventions as the Claude prompt template — including the `serving_size_g`/`nutrition_per_serving` alternate shape). Running the script imports all entries via `cache_food(..., user_drafted=True)`.
+For stable, literature-sourced food records that need to survive repeated NuMa updates, `import_foods.py` is a standalone Python script that bypasses the interactive workflow. Food dicts are hardcoded in its `_FOODS` list (one per food, with the same nutrient key conventions as the Claude prompt template — including the `serving_size_g`/`nutrition_per_serving` alternate shape). Running the script imports all entries via `cache_food(..., user_drafted=True)`.
 
 The `user_drafted=True` flag is the critical difference from the Claude import path: it prevents USDA re-fetches from overwriting the imported data. Without it, the omega backfill or incomplete-cache detection paths in `_fetch_food_from_result` can silently replace a manually curated entry with raw USDA data (which for Branded foods typically lacks amino acids). Re-running the script is always safe — `cache_food()` uses `INSERT OR REPLACE`, so existing entries are updated in place.
 
@@ -492,11 +494,11 @@ A third, lower-ceremony import path for a single food: save one JSON file per fo
 
 ### Protein digestibility — DIAAS
 
-Wherever a food is analyzed (search, portion analysis, recipe, or meal), numa automatically displays a **Bioavailability** section if it has data for that food. This section reports two things: the DIAAS score and any anti-nutrient advisories (see next section).
+Wherever a food is analyzed (search, portion analysis, recipe, or meal), NuMa automatically displays a **Bioavailability** section if it has data for that food. This section reports two things: the DIAAS score and any anti-nutrient advisories (see next section).
 
 For background on the DIAAS scoring methodology and score interpretation, see [Appendix B of the User Manual](user-manual.html#appendix-b).
 
-#### What numa displays
+#### What NuMa displays
 
 When a DIAAS score is known for the selected food, the **Bioavailability** section shows:
 
@@ -517,7 +519,7 @@ If the food is not in the DIAAS lookup table, this line is omitted silently — 
 
 #### How DIAAS values are sourced
 
-DIAAS scores are not available from any API — they come from controlled digestion studies conducted in laboratory settings. numa uses a static lookup table of ~60 common food categories, built from FAO 2013 reference values and peer-reviewed studies (principally Mathai et al. 2017, *Br J Nutr*; Gorissen et al. 2018, *Amino Acids*). The lookup uses keyword matching on the food name (case-insensitive, first match wins). More specific entries appear before general ones in the table so that, e.g., "chickpea pasta" resolves to the chickpea score (0.83) rather than the generic pasta/wheat score (0.46).
+DIAAS scores are not available from any API — they come from controlled digestion studies conducted in laboratory settings. NuMa uses a static lookup table of ~60 common food categories, built from FAO 2013 reference values and peer-reviewed studies (principally Mathai et al. 2017, *Br J Nutr*; Gorissen et al. 2018, *Amino Acids*). The lookup uses keyword matching on the food name (case-insensitive, first match wins). More specific entries appear before general ones in the table so that, e.g., "chickpea pasta" resolves to the chickpea score (0.83) rather than the generic pasta/wheat score (0.46).
 
 **Notable entries:** Collagen and gelatin are scored at 0.04 — effectively zero — because tryptophan is essentially absent from these proteins. Without this entry, collagen powder added to a recipe would be silently treated as fully digestible, substantially inflating the displayed digestible protein figure.
 
@@ -580,11 +582,11 @@ The source of each digestibility value is shown in the ingredient table. Estimat
 
 #### Protein digestibility overrides
 
-**Settings → Advanced settings → Protein digestibility overrides** lets you set a specific digestibility coefficient for any food you have found a primary-literature value for. This is a power-user feature — the curated table covers most common plant proteins and the category defaults are defensible estimates. Overrides are stored in the `diaas_overrides` table and survive across sessions. The interface shows you what value numa would use without the override before asking for your input.
+**Settings → Advanced settings → Protein digestibility overrides** lets you set a specific digestibility coefficient for any food you have found a primary-literature value for. This is a power-user feature — the curated table covers most common plant proteins and the category defaults are defensible estimates. Overrides are stored in the `diaas_overrides` table and survive across sessions. The interface shows you what value NuMa would use without the override before asking for your input.
 
 ### Protein complement suggestions
 
-Wherever protein is analyzed, numa checks for essential amino acid gaps and offers complement suggestions. See the [User Manual](user-manual.html) for the user-facing workflow.
+Wherever protein is analyzed, NuMa checks for essential amino acid gaps and offers complement suggestions. See the [User Manual](user-manual.html) for the user-facing workflow.
 
 **Suggestion sources — three tiers (in order):**
 1. **Pantry** — foods from My Pantry that close the gap; ranked by gaps closed then smallest required amount (up to 3 per page).
@@ -677,8 +679,8 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 | `pantry`             | User's protein-source inventory (food name, optional fdc_id, notes) |
 | `food_annotations`   | Per-food user-supplied estimates (GI, DIAAS, prep context), keyed by fdc_id; also stores `gi_no_prompt` / `diaas_no_prompt` suppression flags |
 | `diaas_overrides`    | User-set true ileal digestibility coefficients, keyed by food name (used by meal-level DIAAS in `diaas.py`; distinct from per-food annotations above) |
-| `saved_comparisons`  | Named, saved Compare Foods lists (`/food/compare/save` and friends) |
-| `saved_recipe_comparisons` | Named, saved Compare Recipes lists (`/recipe/compare/save` and friends) |
+| `saved_mixed_comparisons` | Named, saved Compare lists — foods and/or recipes (`/compare/save` and friends) |
+| `saved_comparisons`, `saved_recipe_comparisons` | Superseded 2026-09 by `saved_mixed_comparisons`; left in place (unused) so pre-existing rows aren't dropped |
 | `day_bcp_cache`      | Cached per-day best-complete-protein figure, invalidated on relevant edits |
 | `day_profile`        | Per-date pinned profile snapshot — see `numa_app/services/day_profile.py` below |
 | `recompute_errors`   | Logged DCP-cascade recompute failures — see below |
@@ -949,12 +951,12 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | GET | `/food/convert` | Portion conversion search |
 | GET | `/food/convert/{fdc_id}` | Portion conversion detail for a specific food |
 | GET | `/food/convert/recipe/{recipe_id}` | Portion conversion detail for a recipe |
-| GET | `/food/compare` | Food comparison table (query params: `ids=`, `amounts=`, `search=`) |
-| GET | `/food/compare/export.csv` | Export the current comparison as CSV |
-| POST | `/food/compare/add`, `add-multiple`, `remove`, `cache-food`, `amounts` | Manage the current comparison list |
-| POST | `/food/compare/save` | Save the current comparison list |
-| GET | `/food/compare/load/{cmp_id}` | Load a saved comparison |
-| POST | `/food/compare/saved/rename`, `saved/delete` | Manage saved comparisons |
+| GET | `/compare` | Unified comparison table, always per 100g of each item — mixes foods and recipes, up to 8 items (query params: `items=` typed as `f<fdc_id>`/`r<recipe_id>`, `search=`) |
+| GET | `/compare/export.csv` | Export the current comparison as CSV |
+| POST | `/compare/add`, `add-multiple`, `remove`, `cache-food`, `amounts` | Manage the current comparison list |
+| POST | `/compare/save` | Save the current comparison list |
+| GET | `/compare/load/{cmp_id}` | Load a saved comparison |
+| POST | `/compare/saved/rename`, `saved/delete` | Manage saved comparisons |
 | GET | `/food/cache` | Browse/search cached foods (`show_archived` supported) |
 | GET | `/food/cache/export.csv` | Export the food cache as CSV |
 | POST | `/food/cache/delete` | Remove a food from the cache |
@@ -1022,10 +1024,6 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | GET | `/recipes/broken-refs` | List recipes with broken ingredient references |
 | GET/POST | `/recipe/import-csv` | Import a recipes.csv + foods.csv bundle |
 | GET/POST | `/recipe/new` | Create a new recipe |
-| GET | `/recipe/compare` | Recipe comparison table |
-| POST | `/recipe/compare/add`, `add-multiple`, `remove`, `save` | Manage the current recipe comparison list |
-| GET | `/recipe/compare/load/{cmp_id}` | Load a saved recipe comparison |
-| POST | `/recipe/compare/saved/rename`, `saved/delete` | Manage saved recipe comparisons |
 | GET | `/recipe/{recipe_id}` | Recipe detail (ingredients, DCP, protein quality) |
 | GET | `/recipe/{recipe_id}/export.csv` | Export one recipe as CSV |
 | GET | `/recipe/{recipe_id}/print` | Printable recipe page |
@@ -1133,10 +1131,6 @@ Dropdown of all saved recipes + servings input → scaled nutrient table. Shows 
 
 Portion ↔ weight conversion. Phase 1: search for a food. Phase 2: shows the food's USDA named portions, gram weights, and the computed density (g/mL) for volume conversion. Highlights the closest USDA portion to an entered gram amount.
 
-#### `food_compare.html`
-
-Side-by-side nutrient comparison. Up to 6 foods; amounts are independently adjustable in grams. Highest value per nutrient row is highlighted. Saved comparison lists can be named, saved, loaded, and deleted. Food search is inline on the same page.
-
 #### `food_cache.html`
 
 Browsable/searchable table of all cached foods. Columns: FDC ID, name, data type, brand, AA data flag, GI annotation, DIAAS, notes. The DIAAS column shows your saved annotation (marked ★) when one exists, otherwise the keyword-matched reference-table value (see "Per-food DIAAS via annotations" above) for foods with amino acid data — blank otherwise. Each row links to `/food/{fdc_id}` and `/food/annotate/{fdc_id}`. Supports deletion, archive/restore, CSV export, and links to prune/import-CSV/db-check sub-pages.
@@ -1190,7 +1184,7 @@ Meal history search. Query param `q=` searches food names across all logged meal
 
 #### `recipes.html`
 
-Recipe browse/search list. Fully implemented — no longer a stub. Recent recipes (via `recipe_list_recent()`), complete/incomplete status, a link to `recipes/broken-refs`, and links into `recipe_new.html`, `recipe_compare.html`, and `recipe_import_csv.html`.
+Recipe browse/search list. Fully implemented — no longer a stub. Recent recipes (via `recipe_list_recent()`), complete/incomplete status, a link to `recipes/broken-refs`, and links into `recipe_new.html`, `compare.html`, and `recipe_import_csv.html`.
 
 #### `recipe_new.html`
 
@@ -1204,13 +1198,13 @@ Recipe view page: ingredients (with sub-recipe expansion), per-serving DCP, prot
 
 Recipe edit page: add/remove/reorder ingredients (food or sub-recipe), inline ingredient edit, instructions/introduction text, servings, and total weight/volume. The "Add Ingredient" search form uses the same `data-persist-search` mechanism as `meal.html`.
 
-#### `recipe_compare.html`
-
-Side-by-side recipe comparison, mirroring `food_compare.html`: multiple recipes, save/load named comparison lists.
-
 #### `recipe_import_csv.html`
 
 Import a `recipes.csv` + `foods.csv` bundle (`numa_app/services/recipe_csv.py`), including sub-recipes.
+
+#### `compare.html`
+
+Unified side-by-side comparison — up to 8 foods and/or recipes, mixed in any combination. Every comparison is per 100g of each item — there's no per-item amount to enter; a recipe's 100g figures are estimated from its own ingredient weights (`db.recipe_compute_weight()`) and marked "(estimate)" when that weight is incomplete. Three tables when 2+ items are present: an ingredient-union table (a food entry appears as its own single "100 g" ingredient; a recipe's raw ingredient amounts are rescaled by the same 100/batch-grams factor used for its nutrients), a DIAAS-based protein-quality table (built the same way for a food or a recipe — `diaas.meal_level_diaas()` takes a generic `{food_name, nutrients_100g, grams}` list either way, with a recipe's ingredients pre-scaled via `atomic_recipe_ingredients(portion_factor=...)`), and the full nutrient table with highest-value-per-row highlighting, sortable by checked nutrients, plus Print and CSV-export buttons. Search (inline on the same page) returns both foods (USDA/OFF/etc.) and recipes. Saved comparison lists can be named, saved, loaded, and deleted.
 
 #### `recipe_broken_refs.html`
 
@@ -1227,6 +1221,10 @@ Nutrient-editing form shared by Food Cache edits and Drafted Food Profiles edits
 #### `claude_fetch.html`, `claude_import.html`
 
 Build a Claude AI prompt requesting a food's amino-acid/nutrient profile, then paste and import Claude's response into the food cache (`numa_app/services/claude_fetch.py`).
+
+#### `recipe_translate.html`, `recipe_translate_import.html`
+
+Build a prompt requesting a translation of a recipe's text into a language of the user's choice, then paste and review an AI chat tool's reply before saving it (`numa_app/services/recipe_translate.py`) — see "Recipe translation for printing" below.
 
 #### `analysis_food_use.html`, `analysis_food_use_recipes.html`
 
@@ -1247,6 +1245,20 @@ Line-chart view of a chosen nutrient's day-by-day totals over a date range (`num
 #### `print.html`
 
 Shared printable-page template used by the various `.../print` routes (food, meal, day, recipe, nutrient plot) — driven by `numa_app/services/print_sections.py`'s "what to include" checkbox vocabulary.
+
+#### Recipe translation for printing
+
+A recipe's "Translate for printing" button (`web/backend.py` routes under `/recipe/{id}/translate*`, logic in `numa_app/services/recipe_translate.py`) offers a manual-paste translation workflow — deliberately not a live translation API call, so there's no API key to manage, no per-use cost, and no new network dependency; the trade-off is one extra copy/paste round trip through an AI chat tool the user already has.
+
+**Step 1 — prompt generation (`recipe_translate.build_translate_prompt()`).** The user types a target language on `/recipe/{id}/translate`. NuMa builds a JSON payload of the recipe's translatable text — `name`, `description`, `introduction`, `instructions`, plus a `disclaimer` sentence with the language name already substituted in — and, per ingredient, `food_name`, `notes`, and `volume_display` (the human-readable unit hint from `portions.volume_hint()`, e.g. "1 cup"). Amounts, raw units, `fdc_id`, servings, and all nutrient values are never included. The prompt instructs the AI to translate values only, preserve every key (falling back to the original text rather than dropping a key it can't translate well), and keep the ingredients array the same length.
+
+**Step 2 — response review (`recipe_translate.parse_translation_response()` / `validate_translation()`).** The user pastes the reply on `/recipe/{id}/translate/import`. `validate_translation()` distinguishes two failure modes:
+- **Hard failure** — the `ingredients` array length doesn't match the original. Row alignment can't be trusted, so this can't be recovered field-by-field; the page shows only "resubmit" or "cancel," no way to proceed with that reply.
+- **Soft fallback** — any other missing/non-string field falls back to the original English text, with a warning naming it. The user sees the actual rendered preview (name, description, introduction, ingredients, instructions) with these fallbacks called out, and can resubmit, cancel, or click **Save this translation** to accept it as-is.
+
+**Persistence.** Saving writes to the `recipe_translations` table (`recipe_id`, `language`, `data_json`, `created_at`; `db.py`'s `recipe_translation_create/list/get/delete`) — deliberately the *last* step, only reachable after the user has reviewed the real rendered output, not bundled into validation. A recipe's saved translations are listed on its detail page and print page, each with Print and Remove actions; removing one is a hard delete (no undo) — to fix a bad translation, remove it and run the workflow again with a corrected paste.
+
+**Rendering.** `web/backend.py`'s `_render_translated_recipe()` overlays the saved (or just-parsed, for the preview) translated strings onto a copy of the same ctx dict `_recipe_detail_context()` already builds for the normal recipe page — nutrient data, DIAAS, and every other computed figure come from the untouched English recipe and are identical between the English and translated print. Ingredient unit text is shown as `translated (English original)` (e.g. "2 tazas (cups)"), and `print.html` shows the translated disclaimer banner near the top — both gated on a `translated` context flag so the normal English print output is unchanged.
 
 #### `settings.html`
 
@@ -1342,12 +1354,13 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 A recurring maintenance pass, scoped to what changed since the last sweep — not a full re-audit each time. **Run the items in this order** — it's not arbitrary: pruning has to happen before the items that scan the changelog (so they're not reading entries about to be deleted), and the link check has to happen last (so it catches anything the manual-editing items introduce).
 
 1. **CLAUDE.md drift** — the package-layout listing near the top of `CLAUDE.md` is hand-maintained; check it against what's actually in `numa_app/` and the repo root, since new modules added during the week won't show up unless someone remembers to add them. Fast and independent — do it first for an easy win.
-2. **Vendored dependency check** — `web/static/vendor/bootstrap/` (CSS + JS, currently 5.3.8) is vendored locally rather than loaded from a CDN, so the app works offline. Low urgency since this is a locally-run app with no untrusted remote input reaching it, but worth a quick check for newer Bootstrap releases/patches at this cadence rather than a separate one. Also fast and independent.
-3. **Changelog pruning** — the "Recent program updates log" lives in `user-manual.md` Appendix A (moved here from Appendix K on 2026-08-05 since it's checked far more often than the other appendices). Keep roughly the **last 2 weeks** of entries. Older entries are safe to delete: `create_release.py` copies same-day entries into the release notes at push time and never re-reads the file afterward, so a pruned old entry can't retroactively change a past release's notes (stated in the manual's own `[//]: #` comment above the log). Do this **before** items 4-6 below — they all scan "the last two weeks" of this same log, so pruning first means less to read and no risk of auditing an entry that's about to be deleted anyway.
-4. **Manual consolidation** — the same mechanism explained more than once (once per page/interface) that should live once in Part 4 — Shared Operations (or an existing Part 3 reference section) of `user-manual.md`, cross-linked from every place it applies; a feature documented for only one interface/page despite applying to more than one; two command/column lists for the same menu that have drifted out of sync (fix by pointing the thinner one at the canonical list, not updating both); a real behavior change that only exists in the changelog and was never written into the manual body; an Appendix A entry that contradicts a later entry (e.g. a feature marked "not built yet" when a subsequent same-day or later entry announces it shipped). Also worth a dedicated pass: leftover CLI-era content (typed single-letter commands like `a{id}=analyze`, `Type ?keyword` help references) that survived past the 2026-08-04 CLI removal — grep `user-manual.md` for `Type ?`, `^Commands:`, and `Command line:` as a quick way to surface it; the first full sweep (2026-08-17) found a meaningful amount still there, so don't assume one pass caught it all.
-5. **README.md accuracy** — repo-root `README.md` (the public-facing overview: disclaimer, who it's for, key features list, download section) checked against current app behavior — a feature listed there that changed or was removed, or a new user-facing feature that should be added to the "Key features" list. Distinct from this file (`README-numa-documentation.md`), which is the internal architecture doc.
-6. **Test coverage gaps** — cross-check the week's changelog entries against `tests/` to catch a shipped behavior change that never got a test.
-7. **Stale internal links** — every `#anchor` reference in `user-manual.md` checked against actual anchor definitions (`[name]` tags / heading IDs); also worth a pass over external URLs (footnotes, source citations) for rot. A quick way to check: extract every `](#anchor)` reference and every `{: #anchor}` definition and diff them (a Python one-liner with two `re.findall` calls does it); for external URLs, `curl -s -o /dev/null -w "%{http_code}"` with a browser-like `-A` user agent and `-L` to follow redirects, but treat a 403/429 as inconclusive (bot-blocking, not necessarily rot) and only trust a 404/redirect-to-an-error-page as real rot. Do this **last** — item 4 (manual consolidation) is the item most likely to add new `[text](#anchor)` links, so checking beforehand just means checking again afterward anyway.
+2. **"NuMa" capitalization in prose** — `user-manual.md` and `README-numa-documentation.md` prose must say **NuMa** (never lowercase `numa` or mis-capitalized `Numa`) whenever referring to the program by name. This does *not* apply to filesystem paths, filenames, or code identifiers that happen to be spelled lowercase (`numa_app/`, `numa.db`, `~/.config/numa/`, `README-numa-documentation.md`, `cd numa`, `#gloss-numa` anchors) — only to the word used as the product name in a sentence. Quick check: `grep -n '\bnuma\b'` and `grep -n '\bNuma\b'` (word-boundary, so it won't match `numa_app`) over both files, then eyeball each hit — most existing hits will be legitimate paths. Fast and independent.
+3. **Vendored dependency check** — `web/static/vendor/bootstrap/` (CSS + JS, currently 5.3.8) is vendored locally rather than loaded from a CDN, so the app works offline. Low urgency since this is a locally-run app with no untrusted remote input reaching it, but worth a quick check for newer Bootstrap releases/patches at this cadence rather than a separate one. Also fast and independent.
+4. **Changelog pruning** — the "Recent program updates log" lives in `user-manual.md` Appendix A (moved here from Appendix K on 2026-08-05 since it's checked far more often than the other appendices). Keep roughly the **last 2 weeks** of entries. Older entries are safe to delete: `create_release.py` copies same-day entries into the release notes at push time and never re-reads the file afterward, so a pruned old entry can't retroactively change a past release's notes (stated in the manual's own `[//]: #` comment above the log). Do this **before** items 5-7 below — they all scan "the last two weeks" of this same log, so pruning first means less to read and no risk of auditing an entry that's about to be deleted anyway.
+5. **Manual consolidation** — the same mechanism explained more than once (once per page/interface) that should live once in Part 4 — Shared Operations (or an existing Part 3 reference section) of `user-manual.md`, cross-linked from every place it applies; a feature documented for only one interface/page despite applying to more than one; two command/column lists for the same menu that have drifted out of sync (fix by pointing the thinner one at the canonical list, not updating both); a real behavior change that only exists in the changelog and was never written into the manual body; an Appendix A entry that contradicts a later entry (e.g. a feature marked "not built yet" when a subsequent same-day or later entry announces it shipped). Also worth a dedicated pass: leftover CLI-era content (typed single-letter commands like `a{id}=analyze`, `Type ?keyword` help references) that survived past the 2026-08-04 CLI removal — grep `user-manual.md` for `Type ?`, `^Commands:`, and `Command line:` as a quick way to surface it; the first full sweep (2026-08-17) found a meaningful amount still there, so don't assume one pass caught it all.
+6. **README.md accuracy** — repo-root `README.md` (the public-facing overview: disclaimer, who it's for, key features list, download section) checked against current app behavior — a feature listed there that changed or was removed, or a new user-facing feature that should be added to the "Key features" list. Distinct from this file (`README-numa-documentation.md`), which is the internal architecture doc.
+7. **Test coverage gaps** — cross-check the week's changelog entries against `tests/` to catch a shipped behavior change that never got a test.
+8. **Stale internal links** — every `#anchor` reference in `user-manual.md` checked against actual anchor definitions (`[name]` tags / heading IDs); also worth a pass over external URLs (footnotes, source citations) for rot. A quick way to check: extract every `](#anchor)` reference and every `{: #anchor}` definition and diff them (a Python one-liner with two `re.findall` calls does it); for external URLs, `curl -s -o /dev/null -w "%{http_code}"` with a browser-like `-A` user agent and `-L` to follow redirects, but treat a 403/429 as inconclusive (bot-blocking, not necessarily rot) and only trust a 404/redirect-to-an-error-page as real rot. Do this **last** — item 5 (manual consolidation) is the item most likely to add new `[text](#anchor)` links, so checking beforehand just means checking again afterward anyway.
 
 Items 4-6 all scan the same two-week changelog window for gaps, just against three different targets (manual body, README, test suite) — do a single read-through of the changelog and produce three gap-lists from it, rather than re-reading the same entries three separate times (the first full sweep, 2026-08-17, ran two separate audits that each re-read the same window from scratch).
 

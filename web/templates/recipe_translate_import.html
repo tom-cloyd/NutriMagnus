@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Import recipe translation{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item"><a href="/recipe/{{ recipe_id }}">Recipe</a></li>
+    <li class="breadcrumb-item"><a href="/recipe/{{ recipe_id }}/translate">Translate for printing</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Import translation</li>
+  </ol>
+</nav>
+
+<h2>Import {{ language }} translation</h2>
+
+{% if preview is none %}
+<p class="muted">Paste the AI's entire reply below — including the <code>```json ... ```</code>
+block — then review before saving.</p>
+
+<form method="post" action="/recipe/{{ recipe_id }}/translate/import">
+  <input type="hidden" name="language" value="{{ language }}">
+  <div class="mb-2">
+    <textarea name="response_text" class="form-control font-monospace" rows="16"
+              style="font-size:0.8rem" placeholder="Paste the AI's reply here…">{{ response_text }}</textarea>
+  </div>
+  <button type="submit" name="action" value="preview" class="btn btn-sm btn-primary">Review</button>
+</form>
+
+{% if hard_fail %}
+<hr class="my-4">
+<div class="alert alert-danger">
+  <strong>Could not read that reply:</strong>
+  <ul class="mb-0">
+    {% for msg in warnings %}<li><small>{{ msg }}</small></li>{% endfor %}
+  </ul>
+</div>
+<a href="/recipe/{{ recipe_id }}" class="btn btn-sm btn-outline-secondary">Cancel</a>
+{% endif %}
+
+{% else %}
+<hr class="my-4">
+
+{% if warnings %}
+<div class="alert alert-warning">
+  <strong>Some fields came back untranslated — the original English text was kept for these:</strong>
+  <ul class="mb-0">
+    {% for msg in warnings %}<li><small>{{ msg }}</small></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="border rounded p-3 mb-3" style="background:var(--bs-tertiary-bg, #f8f9fa)">
+  <p class="muted mb-2"><em>Preview — not yet saved.</em></p>
+  {% if preview.disclaimer %}
+  <p class="fst-italic">{{ preview.disclaimer }}</p>
+  {% endif %}
+  <h3>{{ preview.recipe.name }}</h3>
+  {% if preview.recipe.description %}<p>{{ preview.recipe.description }}</p>{% endif %}
+  {% if preview.recipe.introduction %}<p style="white-space:pre-wrap">{{ preview.recipe.introduction }}</p>{% endif %}
+
+  {% if preview.ingredients %}
+  <h4>Ingredients</h4>
+  <table class="table table-sm">
+    <thead><tr><th>Amount</th><th>Food</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for ing in preview.ingredients %}
+      <tr>
+        <td class="text-nowrap">
+          {{ ing.amount | round(1) }}&thinsp;g{% if ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}
+        </td>
+        <td>{{ ing.food_name }}</td>
+        <td class="muted">{{ ing.notes or "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if preview.recipe.instructions %}
+  <h4>Procedure</h4>
+  <div style="white-space:pre-wrap">{{ preview.recipe.instructions }}</div>
+  {% endif %}
+</div>
+
+<div class="d-flex gap-2">
+  <a href="/recipe/{{ recipe_id }}/translate/import?language={{ language | urlencode }}" class="btn btn-sm btn-outline-secondary">Resubmit</a>
+  <form method="post" action="/recipe/{{ recipe_id }}/translate/import" class="d-inline">
+    <input type="hidden" name="language" value="{{ language }}">
+    <input type="hidden" name="response_text" value="{{ response_text }}">
+    <button type="submit" name="action" value="save" class="btn btn-sm btn-success">Save this translation</button>
+  </form>
+  <a href="/recipe/{{ recipe_id }}" class="btn btn-sm btn-outline-secondary">Cancel</a>
+</div>
+{% endif %}
+{% endblock %}

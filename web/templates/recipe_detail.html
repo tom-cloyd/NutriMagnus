@@ -145,6 +145,7 @@
   <a href="/recipe/{{ recipe.id }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">Print / save recipe</a>
   <a href="/recipe/{{ recipe.id }}/export.csv" class="btn btn-sm btn-outline-secondary"
      title="Download this recipe as a CSV bundle — includes every sub-recipe and food ingredient's full data, ready to hand to someone else">Export CSV</a>
+  <a href="/recipe/{{ recipe.id }}/translate" class="btn btn-sm btn-outline-secondary">Translate for printing</a>
   <form method="post" action="/recipe/{{ recipe.id }}/copy" style="margin:0">
     <button type="submit" class="btn btn-sm btn-outline-secondary">Copy recipe</button>
   </form>
@@ -162,6 +163,20 @@
 <p class="text-warning">
   &#9888; Used as a sub-recipe in:
   {% for r in referencing_recipes %}<a href="/recipe/{{ r.id }}">{{ r.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+</p>
+{% endif %}
+
+{% if translations %}
+<p class="muted mb-3">
+  Translations:
+  {% for t in translations %}
+  {{ t.language }}
+  (<a href="/recipe/{{ recipe.id }}/translation/{{ t.id }}/print" target="_blank">Print</a>,
+  <form method="post" action="/recipe/{{ recipe.id }}/translation/{{ t.id }}/delete"
+        class="d-inline" onsubmit="return confirm('Remove this translation?')">
+    <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Remove</button>
+  </form>){% if not loop.last %}, {% endif %}
+  {% endfor %}
 </p>
 {% endif %}
 

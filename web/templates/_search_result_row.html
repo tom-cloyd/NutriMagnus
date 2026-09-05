@@ -11,13 +11,13 @@
   {% if show_compare %}
   <td>
     {% if food._type == "recipe" %}
-    <input type="checkbox" form="compare-recipe-form" name="recipe_id" value="{{ food.recipe_id }}"
+    <input type="checkbox" form="compare-form" name="recipe_id" value="{{ food.recipe_id }}"
            class="checkbox-compare"
-           aria-label="Select {{ food.name }} to compare recipes">
+           aria-label="Select {{ food.name }} to compare">
     {% else %}
-    <input type="checkbox" form="compare-food-form" name="fdc_id" value="{{ food.fdc_id }}"
+    <input type="checkbox" form="compare-form" name="fdc_id" value="{{ food.fdc_id }}"
            class="checkbox-compare"
-           aria-label="Select {{ food.name }} to compare foods">
+           aria-label="Select {{ food.name }} to compare">
     {% endif %}
   </td>
   {% endif %}

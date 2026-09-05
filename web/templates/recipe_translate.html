@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Translate recipe{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item"><a href="/recipe/{{ recipe.id }}">{{ recipe.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Translate for printing</li>
+  </ol>
+</nav>
+
+<h2>Translate "{{ recipe.name }}" for printing</h2>
+<p class="muted">numa doesn't call a translation service itself — you paste the generated
+prompt into an AI chat tool you already use, translate it there, then paste the reply back
+here for review before saving. Only recipe text (name, description, instructions, ingredient
+names/notes, and unit words) is translated — amounts and nutrient data are never touched.</p>
+
+<form method="get" action="/recipe/{{ recipe.id }}/translate" class="mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-auto">
+      <label for="language" class="form-label mb-0">Target language</label>
+      <input type="text" id="language" name="language" value="{{ language }}"
+             class="form-control form-control-sm" placeholder="e.g. Spanish" style="width:16rem">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-sm btn-primary">Generate prompt</button>
+    </div>
+  </div>
+</form>
+
+{% if translations %}
+<h5>Saved translations</h5>
+<ul class="list-unstyled mb-4">
+  {% for t in translations %}
+  <li class="mb-1">
+    {{ t.language }} <small class="muted">({{ t.created_at }})</small>
+    — <a href="/recipe/{{ recipe.id }}/translation/{{ t.id }}/print" target="_blank">Print</a>
+    — <form method="post" action="/recipe/{{ recipe.id }}/translation/{{ t.id }}/delete"
+            class="d-inline" onsubmit="return confirm('Remove this translation?')">
+        <button type="submit" class="btn btn-link btn-sm p-0 text-danger">Remove</button>
+      </form>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if prompt %}
+<ol>
+  <li class="mb-1">Copy the prompt below (button provided).</li>
+  <li class="mb-1">Paste it into an AI chat tool of your choice (e.g. <a href="https://claude.ai"
+    target="_blank" rel="noopener">claude.ai</a>) and send it.</li>
+  <li class="mb-1">Copy the entire reply.</li>
+  <li class="mb-1">Go to <a href="/recipe/{{ recipe.id }}/translate/import?language={{ language | urlencode }}">Import translation</a>,
+    paste the reply, and review it before saving.</li>
+</ol>
+
+<div class="mb-2">
+  <button type="button" class="btn btn-sm btn-primary" onclick="copyPrompt()">Copy prompt to clipboard</button>
+  <span id="copy-status" class="muted ms-2"></span>
+</div>
+<textarea id="prompt-text" class="form-control font-monospace" rows="20" readonly
+          style="font-size:0.8rem" onclick="this.select()">{{ prompt }}</textarea>
+
+<script>
+function copyPrompt() {
+  var ta = document.getElementById('prompt-text');
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(function () {
+    document.getElementById('copy-status').textContent = 'Copied!';
+  }, function () {
+    document.getElementById('copy-status').textContent = 'Could not copy automatically — select the text above and copy it manually.';
+  });
+}
+</script>
+{% else %}
+<p class="muted">Enter a target language above and click "Generate prompt" to get started.</p>
+{% endif %}
+{% endblock %}

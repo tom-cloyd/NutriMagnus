@@ -68,6 +68,9 @@
 
 <h1>{{ title }}</h1>
 {% if subtitle %}<p class="meta">{{ subtitle }}</p>{% endif %}
+{% if translated and disclaimer %}
+<p class="fst-italic" style="font-style:italic;color:#555">{{ disclaimer }}</p>
+{% endif %}
 {% if "introduction" in enabled and recipe and recipe.introduction %}
 <p style="white-space:pre-wrap;line-height:1.6">{{ recipe.introduction }}</p>
 {% endif %}
@@ -128,6 +131,7 @@
         {% else %}
           {{ ing.amount | round(1) }}&thinsp;g
         {% endif %}
+        {% if translated and ing.volume_display %}<br><span class="muted" style="font-size:0.85em">{{ ing.volume_display }}</span>{% endif %}
       </td>
       <td>{{ ing.food_name }}{% if ing.ref_recipe_deleted %} <span style="color:#c00">(sub-recipe deleted)</span>{% endif %}</td>
       <td class="muted">{{ ing.notes or "" }}</td>

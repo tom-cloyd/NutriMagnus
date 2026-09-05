@@ -2,6 +2,10 @@
 {% block title %}NutriMagnus{% endblock %}
 
 {% block content %}
+<p class="text-secondary border rounded px-3 py-2 mt-4 mb-3">
+  <small>NuMa is not medical advice and makes no claims about health or illness — see the
+  <a href="/disclaimer">Disclaimer</a> before relying on anything it reports.</small>
+</p>
 {% if db_issue_count %}
 <div class="alert alert-warning mt-4">
   <strong>UPDATE:</strong> the database check found <strong>{{ db_issue_count }}</strong>
