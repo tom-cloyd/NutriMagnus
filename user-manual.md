@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-04:1727* / Reading time: 4 hours, 37 minutes
+*Updated 2026-09-06:0135* / Reading time: 4 hours, 27 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -229,7 +229,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-03), there are 785 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-05), there are 786 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
@@ -284,7 +284,7 @@ On a meal's "Add Food or Recipe" search, a recipe's "Add Ingredient" search, and
 
 There's no time limit on this — it holds for as long as your browser tab stays open, not just for a moment after you step away. Clicking **Clear search** (shown next to the search box whenever a search is active) or closing the browser tab clears it back to the page's clean, empty-search state.
 
-The main navigation bar goes further than any one page: clicking **Recipes**, **Meals & Log**, **Settings**, or **Manual** returns you to the exact page you were last on in that section — e.g. the specific recipe you were editing, search and all — instead of always landing on its list page. When that memory is what brought you back, the page's breadcrumb is highlighted, with a one-click "All recipes" / "All meals" link in case you actually wanted the plain list. **Foods** is a drop-down of separate destinations (Search, Compare, Pantry, and more), so it works a little differently: a small "↩" quick-return link appears next to it whenever there's a food you've viewed, showing that food's name, so you can jump back to it in one click after wandering off elsewhere. Following a breadcrumb link (e.g. **Recipes** at the top of a recipe page) back to the list always starts fresh, clearing any remembered search or position.
+The main navigation bar goes further than any one page: clicking **Recipes**, **Meals & Log**, **Compare**, **Settings**, or **Manual** returns you to the exact page you were last on in that section — e.g. the specific recipe you were editing, or the exact set of items you had lined up on Compare — instead of always landing on its list/default page. When that memory is what brought you back, the page's breadcrumb is highlighted, with a one-click "All recipes" / "All meals" link in case you actually wanted the plain list. **Foods** and **Analysis** are drop-downs of separate destinations (Search, Pantry, Daily summary, and more), so they work a little differently: a small "↩" quick-return link appears next to the drop-down whenever there's a page you've viewed in it, showing that page's name, so you can jump back to it in one click after wandering off elsewhere — the drop-down itself always opens normally. Following a breadcrumb link (e.g. **Recipes** at the top of a recipe page) back to the list always starts fresh, clearing any remembered search or position.
 
 ### C. Sample Workflows {: #sample-workflows-web}
 **Use this as a tutorial!** With NuMa open in your browser, work through these step by step, paying close attention to what appears on your screen. Each workflow is self-contained — you don't need to read Part 4 (nutrition concepts) or Part 5 (reference) first; terms are briefly explained in place.
@@ -371,7 +371,7 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 **Step 2 — Analyze a full day.** Open any one of the meals on a date where you logged more than one — a button reading **Analyze full day (N meals)** appears near the top of the page whenever that's the case. Click it. NuMa pools every meal logged that date into one combined analysis — total nutrients, pooled protein quality, and complement suggestions across everything you ate that day, rather than meal by meal.
 
-**Step 3 — Check the Daily Summary.** Click **Analysis → 1. Daily summary**. The Recent Days table lists every date you've logged: Day DCP, then Protein, Calories, Carbs, and Fiber (built in for every day, right after Day DCP), then your goal in grams and % of it. Click any date to reopen that day's full analysis.
+**Step 3 — Check the Daily Summary.** Click **Analysis → 1. Daily summary**. The Recent Days table lists every date you've logged: Protein first, then Day DCP, then % goal and Goal, then any other nutrients you've picked in Settings. Click any date to reopen that day's full analysis.
 
 **Step 4 — Catch a chronic pattern with Nutrient Averages Across Days.** From the Daily Summary page, click **Nutrient averages across days** and choose a 7, 14, or 30-day window. NuMa averages your intake over that window and compares it to your RDA targets — surfacing a nutrient that's persistently a little low, the kind of gap a single good or bad day would hide.
 
@@ -529,7 +529,14 @@ Each suggestion shows:
 
 #### RANKING
 
-Options are ranked by the smallest practical amount needed, with one refinement: an option that fully completes the amino acid profile is moved to the front — but only if its serving size is 50 g or less. An option requiring 90 g to achieve completeness will not outrank a 7 g option that merely closes the primary gap. This prevents a food with a barely-adequate amino acid ratio (just above the [FAO](#gloss-fao) reference) from dominating the list simply because adding large quantities of it eventually fixes every gap.
+A **Sort by** dropdown above the list lets you pick how Tier 1 options are ranked:
+
+  - **Greatest DCP achieved** (the default) — the option that leaves the most total bioavailable complete protein after adding it.
+  - **Most digestible protein added** — the option contributing the most digestible protein on its own, regardless of how well it targets the limiting amino acid.
+  - **Greatest effect on amino acid gap** — the option closing the most amino acid gaps, then (as a tiebreaker) improving the limiting amino acid's score the most.
+  - **Smallest addition (in grams)** — the option needing the fewest grams.
+
+In every mode, one refinement applies: an option that fully completes the amino acid profile is always moved to the front of its tier, regardless of how many grams it takes. (Tier 3 two-food combinations, described below, apply a similar promotion but only when the combined serving is 50 g or less — see that section.)
 
 #### TIER 2 — DIAAS-BOOSTING OPTIONS
 
@@ -551,7 +558,7 @@ Together the pair clears all amino acid gaps. The output shows the individual gr
 
 Three combinations are shown initially. The app offers to show more if available.
 
-Combinations are ranked by total weight (lighter is ranked first), with combinations that close all gaps ranked above those that do not.
+Combinations are ranked by total weight (lighter is ranked first). A combination that closes all gaps is promoted to the front, but only when its combined weight is 50 g or less — a combination needing 90 g to close everything won't outrank a 30 g combination that only partially closes the gaps, which prevents a barely-adequate pairing from dominating the list just because enough of it eventually fixes everything.
 
 #### WHICH TIER IS RIGHT FOR YOU?
 
@@ -1005,13 +1012,15 @@ This view does not offer protein complement suggestions -- complementation only 
 ### S. Nutrient Plot {: #nutrient-plot}
 A line chart of one or more nutrients across your logged days, day on the x-axis — useful for spotting a trend visually rather than reading a column of numbers.
 
-**Access it from Analysis → Daily Summary → "Nutrient plot".** Check up to 8 nutrients from the full nutrient list (any nutrient NuMa tracks, not just the ones you've chosen as Meals & Log columns, plus Day DCP itself) — Day DCP, Protein, Calories, Carbs, and Fiber are listed first, matching Recent Days' mandatory columns; the checkbox list scrolls vertically below them. Then choose which days to include:
+**Access it from Analysis → Daily Summary → "Nutrient plot".** Check up to 8 nutrients from the full nutrient list (any nutrient NuMa tracks, not just the ones you've chosen as Meals & Log columns, plus Day DCP itself) — Protein, Calories, Carbs, and Fiber are listed first; the checkbox list scrolls vertically below them. Then choose which days to include:
 
     (blank days-back)         Every logged day, oldest to newest.
     Days back + Ending on     The N days ending on the date you pick
                               (defaults to your most recent logged day).
 
 Only days that actually have a logged meal appear on the chart — a gap in your logging shows as a gap in the line, not a drop to zero.
+
+**Always end on the last complete day.** Checking this box next to the home-page toggle stops "Ending on" from freezing at whatever date was current when you last saved the plot — instead the end date always slides forward to yesterday (the last fully-logged day) automatically. Useful for a Home page plot in particular, since without it the plot would otherwise stay stuck on its original end date until you revisited this page and re-saved it.
 
 **Date labels thin out automatically on a long chart.** Every plotted day still gets a data point, but once there are more than 18 of them, showing every single date's label would crowd them into an unreadable jumble, so only every 2nd, 3rd, etc. date is labeled (always skipping at least one), spaced out enough to stay legible.
 
@@ -1609,12 +1618,14 @@ the nutrient's name (e.g. "Vitamin D" over "(mcg)"), matching the built-in
 Meal DCP / Day DCP / % goal columns -- so each column takes up roughly half
 the width it otherwise would.
 
-**Recent Days also always shows four columns right after Day DCP, regardless
-of what you've chosen above:** Protein (the raw, un-adjusted total -- Day DCP
-is the digestibility-adjusted figure), Calories, Carbs (carbohydrates --
-sugars and starches), and Fiber. These aren't part of your 6-column choice
-and can't be turned off; if you'd separately picked one of them as a Meals &
-Log column, it's simply not duplicated on Recent Days.
+**Recent Days always shows Protein first, regardless of what you've chosen
+above:** the raw, un-adjusted total -- Day DCP is the digestibility-adjusted
+figure. This one column isn't part of your 6-column choice and can't be
+turned off. Calories, Carbs (carbohydrates -- sugars and starches), and Fiber
+are ordinary picks in that same Settings list now, right alongside Protein --
+add them back, or leave them off, like any other nutrient; if you'd
+separately picked Protein as a Meals & Log column, it's simply not duplicated
+on Recent Days.
 
 Recent Days' column headers stack a nutrient's unit onto its own line below
 the name (e.g. "Vitamin D" over "(mcg)") instead of running both on one
@@ -1935,6 +1946,8 @@ See [Ordering food search results](#search-ranking) in Part 6 for the full expla
 
 **Source filter.** A row of checkboxes next to the search box itself — visible before you've even typed a query, not just after results come back — narrows the list to any combination of sources you check: Pantry, Food Cache, Recipes, USDA FoodData Central, Open Food Facts, Canadian Nutrient File, CoFID, AFCD, CIQUAL (USDA and Open Food Facts, the two most-used external sources, lead the external group). Check as many as you like; unchecking every box is treated the same as checking them all, since a filter that hides everything isn't useful. Each checkbox is labeled with the short badge used elsewhere plus its full name (e.g. "USDA — USDA FoodData Central") and re-runs the search the moment you check or uncheck it. A **Select all sources** button re-checks every box in one click. A **What are these sources? →** link next to the "Source" label jumps to [Food data — where it comes from and how it is stored](#food-data). Your choice is sticky across every search box that has this filter, the same way the sort-order choice is. It appears next to every food search in the app: the standalone Foods → Search page, Analyze a Food Portion, Convert a Portion, Comparison, My Pantry's "Add a food" search, the Meals & Log "Add Food or Recipe" panel, a recipe's ingredient search, and the two "copy from another food" searches on the Edit Custom Profile page.
 
+**"Did you mean" suggestions on a search with no results.** Every one of those same search boxes offers likely corrections right next to a "No results" message — e.g. searching "brocoli" suggests **broccoli**. Click a suggestion to re-run the search with it, or press Esc to dismiss the suggestions and keep what you typed. This works fully offline: it checks your own previously searched/cached foods, pantry items, and recipes first, then the food names bundled with the CoFID/AFCD/CIQUAL databases — it can't invent a suggestion for a brand name it's never encountered anywhere.
+
 **Omitted-source warning.** Because the Source filter is sticky, a box unchecked once (even by accident, or while narrowing down a different search) stays unchecked everywhere until you re-check it — silently, with no visual difference from a normal search. If that hides a food you expected to see, it can look exactly like a search or ranking bug rather than a filter setting. On the Foods search page and the Meals & Log "Add Food or Recipe" panel, whenever one or more sources are unchecked, a small red note appears next to the Sort by control — **Omitted from search: RECIPE**, for example — naming exactly which ones. Check the Source filter row below to bring them back.
 
 While a live database (USDA, Open Food Facts, or Canadian Nutrient File) is being searched, a status line names exactly which ones it's contacting — just "Searching USDA FoodData Central…" if you've unchecked the other two, for instance. If you've unchecked all three, that line (and the network requests behind it) doesn't appear at all. CoFID, AFCD, and CIQUAL are different: each is a bundled dataset, not a live lookup, so their results appear instantly alongside your own Pantry/Cache/Recipe matches — checking or unchecking any of them never triggers a network wait.
@@ -1958,6 +1971,8 @@ The **protein-quality table** ([DIAAS](#diaas)-based) appears when at least one 
 The **nutrient table** covers Macronutrients, Minerals, Vitamins, [Phytonutrients](#gloss-phytonutrients), and Amino Acids (groups appear only when at least one item has data for that category), every value per 100 g, highest value per row highlighted in green, sortable by checked nutrients, rows where every item shows "--" hidden automatically. The items you chose are listed above the table — each also shows an **AA** column indicating at a glance whether it has amino acid data (✓) or not (✗).
 
 **Print comparison table** and **Download CSV** buttons appear above the nutrient table: Print opens your browser's print dialog with just that comparison table (no nav, search box, or other page chrome); the CSV download gives one row per nutrient and one column per item, ready to open in a spreadsheet.
+
+**Saving a comparison list.**{: #comparison-saved-lists} A **Save this list** box at the bottom of the page names and stores your current set of items; a **Use a saved list** panel at the top — shown even on the empty, no-items-yet view — lets you reload, rename, or delete any list you've saved before, so you don't have to re-search and re-add the same items each time you want to revisit a comparison.
 
 To run a comparison: click **Compare** in the main nav. Search adds both foods (reaching out to USDA/OFF like any food search) and your own saved recipes. You can save the list under a name for quick reuse in future sessions — previously saved lists are offered at the start of the comparison flow.
 
@@ -2295,6 +2310,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **RDA**{: #gloss-rda}  —  Recommended Dietary Allowance. The average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group. See [RDA](#rda).
 
+**Reference value**{: #gloss-reference-value}  —  Short for [FAO](#gloss-fao) reference value: how many mg of one specific essential amino acid a person needs per gram of dietary protein, established independently for each of the nine [EAAs](#gloss-eaa). Dividing a food's own mg-of-that-amino-acid-per-gram-of-protein by its reference value produces that amino acid's [DIAAS](#gloss-diaas)-basis score. See [FAO reference values](#fao).
+
 **SPI**{: #gloss-spi}  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See [Appendix I](#comp-appendix).
 
 **TID**{: #gloss-tid}  —  True Ileal Digestibility. NuMa's abbreviation for [ileal digestibility](#gloss-ileal-digestibility), used as a column heading in per-ingredient digestibility breakdowns.
@@ -2596,7 +2613,91 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed.
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
-<!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the changelog. Left visible only in this markdown source for anyone editing it. -->
+<!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 5 program updates
+
+**FOUR WAYS TO SORT PROTEIN COMPLEMENT SUGGESTIONS, DEFAULTING TO GREATEST DCP ACHIEVED**
+
+The **Sort by** dropdown above Protein Complement Suggestions (on a food, meal, or recipe page) now offers four options instead of two: **Greatest DCP achieved** (the new default), **Most digestible protein added**, **Greatest effect on amino acid gap**, and **Smallest addition (in grams)**. [Learn more...](#comp)
+
+<!--
+```
+Scope: numa_app/services/complements.py (build_complement_display: comp_sort
+default changed from "effect" to "dcp"; sort_key now branches on 4 modes —
+"dcp" ranks by the existing _total_dig approximation, "digestible_protein" by
+digestible_protein_added alone, "gap_effect" by gaps_closed then a new
+_gap_effect() limiting-amino-acid-score-improvement tiebreaker, "grams"
+unchanged; comp_ranking_note text added per mode), web/backend.py
+(_COMPLEMENT_SORT_MODES split into _COMP_SORT_MODES — the new 4 comp_sort
+values — and _DIAAS_SORT_MODES, unchanged "effect"/"grams" for the separate
+DIAAS-boosting-tier sort; all comp_sort _resolve_sort() call sites' default
+changed from "effect" to "dcp"), web/templates/recipe_detail.html,
+meal.html, food_detail.html (comp_sort <select> options updated to the 4
+modes), user-manual.md (Part 4.B RANKING section rewritten for the new
+options; also corrected a pre-existing inaccuracy that misattributed Tier
+3's 50g promotion threshold to Tier 1, which promotes unconditionally),
+tests/test_complements.py, tests/test_web.py (updated for the new modes
+and default).
+```
+-->
+
+**COMPARE AND ANALYSIS NOW REMEMBER WHERE YOU LEFT OFF, LIKE RECIPES AND MEALS & LOG ALREADY DID**
+
+Clicking **Compare** in the main nav now returns you to the exact comparison you had set up, instead of resetting to an empty page — the same "remembers where you left off" behavior Recipes and Meals & Log already had. **Analysis** (a drop-down, like Foods) gets a small "↩" quick-return link next to it once you've viewed something there, so you can jump straight back to, say, a specific date's Daily summary. [Learn more...](#search-memory)
+
+<!--
+```
+Scope: web/templates/base.html (nav-memory script: added 'compare' and
+'analysis' entries to the SECTIONS path-matching list; added an Analysis
+quick-return chip `<li>` mirroring the existing Foods/Recipes ones and
+folded it into the shared quick-return chip loop).
+```
+-->
+
+**FIXED: SAVING A COMPARISON COULD FAIL WITH AN INTERNAL SERVER ERROR**
+
+Clicking "Save comparison" on the Compare page could fail with an internal server error, on installs whose database still carried a leftover column from an early, never-released version of this feature. Restarting NuMa applies the fix automatically.
+
+<!--
+```
+Scope: db.py (init_db: DROP COLUMN migration removes a stray NOT NULL
+"amounts" column some installs' saved_mixed_comparisons table was created
+with before the schema was finalized — saved_mixed_comparison_save() never
+populated it, so every INSERT hit sqlite3.IntegrityError), tests/test_db.py
+(new test_init_db_drops_stray_saved_mixed_comparisons_amounts_column).
+```
+-->
+
+**NUTRIENT PLOT TITLE NOW STAYS IN SYNC WITH "ROLL TO LAST COMPLETE DAY"**
+
+Turning on "Roll to last complete day" on the Nutrient Plot updates the "Ending on" date shown on the page, but an auto-generated plot title (the kind with a date range baked in, e.g. "Key nutrients consumed, ... to ...") used to freeze at whatever range was in effect when the plot was first saved. It now recomputes with the current date range every time, same as "Ending on" does.
+
+<!--
+```
+Scope: web/backend.py (nutrient_plot_page: qs now only carries a `title`
+param when the user actually typed a custom one, following the same
+"blank means auto" convention already used for scale_factor; the
+auto-generated title recomputes from `dates` on every render instead of
+being persisted and echoed back as a frozen user override).
+```
+-->
+
+**MAINTENANCE: WEEKLY SWEEP — RECENT DAYS/NUTRIENT PLOT DOCS CAUGHT UP, ONE MISSING REGRESSION TEST CLOSED, STALE COMPARE LINK FIXED**
+
+Items 1–3 (CLAUDE.md drift, "NuMa" capitalization, vendored Bootstrap) found nothing beyond one missing module entry, now added. Item 4 (manual consolidation) found real drift left behind by last week's Recent Days/Nutrient Plot rework and the Compare unification: three passages still described the old four-mandatory-column Recent Days layout and the old Nutrient Plot checkbox ordering claim, the Compare page's save/reload-a-list feature was never written into the manual body despite being real and current, and the "did you mean" search-suggestion feature was likewise undocumented outside this log — all now fixed, and the Compare Recipes entry below with the dead `#recipe-comparison` link now points at the new section. Item 5 (README.md) corrected a stale "compare up to 8 foods or 6 recipes" line (now a mixed 8-item comparison) and added the recipe-translation feature to Key Features. Item 6 (test coverage) found one real gap: `meal_set_bcp()`'s day_bcp_cache invalidation (shipped September 4) had no regression test; one added. Item 7 (link check) found no other broken anchors; the GitHub repo/releases links flagged 404 last week are back to 200. This log itself was pruned back to roughly the last two weeks.
+
+<!--
+```
+Scope: CLAUDE.md (recipe_translate.py added to package layout), user-manual.md
+(Recent Days step-3 walkthrough, Nutrient Plot picker-order line, Nutrient
+Plot rolling-end-date paragraph, Recent Days mandatory-column paragraph, new
+Comparison "Saving a comparison list" paragraph with #comparison-saved-lists
+anchor, new Source-filter "did you mean" paragraph, dead #recipe-comparison
+link repointed), README.md (Key features list), tests/test_db.py (new
+test_meal_set_bcp_invalidates_stale_day_bcp_cache).
+```
+-->
 
 #### September 4 program updates
 
@@ -2710,9 +2811,9 @@ paragraph under "Using this manual's search" documenting it.
 ```
 -->
 
-**CHANGELOG "SCOPE:" TECHNICAL DETAIL IS NO LONGER SHOWN**
+**"SCOPE:" TECHNICAL DETAIL IN THE PROGRAM UPDATES LOG IS NO LONGER SHOWN**
 
-The Appendix A changelog entries below used to carry a "Scope:" block under each item with developer-facing detail (files touched, root cause) — of no value to the average reader. Those blocks (and the sentence above pointing them out) are now hidden from the manual and from GitHub's release notes; they remain in the underlying markdown source for anyone editing the manual or auditing past changes.
+The Recent program updates log entries below used to carry a "Scope:" block under each item with developer-facing detail (files touched, root cause) — of no value to the average reader. Those blocks (and the sentence above pointing them out) are now hidden from the manual and from GitHub's release notes; they remain in the underlying markdown source for anyone editing the manual or auditing past changes.
 
 **ADJACENT FOOTNOTES NOW GET A VISIBLE SUPERSCRIPT COMMA, AND THE BUILD CATCHES IT IF ONE IS MISSED**
 
@@ -3132,7 +3233,7 @@ tests/test_web.py: 2 new regression tests.
 
 **MAINTENANCE: CLI REFERENCES FULLY RETIRED, README ARCHITECTURE DOC BROUGHT CURRENT, DOZENS OF STALE MANUAL PASSAGES FIXED**
 
-This week's sweep closed out the one-time CLI-mention cleanup (added 2026-08-25): every remaining reference to the retired terminal CLI — the glossary entry, a "view with c#" note, a file-based Claude-response-review workflow, and a CLI-style "options 1/2/3" description of editing a meal item — is gone, replaced with the actual web-app buttons and forms. `README-numa-documentation.md`'s Project Structure, route reference, and Test Suite sections (last checked "never") were brought fully current against the real codebase: the Recipes and Daily Summary pages were still documented as unimplemented stubs, dozens of routes and templates added since were missing, and the test count was stale — all now match. A full read-through of `user-manual.md` against actual app behavior turned up and fixed real drift: wrong Settings section numbers (Dietary Preferences was labeled section 4, actually 3; "Advanced settings" doesn't exist — the API key and search-depth settings live in section 5), a wrong Foods-menu item count (nine listed, ten exist), a wrong Meals & Log default page size (documented as 15, actually 9), a stale description of Search Meal History (claimed date filtering, sorting, and pagination it doesn't have), a wrong DIAAS annotation range (documented 0–1.5, actually 0–2.0), stale Food Cache and meal-Digestibility table column lists that no longer matched the real columns, an outdated "% of RDA" table description (the real column is "% of daily target," with color-coding built into that cell rather than a separate status column), an incomplete description of Sodium's daily limit (didn't mention the 12 other nutrients that get an automatic upper-limit-based cap), and a barcode-search description implying a confirm prompt that was removed when barcode search became direct-to-result. Item 6 (test coverage) found and closed one real gap: the August 27 fix stopping generic prep/state words (raw, cooked, etc.) from triggering a spurious food-search match had no regression test; two were added, both passing — no bug found in the fix itself. Changelog pruned back to the last two weeks. This is the first monthly deep check and first full manual audit — both headers now show 2026-08-30 as their last-run date.
+This week's sweep closed out the one-time CLI-mention cleanup (added 2026-08-25): every remaining reference to the retired terminal CLI — the glossary entry, a "view with c#" note, a file-based Claude-response-review workflow, and a CLI-style "options 1/2/3" description of editing a meal item — is gone, replaced with the actual web-app buttons and forms. `README-numa-documentation.md`'s Project Structure, route reference, and Test Suite sections (last checked "never") were brought fully current against the real codebase: the Recipes and Daily Summary pages were still documented as unimplemented stubs, dozens of routes and templates added since were missing, and the test count was stale — all now match. A full read-through of `user-manual.md` against actual app behavior turned up and fixed real drift: wrong Settings section numbers (Dietary Preferences was labeled section 4, actually 3; "Advanced settings" doesn't exist — the API key and search-depth settings live in section 5), a wrong Foods-menu item count (nine listed, ten exist), a wrong Meals & Log default page size (documented as 15, actually 9), a stale description of Search Meal History (claimed date filtering, sorting, and pagination it doesn't have), a wrong DIAAS annotation range (documented 0–1.5, actually 0–2.0), stale Food Cache and meal-Digestibility table column lists that no longer matched the real columns, an outdated "% of RDA" table description (the real column is "% of daily target," with color-coding built into that cell rather than a separate status column), an incomplete description of Sodium's daily limit (didn't mention the 12 other nutrients that get an automatic upper-limit-based cap), and a barcode-search description implying a confirm prompt that was removed when barcode search became direct-to-result. Item 6 (test coverage) found and closed one real gap: the August 27 fix stopping generic prep/state words (raw, cooked, etc.) from triggering a spurious food-search match had no regression test; two were added, both passing — no bug found in the fix itself. The Recent program updates log was pruned back to the last two weeks. This is the first monthly deep check and first full manual audit — both headers now show 2026-08-30 as their last-run date.
 
 <!--
 ```
@@ -3274,7 +3375,7 @@ client side.
 
 **NEW: COMPARE RECIPES CAN NOW SAVE AND RELOAD COMPARISON LISTS, LIKE COMPARE FOODS ALREADY COULD**
 
-Compare Recipes had no way to save a set of recipes you'd compared before — every visit started from a blank list. It now works exactly like Compare Foods: a "Save this list" box at the bottom names and stores your current comparison, and a "Use a saved list" panel at the top of the page — including the very first, empty-list view — lets you reload, rename, or delete any saved comparison. [learn more...](#recipe-comparison)
+Compare Recipes had no way to save a set of recipes you'd compared before — every visit started from a blank list. It now works exactly like Compare Foods: a "Save this list" box at the bottom names and stores your current comparison, and a "Use a saved list" panel at the top of the page — including the very first, empty-list view — lets you reload, rename, or delete any saved comparison. [learn more...](#comparison-saved-lists)
 
 <!--
 ```
@@ -3383,9 +3484,9 @@ Nutrient Limits table and counts updated from 14 to 12 built-in ULs).
 ```
 -->
 
-**MAINTENANCE: WEEKLY SWEEP — 3 TEST GAPS CLOSED, README FEATURE LIST CAUGHT UP, CHANGELOG PRUNED**
+**MAINTENANCE: WEEKLY SWEEP — 3 TEST GAPS CLOSED, README FEATURE LIST CAUGHT UP, PROGRAM UPDATES LOG PRUNED**
 
-Item 1 (CLAUDE.md drift) and item 2 (vendored Bootstrap, still 5.3.8, current) found nothing to fix. Item 6 (test coverage) found three real gaps from the last few days of shipped changes and closed all of them: the Food Cache delete-refusal page rendering a food/pantry/recipe/meal blocker as an actual link, the My Pantry search results' "Remove from pantry" button, and Food Use in Meals/Recipes linking each row to its own analysis page — each now has a regression test. Item 5 (README.md) added three shipped features that were missing from the public "Key features" list: side-by-side comparison, food-use analysis, and the database integrity checker. Item 4 (manual consolidation) folded the delete-blocker and pantry-remove-button behavior into the manual body itself, and removed a stale internal editorial note that had outlived its purpose. Item 3 pruned the changelog back to roughly the last two weeks. Item 7 (link check) found nothing broken in-manual, but turned up something outside the manual's scope worth a look: `https://github.com/tom-cloyd/NutriMagnus` and its `/releases` page both return a genuine 404 right now, not a bot-block — worth confirming the repo's current visibility/location before the next release announcement, since `README.md`'s Download section and clone instructions point there.
+Item 1 (CLAUDE.md drift) and item 2 (vendored Bootstrap, still 5.3.8, current) found nothing to fix. Item 6 (test coverage) found three real gaps from the last few days of shipped changes and closed all of them: the Food Cache delete-refusal page rendering a food/pantry/recipe/meal blocker as an actual link, the My Pantry search results' "Remove from pantry" button, and Food Use in Meals/Recipes linking each row to its own analysis page — each now has a regression test. Item 5 (README.md) added three shipped features that were missing from the public "Key features" list: side-by-side comparison, food-use analysis, and the database integrity checker. Item 4 (manual consolidation) folded the delete-blocker and pantry-remove-button behavior into the manual body itself, and removed a stale internal editorial note that had outlived its purpose. Item 3 pruned this log back to roughly the last two weeks. Item 7 (link check) found nothing broken in-manual, but turned up something outside the manual's scope worth a look: `https://github.com/tom-cloyd/NutriMagnus` and its `/releases` page both return a genuine 404 right now, not a bot-block — worth confirming the repo's current visibility/location before the next release announcement, since `README.md`'s Download section and clone instructions point there.
 
 <!--
 ```
@@ -3394,176 +3495,6 @@ user-manual.md (Food Cache and My Pantry sections in Part 3, stray editorial
 note removed from Appendix A header, test-count sentence in Part 1).
 ```
 -->
-
-#### August 22 program updates
-
-**NEW: FOOD USE IN MEALS AND FOOD USE IN RECIPES NOW LINK EACH FOOD/RECIPE NAME TO ITS ANALYSIS PAGE**
-
-The Food Use in Meals and Food Use in Recipes tables listed each food and recipe by name only, with no way to jump to that food's or recipe's own nutritional analysis page short of re-searching for it elsewhere. Every row's name is now a link — to `/food/{id}` for a food, `/recipe/{id}` for a recipe — except where there's genuinely nothing to link to (a deleted recipe, or a food added without a linked USDA/Open Food Facts/etc. id).
-
-<!--
-```
-Scope: web/templates/analysis_food_use.html, web/templates/analysis_food_use_recipes.html.
-Both already had fdc_id/recipe_id/kind (and, for Food Use in Meals, a deleted flag)
-per row from web/backend.py's analysis_food_use / analysis_food_use_recipes routes;
-this only changed the row-name markup, no backend/query changes.
-```
--->
-
-#### August 21 program updates
-
-**CLARIFY: "CAN'T DELETE THAT FOOD" NOW NAMES AND LINKS EVERY PANTRY ENTRY, RECIPE, AND MEAL BLOCKING IT**
-
-Food Cache → Delete used to refuse with a generic "it's still used in a pantry entry, recipe, or logged meal" message, giving no way to find which ones without hunting through Pantry, Recipes, and Meals & Log by hand. It now lists every blocking pantry entry, recipe, and meal by id, each one linked straight to the place you'd remove or replace that food — e.g. "pantry: 34 | recipe: 12 | meal: 9, 72".
-
-<!--
-```
-Scope: db.py (food_references — now returns id lists instead of counts;
-still truthy/falsy the same way so existing callers were untouched), web/backend.py
-(food_cache_delete passes the blocked ids through as blocked_pantry/blocked_recipes/
-blocked_meals query params, food_cache_get parses them back into lists), web/templates/
-food_cache.html (renders each id as a link: pantry ids to /pantry, recipe ids to
-/recipe/{id}/edit, meal ids to /meal/{id}).
-```
--->
-
-**NEW: REMOVE A FOOD FROM YOUR PANTRY DIRECTLY FROM SEARCH RESULTS**
-
-Searching My Pantry for a food already in your pantry used to just label its search-results row "Already in pantry" with no action available — removing it meant scrolling down to find the matching row in the pantry list below. That row now has a **Remove from pantry** button instead, so you can add or remove a food from the same search results table.
-
-<!--
-```
-Scope: web/backend.py (pantry_get), web/templates/pantry.html. Search results whose
-source is "pantry" now carry the underlying pantry row's id (pantry_id_by_fdc, built
-from the same items list used to render the pantry table below); the template swaps
-the static "Already in pantry" label for a form posting to the existing
-/pantry/remove/{pantry_id} route when that id is present.
-```
--->
-
-#### August 20 program updates
-
-**NEW: SEARCH NOW WARNS YOU WHEN A SOURCE IS UNCHECKED, AND USDA/OFF LEAD THE SOURCE FILTER**
-
-An unchecked Source filter box (e.g. "Recipes") is sticky — it stays unchecked on every search box in the app until re-checked — which made a genuinely missing result (a recipe that should have matched, say) indistinguishable from a search or ranking bug, since nothing on the page said a source had been excluded. The Foods search page and the Meals & Log "Add Food or Recipe" panel now show a small red **Omitted from search: ...** note next to the Sort by control whenever one or more sources are unchecked, naming exactly which ones. Separately, the Source filter checkbox row itself now lists **USDA** and **Open Food Facts** — the two most-used external sources — ahead of the smaller regional datasets (CoFID, AFCD, CIQUAL) and Canadian Nutrient File, instead of alphabetically/arbitrarily mixed in among them.
-
-**FIX: YOUR OWN PANTRY/CACHE/RECIPE MATCHES NOW ALWAYS SHOW FIRST, IN THEIR OWN SECTION**
-
-The previous fix (below) stopped a food already in your cache from being dropped entirely, but it could still end up ranked far down the list — behind dozens of external USDA/Open Food Facts results that happened to word-match the search more closely — so finding it still meant scrolling. Every search results table in the app (Foods search, Food Cache, My Pantry, Meals & Log's Add Food or Recipe, a recipe's ingredient search, Compare Foods, Analyze a Food Portion, Convert a Portion) now always shows your Pantry/Food Cache/Recipe matches first, in their own group, with a labeled divider before the ranked USDA/Open Food Facts/CNF results below — regardless of which sort order is selected.
-
-**FIX: A FOOD ALREADY IN YOUR CACHE OR PANTRY COULD VANISH FROM SEARCH RESULTS ENTIRELY**
-
-Search results merge your own Pantry/Food Cache/Recipe matches with USDA/Open Food Facts/Canadian Nutrient File results, then trim to the "Show up to ___ results" limit (default 25). That trim didn't distinguish a free, already-known local match from an external one — so a food already in your cache could be crowded out and never shown at all, if enough external results happened to word-match the query more closely. Example: searching "vitamins daily" for a cached food named "Complete multivitamin" (no literal "daily" in the name) could bury it under dozens of branded products literally named "Daily Vitamins." Local matches are now always kept regardless of the limit — the limit only bounds how many external results fill the remaining slots. Affects every food search in the app.
-
-**NEW: JUMP FROM ANY SEARCH RESULTS OR LIST STRAIGHT INTO COMPARE FOODS/RECIPES**
-
-Foods search results, Food Cache, My Pantry, and the Recipes list all now have a **Compare** checkbox next to each row, plus a **Compare nutrition of selected** button above the list — check the items you want, click the button, and land on Compare Foods (or Compare Recipes) with those items already added, no need to redo the search there. On Foods search, where a result can be either a food or a recipe, foods and recipes get separate checkboxes and buttons since the two comparison pages can't mix them. [learn more...](#compare-checkboxes)
-
-**CLARIFY: THE DCP LINE UNDER A FOOD/RECIPE/MEAL/DAY TITLE IS NOW VISUALLY DISTINCT, NOT JUST GRAY METADATA**
-
-The digestible complete protein (DCP) summary line just under a food, recipe, meal, or day page's title — added August 17 — was styled identically to the brand/serving-size metadata right below it: small, gray, and easy to skim past entirely. It's now normal-sized black text with the key figure bolded and labeled "(DCP)" explicitly, so it reads as the headline stat it's meant to be rather than incidental page furniture. The data itself was always there and correct — this was a pure legibility fix.
-
-**CLARIFY: COMPLEMENT SUGGESTIONS SPELL OUT WHOSE "RAW" PROTEIN IS BEING ADDED**
-
-Every protein-complement suggestion's "Adds: X g digestible protein (from Y g raw)" line left "raw" ambiguous — raw protein in what, exactly? It now reads "from Y g raw protein in this addition" for a single suggestion, or "raw protein combined" for a two-food pairing — making clear it's the protein contributed by the suggested food(s) at that serving size, not the base food's own protein. Appears everywhere complement suggestions do: food, recipe, meal, daily-summary, and trend pages.
-
-**CLARIFY: FOOD CACHE NOW EXPLAINS THE CLAUDE AI FETCH BUTTONS BEFORE YOU CLICK THEM**
-
-The checkbox-and-button pair for fetching missing amino acid data via Claude AI used to appear on the Food Cache page with no explanation — just "Select all missing AA data" and "Fetch missing data from Claude AI" buttons with no context. A brief line above them now explains what checking a box and clicking Fetch actually does, with a **Learn more** link to the full walkthrough. [learn more...](#fetch)
-
-**NEW: CHECK DATABASE INTEGRITY — FIND AND FIX BROKEN FOOD/RECIPE REFERENCES**
-
-Foods → **Check database integrity** (also on the Food Cache page) scans for pantry entries, recipe ingredients, and logged meal items that still point at a food or recipe no longer in the cache — previously undetectable except by the food page failing to open ("USDA API 400: bad request" for an Open Food Facts food). Each kind of problem gets its own fix button with a plain-language note on what that fix actually changes (a pantry-entry removal is harmless; a recipe-ingredient or logged-meal-item removal recalculates that recipe's or day's totals without it) — they're deliberately not bundled into one "fix everything" button. Deleting a food from the cache also now refuses when a pantry entry, recipe, or meal still uses it, so this situation can no longer happen through normal use — Archive is offered instead. [learn more...](#db-check)
-
-**FIX: "LEARN MORE" ON THE FETCH-FROM-CLAUDE-AI PAGE NOW JUMPS TO THE RIGHT SECTION**
-
-The "Learn more" link on Food Cache → Fetch missing data from Claude AI pointed at a manual anchor that didn't exist, so it always landed on the manual's title page instead of the explanation. It now jumps straight to "Fetching missing amino acid data with Claude AI" in the Food Cache section. [learn more...](#fetch)
-
-**NEW: PRUNE UNUSED FOODS LETS YOU UNCHECK ANY FOOD YOU WANT TO KEEP**
-
-Foods → Food Cache → Prune Unused Foods now lists every unused food with a checkbox, checked by default. Uncheck any you'd rather keep before clicking "Prune checked foods" — previously the page always deleted every listed food with no way to exclude individual ones. Pruning still permanently deletes the food from the cache (a real database delete, not an archive) — Check all / Uncheck all buttons are provided for convenience.
-
-**FIX: PLANT-BASED-ONLY PREFERENCE NOW APPLIES TO YOUR OWN PANTRY AND RECIPE COMPLEMENT SUGGESTIONS**
-
-Setting Dietary Preference to "Plant based only" (or "Vegetarian") in Settings only ever filtered the built-in reference-table complement suggestions — an animal-sourced food sitting in My Pantry, or in one of your own analyzed recipes, could still turn up as a suggested complement (e.g. "Organic Eggs" suggested alongside peanut butter). Both preferences now also apply to your own pantry items and recipes. [learn more...](#comp)
-
-**FIX: SETTINGS NO LONGER SHOWS A STALE "DIETARY PREFERENCE SAVED" MESSAGE**
-
-The "✓ Dietary preference saved" confirmation on the Settings page used to stay on screen even after you changed the radio selection without clicking Save preference — making it look like the new, unsaved choice had already been saved. Changing the selection now clears that message until you actually save again.
-
-#### August 18 program updates
-
-**DIAAS-BOOSTING TABLES NOW EXPLAIN THEIR COLUMNS AND SHOW % INCREASE**
-
-The "DIAAS-Boosting Options" tables on the meal, full-day, food, and recipe pages now label the DCP column "DCP achieved" (matching the Protein Complement Suggestions table) and add a "% increase" column, with a footer note spelling out what each column means. The graduated-addition tables on the meal and recipe pages gained the same footer note. [learn more...](#comp)
-
-#### August 17 program updates
-
-**MAINTENANCE: WEEKLY SWEEP — 10 NEW REGRESSION TESTS, VENDORED BOOTSTRAP CONFIRMED CURRENT, CHECKLIST TRIMMED**
-
-The rest of this week's sweep: item 6 (test coverage) cross-checked two weeks of shipped changes against `tests/` and found 7 real gaps, most notably the Recipe Edit page's "Running totals" — the DCP-undercounting-for-sub-recipe-ingredients bug fixed August 15 had no regression test guarding it. All 7 got a test rather than being deferred to a future sweep: `test_recipe_edit_running_totals_include_subrecipe_ingredient` (the running-totals fix); four new tests in `tests/test_portions.py` for `_ing_amount_display()` (previously zero coverage despite fixing a real save-rejection bug); a numeric cross-check plus a "suppressed at zero" test for the unusable-protein line; a numeric cross-check for the DCP summary line under a food's title; a test for the "copy nutrient profile from another food" endpoint; a test that a nutrient's UL badge actually turns "near"/"over" as a day's total approaches or passes a personal max limit, not just that the column renders; and a test for the piece-based-food gram-display fix when a food page is opened via a recipe/meal ingredient link. Item 7: the vendored `web/static/vendor/bootstrap/` (5.3.8) is still the current upstream release — no update needed. The checklist itself dropped its "CLI/web parity" item (moot now that the CLI is gone) and gained explicit grep/curl recipes for items 1 and 2, plus a note to watch for changelog entries that contradict each other.
-
-**MAINTENANCE: WEEKLY SWEEP — DOCS DE-DRIFTED, DEAD LINK FIXED, LEFTOVER CLI COMMANDS REMOVED**
-
-This week's maintenance sweep (items 1-5 of the recurring Weekly sweep checklist) found and fixed real drift, not just tidying. `CLAUDE.md`'s package layout was missing 13 `numa_app/services/` modules added since the last sweep. The Canadian Nutrient File source link in [Food data](#food-data) pointed at a dead API path; it now points at the live CNF search page. `README.md`'s Key Features list gained three shipped features it was missing (nutrient trends/plotting, CSV export/import, archive). Several spots in the manual — the Recipes List Table, Protein Digestibility Overrides, and the Archiving section — still described typed single-letter commands (`a{id}=analyze`, `y{id}=archive/restore`, and so on) from the CLI that was removed 2026-08-04; these now describe the actual web-app buttons and forms instead. A handful of "Type ?keyword" CLI-help references throughout Part 5 were converted to real `[links](#anchor)`. Five real features that had only ever been described in this changelog — the Source filter's "Select all sources" button, the Recipe Introduction field, Compare Foods' AA column and Print/CSV buttons, the meal-specific Top Contributors header note, and the Protein Digestibility table's sort-by-protein/self-explanation — were folded into the manual body where a reader would actually look for them. The changelog itself was pruned back to roughly the last two weeks (entries before August 4 removed; already safe per the note above this log).
-
-**CLARIFY: MANUAL LINKS NEXT TO ANOTHER MANUAL LINK NOW SIT IN THEIR OWN PARENTHESES**
-
-A few section headings carry two "Learn more →"-style links side by side (e.g. "Protein Quality" followed by "About the FAO reference"). The first link's arrow used to sit right in front of the second link's text, reading as if it pointed there. Each now gets its own parentheses — `(Learn more →) (About the FAO reference →)` — so neither looks like it's pointing at the other. The gap inside those parentheses has also been tightened everywhere it's used, to a single space instead of the wide gap the link's own spacing left behind.
-
-**NEW: "WHAT ARE THESE SOURCES?" LINK ON EVERY SEARCH'S SOURCE FILTER**
-
-The Source filter (the row of PANTRY / CACHE / RECIPE / USDA / OFF / CNF / CoFID / AFCD / CIQUAL checkboxes shown on every search) now has a **What are these sources? →** link right next to the "Source" label, jumping straight to [Food data — where it comes from and how it is stored](#food-data) — those abbreviations meant nothing without it.
-
-**FIX: MEAL PAGE'S MANAGEMENT BUTTONS NOW ALL THE SAME HEIGHT**
-
-On a meal's page, the row of buttons above "Add Food or Recipe" (Mark complete, Analyze full day, Print / Save as PDF, Rename / change date, Delete meal) rendered at two different heights — a plain link-styled button stretched to fill the row while a button nested inside its own form didn't. All five now render at a consistent height, on this page and on a recipe's equivalent action row.
-
-**CLARIFY: PROTEIN DIGESTIBILITY TABLE NOW EXPLAINS ITSELF AND SORTS BY RAW PROTEIN**
-
-The "Meal foods: Digestibility" / "Ingredients: digestibility" table (in Meal-Level and Complete Protein Analysis, on food, recipe, meal, and daily-summary pages) used to list foods in whatever order they were added, with no explanation of what the table was for. It now opens with a plain-language description of what the table shows, and sorts by raw protein, highest first — the foods actually driving the meal's or recipe's numbers are now at the top. On the food and recipe pages, where the table has a DCP column, a note explains that DCP there is just each food's raw protein times one shared meal- or recipe-wide score, so it's not that food's own standalone quality — two foods can show the same DCP simply by contributing equal protein, even with very different amino acid profiles, and that shared multiplier is also why sorting by protein and by DCP land on the same order. [Top Contributors](#top-contributors) is where to look for each food's own standalone quality instead.
-
-**CLARIFY: "RESET SEARCH" RENAMED "CLEAR SEARCH"**
-
-The button that clears a search box and resets its Source and result-limit filters back to default is now labeled **Clear search** instead of the more ambiguous "Reset search" — same behavior, clearer name. Appears on Foods → Search, Meals & Log → Add Food or Recipe, and Recipes → Add Ingredient.
-
-**NEW: "SELECT ALL SOURCES" BUTTON ON EVERY SOURCE FILTER**
-
-Every search's Source filter (the row of USDA / Open Food Facts / Canadian Nutrient File / etc. checkboxes) now has a **Select all sources** button that re-checks every box in one click — handy after narrowing a search down and wanting all sources back without retyping your search or losing your other settings. [learn more...](#search-memory)
-
-**NEW: SEE HOW MUCH PROTEIN IS LOST TO AN INCOMPLETE AMINO ACID PROFILE**
-
-Every food, recipe, meal, and day page that shows digestible complete protein (DCP) now also states how much of that raw protein *can't* be built into tissue — in grams and percent — right below the existing DCP line, whenever that amount is greater than zero. [learn more...](#unusable-protein-fate)
-
-**NEW: THE MAIN MENU BAR NOW STAYS PINNED TO THE TOP OF THE SCREEN**
-
-The blue nav bar (Foods / Recipes / Meals & Log / Analysis / Settings / Manual) no longer scrolls away — it stays visible at the top no matter how far down a page you scroll, so a menu is always one click away.
-
-#### August 16 program updates
-
-**FIX: ESC AND CLICKING OUTSIDE NOW CLOSE POPUP "EDIT" FORMS WITHOUT SAVING**
-
-The floating "Edit" popups on meal items, recipe ingredients, and "Rename / change date" had no way to back out of once opened — Esc did nothing, and clicking elsewhere on the page did nothing. Both now close the popup and discard whatever you'd typed, same as canceling any other dialog.
-
-**CLARIFY: MEAL-PAGE TOP CONTRIBUTORS IS ALWAYS FOOD-LEVEL**
-
-On a meal's Top Contributors table, the column header now just says "Food" (not "Food / Recipe"), with a note underneath: any recipe used in that meal is broken into its individual foods for this table, so no row ever names a whole recipe. (A recipe's *own* Top Contributors table can legitimately show a sub-recipe by name, so it keeps the "Food / Recipe" header.)
-
-**NEW: RECIPE INTRODUCTION FIELD**
-
-Recipes now have an **Introduction** field for background — where it came from, why you like it, serving notes — anything that isn't the step-by-step procedure. On the recipe edit page it sits right after Ingredients; on the recipe's own page and on the printed/PDF version it appears right after the title. It's one of the checkboxes on the "Include on this printout" picker, so it can be left off a printout like any other section.
-
-**FIX: CHANGING "RANK BY" OR "SHOW" ON TOP CONTRIBUTORS NO LONGER JUMPS TO THE TOP OF THE PAGE**
-
-Changing the nutrient or count in the Top Contributors section (Meal/Recipe pages) reloads the page and is meant to land you back at that section. It was instead landing at the very top of the page, because a search box or "Add Food or Recipe" field further up the page could grab focus (and the scroll position that comes with it) after the intended scroll had already happened. The page now re-asserts the scroll position after everything else on the page has finished loading, so it reliably wins.
-
-**NEW: PRINT AND CSV EXPORT FOR THE FOOD COMPARISON TABLE**
-
-The Compare Foods page's nutrient comparison table now has **Print comparison table** and **Download CSV** buttons. Print opens your browser's print dialog with just the comparison table (no nav, search box, or other page chrome); the CSV download gives one row per nutrient and one column per food, ready to open in a spreadsheet.
-
-**NEW: AA COLUMN ON FOOD COMPARE PAGE**
-
-The Compare Foods page's food list now has an **AA** column showing at a glance whether each food has amino acid data (✓) or not (✗), right after the food name.
 
 ---
 

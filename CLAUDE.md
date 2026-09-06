@@ -84,6 +84,9 @@ numa_app/
     recipe_dcp.py         — auto-recompute of a recipe's per-serving DCP after edits
     recipe_nutrients.py — shared recursive recipe-ingredient expansion:
                          expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
+    recipe_translate.py — prompt-building/response-parsing for the manual-paste
+                         recipe translation workflow (print/export page); mirrors
+                         claude_fetch.py's paste-based pattern, no API call
     search_ranking.py   — food-search relevance ranking: relevance_key()
     search_suggest.py   — local "did you mean" suggestions for a search that
                          returned no results: suggest() (difflib against
