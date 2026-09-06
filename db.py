@@ -308,6 +308,14 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        # Migrate: drop a stray "amounts" column some installs' saved_mixed_comparisons
+        # table was created with before the schema was finalized (it was never part of
+        # any committed CREATE TABLE) — its NOT NULL constraint broke every save.
+        try:
+            conn.execute("ALTER TABLE saved_mixed_comparisons DROP COLUMN amounts")
+        except sqlite3.OperationalError:
+            pass
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS day_bcp_cache (
                 meal_date   TEXT PRIMARY KEY,

@@ -31,6 +31,35 @@ class TestSchema:
         _db.init_db()
         _db.init_db()
 
+    def test_init_db_drops_stray_saved_mixed_comparisons_amounts_column(self, db_conn: sqlite3.Connection):
+        """Some installs' saved_mixed_comparisons table was created (before the schema
+        was finalized) with a NOT NULL "amounts" column that saved_mixed_comparison_save()
+        never populates, breaking every save with an IntegrityError. init_db() must drop it
+        on an existing install without disturbing rows already saved."""
+        db_conn.execute("DROP TABLE saved_mixed_comparisons")
+        db_conn.execute("""
+            CREATE TABLE saved_mixed_comparisons (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT    NOT NULL,
+                items      TEXT    NOT NULL,
+                amounts    TEXT    NOT NULL,
+                created_at TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+        db_conn.execute(
+            "INSERT INTO saved_mixed_comparisons (name, items, amounts) VALUES ('old', '[]', '[]')"
+        )
+        db_conn.commit()
+        _db.init_db()
+        cols = {row[1] for row in db_conn.execute("PRAGMA table_info(saved_mixed_comparisons)")}
+        assert "amounts" not in cols
+        assert db_conn.execute(
+            "SELECT name FROM saved_mixed_comparisons WHERE name='old'"
+        ).fetchone() is not None
+        with _db.get_db() as conn:
+            cmp_id = _db.saved_mixed_comparison_save(conn, "new", [{"kind": "food", "id": 1}])
+        assert _db.saved_mixed_comparison_get(db_conn, cmp_id) is not None
+
     def test_meal_items_type_check(self, db_conn: sqlite3.Connection):
         """item_type must be 'food' or 'recipe' — anything else is rejected."""
         db_conn.execute(
@@ -417,6 +446,23 @@ class TestMeals:
             items = _db.meal_get_items(conn, mid)
         assert items[0]["item_type"] == "recipe"
         assert items[0]["amount"] == 2.0
+
+    def test_meal_set_bcp_invalidates_stale_day_bcp_cache(self):
+        """A pooled day_bcp_cache row (written by visiting /summary/{date})
+        must not keep overriding meal_dates_with_bcp()'s live per-meal sum
+        once a meal's bcp_g is recomputed after that snapshot was taken."""
+        with _db.get_db() as conn:
+            mid = _db.meal_create(conn, "Dinner", "2025-03-15")
+            _db.meal_set_bcp(conn, mid, 10.0)
+            _db.day_bcp_cache_set(conn, "2025-03-15", 999.0)
+
+            rows = {r["meal_date"]: r["day_bcp"] for r in _db.meal_dates_with_bcp(conn)}
+            assert rows["2025-03-15"] == 999.0
+
+            _db.meal_set_bcp(conn, mid, 25.0)
+
+            rows = {r["meal_date"]: r["day_bcp"] for r in _db.meal_dates_with_bcp(conn)}
+            assert rows["2025-03-15"] == 25.0
 
     def test_expand_recipe_item_reflects_current_name_after_rename(self):
         """meal_expand_food_items must show a recipe's CURRENT name, not the
