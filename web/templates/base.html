@@ -160,6 +160,12 @@
               </li>
             </ul>
           </li>
+          {# Quick-return chip: only shown by JS once there's a remembered Analysis
+             page to jump back to (e.g. a specific date's Daily summary) — same
+             pattern as the Foods/Recipes quick-return chips above. #}
+          <li class="nav-item d-flex align-items-center">
+            <a href="#" id="analysis-quick-return" class="nav-quick-return d-none"></a>
+          </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/settings') %}active{% endif %}"
                href="/settings" data-ak="s" data-section="settings"><u class="ak">S</u>ettings</a>
@@ -424,18 +430,18 @@
   </script>
   <script>
   // Remember the last page you were on within each main-nav section (Meals
-  // & Log, Settings, Manual) so clicking that section's nav link returns you
-  // to exactly where you left off instead of always jumping to the section's
-  // list/landing page. Foods, Recipes, and Analysis are dropdown menus whose
-  // items are each a deliberate, specific destination (Search, Compare,
-  // Daily summary, …) rather than one generic section page, so their
-  // dropdown click behavior is deliberately left alone — overriding those
-  // clicks would send the user somewhere other than the specific item they
-  // picked. Food Search's own results persist separately (see the
-  // data-persist-search block above). Foods and Recipes still get a *last
-  // page visited* remembered (below) purely so their quick-return chips have
-  // something to point at — it just isn't wired to override the dropdowns
-  // themselves.
+  // & Log, Compare, Settings, Manual) so clicking that section's nav link
+  // returns you to exactly where you left off instead of always jumping to
+  // the section's list/landing page. Foods, Recipes, and Analysis are
+  // dropdown menus whose items are each a deliberate, specific destination
+  // (Search, Daily summary, …) rather than one generic section page, so
+  // their dropdown click behavior is deliberately left alone — overriding
+  // those clicks would send the user somewhere other than the specific item
+  // they picked. Food Search's own results persist separately (see the
+  // data-persist-search block above). Foods, Recipes, and Analysis still get
+  // a *last page visited* remembered (below) purely so their quick-return
+  // chips have something to point at — it just isn't wired to override the
+  // dropdowns themselves.
   (function () {
     var SECTIONS = [
       ['recipes',  /^\/recipe/],
@@ -443,6 +449,8 @@
       ['settings', /^\/settings/],
       ['manual',   /^\/manual/],
       ['foods',    /^\/food(?!\/annotate)|^\/pantry/],
+      ['compare',  /^\/compare/],
+      ['analysis', /^\/(summary|analysis)/],
     ];
     function sectionFor(path) {
       for (var i = 0; i < SECTIONS.length; i++) {
@@ -483,11 +491,12 @@
       });
     });
 
-    // Foods/Recipes quick-return chips: purely additive, doesn't touch either
-    // dropdown. Each is shown whenever there's a remembered page in that
-    // section and you're not already on one — e.g. "↩ Salmon, Atlantic, raw"
-    // after you've wandered off to look at a meal.
-    ['foods', 'recipes'].forEach(function (section) {
+    // Foods/Recipes/Analysis quick-return chips: purely additive, doesn't
+    // touch any dropdown. Each is shown whenever there's a remembered page in
+    // that section and you're not already on one — e.g. "↩ Salmon, Atlantic,
+    // raw" after you've wandered off to look at a meal.
+    var SECTION_NAMES = {foods: 'Foods', recipes: 'Recipes', analysis: 'Analysis'};
+    Object.keys(SECTION_NAMES).forEach(function (section) {
       var chip = document.getElementById(section + '-quick-return');
       if (!chip || here === section) return;
       var url = sessionStorage.getItem('numa_last:' + section);
@@ -495,7 +504,7 @@
       if (url) {
         chip.href = url;
         var shortLabel = label && label.length > 28 ? label.slice(0, 27) + '…' : label;
-        var sectionName = section === 'foods' ? 'Foods' : 'Recipes';
+        var sectionName = SECTION_NAMES[section];
         chip.textContent = '↩ ' + (shortLabel || sectionName);
         chip.title = 'Back to ' + (label || 'where you left off in ' + sectionName);
         chip.classList.remove('d-none');
