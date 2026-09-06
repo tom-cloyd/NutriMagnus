@@ -67,6 +67,15 @@
         document.getElementById('nutrient-plot-form').requestSubmit();
       });
     }
+    // Same "Auto" pattern for the title field.
+    var titleAuto = document.getElementById('title-auto');
+    if (titleAuto) {
+      titleAuto.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.getElementById('title').value = '';
+        document.getElementById('nutrient-plot-form').requestSubmit();
+      });
+    }
   });
 })();
 </script>
@@ -193,8 +202,10 @@
       </div>
 
       <div class="mt-2" style="max-width:38rem">
-        <label class="form-label mb-0" for="title">Plot title</label>
-        <input type="text" class="form-control form-control-sm" id="title" name="title" value="{{ title }}">
+        <label class="form-label mb-0" for="title">Plot title
+          {% if title %}<a href="#" id="title-auto" class="muted" style="font-size:0.75em" title="Clear this and use NuMa's auto-generated title (date range) again">Auto</a>{% endif %}
+        </label>
+        <input type="text" class="form-control form-control-sm" id="title" name="title" value="{{ title }}" placeholder="{{ title_placeholder }}">
       </div>
     </div>
   </div>

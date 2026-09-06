@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-06:0135* / Reading time: 4 hours, 27 minutes
+*Updated 2026-09-06:1444* / Reading time: 4 hours, 28 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -16,7 +16,7 @@
 
 **User feedback is highly valued, so please give us yours!** With computer programs in active development ANY feedback is appreciated and most likely useful. User experience with the program is a critical measure of program success or failure. So, please email all problems, thoughts, and ideas to [tomcloydmsma@gmail.com](mailto:tomcloydmsma@gmail.com). Put `NutriMagnus` or `NuMa` in the subject line, please!
 
-**How to come up with feedback:** First, ANY thoughts you wish to share are welcome. If in doubt, just do it! We'll be grateful. Of particular interest to us are these topics:
+**What to offer as "feedback":** First, ANY thoughts you wish to share are welcome. If in doubt, just do it! We'll be grateful. Of particular interest to us are these topics:
 
 1. Inconveniences: you notice that something seems a bit difficult to do, or you see a simpler or quicker way to do it.
 2. Missing or incomplete information: Sometimes updates and changes do not go out to every part of the program as they should, and you see a gap in the information provided.
@@ -2614,6 +2614,41 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 6 program updates
+
+**NUTRIENT PLOT: FIXING A DATE FOR THE HOME PAGE PLOT NO LONGER GETS DISCARDED**
+
+Saving a Nutrient Plot to the Home page with "Roll to last complete day" turned OFF and a specific "Ending on" date set now actually keeps that date. Previously, saving always discarded the date regardless of that checkbox, silently falling back to whatever your most-recently-logged day happened to be — which then kept drifting forward on its own and made "Show on Home page" read as unchecked again on the very next reload.
+
+```
+Scope: web/backend.py (nutrient_plot_home_pref).
+Root cause: the handler stripped anchor_date from the saved querystring
+unconditionally, instead of only when the "Roll to last complete day"
+checkbox was actually being turned on. Now anchor_date is only stripped
+alongside adding rolling=1; with rolling left off, the user's chosen date
+passes straight through unchanged.
+```
+
+**NUTRIENT PLOT: TITLE STAYS CURRENT, AND HOME-PAGE TOGGLE STAYS ACCURATE**
+
+The Nutrient Plot's title field now works like Scale factor: it stays blank (showing the auto-generated date-range title as a placeholder) unless you actually type your own title. Previously, resubmitting the form for any reason — after "Roll to last complete day" had shifted the plotted range — would silently lock the title to whatever date range was showing at that moment, so it stopped matching the data; the same could happen from an old bookmarked or saved plot link. Also fixed: the "Show on Home page" checkbox could read as unchecked (while the plot kept showing on the Home page anyway) because auto-computed scale-factor values, which drift as new meals get logged, were being compared as if you'd set them yourself.
+
+```
+Scope: web/backend.py (nutrient_plot_page, nutrient_plot_print, nutrient_plot_image), web/templates/nutrient_plot.html.
+Root cause 1: the persisted plot querystring baked in auto-computed scale_factor/
+factor_<key> values instead of only user-set ones, so it could drift from a
+previously-saved home_nutrient_plot_qs and desync the "Show on Home page"
+checkbox's displayed state from the Home page's actual (unaffected)
+home_nutrient_plot_enabled flag. Root cause 2: the title <input>'s value was
+always the full auto-generated title, so any form resubmission, stale
+bookmark, or old saved link echoed it back as a literal, non-blank title=
+param, indistinguishable from one actually typed in, and froze permanently.
+Closed for good (not just for newly-generated links) by treating any title=
+value that matches NuMa's own auto-generated pattern ("Key nutrients
+consumed[, <date> to <date>]") as auto rather than user-set, in a shared
+_user_plot_title() helper used by all three routes that read a title param.
+```
 
 #### September 5 program updates
 

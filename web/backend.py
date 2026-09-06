@@ -7088,6 +7088,24 @@ def _nutrient_plot_default_title(dates: list[str]) -> str:
     return f"Key nutrients consumed, {dates[0]} to {dates[-1]}" if dates else "Key nutrients consumed"
 
 
+_AUTO_PLOT_TITLE_RE = re.compile(r"^Key nutrients consumed(, \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2})?$")
+
+
+def _user_plot_title(title: str | None) -> str | None:
+    """A title the user actually typed, as distinct from a `title=` param
+    that merely looks like NuMa's own auto-generated one (with some date
+    range baked in) — e.g. one echoed back by a stale bookmark, an old saved
+    Home-page link, or a resubmitted form. Treating any auto-shaped title as
+    "none" here means the date range in it always tracks the plot's current
+    range instead of freezing at whatever range was in effect when that
+    exact title text first got captured somewhere (a bookmark, a saved
+    querystring, ...)."""
+    stripped = title.strip() if title else ""
+    if not stripped or _AUTO_PLOT_TITLE_RE.match(stripped):
+        return None
+    return stripped
+
+
 def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | None,
                        scale_factor: str | None, title: str | None,
                        highlight: str | None, grayscale: bool, smoothing: int,
@@ -7171,11 +7189,20 @@ async def nutrient_plot_page(
     # current dates — on every reload instead of freezing at whatever range
     # was in effect the first time the qs was saved (e.g. when "Roll to last
     # complete day" was turned on).
-    user_title = title.strip() if title and title.strip() else None
+    user_title = _user_plot_title(title)
     effective_title = user_title or _nutrient_plot_default_title(dates)
 
-    qs = (_nutrient_plot_qs(chosen, days_back, anchor, factor_str, user_title,
-                             highlight_key, grayscale, smoothing_n, individual_factor_strs,
+    # Same "blank means auto" convention applied to what gets persisted: only
+    # bake a scale factor into qs when the user actually set one, so an
+    # auto-computed default (which drifts as new meals get logged) can't
+    # desync qs from a previously-saved home_nutrient_plot_qs and make the
+    # "Show on Home page" checkbox read as unchecked even though the plot is
+    # still showing there.
+    qs_scale_factor = scale_factor if user_factor else None
+    qs_individual_factors = {k: v for k, v in raw_factor_params.items() if _parse_plot_factor(v)}
+
+    qs = (_nutrient_plot_qs(chosen, days_back, anchor, qs_scale_factor, user_title,
+                             highlight_key, grayscale, smoothing_n, qs_individual_factors,
                              rolling=rolling)
           if has_plot else "")
 
@@ -7214,7 +7241,8 @@ async def nutrient_plot_page(
         "scale_factor": scale_factor if user_factor else "",
         "scale_factor_placeholder": _fmt_plot_factor(default_factor) if default_factor else "auto",
         "nutrient_factor_rows": nutrient_factor_rows,
-        "title":      effective_title,
+        "title":      user_title or "",
+        "title_placeholder": effective_title,
         "highlight":  highlight_key,
         "grayscale":  grayscale,
         "smoothing":  smoothing_n,
@@ -7233,11 +7261,19 @@ async def nutrient_plot_home_pref(qs: str = Form(...), enabled: str | None = For
     anchor_date from the stored querystring and adds rolling=1, so every
     future render (including the Home page's) recomputes the end date as
     yesterday instead of replaying whatever date was current when this was
-    saved."""
+    saved. When that checkbox is NOT checked, anchor_date must be left alone
+    — stripping it unconditionally used to silently drop a deliberately-set
+    fixed "Ending on" date, making the plot fall back to the most-recent-
+    logged-day default (which drifts forward on its own too) even though
+    rolling was off, and then making this same checkbox read as unchecked on
+    the very next reload since the freshly recomputed qs re-embeds that
+    resolved date explicitly while the saved one omitted it."""
     from urllib.parse import parse_qsl, urlencode
-    params = [(k, v) for k, v in parse_qsl(qs) if k not in ("anchor_date", "rolling")]
     if rolling:
+        params = [(k, v) for k, v in parse_qsl(qs) if k not in ("anchor_date", "rolling")]
         params.append(("rolling", "1"))
+    else:
+        params = [(k, v) for k, v in parse_qsl(qs) if k != "rolling"]
     final_qs = urlencode(params)
     if enabled:
         _save_prefs_file({"home_nutrient_plot_qs": final_qs, "home_nutrient_plot_enabled": True})
@@ -7285,7 +7321,7 @@ async def nutrient_plot_image(
     }
     series = _apply_individual_factors(step1_series, effective_individual)
 
-    plot_title = title.strip() if title and title.strip() else _nutrient_plot_default_title(dates)
+    plot_title = _user_plot_title(title) or _nutrient_plot_default_title(dates)
     plot_ylabel = _nutrient_plot_ylabel(chosen, series)
 
     image_bytes = line_plot_image(series, xlabel="Date", ylabel=plot_ylabel,
@@ -7317,8 +7353,12 @@ async def nutrient_plot_print(
 
     highlight_key = _resolve_highlight(chosen, highlight)
     raw_factor_params = _nutrient_plot_factor_params(request.query_params, chosen)
-    effective_title = title.strip() if title and title.strip() else _nutrient_plot_default_title(dates)
-    qs = _nutrient_plot_qs(chosen, days_back, anchor, scale_factor, effective_title,
+    user_title = _user_plot_title(title)
+    effective_title = user_title or _nutrient_plot_default_title(dates)
+    # Only persist a user-typed title into qs (same "blank means auto"
+    # convention as the main nutrient-plot page) so following the "Back to
+    # plot" link doesn't freeze the auto title at today's date range.
+    qs = _nutrient_plot_qs(chosen, days_back, anchor, scale_factor, user_title,
                             highlight_key, grayscale, _parse_smoothing_window(smoothing), raw_factor_params,
                             rolling=rolling)
 
