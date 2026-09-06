@@ -233,7 +233,7 @@ def build_complement_display(
     cache_candidates: list[dict] | None = None,
     ingredients: list[dict] | None = None,
     exclude_names: set[str] | None = None,
-    comp_sort: str = "effect",
+    comp_sort: str = "dcp",
     diaas_sort: str = "effect",
 ) -> dict:
     """Build the full complement-suggestion display structure for one base food/meal/recipe.
@@ -261,11 +261,15 @@ def build_complement_display(
         ignore — omitted from every tier (pantry, general, pairs, diaas_improvers,
         two_step_combos).
 
-    comp_sort: "effect" (default; most gaps closed, then most digestible protein
-        added) or "grams" (smallest serving needed) — controls Pantry/General tier
-        order. A full profile-completer is always promoted to the top of its tier
-        regardless of mode. two_step_combos inherits this order (Step 1 candidates
-        come from the same sorted list).
+    comp_sort: controls Pantry/General tier order — "dcp" (default; greatest
+        resulting digestible complete protein, i.e. total_dig, after the addition),
+        "digestible_protein" (most digestible protein added by the candidate alone,
+        ignoring how well it targets the limiting amino acid), "gap_effect"
+        (most amino-acid gaps closed, then the biggest improvement to the limiting
+        amino acid's score), or "grams" (smallest serving needed). A full
+        profile-completer is always promoted to the top of its tier regardless of
+        mode. two_step_combos inherits this order (Step 1 candidates come from the
+        same sorted list).
     diaas_sort: "effect" (default; highest resulting DIAAS first) or "grams"
         (smallest serving first) — controls the diaas_improvers tier order.
 
@@ -461,12 +465,25 @@ def build_complement_display(
             "aa_effects":          aa_effects({"new_scores": new_scores}, gaps, digestibility=digestibility),
         }
 
+    def _gap_effect(s: dict) -> float:
+        """Improvement to the limiting amino acid's score — the continuous
+        counterpart to gaps_closed's discrete count, used as its tiebreaker."""
+        new_scores = s.get("new_scores", {})
+        if new_scores and gaps:
+            return _adj_min(new_scores) - gaps[0][1]
+        return 0.0
+
     if comp_sort == "grams":
         sort_key = lambda s: (0 if s.get("new_complete") else 1, float(s.get("grams") or 999))
-    else:
+    elif comp_sort == "digestible_protein":
+        sort_key = lambda s: (0 if s.get("new_complete") else 1,
+                               -(s.get("digestible_protein_added") or 0))
+    elif comp_sort == "gap_effect":
         sort_key = lambda s: (0 if s.get("new_complete") else 1,
                                -(s.get("gaps_closed") or 0),
-                               -(s.get("digestible_protein_added") or 0))
+                               -_gap_effect(s))
+    else:  # "dcp" (default): greatest resulting digestible complete protein
+        sort_key = lambda s: (0 if s.get("new_complete") else 1, -_total_dig(s))
     pantry_suggs    = sorted(suggestions.get("pantry",  []), key=sort_key)[:pantry_limit]
     general_suggs   = sorted(suggestions.get("general", []), key=sort_key)[:general_limit]
     pair_suggs      = suggestions.get("pairs", [])[:pair_limit]
@@ -513,13 +530,21 @@ def build_complement_display(
     exhausted_prefix = ("All options that qualify are shown above — no others meet the criteria."
                         if n_shown > 0 else "No qualifying options found in the database.")
 
-    if comp_sort == "grams":
-        comp_ranking_note = ("Ranked by smallest addition: fewest grams needed. Exception: an option "
-                              "that fully completes the amino acid profile is always promoted to the top.")
-    else:
-        comp_ranking_note = ("Ranked by greatest effect: most amino-acid gaps closed, then most digestible "
-                              "protein added. Exception: an option that fully completes the amino acid "
-                              "profile is always promoted to the top.")
+    _COMP_RANKING_NOTES = {
+        "grams": ("Ranked by smallest addition: fewest grams needed. Exception: an option "
+                  "that fully completes the amino acid profile is always promoted to the top."),
+        "digestible_protein": ("Ranked by most digestible protein added. Exception: an option "
+                               "that fully completes the amino acid profile is always promoted to the top."),
+        "gap_effect": ("Ranked by greatest effect on the amino acid gap: most gaps closed, then the "
+                       "biggest improvement to the limiting amino acid's score. Exception: an option "
+                       "that fully completes the amino acid profile is always promoted to the top."),
+    }
+    comp_ranking_note = _COMP_RANKING_NOTES.get(
+        comp_sort,
+        ("Ranked by greatest DCP achieved: the option that leaves the most digestible complete protein "
+         "after adding it. Exception: an option that fully completes the amino acid profile is always "
+         "promoted to the top."),
+    )
     if diaas_sort == "grams":
         diaas_ranking_note = "Ranked by smallest addition: fewest grams needed."
     else:

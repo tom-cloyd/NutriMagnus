@@ -1186,8 +1186,8 @@ def test_meal_complement_sort_toggle_and_persistence(client: TestClient) -> None
 
     resp = client.get(f"/meal/{meal_id}")
     assert resp.status_code == 200
-    assert "greatest effect" in resp.text.lower()
-    assert '<option value="effect" selected>' in resp.text
+    assert "dcp achieved" in resp.text.lower()
+    assert '<option value="dcp" selected>' in resp.text
 
     resp = client.get(f"/meal/{meal_id}?comp_sort=grams")
     assert resp.status_code == 200

@@ -633,8 +633,10 @@
     <label class="muted me-1" style="font-size:.8rem"><small>Sort by</small></label>
     <select name="comp_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
             onchange="this.form.submit()">
-      <option value="effect" {% if complements.comp_sort != "grams" %}selected{% endif %}>Greatest effect</option>
-      <option value="grams" {% if complements.comp_sort == "grams" %}selected{% endif %}>Smallest addition (grams)</option>
+      <option value="dcp" {% if complements.comp_sort == "dcp" %}selected{% endif %}>Greatest DCP achieved</option>
+      <option value="digestible_protein" {% if complements.comp_sort == "digestible_protein" %}selected{% endif %}>Most digestible protein added</option>
+      <option value="gap_effect" {% if complements.comp_sort == "gap_effect" %}selected{% endif %}>Greatest effect on amino acid gap</option>
+      <option value="grams" {% if complements.comp_sort == "grams" %}selected{% endif %}>Smallest addition (in grams)</option>
     </select>
   </p>
   <p class="mt-1"><strong>Gaps:</strong>

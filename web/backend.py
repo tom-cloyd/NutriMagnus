@@ -1374,8 +1374,8 @@ def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set
     diet_pref = prefs.get("diet_pref", "all")
     pantry = _web_pantry_candidates() + _web_recipe_candidates()
     cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
-    comp_sort = comp_sort or _resolve_sort(None, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
-    diaas_sort = diaas_sort or _resolve_sort(None, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
+    comp_sort = comp_sort or _resolve_sort(None, "sort_complements", "dcp", _COMP_SORT_MODES)
+    diaas_sort = diaas_sort or _resolve_sort(None, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     return _complements.build_complement_display(
         nutrients, pantry, diet_pref=diet_pref,
         digestibility=digestibility, base_food_name=food_name,
@@ -3469,8 +3469,8 @@ async def food_detail(
     comp_sort: str | None = None,
     diaas_sort: str | None = None,
 ):
-    comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
-    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
+    comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
+    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     ctx = _food_detail_context(fdc_id, amount, portion_str, ignore_complements, unignore,
                                 comp_sort=comp_sort, diaas_sort=diaas_sort)
     if "error" in ctx:
@@ -3741,7 +3741,8 @@ def _web_recipe_candidates(exclude_recipe_id: int | None = None) -> list[dict]:
     return candidates
 
 
-_COMPLEMENT_SORT_MODES = {"effect", "grams"}
+_COMP_SORT_MODES = {"dcp", "digestible_protein", "gap_effect", "grams"}
+_DIAAS_SORT_MODES = {"effect", "grams"}
 
 
 def _complement_suggestions(
@@ -3787,8 +3788,8 @@ def _complement_suggestions(
     cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
     max_improver_grams = 300 if context == "recipe" else 120
     digestibility = min(pooled_tid, 1.0) if pooled_tid else 1.0
-    comp_sort = comp_sort or _resolve_sort(None, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
-    diaas_sort = diaas_sort or _resolve_sort(None, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
+    comp_sort = comp_sort or _resolve_sort(None, "sort_complements", "dcp", _COMP_SORT_MODES)
+    diaas_sort = diaas_sort or _resolve_sort(None, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     return _complements.build_complement_display(
         aa_nutrients, pantry, diet_pref=diet_pref,
         digestibility=digestibility, max_improver_grams=max_improver_grams,
@@ -4287,8 +4288,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
     source = _resolve_source_filter(source, "sort_food_search_source")
     limit = _resolve_result_limit(limit)
-    comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
-    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
+    comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
+    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     top_n = _resolve_contributor_top_n(top_n)
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
@@ -6023,8 +6024,8 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
                          unignore: list[str] = Query(default=[]),
                          comp_sort: str | None = None, diaas_sort: str | None = None,
                          rank: str | None = None, top_n: str | None = None):
-    comp_sort = _resolve_sort(comp_sort, "sort_complements", "effect", _COMPLEMENT_SORT_MODES)
-    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _COMPLEMENT_SORT_MODES)
+    comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
+    diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     ctx = _recipe_detail_context(recipe_id, servings, ignore_complements, unignore,
                                   comp_sort=comp_sort, diaas_sort=diaas_sort, rank=rank, top_n=top_n)
     if ctx is None:

@@ -130,7 +130,8 @@ class TestBuildComplementDisplay:
 
 
 # ---------------------------------------------------------------------------
-# comp_sort / diaas_sort — "greatest effect" (default) vs "smallest addition"
+# comp_sort / diaas_sort — comp_sort has 4 modes: "dcp" (default), "digestible_protein",
+# "gap_effect", "grams". diaas_sort keeps its original 2: "effect" (default), "grams".
 # ---------------------------------------------------------------------------
 
 class TestSortModes:
@@ -138,13 +139,17 @@ class TestSortModes:
     test purely the sort-key logic in build_complement_display() in isolation —
     the science itself is already covered by TestBuildComplementDisplay above."""
 
+    # "Small but weak" closes more AA gaps (3) but adds far less digestible
+    # protein (2.0g) than "Big but strong" (1 gap, 15.0g) — this separates
+    # "gap_effect" (ranks gap count first) from "dcp"/"digestible_protein"
+    # (rank the protein/DCP total first), which is the point of the test data.
     _RAW_PANTRY = [
         {"name": "Small but weak", "fdc_id": 1, "grams": 10, "new_complete": False,
-         "gaps_closed": 1, "digestible_protein_added": 2.0, "protein_added": 2.0,
+         "gaps_closed": 3, "digestible_protein_added": 2.0, "protein_added": 2.0,
          "new_scores": {}, "comp_nutrients": None, "estimated": False,
          "serving_weight_g": None, "recipe_id": None},
         {"name": "Big but strong", "fdc_id": 2, "grams": 80, "new_complete": False,
-         "gaps_closed": 3, "digestible_protein_added": 15.0, "protein_added": 15.0,
+         "gaps_closed": 1, "digestible_protein_added": 15.0, "protein_added": 15.0,
          "new_scores": {}, "comp_nutrients": None, "estimated": False,
          "serving_weight_g": None, "recipe_id": None},
     ]
@@ -167,11 +172,23 @@ class TestSortModes:
                              lambda *a, **kw: {"pantry": pantry or [], "general": [],
                                                 "pairs": [], "diaas_improvers": improvers or []})
 
-    def test_comp_sort_effect_ranks_by_gaps_closed_then_dcp_added(self, monkeypatch):
+    def test_comp_sort_dcp_ranks_by_greatest_resulting_dcp(self, monkeypatch):
         self._stub(monkeypatch, pantry=self._RAW_PANTRY)
-        result = _complements.build_complement_display({"protein_g": 20.0}, [], comp_sort="effect")
+        result = _complements.build_complement_display({"protein_g": 20.0}, [], comp_sort="dcp")
         assert [s["name"] for s in result["pantry"]] == ["Big but strong", "Small but weak"]
-        assert "greatest effect" in result["comp_ranking_note"].lower()
+        assert "dcp achieved" in result["comp_ranking_note"].lower()
+
+    def test_comp_sort_digestible_protein_ranks_by_most_digestible_protein_added(self, monkeypatch):
+        self._stub(monkeypatch, pantry=self._RAW_PANTRY)
+        result = _complements.build_complement_display({"protein_g": 20.0}, [], comp_sort="digestible_protein")
+        assert [s["name"] for s in result["pantry"]] == ["Big but strong", "Small but weak"]
+        assert "digestible protein added" in result["comp_ranking_note"].lower()
+
+    def test_comp_sort_gap_effect_ranks_by_gaps_closed(self, monkeypatch):
+        self._stub(monkeypatch, pantry=self._RAW_PANTRY)
+        result = _complements.build_complement_display({"protein_g": 20.0}, [], comp_sort="gap_effect")
+        assert [s["name"] for s in result["pantry"]] == ["Small but weak", "Big but strong"]
+        assert "amino acid gap" in result["comp_ranking_note"].lower()
 
     def test_comp_sort_grams_ranks_by_smallest_serving(self, monkeypatch):
         self._stub(monkeypatch, pantry=self._RAW_PANTRY)
@@ -179,7 +196,7 @@ class TestSortModes:
         assert [s["name"] for s in result["pantry"]] == ["Small but weak", "Big but strong"]
         assert "smallest addition" in result["comp_ranking_note"].lower()
 
-    def test_comp_sort_default_is_effect(self, monkeypatch):
+    def test_comp_sort_default_is_dcp(self, monkeypatch):
         self._stub(monkeypatch, pantry=self._RAW_PANTRY)
         result = _complements.build_complement_display({"protein_g": 20.0}, [])
         assert [s["name"] for s in result["pantry"]] == ["Big but strong", "Small but weak"]
