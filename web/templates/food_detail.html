@@ -278,7 +278,7 @@
       <span class="{% if protein.diaas_level == 'good' %}status-met{% elif protein.diaas_level == 'ok' %}rda-near{% else %}rda-low{% endif %}">
         {{ "%.2f"|format(protein.diaas) }}
       </span>
-      &nbsp;<small class="muted">(protein digestibility score; 1.0 = fully digestible)</small>
+      &nbsp;<small class="muted">(protein digestibility score; if completely digestible, DIAAS would = 1.0)</small>
     </p>
     <div style="max-width:20rem; margin-bottom:0.5rem">
       <div style="background:#e9ecef; border-radius:4px; height:8px; overflow:hidden">

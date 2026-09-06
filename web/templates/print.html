@@ -206,7 +206,7 @@
 {% if "protein_quality" in enabled and protein %}
 <h2>Protein Quality</h2>
 {% if protein.diaas is not none %}
-<p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }} <span class="muted">(protein digestibility score; 1.0 = fully digestible)</span></p>
+<p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }} <span class="muted">(protein digestibility score; if completely digestible, DIAAS would = 1.0)</span></p>
 {% endif %}
 {% if protein.protein_digestible is not none %}
 <p><strong>Digestible protein:</strong> {{ protein.protein_digestible }}&thinsp;g <span class="muted">(from {{ protein.protein_raw }}&thinsp;g raw &times; DIAAS {{ "%.2f"|format(protein.diaas) }})</span></p>
