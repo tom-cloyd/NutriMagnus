@@ -7165,9 +7165,16 @@ async def nutrient_plot_page(
     }
     individual_factor_strs = {k: _fmt_plot_factor(v) for k, v in effective_individual.items()}
 
-    effective_title = title.strip() if title and title.strip() else _nutrient_plot_default_title(dates)
+    # "blank means auto" convention, same as scale_factor above: only persist
+    # a title in the qs when the user actually typed one, so an auto-generated
+    # title (which embeds the date range) keeps recomputing itself — with the
+    # current dates — on every reload instead of freezing at whatever range
+    # was in effect the first time the qs was saved (e.g. when "Roll to last
+    # complete day" was turned on).
+    user_title = title.strip() if title and title.strip() else None
+    effective_title = user_title or _nutrient_plot_default_title(dates)
 
-    qs = (_nutrient_plot_qs(chosen, days_back, anchor, factor_str, effective_title,
+    qs = (_nutrient_plot_qs(chosen, days_back, anchor, factor_str, user_title,
                              highlight_key, grayscale, smoothing_n, individual_factor_strs,
                              rolling=rolling)
           if has_plot else "")
