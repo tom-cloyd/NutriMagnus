@@ -93,7 +93,7 @@
   <input type="hidden" name="items" value="{{ items_str }}">
   <p class="result-count">
     {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
-    for <strong>{{ search }}</strong> — check items to add, then click &rArr;
+    for <strong>{{ search }}</strong> — check up to {{ max_items }} items to add, then click &rArr;
     <button type="submit" class="btn btn-primary btn-sm ms-1">Add selected to comparison</button>
   </p>
   <table class="table table-sm table-hover mb-2" style="max-width:56rem">
