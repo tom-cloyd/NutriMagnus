@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-06:1444* / Reading time: 4 hours, 28 minutes
+*Updated 2026-09-07:0001* / Reading time: 4 hours, 30 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -229,7 +229,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-05), there are 786 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-07), there are 793 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
@@ -1020,7 +1020,7 @@ A line chart of one or more nutrients across your logged days, day on the x-axis
 
 Only days that actually have a logged meal appear on the chart — a gap in your logging shows as a gap in the line, not a drop to zero.
 
-**Always end on the last complete day.** Checking this box next to the home-page toggle stops "Ending on" from freezing at whatever date was current when you last saved the plot — instead the end date always slides forward to yesterday (the last fully-logged day) automatically. Useful for a Home page plot in particular, since without it the plot would otherwise stay stuck on its original end date until you revisited this page and re-saved it.
+**Always end on the last complete day.** Checking this box next to the home-page toggle stops "Ending on" from freezing at whatever date was current when you last saved the plot — instead the end date always slides forward to the most recent day whose meals are all marked complete, automatically, which can be today once you've marked today's meals complete. Useful for a Home page plot in particular, since without it the plot would otherwise stay stuck on its original end date until you revisited this page and re-saved it.
 
 **Date labels thin out automatically on a long chart.** Every plotted day still gets a data point, but once there are more than 18 of them, showing every single date's label would crowd them into an unreadable jumble, so only every 2nd, 3rd, etc. date is labeled (always skipping at least one), spaced out enough to stay legible.
 
@@ -2034,7 +2034,7 @@ To create a new custom profile: Foods -> Drafted Food Profiles -> Create. See [F
 
 **Estimating amino acids by copying from another food.** Whenever you're prompted for a food's amino acid profile (creating a drafted profile, copying a cached food, or editing any food's data), a third option lets you search for and pick a similar food that already has amino acid data, instead of typing values in or pasting from literature. The picked food's amino acids are **scaled to match this food's own protein content** (not copied raw) — a food with less protein than the source gets proportionally less amino acid content, and vice versa — the same scaling already used by hand in this app's built-in curated foods (e.g. amino acids scaled between fresh and dried okara). A note documenting the source food and scale factor is suggested automatically for the Note field. On the web app, the same picker appears as an "Estimate amino acids from another food" panel on the custom-profile edit page ([Custom Food Profiles](#custom-foods)); editing any food's data this way marks it user-drafted, same as any other edit.
 
-On the web app, [Food Search](#food-search) has a shortcut into this workflow: any search result missing confirmed amino acid data shows a **Copy as draft to add AA data** link right in its row. Clicking it duplicates that food as an editable draft and takes you straight to its edit page, AA-source search box ready — skipping the separate trip through Custom Food Profiles' own "Copy a cached food as a draft" search.
+On the web app, [Food Search](#food-search) (and Food Cache and Pantry's own ingredient search) has a shortcut into this workflow: every food row shows a **Copy as custom-food draft** link/button. Clicking it duplicates that food as an editable draft and takes you straight to its edit page, AA-source search box ready — skipping the separate trip through Custom Food Profiles' own "Copy a cached food as a draft" search.
 
 
 #### My Pantry Table {: #pantry}
@@ -2411,7 +2411,7 @@ If more than one ingredient contributes meaningfully to the protein (a flour ble
 
 Once you have a proxy food — blended or not — holding the numbers you need, there are two different ways to turn it into a usable estimate for your actual food. Pick whichever fits how you'll use that food going forward:
 
-**Option 1 — create a new, clearly-labeled draft (the general-purpose default).** Foods → Custom Food Profiles → **Copy a cached food as a draft**, pick the real food you're missing AA data for (it copies that food's full nutrient snapshot — protein included — into a brand-new, independent entry), rename the copy something unambiguous like "Graham Cracker, generic (estimated AA)," then run the AA-copying picker on *that* draft, scaling from your proxy food. Web app: [Food Search](#food-search)'s **Copy as draft to add AA data** link does the "copy as draft" half of this step in one click, right from the search results row. Because the original cached food is never touched, USDA can still refresh its full nutrient profile and portions automatically if that entry ever changes. The tradeoff: this new draft doesn't retroactively reach meals or recipes that already reference the *original* food — those keep pointing at the un-estimated entry until you go swap the reference over by hand.
+**Option 1 — create a new, clearly-labeled draft (the general-purpose default).** Foods → Custom Food Profiles → **Copy a cached food as a draft**, pick the real food you're missing AA data for (it copies that food's full nutrient snapshot — protein included — into a brand-new, independent entry), rename the copy something unambiguous like "Graham Cracker, generic (estimated AA)," then run the AA-copying picker on *that* draft, scaling from your proxy food. Web app: [Food Search](#food-search)'s **Copy as custom-food draft** link does the "copy as draft" half of this step in one click, right from the search results row (also available from Food Cache and Pantry's own ingredient search). Because the original cached food is never touched, USDA can still refresh its full nutrient profile and portions automatically if that entry ever changes. The tradeoff: this new draft doesn't retroactively reach meals or recipes that already reference the *original* food — those keep pointing at the un-estimated entry until you go swap the reference over by hand.
 
 **Option 2 — edit the original food's AA fields directly (a deliberate exception).** If you know you'll always be logging this exact product, editing its AA data in place is often more practical: every past and future meal or recipe that already references it picks up the estimate immediately, with nothing to swap. The cost is real, though — editing *any* of a food's data marks the entire record user-modified, not just the amino acid fields, so NuMa will never again silently refresh its full nutrient profile, portions, or anything else on it from USDA; you're taking permanent manual ownership of that specific record. That's an easy trade when the food is unlikely to gain real measured data any other way — a specific branded product like Nabisco Honey Maid Grahams already has its macronutrients measured and isn't about to grow USDA amino acid data on its own, so there's little future refresh being given up.
 
@@ -2621,6 +2621,7 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 Saving a Nutrient Plot to the Home page with "Roll to last complete day" turned OFF and a specific "Ending on" date set now actually keeps that date. Previously, saving always discarded the date regardless of that checkbox, silently falling back to whatever your most-recently-logged day happened to be — which then kept drifting forward on its own and made "Show on Home page" read as unchecked again on the very next reload.
 
+<!--
 ```
 Scope: web/backend.py (nutrient_plot_home_pref).
 Root cause: the handler stripped anchor_date from the saved querystring
@@ -2629,11 +2630,13 @@ checkbox was actually being turned on. Now anchor_date is only stripped
 alongside adding rolling=1; with rolling left off, the user's chosen date
 passes straight through unchanged.
 ```
+-->
 
 **NUTRIENT PLOT: TITLE STAYS CURRENT, AND HOME-PAGE TOGGLE STAYS ACCURATE**
 
 The Nutrient Plot's title field now works like Scale factor: it stays blank (showing the auto-generated date-range title as a placeholder) unless you actually type your own title. Previously, resubmitting the form for any reason — after "Roll to last complete day" had shifted the plotted range — would silently lock the title to whatever date range was showing at that moment, so it stopped matching the data; the same could happen from an old bookmarked or saved plot link. Also fixed: the "Show on Home page" checkbox could read as unchecked (while the plot kept showing on the Home page anyway) because auto-computed scale-factor values, which drift as new meals get logged, were being compared as if you'd set them yourself.
 
+<!--
 ```
 Scope: web/backend.py (nutrient_plot_page, nutrient_plot_print, nutrient_plot_image), web/templates/nutrient_plot.html.
 Root cause 1: the persisted plot querystring baked in auto-computed scale_factor/
@@ -2649,6 +2652,101 @@ value that matches NuMa's own auto-generated pattern ("Key nutrients
 consumed[, <date> to <date>]") as auto rather than user-set, in a shared
 _user_plot_title() helper used by all three routes that read a title param.
 ```
+-->
+
+**NUTRIENT PLOT: "SHOW ON HOME PAGE" AND "ROLL TO LAST COMPLETE DAY" NO LONGER FIGHT EACH OTHER**
+
+Turning on "Roll to last complete day" — or even just checking "Show on Home page" while rolling was already on — no longer immediately unchecks "Show on Home page" again. This showed up whenever the plot also had a highlighted nutrient or smoothing set.
+
+<!--
+```
+Scope: web/backend.py (nutrient_plot_home_pref).
+Root cause: the handler always appended rolling=1 to the end of the saved
+querystring, but the canonical builder used to recompute that querystring on
+every page render (_nutrient_plot_qs) always places rolling=1 right after
+days_back/anchor_date. Whenever a later param (highlight, smoothing, ...) was
+also present, the two strings differed only in the position of rolling=1, so
+the exact-match comparison behind "Show on Home page" always failed. Fixed by
+inserting rolling=1 at the same canonical position instead of appending it.
+```
+-->
+
+**NUTRIENT PLOT: A STALE HOME-PAGE PLOT CAN ALWAYS BE TURNED OFF**
+
+If the Home page plot no longer matches what's on screen — most often leftover from before one of the fixes above — Nutrient Plot now shows a plain "Remove it from Home page" button that turns it off regardless of the mismatch. Previously, "Show on Home page" could only ever be unchecked from the one exact view that matched what was saved; from any other view it displayed as already unchecked, so there was no way to turn the Home page plot off at all short of editing prefs.json by hand.
+
+<!--
+```
+Scope: web/backend.py (nutrient_plot_page), web/templates/nutrient_plot.html.
+New home_plot_enabled_elsewhere flag (enabled in prefs but qs doesn't match
+this view) drives a warning banner with a button that posts to the existing
+/summary/nutrient-plot/home-pref endpoint with no "enabled" field — that
+handler already disabled unconditionally in that case, the missing piece was
+purely a way to trigger it from a non-matching view.
+```
+-->
+
+**NUTRIENT PLOT: SCALE FACTOR NOW LABELED WHEN NUMA HAS CALCULATED IT FOR YOU**
+
+The Scale factor field shows "(auto calculated)" next to it whenever it's blank and NuMa is supplying the number itself (shown as the field's placeholder), so it's clear where that number came from and that the plot is already using it. The field is also narrower now, matching the width of the per-nutrient factor fields below it.
+
+<!--
+```
+Scope: web/templates/nutrient_plot.html.
+```
+-->
+
+**FOOD SEARCH, FOOD CACHE, PANTRY: "COPY AS DRAFT" AVAILABLE FOR ANY FOOD**
+
+A "Copy as custom-food draft" link/button is now available on every food row on Food Search, Food Cache, and Pantry's own ingredient-search results — not just Food Search rows missing amino acid data. It creates an editable custom-food draft copy of that food, leaving the original untouched, for any reason you might want one (not only to add missing AA data).
+
+<!--
+```
+Scope: web/templates/_search_result_row.html, food_cache.html, pantry.html.
+Reuses the existing /food/custom-profiles/copy-from-search and
+/food/custom-profiles/copy/{fdc_id} endpoints, both already general-purpose
+(work for cached or not-yet-cached foods) — this was purely a template-side
+restriction (an `if food.aa != "✓"` condition, and simply not being wired up
+on the Cache/Pantry pages at all) with no backend change needed. Renamed from
+"Copy as draft to add AA data" to "Copy as custom-food draft" since it's no
+longer AA-specific.
+```
+-->
+
+**FOOD DETAIL: PROTEIN SUMMARY NO LONGER MISREPORTS "NO AMINO ACID DATA"**
+
+A food with full amino acid data but no name match in NuMa's built-in DIAAS reference table (most common for a custom-drafted or oddly-named food) now shows its actual protein completeness and limiting amino acid in the Protein Summary card, instead of a misleading "No amino acid data — quality analysis unavailable" message — the Protein Quality section further down the page was already computing and displaying this correctly from the same data.
+
+<!--
+```
+Scope: web/templates/food_detail.html.
+Root cause: _protein_section() (web/backend.py) only sets dcp_g when
+_usda.get_diaas() finds a keyword match for the food's name; with no match,
+both diaas and dcp_g stay None. The template's final fallback branch was
+written for a "no data at all" case that can't actually reach it (the whole
+section is skipped when the backend's protein dict is None) — it was really
+being hit by "AA data present, no DIAAS reference," and mislabeled
+accordingly. Fixed by adding a "completeness only" card for that case, using
+the already-computed protein.complete/limiting_aa/protein_raw fields.
+```
+-->
+
+**NUTRIENT PLOT: "ROLL TO LAST COMPLETE DAY" CAN NOW LAND ON TODAY**
+
+"Roll to last complete day" used to always end the plot at yesterday, on the assumption that today's meals are never finished yet. Now it checks whether today's meals are actually marked complete, and if so, includes today — same as the "Confirmed" indicator already shown on the Meals list.
+
+<!--
+```
+Scope: db.py (new last_complete_meal_date()), web/backend.py (_nutrient_plot_params).
+Root cause: rolling=True unconditionally set anchor_date to
+(today - 1 day), never checking meals' own `complete` flag — the same flag
+the Meals list already uses to mark a day "Confirmed" vs. "Provisional."
+last_complete_meal_date() finds the most recent date where every logged
+meal is complete=1 (falling back to yesterday only if no such date exists
+yet, e.g. a fresh install), and _nutrient_plot_params now uses that instead
+of the hardcoded offset.
+```
+-->
 
 #### September 5 program updates
 

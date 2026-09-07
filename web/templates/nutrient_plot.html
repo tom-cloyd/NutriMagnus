@@ -89,10 +89,17 @@
 <h2 id="nutrient-plot-heading">Nutrient Plot {{ manual_link("nutrient-plot") }}</h2>
 <p class="muted">Line plot of one or more nutrients from your logged days, day on the x-axis.</p>
 
-{% if has_plot %}
+{% if has_plot or home_plot_enabled_elsewhere %}
 <form method="post" action="/summary/nutrient-plot/home-pref" id="home-pref-form">
   <input type="hidden" name="qs" value="{{ qs }}">
 </form>
+{% endif %}
+
+{% if home_plot_enabled_elsewhere %}
+<div class="alert alert-warning py-2 px-2 mb-2" style="max-width:38rem">
+  A different plot configuration is currently shown on the Home page.
+  <button type="submit" form="home-pref-form" class="btn btn-sm btn-outline-secondary ms-2">Remove it from Home page</button>
+</div>
 {% endif %}
 
 <form method="get" action="/summary/nutrient-plot" class="mb-3" id="nutrient-plot-form">
@@ -168,8 +175,11 @@
             <label class="form-label mb-0" for="scale_factor" title="Step 1: any nutrient plotted alongside a much larger- or smaller-scale one is divided by this so both stay readable on one axis. Prefilled with NuMa's computed default — change it and click Plot to try a different value.">Scale factor
               {% if scale_factor %}<a href="#" id="scale-factor-auto" class="muted" style="font-size:0.75em" title="Clear this and use NuMa's computed default again">Auto</a>{% endif %}
             </label>
-            <input type="number" min="0.1" step="0.1" class="form-control form-control-sm" id="scale_factor" name="scale_factor"
-                   value="{{ scale_factor }}" placeholder="{{ scale_factor_placeholder }}" style="width:12rem">
+            <div class="d-flex align-items-center gap-1">
+              <input type="number" min="0.1" step="0.1" class="form-control form-control-sm" id="scale_factor" name="scale_factor"
+                     value="{{ scale_factor }}" placeholder="{{ scale_factor_placeholder }}" style="width:6rem">
+              {% if not scale_factor %}<small class="muted">(auto calculated)</small>{% endif %}
+            </div>
           </div>
         </div>
 
@@ -191,7 +201,7 @@
             <div class="form-check m-0 mt-1">
               <input class="form-check-input" type="checkbox" id="home-plot-rolling" name="rolling" value="1" form="home-pref-form"
                      {% if rolling %}checked{% endif %} onchange="this.form.requestSubmit()">
-              <label class="form-check-label" for="home-plot-rolling" title="Instead of freezing the Ending on date to whatever it was when saved, the plot always shows through yesterday — the last day fully logged — sliding forward automatically each day.">
+              <label class="form-check-label" for="home-plot-rolling" title="Instead of freezing the Ending on date to whatever it was when saved, the plot always shows through the most recent day whose meals are all marked complete — which can be today, once you've marked today's meals complete — sliding forward automatically as you do.">
                 Roll to last complete day
               </label>
             </div>

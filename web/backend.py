@@ -6861,16 +6861,21 @@ def _nutrient_plot_params(conn, nutrients: list[str], days_back: str | None, anc
     because the "blank = all days" form field submits "" when empty, which
     FastAPI's query validation rejects outright for an int-typed param.
     rolling=True ("always end on the last complete day") overrides
-    anchor_date with yesterday's date and, in "all logged days" mode, drops
-    any dates after it — so a saved Home page plot keeps sliding forward
-    each day instead of freezing at whatever date it was turned on."""
+    anchor_date with the most recent date where every meal is marked
+    complete (falling back to yesterday if there's no such date yet, e.g. a
+    brand-new install) and, in "all logged days" mode, drops any dates after
+    it — so a saved Home page plot keeps sliding forward as days are
+    completed instead of freezing at whatever date it was turned on. This can
+    land on today, once today's meals are all marked complete — "complete"
+    was never about the calendar date, just the meals' own complete flag."""
     valid_keys = {key for key, _label, _unit in _usda.NUTRIENT_MAP.values()} | {_DCP_PLOT_KEY}
     chosen = [k for k in nutrients if k in valid_keys][:MAX_PLOT_NUTRIENTS]
 
     all_dates = sorted(r["meal_date"] for r in _db.meal_dates_with_bcp(conn, limit=1_000_000))
 
     if rolling:
-        anchor_date = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+        anchor_date = (_db.last_complete_meal_date(conn)
+                       or (datetime.date.today() - datetime.timedelta(days=1)).isoformat())
 
     try:
         days_back_n = int(days_back) if days_back else None
@@ -7224,8 +7229,16 @@ async def nutrient_plot_page(
     } for k in chosen]
 
     prefs = _load_prefs_file()
-    is_home_plot = bool(has_plot and prefs.get("home_nutrient_plot_enabled")
-                         and prefs.get("home_nutrient_plot_qs") == qs)
+    home_plot_enabled = bool(prefs.get("home_nutrient_plot_enabled"))
+    is_home_plot = bool(has_plot and home_plot_enabled and prefs.get("home_nutrient_plot_qs") == qs)
+    # True when some (possibly different, e.g. stale from before a qs-format
+    # change, or just a different nutrient/range selection) plot is enabled
+    # on the Home page but doesn't match what's on screen right now — the
+    # "Show on Home page" checkbox can only reflect an exact match (checking
+    # it always saves *this* view, so it must stay unchecked rather than lie
+    # about a different one being shown), which would otherwise leave no way
+    # to turn the Home page plot off from here at all.
+    home_plot_enabled_elsewhere = home_plot_enabled and not is_home_plot
 
     return templates.TemplateResponse(request, "nutrient_plot.html", {
         "available_nutrients": available_dicts,
@@ -7247,6 +7260,7 @@ async def nutrient_plot_page(
         "grayscale":  grayscale,
         "smoothing":  smoothing_n,
         "rolling":    rolling,
+        "home_plot_enabled_elsewhere": home_plot_enabled_elsewhere,
     })
 
 
@@ -7260,8 +7274,10 @@ async def nutrient_plot_home_pref(qs: str = Form(...), enabled: str | None = For
     complete day" checkbox sits alongside it: checking it strips any frozen
     anchor_date from the stored querystring and adds rolling=1, so every
     future render (including the Home page's) recomputes the end date as
-    yesterday instead of replaying whatever date was current when this was
-    saved. When that checkbox is NOT checked, anchor_date must be left alone
+    the most recent day whose meals are all marked complete (see
+    _nutrient_plot_params/_db.last_complete_meal_date) instead of replaying
+    whatever date was current when this was saved. When that checkbox is NOT
+    checked, anchor_date must be left alone
     — stripping it unconditionally used to silently drop a deliberately-set
     fixed "Ending on" date, making the plot fall back to the most-recent-
     logged-day default (which drifts forward on its own too) even though
@@ -7271,7 +7287,15 @@ async def nutrient_plot_home_pref(qs: str = Form(...), enabled: str | None = For
     from urllib.parse import parse_qsl, urlencode
     if rolling:
         params = [(k, v) for k, v in parse_qsl(qs) if k not in ("anchor_date", "rolling")]
-        params.append(("rolling", "1"))
+        # Match _nutrient_plot_qs()'s canonical ordering (rolling sits right
+        # after days_back/anchor_date, before scale_factor/title/highlight/...)
+        # so the saved qs string is byte-for-byte identical to the qs the next
+        # page render recomputes — is_home_plot compares them with `==`, and
+        # appending rolling at the end instead used to desync the two the
+        # moment any later param (highlight, smoothing, ...) was present,
+        # making "Show on Home page" read as unchecked right after saving it.
+        insert_at = next((i + 1 for i, (k, _) in enumerate(params) if k == "days_back"), len(params))
+        params.insert(insert_at, ("rolling", "1"))
     else:
         params = [(k, v) for k, v in parse_qsl(qs) if k != "rolling"]
     final_qs = urlencode(params)

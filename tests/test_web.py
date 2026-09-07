@@ -351,6 +351,35 @@ def test_food_detail_page(client: TestClient, cached_food) -> None:
     assert resp.status_code == 200
 
 
+def test_food_detail_protein_summary_shows_completeness_without_diaas_reference(
+    client: TestClient, db_conn
+) -> None:
+    """Regression: a food with full amino acid data but no name match in the
+    built-in DIAAS reference table (e.g. a custom draft with an unusual name)
+    used to show "No amino acid data -- quality analysis unavailable" in the
+    Protein Summary card, even though the Protein Quality section right below
+    it correctly computed and displayed completeness/limiting-AA from that
+    same data. dcp_g and diaas both being None only means "no DIAAS reference
+    for this name", not "no amino acid data" -- that combination can't
+    actually happen otherwise, since the whole section is skipped when the
+    backend's protein dict is None."""
+    fdc_id = 999001
+    nutrients = dict(SAMPLE_NUTRIENTS)
+    db_conn.execute("""
+        INSERT OR REPLACE INTO foods
+            (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (fdc_id, "Zorbnuggle Fizzlewort Extract", "User Drafted", None,
+          100.0, "g", json.dumps(nutrients), json.dumps([])))
+    db_conn.commit()
+
+    resp = client.get(f"/food/{fdc_id}")
+    assert resp.status_code == 200
+    assert "No amino acid data" not in resp.text
+    assert "Protein (completeness only)" in resp.text
+    assert "No DIAAS reference for this food" in resp.text
+
+
 def test_food_detail_ul_column_has_asterisk_and_footnote(client: TestClient, cached_food) -> None:
     resp = client.get(f"/food/{cached_food['fdcId']}")
     assert resp.status_code == 200
@@ -3178,3 +3207,87 @@ def test_nutrient_plot_rolling_end_date(client: TestClient, cached_food) -> None
 
     home = client.get("/")
     assert "rolling=1" in home.text
+
+
+def test_nutrient_plot_rolling_includes_today_once_marked_complete(client: TestClient, cached_food) -> None:
+    """Regression: "Roll to last complete day" used to always resolve to
+    calendar-yesterday, on the assumption that today's meals are never done
+    yet. Once today's meal is actually marked complete, today IS the last
+    complete day and rolling should include it, not skip straight past it."""
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    client.post(f"/meal/{meal_id}/complete", follow_redirects=False)
+
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=calories&rolling=1")
+    assert r.status_code == 200
+    assert f'value="{today}"' in r.text
+
+    img = client.get("/summary/nutrient-plot/image?nutrients=dcp&rolling=1")
+    assert img.status_code == 200
+
+
+def test_nutrient_plot_home_pref_rolling_with_trailing_params_stays_checked(client: TestClient, cached_food) -> None:
+    """Regression for a bug where "Show on Home page" immediately unchecked
+    itself whenever rolling was on AND a param that sorts after days_back in
+    the qs (e.g. highlight, smoothing) was also present — the home-pref
+    handler used to append rolling=1 at the end of the saved qs while
+    _nutrient_plot_qs() always places it right after days_back, so the two
+    strings never matched and is_home_plot read False on the very next
+    render."""
+    import html
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": yesterday}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=calories&nutrients=carbs_g"
+                    "&nutrients=fiber_g&days_back=30&highlight=dcp&smoothing=3")
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r.text).group(1))
+
+    r2 = client.post("/summary/nutrient-plot/home-pref",
+                      data={"qs": qs, "enabled": "1", "rolling": "1"}, follow_redirects=True)
+    assert r2.status_code == 200
+    assert 'id="home-plot-toggle"' in r2.text
+    toggle = re.search(r'id="home-plot-toggle"[^>]*>', r2.text).group(0)
+    assert "checked" in toggle
+
+
+def test_nutrient_plot_stale_home_qs_offers_remove_button(client: TestClient, cached_food) -> None:
+    """If home_nutrient_plot_qs in prefs doesn't match the qs the current
+    view would produce (e.g. leftover from before a qs-format change, or
+    just a different selection than what's on screen), "Show on Home page"
+    can't be shown checked -- checking it would silently overwrite the Home
+    page plot with whatever's on screen. That used to leave no way to turn
+    the Home page plot off at all from here. A "Remove it from Home page"
+    button should appear instead, and posting it (with no "enabled" field)
+    should disable the Home page plot regardless of the qs mismatch."""
+    import html
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": yesterday}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=calories")
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r.text).group(1))
+    client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
+
+    # Visit a different selection -- now on-screen qs no longer matches the
+    # saved home_nutrient_plot_qs.
+    r2 = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=protein_g")
+    assert "Remove it from Home page" in r2.text
+    toggle = re.search(r'id="home-plot-toggle"[^>]*>', r2.text).group(0)
+    assert "checked" not in toggle
+
+    r3 = client.post("/summary/nutrient-plot/home-pref", data={"qs": qs}, follow_redirects=False)
+    assert r3.status_code == 303
+
+    home = client.get("/")
+    assert "Your nutrient plot" not in home.text

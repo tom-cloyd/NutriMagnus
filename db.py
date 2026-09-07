@@ -1293,6 +1293,25 @@ def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlit
     ).fetchall()
 
 
+def last_complete_meal_date(conn: sqlite3.Connection) -> str | None:
+    """Most recent meal_date where every meal is marked complete, or None if
+    no such date exists (no meals logged at all, or even the earliest day
+    still has an incomplete meal). Used by "roll to the last complete day"
+    features (e.g. the Nutrient Plot) instead of assuming "yesterday" —
+    a day the user has explicitly marked done can be today."""
+    row = conn.execute(
+        """
+        SELECT meal_date
+        FROM meals
+        GROUP BY meal_date
+        HAVING SUM(CASE WHEN complete = 0 THEN 1 ELSE 0 END) = 0
+        ORDER BY meal_date DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    return row["meal_date"] if row else None
+
+
 def day_profile_get(conn: sqlite3.Connection, meal_date: str) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM day_profile WHERE meal_date = ?", (meal_date,)

@@ -111,11 +111,10 @@
   <p class="portion-label">
     <strong>Recalculate all nutrient values for a different amount:</strong>
     type any amount (e.g. <code>150</code> for grams, <code>3 oz</code>, <code>1/4 cup</code>, <code>2 T</code>){% if portions %} or choose a preset{% endif %}.
-    <a href="/food/cache/{{ food.fdc_id }}/portions">Manage portions for this food &rarr;</a>
   </p>
   {% if not portions %}
   <p class="muted"><small>No preset portions for this food — only per-100g data. You can add one (e.g. a per-egg or per-cup weight) from
-    the link above. {{ manual_link("ts-no-piece-portion") }}</small></p>
+    the "Manage portions" link below. {{ manual_link("ts-no-piece-portion") }}</small></p>
   {% endif %}
   <form method="get" action="/food/{{ food.fdc_id }}">
     <div class="portion-input-row">
@@ -142,6 +141,7 @@
               style="margin-left:1.5rem;padding-left:1.5rem;padding-right:1.5rem">Recalculate nutrients</button>
     </div>
   </form>
+  <p class="mt-1 mb-0"><small><a href="/food/cache/{{ food.fdc_id }}/portions">Manage portions for this food &rarr;</a></small></p>
   {% if portion_error %}
   <p class="numa-error mt-1"><small>{{ portion_error }}</small></p>
   {% if portion_density_hint %}
@@ -195,6 +195,28 @@
       <div class="ps-label">DIAAS</div>
       <div class="ps-value">{{ "%.2f"|format(protein.diaas) }}</div>
       <div class="ps-status muted">DCP not computed for this food</div>
+    </div>
+  </div>
+  {% elif protein.limiting_aa is not none or protein.complete %}
+  {# Amino acid data is present (see Protein Quality below) but this food's
+     name has no match in the built-in DIAAS reference table, so digestibility
+     — and therefore DCP — can't be computed. Shown as raw completeness only,
+     not the "no amino acid data" case (that's unreachable here: this whole
+     section is skipped entirely when `protein` is None). #}
+  <div class="protein-summary-card {% if protein.complete %}psc-complete{% else %}psc-incomplete{% endif %}">
+    <div class="ps-metric">
+      <div class="ps-label">Protein (completeness only)</div>
+      <div class="ps-value-line">
+        <span class="ps-value">{{ protein.protein_raw }}&thinsp;g</span>
+        {% if protein.complete %}
+        <span class="ps-status status-met">— &#10003; Complete protein</span>
+        {% else %}
+        <span class="ps-status status-gap">— &#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}
+          {% if protein.limiting_score is not none %}({{ "%.3f"|format(protein.limiting_score) }}){% endif %}
+        </span>
+        {% endif %}
+      </div>
+      <div class="ps-derivation">No DIAAS reference for this food, so digestibility can't be applied — this is raw amino-acid completeness, not a digestibility-adjusted DCP. See Protein Quality below.</div>
     </div>
   </div>
   {% else %}
