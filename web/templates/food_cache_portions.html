@@ -14,10 +14,14 @@
 <h2>Manage Portions</h2>
 <p class="muted"><strong>{{ food.name }}</strong>{{ food_id_tag(food.fdc_id) }}</p>
 <p>Custom portions let you enter amounts like <em>1 cup</em>, <em>1 slice</em>, or <em>2 T</em>
-   on the food detail page instead of typing the gram weight. Each portion stores a gram equivalent.</p>
+   on the food detail page instead of typing the gram weight. Each portion stores a gram equivalent.
+   Portions also get a shortcut based on their position in the list below — the 1st is <code>p1</code>,
+   the 2nd is <code>p2</code>, and so on — which you can type instead of the full description anywhere
+   an amount is entered. Reordering the list changes those shortcuts.
+   {{ manual_link("portion-formats", "Learn more") }}</p>
 
 {% if saved %}
-<div class="alert alert-success">Portion saved.</div>
+<div class="alert alert-success">{{ flash_message or "Portion saved." }}</div>
 {% endif %}
 {% if error %}
 <div class="alert alert-danger">{{ error }}</div>
@@ -25,15 +29,31 @@
 
 <h4 class="mt-4">Current portions</h4>
 {% if portions %}
-<table class="table table-sm" style="max-width:32rem">
+<p class="muted"><small>Adding, removing, and reordering (the &uarr;/&darr; buttons below) all save immediately — each click reloads this page with the change already applied, so there's no separate Save button and nothing lost by navigating away.</small></p>
+<table class="table table-sm" style="max-width:40rem">
   <thead class="table-light">
-    <tr><th>Description</th><th class="text-end">Grams</th><th></th></tr>
+    <tr><th>Shortcut</th><th>Description</th><th class="text-end">Grams</th><th></th><th></th></tr>
   </thead>
   <tbody>
     {% for p in portions %}
     <tr>
+      <td><code>p{{ loop.index }}</code></td>
       <td>{{ p.description }}</td>
       <td class="text-end muted">{{ p.gram_weight }}</td>
+      <td class="text-nowrap">
+        <form method="post" action="/food/cache/{{ food.fdc_id }}/portions/move" style="display:inline">
+          <input type="hidden" name="portion_index" value="{{ loop.index0 }}">
+          <input type="hidden" name="direction" value="up">
+          <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move up"
+                  {% if loop.first %}disabled{% endif %}>&uarr;</button>
+        </form>
+        <form method="post" action="/food/cache/{{ food.fdc_id }}/portions/move" style="display:inline">
+          <input type="hidden" name="portion_index" value="{{ loop.index0 }}">
+          <input type="hidden" name="direction" value="down">
+          <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move down"
+                  {% if loop.last %}disabled{% endif %}>&darr;</button>
+        </form>
+      </td>
       <td>
         <form method="post" action="/food/cache/{{ food.fdc_id }}/portions/delete" style="display:inline">
           <input type="hidden" name="portion_index" value="{{ loop.index0 }}">

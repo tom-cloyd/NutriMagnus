@@ -2498,6 +2498,33 @@ async def food_cache_portions_delete(
     })
 
 
+@app.post("/food/cache/{fdc_id}/portions/move", response_class=HTMLResponse)
+async def food_cache_portions_move(
+    request: Request,
+    fdc_id: int,
+    portion_index: int = Form(...),
+    direction: str = Form(...),
+):
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        return RedirectResponse("/food/cache", status_code=303)
+    portions = json.loads(cached["portions_json"] or "[]") or []
+    swap_with = portion_index - 1 if direction == "up" else portion_index + 1
+    moved = 0 <= portion_index < len(portions) and 0 <= swap_with < len(portions)
+    if moved:
+        portions[portion_index], portions[swap_with] = portions[swap_with], portions[portion_index]
+        with _db.get_db() as conn:
+            _db.update_food_portions(conn, fdc_id, portions)
+    return templates.TemplateResponse(request, "food_cache_portions.html", {
+        "food":          {"fdc_id": fdc_id, "name": cached["name"]},
+        "portions":      portions,
+        "saved":         moved,
+        "flash_message": "Portion order updated.",
+        "error":         None,
+    })
+
+
 @app.post("/food/cache/{fdc_id}/refresh", response_class=HTMLResponse)
 async def food_cache_refresh(request: Request, fdc_id: int):
     """Re-fetch nutrients from USDA and replace all cached nutrient data."""
@@ -6955,8 +6982,11 @@ def _apply_plot_scale_factor(series: list[dict], factor: float) -> list[dict]:
         if i == reference_i:
             scaled.append(s)
         else:
-            scaled.append({**s, "y": [v / factor for v in s["y"]],
-                            "label": f"{s['label']} ÷{_fmt_plot_factor(factor)}", "scaled": True})
+            new_s = {**s, "y": [v / factor for v in s["y"]],
+                      "label": f"{s['label']} ÷{_fmt_plot_factor(factor)}", "scaled": True}
+            if s.get("goal") is not None:
+                new_s["goal"] = s["goal"] / factor
+            scaled.append(new_s)
     return scaled
 
 
@@ -6991,8 +7021,11 @@ def _apply_individual_factors(series: list[dict], factors: dict[str, float]) -> 
         if not k or k == 1.0:
             out.append(s)
         else:
-            out.append({**s, "y": [v * k for v in s["y"]],
-                         "label": f"{s['label']} ×{_fmt_plot_factor(k)}", "scaled": True})
+            new_s = {**s, "y": [v * k for v in s["y"]],
+                      "label": f"{s['label']} ×{_fmt_plot_factor(k)}", "scaled": True}
+            if s.get("goal") is not None:
+                new_s["goal"] = s["goal"] * k
+            out.append(new_s)
     return out
 
 
@@ -7035,6 +7068,41 @@ def _nutrient_plot_raw_series(conn, chosen: list[str], dates: list[str],
             s["highlight"] = True
         series.append(s)
     return series
+
+
+_NUTRIENT_PLOT_GOAL_SUBTITLE = "(Dashed lines indicate profile goal levels)"
+
+
+def _nutrient_plot_goal(profile, diet_pref: str, key: str) -> float | None:
+    """The single reference value a Nutrient Plot dashed goal line marks for
+    one chosen nutrient key, from the currently-active profile (a flat
+    reference line isn't meaningfully "per logged day", so this doesn't use
+    day_profile's per-date pinned profile the way DCP scoring does). Prefers
+    a user-configured Optimal target (profile.compute_optimal) over the
+    built-in RDA/AI/limit (profile.compute_rda) when both exist — Optimal is
+    the value the user deliberately chose to aim for instead. Returns None
+    when no profile is set or the nutrient has neither."""
+    if profile is None:
+        return None
+    if key == _DCP_PLOT_KEY:
+        rda = _profile.compute_rda(profile, diet_pref=diet_pref)
+        entry = rda.get("protein_g")
+        return entry[0] if entry else None
+    optimal = _profile.compute_optimal(profile).get(key)
+    if optimal:
+        return optimal[0]
+    rda_entry = _profile.compute_rda(profile, diet_pref=diet_pref).get(key)
+    return rda_entry[0] if rda_entry else None
+
+
+def _nutrient_plot_add_goals(series: list[dict], profile, diet_pref: str) -> list[dict]:
+    """Attach each series' flat goal value (see _nutrient_plot_goal) under
+    its "goal" key. plotting.line_plot_image draws the dashed reference
+    line in whatever color that series' data line ends up in (explicit or
+    auto-assigned), so the two always match without this needing to know
+    the plot's color-assignment order itself."""
+    return [({**s, "goal": goal} if (goal := _nutrient_plot_goal(profile, diet_pref, s["key"])) is not None else s)
+            for s in series]
 
 
 DEFAULT_SMOOTHING_DAYS = 3
@@ -7332,6 +7400,7 @@ async def nutrient_plot_image(
         highlight_key = _resolve_highlight(chosen, highlight)
         raw_series = _nutrient_plot_raw_series(conn, chosen, dates, highlight_key)
 
+    raw_series = _nutrient_plot_add_goals(raw_series, _profile.load_profile(), _current_diet_pref())
     raw_series = _apply_smoothing(raw_series, _parse_smoothing_window(smoothing))
 
     factor = _parse_plot_factor(scale_factor) or _default_plot_scale_factor(raw_series)
@@ -7347,9 +7416,11 @@ async def nutrient_plot_image(
 
     plot_title = _user_plot_title(title) or _nutrient_plot_default_title(dates)
     plot_ylabel = _nutrient_plot_ylabel(chosen, series)
+    plot_subtitle = _NUTRIENT_PLOT_GOAL_SUBTITLE if any(s.get("goal") is not None for s in series) else ""
 
     image_bytes = line_plot_image(series, xlabel="Date", ylabel=plot_ylabel,
-                                   title=plot_title, image_format=image_format, grayscale=grayscale,
+                                   title=plot_title, subtitle=plot_subtitle,
+                                   image_format=image_format, grayscale=grayscale,
                                    hide_y_values=(plot_ylabel == _GENERIC_PLOT_YLABEL))
     media_type = "image/svg+xml" if image_format == "svg" else "image/png"
     headers = ({"Content-Disposition": f'attachment; filename="numa-nutrient-plot.{image_format}"'}

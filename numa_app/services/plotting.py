@@ -48,13 +48,24 @@ DPI = 150
 
 
 def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "",
-                     image_format: str = "png", grayscale: bool = False,
+                     subtitle: str = "", image_format: str = "png", grayscale: bool = False,
                      hide_y_values: bool = False) -> bytes:
     """Render a line plot to image bytes (PNG or SVG). Each series dict:
     {"x": [...], "y": [...], "label": str, "color": str (optional),
-    "highlight": bool (optional)}. All series share the same x (a date
-    string list); a missing value should be passed as float("nan") so the
-    line breaks instead of interpolating across the gap.
+    "highlight": bool (optional), "goal": float (optional)}. All series
+    share the same x (a date string list); a missing value should be passed
+    as float("nan") so the line breaks instead of interpolating across the
+    gap.
+
+    A series with a numeric "goal" gets a horizontal dashed reference line
+    drawn across the full plot width, in that series' own color, marking a
+    fixed target level (e.g. a profile RDA/optimal target) rather than a
+    data point.
+
+    subtitle: an optional smaller line of text under the main title (e.g.
+    explaining the goal dashed lines) — rendered as the figure's suptitle
+    plus an axes-level title, so it can carry a distinct (smaller) font size
+    from `title` itself; ignored if `title` is blank.
 
     hide_y_values: when different nutrients on the chart are on different
     per-series scale factors, no single number on a shared y-axis means
@@ -99,12 +110,18 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
             linestyle = "-"
         ax.plot(s["x"], s["y"], color=color, linestyle=linestyle, linewidth=1,
                  marker="o", markersize=3, label=s.get("label") or f"Series {i + 1}")
+        goal = s.get("goal")
+        if goal is not None:
+            ax.axhline(y=goal, color=color, linestyle="--", linewidth=1)
     ax.set_xlabel(xlabel)
     if hide_y_values:
         ax.set_yticklabels([])
     else:
         ax.set_ylabel(ylabel)
-    if title:
+    if title and subtitle:
+        fig.suptitle(title, y=0.98)
+        ax.set_title(subtitle, fontsize=9, style="italic", color="#555555")
+    elif title:
         ax.set_title(title)
     ax.grid(True, color=GRID_COLOR, linewidth=0.6)
     ax.set_axisbelow(True)

@@ -136,3 +136,4 @@ Two corrections to keep in mind while reading old chat sessions:
       2026-08-31 (`numa_app/services/update_check.py`, home page banner). Checks GitHub's
       latest-release API against `version.py`'s `VERSION`, cached in-process, fails
       silently offline. See today's `user-manual.md` Appendix A entry for detail.
+𝗦𝗵𝗶𝗻 𝗕𝘂𝗱𝗱𝗵𝗶𝘀𝗺: 𝗕𝗶𝘁𝘀 𝗼𝗳 𝗥𝘂𝗯𝗯𝗹𝗲 𝗧𝘂𝗿𝗻𝗲𝗱 𝗶𝗻𝘁𝗼 𝗚𝗼𝗹𝗱

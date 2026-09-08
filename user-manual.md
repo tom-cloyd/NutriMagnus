@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-07:0001* / Reading time: 4 hours, 30 minutes
+*Updated 2026-09-07:2251* / Reading time: 4 hours, 32 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -229,7 +229,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-07), there are 793 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-07), there are 795 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, and `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
@@ -2151,6 +2151,8 @@ Whichever interface you use, the same fields apply:
 
 Once saved, the food appears in every search and can be used in meals and recipes exactly like any other food. Edit or delete it from the same place you created it, at any time.
 
+**Editing the `p1`, `p2`, … portion shortcuts.** A food created by copying an existing one carries over that food's saved portions ("1 cup," "1 slice," and so on) exactly as-is — the custom-profile form itself doesn't have a portions editor. To add, remove, or change one, go to that food's [Food Cache](#food-cache-web) entry and use its **Portions** action, the same tool used for any cached food — see [A food's portion or serving-size data looks wrong](#ts-no-piece-portion) for how. This works whether the food started from scratch or as a copy, since a custom profile is still just a food in the cache underneath.
+
 #### Dietary supplements — tablets, capsules, softgels
 
 Supplement labels give amounts per tablet, not per 100 g. NuMa handles this with **supplement mode**: create a custom food profile as above, set the serving size to **1** with a unit of `tablet`, `capsule`, `softgel`, or similar, then enter the nutrient amounts exactly as printed on the label. Logging "1 [unit]" in a meal then adds exactly those label amounts to your totals — no weighing involved, and no conversion math on your part.
@@ -2538,7 +2540,7 @@ Two ways to avoid this:
 1. **Check the portion list shown right where you type the amount** — Foods, Recipes, and Meals all display the food's full portion set with its real shortcut number next to each entry (e.g. `p1 oz (14.2 g) · p2 1.75" square (3.0 g) · p3 …`) immediately above or below the amount field. Match against that list, not against a portion's name.
 2. **Re-check after any portion edit.** Adding, removing, or reordering a food's portions renumbers every `pN` from that point on — a `p1` amount you entered correctly last week can silently mean something else today if you've since added or removed an earlier portion. If a `pN` amount doesn't come out the way you expect, re-open that food's [Manage Portions](#food-cache-web) page and count down the list before assuming something's broken.
 
-*See also:* [USDA standard portions and the `pN` shortcut](#portion-formats).
+*See also:* [USDA standard portions and the `pN` shortcut](#portion-formats). A custom food profile copied from an existing food starts with that food's portions carried over unchanged — see [Editing the p1, p2, … portion shortcuts](#custom-foods) — so the same renumbering rule applies there too.
 
 ### G. Getting more help{:#quickhelp}
 
@@ -2614,6 +2616,40 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 7 program updates
+
+**NUTRIENT PLOT: DASHED LINES NOW SHOW EACH NUTRIENT'S PROFILE GOAL**
+
+The Nutrient Plot page, and any copy of it shown on the Home page, now draws a dashed horizontal line for each plotted nutrient at its profile goal level (your configured Optimal target if you've set one, otherwise the standard RDA/AI/limit) — in that nutrient's own line color, so it's easy to see at a glance how your logged days compare. A small note under the title, "(Dashed lines indicate profile goal levels)," explains the dashed lines; it only appears when at least one plotted nutrient actually has a goal to show.
+
+<!--
+```
+Scope: numa_app/services/plotting.py (line_plot_image: per-series "goal"
+axhline in the series' own color, plus an optional smaller subtitle drawn
+via fig.suptitle + ax.set_title), web/backend.py (_nutrient_plot_goal,
+_nutrient_plot_add_goals — Optimal target takes precedence over RDA/AI/
+limit; Day DCP uses the protein RDA). Uses the currently-active profile,
+not day_profile's per-date pinned profile, since a flat reference line
+isn't a per-day quantity. Goal values are scaled/inverse-scaled alongside
+their series' y-values by the existing step-1/step-2 scale-factor logic so
+the dashed line stays correctly positioned after rescaling.
+```
+-->
+
+**MANAGE PORTIONS: REORDER PORTIONS, AND SEE EACH ONE'S `pN` SHORTCUT**
+
+The Manage Portions page (a food's Food Cache entry → **Portions**) now shows each portion's `p1`, `p2`, … shortcut right in the list, and has up/down buttons to reorder portions instead of only add/remove. Each click saves immediately and reloads the page with a confirmation, since there's no separate Save step. A short explanation of what portions and their shortcuts do, with a [learn more...](#portion-formats) link, was also added above the list. See [Editing the p1, p2, … portion shortcuts](#custom-foods) and [A food's portion "pN" shortcut points to the wrong portion](#ts-portion-numbering).
+
+<!--
+```
+Scope: web/backend.py (new food_cache_portions_move route), web/templates/food_cache_portions.html.
+Reordering swaps two entries in portions_json via the existing
+update_food_portions() helper, same pattern as add/delete; the pN shown per
+row is just loop.index (1-based), matching how _parse_portion_str already
+resolves pN to a list position.
+```
+-->
 
 #### September 6 program updates
 

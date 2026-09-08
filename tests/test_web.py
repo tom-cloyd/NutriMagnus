@@ -3230,6 +3230,28 @@ def test_nutrient_plot_rolling_includes_today_once_marked_complete(client: TestC
     assert img.status_code == 200
 
 
+def test_nutrient_plot_image_renders_goal_lines(client: TestClient, cached_food) -> None:
+    """The plot image endpoint succeeds when the active profile gives chosen
+    nutrients a goal value (Day DCP's protein RDA, plus a user-configured
+    Optimal target) — exercising the dashed-goal-line/subtitle code path
+    end to end, not just checking it doesn't raise on nutrients with no
+    goal at all."""
+    profile = _profile.load_profile()
+    profile.optimal_targets = {"calories": 2200.0}
+    _profile.save_profile(profile)
+
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    img = client.get("/summary/nutrient-plot/image?nutrients=dcp&nutrients=calories")
+    assert img.status_code == 200
+    assert img.headers["content-type"] == "image/png"
+
+
 def test_nutrient_plot_home_pref_rolling_with_trailing_params_stays_checked(client: TestClient, cached_food) -> None:
     """Regression for a bug where "Show on Home page" immediately unchecked
     itself whenever rolling was on AND a param that sorts after days_back in
@@ -3291,3 +3313,51 @@ def test_nutrient_plot_stale_home_qs_offers_remove_button(client: TestClient, ca
 
     home = client.get("/")
     assert "Your nutrient plot" not in home.text
+
+
+def test_food_cache_portions_move_swaps_order_and_renumbers_shortcuts(client: TestClient, db_conn):
+    """Manage Portions page: the up/down move route swaps a portion with its
+    neighbor, which changes which pN shortcut points at it. Out-of-range
+    moves (first item up, last item down) must be no-ops, not errors."""
+    fdc_id = 999010
+    portions = [
+        {"description": "1 cup", "gram_weight": 100.0},
+        {"description": "1 slice", "gram_weight": 30.0},
+        {"description": "1 piece", "gram_weight": 50.0},
+    ]
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (fdc_id, "Test Food", "SR Legacy", json.dumps({"protein_g": 0}), json.dumps(portions)),
+    )
+    db_conn.commit()
+
+    resp = client.post(f"/food/cache/{fdc_id}/portions/move",
+                        data={"portion_index": 1, "direction": "up"})
+    assert resp.status_code == 200
+    # A real move gets an on-page confirmation, since the reorder happens
+    # instantly on click with no separate Save step.
+    assert "Portion order updated." in resp.text
+    row = db_conn.execute("SELECT portions_json FROM foods WHERE fdc_id=?", (fdc_id,)).fetchone()
+    updated = json.loads(row["portions_json"])
+    assert [p["description"] for p in updated] == ["1 slice", "1 cup", "1 piece"]
+
+    # Moving the first item up is a no-op, and gets no confirmation message.
+    resp = client.post(f"/food/cache/{fdc_id}/portions/move",
+                        data={"portion_index": 0, "direction": "up"})
+    assert resp.status_code == 200
+    assert "Portion order updated." not in resp.text
+    row = db_conn.execute("SELECT portions_json FROM foods WHERE fdc_id=?", (fdc_id,)).fetchone()
+    assert [p["description"] for p in json.loads(row["portions_json"])] == ["1 slice", "1 cup", "1 piece"]
+
+    # Moving the last item down is a no-op.
+    resp = client.post(f"/food/cache/{fdc_id}/portions/move",
+                        data={"portion_index": 2, "direction": "down"})
+    assert resp.status_code == 200
+    row = db_conn.execute("SELECT portions_json FROM foods WHERE fdc_id=?", (fdc_id,)).fetchone()
+    assert [p["description"] for p in json.loads(row["portions_json"])] == ["1 slice", "1 cup", "1 piece"]
+
+    # Shortcuts (rendered as p1/p2/p3 in list order) reflect the new order.
+    page = client.get(f"/food/cache/{fdc_id}/portions")
+    assert re.search(r"p1</code>\s*</td>\s*<td>1 slice", page.text)
+    assert re.search(r"p2</code>\s*</td>\s*<td>1 cup", page.text)
