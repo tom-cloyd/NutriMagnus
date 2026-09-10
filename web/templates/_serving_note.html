@@ -1,0 +1,5 @@
+{# Shared "(1 serving = X)" annotation for wherever a recipe's serving count
+   is shown, so a recipe's human-readable serving description (e.g. "1
+   muffin") stays visible next to the raw number rather than only living on
+   the Edit Recipe page. No-op when the recipe has no serving_size set. #}
+{% macro note(serving_size) %}{% if serving_size %} <span class="muted">(1 serving = {{ serving_size }})</span>{% endif %}{% endmacro %}

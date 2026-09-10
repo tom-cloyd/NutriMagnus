@@ -24,7 +24,7 @@
       <select name="recipe_id" id="recipe_id" class="form-select">
         {% for r in recipes %}
         <option value="{{ r.id }}" {% if selected_recipe and selected_recipe.id == r.id %}selected{% endif %}>
-          {{ r.name }} ({{ r.servings }} serving{% if r.servings != 1 %}s{% endif %})
+          {{ r.name }} ({{ r.servings }} serving{% if r.servings != 1 %}s{% endif %}{% if r.serving_size %} = {{ r.serving_size }}{% endif %})
         </option>
         {% endfor %}
       </select>
@@ -55,7 +55,7 @@
       <td class="muted">{{ r.id }}</td>
       <td>{{ r.name }}</td>
       <td class="muted">{{ r.description or "—" }}</td>
-      <td class="muted">{{ r.servings }}</td>
+      <td class="muted">{{ r.servings }}{% if r.serving_size %} <small>({{ r.serving_size }})</small>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -72,7 +72,7 @@
 <h3>
   {{ analysis.recipe_name }}
   <small class="text-muted" style="font-size:1rem">
-    — {{ analysis.servings_analyzed }} serving{% if analysis.servings_analyzed != 1 %}s{% endif %} analyzed
+    — {{ analysis.servings_analyzed }} serving{% if analysis.servings_analyzed != 1 %}s{% endif %} analyzed{% if analysis.serving_size %} (1 serving = {{ analysis.serving_size }}){% endif %}
   </small>
 </h3>
 

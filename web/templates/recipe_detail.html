@@ -2,6 +2,7 @@
 {% import "_ul_column.html" as _ul %}
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_top_contributors.html" as _contrib %}
+{% import "_serving_note.html" as _sn %}
 {% block title %}NutriMagnus — {{ recipe.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -114,11 +115,11 @@
   {% else %}
   <span class="badge bg-secondary">Incomplete</span>
   {% endif %}
-  <small class="text-muted">{{ recipe.servings }} serving{% if recipe.servings != 1 %}s{% endif %} defined</small>
+  <small class="text-muted">{{ recipe.servings }} serving{% if recipe.servings != 1 %}s{% endif %} defined{{ _sn.note(recipe.serving_size) }}</small>
 </div>
 
 {% if diaas and diaas.dcp_g is not none and diaas.total_protein_g %}
-<p class="mb-1">{{ servings }} serving{% if servings != 1 %}s{% endif %} analyzed &rArr;
+<p class="mb-1">{{ servings }} serving{% if servings != 1 %}s{% endif %} analyzed{{ _sn.note(recipe.serving_size) }} &rArr;
   <strong>{{ diaas.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</p>
 {% set unusable_g = (diaas.total_protein_g - diaas.dcp_g) | round(1) %}
 {% if unusable_g > 0 %}
@@ -185,7 +186,7 @@
   <label class="form-label mb-0">Analyze</label>
   <input type="number" name="servings" value="{{ servings }}" min="0.1" step="0.1"
          class="form-control form-control-sm" style="width:6rem" aria-label="Servings to analyze">
-  <span class="form-text mb-0">serving{% if servings != 1 %}s{% endif %}</span>
+  <span class="form-text mb-0">serving{% if servings != 1 %}s{% endif %}{{ _sn.note(recipe.serving_size) }}</span>
   <button type="submit" class="btn btn-sm btn-primary">Re-analyze</button>
 </form>
 
@@ -207,7 +208,7 @@
         </div>
         <div class="ps-dcp-item">
           <div class="ps-dcp-num">{{ "%.1f"|format(total_recipe_dcp) }}&thinsp;g</div>
-          <div class="ps-dcp-sub">full recipe ({{ recipe.servings }} servings)</div>
+          <div class="ps-dcp-sub">full recipe ({{ recipe.servings }} servings){{ _sn.note(recipe.serving_size) }}</div>
         </div>
       </div>
       {% else %}
@@ -275,7 +276,7 @@
         <td class="num-col muted">{{ loop.index }}</td>
         <td class="num-col" style="white-space:nowrap">
           {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
-            {{ ing.amount | round(2) | string | replace(".0", "") }} srv
+            {{ ing.amount | round(2) | string | replace(".0", "") }} srv{{ _sn.note(ing.ref_serving_size) }}
           {% else %}
             {{ ing.amount | round(1) }}&thinsp;g{% if ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}
           {% endif %}
@@ -367,7 +368,7 @@
 {% if nutrient_sections %}
 <section id="sec-nutrients" class="analysis-section">
   <h3 class="section-heading">Nutritional Analysis
-    <small class="muted" style="font-weight:400"> — {{ servings }} serving{% if servings != 1 %}s{% endif %}</small>
+    <small class="muted" style="font-weight:400"> — {{ servings }} serving{% if servings != 1 %}s{% endif %}{{ _sn.note(recipe.serving_size) }}</small>
     {{ manual_link("nutrients") }}
   </h3>
 
@@ -626,7 +627,7 @@
   <p class="muted mt-1"><small>Every essential amino acid — including whichever one shows as "limiting" above — already meets or exceeds the FAO reference level. "Limiting" identifies the amino acid with the smallest margin, not a deficiency. {{ manual_link("gap") }}</small></p>
   {% else %}
   {% if recipe.servings and recipe.servings > 1 %}
-  <p class="muted mt-2"><small><strong>Amounts below are sized to the whole recipe ({{ recipe.servings }} servings)</strong>, not one serving — that's the only way to act on a suggestion (add an ingredient to the batch). Each amount also shows its per-serving equivalent in parentheses. {{ manual_link("comp-recipe-scale", "Learn more") }}</small></p>
+  <p class="muted mt-2"><small><strong>Amounts below are sized to the whole recipe ({{ recipe.servings }} servings)</strong>{{ _sn.note(recipe.serving_size) }}, not one serving — that's the only way to act on a suggestion (add an ingredient to the batch). Each amount also shows its per-serving equivalent in parentheses. {{ manual_link("comp-recipe-scale", "Learn more") }}</small></p>
   {% endif %}
   <p class="muted mt-2"><small>{{ complements.comp_ranking_note }}</small></p>
   <p class="mb-1">
@@ -845,7 +846,7 @@ document.getElementById('complements-form').addEventListener('change', function 
 <section id="sec-antinutrients" class="analysis-section">
   <h3 class="section-heading">Anti-nutrients {{ manual_link("antinutrients") }}</h3>
   {% if oxalate %}
-  <h4 class="mt-2 mb-1" style="font-size:1rem">Oxalate ({{ servings }} serving{{ 's' if servings != 1 else '' }})</h4>
+  <h4 class="mt-2 mb-1" style="font-size:1rem">Oxalate ({{ servings }} serving{{ 's' if servings != 1 else '' }}){{ _sn.note(recipe.serving_size) }}</h4>
   {% if oxalate.total_mg is not none %}
   <p class="mt-1 mb-2"><strong>Total: {{ oxalate.total_mg }}&thinsp;mg</strong></p>
   {% endif %}

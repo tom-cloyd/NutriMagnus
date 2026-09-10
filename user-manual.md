@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-07:2251* / Reading time: 4 hours, 32 minutes
+*Updated 2026-09-09:2212* / Reading time: 4 hours, 37 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -1423,12 +1423,12 @@ Shows on meal and recipe detail pages, just above the Nutrient Analysis Table. P
 Columns:
 
     Food / Recipe   Name of the contributing food, linked to its detail page.
-                    On a meal's table, the header just says "Food" — any
-                    recipe used in that meal is broken into its individual
-                    foods for this table, so no row ever names a whole
-                    recipe. (A recipe's own Top Contributors table can
-                    legitimately show a sub-recipe by name, so it keeps the
-                    "Food / Recipe" header.)
+                    On a meal's table, the header instead says "Food or
+                    ingredient" — any recipe used in that meal is broken
+                    into its individual foods for this table, so no row
+                    ever names a whole recipe. (A recipe's own Top
+                    Contributors table can legitimately show a sub-recipe
+                    by name, so it keeps the "Food / Recipe" header.)
     Amount          This food's contribution, in the selected nutrient's unit.
     % of total      This food's share of the summed contribution across every
                     food in the meal or recipe (not a percent of any daily
@@ -1874,7 +1874,7 @@ Columns:
               recipe   = This ingredient is itself a saved recipe (nested).
     Food    Ingredient name.
 
-Nested recipes (ID = recipe) have their nutrients scaled automatically from their recorded serving count and total weight.
+Nested recipes (ID = recipe) have their nutrients scaled automatically from their recorded serving count and total weight. Note that a nested recipe's Amount here is always a plain serving count, never a `pN` shortcut — see [Recipes: servings instead of `pN`](#portions-vs-servings) for why recipes and foods work differently here.
 
 **Unsaved recipe-details edits and adding an ingredient.** The Recipe details fields (name, servings, instructions, etc.) at the top of the Edit Recipe page save separately from the ingredient list — clicking "Add to recipe" doesn't normally touch them. If you've changed one of those fields without clicking "Save recipe details" yet and then add an ingredient, a warning appears: adding the ingredient will save those pending changes for you rather than silently discard them. Choose Cancel to go back and finish editing those fields first, or Continue to save them and add the ingredient in one step.
 
@@ -2616,6 +2616,118 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 9 program updates
+
+**RECIPES LIST: SORT BY RECIPE NUMBER; A SEARCH-RESULT CURSOR-FOCUS BUG FIXED**
+
+The Recipes list's **Sort by** dropdown now offers **Recipe number**, alongside Last accessed, Name, and DCP/serving. Separately, on the Edit Recipe page's ingredient search: after a search, the cursor is supposed to land automatically in the first result's amount field — it does on every other search-results list in the app (Meals & Log, most notably), but on this one it silently didn't, in two ways: it only ever looked for a food ingredient's amount box, so if the very first result was actually a recipe (which uses a differently-named field), focus landed on the wrong row or nowhere; and even when it did find the right box, a page-wide script elsewhere immediately stole focus back to the Search button. Both are now fixed, matching Meals & Log's already-correct behavior.
+
+<!--
+```
+Scope: web/backend.py (_RECIPE_SORT_KEYS gains "id"), web/templates/recipes.html
+(new <option value="id"> in the Sort by select). web/templates/recipe_edit.html
+(the {% block scripts %} search-focus script): selector now matches
+.add-food-form input[name="portion_str"] OR input[name="servings"] (a
+nested-recipe ingredient row uses the latter) instead of only portion_str;
+the focus() call is now deferred via setTimeout(0), same fix already applied
+in meal.html, since base.html's global autofocus-to-Search-button script
+(scoped to any [autofocus] input already holding a value) runs synchronously
+right after this page's own scripts and would otherwise steal focus back to
+the Search button on every load. Regression test:
+test_recipe_edit_search_focus_script_covers_recipe_rows_and_defers in
+tests/test_web.py.
+```
+-->
+
+**MEAL ANALYSIS: TOP CONTRIBUTORS COLUMN RENAMED FOR ACCURACY**
+
+On a meal's Top Contributors table, the first column header now reads **Food or ingredient** instead of just "Food" — a small wording fix, since a recipe used in that meal is broken into its individual ingredients for this table, so "ingredient" is often the more accurate word for what a row actually names. (A recipe's own Top Contributors table, which can legitimately show a whole sub-recipe by name, keeps its existing "Food / Recipe" header.)
+
+**HOME PAGE PLOT AND RECENT DAYS: SURFACING WHICH DAYS AREN'T MARKED COMPLETE YET**
+
+The Home page's saved Nutrient Plot, when its "Roll to last complete day" option is on, silently stops at the most recent day whose meals are *all* marked complete — a day with even one still-in-progress meal, and every day after it, just doesn't appear, with no indication why. The Home page now says so directly under that plot, with a link to **Meals & Log** to find and complete the meal that's holding it back. Separately, the Recent Days table (both the Daily Summary landing page and the same table shown when viewing one day's full analysis) now has a **Complete** column — a checkmark if every meal logged that date is marked complete, otherwise a link that jumps to Meals & Log around that date.
+
+<!--
+```
+Scope: web/backend.py (home route now parses the saved home_nutrient_plot_qs
+for rolling=1 and passes plot_rolls_to_complete to home.html; new
+db.day_completion_map() — one GROUP BY query mapping meal_date -> "all
+meals complete" — feeding a new day_complete field on each row returned by
+_build_day_rows(), shared by /summary and the day-detail sidebar),
+web/templates/home.html (conditional caveat paragraph under the plot image,
+linking to /meals), web/templates/summary.html (new Complete column; a
+day's link target is /meals?date=<date>, reusing meal_list_recent()'s
+existing before_date filter to jump the Meals & Log list to that date rather
+than adding a new exact-date filter). Regression tests:
+test_home_page_plot_notes_rolling_to_complete_day and
+test_recent_days_shows_complete_column in tests/test_web.py.
+```
+-->
+
+**RECIPE EDIT: NAME WHAT ONE SERVING ACTUALLY IS**
+
+The Edit Recipe page now has a **Serving description** field (with suggestions like "1 muffin," "1 cookie," "1 slice" — or type your own) for saying, in plain terms, what one serving of a recipe actually is — previously a recipe's serving was just a number with no way to attach a real-world unit to it. Once set, it shows up everywhere that recipe's serving count is displayed: the recipe's own page, the Recipes list, the "Analyze a Saved Recipe Portion" page, the [Convert](#convert) tool's named portion for that recipe, and — when the recipe is nested as an ingredient inside another recipe or added to a meal — right next to the serving-count field there too. See [Recipes: servings instead of `pN`](#portions-vs-servings).
+
+<!--
+```
+Scope: db.py (recipe.serving_size column already existed but was dead — never
+read for recipes anywhere; recipe_list()/recipe_list_recent() now select it),
+web/backend.py (recipe_edit_post now saves the submitted serving_size instead
+of only preserving the existing value; _attach_ref_serving_sizes() looks up a
+nested ingredient's own recipe's serving_size for ingredient-list display;
+recipe search-result dicts for meal-add and recipe-add-ingredient now carry
+serving_size; food_convert_recipe's auto-built "1 serving" portion now reads
+"1 serving (1 muffin)" when set), web/templates/_serving_note.html (new
+shared macro rendering " (1 serving = X)", imported wherever a recipe's
+serving count is shown: recipe_detail.html, recipe_edit.html, _add_food_row.html),
+web/templates/recipes.html and food_analyze_recipe_portion.html (serving_size
+shown alongside the servings column/heading). Regression test:
+test_recipe_serving_description_shows_everywhere_servings_appear in
+tests/test_web.py.
+```
+-->
+
+**RECIPE EDIT: TOTAL YIELD VOLUME, AND A DATA-LOSS BUG FIXED**
+
+The Edit Recipe page (Recipe details section) now has a **Total yield volume (mL)** field alongside the existing Number of servings and Total yield weight — together these are a recipe's "portion size," used by the [Convert](#convert) tool to translate a recipe's amounts between servings, weight, and volume. Also fixed: saving the Instructions or Introduction box on a recipe was silently erasing that recipe's total yield volume (and an internal serving-size field) back to blank, because those two save actions re-saved the whole recipe row without carrying those fields forward — now they do.
+
+<!--
+```
+Scope: web/templates/recipe_edit.html (new total_volume input, mL only —
+matches the existing backend assumption that only "ml" is understood for
+weight/volume density conversion), web/backend.py (recipe_edit_post now
+accepts and saves total_volume, always as unit "ml"; recipe_instructions_post
+and recipe_introduction_post now carry total_volume/total_volume_unit/
+serving_size through unchanged instead of omitting them from the
+_db.recipe_update() call, which defaulted those columns to NULL on every
+such save). serving_size has no UI of its own (only ever set via CSV/manual
+import) so it's preserved but not exposed. Regression test:
+test_recipe_edit_total_volume_persists_across_other_saves in tests/test_web.py.
+```
+-->
+
+**PRINT PAGES: HALF-SHEET LAYOUT, PAPER SIZE, AND A QUICK PROTEIN LINE**
+
+Every printable page (food, recipe, meal, and daily summary) now offers a **Print layout** choice — Full sheet or Half sheet — and a **Paper size** choice — US Letter or A4 — right above the "Include on this printout" checkboxes. Half sheet shrinks the title, tightens the space between the title and the "#123 / 1.0 serving analyzed..." line underneath it, and squeezes the line spacing throughout, including the Ingredients list. Paper size sets the exact page dimensions the browser's own Print / Save as PDF preview paginates against, so opening that preview shows real page breaks for whichever paper you're actually printing on. Both choices are remembered for next time. Also, when "Protein summary (DCP)" is checked, a small-print one-line summary (e.g. "DCP: 29.8 g · Complete protein") now appears as the third line on the page, right under the title and subtitle, in addition to the full Protein Summary section further down.
+
+<!--
+```
+Scope: numa_app/services/print_sections.py (PRINT_LAYOUTS, PRINT_PAPERS,
+PRINT_PAGE_SIZES, PRINT_PAGE_MARGINS, resolve_layout/resolve_paper/
+save_layout_prefs/resolve_layout_context), web/templates/print.html
+(layout/paper <select>s in the existing section-picker form, body.layout-half
+compact CSS, a @page { size; margin } rule driven by the resolved paper, and
+a .protein-oneline paragraph reading from either `protein` (food) or `diaas`/
+`protein_adequacy` (recipe/meal/day) context), web/backend.py (all 5 routes
+that render print.html: food_print, meal_print, meal_day_print, recipe_print,
+recipe_translation_print — each now resolves layout/paper the same way
+sections are resolved: query params win when submitted, else the saved pref,
+else full/letter). Paper size only sets @page, which most browsers honor as
+the default paper size / auto-selected page breaks in their print preview —
+it does not override a printer's own paper tray setting.
+```
+-->
 
 #### September 7 program updates
 
@@ -4157,6 +4269,20 @@ Many [USDA](#gloss-usda) foods include pre-defined portion sizes (e.g. "1 medium
     1.5 p1     one-and-a-half times USDA portion #1
 
 **`p1`, `p2`, … mean "the food's 1st portion, 2nd portion, …" — position in the list, never the portion's own text.** This trips people up specifically when you add a custom portion (via [Food Cache](#food-cache-web) → **Portions**) and happen to *name* it something like `p1`: that name has no effect on its shortcut number. If it's the fourth portion in the list, its shortcut is `p4`, no matter what you called it. Every screen where you type a `pN` shortcut — Foods, Recipes, Meals — also lists that food's full portion set with the real shortcut number next to each one; check that list before typing `pN`, don't guess from a portion's name. Adding, removing, or reordering portions on a food also renumbers every `pN` that follows the changed spot, so re-check the list after any portion edit, too — see [A food's portion "pN" shortcut points to the wrong portion](#ts-portion-numbering) if a `pN` amount doesn't come out the way you expected.
+
+RECIPES: SERVINGS INSTEAD OF `pN` {: #portions-vs-servings}
+
+Every `pN` shortcut above belongs to *foods*. Recipes never have a `p1`, `p2`, … list, and that isn't a missing feature — it's because recipes don't need one.
+
+A food is measured in grams, and `pN` exists purely to hide that gram math: `p1` means "don't make me weigh out 1 medium egg myself, just use the preset." A recipe's native unit, by contrast, is already **servings** — so wherever you enter an amount of a recipe (adding it to a meal, or adding it as a nested ingredient inside another recipe), you get a plain **Servings** field, and typing `1` there already means exactly "1 serving." There's no gram math to shortcut, so there's no `pN` to shortcut it with.
+
+That doesn't mean a recipe's per-serving weight is undefined — it's derived automatically from two fields on the Edit Recipe page's Recipe details section: **Number of servings** and **Total yield weight**. Divide one by the other and you get grams per serving, live, the moment both are filled in — nothing extra to set. A recipe with `servings = 21` and `total yield weight = 1942.5 g`, for example, already means "1 serving = 92.5 g" everywhere that recipe is used, without you ever typing 92.5 anywhere.
+
+The one place the literal text `p1` *does* work for a recipe is the [Convert](#convert) tool — type `p1` there for a recipe and it resolves to that same auto-derived "1 serving" weight. That isn't a general recipe feature, though: Convert happens to reuse the same portion-parsing code that handles foods' `pN`, and it treats a recipe's one implicit "1 serving" as if it were portion #1. Everywhere else in the app, just use the Servings field directly.
+
+92.5 g is accurate, but it doesn't say what you're actually holding. If a recipe's serving has a natural real-world name — 1 muffin, 1 cookie, 1 slice — set it in the **Serving description** field, right next to Number of servings on the Edit Recipe page. This doesn't change the math at all; it's a label, not a unit conversion. Once set, it shows up as "(1 serving = 1 muffin)" wherever the recipe's serving count is already shown — the recipe's own page, the Recipes list, Convert's named portion, and next to the Servings field anywhere the recipe is added as an ingredient or meal item.
+
+See also [Recipe Ingredient List](#recipe-ingredients) for where these Servings fields appear, and for the Recipe details fields — including Total yield weight and Total yield volume — on the Edit Recipe page.
 
 OMITTING THE SPACE
 

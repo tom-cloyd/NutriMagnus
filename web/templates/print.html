@@ -39,18 +39,55 @@
       text-decoration: none; margin-right: 0.5rem;
     }
     .section-form label { display: block; font-size: 0.9rem; margin-bottom: 0.3rem; }
+    .layout-form { margin-bottom: 1rem; }
+    .layout-form label { font-size: 0.9rem; margin-right: 1.2rem; }
+    .layout-form select { font-size: 0.9rem; margin-left: 0.3rem; }
+    .protein-oneline { font-size: 0.75rem; color: #555; margin: 0 0 0.6rem; }
+
+    /* Half-sheet layout: smaller title, tighter spacing throughout, subtitle
+       pulled directly under the title instead of leaving a blank line. */
+    body.layout-half { font-size: 9.5pt; line-height: 1.25; }
+    body.layout-half h1 { font-size: 1.1rem; margin-bottom: 0.1rem; }
+    body.layout-half .meta { margin-top: 0; margin-bottom: 0.5rem; }
+    body.layout-half h2 { font-size: 1rem; margin-top: 0.8rem; margin-bottom: 0.3rem; }
+    body.layout-half h3 { font-size: 0.9rem; margin-top: 0.5rem; margin-bottom: 0.2rem; }
+    body.layout-half p { margin: 0.3rem 0; }
+    body.layout-half td, body.layout-half th { padding: 0.05rem 0.35rem; font-size: 0.8rem; }
+    body.layout-half .card { padding: 0.35rem 0.5rem; margin: 0.25rem 0; }
+
     @media print {
       .no-print { display: none; }
       body { margin: 0; }
     }
+    {% if page_css_size %}
+    @page { size: {{ page_css_size }}; margin: {{ page_css_margin }}; }
+    {% endif %}
   </style>
 </head>
-<body>
+<body class="layout-{{ layout or 'full' }}">
 
 <div class="no-print">
   <form method="get" action="{{ request.url.path }}" class="section-form">
     {% for key, url_val in fixed_params.items() %}<input type="hidden" name="{{ key }}" value="{{ url_val }}">{% endfor %}
     <input type="hidden" name="sections_submitted" value="1">
+    <input type="hidden" name="layout_submitted" value="1">
+    <div class="layout-form">
+      <label>Print layout:
+        <select name="layout" onchange="this.form.submit()">
+          {% for key, label in print_layouts.items() %}
+          <option value="{{ key }}" {% if key == layout %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Paper size:
+        <select name="paper" onchange="this.form.submit()">
+          {% for key, label in print_papers.items() %}
+          <option value="{{ key }}" {% if key == paper %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <span class="muted" style="font-size:0.8rem">Paper size sets the exact page size the browser's print/PDF preview will paginate to — use it to see real page breaks before printing.</span>
+    </div>
     <p><strong>Include on this printout:</strong></p>
     {% for key, label in section_labels.items() %}
     {% if key in available_sections %}
@@ -68,6 +105,25 @@
 
 <h1>{{ title }}</h1>
 {% if subtitle %}<p class="meta">{{ subtitle }}</p>{% endif %}
+{% if "protein_summary" in enabled and (diaas or protein) %}
+<p class="protein-oneline">
+  {%- if diaas -%}
+    {%- if diaas.dcp_g is not none -%}
+      DCP: {{ diaas.dcp_g }}&thinsp;g
+      {%- if diaas.score is not none and diaas.score >= 0.9 %} &middot; Complete protein{% else %} &middot; {{ diaas.limiting_label or "Incomplete" }}{% endif -%}
+    {%- elif diaas.score is not none -%}
+      Composite DIAAS: {{ "%.3f"|format(diaas.score) }}
+    {%- endif -%}
+  {%- elif protein -%}
+    {%- if protein.dcp_g is not none -%}
+      DCP: {{ protein.dcp_g }}&thinsp;g
+      {%- if protein.complete %} &middot; Complete protein{% else %} &middot; Incomplete — limiting AA: {{ protein.limiting_aa }}{% endif -%}
+    {%- elif protein.diaas is not none -%}
+      DIAAS: {{ "%.2f"|format(protein.diaas) }}
+    {%- endif -%}
+  {%- endif -%}
+</p>
+{% endif %}
 {% if translated and disclaimer %}
 <p class="fst-italic" style="font-style:italic;color:#555">{{ disclaimer }}</p>
 {% endif %}

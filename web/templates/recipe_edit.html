@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
+{% import "_serving_note.html" as _sn %}
 {% block title %}NutriMagnus — Edit {{ recipe.name }}{% endblock %}
 
 {% block content %}
@@ -104,6 +105,37 @@
                      {% if recipe.complete %}checked{% endif %}>
               <label class="form-check-label" for="complete">Mark recipe as complete</label>
             </div>
+          </div>
+        </div>
+
+        <div class="row mb-2">
+          <div class="col-sm-5 col-lg-5">
+            <label class="col-form-label" for="serving_size">Serving description <small class="text-muted">(optional)</small></label>
+            <input type="text" class="form-control" id="serving_size" name="serving_size"
+                   value="{{ recipe.serving_size or '' }}" list="serving-size-suggestions"
+                   placeholder="e.g. 1 muffin" style="max-width:16rem">
+            <datalist id="serving-size-suggestions">
+              <option value="1 piece">
+              <option value="1 muffin">
+              <option value="1 cupcake">
+              <option value="1 cookie">
+              <option value="1 slice">
+              <option value="1 bar">
+              <option value="1 roll">
+              <option value="1 patty">
+              <option value="1 ball">
+              <option value="1 scoop">
+            </datalist>
+            <div style="font-size:0.75rem" class="muted">What one serving actually is, in plain terms — shown everywhere this recipe's servings appear (e.g. "1 serving = 1 muffin").</div>
+          </div>
+          <div class="col-sm-4 col-lg-4">
+            <label class="col-form-label">Total yield volume <small class="text-muted">(optional, mL)</small></label>
+            <div class="input-group" style="max-width:16rem">
+              <input type="number" class="form-control" name="total_volume"
+                     value="{{ recipe.total_volume or '' }}" min="0" step="any">
+              <span class="input-group-text">mL</span>
+            </div>
+            <div style="font-size:0.75rem" class="muted">Lets the <a href="/food/convert/recipe/{{ recipe.id }}">Convert</a> tool translate this recipe's amounts between servings, weight, and volume.</div>
           </div>
         </div>
       </div>
@@ -273,7 +305,7 @@
                   <input type="number" class="form-control" name="servings" value="1"
                          min="0.01" max="999" step="0.01" aria-label="Servings" required>
                   <span class="input-group-text">serving{% if food.servings != 1 %}s{% endif %}
-                    <small class="muted ms-1">({{ food.servings | round(2) }} total)</small>
+                    <small class="muted ms-1">({{ food.servings | round(2) }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% endif %})</small>
                   </span>
                   <button type="submit" class="btn btn-primary">Add to recipe</button>
                 </div>
@@ -468,8 +500,23 @@
 {% if search_results %}
 <script>
 (function () {
-  var inp = document.querySelector('.add-food-form input[name="portion_str"]');
-  if (inp) inp.focus();
+  // Once results are showing, the natural next action is to type an amount
+  // into the first one — put the cursor straight there. The selector covers
+  // both row types (portion_str for a food ingredient, servings for a
+  // nested-recipe ingredient) and picks whichever comes first in document
+  // order, so this lands on the true first row regardless of its type — see
+  // the equivalent script in meal.html. A plain synchronous call here would
+  // be undone by base.html's later autofocus-to-Search-button script (this
+  // block runs first, but that script runs right after it in document order
+  // and unconditionally steals focus back whenever the search box already
+  // holds a value); deferring one tick with setTimeout(0) runs this after
+  // every synchronous script on the page — including that one — has
+  // finished, so this focus wins instead.
+  function focusFirstResultField() {
+    var inp = document.querySelector('.add-food-form input[name="portion_str"], .add-food-form input[name="servings"]');
+    if (inp) inp.focus();
+  }
+  setTimeout(focusFirstResultField, 0);
 })();
 </script>
 {% endif %}

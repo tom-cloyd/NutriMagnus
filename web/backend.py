@@ -11,7 +11,7 @@ import sys
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode
 
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -1417,10 +1417,18 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
         update_available = None
     prefs = _load_prefs_file()
     home_plot_qs = prefs.get("home_nutrient_plot_qs") if prefs.get("home_nutrient_plot_enabled") else None
+    # "Roll to last complete day" (see _nutrient_plot_params) truncates the
+    # plotted date range at the most recent day whose meals are ALL marked
+    # complete — so a day with even one still-incomplete meal, and anything
+    # after it, silently disappears from the plot. The plot itself gives no
+    # indication this is happening, so the Home page caption below it needs
+    # to say so explicitly when this plot has that toggle on.
+    plot_rolls_to_complete = bool(home_plot_qs) and parse_qs(home_plot_qs).get("rolling", ["0"])[0] == "1"
     return templates.TemplateResponse(
         request, "home.html", {
             "home_body": _render_home_md_short() if home_plot_qs else _render_home_md(),
             "home_plot_qs": home_plot_qs,
+            "plot_rolls_to_complete": plot_rolls_to_complete,
             "show_plot_notice": has_any_meals and not home_plot_qs,
             "version": VERSION, "version_note": NEW_VERSION_NOTE,
             "version_date": VERSION,
@@ -1828,6 +1836,7 @@ async def food_analyze_recipe_portion_post(
         "analysis": {
             "recipe_name":       recipe["name"],
             "servings_analyzed": servings,
+            "serving_size":      recipe["serving_size"],
         },
         "ingredients":        display_ingredients,
         "nutrient_sections":  _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits),
@@ -1995,7 +2004,8 @@ async def food_convert_recipe(
     # Build named portions from total_weight / servings
     portions: list[dict] = []
     if total_weight and servings > 0:
-        portions = [{"description": "1 serving", "gram_weight": round(total_weight / servings, 1)}]
+        serving_label = f"1 serving ({recipe['serving_size']})" if recipe["serving_size"] else "1 serving"
+        portions = [{"description": serving_label, "gram_weight": round(total_weight / servings, 1)}]
 
     density: float | None = None
     if total_weight and total_volume and vol_unit in ("ml", "mL") and total_volume > 0:
@@ -3530,6 +3540,9 @@ async def food_print(
     portion_str: str = Query(default=""),
     sections: list[str] = Query(default=[]),
     sections_submitted: bool = Query(default=False),
+    layout: str = Query(default=""),
+    paper: str = Query(default=""),
+    layout_submitted: bool = Query(default=False),
 ):
     ctx = _food_detail_context(fdc_id, amount, portion_str, [], [])
     if "error" in ctx:
@@ -3540,8 +3553,10 @@ async def food_print(
     available = _food_available_sections(ctx)
     prefs = _load_prefs_file()
     enabled = _print_sections.resolve_sections("food", available, sections, sections_submitted, prefs)
-    if sections_submitted:
-        _save_prefs_file(_print_sections.save_sections("food", enabled, prefs))
+    layout_ctx = _print_sections.resolve_layout_context(layout, paper, layout_submitted, prefs)
+    save_update = layout_ctx.pop("_save_update")
+    if sections_submitted or save_update:
+        _save_prefs_file({**_print_sections.save_sections("food", enabled, prefs), **save_update})
 
     subtitle_bits = [b for b in [ctx["food"].get("data_type"),
                                   f"{ctx['portion_label'] or (str(ctx['amount']) + ' g')}"] if b]
@@ -3555,6 +3570,7 @@ async def food_print(
         "section_labels":     _print_sections.PRINT_SECTION_LABELS,
         "available_sections": available,
         "enabled":            enabled,
+        **layout_ctx,
         **ctx,
     })
 
@@ -4237,6 +4253,7 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
             "recipe_id":     r["id"],
             "name":          r["name"],
             "servings":      float(r["servings"] or 1),
+            "serving_size":  r["serving_size"],
             "total_weight":  r["total_weight"],
             "total_weight_unit": r["total_weight_unit"] or "g",
             "total_volume":  r["total_volume"],
@@ -4568,6 +4585,9 @@ async def meal_print(
     meal_id: int,
     sections: list[str] = Query(default=[]),
     sections_submitted: bool = Query(default=False),
+    layout: str = Query(default=""),
+    paper: str = Query(default=""),
+    layout_submitted: bool = Query(default=False),
 ):
     ctx = _meal_print_context(meal_id)
     if ctx is None:
@@ -4576,8 +4596,10 @@ async def meal_print(
     available = _meal_available_sections(ctx)
     prefs = _load_prefs_file()
     enabled = _print_sections.resolve_sections("meal", available, sections, sections_submitted, prefs)
-    if sections_submitted:
-        _save_prefs_file(_print_sections.save_sections("meal", enabled, prefs))
+    layout_ctx = _print_sections.resolve_layout_context(layout, paper, layout_submitted, prefs)
+    save_update = layout_ctx.pop("_save_update")
+    if sections_submitted or save_update:
+        _save_prefs_file({**_print_sections.save_sections("meal", enabled, prefs), **save_update})
 
     return templates.TemplateResponse(request, "print.html", {
         "title":              ctx["meal"]["name"],
@@ -4589,6 +4611,7 @@ async def meal_print(
         "available_sections": available,
         "enabled":            enabled,
         "portion_label":      "this meal",
+        **layout_ctx,
         **ctx,
     })
 
@@ -5073,6 +5096,9 @@ async def meal_day_print(
     meal_id: int,
     sections: list[str] = Query(default=[]),
     sections_submitted: bool = Query(default=False),
+    layout: str = Query(default=""),
+    paper: str = Query(default=""),
+    layout_submitted: bool = Query(default=False),
 ):
     ctx = _meal_day_context(meal_id)
     if ctx is None:
@@ -5081,8 +5107,10 @@ async def meal_day_print(
     available = _day_available_sections(ctx)
     prefs = _load_prefs_file()
     enabled = _print_sections.resolve_sections("day", available, sections, sections_submitted, prefs)
-    if sections_submitted:
-        _save_prefs_file(_print_sections.save_sections("day", enabled, prefs))
+    layout_ctx = _print_sections.resolve_layout_context(layout, paper, layout_submitted, prefs)
+    save_update = layout_ctx.pop("_save_update")
+    if sections_submitted or save_update:
+        _save_prefs_file({**_print_sections.save_sections("day", enabled, prefs), **save_update})
 
     return templates.TemplateResponse(request, "print.html", {
         "title":              f"Daily Summary — {ctx['meal_date']}",
@@ -5095,6 +5123,7 @@ async def meal_day_print(
         "enabled":            enabled,
         "portion_label":      "full day",
         "day_meals":          ctx["meals"],
+        **layout_ctx,
         **ctx,
     })
 
@@ -5430,6 +5459,7 @@ _RECIPE_SORT_KEYS = {
     "name":       lambda r: (r["name"] or "").lower(),
     "recent":     lambda r: r["last_accessed_at"] or r["created_at"] or "",
     "dcp":        lambda r: r["dcp_g"] if r["dcp_g"] is not None else -1.0,
+    "id":         lambda r: r["id"],
 }
 
 
@@ -5966,6 +5996,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         for _ing in ingredients:
             if not _ing["ref_recipe_id"] and _ing["amount"]:
                 _ing["volume_display"] = volume_hint(_ing["amount"], _ing["food_name"])
+        _attach_ref_serving_sizes(conn, ingredients)
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
         recipe_servings = float(recipe["servings"] or 1)
@@ -6115,6 +6146,9 @@ async def recipe_print(
     servings: float | None = None,
     sections: list[str] = Query(default=[]),
     sections_submitted: bool = Query(default=False),
+    layout: str = Query(default=""),
+    paper: str = Query(default=""),
+    layout_submitted: bool = Query(default=False),
 ):
     ctx = _recipe_detail_context(recipe_id, servings, [], [])
     if ctx is None:
@@ -6123,13 +6157,16 @@ async def recipe_print(
     available = _recipe_available_sections(ctx)
     prefs = _load_prefs_file()
     enabled = _print_sections.resolve_sections("recipe", available, sections, sections_submitted, prefs)
-    if sections_submitted:
-        _save_prefs_file(_print_sections.save_sections("recipe", enabled, prefs))
+    layout_ctx = _print_sections.resolve_layout_context(layout, paper, layout_submitted, prefs)
+    save_update = layout_ctx.pop("_save_update")
+    if sections_submitted or save_update:
+        _save_prefs_file({**_print_sections.save_sections("recipe", enabled, prefs), **save_update})
 
     return templates.TemplateResponse(request, "print.html", {
         "title":              ctx["recipe"]["name"],
         "subtitle":           f"#{recipe_id} / {ctx['servings']} serving{'s' if ctx['servings'] != 1 else ''} analyzed"
-                              f"{' · ' + str(ctx['recipe']['servings']) + ' servings per recipe' if ctx['recipe'].get('servings') else ''}",
+                              f"{' · ' + str(ctx['recipe']['servings']) + ' servings per recipe' if ctx['recipe'].get('servings') else ''}"
+                              f"{' (1 serving = ' + ctx['recipe']['serving_size'] + ')' if ctx['recipe'].get('serving_size') else ''}",
         "back_url":           f"/recipe/{recipe_id}",
         "back_label":         "Back to recipe",
         "fixed_params":       {"servings": ctx["servings"]},
@@ -6138,6 +6175,7 @@ async def recipe_print(
         "enabled":            enabled,
         "portion_label":      f"{ctx['servings']} serving{'s' if ctx['servings'] != 1 else ''}",
         "oxalate_agg":        ctx["oxalate"],
+        **layout_ctx,
         **{k: v for k, v in ctx.items() if k != "oxalate"},
     })
 
@@ -6155,7 +6193,24 @@ def _recipe_ingredients_with_volume(conn, recipe_id: int) -> list[dict]:
     for ing in ingredients:
         if not ing["ref_recipe_id"] and ing["amount"]:
             ing["volume_display"] = volume_hint(ing["amount"], ing["food_name"])
+    _attach_ref_serving_sizes(conn, ingredients)
     return ingredients
+
+
+def _attach_ref_serving_sizes(conn, ingredients: list[dict]) -> None:
+    """For each ingredient that's a nested sub-recipe (ref_recipe_id set),
+    attach that sub-recipe's own serving_size (e.g. "1 muffin") as
+    ref_serving_size, so ingredient-list displays showing "N srv" can show
+    what a serving of that sub-recipe actually is, right alongside it."""
+    ref_ids = {ing["ref_recipe_id"] for ing in ingredients if ing.get("ref_recipe_id")}
+    sizes = {}
+    for rid in ref_ids:
+        sub = _db.recipe_get(conn, rid)
+        if sub:
+            sizes[rid] = sub["serving_size"]
+    for ing in ingredients:
+        if ing.get("ref_recipe_id"):
+            ing["ref_serving_size"] = sizes.get(ing["ref_recipe_id"])
 
 
 def _original_recipe_fields(recipe: dict, target_language: str) -> dict:
@@ -6291,6 +6346,9 @@ async def recipe_translation_print(
     translation_id: int,
     sections: list[str] = Query(default=[]),
     sections_submitted: bool = Query(default=False),
+    layout: str = Query(default=""),
+    paper: str = Query(default=""),
+    layout_submitted: bool = Query(default=False),
 ):
     ctx = _recipe_detail_context(recipe_id, None, [], [])
     if ctx is None:
@@ -6307,8 +6365,10 @@ async def recipe_translation_print(
     available = _recipe_available_sections(ctx)
     prefs = _load_prefs_file()
     enabled = _print_sections.resolve_sections("recipe", available, sections, sections_submitted, prefs)
-    if sections_submitted:
-        _save_prefs_file(_print_sections.save_sections("recipe", enabled, prefs))
+    layout_ctx = _print_sections.resolve_layout_context(layout, paper, layout_submitted, prefs)
+    save_update = layout_ctx.pop("_save_update")
+    if sections_submitted or save_update:
+        _save_prefs_file({**_print_sections.save_sections("recipe", enabled, prefs), **save_update})
 
     return templates.TemplateResponse(request, "print.html", {
         "title":              ctx["recipe"]["name"],
@@ -6321,6 +6381,7 @@ async def recipe_translation_print(
         "enabled":            enabled,
         "portion_label":      f"{ctx['servings']} serving{'s' if ctx['servings'] != 1 else ''}",
         "oxalate_agg":        ctx["oxalate"],
+        **layout_ctx,
         **{k: v for k, v in ctx.items() if k != "oxalate"},
     })
 
@@ -6364,6 +6425,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         for _ing in ingredients:
             if not _ing["ref_recipe_id"]:
                 _ing["amount_display"] = _ing_amount_display(_ing["unit"], _ing["amount"], _ing["food_name"])
+        _attach_ref_serving_sizes(conn, ingredients)
 
         # Running nutrition totals for edit-page live feedback — reuse the
         # same shared recipe-nutrient helpers the recipe detail page uses
@@ -6414,6 +6476,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 "recipe_id": r["id"],
                 "name":      r["name"],
                 "servings":  float(r["servings"] or 1),
+                "serving_size": r["serving_size"],
                 "data_type": "Recipe",
                 "source":    "recipe",
             })
@@ -6496,10 +6559,13 @@ async def recipe_edit_post(
     servings: float = Form(1),
     total_weight: str = Form(""),
     total_weight_unit: str = Form("g"),
+    total_volume: str = Form(""),
+    serving_size: str = Form(""),
     instructions: str = Form(""),
     complete: str = Form(""),
 ):
     tw = float(total_weight) if total_weight.strip() else None
+    tv = float(total_volume) if total_volume.strip() else None
     with _db.get_db() as conn:
         existing = _db.recipe_get(conn, recipe_id)
         _db.recipe_update(
@@ -6507,8 +6573,10 @@ async def recipe_edit_post(
             name=name.strip(), description=description.strip(),
             servings=max(1.0, servings), instructions=instructions.strip(),
             total_weight=tw, total_weight_unit=total_weight_unit if tw else None,
+            total_volume=tv, total_volume_unit="ml" if tv else None,
             complete=bool(complete),
             introduction=existing["introduction"] if existing else None,
+            serving_size=serving_size.strip() or None,
         )
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return RedirectResponse(f"/recipe/{recipe_id}/edit?saved=1", status_code=303)
@@ -6785,8 +6853,11 @@ async def recipe_instructions_post(recipe_id: int, instructions: str = Form(""))
             servings=recipe["servings"], instructions=instructions.strip(),
             total_weight=recipe["total_weight"],
             total_weight_unit=recipe["total_weight_unit"],
+            total_volume=recipe["total_volume"],
+            total_volume_unit=recipe["total_volume_unit"],
             complete=bool(recipe["complete"]),
             introduction=recipe["introduction"],
+            serving_size=recipe["serving_size"],
         )
     return RedirectResponse(f"/recipe/{recipe_id}#sec-procedure", status_code=303)
 
@@ -6803,8 +6874,11 @@ async def recipe_introduction_post(recipe_id: int, introduction: str = Form(""))
             servings=recipe["servings"], instructions=recipe["instructions"] or "",
             total_weight=recipe["total_weight"],
             total_weight_unit=recipe["total_weight_unit"],
+            total_volume=recipe["total_volume"],
+            total_volume_unit=recipe["total_volume_unit"],
             complete=bool(recipe["complete"]),
             introduction=introduction.strip(),
+            serving_size=recipe["serving_size"],
         )
     return RedirectResponse(f"/recipe/{recipe_id}/edit#sec-introduction", status_code=303)
 
@@ -7487,6 +7561,7 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
     # normally if picked (same as any other nutrient).
     nutrient_keys = [k for k in _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
                      if k not in MANDATORY_DAY_KEYS]
+    day_complete_map = _db.day_completion_map(conn)
     day_rows = []
     for r in rows:
         d = r["meal_date"]
@@ -7502,6 +7577,7 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
             "goal":           round(goal, 0) if goal else None,
             "pct_goal":       r["day_pct_goal"],
             "profile_name":   profile_name,
+            "day_complete":   day_complete_map.get(d, False),
             "mandatory_values": day_nutrient_values(conn, d, MANDATORY_DAY_KEYS),
             "nutrient_values": day_nutrient_values(conn, d, nutrient_keys),
         })

@@ -26,6 +26,7 @@
       <option value="recent" {% if sort == "recent" %}selected{% endif %}>Last accessed</option>
       <option value="name"   {% if sort == "name"   %}selected{% endif %}>Name</option>
       <option value="dcp"    {% if sort == "dcp"    %}selected{% endif %}>DCP/serving</option>
+      <option value="id"     {% if sort == "id"     %}selected{% endif %}>Recipe number</option>
     </select>
     <div class="form-check form-check-inline ms-2">
       <input type="checkbox" class="form-check-input" id="show_archived" name="show_archived"
@@ -100,7 +101,7 @@
         {% if r.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}
       </td>
       <td class="muted"><small>{{ r.description or "—" }}</small></td>
-      <td style="text-align:right">{{ r.servings }}</td>
+      <td style="text-align:right">{{ r.servings }}{% if r.serving_size %}<br><small class="muted">{{ r.serving_size }}</small>{% endif %}</td>
       <td style="text-align:right">
         {% if r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">NC (not computed)</span> {{ manual_link("recipes") }}{% endif %}
       </td>

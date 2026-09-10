@@ -1,3 +1,4 @@
+{% import "_serving_note.html" as _sn %}
 {% macro add_food_row(meal_id, food, q) %}
       <tr class="food-meta-row">
         <td class="confirm-col">
@@ -53,7 +54,7 @@
                        onchange="recipeAmtSwitch('{{ rid }}', this.value)">
                 <label class="form-check-label" for="amr-srv-{{ rid }}">
                   Servings
-                  <span class="muted" style="font-size:0.8rem">({{ food.servings | int if food.servings == food.servings | int else food.servings }} total)</span>
+                  <span class="muted" style="font-size:0.8rem">({{ food.servings | int if food.servings == food.servings | int else food.servings }} total){{ _sn.note(food.serving_size) }}</span>
                 </label>
               </div>
               {% if food.total_weight %}

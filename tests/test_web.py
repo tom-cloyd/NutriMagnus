@@ -319,6 +319,66 @@ def test_recipe_edit_running_totals_include_subrecipe_ingredient(client: TestCli
     assert "2.5&thinsp;g" in resp.text
 
 
+def test_recipe_edit_total_volume_persists_across_other_saves(client: TestClient, db_conn) -> None:
+    """Total yield volume is a recipe-level "portion size" field (alongside
+    servings and total yield weight) set on the Edit Recipe page. It must
+    survive later saves from the Instructions and Introduction forms, which
+    each re-save the whole recipe row — a prior bug omitted total_volume (and
+    serving_size) from those calls, silently wiping them back to null."""
+    resp = client.post("/recipe/new", data={"name": "Soup", "servings": 4}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+
+    client.post(f"/recipe/{recipe_id}/edit", data={
+        "name": "Soup", "servings": 4,
+        "total_weight": "1000", "total_weight_unit": "g",
+        "total_volume": "1200",
+    }, follow_redirects=False)
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["total_volume"] == 1200.0
+    assert recipe["total_volume_unit"] == "ml"
+
+    client.post(f"/recipe/{recipe_id}/instructions", data={"instructions": "Simmer."}, follow_redirects=False)
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["total_volume"] == 1200.0
+
+    client.post(f"/recipe/{recipe_id}/introduction", data={"introduction": "Grandma's soup."}, follow_redirects=False)
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["total_volume"] == 1200.0
+
+
+def test_recipe_serving_description_shows_everywhere_servings_appear(client: TestClient, db_conn) -> None:
+    """Serving description (e.g. "1 muffin") answers "what actually is one
+    serving of this recipe" — set once on the Edit Recipe page, it must then
+    show up wherever the recipe's serving count is displayed: the Edit Recipe
+    field itself, the recipe detail page header, and the Convert tool's named
+    portion for this recipe."""
+    resp = client.post("/recipe/new", data={"name": "Muffins", "servings": 12}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+
+    client.post(f"/recipe/{recipe_id}/edit", data={
+        "name": "Muffins", "servings": 12,
+        "total_weight": "600", "total_weight_unit": "g",
+        "serving_size": "1 muffin",
+    }, follow_redirects=False)
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["serving_size"] == "1 muffin"
+
+    edit_resp = client.get(f"/recipe/{recipe_id}/edit")
+    assert 'value="1 muffin"' in edit_resp.text
+
+    detail_resp = client.get(f"/recipe/{recipe_id}")
+    assert "1 serving = 1 muffin" in detail_resp.text
+
+    convert_resp = client.get(f"/food/convert/recipe/{recipe_id}")
+    assert "1 serving (1 muffin)" in convert_resp.text
+
+    # Surviving other recipe-detail saves (regression, same bug class as
+    # total_volume above).
+    client.post(f"/recipe/{recipe_id}/instructions", data={"instructions": "Bake."}, follow_redirects=False)
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["serving_size"] == "1 muffin"
+
+
 def test_food_search_by_barcode_prefers_cache_over_off(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -734,6 +794,31 @@ def test_recipe_edit_ingredient_search_shows_id_and_brand(client: TestClient, ca
     assert resp.status_code == 200
     assert 'class="col-id' in resp.text
     assert str(cached_food["fdcId"]) in resp.text
+
+
+def test_recipe_edit_search_focus_script_covers_recipe_rows_and_defers(client: TestClient, cached_food) -> None:
+    """Regression: the cursor-to-first-result autofocus script used to query
+    only input[name="portion_str"] — if the first search result was a
+    recipe (its row uses name="servings" instead), focus landed on whatever
+    later food row happened to have a portion_str field, or nowhere at all.
+    It also used to focus synchronously, which base.html's later
+    autofocus-to-Search-button script (search box already has a value on
+    this results page) would immediately steal back — same race meal.html's
+    version was already written to dodge with setTimeout(0). Both must be
+    fixed: the selector must include both field names, and the focus call
+    must be deferred."""
+    resp = client.post(
+        "/recipe/new",
+        data={"name": "Chicken Dish", "servings": 2},
+        follow_redirects=False,
+    )
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+
+    resp = client.get(f"/recipe/{recipe_id}/edit", params={"q": "chicken"})
+    assert resp.status_code == 200
+    text = resp.text
+    assert 'input[name="portion_str"], .add-food-form input[name="servings"]' in text
+    assert "setTimeout(focusFirstResultField, 0)" in text
 
 
 def test_recipe_ingredient_add_error_preserves_search_results(client: TestClient, cached_food) -> None:
@@ -3074,6 +3159,47 @@ def test_recent_days_protein_leads_and_calories_now_optional(client: TestClient,
     assert 'name="pos_protein_g"' in r2.text
 
 
+def test_recent_days_shows_complete_column(client: TestClient, cached_food) -> None:
+    """The Recent Days table (Daily Summary / /summary landing page) had no
+    way to see, per date, whether every meal logged that day is marked
+    complete — the only place that showed was Meals & Log, one meal at a
+    time. A Complete column now flags an incomplete day with a link that
+    jumps to Meals & Log around that date to find and complete it."""
+    today = datetime.date.today().isoformat()
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+
+    resp = client.post("/meals/create", data={"name": "Incomplete Meal", "meal_date": today}, follow_redirects=False)
+    incomplete_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{incomplete_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    resp = client.post("/meals/create", data={"name": "Complete Meal", "meal_date": yesterday}, follow_redirects=False)
+    complete_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{complete_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    client.post(f"/meal/{complete_id}/complete", follow_redirects=False)
+
+    r = client.get("/summary")
+    assert r.status_code == 200
+    assert ">Complete<" in r.text
+    # Isolate each date's actual table row (not the unrelated "Today's
+    # summary" link elsewhere on the page, which also contains today's date).
+    def _row_for(date: str) -> str:
+        m = re.search(rf"<tr[^>]*>\s*<td>{date}</td>.*?</tr>", r.text, re.DOTALL)
+        assert m, f"no table row found for {date}"
+        return m.group(0)
+    today_row = _row_for(today)
+    yesterday_row = _row_for(yesterday)
+    # Today's row (incomplete meal) links to Meals & Log to fix it; it has no checkmark.
+    assert f'href="/meals?date={today}"' in today_row
+    assert "&#10003;" not in today_row
+    # Yesterday's row (all meals complete) shows a checkmark, no fix-it link.
+    assert f'href="/meals?date={yesterday}"' not in yesterday_row
+    assert "&#10003;" in yesterday_row
+
+
 def test_nutrient_plot_home_page_toggle_is_prominent(client: TestClient, cached_food) -> None:
     """The "Show on Home page" control was easy to miss as a plain checkbox
     buried below the download/print buttons — it's now a highlighted alert
@@ -3175,6 +3301,37 @@ def test_home_page_nutrient_plot_notice(client: TestClient, cached_food) -> None
     client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
     r3 = client.get("/")
     assert "You can chart nutrients" not in r3.text
+
+
+def test_home_page_plot_notes_rolling_to_complete_day(client: TestClient, cached_food) -> None:
+    """The Home page's saved plot silently drops any day with an incomplete
+    meal (and everything after it) whenever "Roll to last complete day" is
+    on — the plot image itself gives no hint this is happening, so the Home
+    page must say so explicitly, with a link to Meals & Log to fix it. The
+    note is specific to that toggle: a plot saved without "rolling" doesn't
+    have this behavior, so it shouldn't show the note."""
+    import html
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    plot_resp = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=protein_g")
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', plot_resp.text).group(1))
+
+    # Without rolling -> no caveat note.
+    client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
+    r_no_rolling = client.get("/")
+    assert "only extends through the most recent day" not in r_no_rolling.text
+
+    # With rolling -> caveat note appears, linking to Meals & Log.
+    client.post("/summary/nutrient-plot/home-pref",
+                data={"qs": qs, "enabled": "1", "rolling": "1"}, follow_redirects=False)
+    r_rolling = client.get("/")
+    assert "only extends through the most recent day" in r_rolling.text
+    assert 'href="/meals"' in r_rolling.text
 
 
 def test_nutrient_plot_rolling_end_date(client: TestClient, cached_food) -> None:
@@ -3361,3 +3518,4 @@ def test_food_cache_portions_move_swaps_order_and_renumbers_shortcuts(client: Te
     page = client.get(f"/food/cache/{fdc_id}/portions")
     assert re.search(r"p1</code>\s*</td>\s*<td>1 slice", page.text)
     assert re.search(r"p2</code>\s*</td>\s*<td>1 cup", page.text)
+

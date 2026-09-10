@@ -131,8 +131,10 @@ with _db.get_db() as conn:
 **Row column names** (key tables):
 
 `recipe_list()` / `recipe_get()` rows:
-`id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete, last_accessed_at, total_weight, total_weight_unit`
-(`recipe_get` also returns `total_volume`, `total_volume_unit`, `instructions`)
+`id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete, last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit`
+(`recipe_get` is `SELECT *` and also returns `instructions`, `introduction`, `archived`)
+
+`serving_size` is a free-text human description of what one serving actually is (e.g. `"1 muffin"`), set on the Edit Recipe page — independent of `total_weight`/`servings`, which give the gram weight of that same serving. Shown wherever a recipe's serving count is displayed, via the `_serving_note.html` macro.
 
 `recipe_get_ingredients()` rows:
 `id, recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id`

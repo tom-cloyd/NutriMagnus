@@ -849,7 +849,7 @@ def recipe_count(conn: sqlite3.Connection, *, include_archived: bool = False) ->
 def recipe_list(conn: sqlite3.Connection, *, include_archived: bool = False) -> list[sqlite3.Row]:
     archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
-        "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete,"
+        "SELECT id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete,"
         " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived"
         f" FROM recipes {archived_clause} ORDER BY name"
     ).fetchall()
@@ -858,7 +858,7 @@ def recipe_list(conn: sqlite3.Connection, *, include_archived: bool = False) -> 
 def recipe_list_recent(conn: sqlite3.Connection, limit: int = 20, *, include_archived: bool = False) -> list[sqlite3.Row]:
     archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
-        "SELECT id, name, description, servings, dcp_g, dcp_computed_at, created_at, complete,"
+        "SELECT id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete,"
         " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived"
         f" FROM recipes {archived_clause} ORDER BY COALESCE(last_accessed_at, created_at) DESC LIMIT ?",
         (limit,)
@@ -1291,6 +1291,24 @@ def meal_dates_with_bcp(conn: sqlite3.Connection, limit: int = 30) -> list[sqlit
         """,
         (limit,),
     ).fetchall()
+
+
+def day_completion_map(conn: sqlite3.Connection) -> dict[str, bool]:
+    """meal_date -> True if every meal logged on that date is marked
+    complete. Used by the Recent Days table (Daily Summary and its /summary
+    landing page) so a day with an in-progress meal is visibly flagged,
+    matching the same "day_provisional" concept Meals & Log already shows
+    per meal — see last_complete_meal_date below for the related
+    single-most-recent-date lookup used by the Nutrient Plot's rolling
+    anchor."""
+    rows = conn.execute(
+        """
+        SELECT meal_date, SUM(CASE WHEN complete = 0 THEN 1 ELSE 0 END) AS incomplete_count
+        FROM meals
+        GROUP BY meal_date
+        """
+    ).fetchall()
+    return {r["meal_date"]: r["incomplete_count"] == 0 for r in rows}
 
 
 def last_complete_meal_date(conn: sqlite3.Connection) -> str | None:

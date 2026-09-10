@@ -74,6 +74,7 @@
     <thead class="table-light">
       <tr>
         <th>Date</th>
+        <th class="text-center" title="Whether every meal logged on this date is marked complete — an incomplete day's totals may still change">Complete</th>
         {% for col in mandatory_day_cols %}
         <th class="num-col" style="white-space:nowrap;line-height:1.2"{% if col.title %} title="{{ col.title }}"{% endif %}>{{ col_header(col.label) }}</th>
         {% endfor %}
@@ -93,6 +94,13 @@
       {% for r in day_rows %}
       <tr{% if r.meal_date == date_detail %} class="table-active"{% endif %}>
         <td>{{ r.meal_date }}</td>
+        <td class="text-center">
+          {% if r.day_complete %}
+          <span class="text-success" title="All meals on this date are marked complete">&#10003;</span>
+          {% else %}
+          <a href="/meals?date={{ r.meal_date }}" class="text-muted" title="At least one meal on this date isn't marked complete yet — click to find and complete it">&middot;</a>
+          {% endif %}
+        </td>
         {% for col in mandatory_day_cols %}
         <td class="num-col">
           {% if r.mandatory_values[col.key] is not none %}{{ r.mandatory_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
@@ -133,7 +141,8 @@
   </div>
   <p class="muted"><small>
     DCP = bioavailable (digestible) complete protein &middot;
-    — = not yet computed (open a meal and click <em>Compute DCP</em> from the <a href="/meals">Meals</a> page)
+    — = not yet computed (open a meal and click <em>Compute DCP</em> from the <a href="/meals">Meals</a> page) &middot;
+    Complete &#10003; = every meal logged that date is marked complete; &middot; = at least one isn't yet — click it to jump to <a href="/meals">Meals &amp; Log</a> around that date
     {% if not show_pct_col %}&middot; Set a profile in <a href="/settings">Settings</a> to see your daily protein goal{% endif %}
   </small></p>
   {% else %}
