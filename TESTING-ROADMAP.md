@@ -2,8 +2,10 @@
 
 Started 2026-08-28 in a Cowork session (with the VSCodium Claude extension
 handling the doc updates). This file is the handoff point for picking the
-work back up. Test suite is at 731 tests as of the last manual update
-(user-manual.md Part 2E, "Extensive code testing").
+work back up. Test suite is at 805 tests as of the last manual update
+(user-manual.md Part 2E, "Extensive code testing") — 731 as of 2026-08-28,
++69 from unrelated feature/bugfix work through 2026-09-09, +5 from item #2's
+remainder (below), completed 2026-09-09.
 
 ## Where this came from
 
@@ -68,34 +70,60 @@ Agreed sequence: 6 → 2 → 1, hold 3/4/5 until those land.
   the new property-based tier and current test count (731). Spot-checked
   this session: accurate, doesn't overstate coverage.
 
+## Done (2026-09-09)
+
+- **#2, the harder half — property tests against the suggestion-ranking
+  engine.** `usda_nutrients.py` read in full around `get_aa_gaps()` (line
+  143), `_score_one_complement()` (line 635, the shared gap-closing solver
+  both single-food tiers and the two-food "pairs" cascade delegate to), and
+  `suggest_complements()` (line 731). New file
+  `tests/test_complements_properties.py` (5 tests), verified against the
+  real code in this environment (not a reconstructed scratch copy — a real
+  full run was possible this time): 200-1800 examples per test across
+  several stress runs (10x-30x normal `max_examples`) before settling, zero
+  unexplained failures.
+  - `test_adequate_food_has_no_gaps` / `test_zeroed_aa_always_appears_as_the_worst_gap`
+    — baseline sanity checks on `get_aa_gaps()`.
+  - `test_gap_closing_is_monotonic_in_grams_added` — the "Monotonicity"
+    invariant, scoped to the actual AA-ratio math `_score_one_complement`
+    solves (not "pooled DIAAS," which is a different, DIAAS-improver-tier
+    calculation — see below for why that stayed out of scope).
+  - `test_suggested_grams_actually_closes_the_gap` — "Suggestion
+    self-consistency," checked directly against `_score_one_complement`'s
+    solved gram amount; a `>= 15g` filter excludes suggestions small enough
+    for integer-gram display rounding to reopen the gap by itself (found by
+    500 manual trials before writing the filter — a real, accepted
+    display-rounding tradeoff, not a bug).
+  - `test_pairs_cascade_closes_all_gaps_and_ranking_is_consistent` —
+    "Ranking stability," built from a deterministic two-candidate scenario
+    (candidate A closes the primary gap but zeroes out a second AA,
+    diluting it into a new gap; candidate B closes that second gap without
+    reopening the first) with Hypothesis varying the underlying quantities.
+    Checks both that the real `suggest_complements()` pairs tier reports
+    the constructed pair as `gaps_closed: True`, and that its sort order
+    (`gaps_closed and total_grams <= 50` ranks first) holds over whatever
+    the real call returns. A 10x-`max_examples` stress run caught one real
+    gap in the test's own preconditions — a large-quantity A+B combination
+    that correctly solved but was then, correctly, excluded by
+    `_build_pairs()`'s own `total_grams > 600` cap, which the test hadn't
+    accounted for; fixed by adding that same cap to the test's `assume()`
+    filter, not by narrowing the generated ranges.
+
+  **Scope note, disclosed rather than silently narrowed:** the original plan
+  also named `complements.py`'s `two_step_combo()` / `build_complement_display()`.
+  Those stayed out of scope — both are display/formatting wrappers that call
+  `exact_dcp()`, which opens a real DB connection (`diaas.meal_level_diaas`
+  via `db.get_db()`), so they aren't pure functions a Hypothesis property test
+  can exercise without a database fixture. The actual suggestion *math* those
+  two wrap is exactly `get_aa_gaps()` / `_score_one_complement()` /
+  `suggest_complements()` in `usda_nutrients.py`, which is what's now covered.
+  If `complements.py`'s own DB-dependent glue ever needs property coverage,
+  that's a distinct, not-yet-scoped follow-up (would need a temp DB fixture,
+  same pattern `tests/conftest.py` already uses for the behavioral suite).
+
 ## Not done — pick up here
 
-### 1. #2, the harder half: property tests against the suggestion-ranking engine
-
-Not started. This is `numa_app/services/complements.py`
-(`two_step_combo()`, `build_complement_display()`) and
-`usda_nutrients.py`'s `get_aa_gaps()` (line ~143) and `suggest_complements()`
-(line ~731, the biggest function in the codebase — not yet read in full).
-This is deliberately the harder half: it needed more read-and-verify time
-than was available in one sitting, and shipping unverified property tests
-against logic this central would be worse than not shipping them.
-
-Candidate invariants to test, once `suggest_complements()` is actually read:
-- **Monotonicity**: increasing a suggested gap-closer's grams never
-  decreases the resulting pooled DIAAS, up to full completion.
-- **Suggestion self-consistency**: whatever grams `build_complement_display()`
-  proposes to "close all gaps," feeding that amount back through
-  `diaas.meal_level_diaas()` actually clears the FAO floor it claims to
-  clear (this is the same idea as `complements.py`'s own `exact_dcp()`
-  helper — may be able to reuse it directly in the test).
-- Ranking stability: the promoted-to-top "full profile completer" rule
-  (serving size ≤ 50g) behaves correctly across generated inputs, not just
-  the hand-picked cases in `tests/test_complements.py`.
-
-Start by reading `usda_nutrients.py` lines ~700-950 (`suggest_complements`
-and whatever it calls) before writing anything.
-
-### 2. #3, the rest: cross-source data plausibility
+### 1. #3, the rest: cross-source data plausibility
 
 **Correction to the original framing, worth re-reading before starting:**
 of the six data sources, only **USDA** (`usda_api.py`), **CNF**
@@ -128,29 +156,33 @@ Two parts, per the original plan:
   those are exactly the sources with no native AA data. Nothing further
   needed here unless new gaps turn up.
 
-### 3. Run the real, full suite once
-
-Nothing in this session ever ran your actual 712→731-test suite in full —
-verification happened in a reconstructed scratch copy (the device shell was
-down all of 2026-08-28). Now that `tests.yml` is pushed, the next push/PR
-will run it for real in CI; also worth running `pytest -q` locally once just
-to see a clean full pass with your own eyes.
-
-### 4. Lower priority, unchanged from the original plan
+### 2. Lower priority, unchanged from the original plan
 
 - **#4 — narrow Playwright E2E** for the JS-driven async handoff routes
-  (`search-api-results` and similar).
+  (`search-api-results` and similar). Playwright itself is already present
+  in `.venv` as of 2026-09-09, but only as an incidental dependency of some
+  other tool — nothing in this project actually invokes it yet.
 - **#5 — mutation testing** to check whether the suite actually catches
   deliberate breaks.
 
-Both still queued behind #2 (remainder) and #3 (remainder) per the original
-sequencing — no new information changes that ordering.
+Both still queued behind #1 (cross-source fixtures) per the original
+sequencing — no new information changes that ordering. (#2's harder half is
+done, above — the remaining hold-out was #1 and #2/#3's Playwright/mutation
+tail, not #2 itself.)
 
-## Quick-start for tomorrow
+~~Run the real, full suite once~~ — done, repeatedly: `pytest -q` has been
+run clean, locally, in every session since 2026-08-28, and `tests.yml` has
+been running it on every push/PR the whole time. No longer worth listing as
+a distinct step.
 
-1. Re-read this file.
+## Quick-start for next session
+
+1. Re-read this file (the "Done (2026-09-09)" section above, specifically —
+   #2 is now fully closed, both halves).
 2. Confirm CI is green on the latest push (GitHub Actions tab).
-3. Open `usda_nutrients.py` around `suggest_complements()` (line ~731) —
-   that's the reading needed before #2's remainder can be written.
-4. Open `afcd_lookup.py`, `ciqual_lookup.py`, `cofid_lookup.py` to confirm
-   the "static JSON, not live API" correction above before touching #3.
+3. Open `afcd_lookup.py`, `ciqual_lookup.py`, `cofid_lookup.py` to confirm
+   the "static JSON, not live API" correction above before touching #1
+   (cross-source fixtures) — not yet done as of 2026-09-09.
+4. Item #1's fixture-recording step needs your real USDA API key and a live
+   network connection — plan to do that part via your own terminal or the
+   VSCodium extension, not a sandboxed session.
