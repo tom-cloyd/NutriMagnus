@@ -2,9 +2,13 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-09-05:1127
+UPDATED: 2026-09-10:2235
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
+
+Last quarterly source-fixture check: never — not yet run (see Maintenance section).
+
+Last annual static-dataset check: never — not yet run (see Maintenance section).
 
 ---
 
@@ -1353,6 +1357,16 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 
 A recurring maintenance pass, scoped to what changed since the last sweep — not a full re-audit each time. **Run the items in this order** — it's not arbitrary: pruning has to happen before the items that scan the changelog (so they're not reading entries about to be deleted), and the link check has to happen last (so it catches anything the manual-editing items introduce).
 
+**Before the numbered items below, check whether any longer-cadence maintenance is due** — this is the only place that check happens, so skipping it means those checks silently never run. Compare today's date against each date line in this file's header:
+
+- **Monthly deep check** — due if "Last monthly accuracy check" isn't in the current month. See that section below.
+- **Quarterly source-fixture refresh** — due if "Last quarterly source-fixture check" is 3+ months ago (or has never been run). See that section below.
+- **Annual static-dataset edition check** — due if "Last annual static-dataset check" is 12+ months ago (or has never been run). See that section below.
+- **Mutation-testing quarterly rotation** — due if the current rotation group's modules haven't been checked in 3+ months. See "Quarterly mutation-testing rotation" below.
+- **Mutation-testing weekly churn check** — a different kind of check, run every single week, not just when something is "due": for each module in that section's log NOT due this quarter, check whether it's had substantial code/test changes since its logged commit (`git log <commit>..HEAD -- <module> tests/...`) and flag it if so, per that section's procedure.
+
+Flag whichever are due, then run them (each has its own procedure in its own section) before or after the numbered weekly items — order between them and the weekly items doesn't matter, they don't share dependencies.
+
 1. **CLAUDE.md drift** — the package-layout listing near the top of `CLAUDE.md` is hand-maintained; check it against what's actually in `numa_app/` and the repo root, since new modules added during the week won't show up unless someone remembers to add them. Fast and independent — do it first for an easy win.
 2. **"NuMa" capitalization in prose** — `user-manual.md` and `README-numa-documentation.md` prose must say **NuMa** (never lowercase `numa` or mis-capitalized `Numa`) whenever referring to the program by name. This does *not* apply to filesystem paths, filenames, or code identifiers that happen to be spelled lowercase (`numa_app/`, `numa.db`, `~/.config/numa/`, `README-numa-documentation.md`, `cd numa`, `#gloss-numa` anchors) — only to the word used as the product name in a sentence. Quick check: `grep -n '\bnuma\b'` and `grep -n '\bNuma\b'` (word-boundary, so it won't match `numa_app`) over both files, then eyeball each hit — most existing hits will be legitimate paths. Fast and independent.
 3. **Vendored dependency check** — `web/static/vendor/bootstrap/` (CSS + JS, currently 5.3.8) is vendored locally rather than loaded from a CDN, so the app works offline. Low urgency since this is a locally-run app with no untrusted remote input reaching it, but worth a quick check for newer Bootstrap releases/patches at this cadence rather than a separate one. Also fast and independent.
@@ -1378,6 +1392,65 @@ This file (`README-numa-documentation.md`) doesn't get checked for accuracy by t
 **Also do a full `user-manual.md` audit this same week** — check the "Last full audit" date in the manual's own header (right below the "Updated" line); if it's not in the current month, this is due. Weekly sweep item 4 (Manual consolidation) only checks what changed since the last sweep — real but gradual drift (a section that was always subtly wrong, or drifted slowly across many small edits with no single triggering changelog entry) can slip past that every week and never get caught. A full audit reads every Part and Appendix against actual current app behavior, the same way item 4 does for a two-week window, just for the whole document. **This subsumes weekly item 4 for that week — skip item 4 separately, since the full audit already covers everything it would have found.** When done, update the manual's "Last full audit" line to today's date, same rule as the accuracy-check date above: update it every time the audit runs, even if nothing needed fixing.
 
 When done, update the "Last monthly accuracy check" line in this file's header to today's date, regardless of whether anything needed fixing — that line is what tells the next sweep whether this check is due, so it must be updated every time the check runs, not just when it finds something.
+
+### Quarterly source-fixture refresh (every 3 months)
+
+Three of the six food-data sources — USDA FoodData Central, Open Food Facts, and the Canadian Nutrient File — are live APIs that could silently change their response shape (a renamed field, a restructured value) and break parsing without any existing test catching it. AFCD/CoFID/CIQUAL don't need this: they're bundled static JSON files with no live API to drift (see `afcd_lookup.py`/`cofid_lookup.py`/`ciqual_lookup.py`'s docstrings).
+
+**Cadence: every 3 months**, not weekly or monthly. These are slow-moving sources — USDA and CNF are formally versioned government datasets that go years between breaking changes; Open Food Facts is crowd-sourced and the likeliest of the three to drift, but its own API is versioned (v0/v2) and its changes have historically been additive rather than silently breaking. Quarterly catches real drift within a few months of it happening without turning into makework for a risk that's realistically closer to "maybe once every year or two."
+
+**One-time setup (do this once, the first time this check is ever run):**
+
+1. **You:** run `python scripts/record_source_fixtures.py` from your own terminal (needs your real USDA API key already set via Settings → API key in the web app, and a live network connection — not a sandboxed AI session). It searches each of the three sources for three well-known foods, fetches full detail for each, and writes the raw JSON straight into `tests/fixtures/usda/`, `tests/fixtures/off/`, and `tests/fixtures/cnf/` — nothing to hand-assemble or move yourself; the script places the files.
+2. **Claude, in whatever session picks this up next:** with real fixture files now on disk, write `tests/test_source_fixtures.py` — a test that loads each JSON file and asserts the values still look sane (no negative numbers, essential-AA total never exceeds `protein_g`, `usda.has_amino_acid_data()` still returns `True` on the USDA/CNF samples). This step is pure code against files already on disk — no key or network needed, so there's no reason to do it yourself; just point Claude at the new fixture files. Once this test exists it runs automatically as part of the normal test suite from then on — nothing further to add here in future quarters.
+
+**Every quarter after that, only this:**
+
+1. **You:** re-run `python scripts/record_source_fixtures.py` from your own terminal (same key/network requirement as above) — it always overwrites the existing fixture files with fresh ones pulled live from each source.
+2. **Either — handing it to Claude afterward is fine:** `git diff tests/fixtures/` to see what changed, then run `pytest`. If a source changed its response shape, `test_source_fixtures.py` failing (or an unexpected-looking diff) is what surfaces it; if everything still passes, there's nothing else to do — commit the refreshed fixtures either way, so the test suite keeps validating against current, not stale, source data.
+3. Update the "Last quarterly source-fixture check" line in this file's header to today's date, regardless of whether anything needed fixing.
+
+### Annual static-dataset edition check
+
+AFCD, CoFID, and CIQUAL (`afcd_data.json`, `cofid_data.json`, `ciqual_data.json`) are bundled snapshots of official periodic releases — AFCD "Release 3," CoFID 2021, CIQUAL 2020 — built once by `scripts/build_afcd_data.py`/`build_cofid_data.py`/`build_ciqual_data.py` from a downloaded spreadsheet, not live APIs. They can't silently break the way the quarterly check's three live APIs can, but they can quietly go stale: the publishing body (FSANZ, McCance and Widdowson/PHE, ANSES) eventually releases a newer edition, and numa keeps serving the old one indefinitely with nothing to flag it.
+
+**Cadence: annually.** These tables are genuinely only re-published every few years each — checking any more often than yearly would just be re-confirming nothing has changed. Fold this into whichever monthly deep check falls in the same month as the last one (check the date line below).
+
+**Procedure:**
+
+1. Check each source's publishing page for a newer edition than the one currently bundled (see each `scripts/build_*_data.py` docstring for which edition/release is currently in use and where it was downloaded from).
+2. If a newer edition exists, download it and re-run the matching `scripts/build_*_data.py` to regenerate that source's `*_data.json`, then run `pytest` to confirm nothing downstream broke (nutrient key coverage, AA-data detection, etc.).
+3. If nothing's changed, there's nothing else to do this round.
+4. Update the "Last annual static-dataset check" line in this file's header to today's date, regardless of whether anything needed fixing.
+
+### Quarterly mutation-testing rotation, plus a weekly churn check
+
+Mutation testing (`mutmut`) deliberately breaks a small piece of the code (a "mutant") and reruns the tests to see if anything notices — it measures whether the test suite would actually catch a real bug, which a normal passing test run can't tell you. See TESTING-ROADMAP.md item #5 for the full pilot writeup (found and fixed a real gap: `diaas.py`'s `pooled_tid()`, used in 7 places, had zero test coverage anywhere in the suite).
+
+**This isn't a calendar-driven risk like the two checks above it** — a module doesn't develop a new coverage gap just because time passed; the risk only grows when the module's code or tests actually change. So this uses two separate mechanisms instead of one date:
+
+- **Quarterly rotation (the floor):** one subsystem group per quarter, so everything gets checked at least once a year regardless of how much or little it changed. See TESTING-ROADMAP.md's "Ongoing cadence for #5" section for the four groups and which one is next. **Next due: 2026-12-05** (rotation group 1 — core nutrient math — was run far more deeply than a normal rotation pass this session, well past the quarterly floor; group 2, data-source parsing, is next in sequence — see TESTING-ROADMAP.md's "Handoff notes for the next mutation-testing round" for what to actually do when this comes up).
+- **Weekly churn check (pulls a check forward early):** during every weekly sweep, check the log below against `git log` for each module *not* due this quarter — a module with substantial code or test changes since its last mutation-tested commit gets flagged, and you're asked then whether to run it now or leave it for its scheduled quarter. Nothing runs unattended between sessions; this only fires when the weekly sweep itself is run.
+
+**Procedure:**
+
+1. During the weekly sweep, for each module in the log below not due this quarter: `git log --oneline <last-tested-commit>..HEAD -- <module.py> tests/test_<module>*.py` — a nontrivial result (more than a trivial doc/comment change) means it's due early. Flag it and ask.
+2. To actually run a check: edit `[mutmut]` in `setup.cfg` (`source_paths` and `pytest_add_cli_args_test_selection`) to point at the module(s) in question, then `mutmut run` (see TESTING-ROADMAP.md's pilot writeup for real timing — a ~440-line module took about a minute). `mutmut results` lists survivors; `mutmut show <id>` shows the actual diff for one. Delete the generated `mutants/` dir when done (gitignored, regenerated every run).
+3. Triage survivors: a "no tests" result (nothing reaches that code at all) is always worth a look — that's the cheapest, highest-signal finding. A "survived" result needs a judgment call — some are real gaps, some are harmless "equivalent mutants" that don't actually change behavior (the pilot found one: a `>`/`>=` swap on a filter where the excluded/included item contributes zero either way). This triage step is Claude's job, not yours — you don't need the code familiarity to review it.
+4. Update the log entry below (module → today's date → current commit short hash) for whatever was just checked, whether or not anything needed fixing.
+
+**Log** (module → last mutation-tested → commit):
+
+| Module | Last checked | Commit |
+|---|---|---|
+| `diaas.py` | 2026-09-10 | Pilot run. `pooled_tid()` (used in 7 places) had zero test coverage — 10 new tests in `TestPooledTid` (weighted-average logic, boundary cases, an integration check against a real `meal_level_diaas()` call). 0/369 mutants survive against it now. One accepted equivalent mutant elsewhere in the file. See TESTING-ROADMAP.md item #5. |
+| `usda_nutrients.py` | 2026-09-10 | *(pending — see `diaas.py` row. Five rounds this day, in prep for the Windows port and upcoming releases. Rounds 1-2 fixed real gaps in `_score_one_complement()` — 105→39 survivors combined, including a recurring "tested only at digestibility=1.0" masking pattern, a permanently-unsatisfiable `or`→`and` guard, an arithmetic sign flip, and several dict-key-literal mutations. Round 3 targeted `suggest_complements()` directly: 394→209 (47% reduction), headlined by discovering its entire `diaas_improvers` tier (~95 lines, the numerical pooled-DIAAS search used for foods that can't analytically close a specific AA gap) had ZERO test coverage of any kind. Round 4 closed `get_density_g_per_ml()`: 53→13 (75% reduction) — the entire USDA-portion volume-unit parsing fallback had been almost completely untested. Round 5 went back into `suggest_complements()` with three sampling-and-fix cycles (a deliberate "how do we know when to stop" exercise): found and closed a second genuine concentration in `_build_pairs()`'s candidate-pool/leg-resolution logic (48%→38%→27% of remaining survivors across the three passes, confirming it converged to baseline scatter) — 209→117 (70% total reduction for the function). Real bugs found this round included a `continue`→`break` in `general_candidates` construction that could've silently hidden most of the "general" suggestions tier, and a `+=`→`-=` paired-AA bug in the pooled-DIAAS formula. `suggest_complements()`'s remaining 117 survivors are now confirmed scattered/low-value by re-sampling — this thread is at a reasonable stopping point. See TESTING-ROADMAP.md item #5 before treating this row as closed)* |
+| `profile.py` | 2026-09-10 | Rotation group 1. `rename_profile()`/`delete_profile()`/`get_profile_file()` had zero coverage (6 new tests, `TestProfileFileCrud`). `compute_rda()`'s age-threshold step functions (magnesium at 31, fiber at 50, calcium/iron boundaries) each had a survived exact-boundary mutant (existing tests only compared a young vs. old profile well past each threshold, never the boundary itself) — 11 new parametrized tests, `TestAgeBoundariesExact`. `compute_rda()` still has ~125 other survivors, mostly untestable default-parameter-value noise — not chased. See TESTING-ROADMAP.md item #5. |
+| `numa_app/services/complements.py` | 2026-09-10 | *(pending — see `diaas.py` row. Seven rounds this day. The originally-reported 757/191 survivor counts for `build_complement_display()`/`two_step_combo()` were inflated by a scoping artifact — isolated correctly they were 125/191, down from the original ~948 by 59% to 341/51. Real bugs fixed: `_grad_steps()`'s inverted fallback, `exact_dcp()`'s inverted return (had zero direct tests before), `load_cache_candidates()`'s break/continue bug and `"diaas"` field, `aa_effects()`'s `"label"`/`"met"`/`"before"` fields, `two_step_combo()`'s step1, step2, `exclude_names`, AND `aa_effects_limit` handling, `_dcp_at_frac()`'s weighted-pool formula, `has_estimate_or_generic`'s neutered check, three separate instances of a sneaky stable-sort-masking bug across different sort modes, the pairs tier's `total_dig_complete` multiply/divide bug. Two techniques proved dramatically more efficient than one-test-per-mutant sampling: comprehensive whole-dict field tests (round 4, biggest single drops), and systematically providing a real `ingredients` list to close the previously-untested per-ingredient `exact_dcp()` recompute path (rounds 6-7 — no new bugs found there, but confirmed correct wiring rather than leaving it unknown, including round 7's closure of `two_step_combo()`'s step2 `b_dcp`, the one corner round 6 left open). Round 7 also added exact-value coverage for `_total_dig()`'s scale-formula branch and the `new_complete` top-of-tier sort promotion invariant. Both functions' survivor pools remain open with diminishing but real returns — see TESTING-ROADMAP.md item #5 before treating this row as closed)* |
+| `numa_app/services/aa_estimate.py` | 2026-09-10 | Rotation group 1. Only zero-coverage finding was `copy_nutrients_note()` (2 mutants) — a trivial string-formatting helper with no real logic; deliberately left untested. Nothing else flagged in this pass. |
+| `numa_app/services/recipe_nutrients.py` | 2026-09-10 | Rotation group 1. `atomic_recipe_ingredients()` (111 mutants, zero coverage) — feeds a recipe's own DIAAS/digestibility pooling, keeping a sub-recipe atomic rather than decomposed. 2 new tests, `TestAtomicRecipeIngredients` in `tests/test_recipe_nutrients.py`. See TESTING-ROADMAP.md item #5. |
+| `numa_app/services/glycemic_load.py` | 2026-09-10 | Rotation group 1. No zero-coverage or safety-critical findings surfaced in this pass's narrow triage scope (see TESTING-ROADMAP.md item #5) — not fully characterized survivor-by-survivor, just screened for the two priority categories that scope covered. |
+| `numa_app/services/rda_status.py` | 2026-09-10 | Rotation group 1. Same as `glycemic_load.py` — screened, nothing flagged in this pass's narrow triage scope, not fully characterized. |
 
 ---
 

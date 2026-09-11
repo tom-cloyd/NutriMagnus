@@ -67,6 +67,55 @@ class TestRecipeTotalNutrients:
         assert per_serving == total
 
 
+class TestAtomicRecipeIngredients:
+    """atomic_recipe_ingredients() had ZERO test coverage until a mutation-
+    testing pass (TESTING-ROADMAP.md item #5) found it — a real gap, since
+    it feeds a recipe's own DIAAS/digestibility pooling and its whole reason
+    to exist is keeping a sub-recipe as ONE atomic entry rather than
+    decomposing it into raw ingredients (see its own docstring on why: a
+    sub-recipe's deliberate AA complementarity would otherwise get hidden)."""
+
+    def test_direct_food_and_subrecipe_both_kept_atomic(self, db_conn, nested_recipe):
+        result = _rn.atomic_recipe_ingredients(nested_recipe["top_id"], db_conn)
+        # Exactly 2 entries — NOT the 3 raw-leaf items expand_recipe_ingredients()
+        # would produce (Oats x2 + Almond milk) — the sub-recipe stays atomic.
+        assert len(result) == 2
+        by_name = {r["food_name"]: r for r in result}
+
+        direct = by_name["Oats"]
+        assert direct["fdc_id"] == 1
+        assert direct["recipe_id"] is None
+        assert direct["grams"] == pytest.approx(50.0)
+        assert direct["nutrients_100g"]["protein_g"] == pytest.approx(13.0)
+
+        # "Oat base" is 1 of 2 servings of a 200g-oats/500g-almond-milk batch —
+        # scale = 1/2 = 0.5, applied to the sub-recipe's own totals, not
+        # decomposed into its Oats/Almond milk components.
+        sub = by_name["Oat base"]
+        assert sub["fdc_id"] is None
+        assert sub["recipe_id"] == nested_recipe["sub_id"]
+        assert sub["grams"] == pytest.approx(100.0)
+        expected_sub_protein = (200 * 0.13 + 500 * 0.004) * 0.5
+        assert sub["nutrients_100g"]["protein_g"] == pytest.approx(expected_sub_protein, abs=0.01)
+
+    def test_portion_factor_scales_both_kinds_of_entry(self, db_conn, nested_recipe):
+        full = _rn.atomic_recipe_ingredients(nested_recipe["top_id"], db_conn, portion_factor=1.0)
+        half = _rn.atomic_recipe_ingredients(nested_recipe["top_id"], db_conn, portion_factor=0.5)
+        full_by_name = {r["food_name"]: r for r in full}
+        half_by_name = {r["food_name"]: r for r in half}
+
+        # Direct ingredient: portion_factor scales grams, not the per-100g profile.
+        assert half_by_name["Oats"]["grams"] == pytest.approx(full_by_name["Oats"]["grams"] * 0.5)
+        assert half_by_name["Oats"]["nutrients_100g"]["protein_g"] == pytest.approx(
+            full_by_name["Oats"]["nutrients_100g"]["protein_g"])
+
+        # Sub-recipe: portion_factor scales the pre-baked nutrients_100g
+        # itself (grams stays fixed at 100.0 — see the function's docstring).
+        assert half_by_name["Oat base"]["grams"] == pytest.approx(100.0)
+        assert half_by_name["Oat base"]["nutrients_100g"]["protein_g"] == pytest.approx(
+            full_by_name["Oat base"]["nutrients_100g"]["protein_g"] * 0.5)
+
+
 class TestBestAANutrients:
     def test_returns_unchanged_when_aa_data_present(self):
         nutrients = {"protein_g": 20.0, "aa_lysine_g": 1.0, "aa_leucine_g": 1.5,

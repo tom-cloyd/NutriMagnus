@@ -739,3 +739,99 @@ class TestGoldenValuePintoQuinoaMeal:
         # ingredient, so the uncapped formula would report more absorbed protein than
         # is physically possible. See diaas.py's dcp calculation comment.
         assert self._result["digestible_complete_protein_g"] == pytest.approx(10.948, abs=0.01)
+
+
+# ---------------------------------------------------------------------------
+# pooled_tid() — added after a mutation-testing pass (TESTING-ROADMAP.md
+# item #5) found this function had ZERO test coverage anywhere in the suite,
+# despite being called from web/backend.py in 7 places to size complement
+# suggestions on the Recipe, Meal, and Daily Summary pages.
+# ---------------------------------------------------------------------------
+
+class TestPooledTid:
+    def test_weighted_average_across_two_ingredients(self):
+        # 60g at 0.90 digestibility + 40g at 0.70 -> (60*0.9 + 40*0.7) / 100 = 0.82
+        result = {"ingredients": [
+            {"has_aa_data": True, "protein_g": 60.0, "digestibility": 0.90},
+            {"has_aa_data": True, "protein_g": 40.0, "digestibility": 0.70},
+        ]}
+        assert _diaas.pooled_tid(result) == pytest.approx(0.82, abs=1e-9)
+
+    def test_single_ingredient_matches_its_own_digestibility(self):
+        result = {"ingredients": [
+            {"has_aa_data": True, "protein_g": 25.0, "digestibility": 0.85},
+        ]}
+        assert _diaas.pooled_tid(result) == pytest.approx(0.85, abs=1e-9)
+
+    def test_ignores_ingredients_without_aa_data(self):
+        # A non-AA ingredient's digestibility must not pull the average —
+        # only AA-analyzed ingredients count (see the function's own
+        # docstring: composite DIAAS already reflects non-AA ingredients
+        # differently, pooled_tid is scoped to the AA-analyzed subset).
+        result = {"ingredients": [
+            {"has_aa_data": True,  "protein_g": 50.0, "digestibility": 0.90},
+            {"has_aa_data": False, "protein_g": 50.0, "digestibility": 0.10},
+        ]}
+        assert _diaas.pooled_tid(result) == pytest.approx(0.90, abs=1e-9)
+
+    def test_ignores_zero_protein_ingredients(self):
+        result = {"ingredients": [
+            {"has_aa_data": True, "protein_g": 30.0, "digestibility": 0.80},
+            {"has_aa_data": True, "protein_g": 0.0,  "digestibility": 0.20},
+        ]}
+        assert _diaas.pooled_tid(result) == pytest.approx(0.80, abs=1e-9)
+
+    def test_ignores_ingredient_missing_protein_g_key(self):
+        # No "protein_g" key at all (as opposed to protein_g=0.0) — a second
+        # mutation-testing pass on the tests above found this still wasn't
+        # pinned down: the filter's ".get('protein_g', 0)" default must
+        # safely exclude it, not crash or wrongly count it toward the pool.
+        result = {"ingredients": [
+            {"has_aa_data": True, "protein_g": 40.0, "digestibility": 0.75},
+            {"has_aa_data": True, "digestibility": 0.10},
+        ]}
+        assert _diaas.pooled_tid(result) == pytest.approx(0.75, abs=1e-9)
+
+    def test_boundary_small_positive_protein_is_included(self):
+        # Half a gram of protein is still > 0 and must count — distinguishes
+        # the filter's "> 0" from an off-by-one "> 1", and the zero-sum
+        # guard's "<= 0" from an "<= 1", both real survivors from the same
+        # second mutation-testing pass noted above.
+        result = {"ingredients": [
+            {"has_aa_data": True, "protein_g": 0.5, "digestibility": 0.60},
+        ]}
+        assert _diaas.pooled_tid(result) == pytest.approx(0.60, abs=1e-9)
+
+    def test_returns_none_when_no_ingredients_have_aa_data(self):
+        result = {"ingredients": [
+            {"has_aa_data": False, "protein_g": 50.0, "digestibility": 0.90},
+        ]}
+        assert _diaas.pooled_tid(result) is None
+
+    def test_returns_none_for_empty_ingredient_list(self):
+        assert _diaas.pooled_tid({"ingredients": []}) is None
+
+    def test_returns_none_when_ingredients_key_missing(self):
+        assert _diaas.pooled_tid({}) is None
+
+    def test_matches_real_meal_level_diaas_output(self):
+        # Integration path: web/backend.py always calls pooled_tid() directly
+        # on meal_level_diaas()'s own return value, never a hand-built dict —
+        # confirm the real "ingredients" shape (has_aa_data/protein_g/
+        # digestibility keys built in meal_level_diaas()) actually works, and
+        # that pooling two different-digestibility real foods lands strictly
+        # between their individual digestibility coefficients.
+        result = _diaas.meal_level_diaas([
+            {"food_name": "soy protein isolate", "nutrients_100g": _SOY_100G, "grams": 20},
+            {"food_name": "pea protein powder",  "nutrients_100g": _PEA_100G, "grams": 15},
+        ])
+        aa_ings = [i for i in result["ingredients"] if i["has_aa_data"]]
+        assert len(aa_ings) == 2
+        expected = (
+            sum(i["protein_g"] * i["digestibility"] for i in aa_ings)
+            / sum(i["protein_g"] for i in aa_ings)
+        )
+        pooled = _diaas.pooled_tid(result)
+        assert pooled == pytest.approx(expected, abs=1e-9)
+        individual_digestibilities = [i["digestibility"] for i in aa_ings]
+        assert min(individual_digestibilities) <= pooled <= max(individual_digestibilities)

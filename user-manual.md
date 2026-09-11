@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-09:2250* / Reading time: 4 hours, 37 minutes
+*Updated 2026-09-10:2237* / Reading time: 4 hours, 43 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -229,7 +229,12 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-09), there are 805 formal tests that the program must pass after every significant change. The vast majority of these are "behavioral" tests which verify that pages, forms, and workflows all still work as they should. A smaller number are "computational validation tests" in which real-world data is fed into the program to make sure that the output matches known correct numbers. A third, newer tier is "property-based tests" — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair, `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list, and `tests/test_complements_properties.py` checks the complement-suggestion engine: a suggested gap-closer's grams can never make the amino acid it targets worse as more is added, a suggested amount actually clears the gap it claims to clear, and a two-food "complete each other" pair is never ranked below a less-effective suggestion.
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-10), there are 919 formal tests that the program must pass after every significant change, across four tiers:
+
+- **Behavioral tests** — the vast majority of the 815 — verify that pages, forms, and workflows all still work as they should.
+- **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
+- **Property-based tests** — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair; `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list; `tests/test_complements_properties.py` checks the complement-suggestion engine — a suggested gap-closer's grams can never make the amino acid it targets worse as more is added, a suggested amount actually clears the gap it claims to clear, and a two-food "complete each other" pair is never ranked below a less-effective suggestion.
+- **Browser-level end-to-end tests** — a small, newer set of narrow tests (`tests/e2e/`, using [Playwright](https://playwright.dev/)) that drive a real, isolated instance of the app in an actual browser, confirming that the Food Search, Analyze a Food Portion, and a meal's Add Food panel's behind-the-scenes refresh (the JS that quietly re-fetches and re-sorts results once your external sources finish responding) genuinely runs, not just that the page contains the right code to do so. These run automatically once a week (and on demand), separately from the rest of the suite, which runs on every single change.
 
 **The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
@@ -2616,6 +2621,546 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 10 program updates
+
+**A REAL TESTING GAP FOUND (AND FIXED) BY A NEW MUTATION-TESTING PASS**
+
+No visible change to the app. A new testing technique — mutation testing, which deliberately breaks a small piece of code and checks whether any test notices — found that `pooled_tid()` in `diaas.py`, which feeds complement-suggestion sizing on the Recipe, Meal, and Daily Summary pages, had no test coverage at all despite being used in seven places. Ten new tests close that gap.
+
+A broader pre-release pass the same day, across the rest of the core nutritional-math code, found and fixed three more real gaps: a recipe's own digestibility pooling (`atomic_recipe_ingredients()`) had no coverage at all; three profile-management functions (rename/delete/find a saved profile) had none either; and the daily RDA targets (`compute_rda()`) had no test pinning down the *exact* age each nutrient's recommended amount changes at (magnesium at 31, calcium at 51/60/70 depending on sex, etc.) — existing tests only confirmed the right general direction, not the precise cutoff. 19 more tests close those.
+
+One larger gap — in the protein-complement suggestion engine itself — was found and progressively addressed the same day. First, a real bug in how suggestions are *ordered* (a food that closes your single biggest amino-acid shortfall wasn't guaranteed to be shown first, even when a much smaller addition would close a lesser one). Then, continuing further: the "add this much for 25%/50%/75%/100% of the effect" dosage preview could silently show blank values instead of an estimate in some contexts; a deeper display calculation had, in effect, stopped returning real numbers at all in favor of a much rougher stand-in; and a "skip this one food" filter had a bug that could silently stop the whole search early instead of just skipping that one food. All four are now fixed and covered.
+
+A third round the same day found several more: the display text explaining *why* a nutritional-completeness estimate was used could, in a narrow case, fail to appear even though the app was in fact estimating; one of the four ways to sort protein-complement suggestions ("by biggest effect on the amino acid gap") had quietly stopped actually sorting by that in most cases, silently falling back to whatever order the suggestions happened to already be in; a two-food pairing's displayed protein total, in one fallback situation, would have shown a wildly wrong (typically far too high) number instead of the intended calculation; and the amino-acid label shown on a suggestion's "before/after" comparison could show a measurement unit instead of the nutrient's actual name. All of those are now fixed too.
+
+A fourth round the same day closed the one previously-known-but-unfixed gap ("ignore this food" wasn't actually being honored when picking a second suggestion for a two-food pairing — confirmed and fixed) and found the *same* sorting bug as before affecting two more of the sort options ("smallest addition needed"), both now fixed the same way.
+
+A fifth round refined the display around a two-food pairing suggestion further (a limit on how many amino-acid comparisons are shown was silently being ignored in one place) and confirmed the underlying "how much would this pairing actually help" math with a full hand-worked check.
+
+A sixth round confirmed, with real example data, that four separate places computing "how much would this actually help" correctly use the precise per-ingredient calculation when the full ingredient breakdown is available (rather than an approximation) — no new problems found, but a previously-unverified part of the math is now confirmed correct rather than just assumed.
+
+A seventh round closed the one remaining loose end from round six (the same precise-calculation check, for the second food in a two-step suggestion pairing) and added two more checks confirming documented-but-never-verified behavior actually holds: a fallback math formula used when a full breakdown isn't available, and the rule that a food completing your entire amino-acid profile always shows at the very top of the list no matter which sort order you've chosen. No new problems found this round either — both closed real gaps in what had been checked, not new bugs.
+
+A separate pass the same day went back into the underlying suggestion-scoring math itself (not the display layer) and found and fixed ten more real bugs, several sharing the same root cause as earlier findings: a check only ever having been tested under the one "everything is perfectly digestible" scenario, which quietly hides a wrong formula until a real-world (less than perfectly digestible) food is involved. One of the ten could have let a genuinely poor-quality food pairing (one that actually lowers your overall protein quality) get suggested instead of rejected.
+
+A third pass the same day went into the main complement-suggestion function itself and found the single biggest gap of the whole testing effort: an entire secondary suggestion type — a "boost your overall protein quality" recommendation shown when a food can't close one specific gap but still meaningfully helps overall (foods like nutritional yeast, which are strong almost everywhere but weak in one or two amino acids) — had never been tested at all, in any way. That's now fully covered, plus two other previously-untested filters (your vegetarian/plant-only diet preference, and the "ignore this food" list) and a real bug where a valid two-food suggestion could silently go missing depending on which order candidate foods happened to be considered in.
+
+A fourth pass the same day closed out the density-estimation helper used when converting a volume measurement (like "2 tablespoons") into a weight for foods that only have volume-based serving data — over-three-quarters of that function had never been exercised at all.
+
+A fifth pass went back to the main complement-suggestion function a second time, checking deliberately (rather than assuming) whether real problems remained: it did, in the machinery that pairs two foods together — including a bug where excluding one "ignore this food" match could have silently hidden most of the app's other general suggestions too, and a formula bug in how the secondary suggestion type from the third pass pools two amino acids together. Both are now fixed; a follow-up check confirmed no further such surprises remain in that area.
+
+Most of that engine's display logic is still unaudited, and is logged for a dedicated follow-up rather than rushed. See [Extensive code testing](#extensive-code-testing) in Part 2.
+
+<!--
+```
+Scope: setup.cfg (new [mutmut] section — mutmut 3.7.0 requires config even
+to run --help). tests/test_diaas.py gains TestPooledTid (10 tests): weighted
+average across ingredients, ignoring non-AA/zero-protein/missing-protein_g
+ingredients, boundary cases (protein_g=0.5 distinguishing "> 0" from an
+off-by-one "> 1"), and an integration test against a real meal_level_diaas()
+result rather than only hand-built dicts. Verified against the actual tool:
+piloted mutmut against diaas.py scoped to its own two test files (369
+mutants, ~61s); the fix took 3 rounds (first 8 tests killed 30/31
+previously-uncovered mutants, a second mutmut run surfaced 6 more real
+boundary-value survivors, 2 more tests closed all of them — confirmed via a
+third run: 0/369 survive against pooled_tid now). One accepted true
+equivalent mutant elsewhere in the file (a ">"/">=" swap where the
+excluded/included item contributes exactly 0 either way — behaviorally
+unobservable). mutants/ (mutmut's regenerated working copy) added to
+.gitignore. README-numa-documentation.md gains a "Quarterly mutation-testing
+rotation" Maintenance section (rotation groups by subsystem risk, a weekly
+churn-check wired into the existing due-date block at the top of the weekly
+sweep, and a module -> last-checked-commit log) — see TESTING-ROADMAP.md
+item #5 for the full pilot writeup and the reasoning behind the two-track
+cadence (quarterly calendar floor + weekly churn-triggered early check).
+
+Later the same day: ran rotation group 1 (core nutrient math) ahead of the
+normal quarterly cadence, at the user's request, as a broader pre-release
+check. usda_nutrients.py, profile.py, complements.py, aa_estimate.py,
+recipe_nutrients.py, glycemic_load.py, rda_status.py -- 4176 mutants, ~13
+min compute (twice OOM-killed on a memory-constrained desktop before
+succeeding with `mutmut run --max-children 2` after a reboot). A setup.cfg
+also_copy scoping bug (missing numa_app/__init__.py etc.) initially made 5
+of 7 modules falsely show 100% "no tests" -- caught and fixed before being
+reported as a finding. Real fixes: tests/test_recipe_nutrients.py gains
+TestAtomicRecipeIngredients (2 tests, atomic_recipe_ingredients() had 111
+zero-coverage mutants -- feeds a recipe's own DIAAS/digestibility pooling).
+tests/test_profile.py gains TestProfileFileCrud (6 tests,
+rename_profile()/delete_profile()/get_profile_file() had 28 zero-coverage
+mutants combined) and TestAgeBoundariesExact (11 parametrized tests --
+compute_rda()'s age-threshold step functions for magnesium/fiber/calcium/
+iron all had a survived mutant on their exact boundary condition, e.g.
+`age >= 31` silently becoming `age >= 32`; existing tests only compared a
+young and old profile both well past the threshold, never the boundary
+itself). copy_nutrients_note() (2 zero-coverage mutants, a trivial
+string-formatting helper) deliberately left untested. Verification rerun:
+"no tests" dropped from 150 to 2 (only copy_nutrients_note, left on
+purpose); the compute_rda magnesium-boundary mutant confirmed killed.
+NOT fixed, flagged for a dedicated future session: complements.py's
+build_complement_display() (757 survivors) and two_step_combo() (191),
+plus usda_nutrients.py's suggest_complements() (357) and
+_score_one_complement() (105) -- roughly 1400 of ~1966 survivors this run
+produced. A ~10-diff sample found some low-value default-parameter-value
+noise but also substantive internal-branch gaps (dict-key lookups and an
+argument substitution that survived) -- real, but far too large (roughly
+4x everything else fixed in this pass combined) to characterize or fix in
+one session. See TESTING-ROADMAP.md item #5 for the full writeup, the
+README-numa-documentation.md rotation-log table entries, and the priority
+order for what's next.
+
+Same day, follow-up: went into that flagged finding at the user's request.
+_score_one_complement() read in full and all 105 survivors characterized
+by sampling across the ID range (not random spot checks). Fixed, each
+verified with an exact hand-derived expected value: predicted_diaas had NO
+correctness check at all (a sampled survivor changed a multiply to a
+divide in that exact formula and nothing caught it) -- new test in
+tests/test_usda.py's TestScoreOneComplement builds a sparse,
+fully-hand-computable nutrient profile (only protein/methionine/cystine
+present) so every intermediate number can be derived by hand and compared
+exactly; the denom<=0 boundary (a previous survivor changed it to <0,
+which would let denom==0 fall through into a ZeroDivisionError instead of
+the documented None return); result["comp_nutrients"] field identity.
+NOT fixed: base_digestibility being silently dropped from the internal
+protein_completeness() call -- an attempted fix rested on a wrong premise
+(new_scores are documented as always raw/pre-digestibility, so comparing
+them across digestibility levels doesn't test what it looks like it
+tests) -- left as a NOTE: comment in the test file rather than a forced,
+fragile test. Verification rerun: 105 -> 52 survivors for this function.
+suggest_complements() sampled only (357 survivors, ~1/9 examined) -- one
+real fix: the gap-closer sort key's primary-gap tiebreaker
+(not r.get("closes_primary")) had a survivor replacing it with
+not r.get(None), which is True for every row, silently disabling "the
+candidate closing the PRIMARY gap sorts first" entirely -- directly
+affects which suggestion a real user sees first. New test constructs two
+candidates (one closing the primary gap needing 75g, one closing only a
+secondary gap needing ~1.2g) and confirms the primary-gap closer still
+sorts first. Verification rerun: 357 -> 352 (this function is still
+almost entirely uncharacterized). Full suite: 837 tests (net +3 over the
+834 above -- 5 new tests, 2 removed: the flawed digestibility test plus
+one superseded). build_complement_display() (757 survivors) and
+two_step_combo() (191) remain completely untouched -- 0% triaged. See
+TESTING-ROADMAP.md item #5's "complements.py/suggest_complements
+deep-dive" section for the full writeup and what a future session should
+read first before continuing.
+
+Continued the same day at the user's explicit request ("push on") into
+build_complement_display()/two_step_combo(). Correction found along the
+way: the originally-reported 757/191 survivor counts were inflated by a
+scoping artifact (usda_nutrients.py being mutated simultaneously in the
+same run) -- isolated correctly, the true counts were 125/191. Root cause
+of two_step_combo()'s high count: it had exactly ONE test before this
+(only the early None-return), so its entire step1/step2-building success
+path had never been exercised. exact_dcp() had ZERO direct tests at all.
+Fixed, each verified against the actual mutant diff before and after:
+_grad_steps()'s fallback had "if dcp is None: dcp = _dcp_at_frac(...)"
+inverted to "if dcp is not None:" -- since no `ingredients` list means
+exact_dcp() always returns None (the common single-food case), every
+graduated dosage step would have silently shown blank dcp/pct_increase.
+exact_dcp()'s own final return had "is not None"/"is None" inverted --
+would have made it always return None even with a real value, forcing
+every caller into fallback approximations permanently; new TestExactDcp
+class exercises its real DB-backed success path for the first time,
+cross-checked against an independent direct diaas.meal_level_diaas() call.
+load_cache_candidates()'s excluded-name check used "break" instead of
+"continue" -- would silently stop searching the rest of the curated table
+after the first excluded name; the existing test couldn't catch this
+(only ever inserted one matching food) -- new test inserts a second food
+matching the very next curated entry and confirms it's still found.
+two_step_combo()'s step1 path gains a real test built from an actual
+suggest_complements() result. NOT fixed, disclosed: two_step_combo()'s
+step2 path (a working non-None scenario wasn't found in the time
+available) and most of build_complement_display()'s remaining ~100
+survivors (mostly default-parameter noise) and suggest_complements()'s
+remaining ~350. Unresolved anomaly, disclosed rather than glossed over: a
+verification rerun showed total survivors INCREASE (358 -> 874) despite
+all specific targeted mutant IDs confirmed individually killed by name and
+all 843 tests passing cleanly across 5 repeated direct runs -- looks like
+a mutmut coverage-tracking artifact from DB-touching tests combined with
+its -x (stop-on-first-failure) pytest invocation, not a real regression,
+but not run to ground. Treat any future mutmut aggregate count for this
+file with suspicion until understood -- verify specific mutant IDs by
+name, not the totals. Full suite: 843 tests (was 837). See
+TESTING-ROADMAP.md item #5 for the full writeup.
+
+Third round, same day, at the user's explicit repeated request to keep
+going. The aggregate-count anomaly resolved practically rather than by
+root cause: sampling aa_effects()'s "new" 17 survivors (previously 0
+reported) found they were REAL bugs a first incomplete pass had simply
+never sampled, not tooling noise -- best working theory is
+test_complements_properties.py's Hypothesis-randomized inputs make
+mutmut's one-time coverage snapshot vary slightly run to run, though this
+wasn't fully proven; counts did stabilize identically across two
+back-to-back reruns (633/863 twice, including with
+track_dependencies=False) once no further test changes were made.
+Practical conclusion: sample and verify by mutant ID, don't trust a single
+run's aggregate total. Real bugs fixed: aa_effects()'s "label" field used
+nutrient_label(aa)[1] (the unit) instead of [0] (the display name); its
+"met" boundary at exactly 1.0; its "before" field's value/rounding.
+load_cache_candidates()'s "diaas" field (renamed key, wrong row's name
+used for lookup). two_step_combo()'s step2 path finally got a working
+test -- two earlier attempts (this session) failed to construct a
+scenario where a qualifying DIAAS-improver exists; the working one uses a
+small fully-controlled sparse nutrient profile instead of relying on
+curated-table data to cooperate; found but not yet fixed via this test:
+exclude_names is silently dropped from step2's internal
+suggest_complements() call, so an "ignored" food could still surface as a
+two-step suggestion. build_complement_display()'s has_estimate_or_generic
+check had its "estimated" half silently neutered (row.get("estimated")
+-> row.get(None)) -- the EXISTING test for this didn't catch it because
+its scenario happened to also include an unrelated generic suggestion, so
+the flag stayed True via the other half of the check by coincidence; new
+test explicitly excludes every generic entry, isolating "estimated"
+specifically. The "gap_effect" comp_sort mode's sort key was silently
+broken (-(gaps_closed or 0) survived as -(gaps_closed and 0), which
+evaluates to -0 for any nonzero gaps_closed -- neutering the primary sort
+key for the overwhelmingly common case) -- even sneakier, the EXISTING
+sort-mode test didn't catch this either: Python's stable sort left the
+neutered-and-tied rows in their original list order, which happened to
+already match the correct sorted order by coincidence of the test's own
+input ordering; new test feeds the same two candidates in reversed
+starting order, forcing the sort to actually prove itself. The pairs tier
+(_fmt_pair()) had NO test at all -- a survivor swapped "*" for "/" in the
+total_dig_complete fallback formula (25.0*0.6=15.0 vs 25.0/0.6=41.7,
+wildly different); new test is the first to exercise this tier's
+formatting at all. Verification: full suite 849 tests (was 843); rerun
+confirmed all 6 spot-checked targeted mutants killed, zero regressions.
+Aggregate counts for context only:
+build_complement_display 707->675, two_step_combo 133->96,
+load_cache_candidates 12->10, aa_effects 17->4, exact_dcp unchanged at 5.
+Both functions' survivor pools remain overwhelmingly unexamined -- see
+TESTING-ROADMAP.md item #5 for the full writeup and exactly what's left.
+
+Fourth round, same day, user again explicitly asked to keep going.
+Fixed the one already-known-but-unfixed bug first: two_step_combo()'s
+step2 exclude_names handling -- turned out to already work correctly in
+real code, just needed a test (confirmed: excluding step2's own winning
+candidate by name correctly removes it). Then switched technique: instead
+of one narrow test per mutant sampled, wrote a few comprehensive tests
+that assert on EVERY field of one function's output at once (_fmt(),
+_fmt_improver(), _fmt_pair(), and the top-level summary fields), built
+from one fully-controlled, hand-computed input each. Payoff far exceeded
+expectations: those 3 tests alone dropped build_complement_display's
+survivors from 675 to 428 in a single step -- each comprehensive test
+happens to kill dozens of scattered dict-key-literal and default-value
+mutations at once, since it touches nearly every line of output
+construction. Recommended technique for future rotation groups: prefer
+this over one-test-per-mutant when a function is mostly assembling a dict
+from simple expressions. Also fixed, using the "reverse the input order"
+technique from round 3: two more instances of the same stable-sort-
+masking bug pattern, this time in comp_sort="grams" and
+diaas_sort="grams" (their sort keys were both silently neutered by
+survivors renaming/dropping the field being sorted on, undetected because
+the stub test data's given order happened to already match the correct
+sorted order -- Python's stable sort left the now-fully-tied list
+untouched, passing by coincidence). Checked every other sort-mode test's
+stub ordering while here; dcp and digestible_protein modes confirmed NOT
+susceptible (their expected order genuinely differs from the stub's given
+order already). Verification: full suite 855 tests (was 849); rerun
+confirmed the comp_sort="grams" fix killed, zero regressions. Aggregate
+counts for context: build_complement_display 675->424 (net, since the
+exclude_names test targeted behavior an earlier test already covered),
+two_step_combo unchanged at 93. 424 + 93 = 517 survivors remain across
+these two functions -- diminishing returns setting in (a quick sample
+found more low-value cases this round: unkillable default parameters, one
+confirmed-dead/unreachable branch), but not exhausted -- the two
+additional sneaky-sort-bug catches this round show real bugs are still
+findable. Next-session suggestion: apply the comprehensive-field-test
+technique to two_step_combo()'s step2 output and to _dcp_at_frac()
+directly before more narrow sampling.
+
+Fifth round, same day, user again explicitly asked to keep going -- did
+exactly the suggested next step above. two_step_combo()'s step2 test
+extended from checking 4 fields to pinning all 10 (scenario confirmed
+fully deterministic across repeated runs); step1 completed similarly
+(aa_effects was the one missing field). Sampling the remainder found one
+more real gap: aa_effects_limit silently dropped from step1's internal
+aa_effects() call (passed limit=None instead) -- invisible in every
+existing scenario since none had more gaps than the default limit of 3 to
+prove anything; new test uses a 9-gap scenario with explicit
+aa_effects_limit=2 to distinguish. _dcp_at_frac()'s own weighted-pool IAA
+formula hand-verified across all four graduated dosage steps (25/50/75/
+100%) -- previously only reachable indirectly through a test checking
+pct_increase's formula, never this function's own per-AA weighted math
+directly. Verification: full suite 857 tests (was 855); rerun confirmed
+real improvement, zero regressions. Aggregate counts: two_step_combo
+93->64 (its single biggest-drop round -- the comprehensive step1/step2
+tests mattered more here than any other round's fixes),
+build_complement_display 424->400. Diminishing returns now visibly
+setting in (more unkillable-default-param and narrow-edge-case survivors
+each round), though real bugs are still turning up every round -- not
+exhausted. Newly-named gap pattern worth flagging for whoever continues:
+every test in this file uses ingredients=None (realistic for a
+single-food context) -- none exercise the real per-ingredient recompute
+path (exact_dcp() actually returning a value instead of short-circuiting
+to None) -- a meal/recipe-context scenario with a genuine ingredients
+list is a distinct, unexplored dimension from the per-field/per-branch
+gaps found so far.
+
+Sixth round, same day, user again explicitly asked to keep going -- did
+exactly the named next step. Added 4 new tests, one per exact_dcp() call
+site (_fmt()'s total_dig, _grad_steps()'s per-step dcp across all 4
+dosage steps, two_step_combo()'s step1 dcp_after, _fmt_pair()'s
+total_dig_complete), each providing a real ingredients list (a controlled
+Oats/Peanut-butter/Cheese scenario) and cross-checking the result against
+an independent direct exact_dcp() call with the same data. For _fmt() and
+step1 specifically also confirmed the real value is NUMERICALLY DIFFERENT
+from what the fallback formula would give (13.4 vs 19.0; 5.1 vs 15.0 for
+the identical scenario without ingredients from an earlier round) --
+proving the real path is genuinely taken, not coincidentally matching a
+fallback. No new bugs found this round -- a real, useful result in
+itself: confirms exact_dcp()'s wiring into all four call sites is correct
+when given real data, closing a previously-untested dimension rather than
+leaving it unknown. two_step_combo()'s step2 b_dcp with real ingredients
+investigated but not completed -- extracting a curated-table winner's
+real comp_nutrients for an independent cross-check proved more involved
+than the other three call sites; left open. Verification: full suite 861
+tests (was 857); rerun confirmed real improvement, zero regressions.
+Aggregate counts: build_complement_display 400->371, two_step_combo
+64->57 -- combined 428, more than halved from ~948 at the start of this
+deep-dive. Environment note: machine memory trending down across this
+session's repeated long-running mutation-testing runs (routinely down to
+~14GB available mid-run on a 39GB machine) -- worth checking free -h and
+df -h /tmp before each further run. See TESTING-ROADMAP.md item #5 for
+the full writeup.
+
+Seventh round, same day, user again explicitly asked to keep going --
+closed the specific next steps named at the end of round six. Added 3
+new tests: (1) two_step_combo()'s step2 b_dcp with real ingredients --
+the one corner round six left open -- using usda.get_complement_nutrients()
+to independently fetch the deterministic winner's real curated nutrient
+profile for the cross-check against a direct exact_dcp() call, rather
+than hard-coding it; confirmed correct wiring (the real and fallback
+values happen to coincide at 32.0 for this specific scenario -- confirmed
+a genuine coincidence via the independent cross-check, not a sign the
+real path isn't exercised). (2) _total_dig()'s scale-formula branch --
+every prior test only ever exercised its "else" fallback branch; hand-
+computed the other branch's exact result (24.0) against a stubbed
+candidate. (3) the "a food completing your entire amino-acid profile
+always sorts first" invariant, documented in the function's own comments
+but never actually tested -- verified it holds across all four sort
+modes even when the complete-profile candidate is worse by every other
+metric than the alternative. No new application bugs found this round --
+all three closed real test-coverage gaps rather than catching new
+mutants. Verification: full suite 864 tests (was 861); rerun confirmed
+real improvement, zero regressions. Aggregate counts:
+build_complement_display 371->341, two_step_combo 57->51 -- combined
+392, a 59% reduction from ~948 at the start of this deep-dive. See
+TESTING-ROADMAP.md item #5 for the full writeup.
+
+Same day, separate pass: went back to usda_nutrients.py's
+_score_one_complement() (setup.cfg re-scoped to source_paths=
+usda_nutrients.py, also_copy=usda_api.py/usda.py, test selection
+tests/test_usda.py -- isolating it from complements.py the same way that
+file was isolated from usda_nutrients.py earlier). Read all ~57 remaining
+survivors in full (not sampled) and fixed 10 real bugs, each verified with
+an exact hand-derived expected value -- see tests/test_usda.py's
+TestScoreOneComplement for the worked arithmetic in each test's comments:
+R's digestibility divide silently becoming a multiply, and the same
+divide/multiply swap recurring inside predicted_diaas's per-AA loop --
+both masked by every prior test using base_digestibility=1.0, where divide
+and multiply by 1 are indistinguishable; new tests use 0.5, where the two
+diverge sharply. The grams<=0-or-grams>500 guard's "or" silently becoming
+"and" (making the guard permanently unsatisfiable, since grams can never
+be both <=0 and >500 at once) -- two new boundary tests. gaps_closed's
+subtraction silently becoming addition. The per-AA "skip if absent from
+both foods" guard's "and" silently becoming "or" (dropping any AA present
+in only one of the two foods from the predicted_diaas calculation).
+comp_dig's and dig_added's "assume fully digestible when the candidate's
+own DIAAS is unknown" fallback silently becoming 2.0 instead of 1.0 in two
+places. The final rejection guard (reject a candidate whose predicted
+pooled DIAAS would fall below the base meal's own digestibility) had its
+"is not None" silently become "is None", inverting when a low-quality
+pairing gets rejected -- nothing exercised the actual rejection path
+before, since every prior test used the digestibility=1.0 default where
+this guard is a documented no-op; new test constructs a candidate that
+closes the target gap in raw terms but whose own poor digestibility drags
+the pooled prediction below the base's -- must be rejected. closes_primary's
+empty-base_gaps else-branch had no test ever calling the function that
+way. new_complete's dict-key lookup had several survived
+key-literal/key-type mutations, none caught because no existing test
+scenario actually produced new_complete=True, so the mutants' wrong
+default of False coincidentally matched the real (also False) result --
+extended an existing full-closure test to assert True explicitly, closing
+all of them at once. Not fixed, left open: roughly a dozen dead-default
+.get(key, 0.0)->.get(key, 1.0)-style mutations that are unreachable in
+practice (every real nutrient dict carries every key, so the fallback
+default is never hit) -- not worth fragile sparse-dict tests to chase; and
+one real-but-hard-to-construct gap (a candidate that fails to actually
+close its target gap after rounding, which the "if target_still_gapped"
+check exists to catch) requiring a fragile rounding-boundary construction
+not found in the time available. Verification: full suite 871 tests (was
+864). Mutmut rerun confirmed real improvement, zero regressions:
+_score_one_complement 57->39 (18 killed, 2 more than the 10 targeted bugs,
+from incidental kills via the exact-value cross-checks), plus a bonus drop
+in protein_completeness 40->39 (same file, hit incidentally since
+_score_one_complement calls it internally). suggest_complements (394
+survivors, untouched this round) is now the single largest uncharacterized
+target remaining in the whole mutation-testing effort. See
+TESTING-ROADMAP.md item #5 for the full writeup.
+
+Same day, third pass: targeted suggest_complements() directly (~420 lines,
+usda_nutrients.py lines 731-1150), read in full before sampling. Biggest
+finding of the whole session: _diaas_improver_score() -- the ~95-line
+closure building the "diaas_improvers" tier -- had ZERO test coverage of
+any kind; no test ever referenced result["diaas_improvers"]. New
+TestDiaasImprovers class (6 tests): a synthetic candidate whose every
+essential AA sits exactly at the FAO reference ratio (denom==0 for every
+gap-closer target, guaranteeing the diaas-improver fallback path),
+verified against an independent reimplementation of the function's own
+documented pooled-DIAAS formula (using the real diaas.FAO_REFERENCE/
+_IAA_PAIRS/get_digestibility()) -- every field cross-checked: current_diaas,
+each step's new_diaas/dcp, grams, protein_added, digestible_protein_added,
+diaas. Also covered the current_diaas_val>=target early-exit and the
+base_food_name TID-lookup branch (never previously passed to
+suggest_complements at all). This alone dropped the count 394->291 (103
+killed) -- the single largest jump of the whole session. Also closed,
+each previously entirely untested: diet_pref filtering (vegetarian/
+plant_only, both the explicit-value and default-value paths -- 6 tests),
+exclude_names (the web app's per-suggestion "ignore" checkbox wiring -- 4
+tests), the gap-closer sort key's second tiebreaker (-r["gaps_closed"],
+most-gaps-closed-wins), duplicate-candidate-name dedup, and the pairs
+tier's summary fields (total_protein_added/total_dig_added/predicted_diaas/
+new_complete/new_scores/gaps_closed -- previously only structural checks,
+no exact values; new test independently recomputes both legs via direct
+_score_one_complement() calls, the same building blocks _build_pairs()
+itself uses). Real bug found: the pairs cascade's second-leg acceptance
+check had a survived continue->break mutation -- would abandon the search
+for a valid second leg entirely the moment ANY candidate failed, instead
+of trying the next one; new test places a bad second-leg candidate before
+a good one in pantry order and confirms the good pairing is still found.
+Several dict-key-literal mutations closed with direct field-identity
+assertions (diaas/fdc_id/recipe_id/comp_nutrients across gap-closer,
+diaas-improver, and pairs-food dicts). Not fixed, left open (real,
+lower-value-per-effort, same character as gaps left open in earlier
+rounds): more dead-default .get() noise; a base_protein<=0-or-comp_protein
+<=0 guard hard to reach through the public API since suggest_complements()
+itself early-returns first; a step-size list-literal boundary; two
+candidate-resolution spots in _build_pairs()'s own candidate-pool building
+needing a dedicated pantry-sourced-pairs scenario not yet built.
+Verification done incrementally across 4 mutmut reruns as tests were added
+in batches: 394->291->253->249->209 (47% reduction this round; combined
+with rounds 1-2, well over 75% down from the original ~948 survivor figure
+at the very start of this whole mutation-testing effort). 23 new tests
+this round. Full suite: 892 tests (was 871). Zero regressions at any
+point; get_density_g_per_ml (53 survivors) is now completely untouched
+and the most attention-starved function of meaningful size left in
+usda_nutrients.py. See TESTING-ROADMAP.md item #5 for the full writeup.
+
+Same day, fourth pass: get_density_g_per_ml() (53 lines, density
+estimation for volume-unit portions like "2 tablespoons") -- completely
+untouched until now; existing coverage (11 tests) only exercised the
+static keyword-table lookup, not the USDA-portion parsing fallback where
+almost all 53 survivors lived. 17 new tests across two verification
+passes. Round 1 (12 tests, 53->21): fraction count parsing ("1/2 cup"),
+the T/t/c case-sensitive abbreviation expansions, missing-leading-number
+defaulting count to 1.0, zero-gram-weight skip, out-of-bounds density
+falling through to the next portion rather than stopping, the fl oz/
+teaspoon/tbs keywords, None portions not crashing, an
+unrecognized-unit portion being ignored, and the count multiplier
+actually scaling the ml value. Round 2 (5 tests, 21->13): the tbsp/tsp
+keywords specifically (distinct from tablespoon/tbs and from the
+t->teaspoon abbreviation expansion, which had been coincidentally masking
+tsp never being reached directly); the gw<=0 skip guard's boundary (a
+survived gw<=1 mutation -- gram_weight=1 is real data that yields a
+plausible density and must not be treated as zero/missing); a
+continue->break bug (a zero-weight portion earlier in the list must not
+prevent a later valid portion from being used -- same bug class as round
+3's pairs-cascade finding above); and the 0.15/1.6 plausibility bounds'
+inclusivity at both exact boundary values. Left open: several string-
+literal mutations on the abbreviation-expansion table turned out to be
+genuine equivalent mutants (the mutated string still contains the real
+keyword as a substring, so the later matching check still succeeds
+regardless) -- a real, understood limit of mutation testing rather than a
+gap worth chasing. Verification: full suite 909 tests (was 892). Zero
+regressions; suggest_complements (209), _score_one_complement (39), and
+the rest held steady throughout. get_density_g_per_ml: 53->13 (75%
+reduction -- the best per-test yield of any function this session).
+suggest_complements()'s remaining 209 survivors, spread across smaller
+pockets, are now the largest pool left in usda_nutrients.py. See
+TESTING-ROADMAP.md item #5 for the full writeup.
+
+Same day, fifth pass: went back into suggest_complements() a second
+time, this time with an explicit question to answer rather than an
+open-ended "keep going" -- the user asked how to know whether stopping
+was safe or whether real unknowns remained, having no personal basis to
+judge that themselves. Answered with evidence, not a guess: sampled a
+spread of 21 of the 209 remaining survivors and found 9 of 21 (43%,
+confirmed as 48% of all 209 by ID range) concentrated in one specific
+code region -- _build_pairs()'s own candidate-pool construction and its
+two-food-pairing field-resolution logic -- a second genuine concentration
+on par with round 3's diaas_improvers finding, invisible without actually
+sampling. Fixed with 9 new tests: a paired-amino-acid formula bug
+(+=->-= , would have subtracted instead of added the second amino acid in
+a Met+Cys or Phe+Tyr pair), a dropped max_improver_grams setting (would
+have silently ignored the smaller serving-size cap meant for meal/food/
+daily contexts), a candidate's own quality rating being silently
+discarded in two different ways when falling back to the built-in food
+table, and several field-identity mutations. Verification: 209->141 (68
+killed -- far more than directly targeted, from broad knock-on effects).
+Re-sampled again rather than assuming done: concentration dropped to 38%,
+still elevated, so kept looking -- found two more real bugs, the more
+serious being a break-instead-of-continue in the "exclude this food"
+handling for general suggestions that could have silently hidden most of
+that entire list once one match got excluded (not just the one food, all
+the ones after it in an internal ordered list). Fixed with 2 more tests:
+141->117. Re-sampled a third time: concentration down to 27%, converging
+toward that code region's actual share of the function, confirming it's
+now genuine scattered noise rather than a hidden concentration. Full
+suite: 919 tests (was 909). Zero regressions across all three
+verification passes; a bonus incidental fix also closed
+_find_complement_by_name's last 2 survivors. suggest_complements(): 394
+at the start of this whole thread -> 117 now (70% reduction); combined
+with every other function touched this session, over 85% down from the
+~948 survivor count at the very start of the entire mutation-testing
+deep-dive. This thread is now at a reasonable stopping point -- not
+because mutation testing is ever fully "finished" (it's an ongoing
+quarterly-rotation practice, not a one-time task), but because two
+independent sampling-and-fix cycles each found and closed a genuine
+concentration, and a third pass confirmed none remained. See
+TESTING-ROADMAP.md item #5 for the full writeup.
+```
+-->
+
+**BROWSER-LEVEL TESTS FOR THE SEARCH PAGES' BEHIND-THE-SCENES REFRESH**
+
+No visible change to the app. This is a testing-infrastructure addition, noted here only because it closes a real gap: the [Food Search](#gloss-fdc-id), Analyze a Food Portion, and a meal's Add Food panel all show your own pantry/cache results instantly, then quietly re-fetch and re-sort the full result set once USDA/Open Food Facts/CNF respond — previously that JS was checked only by confirming the page *contains* the right fetch code, not that it actually runs end-to-end in a real browser. See [Extensive code testing](#extensive-code-testing) in Part 2.
+
+<!--
+```
+Scope: platform_utils.py (get_config_dir()/get_data_dir() gain a
+NUMA_CONFIG_DIR/NUMA_DATA_DIR env-var override, needed so a Playwright test
+run can point a live server subprocess at an isolated temp dir — no prior
+env-var hook existed anywhere; tests previously only ran in-process via
+TestClient + monkeypatch, which can't reach a separate process).
+web/backend.py (_PREFS_FILE now derived from platform_utils.get_data_dir()
+instead of a hardcoded ~/.local/share/numa path — same real location on
+Linux/macOS, picks up the new env-var override, and incidentally fixes a
+latent Windows bug where that hardcoded path never existed).
+tests/e2e/ (new): conftest.py's live_server fixture launches
+_run_isolated_server.py as a subprocess (stubs usda/openfoodfacts/cnf_api
+search_foods to return [] so no live network call or API key is ever
+needed, then runs uvicorn in-process) pointed at temp NUMA_DATA_DIR/
+NUMA_CONFIG_DIR; test_search_e2e.py drives it with Playwright (sync API),
+asserting via page.expect_response() that the search-api-results /
+analyze-portion-api-results / meal search-api-results fetch actually fires
+and resolves 200 (the meal-search test creates its own meal first via a
+plain POST to /meals/create, reading the new meal's id back off the
+post-create redirect) — checked by deliberately breaking each fetch URL in
+turn and confirming the corresponding test fails before reverting. New
+tests excluded from the default `pytest -q` run (and hence CI, which has no
+browser installed) via a new `e2e` pytest marker and `addopts = -m "not
+e2e"` in pytest.ini; run explicitly with `pytest -m e2e`.
+requirements.txt gains playwright==1.61.0 (previously present only as an
+incidental transitive dependency, unused). Later the same day: a new
+.github/workflows/e2e-tests.yml runs these on a weekly schedule (Saturday
+06:00 UTC) plus on-demand via workflow_dispatch — deliberately a separate
+workflow from tests.yml's per-push job, on a plain ubuntu-latest runner
+(not tests.yml's python:3.12-slim container, since `playwright install
+--with-deps` needs real apt access) rather than adding Chromium + its OS
+deps to every push's fast check. See TESTING-ROADMAP.md item #4.
+```
+-->
 
 #### September 9 program updates
 

@@ -51,3 +51,10 @@ models/
 
 # --- Claude Code agent worktrees (internal, never commit) ---
 .claude/worktrees/.claude/settings.local.json
+
+# --- mutmut (mutation testing, TESTING-ROADMAP.md item #5) regenerated
+# build artifacts: a working copy of whatever source_paths currently
+# targets, plus its run cache. Never commit; setup.cfg's [mutmut] section
+# is edited per rotation chunk, not the output. ---
+mutants/
+mutmut-stats.json

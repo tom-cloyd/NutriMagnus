@@ -30,6 +30,7 @@ import cofid_lookup as _cofid
 import db as _db
 import diaas as _diaas
 import openfoodfacts as _off
+import platform_utils as _platform_utils
 import profile as _profile
 import usda as _usda
 from numa_app.services import claude_fetch as _claude_fetch
@@ -69,7 +70,7 @@ _PROJECT_ROOT = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else _WEB_DI
 _MANUAL     = _PROJECT_ROOT / "user-manual.html"
 _MANUAL_MD  = _PROJECT_ROOT / "user-manual.md"
 _DISCLAIMER_MD = _PROJECT_ROOT / "DISCLAIMER.md"
-_PREFS_FILE = Path.home() / ".local" / "share" / "numa" / "prefs.json"
+_PREFS_FILE = _platform_utils.get_data_dir() / "prefs.json"
 
 _HOME_CACHE = _WEB_DIR / "home_body.cache"
 

@@ -91,6 +91,53 @@ class TestLoadSave:
         assert data["sex"] == "male"
 
 
+class TestProfileFileCrud:
+    """rename_profile()/delete_profile()/get_profile_file() had ZERO test
+    coverage until a mutation-testing pass (TESTING-ROADMAP.md item #5)
+    found it — real, if lower-stakes than a nutrient-math gap (worst case
+    here is a broken rename/delete, not a wrong displayed nutrient value)."""
+
+    def test_delete_profile_removes_file_and_returns_true(self):
+        p = UserProfile(age=30, sex="male", weight_kg=75.0, height_cm=175.0,
+                        activity_level="sedentary", name="ToDelete")
+        save_profile(p)
+        assert (_profile._PROFILES_DIR / "ToDelete.json").exists()
+        assert _profile.delete_profile("ToDelete") is True
+        assert not (_profile._PROFILES_DIR / "ToDelete.json").exists()
+
+    def test_delete_profile_returns_false_when_missing(self):
+        assert _profile.delete_profile("NeverExisted") is False
+
+    def test_rename_profile_moves_file_and_updates_name_field(self):
+        p = UserProfile(age=30, sex="male", weight_kg=75.0, height_cm=175.0,
+                        activity_level="sedentary", name="OldName")
+        save_profile(p)
+        assert _profile.rename_profile("OldName", "NewName") is True
+        assert not (_profile._PROFILES_DIR / "OldName.json").exists()
+        data = json.loads((_profile._PROFILES_DIR / "NewName.json").read_text())
+        assert data["name"] == "NewName"
+
+    def test_rename_profile_returns_false_when_old_name_missing(self):
+        assert _profile.rename_profile("DoesNotExist", "Whatever") is False
+
+    def test_rename_profile_returns_false_when_new_name_already_taken(self):
+        for name in ("A", "B"):
+            save_profile(UserProfile(age=30, sex="male", weight_kg=75.0, height_cm=175.0,
+                                     activity_level="sedentary", name=name))
+        assert _profile.rename_profile("A", "B") is False
+        # Neither file touched by the rejected rename.
+        assert (_profile._PROFILES_DIR / "A.json").exists()
+        assert (_profile._PROFILES_DIR / "B.json").exists()
+
+    def test_get_profile_file_points_at_active_profile(self):
+        # get_active_profile_name() only honors the stored active name if
+        # that profile file actually exists — must save it first.
+        save_profile(UserProfile(age=30, sex="male", weight_kg=75.0, height_cm=175.0,
+                                 activity_level="sedentary", name="SomeActiveProfile"))
+        _profile.set_active_profile_name("SomeActiveProfile")
+        assert _profile.get_profile_file() == _profile._PROFILES_DIR / "SomeActiveProfile.json"
+
+
 # ---------------------------------------------------------------------------
 # BMR
 # ---------------------------------------------------------------------------
@@ -375,6 +422,58 @@ class TestAgeSpecific:
         young = UserProfile(age=35, sex="male", weight_kg=75, height_cm=175, activity_level="sedentary")
         old   = UserProfile(age=60, sex="male", weight_kg=75, height_cm=175, activity_level="sedentary")
         assert compute_rda(old)["b6_mg"][0] > compute_rda(young)["b6_mg"][0]
+
+
+class TestAgeBoundariesExact:
+    """Pins the EXACT age each RDA step-function changes at — added after a
+    mutation-testing pass (TESTING-ROADMAP.md item #5) found every one of
+    these boundaries survived: existing tests above only compare a "young"
+    and "old" profile both well past/before the threshold (e.g. 40 vs. 75),
+    which confirms the direction of change but never actually exercises the
+    boundary age itself — an off-by-one there (age >= 31 silently becoming
+    >= 32, say) would pass every existing test undetected."""
+
+    @staticmethod
+    def _profile(age: int, sex: str) -> UserProfile:
+        return UserProfile(age=age, sex=sex, weight_kg=70, height_cm=170, activity_level="sedentary")
+
+    @pytest.mark.parametrize("sex,below,at,lo,hi", [
+        ("male",   30, 31, 400.0, 420.0),
+        ("female", 30, 31, 310.0, 320.0),
+        ("other",  30, 31, 355.0, 370.0),
+    ])
+    def test_magnesium_31_boundary(self, sex, below, at, lo, hi):
+        assert compute_rda(self._profile(below, sex))["magnesium_mg"][0] == pytest.approx(lo)
+        assert compute_rda(self._profile(at, sex))["magnesium_mg"][0] == pytest.approx(hi)
+
+    @pytest.mark.parametrize("sex,below,at,hi,lo", [
+        ("male",   49, 50, 38.0, 30.0),
+        ("female", 49, 50, 25.0, 21.0),
+        ("other",  49, 50, 31.5, 25.5),
+    ])
+    def test_fiber_50_boundary(self, sex, below, at, hi, lo):
+        assert compute_rda(self._profile(below, sex))["fiber_g"][0] == pytest.approx(hi)
+        assert compute_rda(self._profile(at, sex))["fiber_g"][0] == pytest.approx(lo)
+
+    def test_calcium_male_70_boundary(self):
+        assert compute_rda(self._profile(69, "male"))["calcium_mg"][0] == pytest.approx(1000.0)
+        assert compute_rda(self._profile(70, "male"))["calcium_mg"][0] == pytest.approx(1200.0)
+
+    def test_calcium_female_51_boundary(self):
+        assert compute_rda(self._profile(50, "female"))["calcium_mg"][0] == pytest.approx(1000.0)
+        assert compute_rda(self._profile(51, "female"))["calcium_mg"][0] == pytest.approx(1200.0)
+
+    def test_calcium_other_60_boundary(self):
+        assert compute_rda(self._profile(59, "other"))["calcium_mg"][0] == pytest.approx(1000.0)
+        assert compute_rda(self._profile(60, "other"))["calcium_mg"][0] == pytest.approx(1200.0)
+
+    def test_iron_female_51_boundary(self):
+        assert compute_rda(self._profile(50, "female"))["iron_mg"][0] == pytest.approx(18.0)
+        assert compute_rda(self._profile(51, "female"))["iron_mg"][0] == pytest.approx(8.0)
+
+    def test_iron_other_51_boundary(self):
+        assert compute_rda(self._profile(50, "other"))["iron_mg"][0] == pytest.approx(13.0)
+        assert compute_rda(self._profile(51, "other"))["iron_mg"][0] == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------

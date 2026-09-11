@@ -1,0 +1,46 @@
+name: E2E Tests
+
+# Runs the Playwright browser-level tests (tests/e2e/) on a weekly schedule,
+# plus on-demand via the "Run workflow" button — deliberately NOT on every
+# push/PR like tests.yml. Installing a real browser (Chromium + its OS
+# dependencies) adds real minutes to a run, and these tests are more prone
+# to environment-specific flakiness than the pure-Python suite tests.yml
+# already runs on every push — see TESTING-ROADMAP.md item #4 for the full
+# reasoning behind keeping this decoupled. tests.yml's own `pytest -q`
+# excludes these via pytest.ini's `addopts = -m "not e2e"`, so this
+# workflow is the only place they run automatically.
+#
+# Uses a plain ubuntu-latest runner (not tests.yml's python:3.12-slim
+# container) — `playwright install --with-deps` needs real apt access to
+# install Chromium's runtime libraries, which a minimal container doesn't
+# have without extra setup tests.yml's fast job has no reason to carry.
+
+on:
+  schedule:
+    # Saturday 06:00 UTC — same day as the weekly maintenance sweep
+    # (README-numa-documentation.md's Maintenance section), though this
+    # runs independently of that manual checklist.
+    - cron: "0 6 * * 6"
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Install Playwright browser
+        run: playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pytest -m e2e -v
