@@ -32,7 +32,7 @@ _NUTRIENT_MAP: dict[str, tuple[str, float]] = {
     "energy-kcal_100g":           ("calories",         1.0),
     "proteins_100g":              ("protein_g",        1.0),
     "fat_100g":                   ("fat_g",            1.0),
-    "carbohydrates_100g":         ("carb_g",           1.0),
+    "carbohydrates_100g":         ("carbs_g",          1.0),
     "fiber_100g":                 ("fiber_g",          1.0),
     "sugars_100g":                ("sugar_g",          1.0),
     "saturated-fat_100g":         ("saturated_fat_g",  1.0),

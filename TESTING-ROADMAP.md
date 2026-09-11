@@ -2,7 +2,7 @@
 
 Started 2026-08-28 in a Cowork session (with the VSCodium Claude extension
 handling the doc updates). This file is the handoff point for picking the
-work back up. Test suite is at 919 tests as of the last manual update
+work back up. Test suite is at 966 tests as of the last manual update
 (user-manual.md Part 2E, "Extensive code testing") — 731 as of 2026-08-28,
 +69 from unrelated feature/bugfix work through 2026-09-09, +5 from item #2's
 remainder, completed 2026-09-09, +3 from item #4 (Playwright E2E), completed
@@ -20,8 +20,10 @@ targeting `suggest_complements()` directly, then +17 from
 `get_density_g_per_ml()`, then +13 from a fourth round back on
 `suggest_complements()` (all also 2026-09-10, at the
 user's explicit, repeated request to keep pushing — this whole deep-dive
-is stated prep work for a Windows port and two upcoming releases) — see
-below for what all of that closed.
+is stated prep work for a Windows port and two upcoming releases), then
++47 on 2026-09-11 from item #3's source-fidelity fixtures work, which
+found and fixed three more real live parsing bugs (USDA, CNF, and OFF) —
+see below for what all of that closed.
 **Correction found along the way:** the originally-reported ~757/191
 survivor counts for `build_complement_display()`/`two_step_combo()` were
 inflated by a scoping artifact (mutating `usda_nutrients.py` simultaneously
@@ -1230,6 +1232,99 @@ recommended for this thread without a new technique or a fresh target
 next natural candidate, per the existing rotation plan below, whenever
 this work resumes).
 
+## Done (2026-09-11) — #3, cross-source data plausibility: source-fidelity
+## fixtures, and three real live parsing bugs they surfaced immediately
+
+Picked up right where the 2026-09-10 handoff left off: the user ran
+`scripts/record_source_fixtures.py` themselves (real USDA key + live
+network, exactly as documented) and handed the resulting fixture files
+back. Before writing the planned sanity test, actually looked at what got
+recorded — and found the fixture-recording step itself had already done
+its job better than expected, surfacing three real, live, previously-
+unknown parsing bugs on the very first run:
+
+- **USDA: some Branded records return foodNutrients items with no
+  identifiable nutrient id at all.** `get_food_detail()`'s full-format
+  endpoint normally returns items shaped `{"nutrient": {"id": ...}, ...}`;
+  for several private-label Branded records (confirmed live: all three
+  recorded USDA queries — "chicken breast", "lentils", "salmon" —
+  happened to match exactly this kind), the full-format endpoint instead
+  returns `{"type": "FoodNutrient", "id": <opaque row id>, "amount": ...}`
+  — no `nutrient.id`/`nutrientId` the existing parser could use. Real
+  nutrient data existed (protein, fat, etc. all present with real values)
+  but silently became an empty `nutrients: {}`. The `format=abridged`
+  variant of the *same* endpoint, for the *same* fdcId, does carry a
+  `number` field the parser already knows how to read (`NUTRIENT_NUMBER_MAP`)
+  — so `usda_api.get_food_detail()` now retries with `format=abridged` and
+  merges in its nutrients whenever the primary parse comes back empty
+  despite real `foodNutrients` rows being present, while still using the
+  full-format response for everything else (portions, brand — abridged
+  lacks `foodPortions` entirely). 3 new tests,
+  `TestGetFoodDetailAbridgedFallback` in `tests/test_usda.py`.
+- **CNF: nutrient resolution was completely broken — every single CNF
+  food lookup, unconditionally, returned zero nutrients.** `get_food_detail()`
+  read `entry.get("nutrient_symbol")` off each `/nutrientamount/` response
+  item, but the live endpoint's items only ever carry a numeric
+  `nutrient_name_id`, never a `nutrient_symbol` field — confirmed this was
+  true for every one of the 104 nutrient rows checked, not an edge case.
+  The existing test suite never caught this because its mocked
+  `_http_get` response used the *documented-but-wrong* `nutrient_symbol`
+  shape, matching the code instead of the real API. The actual id→symbol
+  mapping lives in a separate, small (~150-row), static reference table
+  at `/nutrientname/?type=json` — `cnf_api.py` now fetches and caches that
+  once per process (`_nutrient_symbols()`, mirroring the existing
+  `_food_list_cache` pattern) and joins through it. This is the most
+  severe of the three findings: it means CNF-sourced foods have likely
+  been silently contributing zero nutrition data throughout, for as long
+  as this bug existed — worth being aware of if anyone's nutrient records
+  for CNF-matched foods look suspiciously sparse. 3 new tests in
+  `tests/test_cnf.py` (`test_resolves_via_nutrient_name_id_not_a_symbol_field`,
+  a fetched-once check, an unmapped-id-ignored check), plus the existing
+  `TestGetFoodDetail`/`TestGetFoodDetailById` tests' mocks corrected to
+  the real two-endpoint shape (they'd been passing against the same wrong
+  assumption the production code made).
+- **Open Food Facts: a straightforward key-name typo.** `carbohydrates_100g`
+  was mapped to `"carb_g"` instead of the canonical `"carbs_g"` used
+  everywhere else in the app (`usda_api.NUTRIENT_MAP`, `cnf_api.py`,
+  CLAUDE.md's documented Nutrients Dict) — every OFF-sourced food's carb
+  value has been silently unreadable by the rest of the app (RDA
+  comparisons, nutrient displays, etc. would show it as missing/zero).
+  One-line fix in `openfoodfacts.py`. `openfoodfacts.py` had zero unit
+  test coverage of any kind before this — new `tests/test_openfoodfacts.py`
+  (4 tests) pins every mapped key to its canonical name specifically so a
+  typo like this fails immediately next time, plus basic parse/error-path
+  coverage.
+
+All fixtures re-recorded after each fix to confirm live: USDA fixtures
+now carry real nutrient data (10 keys each, previously 0); CNF fixtures
+now carry a full panel including amino acids (39-44 keys each, previously
+0); OFF fixtures show `carbs_g` correctly. (One OFF query, "oat milk",
+hit a persistent rate-limit during re-recording — its one previously-
+recorded `carb_g` field was corrected by hand instead, since the fix's
+correctness was already independently confirmed twice on other OFF
+foods in the same run.)
+
+**Then, the originally-planned test:** `tests/test_source_fixtures.py` (37
+tests via `pytest.mark.parametrize` over every fixture file) — no negative
+nutrient values, a non-empty parsed `nutrients` dict, `protein_g` present,
+essential-AA total never exceeding `protein_g` (USDA+CNF), and
+`has_amino_acid_data()` returning `True` on **CNF** samples specifically
+(not USDA — live confirmation this run: USDA's default search includes
+Branded products, whose nutrition labels never carry amino acids, and
+generic-named branded items often outrank the true Foundation entry for a
+query like "chicken breast"; asserting AA-data-required there would fail
+on legitimate expected results, not catch a real bug).
+
+**Verification:** full suite **966 tests** (was 919). Zero regressions.
+This closes item #3's "source-fidelity fixtures" half entirely — the
+one-time setup, the recording, and the sanity test are all done and
+wired together. Re-running this quarterly (per README-numa-documentation.md's
+"Quarterly source-fixture refresh" section) is now just: you re-run
+`scripts/record_source_fixtures.py`, then `pytest` — if a source has
+changed shape again, `test_source_fixtures.py` is what will now catch it,
+the same way today's manual read of the fixture files caught these three
+by hand.
+
 ## Not done — pick up here
 
 ### 1. #3, the rest: cross-source data plausibility
@@ -1251,21 +1346,12 @@ before designing tests around it.
 
 Two parts, per the original plan:
 - **Source-fidelity fixtures (USDA, CNF, OFF only, given the correction
-  above).** Record a handful of real (not mocked) responses per source as
-  fixtures under `tests/fixtures/<source>/`, replay them through each
-  source's own parser, assert: no negative values, essential-AA total never
-  exceeds `protein_g`, and `usda.has_amino_acid_data()` still returns `True`
-  on known-good USDA/CNF sample foods (OFF rarely has AA data, so that
-  assertion doesn't apply there). **Needs your real USDA API key** (lives in
-  your environment, not Claude's) and ideally a live network connection from
-  wherever the recording script runs — plan to do this via the VSCodium
-  extension or your own terminal, not Cowork. **2026-09-10: the recording
-  half now has a script** — `scripts/record_source_fixtures.py` (written
-  and syntax-checked this session, but never actually run — that still
-  needs your key/network) — see
-  README-numa-documentation.md's "Quarterly source-fixture refresh" section
-  for the full procedure, including the one-time `tests/test_source_fixtures.py`
-  assertion test that still needs writing once real fixtures exist.
+  above) — DONE 2026-09-11**, including `tests/test_source_fixtures.py`,
+  and three real live parsing bugs it surfaced and fixed on the very
+  first real run (one of them — CNF nutrient resolution being completely
+  broken, 100% of lookups — the most severe finding of this whole effort).
+  See "Done (2026-09-11) — #3" above for the full writeup. Nothing further
+  planned here beyond the normal quarterly re-run cadence.
 - **Estimation-path coverage (CoFID, CIQUAL, most OFF)** — this part is
   actually already covered by the `/copy-aa` route tests added above, since
   those are exactly the sources with no native AA data. Nothing further
@@ -1499,24 +1585,17 @@ way:**
 2. Confirm CI is green on the latest push (GitHub Actions tab) — both
    `tests.yml` (every push) and, once it's had a chance to run on its
    Saturday schedule or been triggered manually, `e2e-tests.yml`.
-3. Item #1's fixture-recording step needs your real USDA API key and a live
-   network connection — plan to do that part via your own terminal or the
-   VSCodium extension, not a sandboxed session. (The "static JSON, not live
-   API" correction for AFCD/CoFID/CIQUAL was confirmed 2026-09-10 — no
-   longer a prerequisite step, just background.) Once you've run
-   `scripts/record_source_fixtures.py`, hand it back to whichever session
-   picks this up next to write `tests/test_source_fixtures.py` against the
-   real fixture files it produces — see
-   README-numa-documentation.md's "Quarterly source-fixture refresh"
-   section for the full split of who does what.
-4. #4 has nothing left. #1 and #5 both remain open and are independent of
-   each other — pick whichever fits: #1 needs you. #5's `complements.py`/
-   `suggest_complements()` deep-dive (the "sized risk worth closing before
-   a release" flagged in earlier revisions of this note) is now
-   substantially done — see the many rounds above and the "Handoff notes
-   for the next mutation-testing round" section just above this one.
-   #5's next real step is **rotation group 2** (data-source parsing,
-   never run) — see that handoff section for specifics.
+3. **Done 2026-09-11** — item #3's fixture-recording step (needed your real
+   USDA API key + live network) ran, and `tests/test_source_fixtures.py`
+   is written and passing. See "Done (2026-09-11) — #3" above — this also
+   found and fixed three real live parsing bugs (USDA Branded-record
+   nutrients, CNF nutrient resolution being completely broken, an OFF
+   key-name typo), not just closed the checklist item.
+4. #3 and #4 both have nothing left. #5 remains open, not urgent — see the
+   "Handoff notes for the next mutation-testing round" section above
+   (target ~2026-12-05; next real step there is **rotation group 2**,
+   data-source parsing, never run). No blocking open item remains before
+   moving to the Windows port, which is where this session is headed next.
 5. On memory: this machine runs tight on RAM under normal desktop load
    (Firefox/Obsidian/VSCodium). A `mutmut run` across a rotation group hit
    OOM twice before succeeding with `--max-children 2` after a reboot —

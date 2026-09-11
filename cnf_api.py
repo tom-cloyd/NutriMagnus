@@ -92,6 +92,11 @@ _NUTRIENT_MAP: dict[str, tuple[str, float]] = {
 # reference data changes rarely. None until first search_foods() call.
 _food_list_cache: list[dict] | None = None
 
+# Cache of nutrient_name_id -> nutrient_symbol, fetched once from
+# /nutrientname/?type=json and reused for the life of the process — see
+# get_food_detail()'s docstring for why this indirection exists.
+_nutrient_symbol_cache: dict[int, str] | None = None
+
 
 class CNFError(Exception):
     pass
@@ -171,6 +176,28 @@ def search_foods(query: str, page_size: int = 15) -> list[dict]:
     return results
 
 
+def _nutrient_symbols() -> dict[int, str]:
+    """nutrient_name_id -> nutrient_symbol, fetched once and cached.
+
+    Found live (TESTING-ROADMAP.md item #1, 2026-09-11): the
+    /nutrientamount/ endpoint's response items don't actually carry a
+    'nutrient_symbol' field despite the field name this module was written
+    against — only a numeric 'nutrient_name_id'. Every CNF food lookup was
+    silently returning zero nutrients as a result. /nutrientname/ (a small,
+    ~150-row static reference table, not food-specific) is where the
+    id->symbol mapping actually lives.
+    """
+    global _nutrient_symbol_cache
+    if _nutrient_symbol_cache is None:
+        data = _http_get(f"{_BASE_URL}/nutrientname/?type=json")
+        _nutrient_symbol_cache = {
+            row["nutrient_name_id"]: row["nutrient_symbol"]
+            for row in data
+            if isinstance(row, dict) and "nutrient_name_id" in row and "nutrient_symbol" in row
+        } if isinstance(data, list) else {}
+    return _nutrient_symbol_cache
+
+
 def get_food_detail(cnf_result: dict) -> dict:
     """
     Fetch full nutrient detail for a search result from search_foods() (or
@@ -185,10 +212,11 @@ def get_food_detail(cnf_result: dict) -> dict:
         raise CNFError("missing CNF food_code")
     fdc_id = cnf_id(code)
     amounts = _http_get(f"{_BASE_URL}/nutrientamount/?type=json&id={code}")
+    symbols = _nutrient_symbols()
     nutrients: dict[str, float] = {}
     if isinstance(amounts, list):
         for entry in amounts:
-            symbol = entry.get("nutrient_symbol")
+            symbol = symbols.get(entry.get("nutrient_name_id"))
             mapped = _NUTRIENT_MAP.get(symbol)
             if not mapped:
                 continue

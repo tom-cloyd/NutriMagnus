@@ -344,12 +344,30 @@ def get_food_detail(fdc_id: int) -> dict:
     When that happens, retry with format=abridged, which works for the same
     records and still carries full nutrient data including amino acids (see
     NUTRIENT_NUMBER_MAP for why that response needs separate parsing).
+
+    A second, distinct USDA data quirk (found via TESTING-ROADMAP.md item #1's
+    fixture recording, 2026-09-11): some Branded records — seen on several
+    private-label items — return 200 with a nonempty foodNutrients list where
+    every item is `{"type": "FoodNutrient", "id": <row id>, "amount": ...}`,
+    missing the `nutrient.id`/`nutrientId` this parser needs, so real data
+    silently becomes an empty nutrients dict. The format=abridged response for
+    the SAME fdcId carries a `number` field (NUTRIENT_NUMBER_MAP) for these
+    same rows and parses fine — so when the primary parse comes back with
+    nutrients={} despite raw foodNutrients being non-empty, re-fetch abridged
+    and use its nutrients, keeping everything else (portions, brand, etc.)
+    from the original full-format response since abridged lacks foodPortions.
     """
     try:
         data = _get(f"food/{fdc_id}", {})
     except USDAError:
         data = _get(f"food/{fdc_id}", {"format": "abridged"})
-    return _parse_food(data)
+        return _parse_food(data)
+
+    parsed = _parse_food(data)
+    if not parsed["nutrients"] and data.get("foodNutrients"):
+        abridged = _get(f"food/{fdc_id}", {"format": "abridged"})
+        parsed["nutrients"] = _parse_food(abridged)["nutrients"]
+    return parsed
 
 
 def _parse_food(data: dict) -> dict:

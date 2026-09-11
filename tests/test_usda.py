@@ -180,6 +180,92 @@ class TestParseFood:
 
 
 # ---------------------------------------------------------------------------
+# get_food_detail — the abridged-format fallback when a full-format response
+# has real nutrient rows but none carry a parseable nutrient id (found live
+# via TESTING-ROADMAP.md item #1's USDA fixture recording, 2026-09-11: some
+# Branded records return foodNutrients items shaped like
+# {"type": "FoodNutrient", "id": <row id>, "amount": ...} — no nutrient.id/
+# nutrientId at all — so _parse_food() silently produces an empty nutrients
+# dict despite real data being present).
+# ---------------------------------------------------------------------------
+
+import usda_api as _usda_api
+
+class TestGetFoodDetailAbridgedFallback:
+    _FULL_UNPARSEABLE = {
+        "fdcId": 999, "description": "Mystery Branded Food", "dataType": "Branded",
+        "brandOwner": "Some Brand", "servingSize": 100.0, "servingSizeUnit": "g",
+        "householdServingFullText": "1 serving",
+        "foodPortions": [{"portionDescription": "1 serving", "gramWeight": 50.0}],
+        # Every item has only an opaque row id, not a nutrient-type id.
+        "foodNutrients": [
+            {"type": "FoodNutrient", "id": 1, "amount": 20.4},
+            {"type": "FoodNutrient", "id": 2, "amount": 8.1},
+        ],
+    }
+    _ABRIDGED_PARSEABLE = {
+        "fdcId": 999, "description": "Mystery Branded Food", "dataType": "Branded",
+        "foodNutrients": [
+            {"number": "203", "name": "Protein", "amount": 20.4},
+            {"number": "204", "name": "Total lipid (fat)", "amount": 8.1},
+        ],
+    }
+
+    def test_retries_abridged_when_full_format_yields_no_nutrients(self, monkeypatch):
+        calls = []
+
+        def fake_get(path, params):
+            calls.append(dict(params))
+            if params.get("format") == "abridged":
+                return self._ABRIDGED_PARSEABLE
+            return self._FULL_UNPARSEABLE
+
+        monkeypatch.setattr(_usda_api, "_get", fake_get)
+        result = _usda_api.get_food_detail(999)
+
+        assert len(calls) == 2, "must retry with format=abridged, not give up on empty nutrients"
+        assert result["nutrients"]["protein_g"] == pytest.approx(20.4)
+        assert result["nutrients"]["fat_g"] == pytest.approx(8.1)
+        # Portions/brand must still come from the full-format response —
+        # abridged doesn't carry foodPortions at all.
+        assert result["portions"] == [{"description": "1 serving", "gram_weight": 50.0}]
+        assert result["brand"] == "Some Brand"
+
+    def test_does_not_retry_when_full_format_already_has_nutrients(self, monkeypatch):
+        calls = []
+
+        def fake_get(path, params):
+            calls.append(dict(params))
+            return {
+                "fdcId": 1, "description": "Normal Food", "dataType": "SR Legacy",
+                "foodNutrients": [{"nutrientId": 1003, "value": 10.0}],
+            }
+
+        monkeypatch.setattr(_usda_api, "_get", fake_get)
+        result = _usda_api.get_food_detail(1)
+
+        assert len(calls) == 1, "must not make a second call when the first already parsed fine"
+        assert result["nutrients"]["protein_g"] == pytest.approx(10.0)
+
+    def test_does_not_retry_when_food_genuinely_has_no_nutrient_rows(self, monkeypatch):
+        # An empty nutrients dict because the raw response had NO nutrient
+        # rows at all (not because they were unparseable) must not trigger
+        # a pointless second network call.
+        calls = []
+
+        def fake_get(path, params):
+            calls.append(dict(params))
+            return {"fdcId": 2, "description": "No Data Food", "dataType": "Branded",
+                     "foodNutrients": []}
+
+        monkeypatch.setattr(_usda_api, "_get", fake_get)
+        result = _usda_api.get_food_detail(2)
+
+        assert len(calls) == 1
+        assert result["nutrients"] == {}
+
+
+# ---------------------------------------------------------------------------
 # protein_completeness
 # ---------------------------------------------------------------------------
 

@@ -26,22 +26,61 @@ def reset_food_list_cache():
     _cnf.__dict__["_food_list_cache"] = None
 
 
+@pytest.fixture(autouse=True)
+def reset_nutrient_symbol_cache():
+    """_nutrient_symbols() caches its result at module scope too — same
+    reset-around-every-test reasoning as reset_food_list_cache above."""
+    _cnf.__dict__["_nutrient_symbol_cache"] = None
+    yield
+    _cnf.__dict__["_nutrient_symbol_cache"] = None
+
+
 SAMPLE_FOODS = [
     {"food_code": 1704, "food_description": "Banana, raw"},
     {"food_code": 1705, "food_description": "Banana, dehydrated, or banana powder"},
     {"food_code": 2, "food_description": "Chicken, broiler, breast, meat only, cooked, roasted"},
 ]
 
+# The real /nutrientamount/ endpoint (found live, TESTING-ROADMAP.md item #1,
+# 2026-09-11) carries only a numeric nutrient_name_id, NOT a nutrient_symbol
+# field — despite what this module was originally written against. The
+# symbol only exists in the separate /nutrientname/ reference table below,
+# joined by nutrient_name_id. IDs here are arbitrary but distinct/consistent
+# with SAMPLE_NUTRIENT_NAMES.
 SAMPLE_NUTRIENT_AMOUNTS = [
-    {"nutrient_symbol": "KCAL", "nutrient_value": 89.0},
-    {"nutrient_symbol": "PROT", "nutrient_value": 1.09},
-    {"nutrient_symbol": "CARB", "nutrient_value": 22.8},
-    {"nutrient_symbol": "TRP",  "nutrient_value": 0.0091},
-    {"nutrient_symbol": "LEU",  "nutrient_value": 0.0678},
-    {"nutrient_symbol": "18:3undiff", "nutrient_value": 0.027},
-    {"nutrient_symbol": "SOME_UNMAPPED_SYMBOL", "nutrient_value": 999.0},
-    {"nutrient_symbol": "CA", "nutrient_value": None},  # null value — must be skipped, not crash
+    {"nutrient_name_id": 1, "nutrient_value": 89.0},     # KCAL
+    {"nutrient_name_id": 2, "nutrient_value": 1.09},     # PROT
+    {"nutrient_name_id": 3, "nutrient_value": 22.8},     # CARB
+    {"nutrient_name_id": 4, "nutrient_value": 0.0091},   # TRP
+    {"nutrient_name_id": 5, "nutrient_value": 0.0678},   # LEU
+    {"nutrient_name_id": 6, "nutrient_value": 0.027},    # 18:3undiff
+    {"nutrient_name_id": 7, "nutrient_value": 999.0},    # unmapped symbol
+    {"nutrient_name_id": 8, "nutrient_value": None},     # CA — null value, must be skipped not crash
+    {"nutrient_name_id": 999, "nutrient_value": 1.0},    # id with no entry in SAMPLE_NUTRIENT_NAMES at all
 ]
+
+SAMPLE_NUTRIENT_NAMES = [
+    {"nutrient_name_id": 1, "nutrient_symbol": "KCAL"},
+    {"nutrient_name_id": 2, "nutrient_symbol": "PROT"},
+    {"nutrient_name_id": 3, "nutrient_symbol": "CARB"},
+    {"nutrient_name_id": 4, "nutrient_symbol": "TRP"},
+    {"nutrient_name_id": 5, "nutrient_symbol": "LEU"},
+    {"nutrient_name_id": 6, "nutrient_symbol": "18:3undiff"},
+    {"nutrient_name_id": 7, "nutrient_symbol": "SOME_UNMAPPED_SYMBOL"},
+    {"nutrient_name_id": 8, "nutrient_symbol": "CA"},
+]
+
+
+def _mock_cnf_http_get(monkeypatch):
+    """Route the two CNF detail endpoints to their respective sample data,
+    matching how get_food_detail() actually calls _http_get twice."""
+    def fake(url):
+        if "nutrientname" in url:
+            return SAMPLE_NUTRIENT_NAMES
+        if "nutrientamount" in url:
+            return SAMPLE_NUTRIENT_AMOUNTS
+        return SAMPLE_FOODS
+    monkeypatch.setattr(_cnf, "_http_get", fake)
 
 
 class TestIdAssignment:
@@ -118,7 +157,7 @@ class TestSearchFoods:
 
 class TestGetFoodDetail:
     def test_maps_known_symbols(self, monkeypatch):
-        monkeypatch.setattr(_cnf, "_http_get", lambda url: SAMPLE_NUTRIENT_AMOUNTS)
+        _mock_cnf_http_get(monkeypatch)
         detail = _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1704})
         assert detail["nutrients"]["calories"] == pytest.approx(89.0)
         assert detail["nutrients"]["protein_g"] == pytest.approx(1.09)
@@ -126,24 +165,58 @@ class TestGetFoodDetail:
         assert detail["nutrients"]["aa_tryptophan_g"] == pytest.approx(0.0091)
         assert detail["nutrients"]["aa_leucine_g"] == pytest.approx(0.0678)
 
+    def test_resolves_via_nutrient_name_id_not_a_symbol_field(self, monkeypatch):
+        # The regression this whole class exists to guard: TESTING-ROADMAP.md
+        # item #1 (2026-09-11) found live that /nutrientamount/ items carry
+        # only nutrient_name_id, never a "nutrient_symbol" key — every CNF
+        # food lookup was silently returning zero nutrients as a result.
+        # SAMPLE_NUTRIENT_AMOUNTS above deliberately has no "nutrient_symbol"
+        # key on any item, so this test only passes if resolution genuinely
+        # goes through the /nutrientname/ id->symbol table, not a shortcut.
+        assert all("nutrient_symbol" not in item for item in SAMPLE_NUTRIENT_AMOUNTS)
+        _mock_cnf_http_get(monkeypatch)
+        detail = _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1704})
+        assert detail["nutrients"] != {}
+        assert detail["nutrients"]["protein_g"] == pytest.approx(1.09)
+
+    def test_nutrient_name_id_missing_from_reference_table_ignored(self, monkeypatch):
+        # nutrient_name_id 999 has no matching row in SAMPLE_NUTRIENT_NAMES —
+        # must be silently skipped, not crash.
+        _mock_cnf_http_get(monkeypatch)
+        detail = _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1704})
+        assert 1.0 not in detail["nutrients"].values()
+
+    def test_nutrient_symbol_table_fetched_once(self, monkeypatch):
+        calls = []
+        def fake(url):
+            calls.append(url)
+            if "nutrientname" in url:
+                return SAMPLE_NUTRIENT_NAMES
+            return SAMPLE_NUTRIENT_AMOUNTS
+        monkeypatch.setattr(_cnf, "_http_get", fake)
+        _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1704})
+        _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1705})
+        name_calls = [u for u in calls if "nutrientname" in u]
+        assert len(name_calls) == 1, "the small static reference table should only be fetched once per process"
+
     def test_g_to_mg_conversion_for_omega3(self, monkeypatch):
-        monkeypatch.setattr(_cnf, "_http_get", lambda url: SAMPLE_NUTRIENT_AMOUNTS)
+        _mock_cnf_http_get(monkeypatch)
         detail = _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1704})
         assert detail["nutrients"]["omega3_ala_mg"] == pytest.approx(27.0)
 
     def test_unmapped_symbol_ignored(self, monkeypatch):
-        monkeypatch.setattr(_cnf, "_http_get", lambda url: SAMPLE_NUTRIENT_AMOUNTS)
+        _mock_cnf_http_get(monkeypatch)
         detail = _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1704})
         assert "SOME_UNMAPPED_SYMBOL" not in detail["nutrients"]
         assert set(detail["nutrients"]) <= set(v[0] for v in _cnf._NUTRIENT_MAP.values())
 
     def test_null_value_skipped_not_crashed(self, monkeypatch):
-        monkeypatch.setattr(_cnf, "_http_get", lambda url: SAMPLE_NUTRIENT_AMOUNTS)
+        _mock_cnf_http_get(monkeypatch)
         detail = _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1704})
         assert "calcium_mg" not in detail["nutrients"]
 
     def test_result_shape(self, monkeypatch):
-        monkeypatch.setattr(_cnf, "_http_get", lambda url: SAMPLE_NUTRIENT_AMOUNTS)
+        _mock_cnf_http_get(monkeypatch)
         detail = _cnf.get_food_detail({"description": "Banana, raw", "_cnf_code": 1704})
         assert detail["fdcId"] == _cnf.cnf_id(1704)
         assert detail["name"] == "Banana, raw"
@@ -158,8 +231,7 @@ class TestGetFoodDetail:
 
 class TestGetFoodDetailById:
     def test_recovers_food_code_and_fetches_detail(self, monkeypatch):
-        monkeypatch.setattr(_cnf, "_http_get", lambda url:
-                             SAMPLE_FOODS if "food/" in url else SAMPLE_NUTRIENT_AMOUNTS)
+        _mock_cnf_http_get(monkeypatch)
         fdc_id = _cnf.cnf_id(1704)
         detail = _cnf.get_food_detail_by_id(fdc_id)
         assert detail is not None

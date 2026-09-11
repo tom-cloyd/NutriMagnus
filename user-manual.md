@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-10:2237* / Reading time: 4 hours, 43 minutes
+*Updated 2026-09-11:0400* / Reading time: 4 hours, 43 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -229,7 +229,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-10), there are 919 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-11), there are 966 formal tests that the program must pass after every significant change, across four tiers:
 
 - **Behavioral tests** — the vast majority of the 815 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
@@ -2621,6 +2621,43 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 11 program updates
+
+**A CANADIAN NUTRIENT FILE FOOD LOOKUP BUG THAT SILENTLY ZEROED OUT NUTRITION DATA — FOUND AND FIXED**
+
+If you've ever added a food that came from the Canadian Nutrient File source and its nutrition numbers looked suspiciously empty or missing, this is why: a bug meant every single CNF food lookup was silently returning no nutrition data at all, regardless of which food it was. It's now fixed — CNF foods you look up going forward will show their real numbers. Two smaller, related bugs were also found and fixed the same way: some USDA-sourced packaged/branded foods were also silently missing their nutrition data, and Open Food Facts foods were showing a missing or blank carbohydrate value specifically (other nutrients from that source were unaffected). All three were caught by a new automated check that compares real, live responses from each of the three online food-data sources against what NuMa expects — the same kind of test that was added for offline reliability in recent updates, now covering "did an online source quietly change its own data format" too.
+
+```
+Scope: usda_api.py (get_food_detail() now retries with format=abridged and
+merges its nutrients whenever the primary parse yields none despite real
+foodNutrients data being present -- some Branded records' full-format
+foodNutrients items carry no identifiable nutrient id at all), cnf_api.py
+(get_food_detail() was reading a "nutrient_symbol" field that the live
+/nutrientamount/ endpoint never actually returns -- only a numeric
+nutrient_name_id; now resolves it via the separate /nutrientname/
+reference table, fetched and cached once per process), openfoodfacts.py
+(carbohydrates_100g was mapped to the key "carb_g" instead of the
+canonical "carbs_g" used everywhere else in the app -- one-line fix).
+All three found via TESTING-ROADMAP.md item #3's newly-written
+tests/test_source_fixtures.py, run for the first time against real
+fixtures recorded by scripts/record_source_fixtures.py (run by the user
+with their own USDA key/network, per the documented one-time setup).
+New/extended tests: TestGetFoodDetailAbridgedFallback (tests/test_usda.py,
+3 tests), corrected mocks + 3 new tests in tests/test_cnf.py's
+TestGetFoodDetail (the existing mocks had been passing against the same
+wrong nutrient_symbol assumption the production code made -- a genuine
+"test matches the bug, not the API" trap), new tests/test_openfoodfacts.py
+(4 tests, openfoodfacts.py had zero unit coverage before this), and the
+37-test tests/test_source_fixtures.py itself (parametrized over every
+recorded fixture: no negative values, a non-empty parsed nutrients dict,
+protein_g present, essential-AA total never exceeding protein_g for
+USDA/CNF, and has_amino_acid_data() true for CNF samples specifically --
+not USDA, since USDA's default search includes Branded/packaged products
+whose labels never carry amino acids, confirmed live this run). Full
+suite: 966 tests (was 919). See TESTING-ROADMAP.md item #3 for the full
+writeup.
+```
 
 #### September 10 program updates
 

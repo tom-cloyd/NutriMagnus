@@ -2,11 +2,11 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-09-10:2235
+UPDATED: 2026-09-11:0400
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
-Last quarterly source-fixture check: never — not yet run (see Maintenance section).
+Last quarterly source-fixture check: 2026-09-11 (see Maintenance section).
 
 Last annual static-dataset check: never — not yet run (see Maintenance section).
 
