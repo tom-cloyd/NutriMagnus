@@ -2628,6 +2628,7 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 If you've ever added a food that came from the Canadian Nutrient File source and its nutrition numbers looked suspiciously empty or missing, this is why: a bug meant every single CNF food lookup was silently returning no nutrition data at all, regardless of which food it was. It's now fixed — CNF foods you look up going forward will show their real numbers. Two smaller, related bugs were also found and fixed the same way: some USDA-sourced packaged/branded foods were also silently missing their nutrition data, and Open Food Facts foods were showing a missing or blank carbohydrate value specifically (other nutrients from that source were unaffected). All three were caught by a new automated check that compares real, live responses from each of the three online food-data sources against what NuMa expects — the same kind of test that was added for offline reliability in recent updates, now covering "did an online source quietly change its own data format" too.
 
+<!--
 ```
 Scope: usda_api.py (get_food_detail() now retries with format=abridged and
 merges its nutrients whenever the primary parse yields none despite real
@@ -2658,6 +2659,7 @@ whose labels never carry amino acids, confirmed live this run). Full
 suite: 966 tests (was 919). See TESTING-ROADMAP.md item #3 for the full
 writeup.
 ```
+-->
 
 #### September 10 program updates
 

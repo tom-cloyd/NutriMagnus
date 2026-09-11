@@ -218,12 +218,24 @@ what the user can now do / now sees / now gets — NOT with what was wrong befor
 how it used to work. A [learn more...](#anchor) link goes here if a relevant manual
 section/anchor exists.
 
+<!--
 ​```
 Scope (menu path / files touched), then fuller technical detail — root cause,
 mechanism, implementation notes — git-commit-message style. Only include this
 block if there's real technical detail worth keeping; skip it for a trivial change.
 ​```
+-->
 ```
+
+**The `<!-- -->` around the Scope fence is not optional decoration — it's load-bearing.**
+Without it the Scope block renders as visible body text in the actual manual (caught
+2026-09-11, forgotten at least twice before that fix stuck). Checklist for every new
+entry: prose paragraph → blank line → `<!--` alone on its own line → blank line →
+` ``` ` fence → Scope text → ` ``` ` fence → blank line → `-->` alone on its own line.
+After writing an entry, grep the freshly-built `user-manual.html` for a distinctive
+word from that entry's Scope text and confirm it lands between `<!--` and `-->`, not
+as bare `<p>`/`<pre>` text — that's the actual verification, not just eyeballing the
+markdown source.
 
 Entries before 2026-07-31 remain in the old single-line format (`* ALL-CAPS SUMMARY -
 scope - description.`) — deliberately not reformatted retroactively; use the new format
