@@ -81,13 +81,19 @@ else
     ok "VM started"
 fi
 
-# ── Detect VM IP via ARP ─────────────────────────────────────────────────────
+# ── Detect VM IP (lease table first -- reliable even with no recent host<->VM
+#    traffic; ARP as a fallback for non-NAT network setups where the lease
+#    table lookup doesn't apply) ─────────────────────────────────────────────
 if [[ -z "$VM_IP" ]]; then
     info "Detecting VM IP address (timeout: ${BOOT_TIMEOUT}s)..."
     ELAPSED=0
     while [[ $ELAPSED -lt $BOOT_TIMEOUT ]]; do
-        VM_IP=$(virsh domifaddr "$VM_NAME" --source arp 2>/dev/null \
+        VM_IP=$(virsh domifaddr "$VM_NAME" --source lease 2>/dev/null \
             | awk '/ipv4/ {print $4}' | cut -d/ -f1 | head -1)
+        if [[ -z "$VM_IP" ]]; then
+            VM_IP=$(virsh domifaddr "$VM_NAME" --source arp 2>/dev/null \
+                | awk '/ipv4/ {print $4}' | cut -d/ -f1 | head -1)
+        fi
         [[ -n "$VM_IP" ]] && break
         sleep 3
         ELAPSED=$((ELAPSED + 3))
@@ -114,8 +120,19 @@ done
 ok "SSH ready"
 
 # ── Sync project source into VM ───────────────────────────────────────────────
+# Single-quoted remote commands below are passed through to the VM's default
+# shell (PowerShell, per vm-setup.ps1) untouched by bash -- no $ escaping
+# needed, and it avoids the nested-quoting hell of building a `-Command "..."`
+# string from bash (a `$input`-based version of this previously produced
+# "The string is missing the terminator" from mangled quote nesting).
+# Windows ships bsdtar as tar.exe, so it can read the stream directly; no
+# need to route it through PowerShell's $input at all.
 info "Syncing project source to VM..."
-# Pack the project (excluding .venv, dist, .git, tests, __pycache__, *.db)
+ssh $SSH_OPTS "$VM_USER@$VM_IP" 'New-Item -Force -ItemType Directory $env:USERPROFILE\numa-build | Out-Null'
+# Pack the project (excluding .venv, dist, .git, tests, __pycache__, and the
+# live user databases -- but NOT oxalate.db, a static bundled reference
+# database the spec packages, or nutrimagnus.spec itself, both of which
+# vm-build.ps1 needs to reproduce the same bundle the Linux build makes)
 tar -czf - \
     --exclude='.git' \
     --exclude='.venv' \
@@ -123,16 +140,11 @@ tar -czf - \
     --exclude='dist-windows' \
     --exclude='build' \
     --exclude='__pycache__' \
-    --exclude='*.db' \
-    --exclude='*.spec' \
+    --exclude='numa.db' \
+    --exclude='numa_data.db' \
     --exclude='tests' \
     -C "$PROJECT_DIR" . \
-  | ssh $SSH_OPTS "$VM_USER@$VM_IP" \
-      "powershell -Command \"
-        \$d = \\\"\$env:USERPROFILE\\\\numa-build\\\";
-        New-Item -Force -ItemType Directory \\\$d | Out-Null;
-        \$input | tar -xzf - -C \\\$d
-      \""
+  | ssh $SSH_OPTS "$VM_USER@$VM_IP" 'tar -xzf - -C $env:USERPROFILE\numa-build'
 ok "Source synced to VM:~/$WIN_BUILD_DIR"
 
 # ── Run the build inside the VM ───────────────────────────────────────────────

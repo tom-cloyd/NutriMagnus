@@ -45,6 +45,7 @@ vm-setup:
 	@echo "==> SSH public key (~/.ssh/numa_build_key.pub):"
 	@cat ~/.ssh/numa_build_key.pub
 	@echo ""
+	@cp ~/.ssh/numa_build_key.pub numa_build_key.txt
 	@echo "==> Starting VM '${NUMA_VM_NAME:-NutriMagnus-Build}'..."
 	@virsh start "$${NUMA_VM_NAME:-NutriMagnus-Build}" 2>/dev/null || true
 	@echo ""

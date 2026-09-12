@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-12:0202* / Reading time: 4 hours, 44 minutes
+*Updated 2026-09-12:0206* / Reading time: 4 hours, 45 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -2621,6 +2621,23 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 12 program updates
+
+**THE HOME PAGE NOW SHOWS A RELEASE VERSION ALONGSIDE THE BUILD STAMP**
+
+The version line at the bottom of the home page now reads something like "NutriMagnus 0.1.0-rc.1 (build 2026-09-12:0206)" instead of just the build timestamp on its own — a stable release number for talking about "which version" in plain terms, alongside the precise build stamp for troubleshooting.
+
+<!--
+```
+Scope: version.py — new RELEASE_VERSION constant (hand-maintained SemVer
+string, independent of VERSION). web/backend.py passes it into home.html's
+template context as release_version; web/templates/home.html's footer line
+now shows both. Purely a display addition — release tagging and the
+update-available check in numa_app/services/update_check.py still key off
+VERSION alone, unaffected by this.
+```
+-->
 
 #### September 11 program updates
 

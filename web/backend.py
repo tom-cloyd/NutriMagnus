@@ -46,7 +46,7 @@ from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, volume_hint
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
-from version import VERSION, NEW_VERSION_NOTE
+from version import VERSION, NEW_VERSION_NOTE, RELEASE_VERSION
 from numa_app.services import update_check as _update_check
 from numa_app.services import self_update as _self_update
 from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
@@ -1448,7 +1448,7 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
             "plot_rolls_to_complete": plot_rolls_to_complete,
             "show_plot_notice": has_any_meals and not home_plot_qs,
             "version": VERSION, "version_note": NEW_VERSION_NOTE,
-            "version_date": VERSION,
+            "version_date": VERSION, "release_version": RELEASE_VERSION,
             "diet_label": diet_label, "profile_label": profile_label,
             "unacked_errors": unacked_errors,
             "db_issue_count": db_issue_count,

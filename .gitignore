@@ -58,3 +58,6 @@ models/
 # is edited per rotation chunk, not the output. ---
 mutants/
 mutmut-stats.json
+
+# Windows build VM: SSH pubkey copy served to the VM by `make vm-setup`
+numa_build_key.txt
