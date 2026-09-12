@@ -3928,6 +3928,26 @@ def _meal_aa_nutrients(meal_id: int) -> dict:
     return result
 
 
+def _group_ingredients_by_food(ingredients: list[dict]) -> list[dict]:
+    """Merge ingredient dicts that refer to the same food (same fdc_id, or
+    same food_name when fdc_id is absent), summing their grams.
+
+    Without this, a food logged/used more than once (e.g. the same fruit
+    eaten twice in one meal, or appearing both standalone and inside a
+    recipe) shows up as separate rows in Top Contributors and the
+    Meal-Level Protein Analysis breakdown instead of one combined row."""
+    grouped: dict[object, dict] = {}
+    order: list[object] = []
+    for ing in ingredients:
+        key = ing.get("fdc_id") or ing["food_name"].lower()
+        if key not in grouped:
+            grouped[key] = dict(ing)
+            order.append(key)
+        else:
+            grouped[key]["grams"] += ing["grams"]
+    return [grouped[k] for k in order]
+
+
 def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
     """Return (items_for_display, total_nutrients, diaas_ingredients) for one meal.
 
@@ -3991,7 +4011,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 "recipe_deleted": recipe is None,
             })
 
-    return items, total_nutrients, ingredients
+    return items, total_nutrients, _group_ingredients_by_food(ingredients)
 
 
 def _meal_totals(meal_id: int) -> tuple[list, dict, dict | None, list]:
@@ -4992,6 +5012,7 @@ def _day_analysis(meal_date: str) -> tuple[list, dict, dict | None, list]:
                 combined_nutrients[k] = combined_nutrients.get(k, 0.0) + v
             all_ingredients.extend(ingredients)
 
+        all_ingredients = _group_ingredients_by_food(all_ingredients)
         diaas_result = None
         if all_ingredients:
             try:

@@ -2624,6 +2624,23 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 #### September 11 program updates
 
+**REPEATED FOODS NO LONGER SPLIT INTO DUPLICATE ROWS ON A MEAL'S ANALYSIS TABLES**
+
+If a meal logged the same food more than once — say, an orange eaten twice, or a food that shows up both on its own and inside a recipe in that meal — the meal's Top Contributors and Meal-Level Protein Analysis tables used to list it as two separate rows instead of one combined one. Both tables now group repeated foods together, summing their amounts, on both the per-meal page and the day-level Analysis rollup.
+
+<!--
+```
+Scope: web/backend.py — new _group_ingredients_by_food() helper groups the
+ingredient dicts consumed by rank_contributors()/rank_contributors_by_dcp()
+(numa_app/services/top_contributors.py) and diaas.meal_level_diaas(), keyed
+by fdc_id (falling back to lowercased food_name), summing "grams" per group.
+Applied at the end of _meal_expand_for_diaas() (used by both _meal_totals
+and _day_analysis) and again after _day_analysis's cross-meal
+all_ingredients.extend() loop, so same-food duplicates are merged both
+within one meal and across every meal on a day.
+```
+-->
+
 **A CANADIAN NUTRIENT FILE FOOD LOOKUP BUG THAT SILENTLY ZEROED OUT NUTRITION DATA — FOUND AND FIXED**
 
 If you've ever added a food that came from the Canadian Nutrient File source and its nutrition numbers looked suspiciously empty or missing, this is why: a bug meant every single CNF food lookup was silently returning no nutrition data at all, regardless of which food it was. It's now fixed — CNF foods you look up going forward will show their real numbers. Two smaller, related bugs were also found and fixed the same way: some USDA-sourced packaged/branded foods were also silently missing their nutrition data, and Open Food Facts foods were showing a missing or blank carbohydrate value specifically (other nutrients from that source were unaffected). All three were caught by a new automated check that compares real, live responses from each of the three online food-data sources against what NuMa expects — the same kind of test that was added for offline reliability in recent updates, now covering "did an online source quietly change its own data format" too.
