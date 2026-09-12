@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-09-11:0400
+UPDATED: 2026-09-12:0202
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -1078,6 +1078,8 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 Shared layout wrapper. Includes the vendored Bootstrap 5 CSS/JS (`web/static/vendor/bootstrap/` — not a CDN, so the app works offline), `/static/style.css`, the top navbar with dropdown menus, a footer, and the keyboard-shortcut JS. All other templates extend this.
 
 The navbar marks the active section by comparing `request.url.path` to each nav link's prefix. Foods, Recipes, and Analysis (Daily summary, Food use in meals/recipes) are dropdowns; Meals, Settings, and Manual are top-level links.
+
+**Keyboard shortcuts.** A dedicated inline script implements Alt+Shift+key navigation shortcuts via a custom `keydown` listener (`e.altKey && e.shiftKey`) rather than the native HTML `accesskey` attribute — `accesskey`'s modifier varies by browser (Firefox: Alt+Shift; Chrome/Edge on Windows/Linux: Alt alone; Chrome on Mac: Ctrl+Option), so relying on it would make shortcuts inconsistent across browsers, and native `accesskey` also loses focus inside a Bootstrap dropdown menu when it triggers one. Any element carrying `data-ak="<letter-or-digit>"` is a shortcut target; a matching keydown (ignored while focus is in an `INPUT`/`TEXTAREA`/`SELECT`) calls `.click()` on it and moves focus there — for a Bootstrap dropdown toggle, focus goes to the first `.dropdown-item` in the menu that just opened instead, handing off to Bootstrap's own ArrowUp/ArrowDown/Enter/Escape handling from there. Currently used for the six top-nav items (`F`/`R`/`M`/`N`/`S`/`A` → Foods/Recipes/Meals & Log/Analysis/Settings/Manual) and the eight Settings section headings (`1`–`8`). Enabled or disabled via a checkbox on **Settings → Keyboard Shortcuts** (`web/templates/settings.html`); persisted client-side only, as `localStorage['numa_accesskeys']` (`'false'` disables it — any other value, including the key being absent, means enabled) — unlike other settings, there is no server-side prefs entry for this one. Toggling flips a `shortcuts-on` class on `<html>` (used only to show/hide a `#shortcut-hint` element) and takes effect immediately with no page reload, since the keydown listener re-reads the same in-memory `enabled` flag on every keypress.
 
 **Unsaved-changes warning.** A third inline script in `base.html` generically tracks every `form[method="post"]` containing at least one non-hidden editable field: it snapshots the form's serialized state (`FormData` → `URLSearchParams`) on load, re-checks on `input`/`change`, and toggles a `.form-dirty` class on the form plus `.btn-dirty` on its submit button (CSS in `web/static/style.css`) and a JS-injected `.unsaved-badge` ("Unsaved changes") span. A `beforeunload` listener warns if any tracked form is still dirty. Forms with no editable fields (delete/move/mark-complete one-click actions) and GET forms (search/filter) are excluded automatically by the selector, so no per-template opt-out markup is needed.
 

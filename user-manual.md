@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-11:2045* / Reading time: 4 hours, 44 minutes
+*Updated 2026-09-12:0202* / Reading time: 4 hours, 44 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -280,7 +280,7 @@ Above all of that, a few one-time or conditional banners can appear when relevan
 
 Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
 
-If you are using the Firefox browser and you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings). For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. This is a browser-side feature — it is unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
+If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's numa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form.
 
