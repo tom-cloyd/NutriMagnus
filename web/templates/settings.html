@@ -188,7 +188,7 @@
 {# ── 4. Keyboard shortcuts ─────────────────────────────────────────────── #}
 <details>
   <summary data-ak="4"><u class="ak">4</u>. <strong>Keyboard Shortcuts</strong>
-    <span class="muted"> — browser access keys (Firefox)</span>
+    <span class="muted"> — Alt+Shift shortcut keys, works in any desktop browser</span>
     {{ manual_link("web-shortcuts") }}
   </summary>
   <div class="row mt-2 g-3">
@@ -562,6 +562,35 @@
              {{ 'checked' if update_notify_frequency == key }}
              onchange="document.getElementById('update-notify-saved-msg')?.remove()">
       <label class="form-check-label" for="update-notify-{{ key }}">{{ label }}</label>
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save preference</button>
+  </form>
+</details>
+
+{# ── Browser to launch ────────────────────────────────────────────────── #}
+<details id="browser-preference">
+  <summary><strong>Browser to Launch</strong>
+    <span class="muted"> — which browser opens when numa starts</span>
+  </summary>
+
+  <p class="mt-2">By default ("Ask each time"), numa opens in whichever browser you already
+  have running. If more than one is running, a small dialog pops up asking which one to
+  use for that session. Choosing a specific browser below skips that dialog entirely and
+  always uses the one you pick, starting it if it isn't already open.</p>
+
+  {% if saved == 'browser' %}
+  <p class="status-met mt-2" id="browser-saved-msg"><strong>&#10003; Browser preference saved.</strong></p>
+  {% endif %}
+
+  <form method="post" action="/settings/browser" class="mt-2">
+    {% for key, label in browser_labels.items() %}
+    <div class="form-check">
+      <input class="form-check-input" type="radio" name="preferred_browser"
+             id="browser-{{ key or 'auto' }}" value="{{ key }}"
+             {{ 'checked' if preferred_browser == key }}
+             onchange="document.getElementById('browser-saved-msg')?.remove()">
+      <label class="form-check-label" for="browser-{{ key or 'auto' }}">{{ label }}</label>
     </div>
     {% endfor %}
     <button type="submit" class="btn btn-primary btn-sm mt-2">Save preference</button>

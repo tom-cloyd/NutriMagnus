@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launch-web.sh — start (or restart) the NutriMagnus web server and open Firefox.
+# launch-web.sh — start (or restart) the NutriMagnus web server and open a browser tab.
 # Safe to run multiple times: kills any stale server on port 8000 first.
 
 set -euo pipefail
@@ -42,8 +42,11 @@ done
 # and open a browser tab against a port nothing was listening on yet —
 # Firefox has no reason to retry a plain connection-refused error.
 if [ "$SERVER_READY" -eq 1 ]; then
-    # Opens a new tab in the running instance and brings the window to front
-    firefox "$URL" &>/dev/null &
+    # Delegates to launcher.py's own preferred/detected-browser logic (see
+    # its --open-browser flag) instead of hardcoding one browser here —
+    # respects the Settings "Browser to Launch" preference and picks (or
+    # asks about) whichever browser is actually running.
+    "$PYTHON" "$LAUNCHER" --open-browser "$URL" &>/dev/null &
 else
     notify-send "NutriMagnus" "Web server is taking longer than usual to start. Check $LOG, or try again in a few seconds." 2>/dev/null || true
     exit 1

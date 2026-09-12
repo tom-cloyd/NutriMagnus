@@ -275,6 +275,22 @@ _UPDATE_NOTIFY_FREQ_LABELS = {
 _UPDATE_NOTIFY_FREQ_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
 _VALID_UPDATE_NOTIFY_FREQS = set(_UPDATE_NOTIFY_FREQ_LABELS)
 
+# Keys must match launcher.py's _BROWSER_PROCESSES (the process names it looks
+# for with pgrep / launches directly) — "" means auto-detect the running browser.
+_BROWSER_LABELS = {
+    "":                 "Ask each time (default)",
+    "firefox":          "Firefox",
+    "google-chrome":    "Google Chrome",
+    "chromium":         "Chromium",
+    "chromium-browser": "Chromium",
+    "brave-browser":    "Brave",
+    "vivaldi":          "Vivaldi",
+    "opera":            "Opera",
+    "microsoft-edge":   "Microsoft Edge",
+    "epiphany":         "GNOME Web (Epiphany)",
+}
+_VALID_BROWSER_PREFS = set(_BROWSER_LABELS)
+
 
 def _load_prefs_file() -> dict:
     if _PREFS_FILE.exists():
@@ -5226,6 +5242,8 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "diet_labels":          _DIET_LABELS,
         "update_notify_frequency": _current_update_notify_frequency(),
         "update_notify_freq_labels": _UPDATE_NOTIFY_FREQ_LABELS,
+        "preferred_browser":    _load_prefs_file().get("preferred_browser", ""),
+        "browser_labels":       _BROWSER_LABELS,
         "api_key":              api_key,
         "search_boost_page_size": search_boost_page_size,
         "diaas_overrides":      diaas_overrides,
@@ -5297,6 +5315,15 @@ async def settings_update_notify_frequency_post(update_notify_frequency: str = F
     if next and next.startswith("/") and not next.startswith("//"):
         return RedirectResponse(next, status_code=303)
     return RedirectResponse("/settings?saved=update_notify_frequency", status_code=303)
+
+
+@app.post("/settings/browser", response_class=RedirectResponse)
+async def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(None)):
+    if preferred_browser in _VALID_BROWSER_PREFS:
+        _save_prefs_file({"preferred_browser": preferred_browser})
+    if next and next.startswith("/") and not next.startswith("//"):
+        return RedirectResponse(next, status_code=303)
+    return RedirectResponse("/settings?saved=browser", status_code=303)
 
 
 @app.post("/settings/api-key", response_class=RedirectResponse)

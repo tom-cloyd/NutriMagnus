@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-11:0400* / Reading time: 4 hours, 43 minutes
+*Updated 2026-09-11:2045* / Reading time: 4 hours, 44 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -229,9 +229,9 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-11), there are 966 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-11), there are 968 formal tests that the program must pass after every significant change, across four tiers:
 
-- **Behavioral tests** — the vast majority of the 815 — verify that pages, forms, and workflows all still work as they should.
+- **Behavioral tests** — the vast majority of the 817 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
 - **Property-based tests** — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair; `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list; `tests/test_complements_properties.py` checks the complement-suggestion engine — a suggested gap-closer's grams can never make the amino acid it targets worse as more is added, a suggested amount actually clears the gap it claims to clear, and a two-food "complete each other" pair is never ranked below a less-effective suggestion.
 - **Browser-level end-to-end tests** — a small, newer set of narrow tests (`tests/e2e/`, using [Playwright](https://playwright.dev/)) that drive a real, isolated instance of the app in an actual browser, confirming that the Food Search, Analyze a Food Portion, and a meal's Add Food panel's behind-the-scenes refresh (the JS that quietly re-fetches and re-sorts results once your external sources finish responding) genuinely runs, not just that the page contains the right code to do so. These run automatically once a week (and on demand), separately from the rest of the suite, which runs on every single change.
@@ -2638,6 +2638,61 @@ Applied at the end of _meal_expand_for_diaas() (used by both _meal_totals
 and _day_analysis) and again after _day_analysis's cross-meal
 all_ingredients.extend() loop, so same-food duplicates are merged both
 within one meal and across every meal on a day.
+```
+-->
+
+**NUMA NOW OPENS IN YOUR ACTUAL BROWSER, NOT ALWAYS FIREFOX**
+
+Starting numa used to always try to open a Firefox tab (or launch Firefox if it wasn't running), regardless of which browser you actually use day to day. It now opens in whichever browser you already have running — Firefox, Chrome, Chromium, Brave, Vivaldi, Opera, Edge, or GNOME Web. If more than one is running at once, a small dialog pops up asking which one to use. If you'd rather skip that dialog and always use one specific browser, a new "Browser to Launch" option in [Settings](#settings) (with a short explanation right there) lets you pin one.
+
+<!--
+```
+Scope: web/launcher.py — _detect_running_browsers() pgrep-checks a fixed
+list of browser process names and collapses results to one entry per actual
+browser (some, like Brave, run child/renderer processes under a different
+name than their main or launchable binary). With none or one browser
+running, that's used directly; with more than one, _prompt_browser_choice()
+shows a native radiolist dialog (zenity, falling back to kdialog) and waits
+up to 30s for a pick, falling back to the first-detected browser silently
+if no dialog tool is installed, the user cancels, or it times out. Either
+way the chosen binary is launched via subprocess.Popen() rather than going
+through webbrowser.open(), which was resolving to the OS-registered default
+browser via xdg-open regardless of what the user actually had running;
+still falls back to webbrowser.open() if nothing is detected, on non-Linux
+platforms, or if Popen fails. New _preferred_browser_pref() reads
+prefs.json directly (not via backend.py, to avoid pulling in FastAPI/DB
+startup cost) and, when set, skips detection/prompting entirely.
+web/backend.py: new _BROWSER_LABELS/_VALID_BROWSER_PREFS, preferred_browser
+passed into the /settings template context, and a new POST /settings/browser
+route saving the "preferred_browser" key to prefs.json (empty string = ask
+each time). web/templates/settings.html: new "Browser to Launch" details
+section (with an explanatory paragraph of the ask-each-time/dialog/pin
+behavior above the radio choices) following the same radio-button/
+save-preference pattern as the existing diet-preference and
+update-notification-frequency settings.
+
+Two bugs found testing this against the real desktop launch path (the
+actual user-visible fix, since the above alone wasn't enough): (1)
+web/launch-web.sh — the script actually invoked by the user's application
+launcher — had `firefox "$URL" &` hardcoded, bypassing all of the above
+entirely; it now calls the same launcher.py logic via a new
+`launcher.py --open-browser URL` mode (added to main(), used only after
+the script's own readiness-polling loop confirms the server is up,
+preserving that existing slow-start protection). (2) a desktop-entry /
+application-launcher shortcut typically runs with a minimal $PATH that
+omits directories a browser can actually live in (e.g. Brave's snap
+install at /snap/bin) — subprocess.Popen(["brave", url]) then raised
+FileNotFoundError, caught silently, falling through to webbrowser.open()
+(Firefox again). New _resolve_executable() checks $PATH first, then a
+fallback list of common install dirs (/snap/bin, both system and per-user
+Flatpak export dirs, /usr/local/bin, /usr/bin) and returns an absolute
+path, which _pick_and_open_browser() (the refactored, reusable core of the
+old _open_after()) now always resolves through before calling Popen.
+Verified against the real desktop: with Brave the only browser running,
+`bash web/launch-web.sh` now opens a "NutriMagnus - Brave" window (per
+`wmctrl -l`) and Firefox never starts (`pgrep -x firefox` empty) — even
+when $PATH is deliberately stripped to /usr/bin:/bin to reproduce the
+restricted-launcher-environment failure mode.
 ```
 -->
 

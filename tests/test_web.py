@@ -1329,6 +1329,35 @@ def test_settings_diet_pref_raises_iron_zinc_rda(client: TestClient) -> None:
     assert "<td>Zinc</td>\n        <td class=\"num-col\">16.5</td>" in resp.text
 
 
+def test_settings_browser_pref_set_and_render(client: TestClient) -> None:
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    auto_block = resp.text.split('id="browser-auto"')[1].split(">")[0]
+    assert "checked" in auto_block  # default is auto-detect
+
+    resp = client.post(
+        "/settings/browser", data={"preferred_browser": "firefox"}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/settings?saved=browser"
+
+    resp = client.get("/settings")
+    assert resp.status_code == 200
+    firefox_block = resp.text.split('id="browser-firefox"')[1].split(">")[0]
+    assert "checked" in firefox_block
+
+
+def test_settings_browser_pref_rejects_unknown_value(client: TestClient) -> None:
+    resp = client.post(
+        "/settings/browser", data={"preferred_browser": "not-a-real-browser"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    resp = client.get("/settings")
+    auto_block = resp.text.split('id="browser-auto"')[1].split(">")[0]
+    assert "checked" in auto_block
+
+
 def test_settings_profile_update_preserves_nutrient_targets(client: TestClient) -> None:
     """Saving the basic profile form must not wipe previously-set nutrient targets."""
     client.post(
