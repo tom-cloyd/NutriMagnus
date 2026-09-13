@@ -13,6 +13,7 @@ Docs: README-numa-documentation.md (Web app section).
 from __future__ import annotations
 
 import json
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -20,8 +21,21 @@ import urllib.request
 _GITHUB_OWNER = "tom-cloyd"
 _GITHUB_REPO = "NutriMagnus"
 _LATEST_RELEASE_URL = f"https://api.github.com/repos/{_GITHUB_OWNER}/{_GITHUB_REPO}/releases/latest"
+_LATEST_DOWNLOAD_BASE = f"https://github.com/{_GITHUB_OWNER}/{_GITHUB_REPO}/releases/latest/download"
 _TIMEOUT_SECONDS = 2.0
 _CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
+
+# Asset name published for this platform in every release, for a direct
+# one-click download link — None (macOS, or anything else) falls back to
+# sending the user to the GitHub release page instead.
+_PLATFORM_ASSET = {"win32": "nutrimagnus.exe", "linux": "nutrimagnus"}
+
+
+def _direct_download_url() -> str | None:
+    for prefix, asset in _PLATFORM_ASSET.items():
+        if sys.platform.startswith(prefix):
+            return f"{_LATEST_DOWNLOAD_BASE}/{asset}"
+    return None
 
 _cache: dict | None = None
 _cache_checked_at: float = 0.0
@@ -52,8 +66,10 @@ def _fetch_latest_release() -> dict | None:
 
 
 def check_for_update(current_version: str) -> dict | None:
-    """Return {'tag', 'url'} if a newer release than current_version is
-    published on GitHub, else None.
+    """Return {'tag', 'url', 'download_url'} if a newer release than
+    current_version is published on GitHub, else None. 'download_url' is a
+    direct one-click download link for this platform's build, or None if
+    no build is published for this platform (falls back to 'url').
 
     The fixed-width "YYYY-MM-DD:HHMM" stamp (tag-ified to
     "vYYYY-MM-DD-HHMM") sorts correctly as a plain string, so a direct
@@ -71,7 +87,11 @@ def check_for_update(current_version: str) -> dict | None:
         latest_tag = data.get("tag_name", "")
         current_tag = _tag_for(current_version)
         if latest_tag and latest_tag > current_tag:
-            result = {"tag": latest_tag, "url": data.get("html_url", "")}
+            result = {
+                "tag": latest_tag,
+                "url": data.get("html_url", ""),
+                "download_url": _direct_download_url(),
+            }
 
     _cache = result
     _cache_checked_at = now

@@ -44,13 +44,26 @@ def test_tag_for_matches_create_release_format():
     assert _uc._tag_for("2026-08-31:0744") == "v2026-08-31-0744"
 
 
+def test_direct_download_url_per_platform(monkeypatch):
+    monkeypatch.setattr(_uc.sys, "platform", "win32")
+    assert _uc._direct_download_url().endswith("/nutrimagnus.exe")
+
+    monkeypatch.setattr(_uc.sys, "platform", "linux")
+    assert _uc._direct_download_url().endswith("/nutrimagnus")
+
+    monkeypatch.setattr(_uc.sys, "platform", "darwin")
+    assert _uc._direct_download_url() is None
+
+
 def test_newer_release_detected(monkeypatch):
     monkeypatch.setattr(
         _uc.urllib.request, "urlopen",
         lambda *a, **kw: _fake_response({"tag_name": "v2026-09-01-0000", "html_url": "https://example.com/x"}),
     )
     result = _uc.check_for_update("2026-08-31:0744")
-    assert result == {"tag": "v2026-09-01-0000", "url": "https://example.com/x"}
+    assert result["tag"] == "v2026-09-01-0000"
+    assert result["url"] == "https://example.com/x"
+    assert result["download_url"] == _uc._direct_download_url()
 
 
 def test_same_or_older_release_is_not_an_update(monkeypatch):

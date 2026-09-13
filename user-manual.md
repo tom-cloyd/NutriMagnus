@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-13:0024* / Reading time: 4 hours, 48 minutes
+*Updated 2026-09-13:0940* / Reading time: 4 hours, 48 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -231,7 +231,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-11), there are 968 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 982 formal tests that the program must pass after every significant change, across four tiers:
 
 - **Behavioral tests** — the vast majority of the 817 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
@@ -2663,6 +2663,27 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
 #### September 13 program updates
+
+**THE "NEW VERSION AVAILABLE" BANNER NOW OFFERS A DIRECT DOWNLOAD LINK**
+
+On Windows, the home-page banner that appears when a new NutriMagnus version is out now includes a "Download NutriMagnus" button that goes straight to the installer file, instead of only a link to a GitHub release page you'd have to find the download on yourself.
+
+<!--
+```
+Scope: numa_app/services/update_check.py — check_for_update() now returns a
+'download_url' key alongside 'tag'/'url': a direct
+github.com/.../releases/latest/download/<asset> link for platforms with a
+published build (win32 -> nutrimagnus.exe, linux -> nutrimagnus), or None
+for platforms without one (e.g. macOS), computed by a new
+_direct_download_url() helper keyed on sys.platform. web/templates/home.html
+— the non-self-update banner branch (self_update_available is False, which
+is every Windows install and any non-packaged dev checkout) now shows a
+"Download NutriMagnus {tag}" button linking to download_url when present,
+falling back to the old GitHub-release-page link only when it's None.
+tests/test_update_check.py updated for the new field plus a new
+test_direct_download_url_per_platform covering all three branches.
+```
+-->
 
 **NUTRIENT-TABLE COLOR CODING IS EASIER TO TELL APART, AND CALORIES OVER TARGET IS NOW FLAGGED**
 

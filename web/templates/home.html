@@ -57,6 +57,9 @@
       });
     })();
   </script>
+  {% elif update_available.download_url %}
+  <a href="{{ update_available.download_url }}" class="btn btn-sm btn-primary">Download NutriMagnus {{ update_available.tag }}</a>
+  <a href="{{ update_available.url }}" target="_blank" rel="noopener" class="ms-2">what's new</a>
   {% else %}
   See <a href="{{ update_available.url }}" target="_blank" rel="noopener">what's new on GitHub</a> to download it.
   {% endif %}
