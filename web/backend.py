@@ -76,12 +76,11 @@ _HOME_CACHE = _WEB_DIR / "home_body.cache"
 
 # The home page's about text used to live in its own home.md, hand-copied
 # from the manual's Preface and prone to drifting out of sync with it. It's
-# now excerpted live from user-manual.md instead — everything from right
-# after the "*Last full audit...*" line up to the next "---" rule (the
-# Preface, before "## How to read this Manual").
+# now excerpted live from user-manual.md instead — just the first 3 Preface
+# paragraphs (lines 7-11), not the whole thing.
 _HOME_CLOSING_PARAGRAPH = (
-    "(Excerpted from the Preface of the *User Manual* — for access to the "
-    "full manual, use the link in the main menu above.)"
+    "(This introduction is continued at the beginning of the User Manual, "
+    "accessible from the main menu above.)"
 )
 
 
@@ -89,19 +88,8 @@ def _extract_manual_preface() -> str:
     if not _MANUAL_MD.exists():
         return ""
     lines = _MANUAL_MD.read_text(encoding="utf-8").splitlines()
-    start = None
-    for i, line in enumerate(lines):
-        if line.startswith("*Last full audit"):
-            start = i + 1
-            break
-    if start is None:
-        return ""
-    end = len(lines)
-    for i in range(start, len(lines)):
-        if lines[i].strip() == "---":
-            end = i
-            break
-    return "\n".join(lines[start:end]).strip()
+    # Lines 7-11 (1-indexed) — the first 3 Preface paragraphs.
+    return "\n".join(lines[6:11]).strip()
 
 # Strip these prep-state words from USDA API queries
 _SEARCH_PREP_WORDS = {
@@ -907,7 +895,17 @@ templates.env.globals["rda_type_title"] = _rda_type_title
 def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                        daily_nutrients: dict | None = None,
                        optimal: dict | None = None,
-                       max_limits: dict | None = None) -> list[dict]:
+                       max_limits: dict | None = None,
+                       dcp_g: float | None = None,
+                       dcp_missing: list[str] | None = None) -> list[dict]:
+    """dcp_g/dcp_missing insert a "(Digestible Complete Protein)" row right
+    below Protein — the digestibility/amino-acid-adjusted figure a user
+    actually gets to use, vs. the raw total USDA/OFF/etc. report. Only
+    meaningful on pages analyzing what someone's eating (meal/day/recipe/
+    food-portion), so callers with no DIAAS data simply pass nothing and get
+    the old protein-only behavior. dcp_missing lists foods that had no
+    amino-acid data and so were excluded from the DCP total — that makes the
+    figure an understatement, flagged with an asterisk and a footnote."""
     max_limits = max_limits or {}
     sections = []
     for group_name, keys in _NUTRIENT_GROUPS:
@@ -976,7 +974,22 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                 "ul_display":   ul_display,
                 "ul_pct":       ul_pct,
                 "ul_css":       ul_css,
+                "is_dcp_row":   False,
+                "dcp_incomplete": False,
             })
+            if key == "protein_g" and dcp_g is not None:
+                rows.append({
+                    "label":        "(Digestible Complete Protein)" + (" *" if dcp_missing else ""),
+                    "value":        dcp_g,
+                    "unit":         unit,
+                    "pct": None, "rda_type": None, "rda_css": None,
+                    "day_pct": None, "day_rda_css": None,
+                    "optimal_goal": None, "optimal_type": None, "optimal_pct": None, "optimal_css": None,
+                    "optimal_day_pct": None, "optimal_day_css": None,
+                    "limit_warn": None, "ul_val": None, "ul_display": None, "ul_pct": None, "ul_css": None,
+                    "is_dcp_row":   True,
+                    "dcp_incomplete": bool(dcp_missing),
+                })
         if rows:
             sections.append({"name": group_name, "rows": rows})
     return sections
@@ -1856,8 +1869,11 @@ async def food_analyze_recipe_portion_post(
             "serving_size":      recipe["serving_size"],
         },
         "ingredients":        display_ingredients,
-        "nutrient_sections":  _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits),
+        "nutrient_sections":  _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits,
+                                                 dcp_g=diaas_display["dcp_g"] if diaas_display else None,
+                                                 dcp_missing=diaas_display["missing"] if diaas_display else None),
         "diaas_display":      diaas_display,
+        "dcp_missing_names":  diaas_display["missing"] if diaas_display else [],
         "has_profile":        rda is not None,
         "has_optimal":        bool(optimal),
         "has_ul":             bool(max_limits),
@@ -3489,6 +3505,8 @@ def _food_detail_context(
     if oxalate and amount and oxalate.get("mg_per_100g") is not None:
         oxalate_mg_portion = round(oxalate["mg_per_100g"] * amount / 100.0, 1)
 
+    protein_section = _protein_section(food["name"], display_nutrients)
+
     return {
         "food":               food,
         "amount":             amount,
@@ -3498,8 +3516,10 @@ def _food_detail_context(
         "portion_density_hint": portion_density_hint,
         "portions":           portions,
         "nutrient_sections":  _nutrient_sections(display_nutrients, rda_scaled or rda,
-                                                 optimal=optimal_scaled or optimal, max_limits=max_limits),
-        "protein":            _protein_section(food["name"], display_nutrients),
+                                                 optimal=optimal_scaled or optimal, max_limits=max_limits,
+                                                 dcp_g=protein_section["dcp_g"] if protein_section else None),
+        "dcp_missing_names":  [],
+        "protein":            protein_section,
         "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "antinutrients":      antinutrient_flags,
@@ -4101,7 +4121,13 @@ def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None,
     )
     nutrient_keys = [k for k in _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
                       if k not in MEALS_LIST_FIXED_KEYS]
-    meal_nutrient_cols = [{"key": k, "label": _meal_label_for(k)} for k in nutrient_keys]
+    # "Raw protein" here (not just "Protein"), to distinguish it from the
+    # digestibility-adjusted Meal/Day DCP columns shown alongside it — the
+    # generic "Protein" label from label_for() is fine everywhere else.
+    meal_nutrient_cols = [
+        {"key": k, "label": "Raw protein (g)" if k == "protein_g" else _meal_label_for(k)}
+        for k in nutrient_keys
+    ]
     for m in meals:
         snapshot = json.loads(m["nutrients_snapshot_json"]) if m.get("nutrients_snapshot_json") else None
         m["nutrient_values"] = {
@@ -4480,8 +4506,11 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "items":               items,
         "item_sort":           item_sort,
         "nutrient_sections":   _nutrient_sections(total_nutrients, rda, daily_nutrients,
-                                                  optimal=optimal, max_limits=max_limits) if total_nutrients else [],
+                                                  optimal=optimal, max_limits=max_limits,
+                                                  dcp_g=diaas_display["dcp_g"] if diaas_display else None,
+                                                  dcp_missing=diaas_display["missing"] if diaas_display else None) if total_nutrients else [],
         "diaas":               diaas_display,
+        "dcp_missing_names":   diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
@@ -4583,8 +4612,11 @@ def _meal_print_context(meal_id: int) -> dict | None:
     return {
         "meal":               dict(meal),
         "meal_items":         items,
-        "nutrient_sections":  _nutrient_sections(total_nutrients, rda, optimal=optimal, max_limits=max_limits) if total_nutrients else [],
+        "nutrient_sections":  _nutrient_sections(total_nutrients, rda, optimal=optimal, max_limits=max_limits,
+                                                 dcp_g=diaas_display["dcp_g"] if diaas_display else None,
+                                                 dcp_missing=diaas_display["missing"] if diaas_display else None) if total_nutrients else [],
         "diaas":              diaas_display,
+        "dcp_missing_names":  diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":   _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":        _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients),
         "gl":                 {"total": gl_total, "blockers": gl_blockers},
@@ -5088,8 +5120,11 @@ def _meal_day_context(meal_id: int) -> dict | None:
         "meals":             meals,
         "from_meal_id":      meal_id,
         "nutrient_sections": _nutrient_sections(combined_nutrients, rda, combined_nutrients,
-                                                optimal=optimal, max_limits=max_limits) if combined_nutrients else [],
+                                                optimal=optimal, max_limits=max_limits,
+                                                dcp_g=diaas_display["dcp_g"] if diaas_display else None,
+                                                dcp_missing=diaas_display["missing"] if diaas_display else None) if combined_nutrients else [],
         "diaas":             diaas_display,
+        "dcp_missing_names": diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":       _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="daily", ingredients=day_ingredients),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},
@@ -6110,8 +6145,11 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "contributor_top_n":        contributor_result["top_n"],
         "contributor_top_n_options": contributor_result["top_n_options"],
         "contributor_is_dcp":       contributor_result["is_dcp"],
-        "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits) if scaled else [],
+        "nutrient_sections":        _nutrient_sections(scaled, rda, optimal=optimal, max_limits=max_limits,
+                                                       dcp_g=diaas_display["dcp_g"] if diaas_display else None,
+                                                       dcp_missing=diaas_display["missing"] if diaas_display else None) if scaled else [],
         "diaas":                    diaas_display,
+        "dcp_missing_names":        diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
         "ignored_complements":      sorted(_effective_ignored(ignore_complements, unignore)),
@@ -6987,7 +7025,9 @@ async def summary_trend(request: Request, days: int = Query(7)):
         "end":               end.isoformat(),
         "num_days":          num_days,
         "nutrient_sections": _nutrient_sections(avg_nutrients, rda, avg_nutrients,
-                                                optimal=optimal, max_limits=max_limits) if num_days else [],
+                                                optimal=optimal, max_limits=max_limits,
+                                                dcp_g=avg_dcp) if num_days else [],
+        "dcp_missing_names": [],
         "has_profile":       rda is not None,
         "has_optimal":       bool(optimal),
         "has_ul":             bool(max_limits),
@@ -7710,8 +7750,11 @@ async def summary_date(request: Request, meal_date: str):
         "date_detail":       meal_date,
         "meals":             meals,
         "nutrient_sections": _nutrient_sections(combined_nutrients, rda, combined_nutrients,
-                                                optimal=optimal, max_limits=max_limits) if combined_nutrients else [],
+                                                optimal=optimal, max_limits=max_limits,
+                                                dcp_g=diaas_display["dcp_g"] if diaas_display else None,
+                                                dcp_missing=diaas_display["missing"] if diaas_display else None) if combined_nutrients else [],
         "diaas":             diaas_display,
+        "dcp_missing_names": diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
         "complements":       _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="daily", ingredients=day_ingredients),
         "gl":                {"total": gl_total, "blockers": all_gl_blockers},

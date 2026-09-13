@@ -21,6 +21,19 @@ class TestMinimumTargetThresholds:
         assert rda_status(pct, "min") == expected
 
 
+class TestTargetThresholds:
+    """target is two-sided (calories, or a user-configured Revised Optimal
+    value) — unlike "min", drifting too far over 100% should stop reading as
+    "met" and eventually flag as "over", the same shape as the limit type."""
+    @pytest.mark.parametrize("pct,expected", [
+        (0, "low"), (69, "low"), (70, "near"), (99, "near"),
+        (100, "met"), (130, "met"), (131, "near"), (150, "near"),
+        (151, "over"), (200, "over"),
+    ])
+    def test_thresholds(self, pct, expected):
+        assert rda_status(pct, "target") == expected
+
+
 class TestLimitThresholds:
     @pytest.mark.parametrize("pct,expected", [
         (0, "met"), (80, "met"), (81, "near"), (99, "near"),

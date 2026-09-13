@@ -1,0 +1,12 @@
+{# Shared color-coding legend for nutrient tables whose %-of-target cells use
+   the rda-met/rda-near/rda-low/rda-over classes (see _rda_css() in
+   web/backend.py and web/static/style.css). Shown once, right below the
+   table's title, whenever those colors are about to appear (has_profile). #}
+{% macro legend() %}
+<p class="muted mb-2 rda-legend"><small><strong>Legend:</strong>
+  <span class="rda-met legend-dot">&#9679;</span> met
+  &nbsp;&middot;&nbsp; <span class="rda-near legend-dot">&#9679;</span> near
+  &nbsp;&middot;&nbsp; <span class="rda-low legend-dot">&#9679;</span> below minimum
+  &nbsp;&middot;&nbsp; <span class="rda-over legend-dot">&#9679;</span> over the limit
+</small></p>
+{% endmacro %}

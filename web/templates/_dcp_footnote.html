@@ -1,0 +1,12 @@
+{# Footnote for the "(Digestible Complete Protein) *" row inserted by
+   _nutrient_sections() (web/backend.py) whenever one or more contributing
+   foods had no amino-acid data — the DCP figure excludes them, so it's an
+   understatement rather than the true total. Callers pass the list of
+   excluded food names as dcp_missing_names; empty/absent means no footnote. #}
+{% macro note(names) %}
+{% if names %}
+<p class="muted mb-2"><small>* Digestible Complete Protein doesn't include
+  {{ names|join(', ') }} &mdash; amino acid data isn't available for
+  {{ 'it' if names|length == 1 else 'them' }}, so the true figure is at least this much.</small></p>
+{% endif %}
+{% endmacro %}

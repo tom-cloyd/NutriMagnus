@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% import "_ul_column.html" as _ul %}
 {% import "_rda_definition_footer.html" as _rda_note %}
+{% import "_rda_legend.html" as _rda_legend %}
+{% import "_dcp_footnote.html" as _dcp_note %}
 {% block title %}NutriMagnus — {{ food.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -87,7 +89,7 @@
     <strong>{{ protein.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash; {{ (100 * protein.dcp_g / protein.protein_raw) | round | int }}% of {{ protein.protein_raw }}&thinsp;g raw protein</p>
   {% set unusable_g = (protein.protein_raw - protein.dcp_g) | round(1) %}
   {% if unusable_g > 0 %}
-  <p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / protein.protein_raw) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
+  <p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / protein.protein_raw) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
   {% endif %}
   {% endif %}
   <p class="muted">
@@ -242,6 +244,7 @@
     <a href="/settings">Set up your profile in Settings</a> to enable them.
   </p>
   {% endif %}
+  {% if has_profile %}{{ _rda_legend.legend() }}{% endif %}
 
   {% for section in nutrient_sections %}
   <h4 id="nut-{{ loop.index }}" style="margin-top:0.75rem">{{ section.name }}</h4>
@@ -258,7 +261,7 @@
     </thead>
     <tbody>
       {% for row in section.rows %}
-      <tr class="{{ row.limit_warn or '' }}">
+      <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }}">
         <td>{{ row.label }}</td>
         <td class="num-col">{{ row.value }}</td>
         <td class="muted">{{ row.unit }}</td>
@@ -283,6 +286,7 @@
     </tbody>
   </table>
   {% endfor %}
+  {{ _dcp_note.note(dcp_missing_names) }}
   {% if has_profile %}{{ _rda_note.note() }}{% endif %}
   {% if has_ul %}{{ _ul.note() }}{% endif %}
 </section>

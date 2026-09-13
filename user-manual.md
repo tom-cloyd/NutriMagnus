@@ -1,10 +1,12 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-12:0206* / Reading time: 4 hours, 45 minutes
+*Updated 2026-09-13:0024* / Reading time: 4 hours, 48 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
-**NutriMagnus ("NuMa")** is an open-source computer program which provides a thorough nutritional analysis of a user's food choices. It is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
+**NutriMagnus ("NuMa")** is a computer program with publicly available code which provides a thorough nutritional analysis of a user's food choices. NuMa is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
+
+**Vegetarians and vegans** must deal with protein that has digestibility and amino acid completeness problems. **Older people** are impacted by multiple factors reducing the chances of their being well nourished, including a much-reduced ability to make use of protein. They, along with the **chronically-ill**, also have typically reduced appetites. None of these groups generally have any sound notion of the nutritional adequacy of their diet. The information is obscure, technically dense, and in case of what is seen on commercial packaging, outright misleading.
 
 **Eating usually involves making choices, and good choice requires good information.** The three major problems impeding good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed by NuMa, in detail.
 
@@ -242,7 +244,7 @@ In additions, the following internal data sources are used:
 
 #### Validation you can replicate yourself
 
-**Appendix K has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
+**Appendix G has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
 #### Reasonable expectations: bugs remain
 
@@ -672,7 +674,7 @@ This accounts for how much protein actually reaches your bloodstream. A food wit
 
     Digestible complete protein (g) = digestible protein (g) × min(DIAAS, 1.0)
 
-Even if all the protein is absorbed, it cannot all be incorporated into tissue unless every essential amino acid is present in sufficient proportion. The amino acid in shortest supply — the [limiting amino acid](#gloss-limiting-amino-acid) — sets a ceiling. [DIAAS](#gloss-diaas) is the ratio of that [limiting amino acid](#gloss-limiting-amino-acid) to the [FAO](#gloss-fao) reference level. If [DIAAS](#gloss-diaas) is 0.80, only 80% of the digestible protein can be fully used; the rest is broken down and excreted.
+Even if all the protein is absorbed, it cannot all be incorporated into tissue unless every essential amino acid is present in sufficient proportion. The amino acid in shortest supply — the [limiting amino acid](#gloss-limiting-amino-acid) — sets a ceiling. [DIAAS](#gloss-diaas) is the ratio of that [limiting amino acid](#gloss-limiting-amino-acid) to the [FAO](#gloss-fao) reference level. If [DIAAS](#gloss-diaas) is 0.80, only 80% of the digestible protein can be fully used; the rest is broken down and converted to energy or excreted.
 
 The "Total digestible protein" line below the table is the sum after step 1 only. The [DCP](#gloss-dcp) figure reported in the meal summary is the result after both steps.
 
@@ -901,7 +903,7 @@ Columns:
     Total                 How much this food/recipe/meal/day provides (or,
                            on a food page, how much the entered portion provides).
     Unit                  The nutrient's unit (g, mg, mcg).
-    % of daily target     Total / RDA target x 100, color-coded green/yellow/red
+    % of daily target     Total / RDA target x 100, color-coded (see below)
                            by how close you are to (or over) that target —
                            shown only when you've set up a user profile.
     Revised Optimal goal,
@@ -912,7 +914,7 @@ Columns:
     UL                    Shown only where you're near or over a max limit —
                            see [Maximum Nutrient Limits](#maxlimits).
 
-The color coding on % of daily target (and % of Revised Optimal) follows the same green/at-or-above, yellow/getting-close, red/short-or-over-limit logic throughout the app.
+The color coding on % of daily target (and % of Revised Optimal) uses four colors throughout the app: **green** — met (at or above a minimum, or a comfortable range around a target); **orange** — near (approaching a minimum from below, or drifting outside a target's comfortable range); **blue** — below minimum (well short of a floor-type nutrient like protein or a vitamin, where more is always fine); **red** — over the limit (past a Tolerable Upper Intake Level, or, for a "target"-type nutrient like calories, far enough over 100% that it's no longer close to the target). A short color legend appears right below any table using these colors.
 
 Nutrients without an established Dietary Reference Intake ([phytonutrients](#gloss-phytonutrients), amino acids) are shown without a % of [RDA](#gloss-rda) figure -- those rows show only the Total amount.
 
@@ -1107,7 +1109,7 @@ These are general population guidance, not personalized medical advice, and ever
 
 Once you have at least one Revised Optimal target set, every nutrient analysis table (food, recipe, meal, and daily summary) gains a second "Revised Optimal" set of columns next to the standard "RDA" columns -- the same meal %, day total %, and goal columns you already know, computed against your custom target instead of the RDA. Nutrients you have not customized show a dash ("–") in these columns rather than falling back to the RDA value, so it stays obvious which nutrients you've actually personalized.
 
-Revised Optimal targets are per-nutrient, not per-day -- there is no single "optimal profile" to pick, only individual overrides you add nutrient by nutrient. Color coding matches the RDA columns: green at or above target, yellow approaching it, red well short (or, for capped nutrients like sodium, red once over).
+Revised Optimal targets are per-nutrient, not per-day -- there is no single "optimal profile" to pick, only individual overrides you add nutrient by nutrient. A Revised Optimal target is always the two-sided "target" kind (see [Color coding](#color-coding)), not the "meet or exceed" kind used for the standard RDA: green in a comfortable range around your target, orange approaching that range from either side, blue if well short, red if significantly over — the same logic calories itself uses against the RDA.
 
 
 ### W. Maximum Nutrient Limits {: #maxlimits}
@@ -1407,15 +1409,21 @@ When analyzing a meal within a full-day context, three additional columns appear
     day total %  All meals logged today as a percentage of your daily goal.
     Daily goal   Your personalized nutrient target for the day.
 
-#### Color coding (meal % and day total % columns)
-    Green    At or above the daily minimum, or within the upper limit for
-             capped nutrients (sodium).
-    Yellow   Getting close but not there yet.
-    Red      Significantly short of the minimum, or over the limit.
+#### Color coding (meal % and day total % columns) {: #color-coding}
+    Green    Met — at or above a minimum, or within the comfortable range
+             around a target (e.g. calories), or safely under a limit.
+    Orange   Near — approaching a minimum from below, or drifting toward
+             the edge of a target's comfortable range, or nearing a limit.
+    Blue     Below minimum — well short of a floor-type nutrient (protein,
+             most vitamins/minerals), where more is always fine.
+    Red      Over the limit — past a Tolerable Upper Intake Level, or, for
+             a target-type nutrient like calories, significantly over 100%.
+
+A short Legend line showing all four colors appears right below any table that uses them.
 
 If you have configured a Profile Optimal target for any nutrient (Settings → Nutrient targets), the table gains a second set of the same columns under a "Profile Optimal" heading, alongside the standard "Profile RDA" columns. Nutrients you have not customized show a dash ("–") in the Optimal columns. See [Profile Optimal Targets](#optimal) for details.
 
-If you have configured a custom max limit for a nutrient, its row is highlighted (yellow, then red) once today's total is within 10% of that limit. See [Maximum Nutrient Limits](#maxlimits) for details.
+If you have configured a custom max limit for a nutrient, its row is highlighted (orange, then red) once today's total is within 10% of that limit. See [Maximum Nutrient Limits](#maxlimits) for details.
 
 [Phytonutrients](#gloss-phytonutrients) (carotenoids, choline, isoflavones, etc.) appear only when [USDA](#gloss-usda) data for that food includes those values -- many foods have none. Amino acids are not in this table; see the Protein Quality section below it.
 
@@ -2319,7 +2327,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **Reference value**{: #gloss-reference-value}  —  Short for [FAO](#gloss-fao) reference value: how many mg of one specific essential amino acid a person needs per gram of dietary protein, established independently for each of the nine [EAAs](#gloss-eaa). Dividing a food's own mg-of-that-amino-acid-per-gram-of-protein by its reference value produces that amino acid's [DIAAS](#gloss-diaas)-basis score. See [FAO reference values](#fao).
 
-**SPI**{: #gloss-spi}  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See [Appendix I](#comp-appendix).
+**SPI**{: #gloss-spi}  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See [Appendix E](#comp-appendix).
 
 **TID**{: #gloss-tid}  —  True Ileal Digestibility. NuMa's abbreviation for [ileal digestibility](#gloss-ileal-digestibility), used as a column heading in per-ingredient digestibility breakdowns.
 
@@ -2558,7 +2566,7 @@ This is extremely easy, and we want you to do it. When you're having a problem t
 ---
 
 ## Part 9 — Possible Additional Features
-Ideas below are listed in their current likely probability of being implemented.
+Ideas below are listed in their current likely probability of being implemented. User feedback has a major effect on these probabilities!
 
 ---
 
@@ -2593,6 +2601,38 @@ This is easily achieved once we have dealt with the fundamental data problem bet
 
 Such data is of interest to anyone wanting to better manage their blood sugar levels, including folks with any degree of metabolic syndrome, pre-diabetes, or outright diabetes. At present, no active use of such data exists in the program, but provision of such use is in place.
 
+### FAO 2013 Amino Acid Reference Values {: #fao-values}
+
+Under development.
+
+[//]: # "develop section"
+
+### Full Nutrient Key
+
+Under development.
+
+[//]: # "develop section"
+
+### Protein ingestion timing
+
+Under development.
+
+[//]: # "develop section"
+
+Resources:
+
+* https://runningmagazine.ca/health-nutrition/could-you-be-timing-your-protein-all-wrong/
+
+### Meal timing
+
+Under development.
+
+[//]: # "develop section"
+
+Resources:
+
+* https://www.theguardian.com/commentisfree/2026/may/05/game-changer-good-health-scientists-we-are-when-we-eat - article by expert
+
 ### What else? Well, know this...
 
 #### Your ideas shape what gets built next {: #feature-ideas}
@@ -2622,7 +2662,89 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
+#### September 13 program updates
+
+**NUTRIENT-TABLE COLOR CODING IS EASIER TO TELL APART, AND CALORIES OVER TARGET IS NOW FLAGGED**
+
+Every nutrient table's color coding got a legibility pass: the column header is now a light blue instead of near-white, the table body and the color legend both have a light grey backdrop, and the four status colors (met/near/below minimum/over the limit) are bolder and use more distinct hues — "below minimum" moved from a near-black grey to a clear medium-dark blue, and "near" moved from a brownish amber toward true orange, so it no longer reads so close to "over the limit"'s red. Separately, Calories — and any Revised Optimal target you've configured — is a "target" you're meant to land close to, not just clear like a minimum; that type now actually flags going too far over 100%, showing amber then red the same way falling too far short already did, instead of treating any amount over 100% as equally "met."
+
+<!--
+```
+Scope: web/static/style.css — .nutrient-table thead th background changed
+to #d9e3f3; .nutrient-table tbody tr / tbody tr:nth-child(even) given
+#eef0f2/#e4e6ea backgrounds (previously white / #fafafa stripe only);
+.rda-met/.rda-near/.rda-low/.rda-over all set to font-weight:700 (was
+unweighted except rda-met/rda-over, which is what made green look
+"bigger" than amber/grey before this pass); .rda-low recolored
+#374151->#1e40af, .rda-near recolored #92400e->#c2410c. New .rda-legend
+class (added to _rda_legend.html's <p>) gives the legend the same grey
+backdrop as the table body so its dots read the same color as the table
+cells. numa_app/services/rda_status.py — rda_status() gains a real
+"target" branch: <70% low, 70-99% near, 100-130% met, 131-150% near,
+>150% over (previously "target" fell through to the same >=100%-is-always-
+met logic as "minimum", so a calorie total at 200% of target still showed
+green). tests/test_rda_status.py: new TestTargetThresholds covering the
+new branch.
+```
+-->
+
 #### September 12 program updates
+
+**NUTRITIONAL ANALYSIS TABLES NOW SHOW DIGESTIBLE COMPLETE PROTEIN RIGHT BELOW RAW PROTEIN**
+
+Every nutrient table that analyzes what you're actually eating — a food portion, a meal, a full day, a recipe, or the multi-day nutrient average — now shows a second, indented "(Digestible Complete Protein)" line right below the plain Protein line, whenever a digestibility/amino-acid-adjusted figure is available for that item. Raw protein is what a label reports; DCP is what your body can actually turn into tissue once digestibility and amino acid completeness are accounted for — the number this program exists to surface. If one or more of the foods contributing to that figure had no amino acid data on file, the DCP line gets an asterisk and a footnote naming them, since the true total is at least that much higher than shown.
+
+<!--
+```
+Scope: web/backend.py — _nutrient_sections() gains dcp_g/dcp_missing
+params; when dcp_g is given, a synthetic row (is_dcp_row=True) is appended
+right after the protein_g row in the Macronutrients group, labeled
+"(Digestible Complete Protein)" (+ " *" when dcp_missing is non-empty).
+All 8 call sites now pass diaas_display["dcp_g"]/["missing"] (or, for a
+single food, _protein_section()'s own dcp_g with no missing-list concept;
+for the multi-day trend page, the already-computed avg_dcp card figure,
+with no missing-list tracking across averaged days). New
+web/templates/_dcp_footnote.html macro renders the "* ... excluded ..."
+footnote from a dcp_missing_names context list threaded alongside
+nutrient_sections at each call site. Row gets a new .dcp-row CSS class
+(web/static/style.css, and print.html's own inline stylesheet) for a
+subtle italic treatment. Existing %/RDA/UL column macros already render
+"—" for a None value, so no template changes were needed there — only the
+row's <tr> class and the new footnote line.
+```
+-->
+
+**NUTRIENT TABLES WITH COLOR-CODED %-OF-TARGET COLUMNS NOW SHOW A LEGEND**
+
+Any nutrient table whose "% of daily target" (or "Rev. Opt.") column uses color to show whether you're under, near, or over target now has a brief Legend line right below the table's title, explaining what each color means. This appears on a food's, meal's, recipe's, and day's Nutritional Analysis, and on the Nutrient Averages trend page — wherever those colors show up, so the colors are self-explanatory instead of relying on guesswork.
+
+<!--
+```
+Scope: new web/templates/_rda_legend.html macro (legend()), imported and
+called (guarded by has_profile) right after the existing "no profile"
+notice and before the per-nutrient-group table loop, in meal.html,
+meal_day.html, food_detail.html, recipe_detail.html, summary.html,
+trend.html, and food_analyze_recipe_portion.html. print.html was left
+alone — its printable nutrient table renders plain numbers with no
+color coding at all. Legend text/colors match the existing
+rda-met/rda-near/rda-low/rda-over CSS classes (web/static/style.css)
+already used for these cells.
+```
+-->
+
+**THE HOME PAGE INTRODUCTION IS SHORTER**
+
+The home page used to show the User Manual's entire Preface. It now shows just the first three paragraphs, followed by a note that the introduction continues at the beginning of the User Manual, reachable from the main menu.
+
+<!--
+```
+Scope: web/backend.py — _extract_manual_preface() now returns only lines
+7-11 of user-manual.md (the first 3 Preface paragraphs) instead of
+everything between the "*Last full audit...*" line and the next "---"
+rule. _HOME_CLOSING_PARAGRAPH text updated to match. web/home_body.cache
+deleted so it regenerates from the new logic.
+```
+-->
 
 **THE HOME PAGE NOW SHOWS A RELEASE VERSION ALONGSIDE THE BUILD STAMP**
 
@@ -4807,39 +4929,8 @@ Some applications (January AI, Levels) go a step further, using machine learning
 
 For clinical guidance without [CGM](#gloss-cgm), dietitians working with people with diabetes typically use carbohydrate counting combined with qualitative judgment about fat and protein content, rather than relying on [GL](#gloss-gl) as a single summary figure. [GL](#gloss-gl) remains a reasonable guide for comparing meals similar in structure, but should not be the deciding number when fat and protein differ significantly between the options being considered.
 
-### E. FAO 2013 Amino Acid Reference Values
+### E. Why some foods appear only in DIAAS-boosting suggestions {: #comp-appendix}
 
-Under development.
-
-[//]: # "develop section"
-
-### F. Full Nutrient Key
-
-Under development.
-
-[//]: # "develop section"
-
-### G. Protein ingestion timing
-
-Under development.
-
-[//]: # "develop section"
-
-Resources:
-
-* https://runningmagazine.ca/health-nutrition/could-you-be-timing-your-protein-all-wrong/
-
-### H. Meal timing
-
-Under development.
-
-[//]: # "develop section"
-
-Resources:
-
-* https://www.theguardian.com/commentisfree/2026/may/05/game-changer-good-health-scientists-we-are-when-we-eat - article by expert
-
-### I. Why some foods appear only in DIAAS-boosting suggestions {: #comp-appendix}
 This appendix explains why certain nutritionally excellent protein sources — soy protein isolate, nutritional yeast, pea protein — sometimes appear only in the [DIAAS](#gloss-diaas)-boosting tier and not as gap closers, even though they are well-known complements to legumes.
 
 DIGESTIBILITY-DRIVEN GAPS
@@ -4895,7 +4986,7 @@ The small differences (1-3 mg/g) reflect different published [FAO](#gloss-fao) t
 
 (For technically skilled users: in NuMa's source code these two tables are `usda_api.AA_REFERENCE_MG_PER_G_PROTEIN` and `diaas.FAO_REFERENCE`, respectively.)
 
-### J. Portion Input Formats {: #portion-formats}
+### F. Portion Input Formats {: #portion-formats}
 Every prompt that asks for a portion amount — in Foods, Recipes, Meals, and the Convert tool — accepts the same input formats.
 
 NUMBERS
@@ -4980,7 +5071,7 @@ BARE NUMBER
 
 A bare number with no unit is assumed to be grams; each amount field's example text says so directly.
 
-### K. Worked validation example — meal-level DIAAS for pinto beans + quinoa {: #appendix-k}
+### G. Worked validation example — meal-level DIAAS for pinto beans + quinoa {: #appendix-k}
 This appendix lets you verify [NuMa](#gloss-numa)'s protein quality calculation independently. Every step is shown explicitly so you can reproduce it in a spreadsheet or calculator, then compare your result with what [NuMa](#gloss-numa) produces when you enter these two foods as a meal.
 
 #### The two foods
@@ -5113,7 +5204,7 @@ To apply: multiply each food's IAA total by its coefficient. For example, for pi
 
 The [DIAAS](#gloss-diaas) method scores each pooled digestible IAA against how much of that IAA a *reference protein* of equal weight would provide. The reference values, from [FAO](#gloss-fao) Food and Nutrition Paper 92 (2013), Table 6, are expressed in **mg of IAA per gram of total protein** for older children, adolescents, and adults.
 
-The full table is in Appendix E of this manual. The relevant values are:
+The full table is in [FAO 2013 Amino Acid Reference Values](#fao-values), in Part 9. The relevant values are:
 
 | IAA | [FAO](#gloss-fao) reference (mg/g protein) |
 |-----|-----------------------------:|

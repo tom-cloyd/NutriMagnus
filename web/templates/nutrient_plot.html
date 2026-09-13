@@ -228,7 +228,8 @@
 
   {% if chosen %}
   <div class="mt-3">
-    <span class="form-label d-block mb-0"><strong>Per-nutrient scaling factors</strong> <small class="muted">— fine-tune an individual nutrient's scaling on top of the scale factor above</small></span>
+    <span class="form-label d-block mb-0"><strong>Per-nutrient scaling factors</strong></span>
+    <small class="muted d-block mb-1">NuMa will multiply scale factor above by these factors to fine-tune nutrient scaling. You can manually alter this here.</small>
     <div class="d-flex flex-wrap gap-3 mt-1">
       {% for row in nutrient_factor_rows %}
       <div>

@@ -198,7 +198,7 @@ table {
   font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: #eef2f7;
+  background: #d9e3f3;
   padding-left: 2rem;
   padding-right: 2rem;
 }
@@ -221,10 +221,11 @@ table {
 
 .nutrient-table tbody tr {
   border-bottom: 1px solid #555;
+  background: #eef0f2;
 }
 
 .nutrient-table tbody tr:nth-child(even) {
-  background: #fafafa;
+  background: #e4e6ea;
 }
 
 /* Compact variant — for a nutrient-table that has to stay short, e.g. the
@@ -557,13 +558,36 @@ table {
 
 /* ── RDA % column ────────────────────────────────────────────────────── */
 
-.rda-met  { color: #166534; font-weight: 600; }
-.rda-near { color: #92400e; }
-.rda-low  { color: #374151; }
-.rda-over { color: #991b1b; font-weight: 600; }
+/* Colors and weight tuned 2026-09-13 for distinguishability: rda-low moved
+   from a near-black grey to a clearly separate medium-dark blue, rda-near
+   pushed toward true orange (was a brownish amber too close to rda-over's
+   red), and all four given the same heavier weight — against a white
+   background and at small/unbolded sizes, near and over in particular were
+   close to indistinguishable. */
+.rda-met  { color: #166534; font-weight: 700; }
+.rda-near { color: #c2410c; font-weight: 700; }
+.rda-low  { color: #1e40af; font-weight: 700; }
+.rda-over { color: #991b1b; font-weight: 700; }
+
+/* Color-coding legend dots — 50% bigger than the surrounding <small> text
+   so the color is easy to pick out at a glance. */
+.legend-dot { font-size: 150%; vertical-align: -0.15em; }
+
+/* The legend's own grey backdrop matches the nutrient-table body's grey
+   (see .nutrient-table tbody tr above) so the dots' colors read the same
+   in the legend as they do in the table itself. */
+.rda-legend {
+  background: #eef0f2;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  display: inline-block;
+}
 
 /* ── RDA definition footnote (below nutrient tables) ────────────────────── */
 .rda-footnote { margin-top: 0.4rem; }
+
+/* ── Digestible Complete Protein row, inserted right below Protein ──────── */
+.dcp-row td { font-style: italic; color: #444; }
 
 /* ── Custom max-limit warning (Settings → Nutrient targets) ────────────── */
 /* Applied to a nutrient row's Nutrient/Total cells when the day total is

@@ -15,13 +15,29 @@ def rda_status(pct: float, rda_type: str) -> str:
 
     rda_type == "limit" (Tolerable Upper Intake Level): "met" (<=80%),
     "near" (80-100%, approaching the limit), "over" (>100%).
-    Otherwise (RDA / Adequate Intake minimum or target): "met" (>=100%),
-    "near" (70-99%), "low" (<70%).
+
+    rda_type == "target" (a two-sided ideal — calories, or a user-configured
+    Revised Optimal value — where too much is also a problem, not just too
+    little): "low" (<70%), "near" (70-99%, approaching from below), "met"
+    (100-130%), "near" (131-150%, drifting too high), "over" (>150%).
+
+    Otherwise (RDA / Adequate Intake minimum, where more is always fine):
+    "met" (>=100%), "near" (70-99%), "low" (<70%).
     """
     if rda_type == "limit":
         if pct <= 80:
             return "met"
         elif pct <= 100:
+            return "near"
+        return "over"
+    if rda_type == "target":
+        if pct < 70:
+            return "low"
+        elif pct < 100:
+            return "near"
+        elif pct <= 130:
+            return "met"
+        elif pct <= 150:
             return "near"
         return "over"
     if pct >= 100:

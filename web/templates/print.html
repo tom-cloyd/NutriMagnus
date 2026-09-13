@@ -1,5 +1,6 @@
 {% import "_ul_column.html" as _ul %}
 {% import "_rda_definition_footer.html" as _rda_note %}
+{% import "_dcp_footnote.html" as _dcp_note %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,6 +29,7 @@
     .card { border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem 0.7rem; margin: 0.4rem 0; }
     .status-met { color: #146c2e; }
     .status-gap { color: #a05a00; }
+    .dcp-row td { font-style: italic; color: #444; }
     .no-print { margin-top: 1.5rem; margin-bottom: 1.5rem; }
     .btn-print {
       display: inline-block; padding: 0.4rem 1.1rem; background: #1a3a6b; color: #fff;
@@ -219,7 +221,7 @@
   </thead>
   <tbody>
     {% for row in section.rows %}
-    <tr>
+    <tr{% if row.is_dcp_row %} class="dcp-row"{% endif %}>
       <td>{{ row.label }}</td>
       <td class="num">{{ row.value }}</td>
       <td class="muted">{{ row.unit }}</td>
@@ -236,6 +238,7 @@
   </tbody>
 </table>
 {% endfor %}
+{{ _dcp_note.note(dcp_missing_names) }}
 {% if nutrient_sections and has_profile %}{{ _rda_note.note() }}{% endif %}
 {% if nutrient_sections and has_ul %}{{ _ul.note() }}{% endif %}
 {% endif %}
