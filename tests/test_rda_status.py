@@ -53,3 +53,9 @@ class TestLimitWarning:
 
     def test_no_limit_configured_never_warns(self):
         assert limit_warning(10_000, 0) is False
+
+    def test_smallest_positive_limit_still_warns(self):
+        """Regression: a mutmut survivor swapped limit > 0 for limit > 1,
+        which only a limit of exactly 1 (a positive, real, but tiny limit)
+        can distinguish -- both are True for any limit >= 2."""
+        assert limit_warning(1, 1) is True

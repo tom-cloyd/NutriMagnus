@@ -2956,6 +2956,38 @@ def test_food_detail_dcp_summary_line_percent_matches_grams(client: TestClient, 
     assert pct == round(100 * dcp_g / raw_g)
 
 
+def test_nutrient_table_shows_dcp_row_and_color_legend(client: TestClient, db_conn):
+    """Weekly-sweep gap: the (Digestible Complete Protein) row added to
+    every nutrient table, and the %-of-target color legend added alongside
+    it, had no regression test at all."""
+    import json as _json
+    nutrients = dict(SAMPLE_NUTRIENTS)
+    fdc_id = 999004
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (fdc_id, "Chicken, broilers or fryers, breast, meat only, raw", "SR Legacy", None, 100.0, "g", _json.dumps(nutrients), "[]"),
+    )
+    db_conn.commit()
+    resp = client.get(f"/food/{fdc_id}", params={"amount": "100"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert "(Digestible Complete Protein)" in html
+    assert "dcp-row" in html
+    assert "Legend" in html
+    assert "rda-met" in html or "rda-near" in html or "rda-low" in html
+
+
+def test_home_page_shows_release_version(client: TestClient) -> None:
+    """Weekly-sweep gap: RELEASE_VERSION (a hand-maintained SemVer label
+    shown alongside the build-stamp VERSION on the home page) had no
+    regression test."""
+    from version import RELEASE_VERSION
+
+    resp = client.get("/")
+    assert RELEASE_VERSION in resp.text
+
+
 def test_unusable_protein_line_absent_for_complete_food(client: TestClient, db_conn):
     import json as _json
     fdc_id = 999002

@@ -37,6 +37,27 @@ afcd_lookup.py          — Australian AFCD local search over afcd_data.json
                          (see scripts/build_afcd_data.py). Has amino-acid data.
 ciqual_lookup.py        — French CIQUAL local search over ciqual_data.json
                          (see scripts/build_ciqual_data.py). No amino-acid data.
+oxalate.py              — read access to the bundled oxalate.db reference
+                         table (never written at runtime — see oxalate_links
+                         in db.py for the user-specific food-to-record map)
+oxalate_source_data.py  — oxalate reference data compiled from a Harvard
+                         School of Public Health source table; feeds
+                         build_oxalate_db.py
+build_oxalate_db.py     — one-time/refresh script: populates the committed
+                         oxalate.db from oxalate_source_data.py
+platform_utils.py       — cross-platform config/data directory resolution
+                         (Linux/macOS ~/.config, ~/.local/share; Windows
+                         %APPDATA%/%LOCALAPPDATA% equivalents)
+import_foods.py         — import manually-compiled food records (see
+                         numa_app/services/food_import.py) into the food cache
+import_json_folder.py   — import one food per JSON file dropped into
+                         food_imports/ (same shape/rules as import_foods.py)
+import_gi_seed.py       — seed glycemic-index estimates onto matching cached
+                         foods, from a published GI/GL reference table
+numa_gen_prompt.py      — generate a Claude nutrition-data request prompt
+                         (interactive, --pantry, or from a food-list file)
+numa_import_claude.py   — parse a Claude nutrition response (```json blocks)
+                         and import the results into numa
 
 numa_app/
   services/

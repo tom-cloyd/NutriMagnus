@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-13:0940* / Reading time: 4 hours, 48 minutes
+*Updated 2026-09-13:1004* / Reading time: 4 hours, 42 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -231,7 +231,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 982 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 985 formal tests that the program must pass after every significant change, across four tiers:
 
 - **Behavioral tests** — the vast majority of the 817 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
@@ -272,9 +272,9 @@ Right below the **Welcome to NutriMagnus** heading is a small block of status li
 
 - **Dietary preferences** — your current setting (e.g. "All animal foods"), with a link straight to Settings to change it.
 - **Active profile** — a one-line summary of your profile (age, sex, weight, height, activity level), or "not set" with a link to configure one if you haven't yet.
-- **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`. Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build.
+- **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`, alongside a human-facing release version (e.g. `0.1.0-rc.1`). Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build.
 
-Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub (with an **Update Now** button if you're running the packaged Linux install, otherwise a plain link to what's new). That banner repeats the build note as its own line, plus a note on how often you're being notified about new releases and a link to change that in **Settings → Update Notifications** (daily, weekly, or monthly — daily by default).
+Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, plus a note on how often you're being notified about new releases and a link to change that in **Settings → Update Notifications** (daily, weekly, or monthly — daily by default).
 
 **When does NuMa actually check for a new release?** Every time the home page loads — at launch, on a manual reload, or by navigating back to it from anywhere else in the program — it asks whether a newer version exists. That check itself is cached for a few hours, so bouncing back to the home page repeatedly doesn't re-contact GitHub every time; it just reuses the last answer until the cache expires. Separately, even when a newer version genuinely is available, whether the **UPDATE AVAILABLE** banner is actually shown to you on a given visit is throttled again by your daily/weekly/monthly notification-frequency setting — so you won't see it more often than you asked to.
 
@@ -1449,6 +1449,8 @@ Columns:
 
 A **Show** control next to the picker limits the list to the top 5/10/15/20/30 foods, or all of them (defaults to 10); it only offers choices that would actually shorten the list, so a meal with 6 contributors just offers "5" or "All." A "Total, all contributors" row at the bottom of the table always reflects every contributor, even when the list above it is trimmed.
 
+A food logged more than once in the same meal — eaten twice on its own, or appearing both directly and inside a recipe in that meal — is grouped into a single row with its amounts summed, rather than listed as separate duplicate rows. This applies on both the per-meal page and the day-level Analysis rollup.
+
 Ranking by **Protein** is special: instead of raw protein grams, it ranks each food by its own standalone [digestible complete protein](#dcp) ([DCP](#gloss-dcp)) — what that food alone would contribute after accounting for amino acid digestibility and completeness, using the same [DIAAS](#diaas) math as Protein Summary above it, applied to that one food in isolation. A note below the table explains this distinction and links back to Protein Summary. Because combining foods can raise a meal's *actual* DCP above what any single food scores alone — [protein complementarity](#comp) is the whole point of DIAAS — this table's total will typically be lower than, and should not be read as equal to, the real meal DCP shown in Protein Summary. Foods with no amino acid data on file don't score a DCP and are omitted from the ranking when Protein is selected.
 
 
@@ -1480,6 +1482,8 @@ See [DIAAS](#diaas) for the [DIAAS](#gloss-diaas) concept. See [limiting amino a
 Step 1 of the meal [DIAAS](#gloss-diaas) calculation. Shows how much protein from each ingredient actually reaches your bloodstream -- before the [limiting amino acid](#gloss-limiting-amino-acid) penalty is applied. Rows are sorted by raw protein, highest first, so the foods actually driving the meal's or recipe's numbers are at the top.
 
 On food and recipe pages, this table also has a DCP column. That DCP is just each food's raw protein times one shared meal- or recipe-wide score, so it's not that food's own standalone protein quality — two foods can show the same DCP simply by contributing equal protein, even with very different amino acid profiles, and that shared multiplier is also why sorting by protein and by DCP land on the same order. See [Top Contributors](#top-contributors) for each food's own standalone quality instead.
+
+As with [Top Contributors](#top-contributors), a food logged more than once in the same meal is grouped into one row with its amounts summed, rather than shown as separate duplicate rows.
 
 Columns:
 
@@ -2664,6 +2668,26 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 #### September 13 program updates
 
+**MAINTENANCE: WEEKLY SWEEP — WINDOWS DOWNLOAD LINK FIXED IN README, THREE TEST GAPS CLOSED, CHANGELOG PRUNED**
+
+Item 1 (CLAUDE.md drift) found real gaps: seven root-level modules (oxalate handling, cross-platform path resolution, and several one-off import/prompt-generation scripts) existed in the codebase but were never listed in CLAUDE.md's Package Layout — now added. Item 2 found one stray lowercase "numa" in manual prose, fixed. Item 3 (vendored Bootstrap) confirmed still current at 5.3.8. Item 6 (README.md) found the most consequential gap: the public README still said "(Windows version coming.)" in the Download section, even though a working Windows build now exists — fixed with a real download line. Item 5 (manual consolidation) added two real shipped features to the manual body that had only ever appeared in the changelog: the home page's release-version display, and repeated-food grouping on Top Contributors/Meal-Level Protein Analysis tables. Item 7 (test coverage) found and closed three real gaps from the last few days of shipped changes, all now covered by regression tests: the "(Digestible Complete Protein)" nutrient-table row, the %-of-target color legend, and the home page's release-version display — none had any test at all. Item 8 (stale links) found nothing broken — all three apparently-missing anchors turned out to be auto-slugged heading ids, and all ten external URLs cited in the manual returned 200 (one 403 on claude.ai is a bot-block, not rot). Item 4 pruned this log back to the last two weeks. The mutation-testing weekly churn check flagged `numa_app/services/rda_status.py` — its new "target" branch (added today) had no dedicated mutation-testing pass yet. Run at the user's request: 50 mutants, 1 real survivor found and fixed in `limit_warning()` (a `>0`/`>1` boundary only distinguishable at a limit of exactly 1, untested); 0/50 survive after the fix.
+
+<!--
+```
+Scope: CLAUDE.md (Package Layout: oxalate.py, oxalate_source_data.py,
+build_oxalate_db.py, platform_utils.py, import_foods.py,
+import_json_folder.py, import_gi_seed.py, numa_gen_prompt.py,
+numa_import_claude.py added), user-manual.md ("Starting numa" ->
+"Starting NuMa"; home-page-tour section documents release_version and the
+Windows/non-packaged download-button banner path; Top Contributors and
+Meal Protein Digestibility Analysis sections document same-food grouping;
+~230 lines of August 23-27 changelog entries pruned), README.md (Download
+section: Windows now listed instead of "coming"), tests/test_web.py (new
+test_nutrient_table_shows_dcp_row_and_color_legend and
+test_home_page_shows_release_version).
+```
+-->
+
 **THE "NEW VERSION AVAILABLE" BANNER NOW OFFERS A DIRECT DOWNLOAD LINK**
 
 On Windows, the home-page banner that appears when a new NutriMagnus version is out now includes a "Download NutriMagnus" button that goes straight to the installer file, instead of only a link to a GitHub release page you'd have to find the download on yourself.
@@ -2803,7 +2827,7 @@ within one meal and across every meal on a day.
 
 **NUMA NOW OPENS IN YOUR ACTUAL BROWSER, NOT ALWAYS FIREFOX**
 
-Starting numa used to always try to open a Firefox tab (or launch Firefox if it wasn't running), regardless of which browser you actually use day to day. It now opens in whichever browser you already have running — Firefox, Chrome, Chromium, Brave, Vivaldi, Opera, Edge, or GNOME Web. If more than one is running at once, a small dialog pops up asking which one to use. If you'd rather skip that dialog and always use one specific browser, a new "Browser to Launch" option in [Settings](#settings) (with a short explanation right there) lets you pin one.
+Starting NuMa used to always try to open a Firefox tab (or launch Firefox if it wasn't running), regardless of which browser you actually use day to day. It now opens in whichever browser you already have running — Firefox, Chrome, Chromium, Brave, Vivaldi, Opera, Edge, or GNOME Web. If more than one is running at once, a small dialog pops up asking which one to use. If you'd rather skip that dialog and always use one specific browser, a new "Browser to Launch" option in [Settings](#settings) (with a short explanation right there) lets you pin one.
 
 <!--
 ```
@@ -4341,257 +4365,6 @@ documentation-accuracy sweep, not a behavior change.
 ```
 -->
 
-#### August 27 program updates
-
-**SUBSTITUTE PANEL NO LONGER LOOKS LIKE ITS USAGE TABLE IS A LIST OF REPLACEMENT CANDIDATES**
-
-The Food Use in Meals / Food Use in Recipes substitute-a-food-or-recipe panel showed an unlabeled table of what's currently used in your selection, easy to mistake for a menu of foods you could pick as the replacement — including the very food you're trying to replace, sitting right there in the list. That table now says plainly it's a usage summary, not a replacement picker, marks the item you're replacing as "replacing this," and links straight to Food Search / Recipes (each opens in a new tab and shows IDs) for finding the replacement's ID. [learn more...](#fooduse-substitute)
-
-<!--
-```
-Scope: web/templates/analysis_food_use.html and analysis_food_use_recipes.html
-(panel intro text now explains the table's purpose and links to /food/search
-and /recipes for ID lookup; each results row computes is_replace_target by
-comparing sub_kind/sub_id against the row's kind/fdc_id/recipe_id and shows
-a "replacing this" badge when it matches), user-manual.md (#fooduse-substitute
-updated to match — no longer tells the reader to read the replacement's ID
-off the results table).
-```
--->
-
-**BLOCKED-DELETE MESSAGES NOW OFFER A ONE-CLICK BULK REPLACE, NOT JUST REMOVAL INSTRUCTIONS**
-
-The delete-blocked message on Food Cache and Custom Food Profiles previously only explained how to remove the food from each blocking recipe/meal one at a time. It now also links each blocking recipe/meal group to the existing Food Use substitution tools, pre-selected to exactly those recipes/meals with this food already chosen as the one to replace — so swapping in a different food everywhere it's used, in one action, is one click away. [learn more...](#fooduse-substitute)
-
-<!--
-```
-Scope: web/backend.py (food_cache_delete/food_custom_profiles_delete now
-pass blocked_fdc_id through the redirect; analysis_food_use() and
-analysis_food_use_recipes() gained optional sub_kind/sub_id query params
-that pre-fill the substitute form's "Replace this" side and auto-expand
-its <details>), web/templates/food_cache.html and food_custom_profiles.html
-(delete-blocked alert links to /analysis/food-use-recipes?mode=ids&recipe_ids=...
-and /analysis/food-use?mode=ids&meal_ids=... with sub_kind/sub_id set),
-web/templates/analysis_food_use.html and analysis_food_use_recipes.html
-(old_kind/old_id inputs take their default from sub_kind/sub_id).
-```
--->
-
-**BLOCKED-DELETE MESSAGES (FOOD CACHE, CUSTOM FOOD PROFILES) NOW SPELL OUT HOW TO CLEAR EACH BLOCKER**
-
-Trying to delete a food that's still used in a pantry entry, recipe, or logged meal used to just name the blocking item(s) (or, for Custom Food Profiles, not even that — see below) and say "remove/replace the food first," without saying how. Both pages now give a short numbered how-to per blocker type: which button to click on the Pantry page, which control to use on the recipe's edit page, which control to use on the meal page.
-
-Custom Food Profiles' delete-blocked message previously didn't name the blocking item(s) at all, unlike Food Cache's — it now does too, with the same linked pantry/recipe/meal ids.
-
-<!--
-```
-Scope: web/backend.py (food_custom_profiles_delete/food_custom_profiles_get
-now carry blocked_pantry/blocked_recipes/blocked_meals through the redirect,
-mirroring food_cache_delete()), web/templates/food_cache.html and
-food_custom_profiles.html (delete-blocked alert now lists linked
-pantry/recipe/meal ids plus a per-category how-to list instead of a
-generic "remove/replace the food" line).
-```
--->
-
-**RECIPE-RELINK SUGGESTIONS NO LONGER FIRE ON A SINGLE COINCIDENTAL WORD, AND YOU CAN NOW RELINK TO ANY RECIPE**
-
-Editing a recipe used to offer to relink dangling "deleted recipe" references based on sharing just one word with the recipe's name — generic words like "protein" could trigger a nonsensical suggestion. It now requires sharing 2+ words (or an exact name match). The relink form also no longer assumes you meant the recipe you're currently editing — a dropdown lets you pick any suggested match or any recipe at all as the relink target. Separately, the opening page now shows an UPDATE banner if the database check (Food Cache > Database check) finds any referential-integrity problems, instead of requiring a visit to that page to notice.
-
-<!--
-```
-Scope: db.py (find_broken_recipe_refs/find_relink_candidates now require
-MIN_RELINK_SHARED_WORDS=2 shared words, or an exact case-insensitive name
-match, via new _name_matches_for_relink() helper; new
-find_relink_candidates() lists live recipes plausibly matching a deleted
-recipe's name), web/backend.py (recipe_edit_get attaches candidates +
-all_recipes_for_relink per broken group; recipe_relink_post takes a
-target_recipe_id form field instead of always relinking to the recipe
-being edited; index() runs check_db_integrity() and passes db_issue_count),
-web/templates/recipe_edit.html (relink form now has a target-recipe
-<select> with suggested/all-recipes optgroups), web/templates/home.html
-(new UPDATE banner linking to /food/cache/db-check).
-```
--->
-
-**FOOD SEARCH NO LONGER SURFACES (LET ALONE TOP-RANKS) FOODS MATCHING ONLY A GENERIC WORD**
-
-Searching a multi-word query like "orange raw" could surface a user-drafted cached food like "Raw Brazil Nuts" — which shares nothing with "orange" — just because it contained the word "raw." Worse, under "Pantry, Cache, then Other" sort mode, that coincidental match could rank above every genuine "orange" result, since source category was compared before match quality. Generic prep/state words (raw, cooked, fresh, dried, frozen, canned, whole, ground, sliced, diced, chopped, boiled, roasted, baked, grilled, steamed, plain) can no longer trigger a match on their own. "Pantry, Cache, then Other" mode also now always ranks by how many query words matched first — pantry/cache only get listed ahead of other sources when they're tied on match quality, never when they matched fewer words.
-
-<!--
-```
-Scope: db.py (search_cached_foods's user-drafted any-word fallback now
-excludes a new _OR_FALLBACK_STOPWORDS set of generic prep/state words from
-triggering a match by themselves), web/backend.py (_sort_search_results's
-"grouped" mode now sorts by match count/word-mask from
-numa_app.services.search_ranking.relevance_key first, with source category
-only breaking ties between equally-good matches, instead of comparing
-category before match quality at all).
-```
--->
-
-#### August 26 program updates
-
-**NEW: DELETE BUTTONS ON FOOD SEARCH RESULTS, AND A ONE-CLICK "UNSELECT ALL" FOR THE SOURCE FILTER**
-
-Food Search rows now carry a Delete column: a pantry match gets "Remove from pantry," a food-cache match gets "Delete" (refused if something still references it, same as Food Cache's own Delete), and a recipe match gets "Delete" for the recipe — each asks for confirmation first. Separately, the Source filter row (already had "Select all sources") now also has an "Unselect all" button.
-
-<!--
-```
-Scope: web/backend.py (_search_local_results()/_pantry_id_by_fdc() now attach
-a pantry_id to pantry-sourced rows so the row can call the existing
-/pantry/remove/{pantry_id} route), web/templates/_search_result_row.html
-(new Delete column, reusing the existing /pantry/remove/{id},
-/food/cache/delete, and /recipe/{id}/delete routes and their confirm()
-patterns from pantry.html/food_cache.html/recipes.html), web/templates/
-search.html and _search_api_rows.html (header cell and colspan bump),
-web/templates/_source_filter_select.html + base.html (new
-data-unselect-all-sources button, delegated click handler mirroring the
-existing data-select-all-sources one).
-```
--->
-
-#### August 25 program updates
-
-**NEW: ADDING AN INGREDIENT NOW WARNS ABOUT AND AUTO-SAVES ANY UNSAVED RECIPE DETAILS**
-
-On the Edit Recipe page, the Recipe details fields (name, servings, instructions, etc.) save separately from the ingredient list — editing one of those fields and then clicking "Add to recipe" without first clicking "Save recipe details" used to leave that edit sitting unsaved, easy to lose track of. Now, adding an ingredient while any recipe-detail field has an unsaved change shows a warning first; choosing to continue saves those pending changes automatically along with adding the ingredient. [learn more...](#recipe-ingredients)
-
-<!--
-```
-Scope: web/templates/recipe_edit.html (recipe-details-form given an id;
-new script tracks input/change events on it, intercepts submission of the
-"add ingredient" and "add sub-recipe as ingredient" forms via a confirm()
-warning, then POSTs the details form via fetch before letting the original
-add-ingredient submit proceed). No backend route changes — this reuses the
-existing /recipe/{id}/edit save endpoint and the existing
-/recipe/{id}/ingredient/add(-recipe) endpoints, just sequenced from the
-client side.
-```
--->
-
-**NEW: COMPARE RECIPES CAN NOW SAVE AND RELOAD COMPARISON LISTS, LIKE COMPARE FOODS ALREADY COULD**
-
-Compare Recipes had no way to save a set of recipes you'd compared before — every visit started from a blank list. It now works exactly like Compare Foods: a "Save this list" box at the bottom names and stores your current comparison, and a "Use a saved list" panel at the top of the page — including the very first, empty-list view — lets you reload, rename, or delete any saved comparison. [learn more...](#comparison-saved-lists)
-
-<!--
-```
-Scope: db.py (new saved_recipe_comparisons table and
-saved_recipe_comparison_save/list/get/rename/delete() functions, mirroring
-the existing food-comparison saved_comparisons table), web/backend.py (new
-/recipe/compare/save, /recipe/compare/load/{cmp_id},
-/recipe/compare/saved/rename, /recipe/compare/saved/delete routes;
-recipe_compare_get() now loads saved_lists), web/templates/recipe_compare.html
-(new saved-lists panel and "Save this list" form, both copied from
-food_compare.html's equivalent markup), tests/test_web.py (new
-save/load/rename/delete regression test), user-manual.md (Recipe Comparison
-Tables section).
-```
--->
-
-**FIXED: A FAST CLICK ON A LOCAL FOOD SEARCH RESULT'S COMPARE CHECKBOX COULD GET SILENTLY DISCARDED, AND THE LOCAL-RESULTS SECTION NOW HAS ITS OWN HEADING**
-
-Food Search renders your own pantry/cache/recipe matches instantly, then quietly replaces the whole results table a moment later once USDA/Open Food Facts respond, merging both sets together. Checking a compare checkbox on one of those instant local results *before* that replace finished got silently wiped out — the checkbox just looked broken, with no error or explanation. Checked boxes now carry across that replace. Separately, the local-results section at the top of the table now has its own "From your pantry, food cache, and recipes" heading, matching the "From USDA, Open Food Facts, and other external sources" heading the external section already had — the top section wasn't previously labeled at all.
-
-<!--
-```
-Scope: web/templates/search.html (JS captures checked compare/confirm-aa
-checkbox values before replacing #search-tbody's innerHTML, re-applies them
-by value afterward; new local-results divider row), web/templates/_search_api_rows.html
-(same new divider, kept in sync with search.html since both render the same
-table body), tests/test_web.py (existing divider-ordering test extended to
-also check the new local heading).
-```
--->
-
-**NEW: "COPY AS DRAFT TO ADD AA DATA" SHORTCUT ON FOOD SEARCH RESULTS**
-
-Any Food Search result missing confirmed amino acid data now shows a **Copy as draft to add AA data** link right in its row. Clicking it duplicates that food as an editable custom-profile draft and takes you straight to its edit page with the amino-acid-source search box ready — the one-click version of the "search, then go to Custom Food Profiles, then search again" path this previously required. [learn more...](#ts-no-aa-anywhere)
-
-<!--
-```
-Scope: web/backend.py (new /food/custom-profiles/copy-from-search route,
-shared _duplicate_food_as_draft() helper factored out of the existing
-copy/{fdc_id} route), web/templates/_search_result_row.html (new per-row
-form/button; confirm-aa-form restructured to a form= reference instead of
-DOM nesting so each row can hold its own independent form),
-web/templates/search.html (confirm-aa-form now closes before the results
-table, select-all checkbox looked up by id instead of by form-descendant
-query), tests/test_web.py (2 new tests, cached and uncached source),
-user-manual.md (Drafted Food Profiles List and the "no AA data anywhere"
-troubleshooting entry both mention the shortcut).
-```
--->
-
-**SEARCH-RESULT CHECKBOXES ARE NOW COLOR-CODED WITH A LEGEND**
-
-Food Search result rows can carry two different checkboxes — one to confirm amino acid data on an unconfirmed food, one to add the food to a comparison — and it wasn't obvious they were two separate controls when both appeared on the same row. The "confirm AA" checkbox is now orange and the "compare" checkbox is now purple, with a small legend above the results table explaining what each one does.
-
-<!--
-```
-Scope: web/templates/_search_result_row.html (checkbox-confirm-aa /
-checkbox-compare classes), web/templates/search.html (select-all checkbox
-recolored, new legend above the results table), web/static/style.css
-(accent-color rules + legend swatches).
-```
--->
-
-**PROTEIN POWDERS NOW ACCEPT TABLESPOON/CUP AMOUNTS WHEN ADDED TO A RECIPE, AND THE EDIT-RECIPE PAGE NOW SHOWS THE RECIPE'S ID**
-
-Adding an ingredient like "Soy protein isolate" to a recipe using a volume amount (e.g. `2 T`) was silently rejected with "no density data is available for this food" — the density lookup only recognized "protein powder" and "whey powder" by name, not "protein isolate" or "protein concentrate". Those are now recognized too. Separately, the Edit Recipe page now shows the recipe's ID number under its title, matching other pages that display it.
-
-<!--
-```
-Scope: usda_nutrients.py (_DENSITY_TABLE gained "protein isolate" and
-"protein concentrate" keywords alongside the existing "protein powder"/"whey
-powder" entry), tests/test_usda.py (regression test), web/templates/recipe_edit.html
-(recipe ID shown under the page title).
-```
--->
-
-**RECIPE COMPLEMENT SUGGESTIONS NOW EXPLAIN THEIR WHOLE-BATCH SIZING AND SHOW A PER-SERVING AMOUNT**
-
-Protein Complement Suggestions on a recipe's own page size every gram amount to the recipe's full total across all its servings, not one serving — that's intentional, since the only way to act on a suggestion is to add an ingredient to the whole batch. But a 4-serving recipe could show "add 83 g of soy protein isolate" with no indication that figure was for the whole pot, not one bowl. A note now appears at the top of the section for any recipe with more than one serving explaining this, with a link to further detail in the manual, and every gram amount throughout the section (gap closers, graduated steps, DIAAS boosters, two-food and two-step combinations) now also shows its per-serving equivalent in parentheses. [learn more...](#comp-recipe-scale)
-
-<!--
-```
-Scope: user-manual.md (new "Recipe analysis: amounts are sized to the whole
-batch" subsection under Protein Complement Suggestions, #comp-recipe-scale),
-web/templates/recipe_detail.html (top-of-section note for multi-serving
-recipes; new per_serving_note() macro applied to every grams display in the
-complements section), tests/test_web.py (new regression test).
-```
--->
-
-#### August 23 program updates
-
-**NIACIN AND FOLATE NO LONGER FALSELY FLAG NORMAL DIETS AS OVER THE LIMIT**
-
-The **UL** column on nutrient analysis tables no longer warns about niacin (B3) or folate (B9) from ordinary food intake. Their published upper limits only apply to synthetic/supplemental forms (fortified food or pills) — whole-food niacin and folate don't carry the same risk, the same reasoning already applied to magnesium. Every table with a UL column now also carries a "Special note re: UL scope" callout right in the table footer explaining this in plain language, rather than leaving it to a manual page few people open. If you take a supplement containing niacin, folate, or magnesium, set a [custom max limit](#maxlimits) to track that. [learn more...](#maxlimits)
-
-<!--
-```
-Scope: profile.py (compute_upper_limits() no longer includes niacin_mg or
-folate_mcg, doc comment explains why — mirrors the existing magnesium
-exclusion), tests/test_profile.py (expected UL dict updated),
-web/templates/_ul_column.html (note() macro gained an inline "Special note
-re: UL scope" callout, shown on every nutrient table with a UL column —
-food/recipe/meal/daily summary/trend/print), user-manual.md (Maximum
-Nutrient Limits table and counts updated from 14 to 12 built-in ULs).
-```
--->
-
-**MAINTENANCE: WEEKLY SWEEP — 3 TEST GAPS CLOSED, README FEATURE LIST CAUGHT UP, PROGRAM UPDATES LOG PRUNED**
-
-Item 1 (CLAUDE.md drift) and item 2 (vendored Bootstrap, still 5.3.8, current) found nothing to fix. Item 6 (test coverage) found three real gaps from the last few days of shipped changes and closed all of them: the Food Cache delete-refusal page rendering a food/pantry/recipe/meal blocker as an actual link, the My Pantry search results' "Remove from pantry" button, and Food Use in Meals/Recipes linking each row to its own analysis page — each now has a regression test. Item 5 (README.md) added three shipped features that were missing from the public "Key features" list: side-by-side comparison, food-use analysis, and the database integrity checker. Item 4 (manual consolidation) folded the delete-blocker and pantry-remove-button behavior into the manual body itself, and removed a stale internal editorial note that had outlived its purpose. Item 3 pruned this log back to roughly the last two weeks. Item 7 (link check) found nothing broken in-manual, but turned up something outside the manual's scope worth a look: `https://github.com/tom-cloyd/NutriMagnus` and its `/releases` page both return a genuine 404 right now, not a bot-block — worth confirming the repo's current visibility/location before the next release announcement, since `README.md`'s Download section and clone instructions point there.
-
-<!--
-```
-Scope: tests/test_web.py (3 new/extended tests), README.md (Key features list),
-user-manual.md (Food Cache and My Pantry sections in Part 3, stray editorial
-note removed from Appendix A header, test-count sentence in Part 1).
-```
--->
 
 ---
 
