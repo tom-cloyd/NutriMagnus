@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-13:1004* / Reading time: 4 hours, 42 minutes
+*Updated 2026-09-13:1022* / Reading time: 4 hours, 43 minutes
 
 *Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
 
@@ -231,7 +231,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 985 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 987 formal tests that the program must pass after every significant change, across four tiers:
 
 - **Behavioral tests** — the vast majority of the 817 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
@@ -2667,6 +2667,26 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
 #### September 13 program updates
+
+**FIXED: THE DISCLAIMER LINK 404'D IN ANY PACKAGED INSTALL, AND A DEAD "CORRECT THIS OXALATE MATCH" LINK IS REMOVED**
+
+The **Disclaimer** link on the home page 404'd in every packaged install (the Windows build, and the Linux binary) — DISCLAIMER.md was never bundled into the executable, only read straight off disk in a from-source checkout, so nobody running the actual released program could ever open it. Found during manual testing of today's Windows build; now bundled and working. Separately, a food page's oxalate reference note has linked to a "correct if wrong" page for auto-matched entries since the feature was first built — that page never existed, so the link always 404'd. It's removed for now; the note still tells you the match was automatic and unconfirmed.
+
+<!--
+```
+Scope: nutrimagnus.spec (datas gains ('DISCLAIMER.md', '.')), web/templates/food_detail.html
+(dead <a href="/food/{fdc_id}/oxalate-link"> removed, plain-text note kept).
+New tests/test_packaging_spec.py (checks every _PROJECT_ROOT-relative file
+web/backend.py references is listed in nutrimagnus.spec's datas — the class
+of bug that let DISCLAIMER.md go unbundled) and tests/test_link_integrity.py
+(checks every href in web/templates/**/*.html against real registered
+routes/mounts and, for /manual#anchor links, real built-manual anchors --
+the class of bug that let the oxalate-link 404 survive since its original
+commit). README-numa-documentation.md's weekly-sweep item 8 rewritten to
+cover app-screen links, not just the manual's own internal links, which is
+how both of today's findings surfaced.
+```
+-->
 
 **MAINTENANCE: WEEKLY SWEEP — WINDOWS DOWNLOAD LINK FIXED IN README, THREE TEST GAPS CLOSED, CHANGELOG PRUNED**
 

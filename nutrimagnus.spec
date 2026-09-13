@@ -15,6 +15,7 @@ a = Analysis(
         ('web/static', 'static'),
         ('user-manual.md', '.'),
         ('user-manual.html', '.'),
+        ('DISCLAIMER.md', '.'),
         ('scripts/build_manual.py', 'scripts'),
         ('oxalate.db', '.'),
         ('numa_app/services/starter_data.json', 'numa_app/services'),

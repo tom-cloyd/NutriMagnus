@@ -410,7 +410,7 @@
     </tbody>
   </table>
   <p class="muted mt-1" style="font-size:0.8rem">
-    Reference: {{ oxalate.ref_name }}{% if not oxalate.confirmed %} <span class="text-warning">(auto-matched — <a href="/food/{{ food.fdc_id }}/oxalate-link">correct if wrong</a>)</span>{% endif %}
+    Reference: {{ oxalate.ref_name }}{% if not oxalate.confirmed %} <span class="text-warning">(auto-matched — not user-confirmed)</span>{% endif %}
   </p>
   {% endif %}
   {% if antinutrients %}
