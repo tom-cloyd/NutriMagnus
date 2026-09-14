@@ -1,6 +1,233 @@
 {
   "foods": [
     {
+      "fdc_id": 170683,
+      "name": "* Amaranth grain, cooked",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 102.0,
+        "protein_g": 3.8,
+        "fat_g": 1.58,
+        "carbs_g": 18.69,
+        "fiber_g": 2.1,
+        "calcium_mg": 47.0,
+        "iron_mg": 2.1,
+        "magnesium_mg": 65.0,
+        "phosphorus_mg": 148.0,
+        "potassium_mg": 135.0,
+        "sodium_mg": 6.0,
+        "zinc_mg": 0.86,
+        "thiamin_mg": 0.015,
+        "riboflavin_mg": 0.022,
+        "niacin_mg": 0.235,
+        "b6_mg": 0.113,
+        "folate_mcg": 22.0,
+        "vitamin_e_mg": 0.19
+      },
+      "portions": [
+        {
+          "description": "cup",
+          "gram_weight": 246.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 171708,
+      "name": "* Cherries, tart, dried, sweetened (Includes foods for USDA's Food Distribution Program)",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 333.0,
+        "protein_g": 1.25,
+        "fat_g": 0.73,
+        "carbs_g": 80.45,
+        "fiber_g": 2.5,
+        "calcium_mg": 38.0,
+        "iron_mg": 0.68,
+        "magnesium_mg": 22.0,
+        "phosphorus_mg": 36.0,
+        "potassium_mg": 376.0,
+        "sodium_mg": 13.0,
+        "zinc_mg": 0.25,
+        "vitamin_c_mg": 19.3,
+        "thiamin_mg": 0.058,
+        "riboflavin_mg": 0.101,
+        "niacin_mg": 0.867,
+        "b6_mg": 0.101,
+        "folate_mcg": 11.0,
+        "choline_mg": 14.7,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 141.0,
+        "beta_carotene_mcg": 1697.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 173.0,
+        "vitamin_e_mg": 0.17,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.146,
+        "mono_fat_g": 0.177,
+        "poly_fat_g": 0.194
+      },
+      "portions": [
+        {
+          "description": "cup",
+          "gram_weight": 40.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 173647,
+      "name": "* Beverages, water, tap, drinking",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 0.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "carbs_g": 0.0,
+        "fiber_g": 0.0,
+        "calcium_mg": 3.0,
+        "iron_mg": 0.0,
+        "magnesium_mg": 1.0,
+        "phosphorus_mg": 0.0,
+        "potassium_mg": 0.0,
+        "sodium_mg": 4.0,
+        "zinc_mg": 0.01,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.0,
+        "riboflavin_mg": 0.0,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.0,
+        "folate_mcg": 0.0,
+        "choline_mg": 0.0,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.0,
+        "mono_fat_g": 0.0,
+        "poly_fat_g": 0.0
+      },
+      "portions": [
+        {
+          "description": "liter",
+          "gram_weight": 1000.0
+        },
+        {
+          "description": "serving 8 fl oz",
+          "gram_weight": 237.0
+        },
+        {
+          "description": "fl oz",
+          "gram_weight": 29.6
+        }
+      ]
+    },
+    {
+      "fdc_id": 173796,
+      "name": "* Beans, pinto, mature seeds, cooked, boiled, with salt",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 143.0,
+        "protein_g": 9.01,
+        "fat_g": 0.65,
+        "carbs_g": 26.22,
+        "fiber_g": 9.0,
+        "calcium_mg": 46.0,
+        "iron_mg": 2.09,
+        "magnesium_mg": 50.0,
+        "phosphorus_mg": 147.0,
+        "potassium_mg": 436.0,
+        "sodium_mg": 238.0,
+        "zinc_mg": 0.98,
+        "vitamin_c_mg": 0.8,
+        "thiamin_mg": 0.193,
+        "riboflavin_mg": 0.062,
+        "niacin_mg": 0.318,
+        "b6_mg": 0.229,
+        "folate_mcg": 172.0,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "vitamin_e_mg": 0.94,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.109,
+        "mono_fat_g": 0.106,
+        "poly_fat_g": 0.188,
+        "aa_tryptophan_g": 0.098,
+        "aa_threonine_g": 0.35,
+        "aa_isoleucine_g": 0.368,
+        "aa_leucine_g": 0.664,
+        "aa_lysine_g": 0.571,
+        "aa_methionine_g": 0.126,
+        "aa_cystine_g": 0.09,
+        "aa_phenylalanine_g": 0.45,
+        "aa_valine_g": 0.435,
+        "aa_histidine_g": 0.232
+      },
+      "portions": [
+        {
+          "description": "cup",
+          "gram_weight": 171.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 175188,
+      "name": "* Beans, black turtle, mature seeds, canned",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 91.0,
+        "protein_g": 6.03,
+        "fat_g": 0.29,
+        "carbs_g": 16.55,
+        "fiber_g": 6.9,
+        "calcium_mg": 35.0,
+        "iron_mg": 1.9,
+        "magnesium_mg": 35.0,
+        "phosphorus_mg": 108.0,
+        "potassium_mg": 308.0,
+        "sodium_mg": 384.0,
+        "zinc_mg": 0.54,
+        "vitamin_c_mg": 2.7,
+        "thiamin_mg": 0.14,
+        "riboflavin_mg": 0.12,
+        "niacin_mg": 0.62,
+        "b6_mg": 0.055,
+        "folate_mcg": 61.0,
+        "choline_mg": 23.2,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.62,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.075,
+        "mono_fat_g": 0.025,
+        "poly_fat_g": 0.125,
+        "aa_tryptophan_g": 0.072,
+        "aa_threonine_g": 0.222,
+        "aa_isoleucine_g": 0.285,
+        "aa_leucine_g": 0.512,
+        "aa_lysine_g": 0.422,
+        "aa_methionine_g": 0.079,
+        "aa_cystine_g": 0.056,
+        "aa_phenylalanine_g": 0.356,
+        "aa_tyrosine_g": 0.143,
+        "aa_valine_g": 0.348,
+        "aa_histidine_g": 0.166
+      },
+      "portions": [
+        {
+          "description": "cup",
+          "gram_weight": 240.0
+        }
+      ]
+    },
+    {
       "fdc_id": 175237,
       "name": "* Beans, black, mature seeds, cooked, boiled, with salt",
       "data_type": "SR Legacy",
@@ -51,6 +278,330 @@
         {
           "description": "cup",
           "gram_weight": 172.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 175239,
+      "name": "* Beans, black turtle, mature seeds, cooked, boiled, with salt",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 130.0,
+        "protein_g": 8.18,
+        "fat_g": 0.35,
+        "carbs_g": 24.35,
+        "fiber_g": 8.3,
+        "calcium_mg": 55.0,
+        "iron_mg": 2.85,
+        "magnesium_mg": 49.0,
+        "phosphorus_mg": 152.0,
+        "potassium_mg": 433.0,
+        "sodium_mg": 239.0,
+        "zinc_mg": 0.76,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.225,
+        "riboflavin_mg": 0.056,
+        "niacin_mg": 0.527,
+        "b6_mg": 0.077,
+        "folate_mcg": 86.0,
+        "choline_mg": 32.6,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.87,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.089,
+        "mono_fat_g": 0.03,
+        "poly_fat_g": 0.149,
+        "aa_tryptophan_g": 0.097,
+        "aa_threonine_g": 0.344,
+        "aa_isoleucine_g": 0.361,
+        "aa_leucine_g": 0.653,
+        "aa_lysine_g": 0.562,
+        "aa_methionine_g": 0.123,
+        "aa_cystine_g": 0.089,
+        "aa_phenylalanine_g": 0.442,
+        "aa_tyrosine_g": 0.23,
+        "aa_valine_g": 0.428,
+        "aa_histidine_g": 0.228
+      },
+      "portions": [
+        {
+          "description": "cup",
+          "gram_weight": 185.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 1918726,
+      "name": "* 100% Whole Wheat Bread",
+      "data_type": "Branded",
+      "nutrients": {
+        "calories": 252,
+        "protein_g": 12.5,
+        "carbs_g": 42.7,
+        "fat_g": 3.4,
+        "fiber_g": 5.9,
+        "sugar_g": 4.4,
+        "saturated_fat_g": 0.72,
+        "mono_fat_g": 0.62,
+        "poly_fat_g": 1.59,
+        "calcium_mg": 161,
+        "iron_mg": 2.5,
+        "magnesium_mg": 75,
+        "phosphorus_mg": 212,
+        "potassium_mg": 254,
+        "sodium_mg": 455,
+        "zinc_mg": 1.72,
+        "vitamin_c_mg": 0,
+        "vitamin_d_mcg": 0,
+        "vitamin_e_mg": 2.66,
+        "vitamin_k_mcg": 7.8,
+        "thiamin_mg": 0.39,
+        "riboflavin_mg": 0.17,
+        "niacin_mg": 4.38,
+        "b6_mg": 0.22,
+        "folate_mcg": 42,
+        "b12_mcg": 0,
+        "beta_carotene_mcg": 2,
+        "lutein_zeaxanthin_mcg": 87,
+        "choline_mg": 27.2,
+        "aa_tryptophan_g": 0.165,
+        "aa_threonine_g": 0.347,
+        "aa_isoleucine_g": 0.419,
+        "aa_leucine_g": 0.849,
+        "aa_lysine_g": 0.34,
+        "aa_methionine_g": 0.216,
+        "aa_cystine_g": 0.26,
+        "aa_phenylalanine_g": 0.645,
+        "aa_tyrosine_g": 0.26,
+        "aa_valine_g": 0.533,
+        "aa_histidine_g": 0.338
+      },
+      "portions": null
+    },
+    {
+      "fdc_id": 170411,
+      "name": "* Onions, frozen, chopped, cooked, boiled, drained, without salt",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 28.0,
+        "protein_g": 0.77,
+        "fat_g": 0.1,
+        "carbs_g": 6.59,
+        "fiber_g": 1.8,
+        "calcium_mg": 16.0,
+        "iron_mg": 0.3,
+        "magnesium_mg": 6.0,
+        "phosphorus_mg": 19.0,
+        "potassium_mg": 108.0,
+        "sodium_mg": 12.0,
+        "zinc_mg": 0.07,
+        "vitamin_c_mg": 2.6,
+        "thiamin_mg": 0.023,
+        "riboflavin_mg": 0.025,
+        "niacin_mg": 0.139,
+        "b6_mg": 0.069,
+        "folate_mcg": 13.0,
+        "choline_mg": 4.4,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 1.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 3.0,
+        "vitamin_e_mg": 0.01,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.016,
+        "mono_fat_g": 0.013,
+        "poly_fat_g": 0.038,
+        "aa_tryptophan_g": 0.011,
+        "aa_threonine_g": 0.018,
+        "aa_isoleucine_g": 0.027,
+        "aa_leucine_g": 0.027,
+        "aa_lysine_g": 0.036,
+        "aa_methionine_g": 0.006,
+        "aa_cystine_g": 0.014,
+        "aa_phenylalanine_g": 0.02,
+        "aa_tyrosine_g": 0.019,
+        "aa_valine_g": 0.018,
+        "aa_histidine_g": 0.012
+      },
+      "portions": [
+        {
+          "description": "cup, chopped or diced",
+          "gram_weight": 105.0
+        },
+        {
+          "description": "tbsp chopped",
+          "gram_weight": 15.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 168576,
+      "name": "* Peppers, jalapeno, raw",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 29.0,
+        "protein_g": 0.91,
+        "fat_g": 0.37,
+        "carbs_g": 6.5,
+        "fiber_g": 2.8,
+        "calcium_mg": 12.0,
+        "iron_mg": 0.25,
+        "magnesium_mg": 15.0,
+        "phosphorus_mg": 26.0,
+        "potassium_mg": 248.0,
+        "sodium_mg": 3.0,
+        "zinc_mg": 0.14,
+        "vitamin_c_mg": 118.6,
+        "thiamin_mg": 0.04,
+        "riboflavin_mg": 0.07,
+        "niacin_mg": 1.28,
+        "b6_mg": 0.419,
+        "folate_mcg": 27.0,
+        "choline_mg": 7.5,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 54.0,
+        "beta_carotene_mcg": 561.0,
+        "alpha_carotene_mcg": 67.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 861.0,
+        "vitamin_e_mg": 3.58,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.092,
+        "mono_fat_g": 0.029,
+        "poly_fat_g": 0.112
+      },
+      "portions": [
+        {
+          "description": "pepper",
+          "gram_weight": 14.0
+        },
+        {
+          "description": "cup, sliced",
+          "gram_weight": 90.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 520301,
+      "name": "* CHOPPED TOMATOES",
+      "data_type": "Branded",
+      "nutrients": {
+        "vitamin_c_mg": 4.6,
+        "calcium_mg": 15.0,
+        "saturated_fat_g": 0.0,
+        "iron_mg": 1.11,
+        "sodium_mg": 88.0,
+        "fiber_g": 1.0,
+        "carbs_g": 3.23,
+        "calories": 22.0,
+        "fat_g": 0.2,
+        "protein_g": 1.23
+      },
+      "portions": [
+        {
+          "description": "0.5 cup",
+          "gram_weight": 130.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 2162651,
+      "name": "* SALT",
+      "data_type": "Branded",
+      "nutrients": {
+        "calories": 0.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "sodium_mg": 39333.0,
+        "carbs_g": 1333.33
+      },
+      "portions": [
+        {
+          "description": "1/4 tsp",
+          "gram_weight": 1.5
+        }
+      ]
+    },
+    {
+      "fdc_id": 2287220,
+      "name": "* GROUND CUMIN",
+      "data_type": "Branded",
+      "nutrients": {
+        "sodium_mg": 0.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "iron_mg": 51.43,
+        "carbs_g": 0.0,
+        "calories": 0.0
+      },
+      "portions": null
+    },
+    {
+      "fdc_id": 1104647,
+      "name": "* Garlic, raw",
+      "data_type": "Foundation",
+      "nutrients": {
+        "calories": 143.0,
+        "protein_g": 6.62,
+        "fat_g": 0.38,
+        "carbs_g": 28.2,
+        "fiber_g": 2.7,
+        "vitamin_c_mg": 10.0
+      },
+      "portions": null
+    },
+    {
+      "fdc_id": 169997,
+      "name": "* Coriander (cilantro) leaves, raw",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 23.0,
+        "protein_g": 2.13,
+        "fat_g": 0.52,
+        "carbs_g": 3.67,
+        "fiber_g": 2.8,
+        "calcium_mg": 67.0,
+        "iron_mg": 1.77,
+        "magnesium_mg": 26.0,
+        "phosphorus_mg": 48.0,
+        "potassium_mg": 521.0,
+        "sodium_mg": 46.0,
+        "zinc_mg": 0.5,
+        "vitamin_c_mg": 27.0,
+        "thiamin_mg": 0.067,
+        "riboflavin_mg": 0.162,
+        "niacin_mg": 1.114,
+        "b6_mg": 0.149,
+        "folate_mcg": 62.0,
+        "choline_mg": 12.8,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 337.0,
+        "beta_carotene_mcg": 3930.0,
+        "alpha_carotene_mcg": 36.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 865.0,
+        "vitamin_e_mg": 2.5,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.014,
+        "mono_fat_g": 0.275,
+        "poly_fat_g": 0.04,
+        "beta_sitosterol_mg": 3.0
+      },
+      "portions": [
+        {
+          "description": "sprigs",
+          "gram_weight": 20.0
+        },
+        {
+          "description": "cup",
+          "gram_weight": 4.0
         }
       ]
     },
@@ -249,57 +800,6 @@
         {
           "description": "1 cup",
           "gram_weight": 42.0
-        }
-      ]
-    },
-    {
-      "fdc_id": 173647,
-      "name": "* Beverages, water, tap, drinking",
-      "data_type": "SR Legacy",
-      "nutrients": {
-        "calories": 0.0,
-        "protein_g": 0.0,
-        "fat_g": 0.0,
-        "carbs_g": 0.0,
-        "fiber_g": 0.0,
-        "calcium_mg": 3.0,
-        "iron_mg": 0.0,
-        "magnesium_mg": 1.0,
-        "phosphorus_mg": 0.0,
-        "potassium_mg": 0.0,
-        "sodium_mg": 4.0,
-        "zinc_mg": 0.01,
-        "vitamin_c_mg": 0.0,
-        "thiamin_mg": 0.0,
-        "riboflavin_mg": 0.0,
-        "niacin_mg": 0.0,
-        "b6_mg": 0.0,
-        "folate_mcg": 0.0,
-        "choline_mg": 0.0,
-        "b12_mcg": 0.0,
-        "vitamin_a_mcg": 0.0,
-        "beta_carotene_mcg": 0.0,
-        "alpha_carotene_mcg": 0.0,
-        "lycopene_mcg": 0.0,
-        "lutein_zeaxanthin_mcg": 0.0,
-        "vitamin_e_mg": 0.0,
-        "vitamin_d_mcg": 0.0,
-        "saturated_fat_g": 0.0,
-        "mono_fat_g": 0.0,
-        "poly_fat_g": 0.0
-      },
-      "portions": [
-        {
-          "description": "liter",
-          "gram_weight": 1000.0
-        },
-        {
-          "description": "serving 8 fl oz",
-          "gram_weight": 237.0
-        },
-        {
-          "description": "fl oz",
-          "gram_weight": 29.6
         }
       ]
     },
@@ -1035,58 +1535,64 @@
           "gram_weight": 138.0
         }
       ]
-    },
-    {
-      "fdc_id": 173796,
-      "name": "* Beans, pinto, mature seeds, cooked, boiled, with salt",
-      "data_type": "SR Legacy",
-      "nutrients": {
-        "calories": 143.0,
-        "protein_g": 9.01,
-        "fat_g": 0.65,
-        "carbs_g": 26.22,
-        "fiber_g": 9.0,
-        "calcium_mg": 46.0,
-        "iron_mg": 2.09,
-        "magnesium_mg": 50.0,
-        "phosphorus_mg": 147.0,
-        "potassium_mg": 436.0,
-        "sodium_mg": 238.0,
-        "zinc_mg": 0.98,
-        "vitamin_c_mg": 0.8,
-        "thiamin_mg": 0.193,
-        "riboflavin_mg": 0.062,
-        "niacin_mg": 0.318,
-        "b6_mg": 0.229,
-        "folate_mcg": 172.0,
-        "b12_mcg": 0.0,
-        "vitamin_a_mcg": 0.0,
-        "vitamin_e_mg": 0.94,
-        "vitamin_d_mcg": 0.0,
-        "saturated_fat_g": 0.109,
-        "mono_fat_g": 0.106,
-        "poly_fat_g": 0.188,
-        "aa_tryptophan_g": 0.098,
-        "aa_threonine_g": 0.35,
-        "aa_isoleucine_g": 0.368,
-        "aa_leucine_g": 0.664,
-        "aa_lysine_g": 0.571,
-        "aa_methionine_g": 0.126,
-        "aa_cystine_g": 0.09,
-        "aa_phenylalanine_g": 0.45,
-        "aa_valine_g": 0.435,
-        "aa_histidine_g": 0.232
-      },
-      "portions": [
-        {
-          "description": "cup",
-          "gram_weight": 171.0
-        }
-      ]
     }
   ],
   "pantry": [],
   "recipes": [
+    {
+      "source_recipe_id": 10,
+      "name": "* Refried beans, Tom's",
+      "description": "Far better than any that comes in a can! One serving = 295 g.",
+      "servings": 8.25,
+      "instructions": "1. Chop and saute onions in oil, in 12\" skillet; set aside.2. Place half of bean in food processor, with jalopeno peppers, and all other ingredients except the salsa and the garlic. You may optionally hold out the chopped cilantro. Add enough of the bean cooking water to be able to process the mix until fairly smooth. Pour into skillet.3. Process the rest of the beans and half the salsa until no more than coarsely chopped. Place into skillet with rest of salsa.4. Bring quickly to a simmer. Simmer, occasional stirring for 10-15 minutes.5. Approximately 10 cups will result. Freeze some, refrigerate the rest.",
+      "ingredients": [
+        [
+          "* Beans, pinto, mature seeds, cooked, boiled, with salt",
+          72.163,
+          "1/4 c (72 gr)"
+        ],
+        [
+          "* Onions, frozen, chopped, cooked, boiled, drained, without salt",
+          577.304,
+          "2 c (577 gr)"
+        ],
+        [
+          "* Beans, pinto, mature seeds, cooked, boiled, with salt",
+          2309.216,
+          "8 c (2309 gr)"
+        ],
+        [
+          "* Peppers, jalapeno, raw",
+          0.0,
+          "\u2014"
+        ],
+        [
+          "* CHOPPED TOMATOES",
+          195.0,
+          "1.5 c (195 gr)"
+        ],
+        [
+          "* SALT",
+          5.978000000000001,
+          "1 t (6 gr)"
+        ],
+        [
+          "* GROUND CUMIN",
+          0.0,
+          "4 t (weight not known)"
+        ],
+        [
+          "* Garlic, raw",
+          0.0,
+          "\u2014"
+        ],
+        [
+          "* Coriander (cilantro) leaves, raw",
+          0.0,
+          "1.5 c (weight not known)"
+        ]
+      ]
+    },
     {
       "source_recipe_id": 53,
       "name": "* Chickpea-quinoa meal",
