@@ -184,7 +184,15 @@ def test_restore_selected_recipe_pulls_in_missing_ingredient_foods(db_conn: sqli
     db_conn.commit()
 
     assert result["recipes"] == 1
-    assert result["foods"] == len(recipe["ingredients"])
+    # A recipe can legitimately use the same food in two separate ingredient
+    # lines (e.g. added in two batches) -- restore_selected() dedupes by
+    # fdc_id, so the number of foods actually restored is the number of
+    # *unique* ingredient foods, not the raw ingredient-line count.
+    unique_fdc_ids = {
+        next(f["fdc_id"] for f in demo_data.DEMO_FOODS if f["name"] == food_name)
+        for food_name, _amount, _unit in recipe["ingredients"]
+    }
+    assert result["foods"] == len(unique_fdc_ids)
     assert db_conn.execute(
         "SELECT COUNT(*) FROM recipes WHERE name=?", (recipe["name"],)
     ).fetchone()[0] == 1

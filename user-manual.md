@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-13:2355* / Reading time: 4 hours, 46 minutes
+*Updated 2026-09-14:0021* / Reading time: 4 hours, 46 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -2707,6 +2707,8 @@ and README-numa-documentation.md (route table, starter-data maintenance
 section) updated.
 ```
 -->
+
+#### September 13 program updates
 
 **THE "UPDATE AVAILABLE" BANNER NOW REMINDS YOU TO CHECK FOR NEW STARTER FOODS/RECIPES**
 
