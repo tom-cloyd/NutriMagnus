@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Correct oxalate match{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Correct oxalate match</li>
+  </ol>
+</nav>
+
+<h2>Correct oxalate match {{ manual_link("oxalate-link-correction") }}</h2>
+<p class="muted">
+  NutriMagnus matches <strong>{{ food.name }}</strong> against a reference table of foods with known oxalate
+  content. If that automatic match looks wrong, search below and pick the correct entry — or say this food
+  isn't in the reference table at all.
+</p>
+
+{% if current_ox_row %}
+<div class="alert {{ 'alert-success' if current_confirmed else 'alert-warning' }} mb-3">
+  Current reference: <strong>{{ current_ox_row.food_name }}</strong> ({{ category_label(current_ox_row.category) }})
+  {% if current_confirmed %}— confirmed by you{% else %}— auto-matched, not yet confirmed{% endif %}
+</div>
+{% elif current_no_match %}
+<div class="alert alert-secondary mb-3">
+  You've confirmed this food has no oxalate reference match.
+</div>
+{% else %}
+<div class="alert alert-secondary mb-3">No oxalate reference currently linked.</div>
+{% endif %}
+
+<form method="get" action="/food/{{ food.fdc_id }}/oxalate-link" class="mb-3">
+  <div class="input-group" style="max-width:32rem">
+    <input type="text" name="q" class="form-control" value="{{ query }}" placeholder="Search the oxalate reference table…">
+    <button type="submit" class="btn btn-outline-secondary">Search</button>
+  </div>
+</form>
+
+<form method="post" action="/food/{{ food.fdc_id }}/oxalate-link">
+  {% if candidates %}
+  <div class="list-group mb-3" style="max-width:40rem">
+    {% for row in candidates %}
+    <label class="list-group-item d-flex align-items-start gap-2">
+      <input type="radio" name="choice" value="{{ row.id }}" class="mt-1"
+             {% if current_ox_row and current_ox_row.id == row.id %}checked{% endif %}>
+      <span>
+        <strong>{{ row.food_name }}</strong> — {{ format_oxalate(row) }}
+      </span>
+    </label>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No matches for "{{ query }}" — try a different search term.</p>
+  {% endif %}
+
+  <label class="list-group-item d-flex align-items-start gap-2 mb-3" style="max-width:40rem">
+    <input type="radio" name="choice" value="no_match" class="mt-1" {% if current_no_match %}checked{% endif %}>
+    <span>This food is <strong>not</strong> in the oxalate reference table — stop trying to match it.</span>
+  </label>
+
+  <button type="submit" class="btn btn-primary">Save</button>
+  <a href="/food/{{ food.fdc_id }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+</form>
+{% endblock %}

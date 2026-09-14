@@ -3554,6 +3554,53 @@ async def food_detail(
     return templates.TemplateResponse(request, "food_detail.html", ctx)
 
 
+@app.get("/food/{fdc_id}/oxalate-link", response_class=HTMLResponse)
+async def oxalate_link_get(request: Request, fdc_id: int, q: str | None = None):
+    import oxalate as _ox
+    with _db.get_db() as conn:
+        food = _db.get_cached_food(conn, fdc_id)
+        if food is None:
+            raise HTTPException(status_code=404, detail="Food not found")
+        link = _db.oxalate_link_get(conn, fdc_id)
+
+    current_ox_row = None
+    if link is not None and link["oxalate_food_id"]:
+        with _ox.get_oxalate_db() as ox_conn:
+            current_ox_row = _ox.get_by_id(ox_conn, link["oxalate_food_id"])
+
+    query = q if q is not None else food["name"]
+    candidates = []
+    if query.strip():
+        with _ox.get_oxalate_db() as ox_conn:
+            candidates = [row for _score, row in _ox.search_similar(ox_conn, query, top_n=15)]
+
+    return templates.TemplateResponse(request, "oxalate_link.html", {
+        "food": food,
+        "query": query,
+        "candidates": candidates,
+        "current_ox_row": current_ox_row,
+        "current_confirmed": bool(link and link["user_confirmed"]),
+        "current_no_match": bool(link and link["no_match"]),
+        "format_oxalate": _ox.format_oxalate,
+        "category_label": _ox.category_label,
+    })
+
+
+@app.post("/food/{fdc_id}/oxalate-link", response_class=RedirectResponse)
+async def oxalate_link_post(
+    fdc_id: int,
+    choice: str = Form(...),
+):
+    with _db.get_db() as conn:
+        if _db.get_cached_food(conn, fdc_id) is None:
+            raise HTTPException(status_code=404, detail="Food not found")
+        if choice == "no_match":
+            _db.oxalate_link_save(conn, fdc_id, oxalate_food_id=None, no_match=True)
+        else:
+            _db.oxalate_link_save(conn, fdc_id, oxalate_food_id=int(choice), no_match=False)
+    return RedirectResponse(f"/food/{fdc_id}", status_code=303)
+
+
 def _food_available_sections(ctx: dict) -> list[str]:
     available = []
     if ctx.get("nutrient_sections"):

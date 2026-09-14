@@ -3131,6 +3131,52 @@ def test_copy_aa_shows_error_flag_when_source_has_no_aa_data(
     assert unchanged == {"protein_g": 10.0}
 
 
+def test_oxalate_link_page_renders_and_finds_candidates(client: TestClient, cached_food) -> None:
+    """Regression: this route didn't exist at all until 2026-09-13 -- the
+    "correct if wrong" link on food pages 404'd for every user since the
+    oxalate-reporting feature's original commit."""
+    resp = client.get(f"/food/{cached_food['fdcId']}/oxalate-link", params={"q": "spinach"})
+    assert resp.status_code == 200
+    assert "Spinach, Raw" in resp.text
+    assert "Correct oxalate match" in resp.text
+
+
+def test_oxalate_link_page_404s_for_unknown_food(client: TestClient) -> None:
+    resp = client.get("/food/999999999/oxalate-link")
+    assert resp.status_code == 404
+
+
+def test_oxalate_link_post_saves_confirmed_match(client: TestClient, cached_food, db_conn) -> None:
+    fdc_id = cached_food["fdcId"]
+    resp = client.post(f"/food/{fdc_id}/oxalate-link", data={"choice": "429"}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == f"/food/{fdc_id}"
+
+    link = db_conn.execute(
+        "SELECT * FROM oxalate_links WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()
+    assert link["oxalate_food_id"] == 429
+    assert link["user_confirmed"] == 1
+    assert link["no_match"] == 0
+
+    # The food page should now show the corrected reference as confirmed.
+    detail = client.get(f"/food/{fdc_id}")
+    assert "Spinach, Raw" in detail.text
+    assert "auto-matched" not in detail.text
+
+
+def test_oxalate_link_post_saves_no_match(client: TestClient, cached_food, db_conn) -> None:
+    fdc_id = cached_food["fdcId"]
+    resp = client.post(f"/food/{fdc_id}/oxalate-link", data={"choice": "no_match"}, follow_redirects=False)
+    assert resp.status_code == 303
+
+    link = db_conn.execute(
+        "SELECT * FROM oxalate_links WHERE fdc_id = ?", (fdc_id,)
+    ).fetchone()
+    assert link["no_match"] == 1
+    assert link["oxalate_food_id"] is None
+
+
 def test_oxalate_qualitative_list_sorted_high_to_low_then_alphabetical(monkeypatch) -> None:
     """The 'Categorical report only' anti-nutrients list on meal/recipe pages
     must be sorted by oxalate category (high to low), then alphabetically by

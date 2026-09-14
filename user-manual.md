@@ -1,8 +1,8 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-13:1022* / Reading time: 4 hours, 43 minutes
+*Updated 2026-09-13:2033* / Reading time: 4 hours, 44 minutes
 
-*Last full audit: 2026-08-30* / [Disclaimer](/disclaimer)
+*Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
 **NutriMagnus ("NuMa")** is a computer program with publicly available code which provides a thorough nutritional analysis of a user's food choices. NuMa is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
 
@@ -58,7 +58,7 @@ Start with what is easiest to understand: analysis of single foods and simple re
 
 While we don't yet have on-board local AI to help you with NuMa and your food questions, we do have NuMa remembering recent entries you've made to text input boxes, and a number of different options you've selected. 
 
-One huge asset is the [Food cache](#FoodCache) database you'll set up. This serves as a memory of every food you've looked up or put into your Pantry. Saved is the food name, ID number, and nutrition data. 
+One huge asset is the [Food cache](#FoodCache) database you'll set up. This serves as a memory of every food you've looked up or put into your Pantry. Saved is the food name, ID number, and nutrition data. Data retrievals from the online databases take time; retrievals from you personal Food cache are essentially instant.
 
 ### D. Stuck? 
 
@@ -231,7 +231,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 987 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 991 formal tests that the program must pass after every significant change, across four tiers:
 
 - **Behavioral tests** — the vast majority of the 817 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
@@ -832,6 +832,10 @@ NuMa includes the Harvard T.H. Chan School of Public Health [oxalate](#gloss-oxa
 **To enable it:** Settings → Your Profile → check "Look up oxalate content for foods," then Save profile.
 
 Once enabled, viewing a food or analyzing a recipe automatically looks it up in the Harvard table by name and links the best match — no confirmation prompt. That link is saved the first time and reused after, so the lookup only runs once per food.
+
+#### Correcting a wrong match {: #oxalate-link-correction}
+
+Since the match is automatic and name-based, it's sometimes wrong. A food's page marks an unconfirmed automatic match with "auto-matched — correct if wrong"; click that link to open a search page over the same Harvard reference table. Search for the right entry, select it, and save — or, if the food genuinely isn't in the Harvard table at all, choose "This food is not in the oxalate reference table" instead, which stops NuMa from re-matching it on future lookups. Either choice marks the food as user-confirmed, so the "auto-matched" warning won't reappear for it.
 
 #### Important limitations
 
@@ -2668,9 +2672,30 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 #### September 13 program updates
 
+**NEW: YOU CAN NOW ACTUALLY CORRECT A WRONG AUTOMATIC OXALATE MATCH**
+
+A food page's "auto-matched — correct if wrong" note now goes somewhere real: a new search page over the Harvard oxalate reference table where you can pick the right entry, or say the food isn't in the table at all. This link has existed since oxalate tracking was first built but never went anywhere until now. [learn more...](#oxalate-link-correction)
+
+<!--
+```
+Scope: web/backend.py — new GET/POST /food/{fdc_id}/oxalate-link routes,
+built on the pre-existing (but previously uncalled) db.oxalate_link_save()/
+oxalate_link_get() and oxalate.search_similar()/get_by_id()/format_oxalate().
+New web/templates/oxalate_link.html: search box (defaults to the food's own
+name), radio list of candidates, and a "not in the table" option; POST
+saves via oxalate_link_save() and redirects back to the food page.
+web/templates/food_detail.html: the "correct if wrong" link restored to
+point at the new route. tests/test_web.py: 4 new tests (page renders with
+real search results, 404 for an unknown food, POST saves a confirmed
+match, POST saves a no-match decision) — the class of gap
+tests/test_link_integrity.py (added earlier today) exists to catch:
+a link that resolves to nothing is invisible to every other kind of test.
+```
+-->
+
 **FIXED: THE DISCLAIMER LINK 404'D IN ANY PACKAGED INSTALL, AND A DEAD "CORRECT THIS OXALATE MATCH" LINK IS REMOVED**
 
-The **Disclaimer** link on the home page 404'd in every packaged install (the Windows build, and the Linux binary) — DISCLAIMER.md was never bundled into the executable, only read straight off disk in a from-source checkout, so nobody running the actual released program could ever open it. Found during manual testing of today's Windows build; now bundled and working. Separately, a food page's oxalate reference note has linked to a "correct if wrong" page for auto-matched entries since the feature was first built — that page never existed, so the link always 404'd. It's removed for now; the note still tells you the match was automatic and unconfirmed.
+The **Disclaimer** link on the home page 404'd in every packaged install (the Windows build, and the Linux binary) — DISCLAIMER.md was never bundled into the executable, only read straight off disk in a from-source checkout, so nobody running the actual released program could ever open it. Found during manual testing of today's Windows build; now bundled and working. Separately, a food page's oxalate reference note has linked to a "correct if wrong" page for auto-matched entries since the feature was first built — that page never existed, so the link always 404'd. It was removed as a same-day stopgap, then given a real destination later the same day — see the entry above.
 
 <!--
 ```
