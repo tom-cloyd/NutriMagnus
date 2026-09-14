@@ -1,0 +1,41 @@
+name: Build Windows exe (on demand)
+
+# Builds nutrimagnus.exe on a clean GitHub-hosted windows-latest runner and
+# uploads it as a workflow artifact (NOT to a GitHub Release directly) --
+# `make upload-windows` still does that step locally, unchanged, once the
+# artifact is downloaded. Added 2026-09-13 as a fallback when the normal
+# local-VM path (make build-windows, see Makefile/scripts/build-windows.sh)
+# is unavailable -- that path stays the normal one; this is a backup, not
+# a replacement.
+#
+# Manual trigger only (workflow_dispatch).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.txt pyinstaller==6.21.0
+
+      - name: Regenerate user-manual.html
+        run: python scripts/build_manual.py
+
+      - name: Build Windows exe
+        run: pyinstaller nutrimagnus.spec
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nutrimagnus-windows-exe
+          path: dist/nutrimagnus.exe
