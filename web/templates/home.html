@@ -36,6 +36,7 @@
     <span class="muted">(notified {{ update_notify_freq_labels.get(current_update_notify_frequency(), '') | lower }}
     — <a href="/settings#update-notifications">change via Settings</a>)</span></small>
   {% endif %}
+  <br><small class="muted">Updates sometimes add new starter foods or recipes — after updating, check <strong>Settings → 9. Starter Data → Restore individual starter items</strong> to pick up anything new.</small>
   {% if self_update_available %}
   <form method="post" action="/update-now" class="mt-2 mb-0" id="update-now-form">
     <button type="submit" id="update-now-btn" class="btn btn-sm btn-primary">Update now</button>

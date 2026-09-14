@@ -1961,6 +1961,16 @@ def update_cached_food_profile(
     )
 
 
+def rename_cached_food(conn: sqlite3.Connection, fdc_id: int, new_name: str) -> None:
+    """Change only a cached food's name, touching nothing else -- notably
+    NOT user_drafted, unlike update_cached_food_profile() above. Used for
+    the "* " starter-data name toggle on a real USDA/OFF food's detail page:
+    that toggle must not mark the food user-modified, or it would silently
+    block that food from ever refreshing from USDA again (see the
+    "Edit protection" behavior in user-manual.md)."""
+    conn.execute("UPDATE foods SET name=? WHERE fdc_id=?", (new_name, fdc_id))
+
+
 # ---------------------------------------------------------------------------
 # Recompute error log
 # ---------------------------------------------------------------------------

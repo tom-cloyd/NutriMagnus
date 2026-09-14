@@ -98,14 +98,24 @@
     {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
     &middot; <a href="/food/{{ food.fdc_id }}/print?amount={{ amount }}&portion_str={{ portion_str | urlencode }}">Print / Save as PDF</a>
   </p>
-  {% if food.user_drafted %}
   <div class="d-flex gap-2 mb-2">
+    {% if food.user_drafted %}
     <a href="/food/custom-profiles/{{ food.fdc_id }}/edit" class="btn btn-sm btn-outline-secondary">Edit nutrients</a>
     <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Copy as new draft</button>
     </form>
+    {% else %}
+    <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
+      <button type="submit" class="btn btn-sm btn-outline-secondary" title="Create an editable custom-food copy of this food, leaving this cached original untouched">Copy as custom-food draft</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/food/{{ food.fdc_id }}/toggle-starter" style="display:inline">
+      <button type="submit" class="btn btn-sm btn-outline-secondary"
+              title="Toggles the &quot;* &quot; name prefix used by scripts/export_starter_data.py -- a plain rename, does not mark this food user-modified or block future USDA refreshes">
+        {{ "Unmark as starter food" if food.name.startswith("*") else "Mark as starter food" }}
+      </button>
+    </form>
   </div>
-  {% endif %}
 </div>
 
 {# ── Portion selector ─────────────────────────────────────────────────── #}

@@ -1,12 +1,16 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-13:2033* / Reading time: 4 hours, 44 minutes
+*Updated 2026-09-13:2355* / Reading time: 4 hours, 46 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
-**NutriMagnus ("NuMa")** is a computer program with publicly available code which provides a thorough nutritional analysis of a user's food choices. NuMa is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill.
+**NutriMagnus ("NuMa")** is a computer program with publicly available code which provides a thorough nutritional analysis of a user's food choices. NuMa is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill:
 
-**Vegetarians and vegans** must deal with protein that has digestibility and amino acid completeness problems. **Older people** are impacted by multiple factors reducing the chances of their being well nourished, including a much-reduced ability to make use of protein. They, along with the **chronically-ill**, also have typically reduced appetites. None of these groups generally have any sound notion of the nutritional adequacy of their diet. The information is obscure, technically dense, and in case of what is seen on commercial packaging, outright misleading.
+* **Vegetarians and vegans** must deal with protein that has digestibility issues and amino acid completeness problems. 
+* **Older people** are impacted by multiple factors reducing the chances of their being well nourished, including a much-reduced ability to make use of protein. 
+* The **chronically-ill**, as well as **older people**, also have typically reduced appetites. 
+
+None of these groups generally have an accurate sense of the nutritional adequacy of their diet. The information is obscure, technically dense, and in case of what is seen on commercial packaging, outright misleading.
 
 **Eating usually involves making choices, and good choice requires good information.** The three major problems impeding good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed by NuMa, in detail.
 
@@ -76,34 +80,38 @@ Without the program you're flying blind. With it, even if you only use volume me
 
 ### F. Download and install the program
 
-a. **Where to get it.** Go to the [NutriMagnus releases page](https://github.com/tom-cloyd/NutriMagnus/releases) on GitHub and download `install-linux.sh` from the latest release — that's the one file you need, not a menu of binaries to choose between. Built and tested on Ubuntu 24.04 LTS; it should run on most other modern Linux distros too, but only Ubuntu is verified. If it doesn't run on yours, see the "For developers" section of the project's `README.md` to run NuMa from source instead — no compiled binary required.
+*Windows instructions are coming soon. The steps below currently cover Linux only.*
 
-b. **Where it goes on your computer.** Run the installer once (`bash install-linux.sh` in a terminal, from wherever you downloaded it). It copies the program into a private per-user location (`~/.local/bin`) — nothing outside your own account is touched, and it never asks for an admin password.
+a. **Where to get it.** Go to the [NutriMagnus releases page](https://github.com/tom-cloyd/NutriMagnus/releases) and download `install-linux.sh` from the latest release — the only file you need. Built and tested on Ubuntu 24.04 LTS; should work on most other modern Linux distros too, but only Ubuntu is verified. If it doesn't run on yours, see "For developers" in the project's `README.md` to run NuMa from source instead.
 
-c. **Getting it into your applications menu.** The same installer step adds NuMa to your normal applications menu with its own icon, exactly like any program you'd install from a software center. Concretely, it writes one file — `~/.local/share/applications/nutrimagnus.desktop` — which every major Linux desktop reads automatically. Where to find it depends on your desktop environment:
+b. **Where it goes on your computer.** Run the installer once (`bash install-linux.sh`, from a terminal in the folder you downloaded it to). It installs to a private per-user location (`~/.local/bin`) — nothing outside your account is touched, and no admin password is needed.
 
-   - **GNOME (Ubuntu's default):** press the **Super key** (the ⊞ / Windows key) or click **Activities** in the top-left corner, then type "NutriMagnus" or "NuMa".
-   - **KDE Plasma:** open the application launcher (bottom-left icon, or press the Meta key) and type the same.
-   - **Other desktops (XFCE, Cinnamon, MATE, ...):** open the applications menu (usually a button in a corner or a taskbar icon) and either browse to Utilities/Science or type "NutriMagnus" into its search box.
+c. **Getting it into your applications menu.** The installer also adds NuMa to your applications menu, like any program from a software center — it writes `~/.local/share/applications/nutrimagnus.desktop`, which every major Linux desktop reads automatically:
 
-   **If it doesn't show up:** this is a known rough edge — some desktops only refresh their menu/search index at login, so a program installed while you're already logged in can be invisible until you log out and back in (a full restart isn't needed, just a fresh login). If it's still missing after that, run it directly instead — see "If the icon never appears" under the next item.
+   - **GNOME (Ubuntu's default):** press the Super key (⊞) or click **Activities**, then type "NutriMagnus" or "NuMa".
+   - **KDE Plasma:** open the application launcher (bottom-left icon, or press Meta) and type the same.
+   - **Other desktops (XFCE, Cinnamon, MATE, ...):** open the applications menu and browse to Utilities/Science, or search "NutriMagnus".
 
-d. **How to launch it.** From then on, launch NuMa like any other program — click its icon in the applications menu (see item c for where to find it). It starts quietly in the background and opens a browser tab pointed at the running app. No terminal, no typed commands, ever, after the one-time install.
+   **If it doesn't show up:** some desktops only refresh their menu index at login, so a program installed while you're already logged in can be invisible until you log out and back in. Still missing after that? See "If the icon never appears" below.
 
-**If the icon never appears,** even after logging out and back in, you can still run NuMa directly: open a terminal and run `~/.local/bin/nutrimagnus` — that's the actual program the icon would have pointed to, installed there regardless of whether the menu entry works. [Contact us](#feedback) too, so this can get fixed for good.
+d. **How to launch it.** From then on, click NuMa's icon like any other program (see item c). It starts quietly in the background and opens a browser tab — no terminal, no typed commands, ever again.
 
-e. **What kind of program this is, and what that means for you.** NuMa is a "web app" — a small program that runs quietly in the background on your own computer and shows its screens in a browser tab, the same way a website does. Nothing goes out over the internet: it's talking only to itself, on your machine, not to any server anywhere else. Two things follow from this:
+**If the icon never appears,** even after logging back in, you can still run NuMa directly: open a terminal and run `~/.local/bin/nutrimagnus` — the same program the icon would have pointed to. [Contact us](#feedback) too, so this can get fixed for good.
 
-   - **The browser tab and the program are two different things.** Closing the browser tab does not close NuMa — the background program is still running. To get back to it, either click NuMa's icon again (it will open a fresh tab pointed at the still-running program) or open a new browser tab yourself and go to the same address the first tab had.
-   - **Putting your computer to sleep can disconnect the tab.** If you sleep or hibernate your computer while NuMa is open, the background program may stop when the computer sleeps and needs restarting when it wakes — you'll typically see the browser tab fail to load or show a connection error. This is expected, not a sign anything is broken. Just click NuMa's icon again to relaunch it; your data is stored on disk and is unaffected.
+e. **What kind of program this is.** NuMa is a "web app" — it runs quietly in the background and shows its screens in a browser tab, like a website, but it's talking only to itself on your machine; nothing goes out over the internet. Two things follow:
 
-**Starter foods and recipes.** The first time you launch a fresh install, your Food Cache and Recipes list already contain a small set of starter items — foods with verified USDA nutrient and amino-acid data, and a few recipes chosen to demonstrate real protein-complementarity gains. Their names begin with an asterisk (for example, `* Pinto-quinoa meal`) so you can always tell them apart from anything you've added yourself, and remove or keep them as you like — see the [Settings](#settings) starter-data toggle if you clear them and want them back.
+   - **The browser tab and the program are different things.** Closing the tab doesn't close NuMa — it's still running. To get back, click NuMa's icon again (opens a fresh tab) or open a new tab yourself to the same address.
+   - **Sleep can disconnect the tab.** If your computer sleeps or hibernates while NuMa is open, the background program may stop and need restarting when it wakes — you'll typically see the tab fail to load. This is expected, not a sign anything's broken. Click NuMa's icon again to relaunch it; your data is on disk and unaffected.
 
 ### G. Set up your personal profile and initialize your My Pantry foods
 
+**Starter foods and recipes.** The first time you launch a fresh install, your Food Cache and Recipes list already contain a small set of starter items — foods with verified USDA nutrient and amino-acid data, and a few recipes chosen to demonstrate real protein-complementarity gains. Their names begin with an asterisk (for example, `* Pinto-quinoa meal`) so you can always tell them apart from anything you've added yourself, and remove or keep them as you like — see the [Settings](#settings) starter-data toggle if you clear them and want them back.
+
 a. Go to Settings and set up your personal profile, if you want the program to immediately apply to you. 
 
-b. Set up your Pantry foods as available primary protein sources: Go to Appendix C below and review the listed foods. Some you will likely have. The others you should consider buying if you're serious about making plant protein sources your sole or primary protein concern.
+b. Set up your Pantry foods as available primary protein sources: Go to [Appendix C](#appendix-c) below and review the listed foods. Some you will likely have. The others you should consider buying if you're serious about making plant protein sources your sole or primary protein concern.
+
+c. **Getting new starter foods and recipes after an update.** From time to time, a new version of NuMa adds a few new starter foods or recipes to the small set described above. You don't need to do anything to keep the ones you already have — they're untouched. To pick up anything new: go to **Settings → 9. Starter Data**, open **Restore individual starter items**, and check the box next to anything you don't already have. Anything you already have won't be listed again, so this is always safe to check after an update, even if nothing new was actually added that time.
 
 ### H. Skim Part 2, A and F, just to know they exist.
 
@@ -231,7 +239,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 991 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 995 formal tests that the program must pass after every significant change, across four tiers:
 
 - **Behavioral tests** — the vast majority of the 817 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
@@ -274,7 +282,7 @@ Right below the **Welcome to NutriMagnus** heading is a small block of status li
 - **Active profile** — a one-line summary of your profile (age, sex, weight, height, activity level), or "not set" with a link to configure one if you haven't yet.
 - **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`, alongside a human-facing release version (e.g. `0.1.0-rc.1`). Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build.
 
-Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, plus a note on how often you're being notified about new releases and a link to change that in **Settings → Update Notifications** (daily, weekly, or monthly — daily by default).
+Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, plus a note on how often you're being notified about new releases and a link to change that in **Settings → Update Notifications** (daily, weekly, or monthly — daily by default), and a reminder to check [Settings → Starter Data](#starter-data) for anything new after updating, since some releases add a few.
 
 **When does NuMa actually check for a new release?** Every time the home page loads — at launch, on a manual reload, or by navigating back to it from anywhere else in the program — it asks whether a newer version exists. That check itself is cached for a few hours, so bouncing back to the home page repeatedly doesn't re-contact GitHub every time; it just reuses the last answer until the cache expires. Separately, even when a newer version genuinely is available, whether the **UPDATE AVAILABLE** banner is actually shown to you on a given visit is throttled again by your daily/weekly/monthly notification-frequency setting — so you won't see it more often than you asked to.
 
@@ -439,6 +447,8 @@ A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](
 ### E. Opening a food's detail page
 
 A food's page shows, in order: **Protein Summary** (DCP), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos — each can be [ignored and recalculated](#ignore-complement)), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or SR Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
+
+Right below the title, every food's page also has a **Copy as custom-food draft** button — no detour through Food Search or Custom Food Profiles needed to start editing a copy of what you're already looking at. See [Entering custom foods and dietary supplements](#custom-foods) for what to do with the copy. A **Mark as starter food** button sits next to it — not something you need day to day; it's the tool the app's author uses to curate the small set of [starter foods and recipes](#starter-data) new installs come with.
 
 ### F. Using the Recipes menu {: #recipes-menu-web}
 The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute DCP for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 6. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 5 — for jumping straight into [Comparison](#comparison) with the checked recipes.
@@ -1276,6 +1286,7 @@ The sections linked from analysis output are:
 - [Bioavailability](#bioavailability) — [DIAAS](#gloss-diaas) bioavailability table columns
 - [Complement suggestions](#comp) — protein [complement food](#gloss-complement-food) suggestions
 - [Comparison](#comparison) — comparison ingredient, protein-quality, and nutrient tables (mixes foods and recipes)
+- [Custom food profiles](#drafted-foods) — custom food profiles list columns
 - [Daily nutrient goals](#goals) — how daily nutrient goals are calculated
 - [DCP cap](#dcp-cap) — why [DCP](#gloss-dcp) is sometimes capped below the [DIAAS](#gloss-diaas) projection
 - [DIAAS](#diaas) — digestible indispensable amino acid score
@@ -1283,7 +1294,6 @@ The sections linked from analysis output are:
 - [Dietary preferences](#diet) — dietary preferences setting
 - [Digestibility overrides](#dcp-overrides) — protein digestibility overrides table
 - [Digestible complete protein](#dcp) — [DCP](#gloss-dcp) concept and formula
-- [Drafted food profiles](#drafted-foods) — drafted food profiles list columns
 - [Essential amino acids](#aa) — [EAA](#gloss-eaa) reference and the nine indispensable amino acids
 - [FAO reference values](#fao) — [FAO](#gloss-fao) 2013 amino acid reference requirement
 - [Food annotation](#annotate) — annotate food picker table columns
@@ -1327,7 +1337,13 @@ The sections linked from analysis output are:
 #### Food Cache — Column Guide {: #cached}
 The Food Cache list shows every food you have stored locally, sortable by Name, Type, DIAAS, or GI estimate. Columns:
 
+    Fetch    Checkbox to select this food for "Fetch missing data from Claude
+             AI" — see Getting missing amino acid data. That button is only
+             colored (actionable) when at least one food in the current list
+             is missing amino acid data.
+
     Compare  Checkbox to add this food to Comparison — see Compare selected.
+             That button is only colored once 2 or more foods are checked.
 
     ID       Database identifier.
              A plain number = USDA FoodData Central FDC ID.
@@ -2038,7 +2054,7 @@ After confirming, each food is written to your cache. Foods that gain amino acid
 For the full import workflow, see [Food Cache](#food-cache-web).
 
 
-#### Drafted Food Profiles List {: #drafted-foods}
+#### Custom Food Profiles List {: #drafted-foods}
 Shows the custom food profiles you have created by hand -- products from a label, research table entries, or supplements not in [USDA](#gloss-usda) or Open Food Facts[^3].
 
 Columns:
@@ -2047,13 +2063,13 @@ Columns:
     Name    Food name as you entered it.
     Note    Your optional source or description note.
 
-Drafted foods are stored in your [Food Cache](#gloss-food-cache) and appear in all food searches alongside [USDA](#gloss-usda) and Open Food Facts[^3] entries. In ID columns throughout the program, drafted foods are shown as "usr".
+Custom food profiles are stored in your [Food Cache](#gloss-food-cache) and appear in all food searches alongside [USDA](#gloss-usda) and Open Food Facts[^3] entries. Internally these are called "user-drafted" foods, and in ID columns throughout the program they're shown as "usr" — see the [usr](#gloss-usr) glossary entry.
 
-To edit nutrient data: Foods -> [Food Cache](#gloss-food-cache), find the food, and use e#. Editing is done in the [Food Cache](#gloss-food-cache), not in this list.
+To edit nutrient data: open the food from [Food Cache](#gloss-food-cache) or this list and click **Edit nutrients**. Editing is done in the [Food Cache](#gloss-food-cache) record itself, not in a separate copy.
 
-To create a new custom profile: Foods -> Drafted Food Profiles -> Create. See [Food Cache](#food-cache-web) for an alternative way to get missing data (e.g. amino acid data from Claude AI for foods not in [USDA](#gloss-usda)).
+To create a new custom profile: Foods -> Custom Food Profiles -> Create. See [Food Cache](#food-cache-web) for an alternative way to get missing data (e.g. amino acid data from Claude AI for foods not in [USDA](#gloss-usda)).
 
-**Estimating amino acids by copying from another food.** Whenever you're prompted for a food's amino acid profile (creating a drafted profile, copying a cached food, or editing any food's data), a third option lets you search for and pick a similar food that already has amino acid data, instead of typing values in or pasting from literature. The picked food's amino acids are **scaled to match this food's own protein content** (not copied raw) — a food with less protein than the source gets proportionally less amino acid content, and vice versa — the same scaling already used by hand in this app's built-in curated foods (e.g. amino acids scaled between fresh and dried okara). A note documenting the source food and scale factor is suggested automatically for the Note field. On the web app, the same picker appears as an "Estimate amino acids from another food" panel on the custom-profile edit page ([Custom Food Profiles](#custom-foods)); editing any food's data this way marks it user-drafted, same as any other edit.
+**Estimating amino acids by copying from another food.** Whenever you're prompted for a food's amino acid profile (creating a custom food profile, copying a cached food, or editing any food's data), a third option lets you search for and pick a similar food that already has amino acid data, instead of typing values in or pasting from literature. The picked food's amino acids are **scaled to match this food's own protein content** (not copied raw) — a food with less protein than the source gets proportionally less amino acid content, and vice versa — the same scaling already used by hand in this app's built-in curated foods (e.g. amino acids scaled between fresh and dried okara). A note documenting the source food and scale factor is suggested automatically for the Note field. On the web app, the same picker appears as an "Estimate amino acids from another food" panel on the custom-profile edit page ([Custom Food Profiles](#custom-foods)); editing any food's data this way marks it user-drafted, same as any other edit.
 
 On the web app, [Food Search](#food-search) (and Food Cache and Pantry's own ingredient search) has a shortcut into this workflow: every food row shows a **Copy as custom-food draft** link/button. Clicking it duplicates that food as an editable draft and takes you straight to its edit page, AA-source search box ready — skipping the separate trip through Custom Food Profiles' own "Copy a cached food as a draft" search.
 
@@ -2158,7 +2174,7 @@ A recipe can be used as an ingredient inside another recipe — a lentil sauce t
 A bulk "recompute DCP for all recipes" option still exists on the Recipes list — worth running after a bulk import, or if you suspect stale numbers predating this cascading recalculation.
 
 ### E. Entering custom foods and dietary supplements {: #custom-foods}
-#### Custom (drafted) food profiles
+#### Custom food profiles
 
 When a food isn't in USDA or Open Food Facts[^3] — or the entry you found is incomplete — create a custom profile from an existing food as a starting point, or from scratch, via Foods → Custom food profiles → Create.
 
@@ -2227,7 +2243,7 @@ Every food in these online tables has a unique ID number — think of it as a pr
 
 **Your [Food Cache](#gloss-food-cache)**{: #FoodCache} is a table stored on your own computer. When you search for a food, NuMa checks your [Food Cache](#gloss-food-cache) first and shows any matches in a fast **[Food cache](#gloss-food-cache)** table before going online. Any food you have looked up before will be there and can be selected instantly, without a network call. If the food is not yet in your cache, the program searches both online tables and shows you a combined list of matches. When you select a food from that list, NuMa saves a copy of its nutrient data in your [Food Cache](#gloss-food-cache) automatically. Over time, most of the foods you normally eat will be in your [Food Cache](#gloss-food-cache) for quick retrieval.
 
-**Edit protection.** Any food you edit manually — through Foods → 6. [Food Cache](#gloss-food-cache) — is marked as user-modified. NuMa will never silently overwrite a user-modified food with a fresh copy from [USDA](#gloss-usda), even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself.
+**Edit protection.** Any food you edit manually — through Foods → 5. [Food Cache](#gloss-food-cache) — is marked as user-modified. NuMa will never silently overwrite a user-modified food with a fresh copy from [USDA](#gloss-usda), even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself.
 
 **Omega fatty acid tracking.** NuMa tracks four individual omega fatty acids — ALA (plant-based omega-3, found in flaxseed, walnuts, chia), EPA and DHA (marine omega-3, found in fish and seafood), and linoleic acid (the main omega-6, found in vegetable oils and nuts). These appear in the nutrient table whenever [USDA](#gloss-usda) data is available. Foods already in your cache that predate this feature are updated automatically the first time you access them — no action needed on your part.
 
@@ -2258,13 +2274,13 @@ A recipe can also include another recipe as one of its ingredients, allowing you
 
 **How these lists relate — and where to edit.**
 
-Your [Food Cache](#gloss-food-cache), your Pantry, and your Custom Food Profiles (called "Drafted Food Profiles" in the program) are three different windows onto the same underlying data — not three separate stores.
+Your [Food Cache](#gloss-food-cache), your Pantry, and your Custom Food Profiles are three different windows onto the same underlying data — not three separate stores.
 
-Every food's nutrient data lives in exactly one place: the [Food Cache](#gloss-food-cache). The Drafted Food Profiles list is simply a filtered view of your [Food Cache](#gloss-food-cache) showing only the foods you created or edited by hand. The Pantry is a short list of names that each point back to an entry in the [Food Cache](#gloss-food-cache) (when a [USDA](#gloss-usda) link exists).
+Every food's nutrient data lives in exactly one place: the [Food Cache](#gloss-food-cache). The Custom Food Profiles list is simply a filtered view of your [Food Cache](#gloss-food-cache) showing only the foods you created or edited by hand (internally tagged "user-drafted" — see [usr](#gloss-usr)). The Pantry is a short list of names that each point back to an entry in the [Food Cache](#gloss-food-cache) (when a [USDA](#gloss-usda) link exists).
 
-This means: if you edit a food's nutrients in the [Food Cache](#gloss-food-cache), that change is immediately reflected everywhere — in Drafted Food Profiles, in any recipe using that food, in pantry-based analyses, and in annotations. There is no syncing, no duplication, and no risk of one list getting out of step with another.
+This means: if you edit a food's nutrients in the [Food Cache](#gloss-food-cache), that change is immediately reflected everywhere — in Custom Food Profiles, in any recipe using that food, in pantry-based analyses, and in annotations. There is no syncing, no duplication, and no risk of one list getting out of step with another.
 
-**To edit nutrient data for any food, always go to Foods → 6. [Food Cache](#gloss-food-cache).** The Pantry and Drafted Food Profiles menus remind you of this and offer a shortcut key to jump there directly. Annotations ([GI](#gloss-gi), [DIAAS](#gloss-diaas) estimates) work the same way: annotate a food once in the [Food Cache](#gloss-food-cache) and the annotation appears everywhere that food is used.
+**To edit nutrient data for any food, always go to Foods → 5. [Food Cache](#gloss-food-cache).** Annotations ([GI](#gloss-gi), [DIAAS](#gloss-diaas) estimates) work the same way: annotate a food once in the [Food Cache](#gloss-food-cache) and the annotation appears everywhere that food is used.
 
 ### B. Glossary {: #glossary}
 Abbreviations and key terms used in NuMa output and this manual.
@@ -2341,7 +2357,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **USDA**{: #gloss-usda}  —  United States Department of Agriculture. The U.S. government body that publishes FoodData Central, NuMa's primary food data source.
 
-**usr**{: #gloss-usr}  —  User-drafted. Appears in ingredient ID columns to indicate a food whose nutrient profile you created or edited by hand, rather than one retrieved from USDA or Open Food Facts[^3].
+**usr**{: #gloss-usr}  —  User-drafted. Appears in ingredient ID columns to indicate a food whose nutrient profile you created or edited by hand, rather than one retrieved from USDA or Open Food Facts[^3] — this is what the [Custom Food Profiles](#drafted-foods) list shows.
 
 ### C. Internet resources
 
@@ -2430,7 +2446,7 @@ This is a step beyond [an "insufficient amino acid data" warning](#ts-missing-aa
 
 The fix is to stop looking for an equivalent *food* and look instead for an equivalent *ingredient* — something with measured amino acid data whose composition dominates the protein in the food you're trying to estimate. Flour-based baked goods, for instance, get essentially all their protein from the flour; a legume-based product gets essentially all of its protein from that legume. [Estimating amino acids by copying from another food](#drafted-foods) is the tool that turns an ingredient like this into an estimate for your actual food — it scales the ingredient's amino acid values to match your food's own measured protein content automatically, rather than you doing that arithmetic by hand.
 
-If more than one ingredient contributes meaningfully to the protein (a flour blend, for example), blend their profiles first, by mass fraction, before treating the result as a single stand-in. The copy-from-another-food picker copies from one source food at a time, so build the blend as its own drafted food first — call it a **proxy food**: a temporary, scratch entry that exists only to hold the numbers you'll scale from, not something you'd search for or log a meal against. (If only one ingredient dominates, it's still worth entering as its own proxy food rather than typing numbers straight into the real food — see why below.)
+If more than one ingredient contributes meaningfully to the protein (a flour blend, for example), blend their profiles first, by mass fraction, before treating the result as a single stand-in. The copy-from-another-food picker copies from one source food at a time, so build the blend as its own custom food profile first — call it a **proxy food**: a temporary, scratch entry that exists only to hold the numbers you'll scale from, not something you'd search for or log a meal against. (If only one ingredient dominates, it's still worth entering as its own proxy food rather than typing numbers straight into the real food — see why below.)
 
 Once you have a proxy food — blended or not — holding the numbers you need, there are two different ways to turn it into a usable estimate for your actual food. Pick whichever fits how you'll use that food going forward:
 
@@ -2469,7 +2485,7 @@ Step 2 — blend (average) the two flours 2:1 by mass (2 parts white, 1 part who
     Tryptophan        143 mg
     Valine            465 mg
 
-Step 3 — enter this blend as its own proxy food (Foods → Drafted Food Profiles → Create; web: Custom Food Profiles), named something like "Wheat flour blend, 2:1 white:whole wheat (proxy)," with the protein and amino acid values from Step 2 typed in directly.
+Step 3 — enter this blend as its own proxy food (Foods → Custom Food Profiles → Create), named something like "Wheat flour blend, 2:1 white:whole wheat (proxy)," with the protein and amino acid values from Step 2 typed in directly.
 
 **Continuing with option 1 (new labeled draft).** Use this branch if you haven't already logged the Nabisco Honey Maid Grahams entry anywhere, or you'd simply rather leave it untouched:
 
@@ -2563,7 +2579,7 @@ Two ways to avoid this:
 
 *See also:* [USDA standard portions and the `pN` shortcut](#portion-formats). A custom food profile copied from an existing food starts with that food's portions carried over unchanged — see [Editing the p1, p2, … portion shortcuts](#custom-foods) — so the same renumbering rule applies there too.
 
-### G. Getting more help{:#quickhelp}
+### G. Getting more help {: #quickhelp}
 
 This is extremely easy, and we want you to do it. When you're having a problem the cause is NOT necessarily you! Regardless of the nature of your problem, contacting us gives us essential information needed to make things better for you and also for every other user. We very much want to hear from you if you have a problem.
 
@@ -2670,7 +2686,58 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
-#### September 13 program updates
+#### September 14 program updates
+
+**NEW: A FOOD'S OWN PAGE CAN NOW COPY IT AS A CUSTOM-FOOD DRAFT, AND MARK IT AS STARTER CONTENT, IN ONE CLICK**
+
+A real food's own detail page previously had no way to start editing a copy of it — that button only existed on Food Search/Cache/Pantry rows and on already-drafted foods' own pages. It's now available everywhere. Separately, marking a food as [starter content](#starter-data) for a new release used to mean hand-renaming it, which also wrongly marked it as user-modified and silently blocked it from ever refreshing from USDA again — a new **Mark as starter food** button does a plain rename instead, leaving USDA refresh untouched.
+
+<!--
+```
+Scope: db.py — new rename_cached_food() (plain UPDATE of name only, no
+user_drafted touch — deliberately distinct from update_cached_food_profile(),
+which defaults user_drafted=True). web/backend.py — new POST
+/food/{fdc_id}/toggle-starter route using it. web/templates/food_detail.html
+— "Copy as custom-food draft" button (reusing the existing
+/food/custom-profiles/copy/{fdc_id} route) now shown for every food, not
+just already-drafted ones; new "Mark/Unmark as starter food" button
+alongside it. tests/test_web.py: 2 new tests, including one asserting
+user_drafted stays 0 across a toggle. user-manual.md (#food-detail area)
+and README-numa-documentation.md (route table, starter-data maintenance
+section) updated.
+```
+-->
+
+**THE "UPDATE AVAILABLE" BANNER NOW REMINDS YOU TO CHECK FOR NEW STARTER FOODS/RECIPES**
+
+Since a new release occasionally adds a new starter food or recipe to the small built-in set every fresh install starts with, the home page's UPDATE AVAILABLE banner now includes a reminder to check Settings → Starter Data after updating — that page only ever lists what you don't already have, so checking it costs nothing even when a given update didn't add anything new. Part 1.G of the manual also gained a plain-language walkthrough of this for anyone new to the idea.
+
+<!--
+```
+Scope: web/templates/home.html — one new reminder line inside the existing
+UPDATE AVAILABLE alert block, alongside the version-note/notification-
+frequency lines already there. user-manual.md — new Part 1.G item c, plus
+a mention in the home-page-tour section (#home-page-tour). tests/test_web.py:
+test_home_page_shows_update_available_banner extended to check for it.
+```
+-->
+
+**FOOD CACHE: THE FETCH CHECKBOX COLUMN NOW HAS A LABEL, AND ITS BUTTONS SHOW WHEN THEY'RE ACTUALLY USEFUL**
+
+Food Cache had two checkbox columns per row but only one column header ("Compare") — the other, for selecting foods to send to Claude AI for missing data, had no label at all. It's now labeled "Fetch." Separately, the "Fetch missing data from Claude AI" button is only colored when at least one food in the current list is actually missing amino acid data, and "Compare nutrition of selected" is only colored once you've checked 2 or more foods — both previously looked equally clickable regardless of whether clicking would do anything.
+
+<!--
+```
+Scope: web/templates/food_cache.html — added a <th> for the fetch checkbox
+column; Fetch button class computed from `foods | rejectattr('has_aa') |
+list` (server-rendered, based on the current filtered list); Compare
+button gets a new updateCompareButtonColor() JS listener on each
+.compare-cb checkbox's change event, toggling btn-primary/btn-outline-
+secondary at a 2-checked threshold. tests/test_web.py: 2 new tests.
+Also documented for the first time in user-manual.md's Food Cache column
+guide (#cached) — the Fetch column had never been listed there at all.
+```
+-->
 
 **NEW: YOU CAN NOW ACTUALLY CORRECT A WRONG AUTOMATIC OXALATE MATCH**
 
@@ -4873,7 +4940,7 @@ Many [USDA](#gloss-usda) foods include pre-defined portion sizes (e.g. "1 medium
 
 **`p1`, `p2`, … mean "the food's 1st portion, 2nd portion, …" — position in the list, never the portion's own text.** This trips people up specifically when you add a custom portion (via [Food Cache](#food-cache-web) → **Portions**) and happen to *name* it something like `p1`: that name has no effect on its shortcut number. If it's the fourth portion in the list, its shortcut is `p4`, no matter what you called it. Every screen where you type a `pN` shortcut — Foods, Recipes, Meals — also lists that food's full portion set with the real shortcut number next to each one; check that list before typing `pN`, don't guess from a portion's name. Adding, removing, or reordering portions on a food also renumbers every `pN` that follows the changed spot, so re-check the list after any portion edit, too — see [A food's portion "pN" shortcut points to the wrong portion](#ts-portion-numbering) if a `pN` amount doesn't come out the way you expected.
 
-RECIPES: SERVINGS INSTEAD OF `pN` {: #portions-vs-servings}
+#### Recipes: Servings Instead of `pN` {: #portions-vs-servings}
 
 Every `pN` shortcut above belongs to *foods*. Recipes never have a `p1`, `p2`, … list, and that isn't a missing feature — it's because recipes don't need one.
 
@@ -5223,7 +5290,6 @@ The scale factor is capped at 1.0 because a food can never be "more than 100% co
 **Reproduce this in NuMa:** open a food page for quinoa, cooked ([FDC](#gloss-fdc) 168917), and look at its [Protein Complement Suggestions](#comp) section. Black beans, cooked should appear in the "General" tier at 133 g, showing "Leucine: 0.83→1.00" and "Valine: 0.89→1.03" under Effect, "Adds: 8.8 g digestible protein (from 11.8 g raw protein in this addition)", and "Total digestible complete protein: 16.2 g" — matching every figure derived above.
 
 ---
-
 
 ## Notes
 

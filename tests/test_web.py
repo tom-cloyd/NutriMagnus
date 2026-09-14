@@ -411,6 +411,45 @@ def test_food_detail_page(client: TestClient, cached_food) -> None:
     assert resp.status_code == 200
 
 
+def test_food_detail_offers_copy_as_draft_and_starter_toggle_for_real_food(
+    client: TestClient, cached_food
+) -> None:
+    """A real (non-drafted) food's own detail page had no "copy as draft"
+    entry point at all -- only Food Search/Cache/Pantry rows had one -- and
+    no way to mark it as starter content short of hand-editing its name
+    (which also wrongly marks it user-modified, blocking future USDA
+    refreshes -- see the toggle-starter test below)."""
+    resp = client.get(f"/food/{cached_food['fdcId']}")
+    assert resp.status_code == 200
+    assert "Copy as custom-food draft" in resp.text
+    assert "Mark as starter food" in resp.text
+    assert "Edit nutrients" not in resp.text  # that's only for already-drafted foods
+
+
+def test_toggle_starter_renames_without_marking_user_drafted(
+    client: TestClient, cached_food, db_conn
+) -> None:
+    """The starter-data "* " prefix toggle must be a plain rename -- it must
+    NOT set user_drafted, or marking a real USDA food as starter content
+    would silently block it from ever refreshing from USDA again."""
+    fdc_id = cached_food["fdcId"]
+    before = db_conn.execute("SELECT name, user_drafted FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    assert before["user_drafted"] == 0
+
+    resp = client.post(f"/food/{fdc_id}/toggle-starter", follow_redirects=False)
+    assert resp.status_code == 303
+    after = db_conn.execute("SELECT name, user_drafted FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    assert after["name"] == f"* {before['name']}"
+    assert after["user_drafted"] == 0  # unchanged -- the key safety property
+
+    # Toggling again removes the prefix and restores the original name.
+    resp = client.post(f"/food/{fdc_id}/toggle-starter", follow_redirects=False)
+    assert resp.status_code == 303
+    restored = db_conn.execute("SELECT name, user_drafted FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    assert restored["name"] == before["name"]
+    assert restored["user_drafted"] == 0
+
+
 def test_food_detail_protein_summary_shows_completeness_without_diaas_reference(
     client: TestClient, db_conn
 ) -> None:
@@ -1556,6 +1595,36 @@ def test_food_cache_db_check_repair_scoped_to_one_category(client: TestClient, c
     ).fetchone() is not None
 
 
+def test_food_cache_fetch_column_labeled_and_button_colored_when_fetchable(
+    client: TestClient, cached_food, db_conn
+) -> None:
+    """The Fetch checkbox column had no header label at all (only Compare
+    did), and the "Fetch missing data from Claude AI" button was always
+    btn-primary even with nothing eligible to fetch. cached_food has full AA
+    data (has_aa=True); insert a second food with none so at least one
+    fetchable food exists here."""
+    import json as _json
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?, ?, ?, ?, ?)",
+        (900001, "No AA Food", "SR Legacy", _json.dumps({"protein_g": 8.0}), "[]"),
+    )
+    db_conn.commit()
+    resp = client.get("/food/cache")
+    assert resp.status_code == 200
+    assert '<th title="Select for Fetch missing data from Claude AI">Fetch</th>' in resp.text
+    assert 'form="claude-fetch-form" class="btn btn-sm btn-primary"' in resp.text
+    assert 'id="compare-btn"' in resp.text
+    assert "compare-cb" in resp.text
+
+
+def test_food_cache_fetch_button_not_colored_when_nothing_fetchable(client: TestClient, cached_food) -> None:
+    """cached_food alone has full AA data -- with no food missing AA data,
+    the Fetch button should not be styled as an actionable primary button."""
+    resp = client.get("/food/cache")
+    assert resp.status_code == 200
+    assert 'form="claude-fetch-form" class="btn btn-sm btn-outline-secondary"' in resp.text
+
+
 def test_food_cache_explains_claude_fetch_before_the_buttons(client: TestClient, cached_food) -> None:
     """Regression test: the checkbox/button pair for "Fetch missing data from
     Claude AI" used to appear with no explanation of what it does — confusing
@@ -2171,6 +2240,7 @@ def test_home_page_shows_update_available_banner(client: TestClient, monkeypatch
     assert "UPDATE AVAILABLE:" in resp.text
     assert "v2099-01-01-0000" in resp.text
     assert "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000" in resp.text
+    assert "Restore individual starter items" in resp.text
     # Not running as a packaged install in tests, so no self-update button —
     # just the plain link to what's new.
     assert "Update now" not in resp.text

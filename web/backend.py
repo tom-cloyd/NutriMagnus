@@ -3554,6 +3554,22 @@ async def food_detail(
     return templates.TemplateResponse(request, "food_detail.html", ctx)
 
 
+@app.post("/food/{fdc_id}/toggle-starter", response_class=RedirectResponse)
+async def food_toggle_starter(fdc_id: int):
+    """Add or remove the "* " starter-data name prefix (see
+    scripts/export_starter_data.py) on a food -- deliberately a plain rename
+    (db.rename_cached_food), NOT a full update_cached_food_profile() edit,
+    so marking a real USDA/OFF food as starter content doesn't also mark it
+    user_drafted and block it from ever refreshing from USDA again."""
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+        if cached is not None:
+            name = cached["name"]
+            new_name = name[1:].lstrip() if name.startswith("*") else f"* {name}"
+            _db.rename_cached_food(conn, fdc_id, new_name)
+    return RedirectResponse(f"/food/{fdc_id}", status_code=303)
+
+
 @app.get("/food/{fdc_id}/oxalate-link", response_class=HTMLResponse)
 async def oxalate_link_get(request: Request, fdc_id: int, q: str | None = None):
     import oxalate as _ox

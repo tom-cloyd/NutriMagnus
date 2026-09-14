@@ -1,4 +1,4 @@
-.PHONY: devserver build push push-release release-linux vm-setup build-windows upload-windows release-windows clean
+.PHONY: devserver build push push-release release-linux vm-setup build-windows upload-windows release-windows clean starter-data
 
 # ── Linux build ───────────────────────────────────────────────────────────────
 # Packages web/launcher.py (starts uvicorn, opens a browser tab) into a single
@@ -27,10 +27,30 @@ push:
 release-linux: build
 	python3 scripts/create_release.py
 
+# ── Regenerate starter_data.json from any "*"-marked content ─────────────────
+# See README-numa-documentation.md, Maintenance: "Updating starter/demo data
+# before a release" for the full mechanism. Only needs your own local
+# database (where the "*"-marked foods/pantry/recipes actually live) — never
+# runs in CI, which has no such database. A no-op if nothing new was starred
+# since the last run. If it DOES produce a change, this stops push-release
+# rather than silently pushing a release that doesn't include it, or
+# silently committing a data change on your behalf — go review and commit
+# numa_app/services/starter_data.json yourself, then re-run push-release.
+starter-data:
+	.venv/bin/python3 scripts/export_starter_data.py
+	@git diff --quiet numa_app/services/starter_data.json || { \
+	    echo ""; \
+	    echo "starter_data.json changed -- review and commit it, then re-run push-release:"; \
+	    echo "  git diff numa_app/services/starter_data.json"; \
+	    echo "  git add numa_app/services/starter_data.json"; \
+	    echo "  git commit -m 'Update starter data'"; \
+	    exit 1; \
+	}
+
 # ── Push + publish: push source, then build and publish a public release ─────
 # Deliberate, explicit step — only run this when you actually want a
 # downloadable release live on GitHub.
-push-release: push release-linux
+push-release: starter-data push release-linux
 
 # ── Windows: first-time VM setup (run once after importing the dev VM) ────────
 # Starts an HTTP server so the Windows VM can download the SSH key and setup script,

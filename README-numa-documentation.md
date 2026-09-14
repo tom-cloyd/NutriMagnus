@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-09-12:0202
+UPDATED: 2026-09-13:2353
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -985,6 +985,7 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | POST | `/food/annotate/{fdc_id}/skip-forever`, `clear` | Suppress future prompts / clear an annotation |
 | GET | `/food/{fdc_id}` | Food detail with nutrient table and protein quality (registered last among `/food/*`) |
 | GET | `/food/{fdc_id}/print` | Printable food detail page |
+| POST | `/food/{fdc_id}/toggle-starter` | Add/remove the `"* "` starter-data name prefix (`db.rename_cached_food()` — a plain rename, deliberately not a full `update_cached_food_profile()` edit, so it never sets `user_drafted` and never blocks future USDA refreshes) |
 
 #### Pantry
 
@@ -1354,6 +1355,16 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 ---
 
 ## Maintenance
+
+### Updating starter/demo data before a release
+
+The starter foods/pantry/recipes a fresh install seeds itself with (see `demo_data.py` above) come from one static file, `numa_app/services/starter_data.json` — not from any live database. Marking something in your own working database does nothing on its own; it only takes effect once you regenerate that file.
+
+**In the app itself:** mark a food, pantry entry, or recipe you want included by giving it a name starting with `*` — `*Tofu` or `* Tofu` both work, always normalized to `* ` on export. For a real (non-drafted) food specifically, its own detail page has a one-click **Mark as starter food** button (`POST /food/{fdc_id}/toggle-starter`) instead of hand-editing the name — deliberately a plain rename (`db.rename_cached_food()`), not a full profile edit, so it never sets `user_drafted` and never blocks that food from refreshing from USDA later. Recipes and pantry entries have no equivalent button yet — rename by hand for those.
+
+**Regenerating `starter_data.json` from what's starred:** `make push-release` now does this automatically (see its `starter-data` target in the `Makefile`) and hard-stops if it produced an uncommitted change, so a release can't accidentally ship without picking up new stars. To run it by hand instead: `python scripts/export_starter_data.py` from the repo root.
+
+A starred recipe's own ingredients don't need to be starred themselves — they're auto-included by `fdc_id` regardless of name. Full mechanism, edge cases, and the companion `scripts/refresh_starter_data.py` (re-syncs existing starter entries by their original ID rather than by name) are documented in `export_starter_data.py`'s own module docstring — read that before changing the export logic, rather than duplicating it here.
 
 ### Weekly sweep (Saturdays)
 

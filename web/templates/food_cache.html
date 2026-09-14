@@ -132,16 +132,17 @@
 {# Compare form is likewise external — same nesting restriction as claude-fetch-form above. #}
 <form method="post" action="/compare/add-multiple" id="compare-form"></form>
 <p class="muted mb-1"><small>Check the box next to any food below (or click "Select all missing AA data"), then click "Fetch missing data from Claude AI" to build a ready-to-paste prompt asking Claude AI to fill in that food's missing amino acid or nutrient data. {{ manual_link("fetch") }}</small></p>
+{% set fetchable_foods = foods | rejectattr('has_aa') | list %}
 <p class="mb-2">
-  <button type="submit" form="claude-fetch-form" class="btn btn-sm btn-primary">Fetch missing data from Claude AI</button>
+  <button type="submit" form="claude-fetch-form" class="btn btn-sm {{ 'btn-primary' if fetchable_foods else 'btn-outline-secondary' }}">Fetch missing data from Claude AI</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectMissingAA()">Select all missing AA data</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectNone()">Clear selection</button>
-  <button type="submit" form="compare-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 8)</button>
+  <button type="submit" form="compare-form" id="compare-btn" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 8)</button>
 </p>
 <table class="table table-sm table-hover align-middle">
   <thead class="table-light">
     <tr>
-      <th></th>
+      <th title="Select for Fetch missing data from Claude AI">Fetch</th>
       <th title="Select to add to Compare">Compare</th>
       <th>ID</th>
       <th>Name</th>
@@ -161,7 +162,7 @@
                name="fdc_id" value="{{ food.fdc_id }}" data-has-aa="{{ 1 if food.has_aa else 0 }}">
       </td>
       <td>
-        <input type="checkbox" class="form-check-input" form="compare-form"
+        <input type="checkbox" class="form-check-input compare-cb" form="compare-form"
                name="fdc_id" value="{{ food.fdc_id }}" aria-label="Select {{ food.name }} to compare">
       </td>
       <td class="muted" style="white-space:nowrap">
@@ -265,6 +266,15 @@ function selectMissingAA() {
 function selectNone() {
   document.querySelectorAll('.claude-fetch-cb').forEach(function (cb) { cb.checked = false; });
 }
+function updateCompareButtonColor() {
+  var checked = document.querySelectorAll('.compare-cb:checked').length;
+  var btn = document.getElementById('compare-btn');
+  btn.classList.toggle('btn-primary', checked >= 2);
+  btn.classList.toggle('btn-outline-secondary', checked < 2);
+}
+document.querySelectorAll('.compare-cb').forEach(function (cb) {
+  cb.addEventListener('change', updateCompareButtonColor);
+});
 function toggleNotes(fdcId) {
   var row = document.getElementById('notes-row-' + fdcId);
   if (row) row.style.display = (row.style.display === 'none') ? '' : 'none';
