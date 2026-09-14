@@ -163,12 +163,15 @@ ok "nutrimagnus.exe saved (${SIZE_MB} MB)"
 
 # ── Suspend VM (managed-save) ────────────────────────────────────────────────
 # Suspending instead of a full shutdown skips the next run's OS boot entirely
-# (a Windows 11 boot on this VM is minutes; managed-save restores in seconds).
+# (a Windows 11 boot on this VM is minutes; `virsh managedsave` restores in
+# seconds on the next `virsh start`). Note the subcommand is "managedsave",
+# no hyphen -- "managed-save" is a different, nonexistent command that fails
+# silently into this line's shutdown/destroy fallback.
 # Costs the VM's allocated RAM being held on disk while off, not a concern for
 # a build box only one person uses. Full shutdown still happens naturally if
 # the VM is ever destroyed/rebuilt.
-info "Suspending VM (managed-save)..."
-virsh managed-save "$VM_NAME" >/dev/null 2>&1 || virsh shutdown "$VM_NAME" >/dev/null 2>&1 || virsh destroy "$VM_NAME" >/dev/null 2>&1
+info "Suspending VM (managed save)..."
+virsh managedsave "$VM_NAME" >/dev/null 2>&1 || virsh shutdown "$VM_NAME" >/dev/null 2>&1 || virsh destroy "$VM_NAME" >/dev/null 2>&1
 ok "VM suspended"
 
 echo ""
