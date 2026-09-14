@@ -161,10 +161,15 @@ scp $SSH_OPTS "$VM_USER@$VM_IP:/Users/$VM_USER/numa-build/dist/nutrimagnus.exe" 
 SIZE_MB=$(du -m "$EXE_DST" | cut -f1)
 ok "nutrimagnus.exe saved (${SIZE_MB} MB)"
 
-# ── Shut VM down ──────────────────────────────────────────────────────────────
-info "Shutting down VM..."
-virsh shutdown "$VM_NAME" >/dev/null 2>&1 || virsh destroy "$VM_NAME" >/dev/null 2>&1
-ok "VM shut down"
+# ── Suspend VM (managed-save) ────────────────────────────────────────────────
+# Suspending instead of a full shutdown skips the next run's OS boot entirely
+# (a Windows 11 boot on this VM is minutes; managed-save restores in seconds).
+# Costs the VM's allocated RAM being held on disk while off, not a concern for
+# a build box only one person uses. Full shutdown still happens naturally if
+# the VM is ever destroyed/rebuilt.
+info "Suspending VM (managed-save)..."
+virsh managed-save "$VM_NAME" >/dev/null 2>&1 || virsh shutdown "$VM_NAME" >/dev/null 2>&1 || virsh destroy "$VM_NAME" >/dev/null 2>&1
+ok "VM suspended"
 
 echo ""
 echo "Windows build complete: $EXE_DST"
