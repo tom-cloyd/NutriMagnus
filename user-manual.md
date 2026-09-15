@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-14:0021* / Reading time: 4 hours, 46 minutes
+*Updated 2026-09-14:2322* / Reading time: 4 hours, 47 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -239,7 +239,7 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-13), there are 995 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-14), there are 997 formal tests that the program must pass after every significant change, across four tiers:
 
 - **Behavioral tests** — the vast majority of the 817 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
@@ -913,6 +913,7 @@ The nutrient comparison table (shown on food, recipe, meal, and daily-summary pa
 
 Columns:
 
+<pre>
     Nutrient              Name of the nutrient.
     Total                 How much this food/recipe/meal/day provides (or,
                            on a food page, how much the entered portion provides).
@@ -923,10 +924,11 @@ Columns:
     Revised Optimal goal,
     % of Revised Optimal  Same idea against your own custom Revised Optimal
                            target instead of the standard RDA — shown only for
-                           nutrients where you've set one (see [Profile Optimal
-                           Targets](#optimal)).
+                           nutrients where you've set one (see <a href="#optimal">Profile Optimal
+                           Targets</a>).
     UL                    Shown only where you're near or over a max limit —
-                           see [Maximum Nutrient Limits](#maxlimits).
+                           see <a href="#maxlimits">Maximum Nutrient Limits</a>.
+</pre>
 
 The color coding on % of daily target (and % of Revised Optimal) uses four colors throughout the app: **green** — met (at or above a minimum, or a comfortable range around a target); **orange** — near (approaching a minimum from below, or drifting outside a target's comfortable range); **blue** — below minimum (well short of a floor-type nutrient like protein or a vitamin, where more is always fine); **red** — over the limit (past a Tolerable Upper Intake Level, or, for a "target"-type nutrient like calories, far enough over 100% that it's no longer close to the target). A short color legend appears right below any table using these colors.
 
@@ -938,15 +940,17 @@ See [daily nutrient goals](#goals) for a full explanation of how each goal is ca
 ### Q. Daily Nutrient Goals {: #goals}
 NuMa calculates personalized daily nutrient goals from your user profile (Settings → User profile). Each goal is one of three types:
 
+<pre>
     Minimum  — RDA or Adequate Intake (AI): the daily amount needed to
                meet the requirements of most healthy adults.
     Target   — an estimated ideal intake (currently applies to calories).
     Limit    — a maximum daily amount you don't want to exceed. Sodium has
                its own fixed 2300 mg/day limit (see the sodium note below).
                Twelve other nutrients get an automatic Tolerable Upper
-               Intake Level as their default limit — see [Maximum Nutrient
-               Limits](#maxlimits) for the full list and for setting your
+               Intake Level as their default limit — see <a href="#maxlimits">Maximum Nutrient
+               Limits</a> for the full list and for setting your
                own custom limit on any nutrient.
+</pre>
 
 #### HOW EACH GOAL IS CALCULATED
 
@@ -980,9 +984,11 @@ NuMa calculates personalized daily nutrient goals from your user profile (Settin
     2300 mg/day — standard Tolerable Upper Intake Level (fixed for all).
 
 #### Omega-3 ALA (minimum)
+<pre>
     1600 mg/day men, 1100 mg/day women — Adequate Intake for alpha-linolenic
-    acid (ALA), the plant-sourced omega-3. See [Omega-3 Fatty Acids](#omega3)
+    acid (ALA), the plant-sourced omega-3. See <a href="#omega3">Omega-3 Fatty Acids</a>
     for why this is the only omega-3 with an official goal in NuMa.
+</pre>
 
 #### Minerals and vitamins — every age/sex band, in full
 
@@ -1337,12 +1343,13 @@ The sections linked from analysis output are:
 #### Food Cache — Column Guide {: #cached}
 The Food Cache list shows every food you have stored locally, sortable by Name, Type, DIAAS, or GI estimate. Columns:
 
+<pre>
     Fetch    Checkbox to select this food for "Fetch missing data from Claude
-             AI" — see Getting missing amino acid data. That button is only
+             AI" — see <a href="#custom-foods">Getting missing amino acid data</a>. That button is only
              colored (actionable) when at least one food in the current list
              is missing amino acid data.
 
-    Compare  Checkbox to add this food to Comparison — see Compare selected.
+    Compare  Checkbox to add this food to Comparison — see <a href="#compare-checkboxes">Compare selected</a>.
              That button is only colored once 2 or more foods are checked.
 
     ID       Database identifier.
@@ -1372,12 +1379,12 @@ The Food Cache list shows every food you have stored locally, sortable by Name, 
 
     GI est.  Your saved glycemic index estimate for this food, if any.
              GI reflects how quickly a food raises blood glucose (scale 0-100).
-             See [Glycemic Index](#gi) for a full explanation.
+             See <a href="#gi">Glycemic Index</a> for a full explanation.
 
     DIAAS    Your saved DIAAS estimate for this food, if any.
              DIAAS (Digestible Indispensable Amino Acid Score) rates protein
              quality: 1.00 = complete, lower = a limiting amino acid is present.
-             See [DIAAS](#diaas) for details. Shown with a star when it's your
+             See <a href="#diaas">DIAAS</a> for details. Shown with a star when it's your
              own saved estimate rather than the built-in reference-table value.
 
     Notes    A "Notes ▸" link expands to show any saved notes and curator
@@ -1385,7 +1392,8 @@ The Food Cache list shows every food you have stored locally, sortable by Name, 
              workflow) — blank if neither is present.
 
     Actions  Portions, Refresh, Archive/Restore, and Delete for that row —
-             see [Food Cache](#food-cache-web) in Part 3.
+             see <a href="#food-cache-web">Food Cache</a> in Part 3.
+</pre>
 
 See [Food Cache](#food-cache-web) in Part 3 for the available actions on each row (Portions, Refresh, Archive/Restore, Delete, Prune unused foods) and how to fetch missing amino acid data with Claude AI.
 
@@ -1455,6 +1463,7 @@ Shows on meal and recipe detail pages, just above the Nutrient Analysis Table. P
 
 Columns:
 
+<pre>
     Food / Recipe   Name of the contributing food, linked to its detail page.
                     On a meal's table, the header instead says "Food or
                     ingredient" — any recipe used in that meal is broken
@@ -1465,7 +1474,8 @@ Columns:
     Amount          This food's contribution, in the selected nutrient's unit.
     % of total      This food's share of the summed contribution across every
                     food in the meal or recipe (not a percent of any daily
-                    target — see [Nutrient Analysis Table](#nutrients) for that).
+                    target — see <a href="#nutrients">Nutrient Analysis Table</a> for that).
+</pre>
 
 A **Show** control next to the picker limits the list to the top 5/10/15/20/30 foods, or all of them (defaults to 10); it only offers choices that would actually shorten the list, so a meal with 6 contributors just offers "5" or "All." A "Total, all contributors" row at the bottom of the table always reflects every contributor, even when the list above it is trimmed.
 
@@ -1507,6 +1517,7 @@ As with [Top Contributors](#top-contributors), a food logged more than once in t
 
 Columns:
 
+<pre>
     Food            Ingredient name.
     Protein (g)     Raw (crude) protein from this ingredient, in grams.
     Digestibility   True ileal digestibility coefficient (0.00-1.00): the
@@ -1519,12 +1530,15 @@ Columns:
                     Ingredients without AA data are excluded from DIAAS.
     DCP (g)         Digestible complete protein from this ingredient — see
                     the note below the table for how this is calculated.
+</pre>
 
 #### Suffixes in the Digestibility column
+<pre>
     ~est    Estimated from food category average; no measured value for
             this specific food.
     user    You set a custom value (Settings → 6. Protein Digestibility
-            Overrides — see [Digestibility overrides](#dcp-overrides)).
+            Overrides — see <a href="#dcp-overrides">Digestibility overrides</a>).
+</pre>
 
 Ingredients contributing less than 1 g of protein are omitted from this table as negligible; the totals row sums only the ingredients shown.
 
@@ -1563,6 +1577,7 @@ This section appears in two forms depending on context.
 
 Shown when viewing a food with a saved [DIAAS](#gloss-diaas) estimate. Displays:
 
+<pre>
     - Protein digestibility score (literature DIAAS, 0.00-2.00 scale).
     - A bar proportional to the score.
     - Digestible protein in grams from this portion.
@@ -1570,7 +1585,8 @@ Shown when viewing a food with a saved [DIAAS](#gloss-diaas) estimate. Displays:
     - Antinutrient notes when applicable (phytates, oxalates, lectins,
       bound niacin). Each note names the compound, describes the specific
       problem, and lists preparation steps that reduce the effect.
-      See [Antinutrients](#antinutrients) for a full explanation of what these notes mean.
+      See <a href="#antinutrients">Antinutrients</a> for a full explanation of what these notes mean.
+</pre>
 
 #### RECIPE PER SERVING (labeled BIOAVAILABILITY -- PER SERVING)
 
@@ -1921,6 +1937,7 @@ Listed after a food search. Combines matches from [USDA](#gloss-usda) FoodData C
 
 Columns:
 
+<pre>
     AA      Amino acid data status.
               checkmark    Confirmed in your local cache.
               ~checkmark   Likely available (Foundation/SR Legacy not yet
@@ -1937,8 +1954,8 @@ Columns:
     selected" — this avoids looking up every uncached result on every single
     search, which would use up more of your daily USDA search allowance than
     necessary.
-    GI      Your saved glycemic index estimate, if any. See [Glycemic Index](#gi).
-    DIAAS   Your saved DIAAS estimate, if any. See [DIAAS](#diaas).
+    GI      Your saved glycemic index estimate, if any. See <a href="#gi">Glycemic Index</a>.
+    DIAAS   Your saved DIAAS estimate, if any. See <a href="#diaas">DIAAS</a>.
     CONF.   Checkmark if a confidence/source note is saved. View it from
             the Food Cache.
     ID#     USDA FDC ID, OFF (Open Food Facts), or usr (user-drafted).
@@ -1959,6 +1976,7 @@ Columns:
               Recipe     One of your saved recipes.
               USDA       Not yet cached — from FoodData Central.
               OFF        Not yet cached — from Open Food Facts.
+</pre>
 
 To select: click the result. If the food is not yet in your cache, NuMa fetches and saves it automatically.
 
@@ -1966,7 +1984,8 @@ To select: click the result. If the food is not yet in your cache, NuMa fetches 
 
 **Sort order.** Results can be ordered two ways — a dropdown above the results table lets you switch, and your choice is remembered as the default for next time:
 
-    Best match to name (default)   See "Ordering food search results" in
+<pre>
+    Best match to name (default)   See <a href="#search-ranking">Ordering food search results</a> in
                                     Part 6 for how this ranking works.
     Pantry, Cache, then Other       Same match-quality ranking, but when two
                                     or more results are tied on how well they
@@ -1976,6 +1995,7 @@ To select: click the result. If the food is not yet in your cache, NuMa fetches 
                                     within that tie. It never lets a weaker
                                     match from your own data outrank a
                                     stronger external match.
+</pre>
 
 Both modes group your own Pantry/Food Cache/Recipe matches under their own heading above a divider, with external results below — but that heading reflects where the top-ranked matches happen to sort, not a hard rule; a strong external match can still land ahead of a weak local one under either sort mode.
 
@@ -2019,18 +2039,22 @@ Appears when you choose Foods -> Annotate a food. Pick a food from your cache to
 
 Columns:
 
+<pre>
     #       Row number. Type the number to select that food.
     Name    Food name.
-    Type    USDA data category or OFF. See [Food Search](#food-search) for type meanings.
+    Type    USDA data category or OFF. See <a href="#food-search">Food Search</a> for type meanings.
+</pre>
 
 Type /text to filter by food name (e.g. /tofu shows only tofu entries). Type / alone to clear the filter.
 
 After selecting a food, you can add or update:
 
-    GI      Glycemic index (0-100). See [Glycemic Index](#gi).
+<pre>
+    GI      Glycemic index (0-100). See <a href="#gi">Glycemic Index</a>.
     DIAAS   Your protein quality estimate (0.00-2.00). Useful for packaged
-            foods that lack amino acid data in USDA. See [DIAAS](#diaas).
+            foods that lack amino acid data in USDA. See <a href="#diaas">DIAAS</a>.
     Prep    A short preparation note (e.g. "boiled 20 min", "raw").
+</pre>
 
 Annotations appear wherever that food is used: [Food Cache](#gloss-food-cache) list, food and recipe analysis, and meal analysis.
 
@@ -2079,6 +2103,7 @@ Shows the protein sources you have flagged as currently on hand. The Pantry driv
 
 Columns:
 
+<pre>
     ID      USDA FDC ID, OFF, or usr -- for name-only entries.
     AA      Amino acid data status.
               checkmark  AA data in your cache. This food can be used in
@@ -2089,10 +2114,11 @@ Columns:
     Food    Food name.
     Notes   Your optional note for this pantry entry.
     Type, GI est., DIAAS   Same as the matching columns in the
-            [Food Cache](#cached) list — see the DIAAS entry there for
+            <a href="#cached">Food Cache</a> list — see the DIAAS entry there for
             how the saved-estimate-vs-reference-table value is chosen.
     ARCH    Shown only when archived entries are visible (the show-archived
-            toggle) — a dot marks an entry as archived. See [archiving](#archive).
+            toggle) — a dot marks an entry as archived. See <a href="#archive">archiving</a>.
+</pre>
 
 Only pantry foods with [AA](#gloss-aa) data (checkmark) appear in complement suggestions. Name-only entries (--) and those without [AA](#gloss-aa) data (X) may still appear if their name matches a built-in complement table entry. Archived pantry entries never appear in complement suggestions.
 
@@ -2325,7 +2351,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **GL**{: #gloss-gl}  —  Glycemic Load. A measure of glycemic impact that combines GI with the actual amount of carbohydrate in a serving. More useful than GI alone for real-world meal comparisons. See [glycemic load](#gl).
 
-**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NuMa's web app provides (see Part 3, "Using the Web App").
+**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NuMa's web app provides (see [Part 3, "Using the Web App"](#part-3-using-the-web-app)).
 
 **Ileal digestibility**{: #gloss-ileal-digestibility}  —  The fraction of an amino acid absorbed by the end of the small intestine (ileum). DIAAS uses true ileal digestibility, which is more accurate than fecal digestibility for measuring protein available to the body.
 
@@ -2345,7 +2371,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **Phytonutrients**{: #gloss-phytonutrients}  —  Plant-derived bioactive compounds tracked by NuMa where USDA data exists: beta-carotene, alpha-carotene, lycopene, lutein/zeaxanthin, choline, beta-sitosterol, and isoflavones.
 
-**Pooled DIAAS**{: #gloss-pooled-diaas}  —  The meal-level protein quality score computed by summing digestible amino acids across all ingredients before scoring. This captures how foods complement each other in a way that single-food DIAAS cannot. See the section "How NuMa scores meal and recipe protein quality."
+**Pooled DIAAS**{: #gloss-pooled-diaas}  —  The meal-level protein quality score computed by summing digestible amino acids across all ingredients before scoring. This captures how foods complement each other in a way that single-food DIAAS cannot. See the section [How NuMa scores meal and recipe protein quality](#protein-scoring).
 
 **RDA**{: #gloss-rda}  —  Recommended Dietary Allowance. The average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group. See [RDA](#rda).
 
@@ -2406,7 +2432,7 @@ If NuMa crashes or freezes, nothing you'd already saved is lost — every action
 
 If a page seems frozen or won't load, try refreshing it first. If that doesn't help, the program running in the background may need restarting — close and relaunch it the way you normally start NuMa.
 
-Either way, [let us know](#feedback) — see "How to contact help" below. This is beta software; a crash almost always means we found a real bug worth fixing, not something you did wrong.
+Either way, [let us know](#feedback) — see ["How to contact help"](#quickhelp) below. This is beta software; a crash almost always means we found a real bug worth fixing, not something you did wrong.
 
 #### You know what you want to do but can't see how to do it {: #ts-findit}
 Click any **Learn more** link near a section heading or analysis output — see [Getting help](#help) for the full list of what each one covers.
@@ -2687,6 +2713,36 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
 #### September 14 program updates
+
+**THE MANUAL NOW SHOWS A BREADCRUMB TRAIL AS YOU SCROLL**
+
+A sticky bar at the top of the reading area now shows where you are in the document — Part, then section, then subsection — updating as you scroll, and every level is a clickable link. This pairs with the sidebar's table of contents (which already highlights your current section) to make it much easier to keep your bearings in a long document.
+
+<!--
+```
+Scope: scripts/build_manual.py — new #breadcrumb-bar sticky nav element in
+HTML_TEMPLATE, driven by the existing TOC scroll-spy JS block: activate()
+now also calls updateBreadcrumb(id), which walks the flat #content
+h1-h4[id] heading list up to the active heading, keeping a stack of the
+innermost heading seen so far at each level (the ancestor-tracking a
+nested TOC needs, done here against the flat DOM list), and renders it as
+clickable crumbs separated by "›". The document's single h1 (page title)
+leads the trail naturally.
+```
+-->
+
+**THE CLAUDE AI FETCH PROMPT NO LONGER INCLUDES THE STARTER-FOOD MARKER IN A FOOD'S NAME**
+
+A food marked as [starter content](#starter-data) has "\* " at the front of its name, purely a local curation flag. That prefix was leaking into the generated "Fetch missing data from Claude AI" prompt, needlessly cluttering the food name Claude sees. The prompt now strips it (a bare "\*" with no trailing space is caught too); matching your pasted response back to the right food was always done by FDC ID, not name, so this was cosmetic only and never risked a mismatched import.
+
+<!--
+```
+Scope: numa_app/services/claude_fetch.py — build_prompt() now strips a
+leading "* " (or bare "*") via new _strip_starter_marker() helper before
+formatting each food line. tests/test_claude_fetch.py: 2 new tests
+(test_strips_starter_food_marker, test_strips_starter_food_marker_missing_space).
+```
+-->
 
 **NEW: A FOOD'S OWN PAGE CAN NOW COPY IT AS A CUSTOM-FOOD DRAFT, AND MARK IT AS STARTER CONTENT, IN ONE CLICK**
 

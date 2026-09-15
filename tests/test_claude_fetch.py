@@ -20,6 +20,16 @@ class TestBuildPrompt:
         prompt = _cf.build_prompt([])
         assert "0 food(s)" in prompt
 
+    def test_strips_starter_food_marker(self):
+        prompt = _cf.build_prompt([(123, "* Chicken breast")])
+        assert "123  Chicken breast" in prompt
+        assert "* Chicken breast" not in prompt
+
+    def test_strips_starter_food_marker_missing_space(self):
+        prompt = _cf.build_prompt([(123, "*Chicken breast")])
+        assert "123  Chicken breast" in prompt
+        assert "*Chicken breast" not in prompt
+
 
 class TestParseResponse:
     def test_fenced_json_block_parsed(self):

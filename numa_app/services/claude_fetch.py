@@ -78,10 +78,22 @@ Foods ({n} total — USDA FDC IDs provided where known):
 def build_prompt(selected: list[tuple[int | None, str]]) -> str:
     """Build the Claude prompt text for a list of (fdc_id, name) foods."""
     lines = "\n".join(
-        f"    {fdc_id}  {name}" if fdc_id else f"    (no FDC ID)  {name}"
+        f"    {fdc_id}  {_strip_starter_marker(name)}" if fdc_id
+        else f"    (no FDC ID)  {_strip_starter_marker(name)}"
         for fdc_id, name in selected
     )
     return PROMPT_TEMPLATE.format(n=len(selected), food_list=lines)
+
+
+def _strip_starter_marker(name: str) -> str:
+    """Drop the "* " (or bare "*", if the space was left off) starter-food
+    marker prefix — it's a local curation flag, not part of the food's real
+    name, and shouldn't be sent to Claude."""
+    if name.startswith("* "):
+        return name[2:]
+    if name.startswith("*"):
+        return name[1:]
+    return name
 
 
 def parse_response(text: str) -> tuple[list[dict], str | None, list[str]]:

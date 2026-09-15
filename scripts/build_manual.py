@@ -248,6 +248,29 @@ body {
     min-width: 0;
 }
 
+/* Sticky "you are here" breadcrumb — mirrors VSCode's markdown-preview
+   heading trail (Page Title › Part N › ... › current section), kept in
+   sync with scroll position by the same logic that drives the TOC
+   scroll-spy below. */
+#breadcrumb-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: -2.5rem -3rem 1.5rem;
+    padding: 0.6rem 3rem;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow-x: auto;
+}
+#breadcrumb-bar:empty { display: none; }
+#breadcrumb-bar a { color: var(--muted); text-decoration: none; }
+#breadcrumb-bar a:hover { color: var(--accent); text-decoration: underline; }
+#breadcrumb-bar a:last-of-type { color: var(--fg); font-weight: 600; }
+#breadcrumb-bar .crumb-sep { margin: 0 0.4em; opacity: 0.5; }
+
 h1 { font-size: 1.9rem; color: var(--heading); margin: 2rem 0 1rem;
      border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
 h2 { font-size: 1.45rem; color: var(--heading); margin: 2.5rem 0 0.75rem;
@@ -770,6 +793,50 @@ JS = """\
     var current = null;
     var OFFSET = 100; /* px from top of viewport treated as the "reading line" */
 
+    var breadcrumbEl = document.getElementById('breadcrumb-bar');
+
+    function headingText(h) {
+      var clone = h.cloneNode(true);
+      var hl = clone.querySelector('.headerlink');
+      if (hl) hl.remove();
+      return clone.textContent.trim();
+    }
+
+    function updateBreadcrumb(id) {
+      if (!breadcrumbEl) return;
+      var idx = -1;
+      for (var i = 0; i < headings.length; i++) {
+        if (headings[i].id === id) { idx = i; break; }
+      }
+      if (idx === -1) return;
+
+      /* Walk headings up to and including the active one, keeping a stack
+         of "innermost heading seen so far at each level" — the same
+         ancestor-tracking a nested TOC needs, done here against the flat
+         DOM list instead. The document's single h1 (the page title) leads
+         the stack naturally, so no separate title crumb is needed. */
+      var stack = [];
+      for (var i = 0; i <= idx; i++) {
+        var level = parseInt(headings[i].tagName.charAt(1), 10);
+        while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+        stack.push({ level: level, id: headings[i].id, text: headingText(headings[i]) });
+      }
+
+      breadcrumbEl.textContent = '';
+      stack.forEach(function (item, i) {
+        if (i > 0) {
+          var sep = document.createElement('span');
+          sep.className = 'crumb-sep';
+          sep.textContent = '›';
+          breadcrumbEl.appendChild(sep);
+        }
+        var a = document.createElement('a');
+        a.href = '#' + item.id;
+        a.textContent = item.text;
+        breadcrumbEl.appendChild(a);
+      });
+    }
+
     function expandAncestors(link) {
       var li = link.closest('li');
       while (li) {
@@ -783,7 +850,9 @@ JS = """\
     }
 
     function activate(id) {
-      if (id === current || !tocLinks[id]) return;
+      if (id === current) return;
+      updateBreadcrumb(id);
+      if (!tocLinks[id]) { current = id; return; }
       if (current && tocLinks[current]) tocLinks[current].classList.remove('toc-current');
       current = id;
       var link = tocLinks[id];
@@ -862,6 +931,7 @@ HTML_TEMPLATE = """\
   </div>
 </nav>
 <main id="content">
+<nav id="breadcrumb-bar" aria-label="Current section"></nav>
 {body}
 </main>
 <script>{js}</script>
