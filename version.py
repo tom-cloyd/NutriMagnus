@@ -1,4 +1,4 @@
-VERSION = "2026-09-14:2322"
+VERSION = "2026-09-14:2336"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -7,7 +7,7 @@ VERSION = "2026-09-14:2322"
 # build timestamp), not this, so bumping it doesn't affect either. Bump by
 # hand whenever it's meaningful to say so (e.g. cutting a new pre-release for
 # testers, or reaching 1.0.0).
-RELEASE_VERSION = "0.1.0-rc.1"
+RELEASE_VERSION = "0.1.0-rc.2"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see
