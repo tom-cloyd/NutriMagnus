@@ -89,10 +89,10 @@ if [[ -z "$VM_IP" ]]; then
     ELAPSED=0
     while [[ $ELAPSED -lt $BOOT_TIMEOUT ]]; do
         VM_IP=$(virsh domifaddr "$VM_NAME" --source lease 2>/dev/null \
-            | awk '/ipv4/ {print $4}' | cut -d/ -f1 | head -1)
+            | awk '/ipv4/ {print $4}' | cut -d/ -f1 | head -1) || true
         if [[ -z "$VM_IP" ]]; then
             VM_IP=$(virsh domifaddr "$VM_NAME" --source arp 2>/dev/null \
-                | awk '/ipv4/ {print $4}' | cut -d/ -f1 | head -1)
+                | awk '/ipv4/ {print $4}' | cut -d/ -f1 | head -1) || true
         fi
         [[ -n "$VM_IP" ]] && break
         sleep 3
