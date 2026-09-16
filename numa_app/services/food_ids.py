@@ -27,6 +27,13 @@ def classify_food_id(fdc_id: int | None, recipe_id: int | None = None) -> tuple[
     recipe_id takes priority (a recipe used as a meal item or nested ingredient
     has no fdc_id of its own). source_label is one of "Recipe", "USDA", one of
     _SYNTHETIC_ID_RANGES' labels ("OFF", "CNF", "CoFID", ...), or "User-drafted".
+
+    A user-drafted food's raw fdc_id (see db.next_user_drafted_fdc_id(): always
+    -1, -2, -3, ... in allocation order, gaps only where a draft was later
+    deleted) is meaningless on its own and, worse, sits well within plausible
+    "small negative number" range for a human to mistake for one of the huge
+    barcode/dataset-derived ids the _SYNTHETIC_ID_RANGES sources use — so it's
+    shown as "UD<n>" (n = -fdc_id) instead of the bare number.
     """
     if recipe_id is not None:
         return str(recipe_id), "Recipe"
@@ -37,4 +44,4 @@ def classify_food_id(fdc_id: int | None, recipe_id: int | None = None) -> tuple[
     for _key, start, end, label in _SYNTHETIC_ID_RANGES:
         if start <= fdc_id <= end:
             return str(fdc_id), label
-    return str(fdc_id), "User-drafted"
+    return f"UD{-fdc_id}", "User-drafted"

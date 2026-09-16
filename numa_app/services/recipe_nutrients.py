@@ -142,10 +142,10 @@ def best_aa_nutrients(nutrients: Nutrients, food_name: str) -> Nutrients | None:
     to match the food's actual protein content. Returns None if no AA data is
     available from either source.
     """
-    if _usda.has_amino_acid_data(nutrients):
+    if _usda.has_confirmed_aa_data(nutrients):
         return nutrients
     complement = _usda.get_complement_nutrients(food_name)
-    if complement and _usda.has_amino_acid_data(complement):
+    if complement and _usda.has_confirmed_aa_data(complement):
         actual_protein = nutrients.get("protein_g", 0)
         ref_protein = complement.get("protein_g", 0)
         if ref_protein > 0 and actual_protein > 0:

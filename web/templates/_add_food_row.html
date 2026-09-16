@@ -14,11 +14,12 @@
           {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
           {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
           {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+          {% elif food.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
           {% endif %}
         </td>
         <td class="col-gi"><small>{{ food.gi or '' }}</small></td>
         <td class="col-diaas"><small>{{ food.diaas or '' }}</small></td>
-        <td class="col-id muted"><small>{% if food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% elif food.recipe_id %}{{ food.recipe_id }}{% endif %}</small></td>
+        <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none)) }}</small></td>
         <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
       </tr>
       <tr class="add-food-form-row">

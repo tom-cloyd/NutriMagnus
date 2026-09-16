@@ -16,6 +16,11 @@ from typing import Any
 _CONFIG_FILE = pathlib.Path.home() / ".config" / "numa" / "config.json"
 _BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 
+# Core macro keys — used to detect a USDA response that came back with some
+# nutrients but no proximates at all (get_food_detail()'s abridged retry) and
+# to flag such a food for the user (usda_nutrients.has_macro_data()).
+CORE_MACRO_KEYS: set[str] = {"calories", "protein_g", "carbs_g", "fat_g"}
+
 # Nutrients we extract from USDA responses, keyed by USDA nutrient ID.
 # Value is (our_key, display_label, unit).
 NUTRIENT_MAP: dict[int, tuple[str, str, str]] = {
@@ -356,6 +361,17 @@ def get_food_detail(fdc_id: int) -> dict:
     nutrients={} despite raw foodNutrients being non-empty, re-fetch abridged
     and use its nutrients, keeping everything else (portions, brand, etc.)
     from the original full-format response since abridged lacks foodPortions.
+
+    A third quirk (found 2026-09-15 via fdc_id 2758993, "Bread, white,
+    commercial"): the full-format response can come back non-empty but
+    missing every proximate (calories/protein/carbs/fat) while still
+    carrying a handful of minerals/vitamins — so the "nutrients is
+    completely empty" check above never fires even though the food is
+    unusable for any macro or AA analysis. Retry with abridged the same way;
+    if abridged also lacks proximates, keep whatever abridged adds (it may
+    still carry AA data) rather than discarding it — the caller surfaces the
+    missing-macros condition to the user via has_macro_data() rather than
+    this function silently giving up.
     """
     try:
         data = _get(f"food/{fdc_id}", {})
@@ -367,6 +383,10 @@ def get_food_detail(fdc_id: int) -> dict:
     if not parsed["nutrients"] and data.get("foodNutrients"):
         abridged = _get(f"food/{fdc_id}", {"format": "abridged"})
         parsed["nutrients"] = _parse_food(abridged)["nutrients"]
+    elif parsed["nutrients"] and not (CORE_MACRO_KEYS & parsed["nutrients"].keys()):
+        abridged = _get(f"food/{fdc_id}", {"format": "abridged"})
+        abridged_nutrients = _parse_food(abridged)["nutrients"]
+        parsed["nutrients"] = {**parsed["nutrients"], **abridged_nutrients}
     return parsed
 
 

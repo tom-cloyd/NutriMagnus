@@ -89,7 +89,7 @@
       {% set ns.divider_shown = true %}
       {% endif %}
     <tr>
-      <td class="muted"><small>{{ r.fdc_id if r.fdc_id > 0 else 'OFF' }}</small></td>
+      <td class="muted"><small>{{ food_id_short(r.fdc_id) }}</small></td>
       <td>
         <a href="/food/{{ r.fdc_id }}"><strong>{{ r.name }}</strong></a>
         <br>
@@ -107,6 +107,7 @@
       <td>
         {% if r.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
         {% elif r.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
+        {% elif r.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
         {% else %}<span class="text-danger" title="No amino acid data">✗</span>{% endif %}
       </td>
       <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>

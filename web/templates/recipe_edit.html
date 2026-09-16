@@ -286,12 +286,13 @@
               <br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
               {% endif %}
             </td>
-            <td class="col-id muted"><small>{% if food._type == "recipe" %}{{ food.recipe_id }}{% elif food.fdc_id and food.fdc_id > 0 %}{{ food.fdc_id }}{% elif food.fdc_id and food.fdc_id < 0 %}OFF{% endif %}</small></td>
+            <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none) if food._type == "recipe" else none) }}</small></td>
             <td>
               {% if food._type == "recipe" %}<span class="muted">—</span>
               {% elif food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
               {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
               {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+              {% elif food.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
               {% else %}<span class="muted">—</span>{% endif %}
             </td>
             <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>

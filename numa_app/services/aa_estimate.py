@@ -51,8 +51,16 @@ def source_note(source_name: str, source_fdc_id: "int | None", factor: float) ->
     )
 
 
-def copy_nutrients_note(source_name: str, source_fdc_id: "int | None") -> str:
-    """Free-text note documenting a whole-profile nutrient copy (unscaled,
-    unlike source_note's AA scaling)."""
+def copy_nutrients_note(source_name: str, source_fdc_id: "int | None",
+                         field_labels: list[str] | None = None) -> str:
+    """Free-text note documenting a nutrient copy (unscaled, unlike
+    source_note's AA scaling). field_labels, when given, names exactly which
+    fields were copied — up to 6 spelled out, otherwise just a count — since
+    a selective copy (see /copy-nutrients/select) no longer always means
+    "the whole profile"."""
     id_part = f" (#{source_fdc_id})" if source_fdc_id else ""
+    if field_labels:
+        fields_part = (", ".join(field_labels) if len(field_labels) <= 6
+                        else f"{len(field_labels)} fields")
+        return f"Copied from {source_name}{id_part}: {fields_part}, {date.today().isoformat()}"
     return f"Nutrient profile copied from {source_name}{id_part}, {date.today().isoformat()}"

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-14:2322* / Reading time: 4 hours, 47 minutes
+*Updated 2026-09-16:0645* / Reading time: 4 hours, 55 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -10,7 +10,7 @@
 * **Older people** are impacted by multiple factors reducing the chances of their being well nourished, including a much-reduced ability to make use of protein. 
 * The **chronically-ill**, as well as **older people**, also have typically reduced appetites. 
 
-None of these groups generally have an accurate sense of the nutritional adequacy of their diet. The information is obscure, technically dense, and in case of what is seen on commercial packaging, outright misleading.
+None of these groups generally have an accurate sense of the nutritional adequacy of their diet. The information is obscure, technically dense, and when it's on commercial packaging outright misleading.
 
 **Eating usually involves making choices, and good choice requires good information.** The three major problems impeding good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed by NuMa, in detail.
 
@@ -58,7 +58,7 @@ Start with what is easiest to understand: analysis of single foods and simple re
 
 **Learning a powerful tool requires time and frequent contact.** You have two critical things to learn: basic concepts (covered in [Part 4](#coreNutrition)) and the interface itself, including the functions listed on the main menu items drop-down menus. **If you don't commit to daily use of the program, for about a week, you will not get past the slow-fumbling stage.** What you are dealing with is a Boeing 727, not a Piper Cub. Learn the cockpit and you can be a world traveler! (And that learning can come gradually, but daily exposure is the key.)
 
-### C. NuMa often learns from you as you use it
+### C. NuMa often learns from YOU as you use it
 
 While we don't yet have on-board local AI to help you with NuMa and your food questions, we do have NuMa remembering recent entries you've made to text input boxes, and a number of different options you've selected. 
 
@@ -141,11 +141,11 @@ The five items in the top navigation bar correspond to the five major things you
     - Compare up to eight foods side-by-side
     - Manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles
     - Annotate foods with glycemic index and [DIAAS](#gloss-diaas) estimates
-    - Export/import your Food Cache as CSV, to move data to or from another NuMa install
+    - Export/import your Food Cache as [CSV](#gloss-csv), to move data to or from another NuMa install
 - **Recipes**
     - Create and save recipes with ingredients and instructions
     - Browse, copy, and delete saved recipes
-    - Export/import a recipe as a self-contained CSV, bundling every sub-recipe and ingredient's data along with it
+    - Export/import a recipe as a self-contained [CSV](#gloss-csv), bundling every sub-recipe and ingredient's data along with it
     - Develop a recipe iteratively with nutritional feedback after each ingredient change
     - Analyze a recipe portion for full nutrient data, protein quality, and complement suggestions
 - **Meals & Log**
@@ -197,7 +197,7 @@ Beyond the problem of ingesting the right mix of amino acids, there are two othe
 
 * Age, sex, and activity level differences in protein needs do exist and they are not minor. Older people, active people, and those with chronic diseases, for example, require substantially more protein than do younger healthy people, for several reasons. Almost all common discussions of dietary protein fail to address this problem, and in any case a mere discussion doesn't tell one what to eat and how much.
 
-### C. This protein-management problem is critical for older people and the chronically ill, and especially so for women
+### C. This protein-management problem is critical for older people and the chronically ill, and especially so for women <!-- tc:rev26-09-16 -->
 
 In very brief summary, as we age, we tend to lose muscle mass, utilize dietary protein less efficiently, and simply eat less. These factors compound to create a perfect storm of vulnerability to general ill-health and the often dire consequences of falls. And these issues affect women more than men. Put simply - getting enough of the right sort of protein matters far more than most people realize. A good diet is utterly necessary, but not by itself sufficient. It must be complemented with adequate resistance exercise.
 
@@ -207,12 +207,9 @@ There is very little discussion of the problem in the mass media. So, it is up t
 
 These are technical problems that are beyond the ability of ordinary people to solve well. An easy-to-use, freely available computer program will go far toward solving this problem. This is what this project is about.
 
-Nutrition analysis programs, both paid and free open source, already exist but none that I've seen focus on the problems faced by vegetarian and vegan folks. And none have the rich features and readily modifiable design that I want. The NuMa program addresses both problems in detail. It also suggests complementary foods that can be combined with a food or recipe or meal to create [complete proteins](#gloss-complete-protein) in one's diet.
+Nutrition analysis programs, both paid and free open source, already exist but none that we've seen focus on the problems faced by vegetarian and vegan folks. And none have the rich features and readily modifiable design that we want. The NuMa program addresses both problems in detail. It also suggests complementary foods that can be combined with a food or recipe or meal to create [complete proteins](#gloss-complete-protein) in one's diet.
 
-NuMa has been under intense development and is still being developed. Over time, new users will expertience unanticipated needs and the program can be further developed to meet them. This is one reason why [reporting problems](#feedback) is so important - feedback drives program development.
-
-Very recently, a Windows version of the program has been developed. It will soon be available for download and user trials. 
-
+NuMa has been under intense development and is still being developed. Over time, new users will experience unanticipated needs and the program can be further developed to meet them. This is one reason why [reporting problems](#feedback) is so important - feedback drives program development.
 
 ### E. Data, testing, and validation: Why you can trust NutriMagnus (NuMa) {: #data-testing-validation}
 
@@ -534,6 +531,26 @@ See [Protein Completeness](#complete) and [Amino Acid Gaps](#gap) for how comple
 ### B. Protein Complement Suggestions {: #comp}
 When amino acid gaps are detected, NuMa suggests foods that can improve the protein quality of the base food or meal. Two separate tiers are shown, and they use different methods:
 
+#### WHEN DOES NUMA SUGGEST PROTEIN COMPLEMENTS? {: #comp-threshold}
+
+The composite [DIAAS](#gloss-diaas) for a meal is defined as the lowest of the nine individual amino acid ratios — the ratio for the [limiting amino acid](#gloss-limiting-amino-acid). This means the meal [DIAAS](#gloss-diaas) and the complement-suggestion threshold are directly connected: if the meal [DIAAS](#gloss-diaas) is 0.95 or above, every single amino acid in the meal is also scoring 0.95 or above, and no suggestions will appear.
+
+NuMa uses **0.95** as its threshold because gaps smaller than that are nutritionally trivial to close — the math works out to needing only a gram or two of additional food, which is not a practical suggestion worth presenting. A meal [DIAAS](#gloss-diaas) of 0.95–0.99 means the [limiting amino acid](#gloss-limiting-amino-acid) is present but slightly below the [FAO](#gloss-fao) ideal; the deficit is real but small, and the protein is considered of good quality for a varied diet.<sup>[FAO 2013]</sup>
+
+Below 0.95, a meaningful gap exists, and NuMa will show complement suggestions — foods that supply the missing amino acid and, when added to the meal, raise the composite [DIAAS](#gloss-diaas) toward or above 1.0.
+
+To summarize:
+
+    Meal DIAAS  What it means                                    Complement suggestions
+    ----------  -----------------------------------------------  -----------------------
+    >= 1.00     All amino acids meet or exceed the reference     None -- protein is fully complete
+    0.95-0.99   Minor limiting amino acid; negligible gap        None -- gap too small to address
+    < 0.95      Meaningful amino acid gap                        Yes -- foods shown that close the gap
+
+See also [Amino Acid Gaps](#gap) for the same 0.95 threshold applied per amino acid rather than at the meal-composite level.
+
+The amino acid completeness categories NuMa uses are derived from the work of the Food and Agriculture Organization of the United Nations.[^16]
+
 #### TIER 1 — GAP CLOSERS
 
 These foods can mathematically close a specific amino acid gap with a practical amount (up to 500 g). A gap closer has a high enough ratio of the [limiting amino acid](#gloss-limiting-amino-acid) to protein that adding it to the base food brings that amino acid's score to 1.0 (the [FAO](#gloss-fao) reference floor).
@@ -653,7 +670,7 @@ NuMa shows [DCP](#gloss-dcp) in the bioavailability section of food and recipe a
 
 Animal proteins typically score 1.0 or above. Most plant proteins score below 1.0, though some (pea protein, soy) come close. Digestibility matters because some protein in food is never absorbed — it passes through unchanged or is broken down by gut bacteria rather than used by your body.
 
-A note on terminology: the [FAO](#gloss-fao) uses the term "indispensable amino acids" (IAA) where this manual uses "essential amino acids" ([EAA](#gloss-eaa)) — both refer to the same nine amino acids. The "I" in [DIAAS](#gloss-diaas) stands for "Indispensable."
+A note on terminology: the [FAO](#gloss-fao) uses the term "indispensable amino acids" ([IAA](#gloss-iaa)) where this manual uses "essential amino acids" ([EAA](#gloss-eaa)) — both refer to the same nine amino acids. The "I" in [DIAAS](#gloss-diaas) stands for "Indispensable."
 
 NuMa uses [DIAAS](#gloss-diaas) to calculate digestible [complete protein](#gloss-complete-protein) ([DCP](#gloss-dcp)), which is a better indicator of actual protein quality than raw grams. See [Digestible Complete Protein (DCP)](#dcp).
 
@@ -781,7 +798,7 @@ NuMa generates complement suggestions only for scores below 0.95, not below the 
 - **Methionine** is the most commonly [limiting amino acid](#gloss-limiting-amino-acid) in plant-based diets.
 - **Lysine** is the most commonly limiting in grain-heavy diets.
 
-See [Protein Complement Suggestions](#comp) for how NuMa suggests foods to close gaps.
+See [Protein Complement Suggestions](#comp) for how NuMa suggests foods to close gaps, and [When does NuMa suggest protein complements?](#comp-threshold) for how this per-amino-acid gap threshold relates to the meal-level composite DIAAS score.
 
 
 ### L. Antinutrients {: #antinutrients}
@@ -986,7 +1003,7 @@ NuMa calculates personalized daily nutrient goals from your user profile (Settin
 #### Omega-3 ALA (minimum)
 <pre>
     1600 mg/day men, 1100 mg/day women — Adequate Intake for alpha-linolenic
-    acid (ALA), the plant-sourced omega-3. See <a href="#omega3">Omega-3 Fatty Acids</a>
+    acid (<a href="#gloss-ala">ALA</a>), the plant-sourced omega-3. See <a href="#omega3">Omega-3 Fatty Acids</a>
     for why this is the only omega-3 with an official goal in NuMa.
 </pre>
 
@@ -1136,7 +1153,7 @@ Revised Optimal targets are per-nutrient, not per-day -- there is no single "opt
 NuMa tracks three tiers of daily maximum, from broadest to narrowest:
 
 - **Sodium's built-in RDA-tier limit.** Sodium is the one nutrient with a "limit" type right in the standard [RDA](#rda) calculation itself (Part 5, Section Q) — 2300 mg/day, the Chronic Disease Risk Reduction Intake. This is separate from the tier below and isn't configurable.
-- **Built-in Tolerable Upper Intake Levels (UL).** Twelve more nutrients carry a real risk of harm from chronic excess, most often from supplementing rather than food alone. NuMa applies the standard adult UL for these automatically — no setup required — using the same age/sex-band pattern as the RDA table:
+- **Built-in Tolerable Upper Intake Levels ([UL](#gloss-ul)).** Twelve more nutrients carry a real risk of harm from chronic excess, most often from supplementing rather than food alone. NuMa applies the standard adult UL for these automatically — no setup required — using the same age/sex-band pattern as the RDA table:
 
     | Nutrient | Adult UL | Age band |
     |---|---|---|
@@ -2027,7 +2044,7 @@ The **protein-quality table** ([DIAAS](#diaas)-based) appears when at least one 
 
 The **nutrient table** covers Macronutrients, Minerals, Vitamins, [Phytonutrients](#gloss-phytonutrients), and Amino Acids (groups appear only when at least one item has data for that category), every value per 100 g, highest value per row highlighted in green, sortable by checked nutrients, rows where every item shows "--" hidden automatically. The items you chose are listed above the table — each also shows an **AA** column indicating at a glance whether it has amino acid data (✓) or not (✗).
 
-**Print comparison table** and **Download CSV** buttons appear above the nutrient table: Print opens your browser's print dialog with just that comparison table (no nav, search box, or other page chrome); the CSV download gives one row per nutrient and one column per item, ready to open in a spreadsheet.
+**Print comparison table** and **Download [CSV](#gloss-csv)** buttons appear above the nutrient table: Print opens your browser's print dialog with just that comparison table (no nav, search box, or other page chrome); the CSV download gives one row per nutrient and one column per item, ready to open in a spreadsheet.
 
 **Saving a comparison list.**{: #comparison-saved-lists} A **Save this list** box at the bottom of the page names and stores your current set of items; a **Use a saved list** panel at the top — shown even on the empty, no-items-yet view — lets you reload, rename, or delete any list you've saved before, so you don't have to re-search and re-add the same items each time you want to revisit a comparison.
 
@@ -2197,7 +2214,11 @@ This means you can deliberately front-load your most important search word when 
 ### D. Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it {: #recipe-dcp-cascade}
 A recipe can be used as an ingredient inside another recipe — a lentil sauce that shows up in three different dinners, say. Editing and saving that base recipe recalculates its own digestible complete protein ([DCP](#gloss-dcp)) automatically. If it's also used as a sub-recipe ingredient elsewhere, saving it recalculates DCP for every recipe that depends on it too — directly, or through another sub-recipe in between — so a foundational recipe's protein score is never left stale in anything built on top of it. You never need to manually recompute a dependent recipe just because you changed the recipe it's built from.
 
+**The same automatic recalculation happens when you change a food, not just a recipe.** Editing a food's nutrients — [copying a nutrient profile from another food](#drafted-foods), estimating its amino acids, refreshing it from USDA, or importing Claude AI's answer — immediately recalculates DCP for every recipe that uses that food directly, and cascades from there to every recipe built on top of those, the same as editing a recipe itself does. You never need to manually recompute a recipe just because you changed one of its ingredient foods.
+
 A bulk "recompute DCP for all recipes" option still exists on the Recipes list — worth running after a bulk import, or if you suspect stale numbers predating this cascading recalculation.
+
+**Meals and days work differently: always correct when viewed, but their list-view summaries can lag.** A meal's or a day's own page ([Meals & Log](#meal-columns), the Daily Summary for a specific date) always computes its nutrient totals and DCP fresh, from whatever your foods and recipes currently contain — never stale. But viewing that page is also what saves the *summary* figures (Meal DCP, Day DCP, calories) shown in list views — the Meals & Log list, the Recent Days table, the Daily Summary sidebar. If you edit a food that's used in several meals, those list views can keep showing the old numbers for any meal you haven't reopened since — not wrong data, just not yet refreshed. Opening that meal (or its day) brings it current immediately; to refresh everything at once instead of one at a time, use the batch button on [Meals & Log](#meal-columns) that calculates DCP and calories for all meals, or just the last 10 or 30 days.
 
 ### E. Entering custom foods and dietary supplements {: #custom-foods}
 #### Custom food profiles
@@ -2209,7 +2230,7 @@ Whichever interface you use, the same fields apply:
 - **Name** — what to call this food in searches and meal logs.
 - **Supplement mode** (see below) or a normal serving size and unit.
 - **Basic macros** — calories, protein, total fat, carbohydrates, fiber, sugars, saturated fat, mono/poly fats, sodium. Always required.
-- **Minerals, vitamins, amino acids, and [phytonutrients](#gloss-phytonutrients)** — all optional. For vitamins A, D, and E you can type the amount in IU (e.g. `400 IU`) and NuMa converts it automatically; amino acids can be entered one-by-one or pasted in as a block from a research table (g per 100 g protein — converted automatically).
+- **Minerals, vitamins, amino acids, and [phytonutrients](#gloss-phytonutrients)** — all optional. For vitamins A, D, and E you can type the amount in [IU](#gloss-iu) (e.g. `400 IU`) and NuMa converts it automatically; amino acids can be entered one-by-one or pasted in as a block from a research table (g per 100 g protein — converted automatically).
 - **Note** — document your source or any caveats about the data.
 
 Once saved, the food appears in every search and can be used in meals and recipes exactly like any other food. Edit or delete it from the same place you created it, at any time.
@@ -2271,7 +2292,7 @@ Every food in these online tables has a unique ID number — think of it as a pr
 
 **Edit protection.** Any food you edit manually — through Foods → 5. [Food Cache](#gloss-food-cache) — is marked as user-modified. NuMa will never silently overwrite a user-modified food with a fresh copy from [USDA](#gloss-usda), even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself.
 
-**Omega fatty acid tracking.** NuMa tracks four individual omega fatty acids — ALA (plant-based omega-3, found in flaxseed, walnuts, chia), EPA and DHA (marine omega-3, found in fish and seafood), and linoleic acid (the main omega-6, found in vegetable oils and nuts). These appear in the nutrient table whenever [USDA](#gloss-usda) data is available. Foods already in your cache that predate this feature are updated automatically the first time you access them — no action needed on your part.
+**Omega fatty acid tracking.** NuMa tracks four individual omega fatty acids — [ALA](#gloss-ala) (plant-based omega-3, found in flaxseed, walnuts, chia), [EPA](#gloss-epa) and [DHA](#gloss-dha) (marine omega-3, found in fish and seafood), and linoleic acid (the main omega-6, found in vegetable oils and nuts). These appear in the nutrient table whenever [USDA](#gloss-usda) data is available. Foods already in your cache that predate this feature are updated automatically the first time you access them — no action needed on your part.
 
 Food enters your [Food Cache](#gloss-food-cache) in four ways:
 
@@ -2317,6 +2338,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **AI**  —  Adequate Intake. A nutrient reference value used when a full RDA cannot be established; considered sufficient for most healthy people. Used for fiber in NuMa. See [RDA](#rda).
 
+**ALA**{: #gloss-ala}  —  Alpha-Linolenic Acid. The plant-based omega-3 fatty acid — found in flaxseed, walnuts, and chia — that NuMa tracks alongside EPA and DHA. See [Omega-3 Fatty Acids](#omega3).
+
 **Antinutrient**{: #gloss-antinutrient}  —  A naturally occurring plant compound that partially blocks the absorption or use of a nutrient. Common examples: phytates (reduce mineral absorption), oxalates (reduce calcium absorption), lectins (interfere with digestion in raw legumes), bound niacin in corn. All can be reduced by appropriate preparation. See [antinutrients](#antinutrients).
 
 **Bioavailable protein**{: #gloss-bioavailable-protein}  —  Protein the body can actually absorb and use, accounting for both digestibility and amino acid completeness. More meaningful than the raw protein figure on a nutrition label.
@@ -2327,7 +2350,11 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **Complement food**{: #gloss-complement-food}  —  A food added to a meal specifically to supply the amino acids that other ingredients are short in. See [complement suggestions](#comp).
 
+**CSV**{: #gloss-csv}  —  Comma-Separated Values. A plain-text spreadsheet format — one line per row, commas between columns — that Excel, Google Sheets, and most spreadsheet programs can open directly. NuMa uses it for exporting and importing Food Cache and recipe data. See [Food Cache](#food-cache-web).
+
 **DCP**{: #gloss-dcp}  —  Digestible Complete Protein. Grams of protein in a food or meal that are both digestible (absorbed by the body) and complete (all essential amino acids present at adequate levels). See [digestible complete protein](#dcp).
+
+**DHA**{: #gloss-dha}  —  Docosahexaenoic Acid. A marine omega-3 fatty acid — found in fish and seafood — that NuMa tracks alongside ALA and EPA. See [Omega-3 Fatty Acids](#omega3).
 
 **DIAAS**{: #gloss-diaas}  —  Digestible Indispensable Amino Acid Score. A score from 0 to 1.5+ measuring how much of a food's protein the body can actually use, accounting for digestibility and amino acid completeness. 1.0 = meets the FAO reference exactly; above 1.0 = excellent; below 1.0 = one or more amino acids are limiting. See [DIAAS](#diaas).
 
@@ -2336,6 +2363,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 **DRI**{: #gloss-dri}  —  Dietary Reference Intakes. The system of nutritional reference values published by the U.S. National Academies of Sciences[^9]; the source for RDAs, AIs, and upper intake levels used in NuMa.
 
 **EAA**{: #gloss-eaa}  —  Essential Amino Acid. One of nine amino acids the human body cannot make and must get from food every day: Histidine, Isoleucine, Leucine, Lysine, Methionine, Phenylalanine, Threonine, Tryptophan, Valine. See [essential amino acids](#aa).
+
+**EPA**{: #gloss-epa}  —  Eicosapentaenoic Acid. A marine omega-3 fatty acid — found in fish and seafood — that NuMa tracks alongside ALA and DHA. See [Omega-3 Fatty Acids](#omega3).
 
 **FAO**{: #gloss-fao}  —  Food and Agriculture Organization of the United Nations. The body that published the 2013 amino acid reference standard used for all protein quality scoring in NuMa. See [FAO reference values](#fao).
 
@@ -2353,7 +2382,11 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NuMa's web app provides (see [Part 3, "Using the Web App"](#part-3-using-the-web-app)).
 
+**IAA**{: #gloss-iaa}  —  Indispensable Amino Acid. The FAO's own term for what this manual calls [EAA](#gloss-eaa) (Essential Amino Acid) — both refer to the same nine amino acids. See [essential amino acids](#aa).
+
 **Ileal digestibility**{: #gloss-ileal-digestibility}  —  The fraction of an amino acid absorbed by the end of the small intestine (ileum). DIAAS uses true ileal digestibility, which is more accurate than fecal digestibility for measuring protein available to the body.
+
+**IU**{: #gloss-iu}  —  International Units. A dosage measurement used for vitamins A, D, and E on supplement labels. On a [custom food profile](#custom-foods), you can type these vitamins' amounts directly in IU and NuMa converts them automatically.
 
 **Limiting amino acid**{: #gloss-limiting-amino-acid}  —  The essential amino acid in shortest supply relative to the FAO reference, which caps how much of a food's protein can be incorporated into tissue. The overall DIAAS score equals the ratio for the limiting amino acid. See [limiting amino acid](#gap).
 
@@ -2380,6 +2413,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 **SPI**{: #gloss-spi}  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See [Appendix E](#comp-appendix).
 
 **TID**{: #gloss-tid}  —  True Ileal Digestibility. NuMa's abbreviation for [ileal digestibility](#gloss-ileal-digestibility), used as a column heading in per-ingredient digestibility breakdowns.
+
+**UL**{: #gloss-ul}  —  Tolerable Upper Intake Level. The highest daily intake of a nutrient unlikely to cause harm — NuMa applies built-in ULs for twelve nutrients with a real risk of excess, shown as a column on every nutrient analysis table. See [Maximum Nutrient Limits](#maxlimits).
 
 **USDA**{: #gloss-usda}  —  United States Department of Agriculture. The U.S. government body that publishes FoodData Central, NuMa's primary food data source.
 
@@ -2414,7 +2449,7 @@ University of Sydney. (n.d.). Glycemic Index Database. Retrieved August 2, 2026,
 ### D. Using this manual's search {: #search-howto}
 Use the sidebar search box near the top of the table of contents.
 
-**By default it searches whole words, not phrases, and requires all of them.** Type `portion size` and NuMa looks for sections that contain *both* words somewhere — not necessarily next to each other, not in the order you typed them. This is different from typing a whole phrase and expecting an exact match: `edit portion` (as a phrase) will find nothing, because that exact wording never appears anywhere in the manual, even though the idea is covered extensively. If a search comes up empty, the fix is usually to drop a word, not add one — start with just the noun you care about (`portion`), see what comes back, then add a second word only if the list is too long to skim.
+**By default it searches whole words, not phrases, and requires all of them for something to be considered a "hit".** Type `portion size` and NuMa looks for sections that contain *both* words somewhere — not necessarily next to each other, not in the order you typed them. This is different from typing a whole phrase and expecting an exact match: `edit portion` (as a phrase) will find nothing, because that exact wording never appears anywhere in the manual, even though the idea is covered extensively. If a search comes up empty, the fix is usually to drop a word, not add one — start with just the noun you care about (`portion`), see what comes back, then add a second word only if the list is too long to skim.
 
 **Wrap your search in double quotes for an exact phrase instead.** Typing `"iron and zinc targets"` (quotes included) looks for that literal run of text instead of AND-ing separate words — useful when you're trying to relocate a specific sentence you remember reading, rather than explore a topic. Since it has to match verbatim, an exact-phrase search is more likely to come up empty than the default word search; if it does, drop the quotes and search the same words the normal way.
 
@@ -2622,7 +2657,7 @@ Ideas below are listed in their current likely probability of being implemented.
 
 ### ☑ CSV export and import for foods and recipes (completed 2026-08-11)
 
-Foods and recipes can now both be exported to CSV and imported back in — on this or another NuMa install — via **Export CSV**/**Import CSV** buttons on the [Food Cache](#food-cache-web) list and on each [recipe](#recipes)'s page. A recipe's export is self-contained: it bundles every sub-recipe and food ingredient's full data along with it, so nothing has to already exist on the receiving end for the import to work, and anything that already matches by name is reused rather than duplicated. See the August 11 entries in [Recent program updates](#a-recent-program-updates-log) for full detail.
+Foods and recipes can now both be exported to [CSV](#gloss-csv) and imported back in — on this or another NuMa install — via **Export CSV**/**Import CSV** buttons on the [Food Cache](#food-cache-web) list and on each [recipe](#recipes)'s page. A recipe's export is self-contained: it bundles every sub-recipe and food ingredient's full data along with it, so nothing has to already exist on the receiving end for the import to work, and anything that already matches by name is reused rather than duplicated. See the August 11 entries in [Recent program updates](#a-recent-program-updates-log) for full detail.
 
 ### Expanding Revised Optimal (Recent Research) targets {: #expand-revised-optimal}
 ☑ **Age/sex-banded RDA (completed, existing feature)** and ☑ **research-backed maximum nutrient levels (completed 2026-08-11)** are both done — see [Daily Nutrient Goals](#goals) for the full RDA age/sex band table and [Maximum Nutrient Limits](#maxlimits) for all 12 built-in Tolerable Upper Intake Levels, each sourced to the NIH DRI tables[^9].
@@ -2711,6 +2746,170 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 16 program updates
+
+**THE "CHOOSE FIELDS TO COPY" PAGE CAN NOW SELECT OR DESELECT A WHOLE NUTRIENT GROUP AT ONCE**
+
+On [Edit Custom Profile](#drafted-foods)'s "Choose fields to copy" page (see "Edit Custom Profile can now copy just the fields you choose" below), each nutrient group — Macronutrients, Minerals, Vitamins, Amino Acids, and so on — now has its own checkbox in the card header, next to the group's name. Checking or unchecking it selects or deselects every field in that group in one click, instead of clicking each field individually; it also reflects a partially-selected group (a dash rather than a check) if you've hand-picked only some of that group's fields.
+
+<!--
+```
+Scope: web/templates/food_custom_copy_select.html — each field-group <div
+data-field-group> card gets a checkbox (data-group-select-all) in its
+card-title. JS: a change listener on that checkbox toggles every
+.copy-field-checkbox within the same card; a change listener on each field
+checkbox calls syncGroupCheckbox() to keep the group checkbox's checked/
+indeterminate state in sync (indeterminate when some-but-not-all of that
+group's fields are checked). The page-wide "Select all"/"Select none"
+buttons now also resync every group checkbox afterward. tests/test_web.py:
+test_custom_profile_copy_nutrients_select_page_lists_source_fields extended
+to assert the per-group checkbox markup is present.
+```
+-->
+
+**A USER-DRAFTED FOOD'S ID NO LONGER SHOWS AS THE NONSENSE LABEL "OFF"**
+
+Several ID columns across the app (Food Cache, Pantry, Compare, Prune, and every food/recipe search-results table) labeled *any* negative food id as "OFF" (Open Food Facts) — including small, ordinary user-drafted food ids that aren't from Open Food Facts at all. A [drafted food](#drafted-foods) now gets its own readable id instead: **UD1**, **UD2**, **UD3**, and so on, assigned in the order each draft was created. Real Open Food Facts, Canadian Nutrient File, CoFID, AFCD, and CIQUAL ids are unaffected — those already had correct, distinct labels; only the fallback that swallowed everything else into "OFF" was wrong.
+
+<!--
+```
+Scope: numa_app/services/food_ids.py classify_food_id() — the final fallback
+branch (fdc_id doesn't match any _SYNTHETIC_ID_RANGES block, i.e. a genuine
+user-drafted id from db.next_user_drafted_fdc_id()'s -1, -2, -3, ...
+allocation) now returns id_str f"UD{-fdc_id}" instead of the bare negative
+number. web/backend.py — new food_id_short() Jinja global (id_str half of
+classify_food_id(), for a compact standalone ID column where food_id_tag()'s
+full "(#id, SOURCE)" form would duplicate an adjacent Type/Source column).
+Replaced six separate ad hoc "fdc_id < 0 ? OFF : fdc_id" template
+expressions — the actual bug, present since before the multi-source
+(CNF/CoFID/AFCD/CIQUAL) expansion — with food_id_short() calls in
+food_cache.html, food_cache_prune.html, compare.html, pantry.html,
+_add_food_row.html, recipe_edit.html, and _search_result_row.html. New
+tests/test_food_ids.py (6 cases) plus one new web-level regression test in
+tests/test_web.py asserting the Food Cache ID column renders "UD3" and
+never renders ">OFF<" for a drafted food.
+```
+-->
+
+**EDIT CUSTOM PROFILE CAN NOW COPY JUST THE FIELDS YOU CHOOSE FROM ANOTHER FOOD, AND SHOWS AMINO ACID STATUS IN ITS SEARCH RESULTS**
+
+"Copy nutrient values from another food" (renamed from "Copy a full nutrient profile") used to be all-or-nothing — picking a source food replaced every value on the profile at once, amino acids included, even if you only wanted to fill in a couple of missing minerals. Clicking a search result now opens a **Choose fields to copy** page listing every nutrient the source food actually has, grouped the same way the edit form is, each with a checkbox (all checked by default) and a side-by-side look at what's on this profile now versus what the source would bring in. Only the fields you leave checked are changed — everything else on the profile stays exactly as it was. Separately, that search results table now shows an AA column, same as the amino-acid estimator's search results below it, so you can see at a glance which candidates actually have amino acid data before picking one.
+
+<!--
+```
+Scope: web/backend.py — new GET /food/custom-profiles/{fdc_id}/copy-nutrients/select
+(renders food_custom_copy_select.html: per-group checkbox list built from
+_EDIT_NUTRIENT_GROUPS, restricted to keys the source actually has, each row
+showing target_value vs source_value). POST /copy-nutrients now takes
+keys: list[str] = Form(default=[]) and merges only those keys into the
+target's existing nutrients dict (dict(target_nutrients); updated[k] =
+source[k] for k in selected) instead of replacing the whole dict — a food
+with no keys selected redirects with nutrients_applied=none_selected
+rather than silently doing nothing. New _get_or_cache_source_food() helper
+extracted from the (now three) copy-aa/copy-nutrients/-select routes'
+duplicated "fetch-and-cache an uncached source" block.
+numa_app/services/aa_estimate.py copy_nutrients_note() takes an optional
+field_labels list, naming up to 6 fields or falling back to a count, so
+the saved Notes text reflects a partial copy instead of always implying a
+full-profile one. web/templates/food_custom_edit.html — nutrient_source_results
+table gets an AA column (mirroring aa_source_results below it); the
+"Use as source" button/confirm() replaced with a plain link to the new
+select page. New file: food_custom_copy_select.html. Tests: 3 new in
+tests/test_web.py (select page renders source fields, selective copy
+merges instead of replacing, no-selection case), 2 existing tests
+(test_food_cascade.py, test_web.py) updated to pass explicit keys=... now
+that a bare POST is a no-op by design.
+```
+-->
+
+**THE MISLEADING AMINO-ACID CHECKMARK FIX NOW COVERS EVERY PAGE THAT SHOWS ONE, NOT JUST FOOD SEARCH**
+
+Yesterday's fix for the false "amino acid data confirmed" checkmark (a food with no nutrient data at all showing ✓ instead of a warning) only touched Food Search — Food Cache, Pantry, Compare, the meal "Refresh AA data" action, and both AA-source pickers on the Edit Custom Profile page still had the same bug, using the same unguarded check. All of them now use the same fixed logic. Two consequences beyond the visual checkmark: a food this broken could never be picked up by "Refresh AA data" (it looked done already, so it was silently skipped forever), and a recipe containing it could silently skip the usual complement-table AA fallback for the same reason — both now correctly treat it as needing attention.
+
+Separately, on [Edit Custom Profile](#drafted-foods), the "Copy a full nutrient profile" and "Estimate amino acids" sections have been relabeled so it's clear at a glance (and again in the confirmation prompt when you click) that the first replaces everything on the profile, amino acids included, while the second only ever touches amino acids and leaves the rest of the profile alone.
+
+<!--
+```
+Scope: usda_nutrients.py — new has_confirmed_aa_data() (has_macro_data()
+AND has_amino_acid_data()), the boolean counterpart to aa_indicator() for
+call sites that need a plain True/False rather than a ✓/✗/⚠ display
+string. Re-exported via usda.py. web/backend.py — food_cache_get(),
+food_cache_refresh()'s error-path re-render, pantry_get(),
+_search_food_sources() (the AA-source picker's has_aa/button-disable
+flag), meal_refresh_aa()'s "already has AA data, skip" gate, and the
+Compare page's has_aa flag all switched from has_amino_acid_data() to
+has_confirmed_aa_data(). numa_app/services/recipe_nutrients.py
+best_aa_nutrients() — same swap, fixing the recipe-level complement
+fallback. web/templates/food_custom_edit.html — both <details> summaries,
+their descriptions, the "Use as source"/confirm() text, and the AA-picker
+button text reworded to name what each action does and does not touch.
+```
+-->
+
+#### September 15 program updates
+
+**FOOD SEARCH NO LONGER SHOWS A FALSE "AMINO ACID DATA CONFIRMED" CHECKMARK FOR FOODS WITH NO NUTRIENT DATA AT ALL**
+
+A food whose cached record was missing every macro (calories, protein, carbs, fat) — not just amino acids — was showing a green checkmark in the AA column, because the underlying check treats "no protein" as "amino acid data isn't needed here," which is correct for genuinely protein-free foods but wrong for a food with no nutrient data at all. Such foods now show a distinct warning symbol instead, and their own page explains the problem and offers a one-click retry or a path to fill in the data by hand from a similar food. Separately, fetching a food's details from USDA now retries once more when the response comes back with some nutrients but no macros at all — a rarer USDA data gap than the empty-response case already handled, but the same fix works for it.
+
+<!--
+```
+Scope: usda_nutrients.py — new has_macro_data() and aa_indicator() (checks
+CORE_MACRO_KEYS presence before falling through to has_amino_acid_data()'s
+existing "no protein" branch); CORE_MACRO_KEYS moved to usda_api.py to avoid
+a circular import, re-exported via usda_nutrients. web/backend.py — all
+"aa" search-result fields and both inline _aa_status() helpers now call
+_usda.aa_indicator() instead of a raw has_amino_acid_data() ternary;
+_food_detail_context() adds a missing_macros flag surfaced in
+food_detail.html as a new alert with "Try refreshing from USDA again" and
+"Copy as a custom-food draft" actions. usda_api.py get_food_detail() —
+added a third retry branch (alongside the existing 404-fallback and
+empty-nutrients-fallback cases) for a non-empty nutrients dict missing
+every CORE_MACRO_KEYS entry, found via fdc_id 2758993 ("Bread, white,
+commercial"). Templates updated: _search_result_row.html,
+_add_food_row.html, _analyze_portion_result_row.html, recipe_edit.html,
+pantry.html.
+```
+-->
+
+**THE EDIT CUSTOM PROFILE PAGE'S TWO SEARCH BOXES ARE EASIER TO USE**
+
+On [Edit Custom Profile](#drafted-foods), the "Copy a full nutrient profile" and "Estimate amino acids" search boxes previously packed the search field, the Search button, and the whole row of Source checkboxes onto a single line — cramped enough on a normal-width screen that the Search button could end up squeezed out of easy reach. The search box and button now sit on their own row above the Source checkboxes, with room to breathe.
+
+<!--
+```
+Scope: web/templates/food_custom_edit.html — both search forms (nutrient
+copy and AA estimate) restructured: the outer <form> no longer applies
+d-flex directly; the text input + Search button are now wrapped in their
+own "d-flex gap-2 mb-2 align-items-center" div, with the
+source_filter.select() row rendered below it instead of inline in the same
+flex row.
+```
+-->
+
+**THE MANUAL'S BREADCRUMB BAR NO LONGER COVERS THE TOP OF THE SECTION YOU JUMP TO, AND IS EASIER TO READ**
+
+Clicking a table-of-contents entry (or following any in-manual link straight to a subsection) could land you with the first line or two of that section hidden underneath the sticky breadcrumb bar at the top of the page — worse for a deeply-nested subsection, whose longer trail needed more room than the bar was given credit for. The breadcrumb trail now wraps onto a second line instead of being force-fit onto one, its text is about 20% larger, and the line under it is twice as thick — and every heading now reserves exactly enough space above it for its own breadcrumb trail's actual height, so jumping to a section never leaves it partly hidden.
+
+<!--
+```
+Scope: scripts/build_manual.py — #breadcrumb-bar CSS: font-size 13px→16px,
+border-bottom 1px→2px, white-space nowrap/overflow-x auto removed (wraps
+normally now). Root cause of the overlap: scroll-margin-top on headings was
+being computed from whichever heading was already active (via a shared
+--breadcrumb-h custom property synced after the fact), which is always one
+step behind for a fresh jump — by the time the "correct" height was known,
+the jump had already landed. Replaced with precomputeScrollMargins(),
+which renders each heading's own breadcrumb trail into the bar up front
+(headings can be at different nesting depths, so their trails wrap
+differently) and sets that heading's scroll-margin-top from the real
+measured height — independent of scroll position. Re-run debounced on
+resize (wrapping also depends on viewport width) and once more explicitly
+against location.hash on load, since a direct/bookmarked link to a deep
+anchor scrolls before this script runs at all.
+```
+-->
 
 #### September 14 program updates
 
@@ -5380,6 +5579,9 @@ The scale factor is capped at 1.0 because a food can never be "more than 100% co
 [^14]: Young, V. R., & Pellett, P. L. (1994). Plant proteins in relation to human protein and amino acid nutrition. *American Journal of Clinical Nutrition, 59*(5, Suppl.), 1203S–1212S. — the basis for the modern consensus that complementary protein sources don't need to be eaten at the same meal, since the body's own daily protein turnover (roughly 250–300 g) can supply amino acids the free pool is short on.
 
 [^15]: Arentson-Lantz, E. J., Von Ruff, Z., Connolly, G., Albano, F., Kilroe, S. P., Wacher, A., Campbell, W. W., & Paddon-Jones, D. (2024). Meals containing equivalent total protein from foods providing complete, complementary, or incomplete essential amino acid profiles do not differentially affect 24-h skeletal muscle protein synthesis in healthy, middle-aged women. *The Journal of Nutrition*. Advance online publication. — a controlled feeding study finding no significant difference in acute or 24-hour muscle protein synthesis across complete, complementary, and single incomplete-protein meal conditions.
+
+[^16]: FAO. (2013). *Dietary protein quality evaluation in human nutrition.* FAO Food and Nutrition Paper 92. Food and Agriculture Organization of the United Nations, Rome. *Available at:* https://www.researchgate.net/profile/Suzane-Leser/publication/259554481_The_2013_FAO_report_on_dietary_protein_quality_evaluation_in_human_nutrition_Recommendations_and_implications/links/5da88dfca6fdccdad54c5210/The-2013-FAO-report-on-dietary-protein-quality-evaluation-in-human-nutrition-Recommendations-and-implications.pdf
+
 
 ---
 

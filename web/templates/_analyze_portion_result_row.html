@@ -4,6 +4,7 @@
     {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
     {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
     {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+    {% elif food.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
     {% else %}<span class="muted">—</span>{% endif %}
   </td>
   <td class="muted"><small>{{ food.gi or "—" }}</small></td>

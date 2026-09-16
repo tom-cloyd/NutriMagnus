@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Choose fields to copy{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/custom-profiles">Custom Profiles</a></li>
+    <li class="breadcrumb-item"><a href="/food/custom-profiles/{{ food.fdc_id }}/edit">Edit {{ food.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Choose fields to copy</li>
+  </ol>
+</nav>
+
+<h2>Choose fields to copy into {{ food.name }}</h2>
+<p class="muted">
+  From <strong>{{ source_name }}</strong> (#{{ source_fdc_id }}) — values are per 100&thinsp;g, copied raw
+  and unscaled. Only fields checked below are changed; everything else on this profile stays as it is.
+  Where {{ food.name }} already has a value, it's shown so you can see what would be overwritten.
+</p>
+
+{% if field_groups %}
+<form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/copy-nutrients">
+  <input type="hidden" name="source_fdc_id" value="{{ source_fdc_id }}">
+  <input type="hidden" name="off_code" value="{{ off_code or '' }}">
+
+  <p class="mb-2">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-select-all-fields>Select all</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-select-none-fields>Select none</button>
+  </p>
+
+  {% for group in field_groups %}
+  <div class="card mb-3" style="max-width:44rem" data-field-group>
+    <div class="card-body">
+      <h5 class="card-title d-flex align-items-center gap-2">
+        <input type="checkbox" class="form-check-input mt-0" checked
+               id="group-{{ loop.index }}" data-group-select-all>
+        <label for="group-{{ loop.index }}" class="mb-0">{{ group.name }}</label>
+      </h5>
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:2rem"></th>
+            <th>Field</th>
+            <th class="text-end">This food now</th>
+            <th class="text-end">From {{ source_name }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in group.fields %}
+          <tr>
+            <td>
+              <input type="checkbox" class="form-check-input copy-field-checkbox" name="keys" value="{{ f.key }}" checked
+                     id="key-{{ f.key }}">
+            </td>
+            <td><label for="key-{{ f.key }}">{{ f.label }}</label></td>
+            <td class="text-end muted">{{ f.target_value if f.target_value != "" else "—" }}{% if f.target_value != "" %} {{ f.unit }}{% endif %}</td>
+            <td class="text-end"><strong>{{ f.source_value }}</strong> {{ f.unit }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <p>
+    <button type="submit" class="btn btn-primary">Copy selected fields</button>
+    <a href="/food/custom-profiles/{{ food.fdc_id }}/edit" class="btn btn-outline-secondary">Cancel</a>
+  </p>
+</form>
+
+<script>
+function syncGroupCheckbox(group) {
+  var groupCb = group.querySelector('[data-group-select-all]');
+  var fieldCbs = Array.prototype.slice.call(group.querySelectorAll('.copy-field-checkbox'));
+  var checkedCount = fieldCbs.filter(function (cb) { return cb.checked; }).length;
+  groupCb.checked = checkedCount === fieldCbs.length;
+  groupCb.indeterminate = checkedCount > 0 && checkedCount < fieldCbs.length;
+}
+
+document.querySelectorAll('[data-field-group]').forEach(function (group) {
+  group.querySelector('[data-group-select-all]').addEventListener('change', function () {
+    group.querySelectorAll('.copy-field-checkbox').forEach(function (cb) { cb.checked = this.checked; }, this);
+  });
+  group.querySelectorAll('.copy-field-checkbox').forEach(function (cb) {
+    cb.addEventListener('change', function () { syncGroupCheckbox(group); });
+  });
+});
+
+document.addEventListener('click', function (e) {
+  if (e.target.closest('[data-select-all-fields]')) {
+    document.querySelectorAll('.copy-field-checkbox').forEach(function (cb) { cb.checked = true; });
+    document.querySelectorAll('[data-field-group]').forEach(syncGroupCheckbox);
+  } else if (e.target.closest('[data-select-none-fields]')) {
+    document.querySelectorAll('.copy-field-checkbox').forEach(function (cb) { cb.checked = false; });
+    document.querySelectorAll('[data-field-group]').forEach(syncGroupCheckbox);
+  }
+});
+</script>
+{% else %}
+<div class="alert alert-danger">{{ source_name }} has no nutrient data to copy from.</div>
+<a href="/food/custom-profiles/{{ food.fdc_id }}/edit" class="btn btn-outline-secondary">Back to Edit Custom Profile</a>
+{% endif %}
+{% endblock %}

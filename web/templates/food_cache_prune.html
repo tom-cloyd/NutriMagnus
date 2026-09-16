@@ -33,7 +33,7 @@
       {% for f in unused %}
       <tr>
         <td><input type="checkbox" name="delete_ids" value="{{ f.fdc_id }}" checked onchange="pruneUpdateCount()"></td>
-        <td class="muted" style="white-space:nowrap">{% if f.fdc_id < 0 %}OFF{% else %}{{ f.fdc_id }}{% endif %}</td>
+        <td class="muted" style="white-space:nowrap">{{ food_id_short(f.fdc_id) }}</td>
         <td>{{ f.name }}{{ food_id_tag(f.fdc_id) }}</td>
         <td class="muted"><small>{{ f.data_type or "—" }}</small></td>
       </tr>

@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 import db as _db
 import web.backend as backend
 from numa_app.services import recipe_dcp as _recipe_dcp
-from tests.conftest import SAMPLE_FDC_ID, _mock_api
+from tests.conftest import SAMPLE_FDC_ID, SAMPLE_NUTRIENTS, _mock_api
 
 
 @pytest.fixture()
@@ -235,7 +235,7 @@ class TestWebRoutesTriggerCascade:
         monkeypatch.setattr(_recipe_dcp, "cascade_food_change", lambda fdc_id, conn: calls.append(fdc_id))
         resp = client.post(
             f"/food/custom-profiles/{target_id}/copy-nutrients",
-            data={"source_fdc_id": SAMPLE_FDC_ID},
+            data={"source_fdc_id": SAMPLE_FDC_ID, "keys": list(SAMPLE_NUTRIENTS.keys())},
             follow_redirects=False,
         )
         assert resp.status_code == 303

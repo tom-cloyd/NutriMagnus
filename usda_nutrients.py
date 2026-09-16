@@ -7,7 +7,9 @@ Docs: README-numa-documentation.md, Architecture: "usda_nutrients.py — nutrien
 """
 import re
 
-from usda_api import NUTRIENT_MAP, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_PROTEIN
+from usda_api import (
+    NUTRIENT_MAP, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_PROTEIN, CORE_MACRO_KEYS,
+)
 
 # Type alias for all per-100g nutrient dicts throughout the codebase.
 Nutrients = dict[str, float]
@@ -79,6 +81,36 @@ def has_amino_acid_data(nutrients: Nutrients) -> bool:
         return True   # no protein — AA data irrelevant
     aa_present = [k for k in ESSENTIAL_AMINO_ACIDS if nutrients.get(k, 0) > 0]
     return len(aa_present) >= 5
+
+
+def has_macro_data(nutrients: Nutrients) -> bool:
+    """Return True if at least one core macro is present in the dict at all
+    (regardless of value) — False means the food has no usable nutrient data,
+    which has_amino_acid_data() alone can't distinguish from a genuinely
+    protein-free food."""
+    return any(k in nutrients for k in CORE_MACRO_KEYS)
+
+
+def aa_indicator(nutrients: Nutrients) -> str:
+    """AA-column status for search/list rows: "✓" (AA data confirmed),
+    "✗" (protein present, no AA data), or "⚠" (no macro data cached at all —
+    has_amino_acid_data()'s "no protein" branch would otherwise misreport
+    this as a confirmed ✓)."""
+    if not has_macro_data(nutrients):
+        return "⚠"
+    return "✓" if has_amino_acid_data(nutrients) else "✗"
+
+
+def has_confirmed_aa_data(nutrients: Nutrients) -> bool:
+    """Plain-boolean form of aa_indicator()'s "✓" case — use this (not
+    has_amino_acid_data() alone) anywhere a food with no nutrient data at
+    all must not be treated the same as one with confirmed amino acid data:
+    a checkmark/boolean flag shown to the user, an "already has AA data,
+    skip re-fetching" gate, or an "eligible as an AA-estimate source" check.
+    has_amino_acid_data()'s own "no protein" branch is correct for judging
+    protein-quality math on a food that really is protein-free, so it's
+    left as-is for that internal use."""
+    return has_macro_data(nutrients) and has_amino_acid_data(nutrients)
 
 
 def protein_completeness(nutrients: Nutrients, digestibility: float = 1.0) -> dict:

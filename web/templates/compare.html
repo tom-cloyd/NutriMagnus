@@ -125,7 +125,7 @@
         <td><span class="source-badge source-recipe">recipe</span></td>
         {% else %}
         <td><input type="checkbox" name="fdc_id" value="{{ r.fdc_id }}" class="row-chk"></td>
-        <td class="muted"><small>{{ r.fdc_id if r.fdc_id > 0 else 'OFF' }}</small></td>
+        <td class="muted"><small>{{ food_id_short(r.fdc_id) }}</small></td>
         <td><a href="/food/{{ r.fdc_id }}"><strong>{{ r.name }}</strong></a></td>
         <td class="muted">{{ r.brand or "—" }}</td>
         <td class="muted">{{ r.data_type }}</td>

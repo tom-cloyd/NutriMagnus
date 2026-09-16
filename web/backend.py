@@ -480,6 +480,31 @@ def _fetch_uncached_food_detail(fdc_id: int, off_code: str = "") -> dict:
     raise ValueError(f"fdc_id {fdc_id} is not in any known source's id range")
 
 
+def _get_or_cache_source_food(fdc_id: int, off_code: str = "") -> "sqlite3.Row":
+    """Return the cached Row for fdc_id, fetching-and-caching it first via
+    _fetch_uncached_food_detail() if it isn't already cached — the shared
+    "resolve a copy-aa/copy-nutrients source" step used by both custom-profile
+    copy pickers. Raises whatever _fetch_uncached_food_detail() raises on
+    failure; callers decide the user-facing redirect."""
+    with _db.get_db() as conn:
+        source = _db.get_cached_food(conn, fdc_id)
+    if source:
+        return source
+    detail = _fetch_uncached_food_detail(fdc_id, off_code)
+    with _db.get_db() as conn:
+        _db.cache_food(
+            conn, fdc_id=detail["fdcId"], name=detail["name"],
+            data_type=detail.get("dataType", ""),
+            brand=detail.get("brand"),
+            serving_size=detail.get("servingSize"),
+            serving_unit=detail.get("servingUnit"),
+            nutrients=detail.get("nutrients", {}),
+            portions=detail.get("portions", []),
+        )
+        _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
+        return _db.get_cached_food(conn, fdc_id)
+
+
 def _resolve_source_filter(raw: list[str] | None, pref_key: str,
                             valid_sources: list[str] = _SEARCH_SOURCE_FILTERS) -> list[str]:
     """Resolve a multi-select source filter: explicit `source` query values
@@ -667,7 +692,7 @@ def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str,
     def _aa_status(fdc_id: int, data_type: str, source: str) -> str:
         nuts_json = cached_nutrients.get(fdc_id)
         if nuts_json:
-            return "✓" if _usda.has_amino_acid_data(json.loads(nuts_json)) else "✗"
+            return _usda.aa_indicator(json.loads(nuts_json))
         # Foundation/SR Legacy USDA entries reliably carry amino acid data
         # even before the first real fetch, so that guess is safe. OFF
         # (rarely has AA data) and CNF (has it for only a subset of foods —
@@ -819,6 +844,16 @@ def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
     return Markup(f'<span class="food-id-tag">(#{escape(id_str)}, {escape(source)})</span>')
 
 templates.env.globals["food_id_tag"] = _food_id_tag
+
+def _food_id_short(fdc_id: int | None, recipe_id: int | None = None) -> str:
+    """Just the id_str half of classify_food_id() — for a compact standalone
+    ID column (e.g. Food Cache), where food_id_tag()'s '(#id, SOURCE)' form
+    would be redundant with a separate Type/Source column already in view."""
+    from numa_app.services.food_ids import classify_food_id
+    classified = classify_food_id(fdc_id, recipe_id)
+    return classified[0] if classified else ""
+
+templates.env.globals["food_id_short"] = _food_id_short
 templates.env.globals["diet_labels"] = _DIET_LABELS
 templates.env.globals["current_diet_pref"] = _current_diet_pref
 templates.env.globals["update_notify_freq_labels"] = _UPDATE_NOTIFY_FREQ_LABELS
@@ -1520,7 +1555,7 @@ def _search_local_results(query: str) -> list[dict]:
             "brand":     row["brand"] or "",
             "source":    "pantry" if row["fdc_id"] in pantry_id_by_fdc else "cache",
             "pantry_id": pantry_id_by_fdc.get(row["fdc_id"]),
-            "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
+            "aa":        _usda.aa_indicator(nutrients),
             "gi":        round(ann["gi_estimate"]) if ann and ann["gi_estimate"] is not None else None,
             "diaas":     round(ann["diaas_estimate"], 2) if ann and ann["diaas_estimate"] is not None else None,
             "has_notes": bool(row["notes"]),
@@ -1576,7 +1611,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                 "data_type": bc_cached["data_type"],
                 "brand":     bc_cached["brand"] or "",
                 "source":    "cache",
-                "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
+                "aa":        _usda.aa_indicator(nutrients),
                 "gi":        None,
                 "diaas":     None,
                 "has_notes": bool(bc_cached["notes"]),
@@ -1601,7 +1636,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                     "data_type": detail.get("dataType", ""),
                     "brand":     detail.get("brand") or "",
                     "source":    "off",
-                    "aa":        "✓" if _usda.has_amino_acid_data(detail.get("nutrients", {})) else "✗",
+                    "aa":        _usda.aa_indicator(detail.get("nutrients", {})),
                     "gi":        None,
                     "diaas":     None,
                     "has_notes": False,
@@ -2209,7 +2244,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
     for row in rows:
         ann = annotations.get(row["fdc_id"])
         nuts = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
-        has_aa = _usda.has_amino_acid_data(nuts)
+        has_aa = _usda.has_confirmed_aa_data(nuts)
         # A saved annotation always takes priority over the keyword-matched
         # reference table (see README "Per-food DIAAS via annotations").
         diaas_saved = ann["diaas_estimate"] if ann else None
@@ -2612,7 +2647,7 @@ async def food_cache_refresh(request: Request, fdc_id: int):
                 "name":          row["name"],
                 "data_type":     row["data_type"] or "",
                 "brand":         row["brand"] or "",
-                "has_aa":        _usda.has_amino_acid_data(nuts),
+                "has_aa":        _usda.has_confirmed_aa_data(nuts),
                 "gi":            ann["gi_estimate"] if ann else None,
                 "diaas":         ann["diaas_estimate"] if ann else None,
                 "notes":         row["notes"] or "",
@@ -2646,7 +2681,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
             item = dict(r)
             cached = _db.get_cached_food(conn, r["fdc_id"]) if r["fdc_id"] else None
             nuts = json.loads(cached["nutrients_json"]) if cached and cached["nutrients_json"] else {}
-            has_aa = _usda.has_amino_acid_data(nuts)
+            has_aa = _usda.has_confirmed_aa_data(nuts)
             ann = annotations.get(r["fdc_id"])
             diaas_saved = ann["diaas_estimate"] if ann else None
             diaas = diaas_saved if diaas_saved is not None else (_usda.get_diaas(r["food_name"]) if has_aa else None)
@@ -2680,7 +2715,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
                 "brand":     row["brand"] or "",
                 "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 "off_code":  "",
-                "aa":        "✓" if _usda.has_amino_acid_data(nuts) else "✗",
+                "aa":        _usda.aa_indicator(nuts),
                 "pantry_id": pantry_id_by_fdc.get(row["fdc_id"]),
             })
         if "usda" in source:
@@ -2907,7 +2942,7 @@ def _search_food_sources(conn, q: str, exclude_id: int, source: list[str] | None
         ]
         for r in results:
             n = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
-            r["has_aa"] = _usda.has_amino_acid_data(n)
+            r["has_aa"] = _usda.has_confirmed_aa_data(n)
             r["source"] = "cache"
     seen_ids: set[int] = {exclude_id} | {r["fdc_id"] for r in results}
 
@@ -3026,10 +3061,12 @@ async def food_custom_profiles_edit_get(request: Request, fdc_id: int, aa_source
         "aa_source_results": aa_source_results,
         "aa_applied": aa_applied,
         "aa_source": aa_source,
+        "aa_omitted_sources": _omitted_source_labels(aa_source, _SOURCE_PICKER_FILTERS),
         "nutrient_source_q": nutrient_source_q.strip(),
         "nutrient_source_results": nutrient_source_results,
         "nutrients_applied": nutrients_applied,
         "nutrient_source": nutrient_source,
+        "nutrient_omitted_sources": _omitted_source_labels(nutrient_source, _SOURCE_PICKER_FILTERS),
         "source_filters": _SOURCE_PICKER_FILTERS,
         "source_labels": _SEARCH_SOURCE_LABELS,
     })
@@ -3117,27 +3154,13 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
         target = _db.get_cached_food(conn, fdc_id)
         if not target:
             return RedirectResponse("/food/custom-profiles", status_code=303)
-        source = _db.get_cached_food(conn, source_fdc_id)
 
-    if not source:
-        try:
-            detail = _fetch_uncached_food_detail(source_fdc_id, off_code)
-        except Exception:
-            return RedirectResponse(
-                f"/food/custom-profiles/{fdc_id}/edit?aa_applied=source_fetch_failed", status_code=303
-            )
-        with _db.get_db() as conn:
-            _db.cache_food(
-                conn, fdc_id=detail["fdcId"], name=detail["name"],
-                data_type=detail.get("dataType", ""),
-                brand=detail.get("brand"),
-                serving_size=detail.get("servingSize"),
-                serving_unit=detail.get("servingUnit"),
-                nutrients=detail.get("nutrients", {}),
-                portions=detail.get("portions", []),
-            )
-            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
-            source = _db.get_cached_food(conn, source_fdc_id)
+    try:
+        source = _get_or_cache_source_food(source_fdc_id, off_code)
+    except Exception:
+        return RedirectResponse(
+            f"/food/custom-profiles/{fdc_id}/edit?aa_applied=source_fetch_failed", status_code=303
+        )
 
     target_nutrients = json.loads(target["nutrients_json"]) if target["nutrients_json"] else {}
     source_nutrients = json.loads(source["nutrients_json"]) if source["nutrients_json"] else {}
@@ -3165,37 +3188,25 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
     return RedirectResponse(f"/food/custom-profiles/{fdc_id}/edit?aa_applied=ok", status_code=303)
 
 
-@app.post("/food/custom-profiles/{fdc_id}/copy-nutrients", response_class=RedirectResponse)
-async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = Form(...), off_code: str = Form("")):
-    """Overwrite this food's entire nutrient profile with a raw (unscaled) copy
-    of a source food's per-100g values — a quick way to seed a blank draft
-    before hand-editing. Independent of copy-aa: either can overwrite the
-    other's fields, since this replaces the whole nutrients dict wholesale."""
+@app.get("/food/custom-profiles/{fdc_id}/copy-nutrients/select", response_class=HTMLResponse)
+async def food_custom_profiles_copy_nutrients_select(request: Request, fdc_id: int,
+                                                       source_fdc_id: int = Query(...),
+                                                       off_code: str = Query("")):
+    """Let the user pick exactly which nutrient values to bring in from
+    source_fdc_id, rather than an all-or-nothing whole-profile copy — the
+    target food may only be missing a few fields (see copy-nutrients below).
+    Only fields the source actually has a value for are offered."""
     with _db.get_db() as conn:
         target = _db.get_cached_food(conn, fdc_id)
         if not target:
             return RedirectResponse("/food/custom-profiles", status_code=303)
-        source = _db.get_cached_food(conn, source_fdc_id)
 
-    if not source:
-        try:
-            detail = _fetch_uncached_food_detail(source_fdc_id, off_code)
-        except Exception:
-            return RedirectResponse(
-                f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=source_fetch_failed", status_code=303
-            )
-        with _db.get_db() as conn:
-            _db.cache_food(
-                conn, fdc_id=detail["fdcId"], name=detail["name"],
-                data_type=detail.get("dataType", ""),
-                brand=detail.get("brand"),
-                serving_size=detail.get("servingSize"),
-                serving_unit=detail.get("servingUnit"),
-                nutrients=detail.get("nutrients", {}),
-                portions=detail.get("portions", []),
-            )
-            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
-            source = _db.get_cached_food(conn, source_fdc_id)
+    try:
+        source = _get_or_cache_source_food(source_fdc_id, off_code)
+    except Exception:
+        return RedirectResponse(
+            f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=source_fetch_failed", status_code=303
+        )
 
     source_nutrients = json.loads(source["nutrients_json"]) if source["nutrients_json"] else {}
     if not source_nutrients:
@@ -3203,12 +3214,72 @@ async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = 
             f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=error", status_code=303
         )
 
+    target_nutrients = json.loads(target["nutrients_json"]) if target["nutrients_json"] else {}
+    field_groups = []
+    for group_name, fields in _EDIT_NUTRIENT_GROUPS:
+        rows = [
+            {
+                "key":           k,
+                "label":         label,
+                "unit":          unit,
+                "source_value":  source_nutrients[k],
+                "target_value":  target_nutrients.get(k, ""),
+            }
+            for k, label, unit in fields if k in source_nutrients
+        ]
+        if rows:
+            field_groups.append({"name": group_name, "fields": rows})
+
+    return templates.TemplateResponse(request, "food_custom_copy_select.html", {
+        "food":          dict(target),
+        "source_name":   source["name"],
+        "source_fdc_id": source_fdc_id,
+        "off_code":      off_code,
+        "field_groups":  field_groups,
+    })
+
+
+@app.post("/food/custom-profiles/{fdc_id}/copy-nutrients", response_class=RedirectResponse)
+async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = Form(...),
+                                               off_code: str = Form(""), keys: list[str] = Form(default=[])):
+    """Copy only the selected nutrient keys from source_fdc_id's per-100g
+    values onto this profile, raw and unscaled — everything else already on
+    this profile (selected-but-absent-from-source fields aside, which can't
+    happen since /copy-nutrients/select only ever offers keys the source
+    actually has) is left untouched. Independent of copy-aa: either can
+    overwrite the other's fields where they overlap."""
+    with _db.get_db() as conn:
+        target = _db.get_cached_food(conn, fdc_id)
+        if not target:
+            return RedirectResponse("/food/custom-profiles", status_code=303)
+
+    try:
+        source = _get_or_cache_source_food(source_fdc_id, off_code)
+    except Exception:
+        return RedirectResponse(
+            f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=source_fetch_failed", status_code=303
+        )
+
+    source_nutrients = json.loads(source["nutrients_json"]) if source["nutrients_json"] else {}
+    selected_keys = [k for k in keys if k in _ALL_NUTRIENT_KEYS and k in source_nutrients]
+    if not selected_keys:
+        return RedirectResponse(
+            f"/food/custom-profiles/{fdc_id}/edit?nutrients_applied=none_selected", status_code=303
+        )
+
+    target_nutrients = json.loads(target["nutrients_json"]) if target["nutrients_json"] else {}
+    updated = dict(target_nutrients)
+    for k in selected_keys:
+        updated[k] = source_nutrients[k]
+
+    field_labels = [label for group_name, fields in _EDIT_NUTRIENT_GROUPS for k, label, unit in fields
+                    if k in selected_keys]
     portions_json = target["portions_json"]
     portions: list[dict] = json.loads(portions_json) if portions_json and portions_json != "null" else []
-    note = _aa_estimate.copy_nutrients_note(source["name"], source_fdc_id)
+    note = _aa_estimate.copy_nutrients_note(source["name"], source_fdc_id, field_labels)
     with _db.get_db() as conn:
         _db.update_cached_food_profile(
-            conn, fdc_id, target["name"], dict(source_nutrients),
+            conn, fdc_id, target["name"], updated,
             data_type=target["data_type"] or "User Drafted",
             brand=target["brand"],
             serving_size=target["serving_size"],
@@ -3500,6 +3571,11 @@ def _food_detail_context(
     if nutrients.get("protein_g", 0) > 0 and not _usda.has_amino_acid_data(nutrients):
         suggest_foundation = food["name"].split(",")[0].strip()
 
+    # No usable nutrient data at all (missing every proximate, even after the
+    # abridged-format retry in get_food_detail()) — flag it rather than show
+    # a silently blank nutrient table.
+    missing_macros = not _usda.has_macro_data(nutrients)
+
     oxalate = _oxalate_info(food["fdc_id"], food["name"])
     oxalate_mg_portion: float | None = None
     if oxalate and amount and oxalate.get("mg_per_100g") is not None:
@@ -3527,6 +3603,7 @@ def _food_detail_context(
         "has_optimal":        bool(optimal),
         "has_ul":             bool(max_limits),
         "suggest_foundation": suggest_foundation,
+        "missing_macros":     missing_macros,
         "oxalate":            oxalate,
         "oxalate_mg_portion": oxalate_mg_portion,
     }
@@ -4336,7 +4413,7 @@ async def meal_refresh_aa(meal_id: int):
         if data_type == "Branded":
             continue
         nutrients = json.loads(cached["nutrients_json"])
-        if _usda.has_amino_acid_data(nutrients):
+        if _usda.has_confirmed_aa_data(nutrients):
             continue
         try:
             detail = _usda.get_food_detail(fdc_id)
@@ -4404,7 +4481,7 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
     def _aa_status(fdc_id: int, data_type: str) -> str:
         nuts_json = cached_nutrients.get(fdc_id)
         if nuts_json:
-            return "✓" if _usda.has_amino_acid_data(json.loads(nuts_json)) else "✗"
+            return _usda.aa_indicator(json.loads(nuts_json))
         if data_type in ("Foundation", "SR Legacy"):
             return "~✓"
         return "✗"
@@ -5798,7 +5875,7 @@ def _load_compare_entry(conn, kind: str, id_: int) -> dict | None:
             "ingredients":     [{"food_name": name, "ref_recipe_id": None, "display": "100 g"}],
             "diaas":           diaas_display,
             "cached":          cached is not None,
-            "has_aa":          _usda.has_amino_acid_data(nutrients_100g),
+            "has_aa":          _usda.has_confirmed_aa_data(nutrients_100g),
             "weight_complete": True,
         }
 
@@ -6642,7 +6719,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 "brand":     row["brand"] or "",
                 "source":    "pantry" if row["fdc_id"] in pantry_ids else "cache",
                 "portions":  portions,
-                "aa":        "✓" if _usda.has_amino_acid_data(nutrients) else "✗",
+                "aa":        _usda.aa_indicator(nutrients),
             })
         try:
             for food in _usda.search_foods(q, page_size=limit):

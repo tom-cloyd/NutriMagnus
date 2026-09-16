@@ -116,6 +116,21 @@
       </button>
     </form>
   </div>
+  {% if missing_macros %}
+  <div class="alert alert-warning" style="max-width:42rem">
+    <strong>&#9888; No nutrient data available for this food.</strong>
+    USDA didn't return calories, protein, carbs, or fat for this record, even on retry &mdash;
+    a data gap in this particular FDC record, not a numa bug.
+    <form method="post" action="/food/cache/{{ food.fdc_id }}/refresh" style="display:inline">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Try refreshing from USDA again</button>
+    </form>
+    or
+    <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">Copy as a custom-food draft</button>
+    </form>
+    to fill in the nutrients by hand from a similar food.
+  </div>
+  {% endif %}
 </div>
 
 {# ── Portion selector ─────────────────────────────────────────────────── #}

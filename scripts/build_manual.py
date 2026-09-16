@@ -249,7 +249,7 @@ body {
 }
 
 /* Sticky "you are here" breadcrumb — mirrors VSCode's markdown-preview
-   heading trail (Page Title › Part N › ... › current section), kept in
+   heading trail (Page Title > Part N > ... > current section), kept in
    sync with scroll position by the same logic that drives the TOC
    scroll-spy below. */
 #breadcrumb-bar {
@@ -259,17 +259,26 @@ body {
     margin: -2.5rem -3rem 1.5rem;
     padding: 0.6rem 3rem;
     background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
+    border-bottom: 2px solid var(--border);
+    font-size: 16px;
+    line-height: 1.5;
     color: var(--muted);
-    white-space: nowrap;
-    overflow-x: auto;
+    white-space: normal;
 }
 #breadcrumb-bar:empty { display: none; }
 #breadcrumb-bar a { color: var(--muted); text-decoration: none; }
 #breadcrumb-bar a:hover { color: var(--accent); text-decoration: underline; }
 #breadcrumb-bar a:last-of-type { color: var(--fg); font-weight: 600; }
 #breadcrumb-bar .crumb-sep { margin: 0 0.4em; opacity: 0.5; }
+
+/* Jumping to a heading (TOC click, search result, or in-page anchor) must
+   stop below the sticky breadcrumb bar, not underneath it. Each heading's
+   own scroll-margin-top is set individually by precomputeScrollMargins()
+   below, from that heading's own (possibly multi-line, wrapped) breadcrumb
+   trail — this fallback only matters before that JS has run. */
+#content h1[id], #content h2[id], #content h3[id], #content h4[id] {
+    scroll-margin-top: 4.5rem;
+}
 
 h1 { font-size: 1.9rem; color: var(--heading); margin: 2rem 0 1rem;
      border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
@@ -802,32 +811,28 @@ JS = """\
       return clone.textContent.trim();
     }
 
-    function updateBreadcrumb(id) {
-      if (!breadcrumbEl) return;
-      var idx = -1;
-      for (var i = 0; i < headings.length; i++) {
-        if (headings[i].id === id) { idx = i; break; }
-      }
-      if (idx === -1) return;
-
-      /* Walk headings up to and including the active one, keeping a stack
-         of "innermost heading seen so far at each level" — the same
-         ancestor-tracking a nested TOC needs, done here against the flat
-         DOM list instead. The document's single h1 (the page title) leads
-         the stack naturally, so no separate title crumb is needed. */
+    /* Walk headings up to and including index idx, keeping a stack of
+       "innermost heading seen so far at each level" — the same
+       ancestor-tracking a nested TOC needs, done here against the flat DOM
+       list instead. The document's single h1 (the page title) leads the
+       stack naturally, so no separate title crumb is needed. */
+    function breadcrumbStackFor(idx) {
       var stack = [];
       for (var i = 0; i <= idx; i++) {
         var level = parseInt(headings[i].tagName.charAt(1), 10);
         while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
         stack.push({ level: level, id: headings[i].id, text: headingText(headings[i]) });
       }
+      return stack;
+    }
 
+    function renderBreadcrumbStack(stack) {
       breadcrumbEl.textContent = '';
       stack.forEach(function (item, i) {
         if (i > 0) {
           var sep = document.createElement('span');
           sep.className = 'crumb-sep';
-          sep.textContent = '›';
+          sep.textContent = '>';
           breadcrumbEl.appendChild(sep);
         }
         var a = document.createElement('a');
@@ -835,6 +840,36 @@ JS = """\
         a.textContent = item.text;
         breadcrumbEl.appendChild(a);
       });
+    }
+
+    function updateBreadcrumb(id) {
+      if (!breadcrumbEl) return;
+      var idx = -1;
+      for (var i = 0; i < headings.length; i++) {
+        if (headings[i].id === id) { idx = i; break; }
+      }
+      if (idx === -1) return;
+      renderBreadcrumbStack(breadcrumbStackFor(idx));
+    }
+
+    /* scroll-margin-top must reflect the height THIS heading's own
+       breadcrumb trail will render at (it may wrap to 2+ lines for a
+       deeply-nested heading with a long title) — not whatever heading
+       happens to be active right now. A single shared value synced only
+       after the scroll-spy activates the destination heading is always one
+       step too late: by the time it's known to be wrong, the jump (native
+       #id navigation or scrollIntoView) has already landed short, hiding
+       the heading under the bar. Rendering each heading's own trail into
+       the real bar and measuring it, once up front, sidesteps that
+       ordering problem entirely. Re-run on resize since wrapping also
+       depends on viewport width. */
+    function precomputeScrollMargins() {
+      if (!breadcrumbEl) return;
+      for (var i = 0; i < headings.length; i++) {
+        renderBreadcrumbStack(breadcrumbStackFor(i));
+        headings[i].style.scrollMarginTop = (breadcrumbEl.offsetHeight + 12) + 'px';
+      }
+      if (current) updateBreadcrumb(current); else breadcrumbEl.textContent = '';
     }
 
     function expandAncestors(link) {
@@ -885,7 +920,27 @@ JS = """\
       requestAnimationFrame(function () { update(); ticking = false; });
     }, { passive: true });
     window.addEventListener('resize', update);
+    // Viewport width alone (not just which heading is active) can change
+    // whether a given heading's breadcrumb trail wraps to a second line, so
+    // resize must recompute every heading's margin, debounced since resize
+    // fires rapidly and each pass touches every heading in the document.
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(precomputeScrollMargins, 150);
+    });
 
+    precomputeScrollMargins();
+    // A page load that already carries a #hash (a bookmark, or a link from
+    // elsewhere straight to a subsection) scrolls to it before this script
+    // has set that heading's scroll-margin-top — same ordering problem
+    // precomputeScrollMargins() exists to avoid, just on the very first
+    // scroll instead of a later one. Its margin is correct by the time this
+    // line runs, so re-issuing the jump corrects the landing spot.
+    if (location.hash) {
+      var initialTarget = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (initialTarget) initialTarget.scrollIntoView({ block: 'start' });
+    }
     update();
   });
 })();

@@ -961,7 +961,7 @@ def test_custom_profile_copy_nutrients_overwrites_with_source_values(
 
     resp = client.post(
         f"/food/custom-profiles/{draft_id}/copy-nutrients",
-        data={"source_fdc_id": cached_food["fdcId"]},
+        data={"source_fdc_id": cached_food["fdcId"], "keys": list(cached_food["nutrients"].keys())},
         follow_redirects=False,
     )
     assert resp.status_code == 303
@@ -973,6 +973,64 @@ def test_custom_profile_copy_nutrients_overwrites_with_source_values(
     # the draft's own (nonexistent) protein content.
     assert copied["protein_g"] == cached_food["nutrients"]["protein_g"]
     assert copied["aa_lysine_g"] == cached_food["nutrients"]["aa_lysine_g"]
+
+
+def test_custom_profile_copy_nutrients_select_page_lists_source_fields(
+    client: TestClient, cached_food: dict
+) -> None:
+    resp = client.post("/food/custom-profiles/create", data={"name": "Blank Draft"}, follow_redirects=False)
+    draft_id = int(resp.headers["location"].rsplit("/", 1)[-1].split("?")[0])
+
+    resp = client.get(
+        f"/food/custom-profiles/{draft_id}/copy-nutrients/select",
+        params={"source_fdc_id": cached_food["fdcId"]},
+    )
+    assert resp.status_code == 200
+    assert "Choose fields to copy" in resp.text
+    assert "Protein" in resp.text
+    assert f'value="{cached_food["nutrients"]["protein_g"]}"' not in resp.text  # sanity: not a raw dump
+    assert "data-group-select-all" in resp.text  # per-group select/deselect checkbox
+    assert 'name="keys" value="protein_g"' in resp.text
+
+
+def test_custom_profile_copy_nutrients_selective_leaves_other_fields_alone(
+    client: TestClient, db_conn, cached_food: dict
+) -> None:
+    """Selecting only some fields must merge into the target, not wholesale-replace it."""
+    resp = client.post("/food/custom-profiles/create", data={"name": "Blank Draft"}, follow_redirects=False)
+    draft_id = int(resp.headers["location"].rsplit("/", 1)[-1].split("?")[0])
+    db_conn.execute(
+        "UPDATE foods SET nutrients_json = ? WHERE fdc_id = ?",
+        (json.dumps({"calcium_mg": 999.0, "protein_g": 1.0}), draft_id),
+    )
+    db_conn.commit()
+
+    resp = client.post(
+        f"/food/custom-profiles/{draft_id}/copy-nutrients",
+        data={"source_fdc_id": cached_food["fdcId"], "keys": ["protein_g"]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "nutrients_applied=ok" in resp.headers["location"]
+
+    row = db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (draft_id,)).fetchone()
+    updated = json.loads(row["nutrients_json"])
+    assert updated["protein_g"] == cached_food["nutrients"]["protein_g"]
+    assert updated["calcium_mg"] == 999.0  # untouched — not part of the selection
+    assert "aa_lysine_g" not in updated  # not selected, so not pulled in from source
+
+
+def test_custom_profile_copy_nutrients_none_selected(client: TestClient, cached_food: dict) -> None:
+    resp = client.post("/food/custom-profiles/create", data={"name": "Blank Draft"}, follow_redirects=False)
+    draft_id = int(resp.headers["location"].rsplit("/", 1)[-1].split("?")[0])
+
+    resp = client.post(
+        f"/food/custom-profiles/{draft_id}/copy-nutrients",
+        data={"source_fdc_id": cached_food["fdcId"]},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "nutrients_applied=none_selected" in resp.headers["location"]
 
 
 def test_copy_from_search_creates_draft_from_cached_food(
@@ -1438,6 +1496,21 @@ def test_food_cache_delete_preserves_search_filter(client: TestClient, cached_fo
     assert db_conn.execute(
         "SELECT * FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
     ).fetchone() is None
+
+
+def test_food_cache_id_column_labels_user_drafted_food_ud_not_off(client: TestClient, db_conn) -> None:
+    """Regression test: the ID column used to show 'OFF' for every negative
+    fdc_id, including small user-drafted ones nowhere near OFF's id range."""
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json, user_drafted) "
+        "VALUES (?, ?, ?, ?, ?, 1)",
+        (-3, "Copy of Bread, white, commercial", "User Drafted", json.dumps({}), "[]"),
+    )
+    db_conn.commit()
+    resp = client.get("/food/cache", params={"q": "Copy of Bread"})
+    assert resp.status_code == 200
+    assert "UD3" in resp.text
+    assert ">OFF<" not in resp.text
 
 
 def test_food_cache_delete_refuses_when_still_referenced(client: TestClient, cached_food, db_conn) -> None:
