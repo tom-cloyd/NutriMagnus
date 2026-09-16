@@ -24,6 +24,7 @@
 
 {% if q and not rows %}
 <p class="muted">No meal items match <strong>{{ q }}</strong>. Ingredients inside logged recipes are not searched.</p>
+<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>
 
 {% elif rows %}
 <p class="muted mb-3">

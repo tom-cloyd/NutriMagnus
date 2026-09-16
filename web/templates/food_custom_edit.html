@@ -58,6 +58,7 @@
   {% endif %}
   {% if nutrient_source_q and not nutrient_source_results %}
   <p class="muted"><small>No foods match "{{ nutrient_source_q }}".</small></p>
+  <span class="search-no-results" data-query="{{ nutrient_source_q }}" data-field="nutrient_source_q"></span>
   {% elif nutrient_source_results %}
   <table class="table table-sm table-hover">
     <thead class="table-light">
@@ -113,6 +114,7 @@
   {% endif %}
   {% if aa_source_q and not aa_source_results %}
   <p class="muted"><small>No foods match "{{ aa_source_q }}".</small></p>
+  <span class="search-no-results" data-query="{{ aa_source_q }}" data-field="aa_source_q"></span>
   {% elif aa_source_results %}
   <table class="table table-sm table-hover">
     <thead class="table-light">

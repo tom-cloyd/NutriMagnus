@@ -69,6 +69,7 @@
 </table>
 {% else %}
 <p>No cached foods found{% if q %} matching that filter{% endif %}.</p>
+{% if q %}<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>{% endif %}
 {% endif %}
 
 {% else %}

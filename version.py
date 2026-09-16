@@ -1,4 +1,4 @@
-VERSION = "2026-09-16:0550"
+VERSION = "2026-09-16:1410"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -21,4 +21,4 @@ RELEASE_VERSION = "0.1.0-rc.2"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "the Choose fields to copy page (Edit Custom Profile) can now select or deselect a whole nutrient group at once, not just one field at a time"
+NEW_VERSION_NOTE = "significant improvements implemented"

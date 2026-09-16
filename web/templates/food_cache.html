@@ -281,5 +281,6 @@ function toggleNotes(fdcId) {
 </script>
 {% else %}
 <p>No foods in cache{% if q %} matching that filter{% else %} yet. <a href="/settings#starter-data">Load starter data</a> to explore the app{% endif %}.</p>
+{% if q %}<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>{% endif %}
 {% endif %}
 {% endblock %}
