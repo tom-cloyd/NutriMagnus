@@ -2370,6 +2370,29 @@ def test_update_notice_dismiss_checkbox_hides_only_that_release(
     assert "v2099-02-02-0000" in resp.text
 
 
+def test_check_for_updates_now_undoes_a_dismissal(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Changing your mind after dismissing a release: "Check for updates
+    now" clears the dismissal (and the check's own cache) so the same
+    still-current release surfaces again immediately."""
+    from numa_app.services import update_check as _update_check
+
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://example.invalid/v2099-01-01-0000"},
+    )
+    client.get("/")
+    client.post("/update-notice/ack-banner", data={"tag": "v2099-01-01-0000"})
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" not in resp.text
+    assert "Check for updates now" in resp.text
+
+    resp = client.post("/check-for-updates", follow_redirects=True)
+    assert "UPDATE AVAILABLE:" in resp.text
+    assert "v2099-01-01-0000" in resp.text
+
+
 def test_update_now_button_shown_only_for_packaged_install(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     from numa_app.services import update_check as _update_check
     from numa_app.services import self_update as _self_update

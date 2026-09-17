@@ -5456,6 +5456,16 @@ async def update_notice_ack_banner(tag: str = Form(...)):
     return RedirectResponse("/", status_code=303)
 
 
+@app.post("/check-for-updates", response_class=RedirectResponse)
+async def check_for_updates_now():
+    """Manually re-check GitHub for a new release right now — for anyone who
+    dismissed a release and changed their mind (clears the dismissal) or
+    doesn't want to wait for the periodic check's cache to refresh."""
+    _update_check.clear_cache()
+    _save_prefs_file({"update_notice_dismissed_tag": ""})
+    return RedirectResponse("/", status_code=303)
+
+
 @app.post("/settings/browser", response_class=RedirectResponse)
 async def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(None)):
     if preferred_browser in _VALID_BROWSER_PREFS:

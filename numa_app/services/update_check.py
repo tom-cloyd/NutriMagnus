@@ -42,6 +42,16 @@ _cache_checked_at: float = 0.0
 _cache_for_version: str | None = None
 
 
+def clear_cache() -> None:
+    """Force the next check_for_update() call to hit GitHub again instead of
+    reusing the cached answer — for the home page's manual "Check for
+    updates now" action."""
+    global _cache, _cache_checked_at, _cache_for_version
+    _cache = None
+    _cache_checked_at = 0.0
+    _cache_for_version = None
+
+
 def _tag_for(version_str: str) -> str:
     # version.py uses "YYYY-MM-DD:HHMM" — ":" isn't a legal git ref character.
     # Matches scripts/create_release.py's _tag_for(), which is what actually

@@ -96,6 +96,11 @@
     Active profile: not set — <a href="/settings">configure under Settings</a>
     {% endif %}
     <br>Current version date: {{ version_date }}{% if version_note %} (Version note: {{ version_note }} — <a href="/manual#a-recent-program-updates-log" target="_blank" rel="noopener">see what changed</a>){% endif %}
+    {% if not update_available %}
+    — <form method="post" action="/check-for-updates" class="d-inline">
+      <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Check for updates now</button>
+    </form>
+    {% endif %}
   </small></p>
   {% if show_plot_notice %}
   <p class="mt-2 mb-0"><small>You can chart nutrients from your logged meals and show that plot right here — see <a href="/summary/nutrient-plot">Nutrient Plot</a> {{ manual_link("nutrient-plot") }}.</small></p>

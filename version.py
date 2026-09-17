@@ -1,4 +1,4 @@
-VERSION = "2026-09-16:1851"
+VERSION = "2026-09-16:1903"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -21,4 +21,4 @@ RELEASE_VERSION = "0.1.0-rc.2"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "the update available banner no longer disappears on its own; it now has a dont show this again for this version checkbox"
+NEW_VERSION_NOTE = "added a check for updates now link on the home page to undo a dismissed update notice"

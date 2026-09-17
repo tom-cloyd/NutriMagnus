@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-16:1851* / Reading time: 4 hours, 57 minutes
+*Updated 2026-09-16:1903* / Reading time: 4 hours, 57 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -277,7 +277,7 @@ Right below the **Welcome to NutriMagnus** heading is a small block of status li
 
 - **Dietary preferences** — your current setting (e.g. "All animal foods"), with a link straight to Settings to change it.
 - **Active profile** — a one-line summary of your profile (age, sex, weight, height, activity level), or "not set" with a link to configure one if you haven't yet.
-- **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`, alongside a human-facing release version (e.g. `0.1.0-rc.1`). Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build.
+- **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`, alongside a human-facing release version (e.g. `0.1.0-rc.1`). Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build. Right after it, a **Check for updates now** link re-checks GitHub immediately instead of waiting for the periodic check — useful right after dismissing an UPDATE AVAILABLE banner if you change your mind, since it also undoes that dismissal. It only appears when no update is currently showing.
 
 Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, plus a reminder to check [Settings → Starter Data](#starter-data) for anything new after updating, since some releases add a few, and a **Don't show this again for this version** checkbox — same idea as the System Issues banner's "Got it" checkbox below.
 
@@ -2748,6 +2748,22 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
 #### September 16 program updates
+
+**A "CHECK FOR UPDATES NOW" LINK, FOR CHANGING YOUR MIND AFTER DISMISSING ONE**
+
+Dismissed an UPDATE AVAILABLE banner (see below) and want it back — because you changed your mind, or just want to re-check right now instead of waiting for the periodic check? A new **Check for updates now** link sits right next to the version date at the bottom of the home page. It undoes any dismissal and re-checks GitHub immediately; it only appears when no update banner is currently showing.
+
+<!--
+```
+Scope: numa_app/services/update_check.py — new clear_cache() resets the
+module-level check cache. web/backend.py — new POST /check-for-updates
+route clears both that cache and prefs.json's update_notice_dismissed_tag
+(set to "" rather than deleted, since _save_prefs_file only merges).
+web/templates/home.html — "Check for updates now" link/form next to the
+version-date line, shown only when update_available is falsy. New test:
+tests/test_web.py test_check_for_updates_now_undoes_a_dismissal.
+```
+-->
 
 **"UPDATE AVAILABLE" NO LONGER DISAPPEARS ON ITS OWN**
 
