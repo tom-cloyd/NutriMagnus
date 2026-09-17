@@ -29,6 +29,17 @@ def test_suggest_preserves_other_words_in_a_multi_word_query(db_conn) -> None:
     assert "chicken breast" in search_suggest.suggest(db_conn, "chiken breast")
 
 
+def test_suggest_corrects_two_misspelled_words_at_once(db_conn) -> None:
+    # Fixing only one of two typos would still leave a broken re-search, so
+    # the top suggestion must correct both words in the same string.
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json) VALUES (?, ?, ?, ?)",
+        (700003, "Triscuit Original Crackers", "Branded", "{}"),
+    )
+    db_conn.commit()
+    assert "triscuit original" == search_suggest.suggest(db_conn, "triskitt originle")[0]
+
+
 def test_suggest_returns_nothing_for_a_blank_query(db_conn) -> None:
     assert search_suggest.suggest(db_conn, "") == []
     assert search_suggest.suggest(db_conn, "   ") == []

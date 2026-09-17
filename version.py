@@ -1,4 +1,4 @@
-VERSION = "2026-09-16:1804"
+VERSION = "2026-09-16:1814"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -21,4 +21,4 @@ RELEASE_VERSION = "0.1.0-rc.2"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "a search-matching bug fixed: a misspelled search word was silently ignored in favor of a generic word like original"
+NEW_VERSION_NOTE = "did you mean suggestions can now fix two misspelled search words at once, not just one"

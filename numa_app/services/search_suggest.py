@@ -70,9 +70,15 @@ def _local_tokens(conn: sqlite3.Connection) -> set[str]:
 
 
 def suggest(conn: sqlite3.Connection, query: str, limit: int = 3) -> list[str]:
-    """Return up to `limit` corrected versions of `query`, each with exactly
-    one word swapped for its closest known match. [] if the query is blank,
-    every word is already a known token, or nothing was close enough.
+    """Return up to `limit` corrected versions of `query`. [] if the query is
+    blank, every word is already a known token, or nothing was close enough.
+
+    When more than one word needs correcting (e.g. "triskitt originle"),
+    fixing only one of them at a time would still leave a broken query if
+    the suggestion were re-searched — so the first suggestion offered always
+    corrects every fixable word at once. Remaining slots (and the sole
+    suggestions when only one word needs fixing) swap in each word's other
+    close matches one at a time, same as before.
 
     A word this install has actually seen before (cached foods, pantry,
     recipes) is preferred over one only present in the bundled national
@@ -87,6 +93,14 @@ def suggest(conn: sqlite3.Connection, query: str, limit: int = 3) -> list[str]:
     words = query.split()
     variants: list[str] = []
     seen: set[str] = {query.lower()}
+
+    def add(new_words: list[str]) -> None:
+        variant = " ".join(new_words)
+        if variant.lower() not in seen:
+            seen.add(variant.lower())
+            variants.append(variant)
+
+    candidates_by_index: dict[int, list[str]] = {}
     for i, w in enumerate(words):
         lw = w.lower()
         if len(lw) < _MIN_TOKEN_LEN or lw in local_corpus or lw in static_corpus:
@@ -98,11 +112,23 @@ def suggest(conn: sqlite3.Connection, query: str, limit: int = 3) -> list[str]:
                     candidates.append(extra)
                 if len(candidates) >= limit:
                     break
+        if candidates:
+            candidates_by_index[i] = candidates
+
+    if len(candidates_by_index) > 1:
+        combined = list(words)
+        for i, candidates in candidates_by_index.items():
+            combined[i] = candidates[0]
+        add(combined)
+
+    for i, candidates in candidates_by_index.items():
         for close in candidates:
             new_words = list(words)
             new_words[i] = close
-            variant = " ".join(new_words)
-            if variant.lower() not in seen:
-                seen.add(variant.lower())
-                variants.append(variant)
+            add(new_words)
+            if len(variants) >= limit:
+                break
+        if len(variants) >= limit:
+            break
+
     return variants[:limit]

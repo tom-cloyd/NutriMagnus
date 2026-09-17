@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-16:1804* / Reading time: 4 hours, 56 minutes
+*Updated 2026-09-16:1814* / Reading time: 4 hours, 56 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -2748,6 +2748,22 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
 #### September 16 program updates
+
+**"DID YOU MEAN" CAN NOW FIX TWO MISSPELLED WORDS AT ONCE**
+
+Searching for something like `triskitt originle` (two typos) used to only ever suggest a correction for one word at a time — `triscuit originle` or `triskitt original`, both still broken if you clicked them. The first suggestion now fixes every misspelled word in the query together — `triscuit original` — so clicking it actually finds something.
+
+<!--
+```
+Scope: numa_app/services/search_suggest.py suggest() — previously built one
+variant per (word index, candidate) pair, substituting only that one word.
+Now collects candidate replacements per out-of-corpus word first, and when
+more than one word needs fixing, adds a single combined variant (each
+word's best candidate applied at once) ahead of the existing per-word
+variants. New test: tests/test_search_suggest.py
+test_suggest_corrects_two_misspelled_words_at_once.
+```
+-->
 
 **A TYPO'D SEARCH WORD NO LONGER SILENTLY GETS DROPPED IN FAVOR OF A GENERIC WORD LIKE "ORIGINAL"**
 
