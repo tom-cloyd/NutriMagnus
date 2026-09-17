@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-16:1907* / Reading time: 4 hours, 57 minutes
+*Updated 2026-09-16:1956* / Reading time: 4 hours, 59 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -2843,6 +2843,60 @@ claim already in Settings section 4.
 ```
 -->
 
+**FOODS/RECIPES/ANALYSIS KEYBOARD SHORTCUTS NOW WORK WITH A NARROW BROWSER WINDOW**
+
+Pressing Alt+Shift+F, R, or N to jump to the Foods, Recipes, or Analysis dropdown did nothing if your browser window was narrow enough that the main menu had collapsed into the mobile-style hamburger icon (roughly less than 768 pixels wide — a half-screen window on many laptops). The shortcut now expands the menu first, so the dropdown opens and gets focus regardless of window width.
+
+<!--
+```
+Scope: web/templates/base.html — the Alt+Shift keydown handler's dropdown
+branch called target.click() then firstItem.focus() without checking
+whether the toggle's ancestor #main-nav (Bootstrap's .navbar-collapse) was
+actually expanded. Below the navbar-expand-md breakpoint, #main-nav starts
+display:none until its own "show" class is added by the hamburger toggler;
+Bootstrap still added "show" to the dropdown-menu itself on click, but a
+hidden ancestor kept it invisible, so the subsequent focus() call silently
+failed on a display:none descendant. Now checks navCollapse.contains(target)
+before the existing click()/focus() logic.
+
+First attempt at the collapse-expand check used
+!navCollapse.classList.contains('show'), which turned out to be true on
+every press even at full desktop width — navbar-expand-md's CSS forces
+the collapse visible there (display:flex !important) without the JS ever
+adding "show", so bootstrap.Collapse.show() fired unconditionally,
+animating an already-visible element's height from 0 and producing a
+visible "opens on top, then drops into place" glitch on every shortcut
+press regardless of window width. Fixed by checking
+getComputedStyle(navCollapse).display === 'none' instead, which is only
+true when the collapse is genuinely hidden (below the breakpoint,
+unexpanded). Verified with Playwright: at 1200px a MutationObserver on
+#main-nav sees zero attribute/style mutations (Collapse is never
+instantiated) and the dropdown opens with no animation; at 600px the
+collapse still expands and focus lands correctly. Full test suite: 1008
+passed.
+```
+-->
+
+**DROPDOWN MENU NUMBERS (FOODS/RECIPES/ANALYSIS) ARE NOW REAL SHORTCUTS**
+
+Each item in the Foods, Recipes, and Analysis dropdowns is labeled with a number ("1. Search", "2. Analyze a food portion", ...). Once the menu is open, pressing that plain number key (no Alt/Shift needed) now jumps straight to that item — matching what the numbering already implied. Previously an unhandled digit keypress fell straight through to the browser instead, and in Firefox this could pop up its own "find in page" bar with the digit typed into it, since Firefox treats any unhandled plain character key as the start of a find-as-you-type search. See [Keyboard Shortcuts](#web-shortcuts) in Settings.
+
+<!--
+```
+Scope: web/templates/base.html — added a second keydown listener alongside
+the existing Alt+Shift one: when a plain digit 1-9 is pressed with no
+Ctrl/Alt/Meta held and a `.numa-dropdown.show` menu is currently open,
+preventDefault() and click() the nth `.dropdown-item` (1-indexed, skipping
+the `<hr class="dropdown-divider">` list item so item numbers line up with
+the visible "1./2./3." labels). Works whether the menu was opened by mouse
+or by the Alt+Shift shortcut. web/templates/settings.html — added a line to
+the Keyboard Shortcuts section documenting this. Verified with Playwright:
+mouse-opened menu + digit selects the right item, Alt+Shift+F + digit does
+too, and a bare digit with no menu open does nothing (doesn't interfere
+with normal typing). Full test suite: 1008 passed.
+```
+-->
+
 **"DID YOU MEAN" SUGGESTIONS NOW APPEAR ON EVERY SEARCH BOX THAT WAS MISSING THEM**
 
 Misspell a search on Food Cache, Annotate a Food, Recipes, Meal History Search, or either of the two food-lookup searches on the Edit Custom Profile page (Copy nutrient values, Estimate amino acids), and you'll now see "Did you mean: ..." suggestions the same way Search, Pantry, Compare, and the other search boxes already did — those six had a "no results" message but were never wired up to actually offer a correction.
@@ -2963,6 +3017,24 @@ best_aa_nutrients() — same swap, fixing the recipe-level complement
 fallback. web/templates/food_custom_edit.html — both <details> summaries,
 their descriptions, the "Use as source"/confirm() text, and the AA-picker
 button text reworded to name what each action does and does not touch.
+```
+-->
+
+**THE MANUAL NOW OPENS IN ITS OWN TAB AND PICKS UP WHERE YOU LEFT OFF**
+
+Clicking **Manual** in the main navigation now always opens it in a new browser tab, so you don't lose your place in the app. It also remembers the last section you were reading and scrolls straight back there on your next visit — unless you followed a specific "Learn more" link, which always takes you to that link's own section instead. And the Table of Contents search box is now focused automatically when the page loads, so you can just start typing.
+
+<!--
+```
+Scope: web/templates/base.html — Manual nav link gets target="_blank"
+rel="noopener". scripts/build_manual.py — search-input autofocus()'d on
+load (skipped below 1050px, where CSS hides the TOC sidebar, to avoid
+popping the mobile keyboard unasked). New localStorage key
+numa_manual_last_section, set in the scroll-spy's activate() and read on
+load: with no location.hash (a plain nav click) it scrolls to the saved
+section; an explicit hash (a deep "Learn more" link) always wins instead.
+localStorage rather than sessionStorage since target="_blank" opens a
+fresh tab with its own session storage each time.
 ```
 -->
 

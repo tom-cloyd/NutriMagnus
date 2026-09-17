@@ -719,6 +719,12 @@ JS = """\
     });
     document.getElementById('btn-prev').addEventListener('click', function () { step(-1); });
     document.getElementById('btn-next').addEventListener('click', function () { step(1); });
+    // Land with the cursor ready to search. Skipped below 1050px, where the
+    // TOC sidebar (and this input with it) is hidden by CSS — focusing a
+    // hidden field would pop the mobile keyboard for no visible reason.
+    if (window.matchMedia('(min-width: 1051px)').matches) {
+      input.focus();
+    }
   });
 })();
 
@@ -884,12 +890,19 @@ JS = """\
       }
     }
 
+    // Remembers the last section read so the next time this page is opened
+    // (always a fresh tab — see the nav link's target="_blank") it can
+    // return there instead of restarting at the top. localStorage, not
+    // sessionStorage, since a new tab gets a fresh session.
+    var LAST_SECTION_KEY = 'numa_manual_last_section';
+
     function activate(id) {
       if (id === current) return;
       updateBreadcrumb(id);
       if (!tocLinks[id]) { current = id; return; }
       if (current && tocLinks[current]) tocLinks[current].classList.remove('toc-current');
       current = id;
+      try { localStorage.setItem(LAST_SECTION_KEY, id); } catch (e) {}
       var link = tocLinks[id];
       link.classList.add('toc-current');
       expandAncestors(link);
@@ -940,6 +953,16 @@ JS = """\
     if (location.hash) {
       var initialTarget = document.getElementById(decodeURIComponent(location.hash.slice(1)));
       if (initialTarget) initialTarget.scrollIntoView({ block: 'start' });
+    } else {
+      // No explicit target (a plain "Manual" nav click, not a deep link) —
+      // return to wherever this page was last read, same idea as the main
+      // nav's per-section "last page you were on" memory.
+      var lastSection = null;
+      try { lastSection = localStorage.getItem(LAST_SECTION_KEY); } catch (e) {}
+      if (lastSection) {
+        var lastTarget = document.getElementById(lastSection);
+        if (lastTarget) lastTarget.scrollIntoView({ block: 'start' });
+      }
     }
     update();
   });

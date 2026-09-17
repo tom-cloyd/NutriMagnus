@@ -172,7 +172,7 @@
           </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/manual') %}active{% endif %}"
-               href="/manual" data-ak="a" data-section="manual">M<u class="ak">a</u>nual</a>
+               href="/manual" target="_blank" rel="noopener" data-ak="a" data-section="manual">M<u class="ak">a</u>nual</a>
           </li>
         </ul>
       </div>
@@ -545,6 +545,28 @@
       var target = document.querySelector('[data-ak="' + key + '"]');
       if (!target) return;
       e.preventDefault();
+      // Below the navbar's collapse breakpoint (narrow/mobile window), the
+      // nav links live inside a collapsed <div id="main-nav"> (display:
+      // none until expanded). Clicking a dropdown toggle in there still
+      // makes Bootstrap add its "show" class to the dropdown menu, but the
+      // menu is still nested inside the hidden collapse, so nothing
+      // becomes visible and the immediate focus() below silently fails —
+      // from the keyboard shortcut appears to simply do nothing. Expand
+      // the collapse first so there's something to see and focus.
+      //
+      // Checking getComputedStyle rather than the "show" class matters:
+      // above the breakpoint, navbar-expand-md's CSS forces the collapse
+      // visible (display:flex !important) without ever adding "show", so
+      // a classList check alone was true on every press — triggering
+      // Bootstrap's expand animation (height 0 -> scrollHeight) on an
+      // element that was already fully visible, which is what caused the
+      // dropdown to visibly open then "drop down" into place even on a
+      // normal-width desktop window.
+      var navCollapse = document.getElementById('main-nav');
+      if (navCollapse && navCollapse.contains(target) &&
+          getComputedStyle(navCollapse).display === 'none') {
+        bootstrap.Collapse.getOrCreateInstance(navCollapse, {toggle: false}).show();
+      }
       target.click();
       if (target.classList.contains('dropdown-toggle')) {
         // Bootstrap opens the menu synchronously on click, so the first
@@ -563,6 +585,30 @@
       } else {
         target.focus();
       }
+    });
+
+    // Each numa dropdown menu (Foods/Recipes/Analysis) numbers its items
+    // ("1. Search", "2. Analyze", ...) to look like the Settings sections,
+    // which really do have Alt+Shift+digit shortcuts — but nothing actually
+    // wired a plain digit keypress to jump to that item. With focus sitting
+    // on a menu item (not an editable field) after opening the menu, an
+    // unhandled digit keydown falls straight through to Firefox's "find as
+    // you type", which grabs any plain character key when focus isn't in a
+    // text field — surfacing as the browser's own find bar popping up with
+    // the digit typed into it instead of anything happening in numa. Select
+    // the matching item ourselves whenever a numa dropdown is open so the
+    // numbers actually work as shortcuts, and so the keystroke is consumed
+    // before Firefox's find-as-you-type ever sees it.
+    document.addEventListener('keydown', function (e) {
+      if (!enabled) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (!/^[1-9]$/.test(e.key)) return;
+      var openMenu = document.querySelector('.numa-dropdown.show');
+      if (!openMenu) return;
+      e.preventDefault();
+      var items = openMenu.querySelectorAll(':scope > li > .dropdown-item');
+      var item = items[Number(e.key) - 1];
+      if (item) item.click();
     });
 
     applyShortcuts(enabled);
