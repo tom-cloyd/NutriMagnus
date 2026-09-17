@@ -84,22 +84,41 @@ fi
 # ── Detect VM IP (lease table first -- reliable even with no recent host<->VM
 #    traffic; ARP as a fallback for non-NAT network setups where the lease
 #    table lookup doesn't apply) ─────────────────────────────────────────────
-if [[ -z "$VM_IP" ]]; then
-    info "Detecting VM IP address (timeout: ${BOOT_TIMEOUT}s)..."
-    ELAPSED=0
-    while [[ $ELAPSED -lt $BOOT_TIMEOUT ]]; do
+# A VM resumed from a prior managed-save (see the "Suspending VM" step at the
+# end of this script) sometimes comes back reporting domstate "running" but
+# never actually re-requests a DHCP lease, so it's reachable by nothing --
+# not the lease table, not ARP -- indefinitely. A cold restart (destroy,
+# which discards the saved state, then start) reliably clears this, so if
+# the first detection pass times out, force one cold restart and retry once
+# before giving up for real.
+detect_vm_ip() {
+    VM_IP=""
+    local elapsed=0
+    while [[ $elapsed -lt $BOOT_TIMEOUT ]]; do
         VM_IP=$(virsh domifaddr "$VM_NAME" --source lease 2>/dev/null \
             | awk '/ipv4/ {print $4}' | cut -d/ -f1 | head -1) || true
         if [[ -z "$VM_IP" ]]; then
             VM_IP=$(virsh domifaddr "$VM_NAME" --source arp 2>/dev/null \
                 | awk '/ipv4/ {print $4}' | cut -d/ -f1 | head -1) || true
         fi
-        [[ -n "$VM_IP" ]] && break
+        [[ -n "$VM_IP" ]] && return 0
         sleep 3
-        ELAPSED=$((ELAPSED + 3))
-        echo "  ... ${ELAPSED}s"
+        elapsed=$((elapsed + 3))
+        echo "  ... ${elapsed}s"
     done
-    [[ -n "$VM_IP" ]] || fail "Could not detect VM IP after ${BOOT_TIMEOUT}s. Try setting NUMA_VM_IP manually."
+    return 1
+}
+
+if [[ -z "$VM_IP" ]]; then
+    info "Detecting VM IP address (timeout: ${BOOT_TIMEOUT}s)..."
+    if ! detect_vm_ip; then
+        info "No IP after ${BOOT_TIMEOUT}s -- cold-restarting the VM and retrying once..."
+        virsh destroy "$VM_NAME" >/dev/null 2>&1 || true
+        sleep 2
+        virsh start "$VM_NAME" >/dev/null
+        ok "VM cold-restarted"
+        detect_vm_ip || fail "Could not detect VM IP even after a cold restart. Try setting NUMA_VM_IP manually."
+    fi
     ok "VM IP: $VM_IP"
 fi
 
