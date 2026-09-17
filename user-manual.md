@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-16:1814* / Reading time: 4 hours, 56 minutes
+*Updated 2026-09-16:1851* / Reading time: 4 hours, 57 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -279,9 +279,9 @@ Right below the **Welcome to NutriMagnus** heading is a small block of status li
 - **Active profile** — a one-line summary of your profile (age, sex, weight, height, activity level), or "not set" with a link to configure one if you haven't yet.
 - **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`, alongside a human-facing release version (e.g. `0.1.0-rc.1`). Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build.
 
-Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, plus a note on how often you're being notified about new releases and a link to change that in **Settings → Update Notifications** (daily, weekly, or monthly — daily by default), and a reminder to check [Settings → Starter Data](#starter-data) for anything new after updating, since some releases add a few.
+Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, plus a reminder to check [Settings → Starter Data](#starter-data) for anything new after updating, since some releases add a few, and a **Don't show this again for this version** checkbox — same idea as the System Issues banner's "Got it" checkbox below.
 
-**When does NuMa actually check for a new release?** Every time the home page loads — at launch, on a manual reload, or by navigating back to it from anywhere else in the program — it asks whether a newer version exists. That check itself is cached for a few hours, so bouncing back to the home page repeatedly doesn't re-contact GitHub every time; it just reuses the last answer until the cache expires. Separately, even when a newer version genuinely is available, whether the **UPDATE AVAILABLE** banner is actually shown to you on a given visit is throttled again by your daily/weekly/monthly notification-frequency setting — so you won't see it more often than you asked to.
+**When does NuMa actually check for a new release?** Every time the home page loads — at launch, on a manual reload, or by navigating back to it from anywhere else in the program — it asks whether a newer version exists. That check itself is cached for a few hours, so bouncing back to the home page repeatedly doesn't re-contact GitHub every time; it just reuses the last answer until the cache expires. Once a newer version is available, the **UPDATE AVAILABLE** banner shows on every single page load — it never disappears on its own — until you either install the update or check the "Don't show this again for this version" box; a later, different release always shows regardless of what you've dismissed.
 
 ### B. Finding your way around
 
@@ -503,7 +503,7 @@ If you'd rather fix the underlying recipe yourself instead of using Retry, re-ed
 
 A one-time banner also appears on the home page whenever there's a System Issues entry you haven't seen yet, with a **Got it. Don't remind me again.** checkbox — checking it hides the banner (the entry still stays listed under Settings until it's actually resolved), and any *new* failure after that brings the banner back.
 
-**The home page also checks GitHub for a newer NuMa release**, showing an **UPDATE AVAILABLE** banner with a link to what's new if one exists. This check is quick (a couple of seconds at most) and fails silently if you're offline or GitHub is unreachable — it never blocks the home page from loading. See [What you see on the home page](#home-page-tour) for exactly where the current build's version stamp and build note appear, how often the check itself runs, and how the **Settings → Update Notifications** frequency setting controls how often the banner is shown.
+**The home page also checks GitHub for a newer NuMa release**, showing an **UPDATE AVAILABLE** banner with a link to what's new if one exists, and its own **Don't show this again for this version** checkbox — same idea as the System Issues checkbox just above. This check is quick (a couple of seconds at most) and fails silently if you're offline or GitHub is unreachable — it never blocks the home page from loading. See [What you see on the home page](#home-page-tour) for exactly where the current build's version stamp and build note appear and how often the check itself runs.
 
 **If you installed NuMa via the Linux installer, the banner also has an Update Now button** that downloads and installs the new version for you — no terminal, no manual download. Click it, confirm, and NuMa fetches the latest release and swaps itself in place; your data is completely untouched (it lives in a separate location the update never touches). You'll see a message telling you to close the browser tab and relaunch NuMa once it's done — the version you're currently running keeps working right up until you do. If you're running NuMa from source instead (a developer checkout), the button doesn't appear — you'll see the plain "what's new on GitHub" link instead, since there's no packaged install for it to replace.
 
@@ -2748,6 +2748,30 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
 #### September 16 program updates
+
+**"UPDATE AVAILABLE" NO LONGER DISAPPEARS ON ITS OWN**
+
+The home page's UPDATE AVAILABLE banner used to hide itself again shortly after first appearing — by default, at most once per calendar day — even if you hadn't updated or read it yet. It now stays on every page load, restart included, until you either install the update or check its new **Don't show this again for this version** checkbox (the same pattern as the System Issues banner's "Got it" checkbox). Checking it only dismisses that exact release; a later one still shows. The Settings → Update Notifications daily/weekly/monthly frequency setting is gone — this checkbox replaces it.
+
+<!--
+```
+Scope: web/backend.py — removed _UPDATE_NOTIFY_FREQ_LABELS/_DAYS,
+_VALID_UPDATE_NOTIFY_FREQS, _current_update_notify_frequency(), and the
+POST /settings/update-notify-frequency route. _should_show_update_notice()
+now just compares the release tag against a new
+prefs.json update_notice_dismissed_tag key (set by new POST
+/update-notice/ack-banner, mirroring /recompute-errors/ack-banner). Root
+cause: the old logic persisted a last-shown date the first time a release
+was seen, then suppressed every same-day recheck — so a restart or reload
+minutes later (as opposed to the intended "next calendar day") already
+hid it, with no way to bring it back short of a new release. web/templates/
+home.html (dismiss checkbox + form, removed frequency line), settings.html
+(removed "Update Notifications" section). tests/test_web.py: replaced
+test_update_notice_frequency_gate_lets_a_newer_release_through with
+test_update_notice_keeps_showing_until_dismissed and
+test_update_notice_dismiss_checkbox_hides_only_that_release.
+```
+-->
 
 **"DID YOU MEAN" CAN NOW FIX TWO MISSPELLED WORDS AT ONCE**
 

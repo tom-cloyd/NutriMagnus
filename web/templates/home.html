@@ -32,9 +32,7 @@
   <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
   (you're running {{ version }}).
   {% if version_note %}
-  <br><small>NEW VERSION NOTE: {{ version_note }} — {{ manual_link("a-recent-program-updates-log", "see what changed") }}
-    <span class="muted">(notified {{ update_notify_freq_labels.get(current_update_notify_frequency(), '') | lower }}
-    — <a href="/settings#update-notifications">change via Settings</a>)</span></small>
+  <br><small>NEW VERSION NOTE: {{ version_note }} — {{ manual_link("a-recent-program-updates-log", "see what changed") }}</small>
   {% endif %}
   <br><small class="muted">Updates sometimes add new starter foods or recipes — after updating, check <strong>Settings → 9. Starter Data → Restore individual starter items</strong> to pick up anything new.</small>
   {% if self_update_available %}
@@ -64,6 +62,13 @@
   {% else %}
   See <a href="{{ update_available.url }}" target="_blank" rel="noopener">what's new on GitHub</a> to download it.
   {% endif %}
+  <form method="post" action="/update-notice/ack-banner" class="mt-2 mb-0">
+    <input type="hidden" name="tag" value="{{ update_available.tag }}">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="update-notice-dismiss-checkbox" onchange="if(this.checked) this.form.requestSubmit();">
+      <label class="form-check-label" for="update-notice-dismiss-checkbox">Don't show this again for this version.</label>
+    </div>
+  </form>
 </div>
 {% endif %}
 {% if unacked_errors %}

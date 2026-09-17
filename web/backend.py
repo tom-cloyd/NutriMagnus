@@ -255,14 +255,6 @@ _DIET_LABELS = {
 }
 _VALID_DIET_PREFS = {"all", "vegetarian", "plant_only"}
 
-_UPDATE_NOTIFY_FREQ_LABELS = {
-    "daily":   "Daily",
-    "weekly":  "Weekly",
-    "monthly": "Monthly",
-}
-_UPDATE_NOTIFY_FREQ_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
-_VALID_UPDATE_NOTIFY_FREQS = set(_UPDATE_NOTIFY_FREQ_LABELS)
-
 # Keys must match launcher.py's _BROWSER_PROCESSES (the process names it looks
 # for with pgrep / launches directly) — "" means auto-detect the running browser.
 _BROWSER_LABELS = {
@@ -755,38 +747,14 @@ def _current_diet_pref() -> str:
     return pref if pref in _VALID_DIET_PREFS else "all"
 
 
-def _current_update_notify_frequency() -> str:
-    """Return the saved update-notification frequency, validated, defaulting to 'daily'."""
-    freq = _load_prefs_file().get("update_notify_frequency", "daily")
-    return freq if freq in _VALID_UPDATE_NOTIFY_FREQS else "daily"
-
-
 def _should_show_update_notice(tag: str) -> bool:
-    """Whether the "update available" banner should be shown on this page load,
-    per the saved notification-frequency preference (daily/weekly/monthly) —
-    gates only how often the already-cached update_check result is surfaced to
-    the user, not how often GitHub itself is polled. A release newer than the
-    one last shown always gets through regardless of the frequency window —
-    the setting throttles repeat notices about the *same* release, not
-    whether you're told about a *different, newer* one that showed up since."""
-    prefs = _load_prefs_file()
-    if prefs.get("update_notice_last_shown_tag") != tag:
-        _save_prefs_file({
-            "update_notice_last_shown_at": datetime.date.today().isoformat(),
-            "update_notice_last_shown_tag": tag,
-        })
-        return True
-    interval_days = _UPDATE_NOTIFY_FREQ_DAYS[_current_update_notify_frequency()]
-    last_shown = prefs.get("update_notice_last_shown_at")
-    if last_shown:
-        try:
-            elapsed = (datetime.date.today() - datetime.date.fromisoformat(last_shown)).days
-            if elapsed < interval_days:
-                return False
-        except ValueError:
-            pass
-    _save_prefs_file({"update_notice_last_shown_at": datetime.date.today().isoformat()})
-    return True
+    """Whether the "update available" banner should be shown on this page
+    load — True on every load for a given release, so it can't silently
+    disappear before you've acted on it, unless you've explicitly dismissed
+    that exact release via the banner's "Don't show this again for this
+    version" checkbox. A release newer than the one you dismissed always
+    gets through — dismissing one release never hides a later one."""
+    return _load_prefs_file().get("update_notice_dismissed_tag") != tag
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
@@ -856,8 +824,6 @@ def _food_id_short(fdc_id: int | None, recipe_id: int | None = None) -> str:
 templates.env.globals["food_id_short"] = _food_id_short
 templates.env.globals["diet_labels"] = _DIET_LABELS
 templates.env.globals["current_diet_pref"] = _current_diet_pref
-templates.env.globals["update_notify_freq_labels"] = _UPDATE_NOTIFY_FREQ_LABELS
-templates.env.globals["current_update_notify_frequency"] = _current_update_notify_frequency
 
 # ---------------------------------------------------------------------------
 # Nutrient display groups (ordered for presentation)
@@ -5415,8 +5381,6 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "saved":                saved,
         "diet_pref":            diet_pref,
         "diet_labels":          _DIET_LABELS,
-        "update_notify_frequency": _current_update_notify_frequency(),
-        "update_notify_freq_labels": _UPDATE_NOTIFY_FREQ_LABELS,
         "preferred_browser":    _load_prefs_file().get("preferred_browser", ""),
         "browser_labels":       _BROWSER_LABELS,
         "api_key":              api_key,
@@ -5483,13 +5447,13 @@ async def settings_diet_post(diet_pref: str = Form(...), next: str = Form(None))
     return RedirectResponse("/settings?saved=diet", status_code=303)
 
 
-@app.post("/settings/update-notify-frequency", response_class=RedirectResponse)
-async def settings_update_notify_frequency_post(update_notify_frequency: str = Form(...), next: str = Form(None)):
-    if update_notify_frequency in _VALID_UPDATE_NOTIFY_FREQS:
-        _save_prefs_file({"update_notify_frequency": update_notify_frequency})
-    if next and next.startswith("/") and not next.startswith("//"):
-        return RedirectResponse(next, status_code=303)
-    return RedirectResponse("/settings?saved=update_notify_frequency", status_code=303)
+@app.post("/update-notice/ack-banner", response_class=RedirectResponse)
+async def update_notice_ack_banner(tag: str = Form(...)):
+    """'Don't show this again for this version' on the home-page "update
+    available" banner — dismisses only that exact release; a newer one
+    still shows normally, same as the System Issues banner's 'Got it'."""
+    _save_prefs_file({"update_notice_dismissed_tag": tag})
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/settings/browser", response_class=RedirectResponse)

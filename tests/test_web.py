@@ -2319,13 +2319,12 @@ def test_home_page_shows_update_available_banner(client: TestClient, monkeypatch
     assert "Update now" not in resp.text
 
 
-def test_update_notice_frequency_gate_lets_a_newer_release_through(
+def test_update_notice_keeps_showing_until_dismissed(
     client: TestClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The daily/weekly/monthly notification frequency throttles repeat
-    notices about the *same* release, not whether a *different, newer*
-    release that showed up since gets shown — otherwise the default daily
-    setting would hide a second same-day release until the next day."""
+    """The banner must not silently disappear before you've acted on it —
+    it shows on every page load for as long as the release is current,
+    with no time-based throttling, until explicitly dismissed."""
     from numa_app.services import update_check as _update_check
 
     monkeypatch.setattr(
@@ -2335,13 +2334,33 @@ def test_update_notice_frequency_gate_lets_a_newer_release_through(
     resp = client.get("/")
     assert "UPDATE AVAILABLE:" in resp.text
 
-    # Same release again on a same-day reload: suppressed — daily allows
-    # only one notice per day for a given release.
+    # Same release again, immediately: still shown — no throttling.
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" in resp.text
+
+
+def test_update_notice_dismiss_checkbox_hides_only_that_release(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Checking "Don't show this again for this version" hides the banner
+    for that exact release, but a later, different release still shows —
+    dismissing one release must never hide a newer one."""
+    from numa_app.services import update_check as _update_check
+
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://example.invalid/v2099-01-01-0000"},
+    )
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" in resp.text
+
+    resp = client.post("/update-notice/ack-banner", data={"tag": "v2099-01-01-0000"}, follow_redirects=True)
+    assert "UPDATE AVAILABLE:" not in resp.text
+
     resp = client.get("/")
     assert "UPDATE AVAILABLE:" not in resp.text
 
-    # A newer release than the one already shown today must get through
-    # immediately, not wait for tomorrow's daily window.
+    # A newer release than the dismissed one must still get through.
     monkeypatch.setattr(
         _update_check, "check_for_update",
         lambda *a, **kw: {"tag": "v2099-02-02-0000", "url": "https://example.invalid/v2099-02-02-0000"},
