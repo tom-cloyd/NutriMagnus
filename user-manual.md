@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-16:1903* / Reading time: 4 hours, 57 minutes
+*Updated 2026-09-16:1907* / Reading time: 4 hours, 57 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -236,16 +236,16 @@ In additions, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-14), there are 997 formal tests that the program must pass after every significant change, across four tiers:
+**[NuMa](#gloss-numa) has an extensive formal code test process.** As of this writing (2026-09-16), there are 1,011 formal tests that the program must pass after every significant change, across four tiers:
 
-- **Behavioral tests** — the vast majority of the 817 — verify that pages, forms, and workflows all still work as they should.
+- **Behavioral tests** — the vast majority of the 995 — verify that pages, forms, and workflows all still work as they should.
 - **Computational validation tests** — real-world data fed into the program to make sure the output matches known correct numbers.
 - **Property-based tests** — instead of checking a handful of hand-picked examples, these generate many random-but-plausible inputs (using the [Hypothesis](https://hypothesis.readthedocs.io/) library) and confirm that a mathematical rule holds for all of them, not just the cases someone thought to type in by hand. `tests/test_estimate_aa_properties.py` checks that the amino-acid-estimation scaling math preserves AA/protein ratios for any target/source pair; `tests/test_diaas_properties.py` checks that [DIAAS](#gloss-diaas) scores and digestible-protein totals stay within their valid ranges for any ingredient list; `tests/test_complements_properties.py` checks the complement-suggestion engine — a suggested gap-closer's grams can never make the amino acid it targets worse as more is added, a suggested amount actually clears the gap it claims to clear, and a two-food "complete each other" pair is never ranked below a less-effective suggestion.
 - **Browser-level end-to-end tests** — a small, newer set of narrow tests (`tests/e2e/`, using [Playwright](https://playwright.dev/)) that drive a real, isolated instance of the app in an actual browser, confirming that the Food Search, Analyze a Food Portion, and a meal's Add Food panel's behind-the-scenes refresh (the JS that quietly re-fetches and re-sorts results once your external sources finish responding) genuinely runs, not just that the page contains the right code to do so. These run automatically once a week (and on demand), separately from the rest of the suite, which runs on every single change.
 
-**The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 40 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
+**The protein-complement suggestion engine has its own dedicated test coverage** — which foods are suggested to close an amino acid gap, how gap-cascade pairs are built, and how [DIAAS](#gloss-diaas)-boosting steps are ranked (`tests/test_complements.py` and the complement/pair tests in `tests/test_usda.py`, roughly 90 tests combined). The logic itself — what each suggestion tier does and how options are ranked — is explained in plain language in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb) in Part 4.
 
-**The Claude AI fetch/import workflow also has its own dedicated test coverage** — prompt building, response parsing (fenced and bare JSON, malformed-JSON warnings), per-block validation, and the per-serving-to-per-100g label conversion arithmetic (`tests/test_claude_fetch.py`, 24 tests), plus the two web routes behind it (`tests/test_web.py`, 5 tests). See [Fetching missing amino acid data with Claude AI](#fetch) in Part 3.
+**The Claude AI fetch/import workflow also has its own dedicated test coverage** — prompt building, response parsing (fenced and bare JSON, malformed-JSON warnings), per-block validation, and the per-serving-to-per-100g label conversion arithmetic (`tests/test_claude_fetch.py`, 26 tests), plus the two web routes behind it (`tests/test_web.py`, 6 tests). See [Fetching missing amino acid data with Claude AI](#fetch) in Part 3.
 
 #### Validation you can replicate yourself
 
