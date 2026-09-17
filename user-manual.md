@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-16:1407* / Reading time: 4 hours, 55 minutes
+*Updated 2026-09-16:1804* / Reading time: 4 hours, 56 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -2748,6 +2748,44 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
 #### September 16 program updates
+
+**A TYPO'D SEARCH WORD NO LONGER SILENTLY GETS DROPPED IN FAVOR OF A GENERIC WORD LIKE "ORIGINAL"**
+
+Searching Food Cache (or any other local search) for something like `triskitt original` used to quietly ignore the misspelled `triskitt` and return hits matched on `original` alone, with no indication anything was wrong — a search that looks like it worked, on a food you didn't actually ask for. That search now correctly finds nothing, and offers the ["Did you mean"](#search-suggestions) correction (`triscuit original`) instead.
+
+<!--
+```
+Scope: db.py _OR_FALLBACK_STOPWORDS — the any-word OR-fallback search for
+user-drafted foods (search_cached_foods()) already excluded generic
+prep/state words (raw, cooked, ...) from single-handedly justifying a match,
+per the August 27 fix for "orange raw" wrongly surfacing "Raw Brazil Nuts".
+Same failure mode, different word category: "original", "organic",
+"classic", and "traditional" are near-universal branded-food descriptors
+that carry no identifying signal on their own, so they're now excluded too.
+New regression test in tests/test_db.py:
+test_search_cached_foods_generic_descriptor_word_alone_does_not_trigger_or_fallback.
+```
+-->
+
+**KEYBOARD SHORTCUTS (ALT+SHIFT+KEY) NO LONGER GO DEAD WHILE YOU'RE TYPING**
+
+The [Alt+Shift navigation shortcuts](#web-shortcuts) (F, R, M, N, S, A, and the Settings section numbers) now keep working even while your cursor is sitting in a text box — which on a data-entry app is most of the time. Previously they silently stopped working the moment any field had focus, so the browser's own default handling took over instead, making the shortcuts feel broken or unreliable in normal use.
+
+<!--
+```
+Scope: web/templates/base.html — the Alt+Shift keydown handler bailed out
+whenever document.activeElement was an INPUT/TEXTAREA/SELECT, before it
+could call preventDefault(), so the browser's native handling of that key
+combo ran instead. That guard made sense on macOS, where Option(Alt)+Shift+
+letter really can insert a special character into a text field, but on
+Windows/Linux Alt+Shift+letter never inserts anything, so there was nothing
+to protect and it just killed the shortcuts almost all the time, since most
+numa pages autofocus a text input on load. Narrowed the guard to only apply
+on macOS (detected via navigator.platform); Windows/Linux now ignore focus
+entirely for this handler, matching the "works in any desktop browser"
+claim already in Settings section 4.
+```
+-->
 
 **"DID YOU MEAN" SUGGESTIONS NOW APPEAR ON EVERY SEARCH BOX THAT WAS MISSING THEM**
 

@@ -525,12 +525,22 @@
 
     // Custom keydown handler: Alt+Shift+key — more reliable than browser accesskey
     // for Bootstrap dropdown toggles (accesskey fires click but loses focus in the dropdown).
+    var isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
     document.addEventListener('keydown', function (e) {
       if (!enabled) return;
       if (!e.altKey || !e.shiftKey) return;
-      // Skip when focus is inside a text input / textarea / select
-      var tag = document.activeElement && document.activeElement.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      // On macOS, Option(Alt)+Shift+letter is how the OS types special
+      // characters (e.g. Option+Shift+K), so a text field really does need
+      // those keystrokes left alone. On Windows/Linux, Alt+Shift+letter
+      // never inserts a character into a field, so there's nothing to
+      // protect — and skipping it there was the actual bug: since most
+      // numa pages autofocus a text input on load, and the user is
+      // constantly typing into fields, the shortcuts were effectively dead
+      // almost all the time instead of "always available" as advertised.
+      if (isMac) {
+        var tag = document.activeElement && document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      }
       var key = e.key.toLowerCase();
       var target = document.querySelector('[data-ak="' + key + '"]');
       if (!target) return;

@@ -617,13 +617,16 @@ def repair_db_integrity(conn: sqlite3.Connection, categories: set[str] | None = 
     return counts
 
 
-# Generic prep/state words common across many unrelated food names — too weak
-# to justify surfacing a user-drafted food on their own in the OR-fallback
-# search (see search_cached_foods).
+# Generic prep/state and marketing/descriptor words common across many
+# unrelated food names — too weak to justify surfacing a user-drafted food
+# on their own in the OR-fallback search (see search_cached_foods). E.g.
+# "triskitt original" (a typo'd "triskitt" plus "original") must not surface
+# "Triscuit Organic Original Crackers" on "original" alone.
 _OR_FALLBACK_STOPWORDS = {
     "raw", "cooked", "fresh", "dried", "frozen", "canned", "whole",
     "ground", "sliced", "diced", "chopped", "boiled", "roasted", "baked",
     "grilled", "steamed", "plain",
+    "original", "organic", "classic", "traditional",
 }
 
 

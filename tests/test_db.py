@@ -173,6 +173,19 @@ class TestFoodCache:
         assert "Orange, raw" in names
         assert "Raw Brazil Nuts" not in names
 
+    def test_search_cached_foods_generic_descriptor_word_alone_does_not_trigger_or_fallback(self):
+        """Same as the prep/state-word case, but for generic marketing/
+        descriptor words — a typo'd first word ("triskitt") must not surface
+        a user-drafted food just because the second word ("original") is a
+        near-universal branded-food descriptor with no identifying value."""
+        with _db.get_db() as conn:
+            _db.cache_food(conn, 1, "Triscuit Organic Original Crackers", "Branded", None,
+                            100.0, "g", {}, user_drafted=True)
+
+        with _db.get_db() as conn:
+            results = _db.search_cached_foods(conn, "triskitt original")
+        assert results == []
+
     def test_search_cached_foods_or_fallback_still_works_for_non_generic_words(self):
         """The OR fallback itself must still work when the query word isn't a
         generic stopword — only the generic-word-alone case is excluded."""
