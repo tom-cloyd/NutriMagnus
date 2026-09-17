@@ -31,7 +31,7 @@ WIN_BUILD_DIR="$VM_USER/numa-build"   # relative to the Windows user's home
 BOOT_TIMEOUT=180                       # seconds to wait for VM IP + SSH
 OUT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/dist-windows"
 
-SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 -o BatchMode=yes -o LogLevel=ERROR"
+SSH_OPTS="-i $SSH_KEY -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 -o BatchMode=yes -o LogLevel=ERROR -o ServerAliveInterval=15 -o ServerAliveCountMax=8"
 
 info() { echo "==> $*"; }
 ok()   { echo "  OK: $*"; }

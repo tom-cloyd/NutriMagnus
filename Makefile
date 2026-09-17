@@ -1,4 +1,22 @@
-.PHONY: devserver build push push-release release-linux vm-setup build-windows upload-windows release-windows clean starter-data
+.PHONY: help devserver build push push-release release-linux vm-setup build-windows upload-windows release-windows clean starter-data
+
+# Prints a usage summary of the available commands.
+help:
+	@echo 'Makefile for NutriMagnus (numa)'
+	@echo ''
+	@echo 'Usage:'
+	@echo '   make devserver      build (manual + PyInstaller binary) and run it locally'
+	@echo '   make build          regenerate user-manual.html, then build the Linux binary'
+	@echo '   make push           git push origin main (source only, never publishes a release)'
+	@echo '   make starter-data   regenerate starter_data.json from "*"-marked DB content'
+	@echo '   make push-release   starter-data + push + release-linux, in that order'
+	@echo '   make release-linux  build, then create a GitHub release and upload the binary'
+	@echo '   make vm-setup       one-time: start the Windows build VM, serve setup files for it'
+	@echo '   make build-windows  build the Windows .exe via the headless build VM (needs vm-setup once)'
+	@echo '   make upload-windows upload dist-windows/nutrimagnus.exe to the latest GitHub release'
+	@echo '   make release-windows build-windows + upload-windows'
+	@echo '   make clean          remove build/, dist/, dist-windows/'
+	@echo ''
 
 # ── Linux build ───────────────────────────────────────────────────────────────
 # Packages web/launcher.py (starts uvicorn, opens a browser tab) into a single
