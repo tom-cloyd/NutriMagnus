@@ -1250,27 +1250,50 @@ class TestScoreOneComplement:
         assert _score_one_complement(base, base_gaps, 1.0, cand, 0.5, "aa_methionine_g") is None
 
     def test_grams_exactly_zero_returns_none(self):
-        # Boundary for the "grams <= 0 or grams > 500" guard. Chosen so the
-        # solved (unrounded) grams is exactly 0.0: base already sits exactly
-        # at the reference ratio for lysine (R*base_protein == base_aa), so
-        # no additional grams are needed. A mutation changing "or" to "and"
-        # makes this guard unsatisfiable (grams can never be both <=0 and
-        # >500 at once) and a mutation changing "<=" to "<" both let this
-        # case fall through into a spurious zero-grams "result" instead of
-        # the documented None.
+        # Boundary for the "grams <= 0 or grams > MAX_PRACTICAL_GAP_CLOSER_GRAMS"
+        # guard. Chosen so the solved (unrounded) grams is exactly 0.0: base
+        # already sits exactly at the reference ratio for lysine
+        # (R*base_protein == base_aa), so no additional grams are needed. A
+        # mutation changing "or" to "and" makes this guard unsatisfiable (grams
+        # can never be both <=0 and over the cap at once) and a mutation
+        # changing "<=" to "<" both let this case fall through into a spurious
+        # zero-grams "result" instead of the documented None.
         base = {"protein_g": 10.0, "aa_lysine_g": 0.48}  # R=0.048 * 10 = 0.48 exactly
         cand = {"protein_g": 100.0, "aa_lysine_g": 6.0}
         gaps = get_aa_gaps(base)
         assert _score_one_complement(base, gaps, 1.0, cand, 0.5, "aa_lysine_g") is None
 
-    def test_grams_over_500_returns_none(self):
+    def test_grams_over_practical_cap_returns_none(self):
         # The other half of the same guard: a huge base deficit relative to
         # a candidate whose ratio barely exceeds the reference solves for
-        # grams far past the 500g practical-serving cap.
+        # grams far past MAX_PRACTICAL_GAP_CLOSER_GRAMS — the practical
+        # single-serving cap (a food that only marginally clears the reference
+        # ratio needs an implausibly large amount to close the gap; see
+        # usda_nutrients.MAX_PRACTICAL_GAP_CLOSER_GRAMS's docstring).
         base = {"protein_g": 500.0, "aa_lysine_g": 1.0}
         cand = {"protein_g": 100.0, "aa_lysine_g": 4.9}
         gaps = get_aa_gaps(base)
         assert _score_one_complement(base, gaps, 1.0, cand, 0.5, "aa_lysine_g") is None
+
+    def test_grams_at_practical_cap_boundary(self):
+        # Exact-boundary counterpart to test_grams_over_practical_cap_returns_none:
+        # solved grams lands exactly at MAX_PRACTICAL_GAP_CLOSER_GRAMS, which must
+        # still qualify (the guard is "> cap", not ">= cap"). Catches a mutation
+        # changing "> MAX_PRACTICAL_GAP_CLOSER_GRAMS" to ">=".
+        # alpha=0.049, beta=1.0, R=0.048, denom=0.001
+        # base_aa=0.20, base_protein=10 -> grams=(0.048*10-0.20)/0.001=280... too high;
+        # solve directly for grams==200: base_aa chosen so
+        # (R*base_protein - base_aa)/denom == MAX_PRACTICAL_GAP_CLOSER_GRAMS exactly.
+        base_protein = 10.0
+        cand = {"protein_g": 100.0, "aa_lysine_g": 4.9}  # alpha=0.049, beta=1.0
+        R = 0.048
+        denom = 0.049 - R * 1.0  # 0.001
+        base_aa = R * base_protein - denom * _usda.MAX_PRACTICAL_GAP_CLOSER_GRAMS
+        base = {"protein_g": base_protein, "aa_lysine_g": base_aa}
+        gaps = get_aa_gaps(base)
+        result = _score_one_complement(base, gaps, 1.0, cand, 0.5, "aa_lysine_g")
+        assert result is not None
+        assert result["grams"] == _usda.MAX_PRACTICAL_GAP_CLOSER_GRAMS
 
     def test_R_uses_digestibility_divide_not_multiply(self):
         # R = AA_REFERENCE/1000/max(base_digestibility, 0.01). A mutation

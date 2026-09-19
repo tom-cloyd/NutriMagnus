@@ -1394,8 +1394,26 @@ def _effective_ignored(ignore_complements: list[str], unignore: list[str]) -> se
     return {n for n in ignore_complements if n.lower() not in unignore_lower}
 
 
+def _parse_anchor_overrides(anchor_name: list[str], anchor_grams: list[str]) -> dict[str, float]:
+    """Zip a complement page's parallel `anchor_name`/`anchor_grams` form fields
+    into a {name.lower(): grams} map, skipping blank or non-positive entries.
+    See complements.build_complement_display's anchor_overrides docstring."""
+    overrides: dict[str, float] = {}
+    for name, grams_str in zip(anchor_name, anchor_grams):
+        if not name or not grams_str:
+            continue
+        try:
+            grams = float(grams_str)
+        except ValueError:
+            continue
+        if grams > 0:
+            overrides[name.lower()] = grams
+    return overrides
+
+
 def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set[str] | None = None,
-                              comp_sort: str | None = None, diaas_sort: str | None = None) -> dict:
+                              comp_sort: str | None = None, diaas_sort: str | None = None,
+                              anchor_overrides: dict[str, float] | None = None) -> dict:
     """Complement suggestions for a single food, using its own DIAAS as digestibility."""
     if not _usda.has_amino_acid_data(nutrients) or nutrients.get("protein_g", 0) <= 0:
         return {"no_data": True}
@@ -1414,6 +1432,7 @@ def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set
         exclude_names=exclude_names,
         comp_sort=comp_sort,
         diaas_sort=diaas_sort,
+        anchor_overrides=anchor_overrides,
     )
 
 
@@ -3433,6 +3452,8 @@ def _food_detail_context(
     unignore: list[str],
     comp_sort: str | None = None,
     diaas_sort: str | None = None,
+    anchor_name: list[str] | None = None,
+    anchor_grams: list[str] | None = None,
 ) -> dict:
     nutrients: dict = {}
     portions: list = []
@@ -3562,7 +3583,7 @@ def _food_detail_context(
                                                  dcp_g=protein_section["dcp_g"] if protein_section else None),
         "dcp_missing_names":  [],
         "protein":            protein_section,
-        "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
+        "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name or [], anchor_grams or [])),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "antinutrients":      antinutrient_flags,
         "has_profile":        rda is not None,
@@ -3585,11 +3606,14 @@ async def food_detail(
     unignore: list[str] = Query(default=[]),
     comp_sort: str | None = None,
     diaas_sort: str | None = None,
+    anchor_name: list[str] = Query(default=[]),
+    anchor_grams: list[str] = Query(default=[]),
 ):
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     ctx = _food_detail_context(fdc_id, amount, portion_str, ignore_complements, unignore,
-                                comp_sort=comp_sort, diaas_sort=diaas_sort)
+                                comp_sort=comp_sort, diaas_sort=diaas_sort,
+                                anchor_name=anchor_name, anchor_grams=anchor_grams)
     if "error" in ctx:
         return templates.TemplateResponse(request, "search.html", {
             "results": [], "query": "", "error": ctx["error"],
@@ -3868,6 +3892,7 @@ def _web_pantry_candidates() -> list[dict]:
                     nutrients = json.loads(cached["nutrients_json"])
             candidates.append({
                 "name":      row["food_name"] or "",
+                "fdc_id":    row["fdc_id"],
                 "nutrients": nutrients,
                 "diaas":     _usda.get_diaas(row["food_name"] or ""),
             })
@@ -3940,6 +3965,7 @@ def _complement_suggestions(
     exclude_names: set[str] | None = None,
     comp_sort: str | None = None,
     diaas_sort: str | None = None,
+    anchor_overrides: dict[str, float] | None = None,
 ) -> dict:
     """Build complement suggestion data. Returns no_data sentinel if AA data unavailable.
 
@@ -3984,6 +4010,7 @@ def _complement_suggestions(
         exclude_names=exclude_names,
         comp_sort=comp_sort,
         diaas_sort=diaas_sort,
+        anchor_overrides=anchor_overrides,
     )
 
 
@@ -4496,6 +4523,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                      ignore_complements: list[str] = Query(default=[]),
                      unignore: list[str] = Query(default=[]),
                      comp_sort: str | None = None, diaas_sort: str | None = None,
+                     anchor_name: list[str] = Query(default=[]),
+                     anchor_grams: list[str] = Query(default=[]),
                      rank: str | None = None, top_n: str | None = None):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
@@ -4618,7 +4647,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "diaas":               diaas_display,
         "dcp_missing_names":   diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
+        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name, anchor_grams)),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "gl":                  {"total": gl_total, "blockers": gl_blockers},
         "item_antinutrients":  item_antinutrients,
@@ -6183,7 +6212,9 @@ async def compare_saved_delete(
 def _recipe_detail_context(recipe_id: int, servings: float | None,
                             ignore_complements: list[str], unignore: list[str],
                             comp_sort: str | None = None, diaas_sort: str | None = None,
-                            rank: str | None = None, top_n: str | None = None) -> dict | None:
+                            rank: str | None = None, top_n: str | None = None,
+                            anchor_name: list[str] | None = None,
+                            anchor_grams: list[str] | None = None) -> dict | None:
     top_n = _resolve_contributor_top_n(top_n)
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
@@ -6265,7 +6296,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "diaas":                    diaas_display,
         "dcp_missing_names":        diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort),
+        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name or [], anchor_grams or [])),
         "ignored_complements":      sorted(_effective_ignored(ignore_complements, unignore)),
         "gl":                       _recipe_gl_web(recipe_id, recipe_servings, servings),
         "has_profile":              rda is not None,
@@ -6282,11 +6313,14 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
                          ignore_complements: list[str] = Query(default=[]),
                          unignore: list[str] = Query(default=[]),
                          comp_sort: str | None = None, diaas_sort: str | None = None,
+                         anchor_name: list[str] = Query(default=[]),
+                         anchor_grams: list[str] = Query(default=[]),
                          rank: str | None = None, top_n: str | None = None):
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     ctx = _recipe_detail_context(recipe_id, servings, ignore_complements, unignore,
-                                  comp_sort=comp_sort, diaas_sort=diaas_sort, rank=rank, top_n=top_n)
+                                  comp_sort=comp_sort, diaas_sort=diaas_sort, rank=rank, top_n=top_n,
+                                  anchor_name=anchor_name, anchor_grams=anchor_grams)
     if ctx is None:
         return RedirectResponse("/recipes", status_code=303)
     with _db.get_db() as conn:
@@ -6761,12 +6795,15 @@ async def recipe_edit_post(
     total_weight: str = Form(""),
     total_weight_unit: str = Form("g"),
     total_volume: str = Form(""),
+    total_volume_unit: str = Form("ml"),
     serving_size: str = Form(""),
     instructions: str = Form(""),
     complete: str = Form(""),
 ):
     tw = float(total_weight) if total_weight.strip() else None
     tv = float(total_volume) if total_volume.strip() else None
+    if tv is not None:
+        tv *= _PORTION_VOL_TO_ML.get(total_volume_unit.lower(), 1.0)
     with _db.get_db() as conn:
         existing = _db.recipe_get(conn, recipe_id)
         _db.recipe_update(

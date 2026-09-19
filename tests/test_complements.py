@@ -185,7 +185,10 @@ class TestTwoStepCombo:
         # fallback_digestibility/aa_effects_limit into it correctly.
         assert step1["aa_effects"] == _complements.aa_effects(gc, gaps, digestibility=1.0, limit=3)
 
-        gc_diaas = gc.get("predicted_diaas") or 1.0  # fallback_digestibility default
+        # gc_diaas is capped at 1.0 — predicted_diaas is an uncapped per-AA-score
+        # minimum and can mathematically exceed 1.0 when the combined pool
+        # over-supplies every essential amino acid; DIAAS itself never does.
+        gc_diaas = min(1.0, gc.get("predicted_diaas") or 1.0)  # fallback_digestibility default
         assert combo["gc_diaas"] == gc_diaas
         expected_dcp_after = round(
             (base_protein + gc.get("protein_added", 0)) * min(1.0, gc_diaas), 1

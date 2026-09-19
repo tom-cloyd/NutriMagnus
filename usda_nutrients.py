@@ -14,6 +14,14 @@ from usda_api import (
 # Type alias for all per-100g nutrient dicts throughout the codebase.
 Nutrients = dict[str, float]
 
+# A gap-closer candidate whose own AA/protein ratio only marginally exceeds the
+# reference ratio solves for a grams amount that balloons toward the formula's
+# asymptote — mathematically valid but not a serving anyone would actually eat
+# (e.g. 392 g / 3+ cups of protein powder). This is the practical-serving
+# ceiling _score_one_complement() rejects above, well short of the old 500 g
+# hard limit which only ever caught outright-impossible amounts.
+MAX_PRACTICAL_GAP_CLOSER_GRAMS = 300
+
 # Nutrient groupings for the multi-food compare feature (web/backend.py) —
 # kept here as the single source of truth for which nutrients are grouped
 # together.
@@ -700,7 +708,7 @@ def _score_one_complement(
         base_aa = base_nutrients.get(target_aa, 0.0)
     base_protein = base_nutrients.get("protein_g", 0.0)
     grams = (R * base_protein - base_aa) / denom
-    if grams <= 0 or grams > 500:
+    if grams <= 0 or grams > MAX_PRACTICAL_GAP_CLOSER_GRAMS:
         return None
     added = scale_nutrients(cand_nutrients, grams)
     combined = sum_nutrients(base_nutrients, added)
@@ -1005,6 +1013,7 @@ def suggest_complements(
 
     # General suggestions from the curated table, filtered by dietary preference.
     pantry_names_lower = {c["name"].lower() for c in pantry_candidates}
+    pantry_fdc_ids = {c["fdc_id"] for c in pantry_candidates if c.get("fdc_id") is not None}
 
     # Index cache_candidates (real foods matching a curated entry by name) so the
     # general tier prefers real cached data over the entry's generic profile.
@@ -1021,6 +1030,11 @@ def suggest_complements(
         real = cache_by_curated_key.get(c["name"].lower())
         if real is not None and real["name"].lower() in exclude_lower:
             continue
+        if real is not None and real.get("fdc_id") in pantry_fdc_ids:
+            # Same cached food already present via pantry/recipe candidates
+            # (under a different display name) — don't show it a second time
+            # under the general tier.
+            continue
         if real is not None:
             general_candidates.append({
                 "name": real["name"], "fdc_id": real.get("fdc_id"),
@@ -1033,11 +1047,21 @@ def suggest_complements(
     general_gap_closers, general_diaas_improvers = _build_suggestions(general_candidates)
 
     # Merge DIAAS-improvers from both sources, excluding names already in gap-closer lists.
+    # A candidate can reach both pools (e.g. a pantry item whose name doesn't
+    # literally match the curated table entry that also resolves to it via
+    # load_cache_candidates) — dedupe by identity (fdc_id/recipe_id, falling
+    # back to name) so the same food isn't shown twice.
     gap_closer_names = {s["name"].lower() for s in pantry_gap_closers + general_gap_closers}
-    all_diaas_improvers = [
-        s for s in pantry_diaas_improvers + general_diaas_improvers
-        if s["name"].lower() not in gap_closer_names
-    ]
+    all_diaas_improvers = []
+    seen_improver_keys: set = set()
+    for s in pantry_diaas_improvers + general_diaas_improvers:
+        if s["name"].lower() in gap_closer_names:
+            continue
+        key = s.get("fdc_id") or s.get("recipe_id") or s["name"].lower()
+        if key in seen_improver_keys:
+            continue
+        seen_improver_keys.add(key)
+        all_diaas_improvers.append(s)
     all_diaas_improvers.sort(key=lambda r: (-r["new_diaas"], r["grams"]))
 
     # --- Gap-cascade pairs ---------------------------------------------------

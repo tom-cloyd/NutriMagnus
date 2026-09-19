@@ -158,7 +158,7 @@ def two_step_combo(
     gc_grams = gc["grams"]
     gc_name = gc.get("name", "")
     gc_raw = float(gc.get("protein_added") or 0)
-    gc_diaas = gc.get("predicted_diaas") or fallback_digestibility
+    gc_diaas = min(1.0, gc.get("predicted_diaas") or fallback_digestibility)
     gc_dcp = exact_dcp(ingredients, [(gc_name, comp_nutrients, gc_grams)])
     if gc_dcp is None:
         gc_dcp = round((base_protein + gc_raw) * min(1.0, gc_diaas), 1)
@@ -235,6 +235,7 @@ def build_complement_display(
     exclude_names: set[str] | None = None,
     comp_sort: str = "dcp",
     diaas_sort: str = "effect",
+    anchor_overrides: dict[str, float] | None = None,
 ) -> dict:
     """Build the full complement-suggestion display structure for one base food/meal/recipe.
 
@@ -260,6 +261,13 @@ def build_complement_display(
     exclude_names: suggestion names (case-insensitive) the user has flagged to
         ignore — omitted from every tier (pantry, general, pairs, diaas_improvers,
         two_step_combos).
+
+    anchor_overrides: {suggestion name (lowercased): grams}. When a suggestion's
+        math-derived "full" amount is impractically large (e.g. a food whose own
+        AA/protein ratio for the gapped amino acid is only marginally above the
+        reference — see usda_nutrients._score_one_complement), this lets the user
+        pin the 25/50/75/100% graduated table to a serving size of their own
+        choosing instead. Applied only to the pantry/general gap-closer tier.
 
     comp_sort: controls Pantry/General tier order — "dcp" (default; greatest
         resulting digestible complete protein, i.e. total_dig, after the addition),
@@ -297,6 +305,7 @@ def build_complement_display(
     except Exception:
         return {"no_data": True}
 
+    anchor_overrides = anchor_overrides or {}
     base_protein = base_nutrients.get("protein_g", 0.0)
     base_digestible = base_protein * digestibility
 
@@ -334,23 +343,32 @@ def build_complement_display(
 
     def _grad_steps(full_grams: float | None, dig_full: float, food_name: str,
                     raw_full: float = 0.0, new_scores_full: dict | None = None,
-                    comp_nutrients: dict | None = None) -> list[dict]:
-        if not full_grams or full_grams <= _GRAD_THRESHOLD:
+                    comp_nutrients: dict | None = None, anchor_grams: float | None = None) -> list[dict]:
+        """anchor_grams: when set (a user-chosen override for this suggestion,
+        e.g. because the math-derived full_grams is impractically large), the
+        25/50/75/100% steps are taken as fractions of it instead of full_grams,
+        and the table is shown regardless of _GRAD_THRESHOLD. dig_protein per
+        step still scales off full_grams' own rate (dig_full/full_grams), since
+        that's the real per-gram digestible-protein yield of this food."""
+        basis = anchor_grams if anchor_grams and anchor_grams > 0 else full_grams
+        if not basis or (anchor_grams is None and basis <= _GRAD_THRESHOLD):
             return []
+        dig_per_gram = (dig_full / full_grams) if full_grams else 0.0
         seen: set[int] = set()
         steps = []
         for frac in (0.25, 0.50, 0.75, 1.0):
-            g = max(1, round(full_grams * frac))
+            g = max(1, round(basis * frac))
             if g not in seen:
                 seen.add(g)
                 dcp = exact_dcp(ingredients, [(food_name, comp_nutrients, g)])
                 if dcp is None:
-                    dcp = _dcp_at_frac(frac, raw_full, new_scores_full or {})
+                    true_frac = (g / full_grams) if full_grams else frac
+                    dcp = _dcp_at_frac(true_frac, raw_full, new_scores_full or {})
                 pct_increase = (round((dcp - base_digestible) / base_digestible * 100, 1)
                                 if dcp is not None and base_digestible > 0 else None)
                 steps.append({
                     "grams": g, "amount_note": _amount_note(g, food_name),
-                    "dig_protein": round(dig_full * frac, 1), "dcp": dcp,
+                    "dig_protein": round(dig_per_gram * g, 1), "dcp": dcp,
                     "pct_increase": pct_increase,
                 })
         return steps
@@ -365,12 +383,15 @@ def build_complement_display(
         total_dig = exact_dcp(ingredients, [(name, comp_nutrients, full_grams)]) if full_grams else None
         if total_dig is None:
             total_dig = _total_dig(s)
+        anchor = anchor_overrides.get(name.lower())
         return {
             "name":              name,
             "grams":             full_grams,
             "amount_note":       _amount_note(full_grams, name) if full_grams else None,
             "grad_steps":        _grad_steps(full_grams, dig, name, raw_full=raw, new_scores_full=new_scores,
-                                              comp_nutrients=comp_nutrients),
+                                              comp_nutrients=comp_nutrients, anchor_grams=anchor),
+            "anchor_grams":      anchor,
+            "full_closure_grams": full_grams if anchor and full_grams and abs(anchor - full_grams) >= 1 else None,
             "fdc_id":            s.get("fdc_id"),
             "recipe_id":         s.get("recipe_id"),
             "serving_weight_g":  s.get("serving_weight_g"),
@@ -507,7 +528,10 @@ def build_complement_display(
                 ingredients=ingredients,
                 exclude_names=exclude_names,
             )
-            if combo is not None:
+            # A combo with no qualifying Step 2 adds nothing this section doesn't
+            # already show in the Pantry/General gap-closer tier above — showing
+            # it here too would just duplicate Step 1 with no new information.
+            if combo is not None and combo.get("step2") is not None:
                 two_step_combos.append(combo)
 
     pantry_fmt = [_fmt(s) for s in pantry_suggs]
@@ -575,7 +599,8 @@ def build_complement_display(
         "estimate_note": ESTIMATE_NOTE if has_estimate_or_generic else None,
         "exhausted_msg": (
             f"{exhausted_prefix} A qualifying complement must have a {limiting_label}/protein ratio "
-            f"above the FAO reference to close the gap to score 1.0 in a practical serving (≤ 500 g). "
+            f"above the FAO reference to close the gap to score 1.0 in a practical serving "
+            f"(≤ {_usda.MAX_PRACTICAL_GAP_CLOSER_GRAMS} g). "
             f"Score 1.0 = meets human requirements (the floor, not an aspirational target). "
             f"Foods that don't qualify for a {limiting_label} gap: {low_in}. "
             f"Their ratio falls below the reference — adding them dilutes the score further."

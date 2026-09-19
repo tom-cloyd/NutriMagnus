@@ -1,0 +1,15 @@
+{# Per-suggestion "base the graduated scale on" control — see complements.py's
+   anchor_overrides docstring. Expects `s` (a formatted gap-closer suggestion
+   dict) in scope; must be included inside the page's #complements-form. #}
+<div class="d-flex align-items-center gap-1 mb-1 flex-wrap" style="font-size:.8rem">
+  <label class="muted" for="anchor-{{ s.fdc_id or s.recipe_id or s.name }}">Base the scale above on:</label>
+  <input type="number" min="1" step="1" id="anchor-{{ s.fdc_id or s.recipe_id or s.name }}"
+         name="anchor_grams" value="{{ s.anchor_grams|round|int if s.anchor_grams else '' }}"
+         placeholder="{{ s.grams|round|int if s.grams else '' }}"
+         class="form-control form-control-sm comp-anchor-input" style="width:5.5rem">
+  <span class="muted">g</span>
+  <input type="hidden" name="anchor_name" value="{{ s.name }}">
+  {% if s.full_closure_grams %}
+  <span class="muted">(fully closing this gap with {{ s.name }} alone takes {{ s.full_closure_grams }}&thinsp;g &mdash; showing your own amount instead)</span>
+  {% endif %}
+</div>

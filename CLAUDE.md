@@ -214,7 +214,7 @@ Essential AAs: all `aa_` keys except `aa_cystine_g` and `aa_tyrosine_g`.
 - **Never `import usda_api` or `import usda_nutrients` directly** — always `import usda as _usda`. `usda.py` is the stable public surface.
 - **Never open the DB outside `get_db()`** — no raw `sqlite3.connect()` calls anywhere.
 - **Add `Docs:` line** to any new module's docstring pointing to the relevant README section.
-- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Get the current timestamp with `date "+%Y-%m-%d:%H%M"` and never guess it. If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps the same way (see each file's top few lines for the exact format).
+- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Run `python3 scripts/bump_version.py` — it sets `VERSION` to the current timestamp and auto-increments `RELEASE_VERSION`'s `-rc.N` counter in one step; never hand-edit either of those two lines. `NEW_VERSION_NOTE` still needs a manual edit to describe the change. If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps by hand the same way (see each file's top few lines for the exact format).
 
 ---
 

@@ -17,7 +17,7 @@
 <p class="muted mt-n2 mb-2"><small>{{ recipe.name }} &middot; ID {{ recipe.id }}</small></p>
 
 {% if saved %}
-<div class="alert alert-success alert-dismissible fade show" role="alert">
+<div class="alert alert-success alert-dismissible fade show" role="alert" id="recipe-saved-alert">
   Recipe saved.
   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
 </div>
@@ -129,14 +129,23 @@
             <div style="font-size:0.75rem" class="muted">What one serving actually is, in plain terms — shown everywhere this recipe's servings appear (e.g. "1 serving = 1 muffin").</div>
           </div>
           <div class="col-sm-4 col-lg-4">
-            <label class="col-form-label">Total yield volume <small class="text-muted">(optional, mL)</small></label>
+            <label class="col-form-label">Total yield volume <small class="text-muted">(optional)</small></label>
             <div class="input-group" style="max-width:16rem">
               <input type="number" class="form-control" name="total_volume"
                      value="{{ recipe.total_volume or '' }}" min="0" step="any">
-              <span class="input-group-text">mL</span>
+              <select class="form-select" name="total_volume_unit" style="max-width:6rem">
+                {% for u in ["ml", "l", "cup", "floz", "tbsp", "tsp"] %}
+                <option value="{{ u }}" {% if (recipe.total_volume_unit or "ml") == u %}selected{% endif %}>{{ u }}</option>
+                {% endfor %}
+              </select>
             </div>
-            <div style="font-size:0.75rem" class="muted">Lets the <a href="/food/convert/recipe/{{ recipe.id }}">Convert</a> tool translate this recipe's amounts between servings, weight, and volume.</div>
+            <div style="font-size:0.75rem" class="muted">If this recipe makes a liquid or semi-liquid (soup, sauce, smoothie), enter how much it makes in total. Together with the weight above, this lets the <a href="/food/convert/recipe/{{ recipe.id }}">Convert</a> tool figure out this recipe's density, so you can type an amount in one unit (say, "1 cup") and see it converted to another (grams, ounces, servings) on the Convert page.</div>
           </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+          <button type="submit" class="btn btn-primary">Save recipe details</button>
+          <a href="/recipe/{{ recipe.id }}" class="btn btn-outline-secondary">View recipe</a>
         </div>
       </div>
 
@@ -190,11 +199,6 @@
       </div>
     </div>
     {% endif %}
-
-    <div class="d-flex gap-2">
-      <button type="submit" class="btn btn-primary">Save recipe details</button>
-      <a href="/recipe/{{ recipe.id }}" class="btn btn-outline-secondary">View recipe</a>
-    </div>
   </form>
 </details>
 
@@ -555,8 +559,20 @@
   var detailsForm = document.getElementById('recipe-details-form');
   if (!detailsForm) return;
   var dirty = false;
-  detailsForm.addEventListener('input', function () { dirty = true; });
-  detailsForm.addEventListener('change', function () { dirty = true; });
+  var savedAlert = document.getElementById('recipe-saved-alert');
+  // The "Recipe saved" banner reflects the page-load snapshot, not whatever
+  // is currently typed into the form — leaving it up while the user edits
+  // implies those new edits are already saved, which they aren't. Drop it
+  // the moment the form is touched.
+  function markDirty() {
+    dirty = true;
+    if (savedAlert) {
+      savedAlert.remove();
+      savedAlert = null;
+    }
+  }
+  detailsForm.addEventListener('input', markDirty);
+  detailsForm.addEventListener('change', markDirty);
 
   document.addEventListener('submit', function (e) {
     if (!dirty) return;

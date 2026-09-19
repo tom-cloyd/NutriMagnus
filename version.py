@@ -1,13 +1,15 @@
-VERSION = "2026-09-16:1956"
+VERSION = "2026-09-18:2223"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
 # alongside the VERSION build stamp above. It's purely a display label —
 # release tagging and the update-available check both key off VERSION (the
-# build timestamp), not this, so bumping it doesn't affect either. Bump by
-# hand whenever it's meaningful to say so (e.g. cutting a new pre-release for
-# testers, or reaching 1.0.0).
-RELEASE_VERSION = "0.1.0-rc.2"
+# build timestamp), not this, so bumping it doesn't affect either. The
+# -rc.N/-beta.N/-alpha.N counter is auto-incremented by scripts/bump_version.py
+# (run that instead of hand-editing this line to bump VERSION); bump the
+# MAJOR.MINOR.PATCH part by hand only for a deliberate milestone (e.g.
+# reaching 1.0.0).
+RELEASE_VERSION = "0.1.0-rc.3"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see

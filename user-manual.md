@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-16:1956* / Reading time: 4 hours, 59 minutes
+*Updated 2026-09-17:2231* / Reading time: 5 hours, 1 minute
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -553,7 +553,7 @@ The amino acid completeness categories NuMa uses are derived from the work of th
 
 #### TIER 1 — GAP CLOSERS
 
-These foods can mathematically close a specific amino acid gap with a practical amount (up to 500 g). A gap closer has a high enough ratio of the [limiting amino acid](#gloss-limiting-amino-acid) to protein that adding it to the base food brings that amino acid's score to 1.0 (the [FAO](#gloss-fao) reference floor).
+These foods can mathematically close a specific amino acid gap with a practical amount (up to 300 g). A gap closer has a high enough ratio of the [limiting amino acid](#gloss-limiting-amino-acid) to protein that adding it to the base food brings that amino acid's score to 1.0 (the [FAO](#gloss-fao) reference floor).
 
 Each suggestion shows:
   - Grams to add
@@ -2747,7 +2747,124 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
+#### September 17 program updates
+
+**YOU CAN NOW PIN A COMPLEMENT SUGGESTION'S GRADUATED AMOUNTS TO YOUR OWN SERVING SIZE**
+
+On a meal, food, or recipe's Complement Suggestions section, each suggestion's 25/50/75/100% graduated table now has a small "Base the scale above on: ___ g" field. Normally that table is scaled off the amount needed to *fully* close the amino acid gap — but for some foods that amount is impractically large (e.g. hundreds of grams of a protein powder), because the food's own ratio of the gapped amino acid to its total protein is only barely above the reference target. Type your own realistic serving size there and the table recalculates around it instead, so you can see the real effect of an amount you'd actually eat.
+
+<!--
+```
+Scope: numa_app/services/complements.py (build_complement_display gains
+anchor_overrides: dict[str, float] param, keyed by suggestion name lowercased;
+_grad_steps() takes an anchor_grams override that replaces the math-derived
+full_grams as the basis for the 25/50/75/100% fractions, while dig_protein per
+step still scales off the food's real per-gram digestible-protein rate; _fmt()
+surfaces full_closure_grams when the override differs from the true closure
+amount, for the "fully closing this gap would take Ng" note). web/backend.py
+adds _parse_anchor_overrides() and threads anchor_name/anchor_grams query-param
+lists through _food_detail_context/_food_complement_section (food_detail route),
+meal_view, and _recipe_detail_context/recipe_detail route into
+_complement_suggestions/build_complement_display. New shared partial
+web/templates/_complement_anchor.html renders the input; wired into meal.html,
+food_detail.html (which previously had no graduated table at all — added to
+match), and recipe_detail.html's suggest_card macros, submitted via the
+existing #complements-form GET form alongside ignore_complements. Also fixed a
+pre-existing sign-formatting bug (literal "+" prefix concatenated with a
+possibly-negative "%.0f"-formatted pct_increase, e.g. "+-8%") across all six
+grad_steps/diaas_improver step tables, using "%+.0f" instead.
+```
+-->
+
+**THE "RECIPE SAVED" BANNER NO LONGER LINGERS OVER UNSAVED EDITS**
+
+On a recipe's Edit page, the green **Recipe saved** banner used to stay up no matter what you typed afterward — implying edits you hadn't saved yet were already saved. It now disappears the instant you touch any field in Recipe details, so it never claims more than it knows.
+
+<!--
+```
+Scope: web/templates/recipe_edit.html — the existing "unsaved Recipe details"
+dirty-tracking script (added for the ingredient-add warning) now also removes
+the #recipe-saved-alert element on the first input/change event against
+#recipe-details-form.
+```
+-->
+
+**RECIPE YIELD VOLUME CAN NOW BE ENTERED IN CUPS, FLUID OUNCES, ETC. — NOT JUST MILLILITERS**
+
+The **Total yield volume** field on a recipe's Edit page now has a unit dropdown (mL, L, cup, fl oz, tbsp, tsp) instead of forcing milliliters. The explanation next to it also now spells out what entering this actually does: paired with the yield weight, it lets the [Convert](#convert) tool work out the recipe's density, so you can type an amount in one unit (like "1 cup") and see it converted to another (grams, ounces, servings) on that recipe's Convert page.
+
+<!--
+```
+Scope: web/templates/recipe_edit.html (total_volume_unit <select>, options ml/l/
+cup/floz/tbsp/tsp, expanded help text), web/backend.py recipe_edit_post() (new
+total_volume_unit form field, converted to mL via the existing
+numa_app.services.portions._VOLUME_TO_ML table before storage — total_volume
+is still always persisted in mL internally, matching food_convert_recipe()'s
+density calc which assumes mL).
+```
+-->
+
+**GAP-CLOSER SUGGESTIONS NO LONGER RECOMMEND ABSURD SERVING SIZES**
+
+A [complement suggestion](#comp) that could only close its amino acid gap with an implausibly large amount — hundreds of grams of a concentrated food like protein powder — used to be shown anyway, as long as it stayed under a 500&nbsp;g ceiling that was really just a "not mathematically impossible" check, not a real-world sanity check. That ceiling is now 300&nbsp;g, and when a candidate's full-gap-closing amount would exceed it, the suggestion now falls back to the smaller amount needed to close a lesser amino acid gap it can still reach in a practical serving, rather than showing hundreds of grams of one food as your only option. [Learn more...](#comp)
+
+<!--
+```
+Scope: usda_nutrients.py — new module constant MAX_PRACTICAL_GAP_CLOSER_GRAMS
+(300) replaces the hardcoded literal in _score_one_complement()'s
+"grams <= 0 or grams > 500" guard; re-exported via usda.py. suggest_complements()
+already iterates candidate target AAs in gap order and falls through to the next
+gap when _score_one_complement() returns None for the primary one, so lowering
+the cap alone causes foods that fail the primary-gap closure (blocked by the new,
+tighter ceiling) to naturally surface their secondary-gap closure instead — no
+change needed there. numa_app/services/complements.py's exhausted_msg text
+(previously hardcoded "≤ 500 g") now reads the same constant.
+```
+-->
+
+**TWO-STEP COMBINATIONS NO LONGER SHOWS A COMBO WITH NO SECOND STEP**
+
+The Two-Step Combinations section used to include a "Combination" card even when no Step 2 booster qualified for it — duplicating a suggestion already shown in the ordinary Protein Complement Suggestions list above it, but dressed up as a "combination" with nothing to combine. Those step-1-only entries no longer appear here; they're still visible in the regular Complement Suggestions section where they add real information.
+
+<!--
+```
+Scope: numa_app/services/complements.py — build_complement_display() only
+appends to two_step_combos when two_step_combo()'s returned dict has a
+non-None "step2", instead of appending on any non-None combo. Also fixed a
+related bug found while investigating: two_step_combo()'s gc_diaas (the pool
+DIAAS Step 1 achieves, used as the bar Step 2 must clear) came from
+predicted_diaas uncapped, which can mathematically exceed 1.0 when a
+combined pool over-supplies every essential amino acid — every other DIAAS
+comparison in this file caps at min(1.0, ...), but this one didn't, so an
+over-1.0 gc_diaas could make Step 2 structurally impossible (no real
+candidate's capped score can ever exceed it) even when a genuine
+improvement existed. Now capped the same way.
+```
+-->
+
 #### September 16 program updates
+
+**A COMPLEMENT FOOD NO LONGER SHOWS UP TWICE IN DIAAS-BOOSTING OPTIONS**
+
+A protein-complement suggestion could appear as two separate cards under [DIAAS-Boosting Options](#comp) on a food, recipe, or meal page — once correctly linked to its real Food Cache entry, and once as an unlinked "generic estimate" duplicate of the very same food. Only the correctly-linked card now shows.
+
+<!--
+```
+Scope: web/backend.py _web_pantry_candidates() — pantry candidate dicts were
+missing their own "fdc_id" key, so a pantry item's DIAAS-improver suggestion
+always looked unidentified even when it had real cached nutrient data.
+usda_nutrients.py suggest_complements() — the same cached food could also be
+pulled into the "general" tier's candidate pool via load_cache_candidates()
+whenever its pantry display name didn't literally match the curated
+complement table's entry name (e.g. "Nutritional Yeast Flakes (FDC
+2411476)" vs. the table's "Nutritional yeast"), producing a second,
+independently-scored suggestion for the same fdc_id; general_candidates
+construction now skips a curated match whose fdc_id is already present in
+pantry_candidates, and the pantry+general DIAAS-improver merge now dedupes
+by fdc_id/recipe_id (falling back to name) instead of trusting each pool to
+be duplicate-free on its own.
+```
+-->
 
 **A "CHECK FOR UPDATES NOW" LINK, FOR CHANGING YOUR MIND AFTER DISMISSING ONE**
 

@@ -588,10 +588,10 @@
     <tbody>
     {% for step in s.grad_steps %}
     <tr{% if loop.last %} class="table-success"{% endif %}>
-      <td><strong>{{ step.grams }}&thinsp;g</strong>{{ per_serving_note(step.grams) }}{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
+      <td><strong>{{ step.grams }}&thinsp;g</strong>{{ per_serving_note(step.grams) }}{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">({% if s.full_closure_grams %}100% of your amount{% else %}full{% endif %})</span>{% endif %}</td>
       <td>{{ step.dig_protein }}&thinsp;g</td>
       <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
-      <td>{% if step.pct_increase is not none %}+{{ "%.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
+      <td>{% if step.pct_increase is not none %}{{ "%+.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
       {% if recipe.servings and recipe.servings > 1 %}
       <td class="muted">{% if step.dcp is not none %}{{ "%.1f"|format(step.dcp / recipe.servings) }}&thinsp;g{% else %}—{% endif %}</td>
       {% endif %}
@@ -600,8 +600,10 @@
     </tbody>
   </table>
   <p class="mb-1 muted"><small>DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP.</small></p>
+  {% include "_complement_anchor.html" %}
   {% else %}
   <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{{ per_serving_note(s.grams) }}{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
+  {% include "_complement_anchor.html" %}
   {% endif %}
   {% if s.aa_effects %}
   <p class="mb-1 muted"><small>Effect:
@@ -758,7 +760,7 @@
         <td>{{ step.grams }}&thinsp;g{{ per_serving_note(step.grams) }}{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}</td>
         <td>{{ "%.2f"|format(s.current_diaas) }} &rarr; <strong>{{ "%.2f"|format(step.new_diaas) }}</strong></td>
         <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% endif %}</td>
-        <td>{% if step.pct_increase is not none %}+{{ "%.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
+        <td>{% if step.pct_increase is not none %}{{ "%+.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
       </tbody>
@@ -813,7 +815,7 @@
 </form>
 <script>
 document.getElementById('complements-form').addEventListener('change', function (e) {
-  if (e.target.name === 'ignore_complements' || e.target.name === 'unignore') {
+  if (e.target.name === 'ignore_complements' || e.target.name === 'unignore' || e.target.name === 'anchor_grams') {
     document.getElementById('recalc-complements-btn').disabled = false;
   }
 });
