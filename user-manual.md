@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-17:2231* / Reading time: 5 hours, 1 minute
+*Updated 2026-09-19:0953* / Reading time: 5 hours, 2 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -2746,6 +2746,41 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+
+#### September 19 program updates
+
+**A FOOD'S DIGESTIBLE COMPLETE PROTEIN NOW MATCHES ITS MEAL AND RECIPE VALUES**
+
+A single food's own DCP figure (on its Food Cache detail page and in its Protein Summary/Protein Quality sections) could come out noticeably lower than the same food's contribution shown in a meal's Top Contributors table — for one bread, 2.1 g per 100 g on the food page versus a rate implying 3.8 g per 100 g in a meal. The two were pulling digestibility from different tables and, on the food page, applying an amino-acid-limitation penalty a second time on top of a digestibility figure that already had it baked in. The food page now uses the same digestibility source as meal- and recipe-level DIAAS, so a food's own DCP and its contribution inside a meal or recipe agree.
+
+<!--
+```
+Scope: web/backend.py — _protein_section() (food_detail route) and
+_food_complement_section() now source `digestibility` from
+diaas.get_digestibility(food_name, conn) instead of usda_nutrients.get_diaas().
+Root cause: usda_nutrients._DIAAS_TABLE stores full, already amino-acid-
+balance-adjusted literature DIAAS scores (e.g. bread 0.46, keyed on the same
+"bread"/"wheat" keywords diaas.py's _DIGESTIBILITY_TABLE uses for a pure
+0.84 true-ileal-digestibility estimate), but _protein_section() treated that
+0.46 as raw digestibility and then multiplied by protein_completeness()'s own
+freshly-computed limiting-amino-acid ratio, penalizing amino acid limitation
+twice. Meal-level diaas.py never had this bug — it always used the pure
+digestibility table. export.py's three _render_bioavailability_* single-food
+report renderers switched to the same diaas.get_digestibility() call (no conn
+available there, so no per-food user override lookup in exported reports)
+for consistent numbers between the app and exported reports. Side effect:
+diaas.get_digestibility() always returns a value (defaulting to 0.82 for an
+unrecognized food name) where usda_nutrients.get_diaas() could return None,
+so food_detail.html's now-unreachable "no DIAAS reference for this food"
+fallback card was removed — every food with amino acid data now gets a DCP
+estimate. Tests updated: test_food_detail_protein_summary_shows_completeness_
+without_diaas_reference (renamed, now checks the default-digestibility DCP
+instead of the removed fallback text) and
+test_unusable_protein_line_absent_for_complete_food (switched its test food
+from chicken, whose true digestibility is 0.96, to milk, at 1.00, to keep
+testing the zero-unusable-protein suppression case).
+```
+-->
 
 #### September 17 program updates
 

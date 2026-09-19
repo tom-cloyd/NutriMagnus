@@ -1351,8 +1351,13 @@ def _protein_section(food_name: str, nutrients: dict) -> dict | None:
         return None
     if not _usda.has_amino_acid_data(nutrients):
         return None
-    diaas = _usda.get_diaas(food_name)
-    digestibility = diaas if diaas is not None else 1.0
+    # Use the same pure-digestibility table (and user overrides) as meal-level
+    # DIAAS, not usda_nutrients.get_diaas() — that table stores full,
+    # already AA-balance-adjusted literature DIAAS scores, and combining it
+    # with protein_completeness()'s own limiting-AA ratio double-penalizes
+    # amino acid limitation (e.g. bread's DCP came out ~30% low).
+    with _db.get_db() as conn:
+        digestibility, _digest_source = _diaas.get_digestibility(food_name, conn)
     pc = _usda.protein_completeness(nutrients, digestibility)
     if not pc["has_data"]:
         return None
@@ -1366,15 +1371,15 @@ def _protein_section(food_name: str, nutrients: dict) -> dict | None:
         for k, v in sorted(pc["scores"].items(), key=lambda x: x[1])
     ]
     protein_raw = nutrients.get("protein_g", 0.0)
-    protein_digestible = round(protein_raw * digestibility, 1) if diaas is not None else None
+    protein_digestible = round(protein_raw * digestibility, 1)
     limiting_score = min(pc["scores"].values()) if pc["scores"] else None
     dcp_g = None
-    if protein_digestible is not None and limiting_score is not None:
+    if limiting_score is not None:
         dcp_g = round(protein_digestible * min(1.0, limiting_score), 1)
     return {
-        "diaas":              diaas,
-        "diaas_pct":          min(100, round(diaas * 100)) if diaas is not None else None,
-        "diaas_level":        ("good" if diaas >= 0.90 else ("ok" if diaas >= 0.70 else "low")) if diaas is not None else None,
+        "diaas":              digestibility,
+        "diaas_pct":          min(100, round(digestibility * 100)),
+        "diaas_level":        "good" if digestibility >= 0.90 else ("ok" if digestibility >= 0.70 else "low"),
         "complete":           pc["complete"],
         "limiting_aa":        limiting_label,
         "limiting_score":     round(limiting_score, 3) if limiting_score is not None else None,
@@ -1414,11 +1419,11 @@ def _parse_anchor_overrides(anchor_name: list[str], anchor_grams: list[str]) -> 
 def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set[str] | None = None,
                               comp_sort: str | None = None, diaas_sort: str | None = None,
                               anchor_overrides: dict[str, float] | None = None) -> dict:
-    """Complement suggestions for a single food, using its own DIAAS as digestibility."""
+    """Complement suggestions for a single food, using its own digestibility (diaas.get_digestibility, same table meal-level DIAAS uses)."""
     if not _usda.has_amino_acid_data(nutrients) or nutrients.get("protein_g", 0) <= 0:
         return {"no_data": True}
-    diaas = _usda.get_diaas(food_name)
-    digestibility = diaas if diaas is not None else 1.0
+    with _db.get_db() as conn:
+        digestibility, _digest_source = _diaas.get_digestibility(food_name, conn)
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
     pantry = _web_pantry_candidates() + _web_recipe_candidates()

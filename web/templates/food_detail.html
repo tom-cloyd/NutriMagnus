@@ -216,36 +216,6 @@
       {% endif %}
     </div>
   </div>
-  {% elif protein.diaas is not none %}
-  <div class="protein-summary-card psc-unknown">
-    <div class="ps-metric">
-      <div class="ps-label">DIAAS</div>
-      <div class="ps-value">{{ "%.2f"|format(protein.diaas) }}</div>
-      <div class="ps-status muted">DCP not computed for this food</div>
-    </div>
-  </div>
-  {% elif protein.limiting_aa is not none or protein.complete %}
-  {# Amino acid data is present (see Protein Quality below) but this food's
-     name has no match in the built-in DIAAS reference table, so digestibility
-     — and therefore DCP — can't be computed. Shown as raw completeness only,
-     not the "no amino acid data" case (that's unreachable here: this whole
-     section is skipped entirely when `protein` is None). #}
-  <div class="protein-summary-card {% if protein.complete %}psc-complete{% else %}psc-incomplete{% endif %}">
-    <div class="ps-metric">
-      <div class="ps-label">Protein (completeness only)</div>
-      <div class="ps-value-line">
-        <span class="ps-value">{{ protein.protein_raw }}&thinsp;g</span>
-        {% if protein.complete %}
-        <span class="ps-status status-met">— &#10003; Complete protein</span>
-        {% else %}
-        <span class="ps-status status-gap">— &#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}
-          {% if protein.limiting_score is not none %}({{ "%.3f"|format(protein.limiting_score) }}){% endif %}
-        </span>
-        {% endif %}
-      </div>
-      <div class="ps-derivation">No DIAAS reference for this food, so digestibility can't be applied — this is raw amino-acid completeness, not a digestibility-adjusted DCP. See Protein Quality below.</div>
-    </div>
-  </div>
   {% else %}
   <div class="protein-summary-card psc-unknown">
     <div class="ps-metric">

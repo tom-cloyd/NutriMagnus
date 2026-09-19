@@ -25,6 +25,7 @@ import pathlib
 import re
 from datetime import date
 
+import diaas as _diaas
 import usda as _usda
 from numa_app.services.food_ids import classify_food_id
 
@@ -245,18 +246,17 @@ def _render_protein_completeness_html(nutrients: dict[str, float]) -> str:
 def _render_bioavailability_txt(food_name: str, nutrients: dict[str, float],
                                  fdc_id: int | None = None,
                                  recipe_id: int | None = None) -> str:
-    diaas = _usda.get_diaas(food_name)
+    raw = nutrients.get("protein_g", 0.0)
     flags = _usda.get_antinutrient_flags(food_name)
-    if diaas is None and not flags:
+    if raw <= 0 and not flags:
         return ""
     tag = _food_id_tag(fdc_id, recipe_id, fmt="txt", inline=True)
     lines = [f"BIOAVAILABILITY — {food_name}{tag}", "=" * min(18 + len(food_name) + 2, 70)]
-    if diaas is not None:
-        raw = nutrients.get("protein_g", 0.0)
-        adj = raw * diaas
-        lines.append(f"  Protein digestibility (DIAAS): {diaas:.2f}")
-        if raw > 0:
-            lines.append(f"  Digestible protein: {adj:.1f}g  (from {raw:.1f}g raw)")
+    if raw > 0:
+        digestibility, _ = _diaas.get_digestibility(food_name)
+        adj = raw * digestibility
+        lines.append(f"  Protein digestibility: {digestibility:.2f}")
+        lines.append(f"  Digestible protein: {adj:.1f}g  (from {raw:.1f}g raw)")
     for flag in flags:
         lines.append(f"  Note: {flag['problem']} — {flag['cause']}")
         for label, sol in flag["solutions"]:
@@ -267,18 +267,17 @@ def _render_bioavailability_txt(food_name: str, nutrients: dict[str, float],
 def _render_bioavailability_md(food_name: str, nutrients: dict[str, float],
                                 fdc_id: int | None = None,
                                 recipe_id: int | None = None) -> str:
-    diaas = _usda.get_diaas(food_name)
+    raw = nutrients.get("protein_g", 0.0)
     flags = _usda.get_antinutrient_flags(food_name)
-    if diaas is None and not flags:
+    if raw <= 0 and not flags:
         return ""
     tag = _food_id_tag(fdc_id, recipe_id, fmt="md")
     lines = [f"## Bioavailability — {food_name}{tag}"]
-    if diaas is not None:
-        raw = nutrients.get("protein_g", 0.0)
-        adj = raw * diaas
-        lines.append(f"\n**Protein digestibility (DIAAS):** {diaas:.2f}")
-        if raw > 0:
-            lines.append(f"**Digestible protein:** {adj:.1f}g  *(from {raw:.1f}g raw)*")
+    if raw > 0:
+        digestibility, _ = _diaas.get_digestibility(food_name)
+        adj = raw * digestibility
+        lines.append(f"\n**Protein digestibility:** {digestibility:.2f}")
+        lines.append(f"**Digestible protein:** {adj:.1f}g  *(from {raw:.1f}g raw)*")
     for flag in flags:
         lines.append(f"\n> ⚠️ **{flag['problem']}** — {flag['cause']}")
         for label, sol in flag["solutions"]:
@@ -289,21 +288,20 @@ def _render_bioavailability_md(food_name: str, nutrients: dict[str, float],
 def _render_bioavailability_html(food_name: str, nutrients: dict[str, float],
                                   fdc_id: int | None = None,
                                   recipe_id: int | None = None) -> str:
-    diaas = _usda.get_diaas(food_name)
+    raw = nutrients.get("protein_g", 0.0)
     flags = _usda.get_antinutrient_flags(food_name)
-    if diaas is None and not flags:
+    if raw <= 0 and not flags:
         return ""
     tag = _food_id_tag(fdc_id, recipe_id, fmt="html")
     lines = [f"<h2>Bioavailability — {food_name}{tag}</h2>"]
-    if diaas is not None:
-        raw = nutrients.get("protein_g", 0.0)
-        adj = raw * diaas
-        lines.append(f"<p><strong>Protein digestibility (DIAAS):</strong> {diaas:.2f}</p>")
-        if raw > 0:
-            lines.append(
-                f"<p><strong>Digestible protein:</strong> {adj:.1f}g "
-                f"<em>(from {raw:.1f}g raw)</em></p>"
-            )
+    if raw > 0:
+        digestibility, _ = _diaas.get_digestibility(food_name)
+        adj = raw * digestibility
+        lines.append(f"<p><strong>Protein digestibility:</strong> {digestibility:.2f}</p>")
+        lines.append(
+            f"<p><strong>Digestible protein:</strong> {adj:.1f}g "
+            f"<em>(from {raw:.1f}g raw)</em></p>"
+        )
     for flag in flags:
         lines.append(f'<p class="antinutrient-note">⚠️ <strong>{flag["problem"]}</strong>'
                      f' — {flag["cause"]}</p>')

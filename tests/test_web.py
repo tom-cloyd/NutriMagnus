@@ -450,18 +450,15 @@ def test_toggle_starter_renames_without_marking_user_drafted(
     assert restored["user_drafted"] == 0
 
 
-def test_food_detail_protein_summary_shows_completeness_without_diaas_reference(
+def test_food_detail_protein_summary_uses_default_digestibility_without_diaas_reference(
     client: TestClient, db_conn
 ) -> None:
-    """Regression: a food with full amino acid data but no name match in the
-    built-in DIAAS reference table (e.g. a custom draft with an unusual name)
-    used to show "No amino acid data -- quality analysis unavailable" in the
-    Protein Summary card, even though the Protein Quality section right below
-    it correctly computed and displayed completeness/limiting-AA from that
-    same data. dcp_g and diaas both being None only means "no DIAAS reference
-    for this name", not "no amino acid data" -- that combination can't
-    actually happen otherwise, since the whole section is skipped when the
-    backend's protein dict is None."""
+    """A food with full amino acid data but no name match in diaas.py's
+    curated/category digestibility tables (e.g. a custom draft with an
+    unusual name) still gets the 0.82 overall-default digestibility estimate
+    (see diaas.get_digestibility()'s fallback order) and a computed DCP --
+    same as meal-level DIAAS falls back for unrecognized ingredients. It must
+    not show "No amino acid data -- quality analysis unavailable"."""
     fdc_id = 999001
     nutrients = dict(SAMPLE_NUTRIENTS)
     db_conn.execute("""
@@ -475,8 +472,8 @@ def test_food_detail_protein_summary_shows_completeness_without_diaas_reference(
     resp = client.get(f"/food/{fdc_id}")
     assert resp.status_code == 200
     assert "No amino acid data" not in resp.text
-    assert "Protein (completeness only)" in resp.text
-    assert "No DIAAS reference for this food" in resp.text
+    assert "Digestible Complete Protein (DCP)" in resp.text
+    assert "DIAAS&thinsp;0.82" in resp.text or "DIAAS 0.82" in resp.text
 
 
 def test_food_detail_ul_column_has_asterisk_and_footnote(client: TestClient, cached_food) -> None:
@@ -3176,15 +3173,19 @@ def test_home_page_shows_release_version(client: TestClient) -> None:
 def test_unusable_protein_line_absent_for_complete_food(client: TestClient, db_conn):
     import json as _json
     fdc_id = 999002
+    # Milk maps to a true digestibility of 1.00 in diaas.get_digestibility()'s
+    # curated table (unlike e.g. chicken's 0.96), so with a fully complete
+    # amino acid profile (borrowed from chicken breast — the digestibility
+    # lookup only reads the food name) DCP should equal raw protein exactly.
     db_conn.execute(
         "INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (fdc_id, "Chicken, broilers or fryers, breast, meat only, raw", "SR Legacy", None, 100.0, "g", _json.dumps(SAMPLE_NUTRIENTS), "[]"),
+        (fdc_id, "Milk, whole, 3.25% milkfat", "SR Legacy", None, 100.0, "g", _json.dumps(SAMPLE_NUTRIENTS), "[]"),
     )
     db_conn.commit()
     resp = client.get(f"/food/{fdc_id}", params={"amount": "100"})
     assert resp.status_code == 200
-    # A DIAAS of 1.0 (complete protein, no limiting amino acid) leaves
+    # A digestibility of 1.00 with a complete amino acid profile leaves
     # unusable_g at 0, and the line must be suppressed entirely — not shown
     # as "0.0 g (0%)".
     assert "cannot be built into tissue" not in resp.text
