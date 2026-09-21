@@ -2778,7 +2778,9 @@ Each entry below has a bold title and a plain-language description — anywhere 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 
-#### Next release 
+#### Next release
+
+#### Release v2026-09-21-0526 boundary
 
 - Nutrient tables now show separate Minimum, Target, and Maximum columns instead of one ambiguous "Daily Target" column.
 - The Nutrient Plot has a "Clear all nutrient checkmarks" button, and clearer wording on what "completeness" affects.
