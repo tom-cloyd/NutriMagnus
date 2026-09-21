@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-21:0526* / Reading time: 5 hours, 15 minutes
+*Updated 2026-09-21:0647* / Reading time: 5 hours, 16 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -236,7 +236,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-20), there are 1,059 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-21), there are 1,076 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -2780,6 +2780,8 @@ Each entry below has a bold title and a plain-language description — anywhere 
 
 #### Next release
 
+- The User Manual can now be updated on its own — a separate home-page notice offers a newer manual without needing a program update.
+
 #### Release v2026-09-21-0526 boundary
 
 - Nutrient tables now show separate Minimum, Target, and Maximum columns instead of one ambiguous "Daily Target" column.
@@ -2807,6 +2809,34 @@ Each entry below has a bold title and a plain-language description — anywhere 
 - Nutrient table color coding: "near" is now blue and "below minimum" is now orange (previously the other way around) — a near-minimum reading is a reassuring state, not a warning one.
 - The "Why you can trust NuMa" testing section is simpler to read, and now mentions mutation testing in plain language.
 - No visible change: mutation testing found and closed real coverage gaps in two more modules (amino-acid estimation, recipe nutrient aggregation).
+
+##### September 21 program updates
+
+**USER MANUAL NOW UPDATES SEPARATELY FROM THE PROGRAM**
+
+The home page now shows a separate "NEW USER MANUAL AVAILABLE" notice when a newer manual is published, with an **Update manual now** button — no program update, no restart. If the new manual describes features from a newer program than yours, the notice says so. The home page also shows which manual version you have.
+
+<!--
+```
+Scope: numa_app/services/manual_update.py (new), scripts/publish_manual.py
+(new), web/backend.py (/, /manual, /manual-update-now, /manual-notice/ack-banner,
+/check-for-updates), web/templates/home.html, numa_app/services/update_check.py,
+requirements.txt (+cryptography), tests/test_manual_update.py (new),
+tests/test_web.py, tests/test_update_check.py, tests/conftest.py.
+The manual is published as a rolling PRERELEASE "manual-latest" (prerelease so
+releases/latest and install-linux.sh are unaffected) with three assets:
+user-manual.html, manual-manifest.json (stamp, sha256, size, requires_program),
+and manual-manifest.sig (Ed25519 over the manifest bytes; private key at
+~/.config/numa-signing/manual_signing_key.pem, only the public key is baked
+into manual_update.py). Downloads install to <data dir>/manual/, are
+re-verified on every serve, and win only while newer than the baked-in
+manual's stamp. /manual skips rebuild_manual_if_stale() for downloaded copies
+(html-only, no .md). update_check now ignores non-"v" release tags.
+Publish with: python scripts/publish_manual.py [--dry-run].
+Anchor rule going forward: never remove or rename a manual anchor; keep old
+ids as aliases (older programs link into newer manuals).
+```
+-->
 
 ##### September 20 program updates
 
@@ -5546,7 +5576,7 @@ For each IAA, divide the pooled digestible amount (from Table I-5) by the refere
 | IAA | Pooled dig. (g) | Reference (g) | Ratio | Meets reference? |
 |-----|----------------:|--------------:|------:|:----------------:|
 | Histidine | 0.29355 | 0.21456 | 1.368 | Yes |
-| Isoleucine | 0.42785 | 0.40230 | 1.063 | Yes |
+| Isoleucine | 0.42785 | 0.40230 | 1.064 | Yes |
 | **Leucine** | **0.75305** | **0.81801** | **0.921** | **No — limiting** |
 | Lysine | 0.65995 | 0.64368 | 1.025 | Yes |
 | [Met+Cys](#gloss-met-cys) | 0.30795 | 0.30843 | 0.998 | Marginal (99.8%) |
@@ -5602,8 +5632,8 @@ To run the same analysis in [NuMa](#gloss-numa):
    - Add a second food: search for **quinoa cooked** → select [FDC](#gloss-fdc) 168917
      ("Quinoa, cooked")
    - Enter a portion of **100 g**
-3. Save the meal, then open it and select **View nutrition analysis**.
-4. In the analysis screen, scroll to the **Protein quality** section.
+3. Save the meal and open it. The meal page itself is the analysis screen.
+4. Scroll to **Protein Summary** (total protein and DCP) and **Protein Analysis (DIAAS)** (composite score and per-IAA ratios), or click those headings in the side outline.
 
 [NuMa](#gloss-numa) will display:
 - Total protein
@@ -5627,11 +5657,11 @@ The steps above validate [DIAAS](#gloss-diaas)/[DCP](#gloss-dcp) for a fixed, us
 | Isoleucine | 1.011 | No |
 | **Leucine** | **0.827** | **Yes — primary (lowest)** |
 | Lysine | 0.962 | No |
-| [Met+Cys](#gloss-met-cys) | 1.336 | No |
+| [Met+Cys](#gloss-met-cys) | 1.335 | No |
 | [Phe+Tyr](#gloss-phe-tyr) | 1.263 | No |
 | Threonine | 1.012 | No |
 | Tryptophan | 1.522 | No |
-| **Valine** | **0.894** | **Yes — secondary** |
+| **Valine** | **0.893** | **Yes — secondary** |
 
 (These scores use quinoa's own [DIAAS](#gloss-diaas)-context digestibility, 0.85 — a single food is scored at its own digestibility, unlike the pinto+quinoa *meal* used in Steps 1–7, where digestibility is applied after pooling. See [Protein Completeness](#complete).)
 
@@ -5648,9 +5678,9 @@ The steps above validate [DIAAS](#gloss-diaas)/[DCP](#gloss-dcp) for a fixed, us
           = 0.054765 / 0.0004119
           ≈ 132.96 g   →  NuMa displays **133 g** (rounded)
 
-**Checking the result.** Adding 133 g of black beans to the 100 g of quinoa gives a combined pool of 16.18 g protein. Recomputing every IAA ratio against this new pool (same method as Table I-7) shows both original gaps closed — and, as a side effect neither targeted directly, every other IAA stays comfortably clear too:
+**Checking the result.** Adding 133 g of black beans to the 100 g of quinoa gives a combined pool of 16.18 g protein. Recomputing every IAA ratio against this new pool (same method as Table I-7) shows both original gaps closed (the scores below are *raw* — multiply by quinoa's 0.85 for the adjusted figure, e.g. leucine 1.176 × 0.85 = 1.00, valine 1.214 × 0.85 = 1.03) — and, as a side effect neither targeted directly, every other IAA stays comfortably clear too:
 
-| IAA | New adjusted score | Gap? |
+| IAA | New raw score (before digestibility) | Gap? |
 |-----|--------------------:|:----:|
 | Histidine | 1.846 | No |
 | Isoleucine | 1.353 | No |

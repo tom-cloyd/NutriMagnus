@@ -71,6 +71,38 @@
   </form>
 </div>
 {% endif %}
+{% if manual_updated %}
+<div class="alert alert-success mt-4"><strong>MANUAL UPDATED.</strong> The User Manual you see under <a href="/manual">Manual</a> is now the newest version. No restart needed.</div>
+{% endif %}
+{% if manual_update_error %}
+<div class="alert alert-danger mt-4">
+  <strong>MANUAL UPDATE FAILED:</strong> {{ manual_update_error }} Nothing was changed.
+  <form method="post" action="/manual-update-now" class="mt-2 mb-0 d-inline">
+    <button type="submit" class="btn btn-sm btn-primary">Try again</button>
+  </form>
+  <a href="/manual#quickhelp" target="_blank" rel="noopener" class="ms-2">Getting more help</a>
+</div>
+{% endif %}
+{% if manual_update_available %}
+<div class="alert alert-info mt-4">
+  <strong>NEW USER MANUAL AVAILABLE:</strong> version {{ manual_update_available.stamp }}
+  (you have {{ manual_stamp or 'unknown' }}). This is separate from program updates — it doesn't change the program itself.
+  {% if manual_update_available.program_too_old %}
+  <br><small><strong>Heads up:</strong> this manual describes features from a newer version of NutriMagnus than the one you're running ({{ version }}), so some of what it describes may not be in your program yet.</small>
+  {% endif %}
+  <form method="post" action="/manual-update-now" class="mt-2 mb-0">
+    <button type="submit" class="btn btn-sm btn-primary">Update manual now</button>
+    <a href="{{ manual_update_available.url }}" target="_blank" rel="noopener" class="ms-2">details</a>
+  </form>
+  <form method="post" action="/manual-notice/ack-banner" class="mt-2 mb-0">
+    <input type="hidden" name="stamp" value="{{ manual_update_available.stamp }}">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="manual-notice-dismiss-checkbox" onchange="if(this.checked) this.form.requestSubmit();">
+      <label class="form-check-label" for="manual-notice-dismiss-checkbox">Don't show this again for this manual version.</label>
+    </div>
+  </form>
+</div>
+{% endif %}
 {% if unacked_errors %}
 <div class="alert alert-warning mt-4">
   <strong>{{ unacked_errors|length }} recalculation{{ 's' if unacked_errors|length != 1 }} failed</strong> and
@@ -95,8 +127,8 @@
     {% else %}
     Active profile: not set — <a href="/settings">configure under Settings</a>
     {% endif %}
-    <br>Current version date: {{ version_date }}{% if version_note %} (Version note: {{ version_note }} — <a href="/manual#a-recent-program-updates-log" target="_blank" rel="noopener">see what changed</a>){% endif %}
-    {% if not update_available %}
+    <br>Current manual version: {{ manual_stamp or 'unknown' }}<br>Current version date: {{ version_date }}{% if version_note %} (Version note: {{ version_note }} — <a href="/manual#a-recent-program-updates-log" target="_blank" rel="noopener">see what changed</a>){% endif %}
+    {% if not update_available and not manual_update_available %}
     — <form method="post" action="/check-for-updates" class="d-inline">
       <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Check for updates now</button>
     </form>

@@ -1,4 +1,4 @@
-.PHONY: help devserver build push push-release release-linux vm-setup build-windows upload-windows release-windows clean starter-data
+.PHONY: help devserver build push push-release release-linux upload-manual vm-setup build-windows upload-windows release-windows clean starter-data
 
 # Prints a usage summary of the available commands.
 help:
@@ -11,6 +11,7 @@ help:
 	@echo '   make starter-data   regenerate starter_data.json from "*"-marked DB content'
 	@echo '   make push-release   starter-data + push + release-linux, in that order'
 	@echo '   make release-linux  build, then create a GitHub release and upload the binary'
+	@echo '   make upload-manual  rebuild the User Manual, sign it, and publish it on its own (no program release)'
 	@echo '   make vm-setup       one-time: start the Windows build VM, serve setup files for it'
 	@echo '   make build-windows  build the Windows .exe via the headless build VM (needs vm-setup once)'
 	@echo '   make upload-windows upload dist-windows/nutrimagnus.exe to the latest GitHub release'
@@ -115,8 +116,8 @@ upload-windows:
 	$(eval RELEASE_ID := $(shell curl -s \
 	    -H "Authorization: Bearer $$GITHUB_TOKEN" \
 	    -H "Accept: application/vnd.github+json" \
-	    "https://api.github.com/repos/tom-cloyd/NutriMagnus/releases?per_page=1" \
-	    | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])"))
+	    "https://api.github.com/repos/tom-cloyd/NutriMagnus/releases?per_page=30" \
+	    | python3 -c "import json,sys; print(next(r['id'] for r in json.load(sys.stdin) if r['tag_name'].startswith('v')))"))
 	@echo "==> Uploading nutrimagnus.exe to GitHub release $(RELEASE_ID)..."
 	curl -s -X POST \
 	    -H "Authorization: Bearer $$GITHUB_TOKEN" \
@@ -129,6 +130,14 @@ upload-windows:
 
 # ── Windows: full release (build + upload) ───────────────────────────────────
 release-windows: build-windows upload-windows
+
+# ── User Manual: publish on its own, no program release ──────────────────────
+# Rebuilds user-manual.html, signs it, and uploads it to the rolling
+# "manual-latest" release. Bump line 3 of user-manual.md first. Needs
+# GITHUB_TOKEN, like release-linux. `make upload-manual DRY=1` builds and
+# signs without uploading.
+upload-manual:
+	.venv/bin/python3 scripts/publish_manual.py $(if $(DRY),--dry-run,)
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 # Note: nutrimagnus.spec is NOT removed here — it's hand-maintained and committed.

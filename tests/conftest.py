@@ -190,6 +190,9 @@ def no_update_check(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     from numa_app.services import update_check as _update_check
     monkeypatch.setattr(_update_check, "check_for_update", lambda *a, **kw: None)
+    from numa_app.services import manual_update as _manual_update
+    monkeypatch.setattr(_manual_update, "_fetch", lambda *a, **kw: None)
+    _manual_update.clear_cache()
 
 
 # ---------------------------------------------------------------------------

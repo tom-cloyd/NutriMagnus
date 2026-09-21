@@ -49,6 +49,7 @@ from numa_app.services.portions import _ing_amount_display, volume_hint
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
 from version import VERSION, NEW_VERSION_NOTE, RELEASE_VERSION
 from numa_app.services import update_check as _update_check
+from numa_app.services import manual_update as _manual_update
 from numa_app.services import self_update as _self_update
 from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
 from numa_app.services.rda_status import rda_status, limit_warning
@@ -1477,7 +1478,8 @@ def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set
 # ---------------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, updated: int = 0, update_error: str = ""):
+async def index(request: Request, updated: int = 0, update_error: str = "",
+                manual_updated: int = 0, manual_update_error: str = ""):
     diet_pref = _current_diet_pref()
     diet_label = _DIET_LABELS.get(diet_pref, diet_pref)
     profile = _profile.load_profile()
@@ -1501,6 +1503,11 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
     update_available = None if updated else await run_in_threadpool(_update_check.check_for_update, VERSION)
     if update_available and not _should_show_update_notice(update_available["tag"]):
         update_available = None
+    active_manual = _manual_update.get_active_manual(_MANUAL)
+    manual_update_available = None if manual_updated else await run_in_threadpool(
+        _manual_update.check_for_manual_update, active_manual["stamp"], VERSION)
+    if manual_update_available and _load_prefs_file().get("manual_notice_dismissed_stamp") == manual_update_available["stamp"]:
+        manual_update_available = None
     prefs = _load_prefs_file()
     home_plot_qs = prefs.get("home_nutrient_plot_qs") if prefs.get("home_nutrient_plot_enabled") else None
     # "Roll to last complete day" (see _nutrient_plot_params) truncates the
@@ -1525,8 +1532,32 @@ async def index(request: Request, updated: int = 0, update_error: str = ""):
             "self_update_available": _self_update.is_available(),
             "updated": updated,
             "update_error": update_error,
+            "manual_stamp": active_manual["stamp"],
+            "manual_update_available": manual_update_available,
+            "manual_updated": manual_updated,
+            "manual_update_error": manual_update_error,
         }
     )
+
+
+@app.post("/manual-update-now")
+async def manual_update_now():
+    """Download, verify, and install the newest published User Manual —
+    independent of program updates; see numa_app/services/manual_update.py.
+    Takes effect immediately (no relaunch)."""
+    current = _manual_update.get_active_manual(_MANUAL)["stamp"]
+    result = await run_in_threadpool(_manual_update.install_update, current)
+    if result["ok"]:
+        return RedirectResponse("/?manual_updated=1", status_code=303)
+    return RedirectResponse(f"/?{urlencode({'manual_update_error': result['error']})}", status_code=303)
+
+
+@app.post("/manual-notice/ack-banner", response_class=RedirectResponse)
+async def manual_notice_ack_banner(stamp: str = Form(...)):
+    """'Don't show this again' on the home-page manual-update banner —
+    dismisses only that exact manual version."""
+    _save_prefs_file({"manual_notice_dismissed_stamp": stamp})
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/update-now")
@@ -5560,7 +5591,8 @@ async def check_for_updates_now():
     dismissed a release and changed their mind (clears the dismissal) or
     doesn't want to wait for the periodic check's cache to refresh."""
     _update_check.clear_cache()
-    _save_prefs_file({"update_notice_dismissed_tag": ""})
+    _manual_update.clear_cache()
+    _save_prefs_file({"update_notice_dismissed_tag": "", "manual_notice_dismissed_stamp": ""})
     return RedirectResponse("/", status_code=303)
 
 
@@ -8407,10 +8439,13 @@ async def analysis_food_use_recipes_substitute(
 @app.get("/manual", response_class=HTMLResponse)
 async def manual(request: Request):
     from numa_app.services.manual_build import rebuild_manual_if_stale
+    # Rebuild only ever applies to the baked-in copy (it has a .md source
+    # beside it); a downloaded manual is html-only and must never be rebuilt.
     rebuild_manual_if_stale()
-    if not _MANUAL.exists():
+    active = _manual_update.get_active_manual(_MANUAL)
+    if not active["path"].exists():
         return HTMLResponse("<p>User manual not found. Run <code>make manual</code> to generate it.</p>", status_code=404)
-    return HTMLResponse(_MANUAL.read_text(encoding="utf-8"))
+    return HTMLResponse(active["path"].read_text(encoding="utf-8"))
 
 
 @app.get("/disclaimer", response_class=HTMLResponse)

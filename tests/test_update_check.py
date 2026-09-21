@@ -115,3 +115,11 @@ def test_result_is_cached_until_ttl_expires(monkeypatch):
     _uc.check_for_update("2026-08-31:0744")
     _uc.check_for_update("2026-08-31:0744")
     assert len(calls) == 1  # second call served from cache, no network hit
+
+
+def test_non_program_release_tag_is_not_an_update(monkeypatch):
+    """The rolling 'manual-latest' release must never trigger a program-update banner."""
+    from numa_app.services import update_check as uc
+    uc.clear_cache()
+    monkeypatch.setattr(uc, "_fetch_latest_release", lambda: {"tag_name": "z-manual-latest", "html_url": "x"})
+    assert uc.check_for_update("2026-01-01:0000") is None

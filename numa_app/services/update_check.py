@@ -96,7 +96,9 @@ def check_for_update(current_version: str) -> dict | None:
     if data:
         latest_tag = data.get("tag_name", "")
         current_tag = _tag_for(current_version)
-        if latest_tag and latest_tag > current_tag:
+        # Only program releases ("vYYYY-MM-DD-HHMM") count; other tags (e.g. the
+        # rolling "manual-latest" manual release) are not program updates.
+        if latest_tag.startswith("v") and latest_tag > current_tag:
             result = {
                 "tag": latest_tag,
                 "url": data.get("html_url", ""),

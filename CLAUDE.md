@@ -123,6 +123,9 @@ numa_app/
                          it to a packaged (PyInstaller) Linux install only
     top_contributors.py — rank a meal's/recipe's ingredients by contribution to
                          one nutrient, for the "Top Contributors" analysis section
+    manual_update.py    — check/download/serve a newer User Manual than the baked-in
+                         one, independently of program updates; Ed25519-verified
+                         (published by scripts/publish_manual.py)
     update_check.py      — check_for_update(): GitHub latest-release check for
                          the home-page "update available" banner; cached
                          in-process, fails silently offline

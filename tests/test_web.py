@@ -3943,3 +3943,36 @@ def test_food_cache_portions_move_swaps_order_and_renumbers_shortcuts(client: Te
     assert re.search(r"p1</code>\s*</td>\s*<td>1 slice", page.text)
     assert re.search(r"p2</code>\s*</td>\s*<td>1 cup", page.text)
 
+
+
+def test_home_page_manual_update_banner_is_separate_and_dismissible(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A newer signed manual gets its own banner — independent of the
+    program-update banner — with a too-old-program warning and its own
+    per-version dismissal."""
+    from numa_app.services import manual_update as _mu
+
+    found = {"stamp": "2099-01-01:0000", "requires_program": "2099-01-01:0000",
+             "program_too_old": True, "url": _mu.RELEASE_PAGE_URL}
+    monkeypatch.setattr(_mu, "check_for_manual_update", lambda *a, **kw: found)
+    resp = client.get("/")
+    assert "NEW USER MANUAL AVAILABLE:" in resp.text
+    assert "UPDATE AVAILABLE:" not in resp.text.replace("NEW USER MANUAL AVAILABLE:", "")
+    assert "describes features from a newer version" in resp.text
+    assert "Update manual now" in resp.text
+
+    client.post("/manual-notice/ack-banner", data={"stamp": "2099-01-01:0000"})
+    assert "NEW USER MANUAL AVAILABLE:" not in client.get("/").text
+
+
+def test_manual_route_serves_verified_downloaded_manual(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path,
+) -> None:
+    from numa_app.services import manual_update as _mu
+
+    fake = tmp_path / "dl.html"
+    fake.write_text("<html>DOWNLOADED MANUAL</html>", encoding="utf-8")
+    monkeypatch.setattr(_mu, "get_active_manual", lambda baked: {"path": fake, "stamp": "2099-01-01:0000",
+                                                               "source": "downloaded", "requires_program": "x"})
+    assert "DOWNLOADED MANUAL" in client.get("/manual").text
