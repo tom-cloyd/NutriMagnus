@@ -1,4 +1,5 @@
 {% import "_ul_column.html" as _ul %}
+{% import "_rda_goal_column.html" as _rdagoal %}
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_dcp_footnote.html" as _dcp_note %}
 <!DOCTYPE html>
@@ -30,6 +31,7 @@
     .status-met { color: #146c2e; }
     .status-gap { color: #a05a00; }
     .dcp-row td { font-style: italic; color: #444; }
+    .subtype-row td:first-child { padding-left: 1.5em; }
     .no-print { margin-top: 1.5rem; margin-bottom: 1.5rem; }
     .btn-print {
       display: inline-block; padding: 0.4rem 1.1rem; background: #1a3a6b; color: #fff;
@@ -214,6 +216,9 @@
       <th>Nutrient</th>
       <th class="num">{% if portion_label %}{{ portion_label }}{% else %}{{ amount }}&thinsp;g{% endif %}</th>
       <th>Unit</th>
+      {% if has_profile %}{{ _rdagoal.header('Minimum') }}{% endif %}
+        {% if has_profile %}{{ _rdagoal.header('Target') }}{% endif %}
+        {% if has_profile %}{{ _rdagoal.header('Maximum') }}{% endif %}
       {% if has_profile %}<th class="num">% of daily target</th>{% endif %}
       {% if has_optimal %}<th class="num">Revised Optimal goal</th><th class="num">% of Revised Optimal</th>{% endif %}
       {% if has_ul %}{{ _ul.header() }}{% endif %}
@@ -221,10 +226,13 @@
   </thead>
   <tbody>
     {% for row in section.rows %}
-    <tr{% if row.is_dcp_row %} class="dcp-row"{% endif %}>
+    <tr{% if row.is_dcp_row %} class="dcp-row"{% elif row.is_subtype %} class="subtype-row"{% endif %}>
       <td>{{ row.label }}</td>
       <td class="num">{{ row.value }}</td>
       <td class="muted">{{ row.unit }}</td>
+      {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
+        {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}
+        {% if has_profile %}{{ _rdagoal.cell(row.rda_maximum) }}{% endif %}
       {% if has_profile %}
       <td class="num">{% if row.pct is not none %}{{ row.pct | int }}% {{ rda_type_abbr(row.rda_type) }}{% else %}—{% endif %}</td>
       {% endif %}

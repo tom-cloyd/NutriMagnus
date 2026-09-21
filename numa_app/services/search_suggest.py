@@ -33,7 +33,7 @@ _TOKEN_RE = re.compile(r"[a-z']+")
 _MIN_TOKEN_LEN = 4
 # The local corpus (foods/pantry/recipes you've actually searched or added
 # before) is small and low-noise, so a looser cutoff there still gives good
-# matches; the bundled static datasets are ~7,600 generic food names — a
+# matches; the bundled static datasets are ~8,000 generic food names — a
 # stricter cutoff keeps that larger, noisier corpus from surfacing
 # unrelated words that merely share a lot of characters.
 _LOCAL_CUTOFF = 0.65

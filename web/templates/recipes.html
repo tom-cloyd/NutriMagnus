@@ -73,10 +73,10 @@
   <a href="/recipes/broken-refs" class="btn btn-sm btn-outline-secondary">Show broken recipe references</a>
 </div>
 <hr style="margin:1.5em 0 0 0">
-<h3 class="mb-2">Selected recipes in internal database
+<h3 class="mb-2">Recipes in internal database
   <small class="muted fw-normal" style="font-size:0.875rem">({{ total_count }} recipe{% if total_count != 1 %}s{% endif %} in database / {{ recipes|length }} shown{% if recipes|length != total_count %}, {{ total_count - recipes|length }} not shown{% endif %})</small>
 </h3>
-<table class="table table-sm table-hover">
+<table class="table table-sm table-hover" data-show-archived="{{ 'true' if show_archived else 'false' }}">
   <thead class="table-light">
     <tr>
       <th title="Select to add to Compare">Compare</th>
@@ -98,8 +98,8 @@
                name="recipe_id" value="{{ r.id }}" aria-label="Select {{ r.name }} to compare">
       </td>
       <td class="muted">{{ r.id }}</td>
-      <td><a href="/recipe/{{ r.id }}"><strong>{{ r.name }}</strong></a>
-        {% if r.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}
+      <td class="js-name-cell"><a href="/recipe/{{ r.id }}"><strong>{{ r.name }}</strong></a>
+        {% if r.archived %}<span class="badge bg-secondary ms-1 js-archived-badge">Archived</span>{% endif %}
       </td>
       <td class="muted"><small>{{ r.description or "—" }}</small></td>
       <td style="text-align:right">{{ r.servings }}{% if r.serving_size %}<br><small class="muted">{{ r.serving_size }}</small>{% endif %}</td>
@@ -115,13 +115,15 @@
         <form method="post" action="/recipe/{{ r.id }}/copy" style="display:inline">
           <button type="submit" class="btn btn-outline-secondary btn-sm">Copy</button>
         </form>
-        <form method="post" action="/recipe/{{ r.id }}/archive" style="display:inline">
+        <form method="post" action="/recipe/{{ r.id }}/archive" style="display:inline"
+              class="js-row-archive" data-archive-title="Hide from default lists and search, without losing it"
+              data-restore-title="Restore to normal use">
           <button type="submit" class="btn btn-outline-secondary btn-sm"
                   title="{% if r.archived %}Restore to normal use{% else %}Hide from default lists and search, without losing it{% endif %}">
             {% if r.archived %}Restore{% else %}Archive{% endif %}
           </button>
         </form>
-        <form method="post" action="/recipe/{{ r.id }}/delete" style="display:inline"
+        <form method="post" action="/recipe/{{ r.id }}/delete" style="display:inline" class="js-row-remove"
               onsubmit="return confirm('Delete {{ r.name | replace("'","&#39;") }}?')">
           <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
         </form>

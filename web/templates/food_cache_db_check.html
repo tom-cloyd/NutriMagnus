@@ -132,7 +132,7 @@
             </button>
           </form>
           {% endif %}
-          <form method="post" action="/food/cache/delete" style="display:inline">
+          <form method="post" action="/food/cache/delete" style="display:inline" class="js-row-remove">
             <input type="hidden" name="fdc_id" value="{{ r.fdc_id }}">
             <button type="submit" class="btn btn-sm btn-outline-danger"
                     onclick="return confirm('Delete {{ r.name | replace("'", "\\'") }} from cache? Refused if still in use.')">

@@ -1,0 +1,17 @@
+{# Shared "Minimum"/"Target"/"Maximum" columns for every nutrient-table
+   template — the actual RDA/AI-minimum, two-sided-target (calories only
+   today), or recommended-not-to-exceed (sodium only today) figure itself,
+   not just the %-of-it badge two columns over. Exactly one of the three
+   is ever filled per row, since a nutrient's RDA entry has exactly one
+   rda_type; the other two always show "—" for that row. header(label) for
+   the <th>, cell(value) for each row's <td> — value is row.rda_minimum,
+   row.rda_target, or row.rda_maximum as appropriate. Gated by has_profile
+   in the caller, same as the %-of-target column these sit next to. See
+   user-manual.md topic ?rda for what each column means. #}
+{% macro header(label) %}
+<th class="num-col">{{ label }}</th>
+{% endmacro %}
+
+{% macro cell(value) %}
+<td class="num-col muted">{{ value or '—' }}</td>
+{% endmacro %}

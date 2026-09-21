@@ -52,15 +52,18 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
                      hide_y_values: bool = False) -> bytes:
     """Render a line plot to image bytes (PNG or SVG). Each series dict:
     {"x": [...], "y": [...], "label": str, "color": str (optional),
-    "highlight": bool (optional), "goal": float (optional)}. All series
-    share the same x (a date string list); a missing value should be passed
-    as float("nan") so the line breaks instead of interpolating across the
-    gap.
+    "highlight": bool (optional), "goal": float (optional), "limit": float
+    (optional)}. All series share the same x (a date string list); a
+    missing value should be passed as float("nan") so the line breaks
+    instead of interpolating across the gap.
 
     A series with a numeric "goal" gets a horizontal dashed reference line
     drawn across the full plot width, in that series' own color, marking a
     fixed target level (e.g. a profile RDA/optimal target) rather than a
-    data point.
+    data point. A numeric "limit" gets the same treatment but dotted, for a
+    maximum/upper-limit level — kept visually distinct from "goal" so a
+    nutrient with both (e.g. a user-configured max alongside its RDA/optimal
+    target) reads as two different kinds of reference line, not a repeat.
 
     subtitle: an optional smaller line of text under the main title (e.g.
     explaining the goal dashed lines) — rendered as the figure's suptitle
@@ -113,6 +116,9 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
         goal = s.get("goal")
         if goal is not None:
             ax.axhline(y=goal, color=color, linestyle="--", linewidth=1)
+        limit = s.get("limit")
+        if limit is not None:
+            ax.axhline(y=limit, color=color, linestyle=":", linewidth=1)
     ax.set_xlabel(xlabel)
     if hide_y_values:
         ax.set_yticklabels([])

@@ -12,15 +12,18 @@ the exact names below (nutrimagnus, nutrimagnus.png) must stay in sync with
 that script.
 
 Release notes are pulled from user-manual.md's Appendix A ("Recent program
-updates log") section matching today's date (#### Month Day program updates),
-falling back to a generic message if that section doesn't exist yet (e.g. no
-manual changes were logged today).
+updates log") section, from the plain-language summary bullets under the
+"#### Next release" heading — falling back to a generic message if
+that list is empty. On success, that heading is renamed to
+"#### Release <tag> boundary" (marking the point in the log covered by this
+release) and a fresh empty "#### Next release" heading is added above
+it for the next round; individual dated entries below the boundary
+(##### Month Day program updates) are untouched.
 
 Requires GITHUB_TOKEN in the environment (inside GitHub Actions this is the
 automatic per-run token, granted `contents: write` by the workflow; for
 manual/local use, a personal access token with repo write scope).
 """
-import datetime
 import json
 import pathlib
 import sys
@@ -35,6 +38,7 @@ UPLOADS_BASE = f"https://uploads.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
 CHANGELOG_HEADING = "### A. Recent program updates log"
+RELEASE_TODO_HEADING = "#### Next release"
 
 # (asset name, file path, content type) — every release asset besides the notes.
 _ASSETS = [
@@ -55,8 +59,7 @@ def _tag_for(version_str: str) -> str:
     return "v" + version_str.replace(":", "-")
 
 
-def _release_notes_for_today() -> str:
-    today_heading = "#### " + datetime.date.today().strftime("%B %-d") + " program updates"
+def _release_notes() -> str:
     if not MANUAL_FILE.exists():
         return "Automated build from main."
     lines = MANUAL_FILE.read_text().splitlines()
@@ -68,7 +71,7 @@ def _release_notes_for_today() -> str:
             continue
         if not in_appendix:
             continue
-        if stripped == today_heading:
+        if stripped == RELEASE_TODO_HEADING:
             body_lines = []
             for later in lines[i + 1:]:
                 if later.startswith("#### ") or later.startswith("### "):
@@ -77,7 +80,44 @@ def _release_notes_for_today() -> str:
             body = "\n".join(body_lines).strip()
             if body:
                 return body
+            break
     return "Automated build from main."
+
+
+def _roll_release_boundary(tag: str) -> None:
+    """Rename "Next release" to a dated boundary for this release,
+    and add a fresh empty "Next release" above it for next time."""
+    if not MANUAL_FILE.exists():
+        return
+    lines = MANUAL_FILE.read_text().splitlines(keepends=True)
+    start = None
+    end = None
+    in_appendix = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == CHANGELOG_HEADING:
+            in_appendix = True
+            continue
+        if not in_appendix:
+            continue
+        if stripped == RELEASE_TODO_HEADING:
+            start = i
+            continue
+        if start is not None and (line.startswith("#### ") or line.startswith("### ")):
+            end = i
+            break
+    if start is None:
+        return
+    if end is None:
+        end = len(lines)
+    body = lines[start + 1:end]
+    new_lines = (
+        lines[:start]
+        + [f"{RELEASE_TODO_HEADING}\n", "\n", f"#### Release {tag} boundary\n"]
+        + body
+        + lines[end:]
+    )
+    MANUAL_FILE.write_text("".join(new_lines))
 
 
 def _api_request(url: str, token: str, *, method: str = "GET",
@@ -105,7 +145,7 @@ def main() -> int:
 
     version_str = _version()
     tag = _tag_for(version_str)
-    body = _release_notes_for_today()
+    body = _release_notes()
     payload = json.dumps({
         "tag_name": tag,
         "name": f"NutriMagnus {tag}",
@@ -127,6 +167,9 @@ def main() -> int:
 
     release_id = release["id"]
     print(f"Created release {tag} (id {release_id}).")
+
+    _roll_release_boundary(tag)
+    print(f"Rolled the manual's Recent program updates log boundary to {tag}.")
 
     # GitHub's asset-upload endpoint takes the raw file bytes as the body
     # (not multipart/form-data like Gitea/Codeberg) with the filename as a

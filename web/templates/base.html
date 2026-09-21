@@ -708,5 +708,87 @@
     });
   }
   </script>
+  <script>
+  (function () {
+    // Row-action forms (archive/restore/remove/delete buttons on a filtered/
+    // sorted/searched list — recipes, pantry, food cache, etc.) submit via
+    // fetch instead of a normal POST-and-redirect, so acting on one row deep
+    // in a search result doesn't reload the whole list back to its default
+    // view and lose the q/sort/show_archived state (there's no clean way to
+    // round-trip that through a redirect without duplicating it on every
+    // form). Marked class="js-row-remove" (always removes the row) or
+    // class="js-row-archive" (toggles archived state; removes the row only
+    // if the enclosing [data-show-archived] table isn't currently showing
+    // archived items). Falls back to a real submit — full navigation — if
+    // the fetch fails or the server reports the action didn't go through
+    // (e.g. a blocked delete needs its full explanation on the reloaded page).
+    function handleRowForm(form, onSuccess) {
+      form.addEventListener('submit', function (e) {
+        // An inline onsubmit="return confirm(...)" (delete buttons) runs
+        // before this listener (registered earlier, in document order) and
+        // already calls preventDefault() if the user cancelled — respect that
+        // instead of firing the request anyway.
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        fetch(form.action, {
+          method: 'POST',
+          headers: { 'X-Numa-Ajax': '1' },
+          body: new FormData(form),
+        })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+          .then(function (data) {
+            if (!data.ok) { form.submit(); return; }
+            onSuccess(data);
+          })
+          .catch(function () { form.submit(); });
+      });
+    }
+
+    document.querySelectorAll('form.js-row-remove').forEach(function (form) {
+      handleRowForm(form, function () {
+        var row = form.closest('tr') || form.closest('[data-row]');
+        if (row) row.remove();
+      });
+    });
+
+    document.querySelectorAll('form.js-row-archive').forEach(function (form) {
+      handleRowForm(form, function (data) {
+        var row = form.closest('tr') || form.closest('[data-row]');
+        if (!row) return;
+        var table = form.closest('[data-show-archived]');
+        var showingArchived = table && table.getAttribute('data-show-archived') === 'true';
+        if (data.archived && !showingArchived) {
+          row.remove();
+          return;
+        }
+        var btn = form.querySelector('button[type=submit]');
+        var badge = row.querySelector('.js-archived-badge');
+        if (data.archived) {
+          row.classList.add('text-muted');
+          if (!badge) {
+            var nameCell = row.querySelector('.js-name-cell');
+            if (nameCell) {
+              badge = document.createElement('span');
+              badge.className = 'badge bg-secondary ms-1 js-archived-badge';
+              badge.textContent = 'Archived';
+              nameCell.appendChild(badge);
+            }
+          }
+          if (btn) {
+            btn.textContent = 'Restore';
+            btn.title = form.dataset.restoreTitle || 'Restore to normal use';
+          }
+        } else {
+          row.classList.remove('text-muted');
+          if (badge) badge.remove();
+          if (btn) {
+            btn.textContent = 'Archive';
+            btn.title = form.dataset.archiveTitle || 'Archive';
+          }
+        }
+      });
+    });
+  })();
+  </script>
 </body>
 </html>

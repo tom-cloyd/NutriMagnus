@@ -114,6 +114,18 @@
       {% endif %}
     </div>
 
+    <div class="mb-3">
+      <label for="glucose_tolerance" class="form-label">Glycemic index lookup default {{ manual_link("gi") }}</label>
+      <select class="form-select" id="glucose_tolerance" name="glucose_tolerance" style="max-width:28rem">
+        <option value="" {{ 'selected' if not profile or not profile.glucose_tolerance }}>Not set — show both when looking up a food's GI</option>
+        <option value="normal" {{ 'selected' if profile and profile.glucose_tolerance == 'normal' }}>Normal glucose tolerance</option>
+        <option value="impaired" {{ 'selected' if profile and profile.glucose_tolerance == 'impaired' }}>Impaired glucose tolerance / diabetes</option>
+      </select>
+      <p class="muted mt-1"><small>Sets which population's values the glycemic index lookup (on each food's Annotate page)
+      shows first. You can still switch to the other population, or see both, for any individual lookup — this only
+      sets the default.</small></p>
+    </div>
+
     <button type="submit" class="btn btn-primary">Save profile</button>
   </form>
 </details>
@@ -302,7 +314,7 @@
         <td class="text-end">{{ "%.2f"|format(ov.digestibility) }}</td>
         <td class="muted">{{ ov.notes or "—" }}</td>
         <td>
-          <form method="post" action="/settings/diaas-override/delete" style="margin:0">
+          <form method="post" action="/settings/diaas-override/delete" style="margin:0" class="js-row-remove">
             <input type="hidden" name="food_name" value="{{ ov.food_name }}">
             <button type="submit" class="btn btn-outline-danger btn-sm"
                     aria-label="Delete override">&#x2715;</button>

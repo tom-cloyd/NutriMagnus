@@ -476,10 +476,10 @@ def test_food_detail_protein_summary_uses_default_digestibility_without_diaas_re
     assert "DIAAS&thinsp;0.82" in resp.text or "DIAAS 0.82" in resp.text
 
 
-def test_food_detail_ul_column_has_asterisk_and_footnote(client: TestClient, cached_food) -> None:
+def test_food_detail_ul_column_has_footnote(client: TestClient, cached_food) -> None:
     resp = client.get(f"/food/{cached_food['fdcId']}")
     assert resp.status_code == 200
-    assert "UL*" in resp.text
+    assert ">UL<" in resp.text
     assert "Tolerable Upper Intake Level" in resp.text
     assert "Nutrient Targets" in resp.text
 
@@ -1956,6 +1956,30 @@ def test_recipe_archive_hides_and_restore_reveals(client: TestClient, db_conn) -
     assert "Soup" in resp.text
 
 
+def test_recipe_archive_and_delete_ajax_row_action_returns_json(client: TestClient, db_conn) -> None:
+    """Row-action forms on list pages (recipes/pantry/food cache) submit via
+    fetch with an X-Numa-Ajax header so the list doesn't reload and lose its
+    current search/sort/filter state — see the js-row-archive/js-row-remove
+    handler in base.html. That path gets a small JSON reply instead of the
+    normal redirect."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Soup", "servings": 1}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+
+    resp = client.post(f"/recipe/{recipe_id}/archive", headers={"X-Numa-Ajax": "1"})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True, "archived": True, "still_used": False}
+    assert db_conn.execute(
+        "SELECT archived FROM recipes WHERE id = ?", (recipe_id,)
+    ).fetchone()["archived"] == 1
+
+    resp = client.post(f"/recipe/{recipe_id}/delete", headers={"X-Numa-Ajax": "1"})
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert db_conn.execute("SELECT id FROM recipes WHERE id = ?", (recipe_id,)).fetchone() is None
+
+
 def _make_recipe(client: TestClient, name: str, servings: float, fdc_id: int, food_name: str,
                   portion_str: str) -> int:
     recipe_id = int(
@@ -2713,7 +2737,7 @@ def test_substitute_rejects_unknown_replacement(client: TestClient, cached_food:
     assert "error=" in resp.headers["location"]
 
 
-def test_food_annotate_edit_skip_forever_and_clear(client: TestClient, cached_food, db_conn) -> None:
+def test_food_annotate_edit_skip_forever(client: TestClient, cached_food, db_conn) -> None:
     resp = client.post(
         f"/food/annotate/{cached_food['fdcId']}",
         data={"gi_estimate": "55", "diaas_estimate": "0.9"},
@@ -2733,6 +2757,51 @@ def test_food_annotate_edit_skip_forever_and_clear(client: TestClient, cached_fo
     ).fetchone()
     assert ann["gi_no_prompt"] == 1
 
+
+class TestParseAnchorOverrides:
+    # _parse_anchor_overrides() (the "pin a complement suggestion's graduated
+    # table to your own serving size" form fields) had zero test coverage.
+
+    def test_zips_names_and_grams(self):
+        result = backend._parse_anchor_overrides(["Sesame Seeds"], ["25"])
+        assert result == {"sesame seeds": 25.0}
+
+    def test_skips_blank_name_or_grams(self):
+        assert backend._parse_anchor_overrides(["", "Chia"], ["10", ""]) == {}
+
+    def test_skips_non_numeric_grams(self):
+        assert backend._parse_anchor_overrides(["Chia"], ["not-a-number"]) == {}
+
+    def test_skips_non_positive_grams(self):
+        assert backend._parse_anchor_overrides(["Chia", "Sesame"], ["0", "-5"]) == {}
+
+    def test_multiple_pairs(self):
+        result = backend._parse_anchor_overrides(
+            ["Chia Seeds", "Sesame Seeds"], ["15", "25"]
+        )
+        assert result == {"chia seeds": 15.0, "sesame seeds": 25.0}
+
+
+def test_food_annotate_gi_lookup_returns_candidates(client: TestClient, cached_food) -> None:
+    resp = client.get(f"/food/annotate/{cached_food['fdcId']}/gi-lookup?q=banana&population=both")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["results"]
+    assert all("gi_glucose" in r for r in body["results"])
+
+
+def test_food_annotate_gi_lookup_blank_query(client: TestClient, cached_food) -> None:
+    resp = client.get(f"/food/annotate/{cached_food['fdcId']}/gi-lookup?q=&population=both")
+    assert resp.status_code == 200
+    assert resp.json()["results"] == []
+
+
+def test_food_annotate_clear(client: TestClient, cached_food, db_conn) -> None:
+    client.post(
+        f"/food/annotate/{cached_food['fdcId']}",
+        data={"gi_estimate": "55"},
+        follow_redirects=False,
+    )
     resp = client.post(f"/food/annotate/{cached_food['fdcId']}/clear", follow_redirects=False)
     assert resp.status_code == 303
     assert db_conn.execute(
@@ -3160,6 +3229,35 @@ def test_nutrient_table_shows_dcp_row_and_color_legend(client: TestClient, db_co
     assert "rda-met" in html or "rda-near" in html or "rda-low" in html
 
 
+def test_nutrient_table_indents_carb_and_fat_subtypes(client: TestClient, db_conn):
+    """Fiber/Sugar are subsets of Carbohydrates, not additional to it, and the
+    three fat types are subsets of Total Fat — the nutrient table now marks
+    those rows with the subtype-row CSS class (indented) rather than showing
+    them as flat, same-looking rows."""
+    import json as _json
+    nutrients = dict(SAMPLE_NUTRIENTS)
+    nutrients.update({
+        "fiber_g": 5.0, "sugar_g": 6.0,
+        "mono_fat_g": 3.0, "poly_fat_g": 3.0,
+    })
+    fdc_id = 999005
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (fdc_id, "Chicken, broilers or fryers, breast, meat only, raw", "SR Legacy", None, 100.0, "g", _json.dumps(nutrients), "[]"),
+    )
+    db_conn.commit()
+    resp = client.get(f"/food/{fdc_id}", params={"amount": "100"})
+    assert resp.status_code == 200
+    html = resp.text
+    assert html.count("subtype-row") == 5  # Fiber, Sugars, Saturated/Mono/Polyunsaturated Fat
+    for label in ("Fiber", "Sugars", "Saturated Fat", "Monounsaturated Fat", "Polyunsaturated Fat"):
+        assert label in html
+    # Carbohydrate and Total Fat themselves are the parent rows, not subtypes.
+    carb_row = re.search(r'<tr class="[^"]*">\s*<td>Carbohydrate</td>', html)
+    assert carb_row is not None and "subtype-row" not in carb_row.group(0)
+
+
 def test_home_page_shows_release_version(client: TestClient) -> None:
     """Weekly-sweep gap: RELEASE_VERSION (a hand-maintained SemVer label
     shown alongside the build-stamp VERSION on the home page) had no
@@ -3545,6 +3643,18 @@ def test_nutrient_plot_plot_button_and_wording(client: TestClient, cached_food) 
     assert "alert-info" in text or "alert-success" in text
 
 
+def test_nutrient_plot_clear_nutrients_button_and_gap_note(client: TestClient) -> None:
+    """The "Clear all nutrient checkmarks" control and the always-visible
+    note explaining that only days with no logged meal leave a gap (not
+    incomplete-but-logged days) are both present regardless of whether a
+    plot is currently showing."""
+    r = client.get("/summary/nutrient-plot")
+    text = r.text
+    assert 'id="clear-nutrient-checkmarks"' in text
+    assert "Clear all nutrient checkmarks" in text
+    assert "a day with no meal logged at all is simply skipped" in text
+
+
 def test_nutrient_plot_scale_factor_auto_link(client: TestClient, cached_food) -> None:
     """The "Auto" link next to Scale factor only shows once a value has
     actually been set (nothing to reset to auto otherwise) — clicking it
@@ -3698,6 +3808,27 @@ def test_nutrient_plot_image_renders_goal_lines(client: TestClient, cached_food)
                 follow_redirects=False)
 
     img = client.get("/summary/nutrient-plot/image?nutrients=dcp&nutrients=calories")
+    assert img.status_code == 200
+    assert img.headers["content-type"] == "image/png"
+
+
+def test_nutrient_plot_image_renders_limit_lines(client: TestClient, cached_food) -> None:
+    """The plot image endpoint succeeds for a nutrient with a built-in
+    Tolerable Upper Intake Level (vitamin C) and picks up a user-configured
+    max limit override too — exercising the dotted-limit-line/subtitle code
+    path end to end, not just checking it doesn't raise."""
+    profile = _profile.load_profile()
+    profile.max_limits = {"sodium_mg": 1800.0}
+    _profile.save_profile(profile)
+
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    img = client.get("/summary/nutrient-plot/image?nutrients=vitamin_c_mg&nutrients=sodium_mg")
     assert img.status_code == 200
     assert img.headers["content-type"] == "image/png"
 

@@ -52,8 +52,13 @@ import_foods.py         — import manually-compiled food records (see
                          numa_app/services/food_import.py) into the food cache
 import_json_folder.py   — import one food per JSON file dropped into
                          food_imports/ (same shape/rules as import_foods.py)
-import_gi_seed.py       — seed glycemic-index estimates onto matching cached
-                         foods, from a published GI/GL reference table
+import_gi_seed.py       — bulk-apply exact-name GI matches from a small
+                         62-item starter set (see gi_lookup.py for the full
+                         reference table, used by the web Annotate page)
+gi_lookup.py            — fuzzy name search over the full Foster-Powell GI
+                         reference table (gi_data.json, built by
+                         scripts/build_gi_data.py); powers the web Annotate
+                         page's GI lookup
 numa_gen_prompt.py      — generate a Claude nutrition-data request prompt
                          (interactive, --pantry, or from a food-list file)
 numa_import_claude.py   — parse a Claude nutrition response (```json blocks)

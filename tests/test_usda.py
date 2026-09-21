@@ -2073,3 +2073,38 @@ class TestGetDensityGPerMl:
         assert _usda.get_density_g_per_ml(
             "Unknown Food T", [{"description": "1 tablespoon", "gram_weight": 29.6}]
         ) is None
+
+
+class TestHasConfirmedAaData:
+    # has_confirmed_aa_data()/aa_indicator() distinguish "no nutrient data
+    # cached at all" from "genuinely protein-free" — has_amino_acid_data()
+    # alone treats both as "AA data not needed here" (True), which is only
+    # correct for the second case. No test existed for either helper despite
+    # 8+ production call sites depending on the distinction (Food Cache,
+    # Pantry, Compare, meal AA refresh, recipe complement fallback, ...).
+
+    def test_no_macro_data_at_all_is_not_confirmed(self):
+        assert _usda.has_confirmed_aa_data({}) is False
+
+    def test_genuinely_protein_free_food_with_macros_is_confirmed(self):
+        nutrients = {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}
+        assert _usda.has_confirmed_aa_data(nutrients) is True
+
+    def test_protein_present_with_five_plus_amino_acids_is_confirmed(self):
+        nutrients = dict(SAMPLE_NUTRIENTS)
+        assert nutrients.get("protein_g", 0) > 0
+        assert _usda.has_confirmed_aa_data(nutrients) is True
+
+    def test_protein_present_with_no_amino_acids_is_not_confirmed(self):
+        nutrients = {"calories": 100, "protein_g": 5.0, "carbs_g": 10, "fat_g": 2}
+        assert _usda.has_confirmed_aa_data(nutrients) is False
+
+    def test_aa_indicator_warns_on_no_macro_data(self):
+        assert _usda.aa_indicator({}) == "⚠"
+
+    def test_aa_indicator_confirms_real_aa_data(self):
+        assert _usda.aa_indicator(dict(SAMPLE_NUTRIENTS)) == "✓"
+
+    def test_aa_indicator_flags_missing_aa_data_when_macros_present(self):
+        nutrients = {"calories": 100, "protein_g": 5.0, "carbs_g": 10, "fat_g": 2}
+        assert _usda.aa_indicator(nutrients) == "✗"

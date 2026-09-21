@@ -56,6 +56,7 @@ class UserProfile:
     height_unit: str = "cm"        # "cm" or "imperial" — controls display
     name: str = "Default"          # profile display name; also used as filename stem
     use_oxalate_data: bool = False  # enable Harvard oxalate data lookup for foods
+    glucose_tolerance: str = ""    # "", "normal", or "impaired" — default population for GI table lookup
     optimal_targets: dict = field(default_factory=dict)  # nutrient_key -> per-day target, native unit
     max_limits: dict = field(default_factory=dict)       # nutrient_key -> per-day cap, native unit
 
@@ -251,6 +252,7 @@ def load_profile(name: str | None = None) -> Optional[UserProfile]:
             height_unit=str(data.get("height_unit", "cm")),
             name=str(data.get("name", name)),
             use_oxalate_data=bool(data.get("use_oxalate_data", False)),
+            glucose_tolerance=str(data.get("glucose_tolerance", "")),
             optimal_targets=dict(data.get("optimal_targets") or {}),
             max_limits=dict(data.get("max_limits") or {}),
         )

@@ -78,6 +78,18 @@
         document.getElementById('nutrient-plot-form').requestSubmit();
       });
     }
+    // Unchecks every nutrient checkbox without submitting — unlike the
+    // Auto links above, clearing nutrients is meant as a starting point for
+    // picking a fresh set, not an action to plot immediately.
+    var clearNutrients = document.getElementById('clear-nutrient-checkmarks');
+    if (clearNutrients) {
+      clearNutrients.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.querySelectorAll('#nutrient-plot-form input[name="nutrients"]').forEach(function (cb) {
+          cb.checked = false;
+        });
+      });
+    }
   });
 })();
 </script>
@@ -90,6 +102,8 @@
 
 <h2 id="nutrient-plot-heading">Nutrient Plot {{ manual_link("nutrient-plot") }}</h2>
 <p class="muted">Line plot of one or more nutrients from your logged days, day on the x-axis.</p>
+<p class="muted">Any nutrient with a profile target automatically gets a dashed reference line for its goal (Optimal target, or RDA/AI) and a dotted reference line for its maximum limit, if either is set — so you can see at a glance whether your actual intake is tracking toward, or drifting past, where you want it to be.</p>
+<p class="muted">Every logged day appears, whether or not its meals are marked complete — a day with no meal logged at all is simply skipped, leaving a gap in the line rather than a false drop to zero. Completeness only matters if you check "Always end on last complete day" below: that controls where the plot currently ends, not which days in between it shows.</p>
 
 {% if has_plot or home_plot_enabled_elsewhere %}
 <form method="post" action="/summary/nutrient-plot/home-pref" id="home-pref-form">
@@ -107,7 +121,9 @@
 <form method="get" action="/summary/nutrient-plot" class="mb-3" id="nutrient-plot-form">
   <div class="mb-2 d-flex flex-wrap gap-4 align-items-start">
     <div style="flex-shrink:0">
-      <span class="form-label d-block"><strong>Nutrients</strong> <small class="muted">(up to {{ max_nutrients }})</small></span>
+      <span class="form-label d-block"><strong>Nutrients</strong> <small class="muted">(up to {{ max_nutrients }})</small>
+        <a href="#" id="clear-nutrient-checkmarks" class="muted" style="font-size:0.75em">Clear all nutrient checkmarks</a>
+      </span>
       <div style="position:relative;max-width:28rem">
         <div style="display:flex;gap:1.5rem;max-height:16.5rem;overflow-y:auto;border:1px solid #d7dce4;border-radius:4px;padding:0.4rem 0.6rem 1.6rem 0.6rem">
           {% for col in available_nutrient_columns %}
@@ -160,7 +176,7 @@
             <label class="form-label mb-0" for="anchor_date"><strong>Ending on</strong></label>
             <input type="date" class="form-control form-control-sm" id="anchor_date" name="anchor_date"
                    value="{{ anchor_date }}" style="width:12rem" {% if rolling %}disabled{% endif %}>
-            {% if rolling %}<div><small class="muted">Always end on last complete day (see checkbox by Home page button below).</small></div>{% endif %}
+            {% if rolling %}<div><small class="muted">Always end on last complete day (see checkbox by Home page button).</small></div>{% endif %}
           </div>
           {% if rolling %}<input type="hidden" name="rolling" value="1">{% endif %}
         </div>

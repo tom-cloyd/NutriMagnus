@@ -169,7 +169,7 @@
 <p class="mb-2">
   <button type="submit" form="compare-pantry-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 8)</button>
 </p>
-<table class="table table-sm table-hover">
+<table class="table table-sm table-hover" data-show-archived="{{ 'true' if show_archived else 'false' }}">
   <thead class="table-light">
     <tr>
       <th title="Select to add to Compare">Compare</th>
@@ -193,14 +193,14 @@
                name="fdc_id" value="{{ item.fdc_id }}" aria-label="Select {{ item.food_name }} to compare">
         {% endif %}
       </td>
-      <td>
+      <td class="js-name-cell">
         {% if item.fdc_id %}
         <a href="/food/{{ item.fdc_id }}"><strong>{{ item.food_name }}</strong></a>
         {% else %}
         {{ item.food_name }}
         {% endif %}
         {{ food_id_tag(item.fdc_id) }}
-        {% if item.archived %}<span class="badge bg-secondary ms-1">Archived</span>{% endif %}
+        {% if item.archived %}<span class="badge bg-secondary ms-1 js-archived-badge">Archived</span>{% endif %}
       </td>
       <td>
         {% if item.fdc_id %}
@@ -243,13 +243,15 @@
           Edit
         </a>
         {% endif %}
-        <form method="post" action="/pantry/{{ item.id }}/archive" style="display:inline">
+        <form method="post" action="/pantry/{{ item.id }}/archive" style="display:inline"
+              class="js-row-archive" data-archive-title="Hide from complement suggestions, without losing it"
+              data-restore-title="Restore to normal use">
           <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
                   title="{% if item.archived %}Restore to normal use{% else %}Hide from complement suggestions, without losing it{% endif %}">
             {% if item.archived %}Restore{% else %}Archive{% endif %}
           </button>
         </form>
-        <form method="post" action="/pantry/remove/{{ item.id }}" style="display:inline">
+        <form method="post" action="/pantry/remove/{{ item.id }}" style="display:inline" class="js-row-remove">
           <button type="submit" class="btn btn-sm btn-outline-danger"
                   onclick="return confirm('Remove {{ item.food_name | replace("'", "\\'") }} from pantry?')">
             Remove

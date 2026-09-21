@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_ul_column.html" as _ul %}
+{% import "_rda_goal_column.html" as _rdagoal %}
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_rda_legend.html" as _rda_legend %}
 {% import "_dcp_footnote.html" as _dcp_note %}
@@ -78,6 +79,9 @@
       <th>Nutrient</th>
       <th class="num-col">{{ num_days }}-Day Avg</th>
       <th>Unit</th>
+      {% if has_profile %}{{ _rdagoal.header('Minimum') }}{% endif %}
+        {% if has_profile %}{{ _rdagoal.header('Target') }}{% endif %}
+        {% if has_profile %}{{ _rdagoal.header('Maximum') }}{% endif %}
       {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
       {% if has_optimal %}<th class="num-col">Revised Optimal goal</th><th class="num-col">% of Revised Optimal</th>{% endif %}
       {% if has_ul %}{{ _ul.header() }}{% endif %}
@@ -85,10 +89,13 @@
   </thead>
   <tbody>
     {% for row in section.rows %}
-    <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }}">
+    <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
       <td>{{ row.label }}</td>
       <td class="num-col">{{ row.value }}</td>
       <td class="muted">{{ row.unit }}</td>
+      {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
+        {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}
+        {% if has_profile %}{{ _rdagoal.cell(row.rda_maximum) }}{% endif %}
       {% if has_profile %}
       <td class="num-col">
         {% if row.pct is not none %}

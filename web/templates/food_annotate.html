@@ -97,6 +97,22 @@
         <input type="number" class="form-control" id="gi_estimate" name="gi_estimate"
                value="{{ annotation.gi_estimate if annotation and annotation.gi_estimate is not none else '' }}"
                min="0" max="100" step="0.1" placeholder="Leave blank if unknown">
+
+        <details class="mt-2" id="gi-lookup-details">
+          <summary class="muted">Look up a GI value from the published reference table {{ manual_link("gi") }}</summary>
+          <div class="border rounded p-2 mt-2" style="max-width:34rem">
+            <div class="input-group input-group-sm mb-2">
+              <input type="text" class="form-control" id="gi-lookup-query" value="{{ food_name }}" placeholder="Search food name…">
+              <select class="form-select" id="gi-lookup-population" style="max-width:12rem">
+                <option value="both" {{ 'selected' if gi_default_population == 'both' }}>Normal + Impaired</option>
+                <option value="normal" {{ 'selected' if gi_default_population == 'normal' }}>Normal glucose tolerance</option>
+                <option value="impaired" {{ 'selected' if gi_default_population == 'impaired' }}>Impaired glucose tolerance</option>
+              </select>
+              <button type="button" class="btn btn-outline-secondary" id="gi-lookup-search">Search</button>
+            </div>
+            <div id="gi-lookup-results" class="small"></div>
+          </div>
+        </details>
       </div>
 
       <div class="mb-3">
@@ -150,5 +166,55 @@
     {% endif %}
   </div>
 </div>
+
+<script>
+(function () {
+  var searchBtn = document.getElementById('gi-lookup-search');
+  if (!searchBtn) return;
+  var queryInput = document.getElementById('gi-lookup-query');
+  var popSelect  = document.getElementById('gi-lookup-population');
+  var resultsBox = document.getElementById('gi-lookup-results');
+  var giInput    = document.getElementById('gi_estimate');
+
+  function runSearch() {
+    var q = queryInput.value.trim();
+    if (!q) { resultsBox.innerHTML = ''; return; }
+    resultsBox.innerHTML = '<span class="muted">Searching…</span>';
+    var url = '/food/annotate/{{ fdc_id }}/gi-lookup?q=' + encodeURIComponent(q) +
+              '&population=' + encodeURIComponent(popSelect.value);
+    fetch(url).then(function (r) { return r.json(); }).then(function (data) {
+      var results = data.results || [];
+      if (!results.length) {
+        resultsBox.innerHTML = '<span class="muted">No matches found.</span>';
+        return;
+      }
+      var html = '<table class="table table-sm mb-0"><tbody>';
+      results.forEach(function (r, i) {
+        var popLabel = r.population === 'impaired' ? 'Impaired' : 'Normal';
+        html += '<tr>' +
+          '<td>' + r.name.replace(/</g, '&lt;') + '</td>' +
+          '<td class="text-nowrap">GI ' + r.gi_glucose + '</td>' +
+          '<td class="text-nowrap muted">' + popLabel + (r.ref ? ' · ref ' + r.ref : '') + '</td>' +
+          '<td><button type="button" class="btn btn-sm btn-outline-primary gi-pick" data-gi="' + r.gi_glucose + '">Use</button></td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      resultsBox.innerHTML = html;
+      resultsBox.querySelectorAll('.gi-pick').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          giInput.value = btn.getAttribute('data-gi');
+        });
+      });
+    }).catch(function () {
+      resultsBox.innerHTML = '<span class="text-warning">Lookup failed.</span>';
+    });
+  }
+
+  searchBtn.addEventListener('click', runSearch);
+  queryInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); runSearch(); }
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}

@@ -76,3 +76,16 @@ def test_app_template_links_resolve_to_real_routes_and_manual_anchors():
                 broken.append(f"{template.relative_to(_ROOT)}: {href} (no matching route)")
 
     assert not broken, "Dead links found in app templates:\n" + "\n".join(broken)
+
+
+def test_manual_internal_links_resolve_to_real_anchors():
+    """The manual-links half of item 8 — previously a manual-only weekly-sweep
+    check (README-numa-documentation.md), so a broken #anchor reference inside
+    user-manual.md itself could go unnoticed for weeks; caught one, #web-shortcuts,
+    on the 2026-09-20 sweep (two changelog entries referenced it, but the actual
+    keyboard-shortcuts passage in Part 1 Section B had never carried that id)."""
+    manual_anchors = _manual_anchors()
+    md_text = (_ROOT / "user-manual.md").read_text(encoding="utf-8")
+    refs = set(re.findall(r"\]\(#([A-Za-z0-9_\-]+)\)", md_text))
+    missing = sorted(refs - manual_anchors)
+    assert not missing, "user-manual.md links to nonexistent anchors:\n" + "\n".join(missing)

@@ -1,7 +1,11 @@
-{# Shared footer note for every nutrient-table template, defining "RDA" and
-   citing the source — shown once per page, right after the last table, only
-   when RDA data is actually present (has_profile). See user-manual.md topic
-   ?rda for the fuller version of this same explanation. #}
+{# Shared footer notes for every nutrient-table template, defining the
+   Minimum/Target/Maximum/UL columns and citing sources — shown once per
+   page, right after the last table, only when RDA data is actually present
+   (has_profile). See user-manual.md topic ?rda for the fuller version of
+   this same explanation. #}
 {% macro note() %}
-<p class="rda-footnote muted"><small>RDA = Recommended Dietary Allowance: "average daily level of intake sufficient to meet the nutrient requirements of nearly all (97&ndash;98%) healthy individuals" &mdash; not a bare minimum. Source: <a href="https://ods.od.nih.gov/HealthInformation/nutrientrecommendations.aspx" target="_blank" rel="noopener">NIH Office of Dietary Supplements, Nutrient Recommendations and Databases</a>. {{ manual_link("rda", "Learn more") }}</small></p>
+<p class="rda-footnote muted"><small><strong>Minimum</strong> = Recommended Dietary Allowance (RDA) or Adequate Intake (AI): "average daily level of intake sufficient to meet the nutrient requirements of nearly all (97&ndash;98%) healthy individuals" &mdash; not a bare-survival floor, a target to meet or exceed. Filled for almost every nutrient with an established DRI. Source: <a href="https://ods.od.nih.gov/HealthInformation/nutrientrecommendations.aspx" target="_blank" rel="noopener">NIH Office of Dietary Supplements, Nutrient Recommendations and Databases</a>. {{ manual_link("rda", "Learn more") }}</small></p>
+<p class="rda-footnote muted"><small><strong>Target</strong> = a two-sided ideal: aim close to this amount, not just above or below it (too little and too much are both a problem). Only Calories uses this today &mdash; every other nutrient tracked is a Minimum or a Maximum, never a Target. {{ manual_link("rda", "Learn more") }}</small></p>
+<p class="rda-footnote muted"><small><strong>Maximum</strong> = that nutrient's own recommended <em>not-to-exceed</em> amount &mdash; a lower, more clinically conservative figure than the separate UL column, not the same thing. Only Sodium uses this today (its Chronic Disease Risk Reduction target); every other Minimum-type nutrient has no Maximum column entry, and Sodium has no UL column entry &mdash; the two never appear together for one nutrient. {{ manual_link("rda", "Learn more") }}</small></p>
+<p class="rda-footnote muted"><small><strong>UL</strong> = Tolerable Upper Intake Level: the highest daily amount considered safe for nearly all healthy people &mdash; a ceiling to stay under, not a target to reach. Built-in defaults come from NIH/IOM's DRI summary tables (12 nutrients, some age-banded); set your own personal max limit under <a href="/settings">Settings &gt; Nutrient Targets</a> to override a nutrient's default or add one not built in. {{ manual_link("maxlimits", "Learn more") }}</small></p>
 {% endmacro %}

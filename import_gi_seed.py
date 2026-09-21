@@ -17,10 +17,15 @@ Usage:
 
 Matching is conservative on purpose: only an exact, case/punctuation-insensitive
 name match against the food cache is written automatically. Anything else is
-printed as a suggestion for you to confirm by hand via the Foods menu's
-"Annotate food" action (or the web /food/annotate page) — food names in this
-table are generic ("Lentils") while cache entries are specific USDA/OFF
-records, so fuzzy auto-assignment risks attaching the wrong value.
+printed as a suggestion, not applied — food names in this table are generic
+("Lentils") while cache entries are specific USDA/OFF records, so fuzzy
+auto-assignment risks attaching the wrong value.
+
+For anything beyond this script's 62 built-ins, use the full ~2,487-entry
+Foster-Powell appendix (both subject populations — normal and impaired
+glucose tolerance) via each food's own web /food/annotate/<fdc_id> page,
+which offers a proper multi-candidate picker (see gi_lookup.py) rather than
+a printed suggestion you have to act on by hand.
 """
 import re
 import sys

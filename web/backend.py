@@ -18,7 +18,7 @@ if not getattr(sys, "frozen", False):
 
 import markdown as _md
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
@@ -29,6 +29,7 @@ import cnf_api as _cnf
 import cofid_lookup as _cofid
 import db as _db
 import diaas as _diaas
+import gi_lookup as _gi_lookup
 import openfoodfacts as _off
 import platform_utils as _platform_utils
 import profile as _profile
@@ -287,6 +288,15 @@ def _save_prefs_file(updates: dict) -> None:
     data.update(updates)
     _PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
     _PREFS_FILE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+
+
+def _is_ajax_row_action(request: Request) -> bool:
+    """True when a row-action form (archive/restore/remove/delete on a list page)
+    was submitted via the base.html fetch() handler rather than a normal browser
+    POST — see the `js-row-remove`/`js-row-archive` script there. Callers branch
+    to a small JSON reply instead of a redirect, so the list page doesn't reload
+    and lose its current search/sort/filter state for a single row's change."""
+    return request.headers.get("x-numa-ajax") == "1"
 
 
 def _resolve_sort(sort: str | None, pref_key: str, default: str, valid: set[str]) -> str:
@@ -852,6 +862,13 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
     ]),
 ]
 
+# Nutrients that are subsets of another row in the same table (Fiber/Sugar of
+# Carbohydrates, the three fat types of Fat) rather than independent totals —
+# rendered indented under their parent via the "subtype-row" CSS class.
+_SUBTYPE_KEYS: set[str] = {
+    "fiber_g", "sugar_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+}
+
 # Nutrients offered for Profile Optimal / max-limit configuration in Settings.
 _NUTRIENT_TARGET_GROUPS: list[tuple[str, list[str]]] = [
     ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg",
@@ -918,10 +935,18 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                 continue
             label, unit = _usda.nutrient_label(key)
             pct = rda_type = rda_css_val = None
+            rda_minimum = rda_target = rda_maximum = None
             day_pct = day_rda_css = None
             if rda and key in rda:
-                rda_val, _rda_unit, rda_type = rda[key]
+                rda_val, rda_unit, rda_type = rda[key]
                 if rda_val and rda_val > 0:
+                    rda_goal = f"{rda_val:.1f} {rda_unit}"
+                    if rda_type == "minimum":
+                        rda_minimum = rda_goal
+                    elif rda_type == "target":
+                        rda_target = rda_goal
+                    elif rda_type == "limit":
+                        rda_maximum = rda_goal
                     pct = round(val / rda_val * 100, 0)
                     rda_css_val = _rda_css(pct, rda_type)
                     if daily_nutrients is not None:
@@ -962,6 +987,9 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                 "pct":          pct,
                 "rda_type":     rda_type,
                 "rda_css":      rda_css_val,
+                "rda_minimum":  rda_minimum,
+                "rda_target":   rda_target,
+                "rda_maximum":  rda_maximum,
                 "day_pct":      day_pct,
                 "day_rda_css":  day_rda_css,
                 "optimal_goal":     opt_goal,
@@ -977,6 +1005,7 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                 "ul_css":       ul_css,
                 "is_dcp_row":   False,
                 "dcp_incomplete": False,
+                "is_subtype":   key in _SUBTYPE_KEYS,
             })
             if key == "protein_g" and dcp_g is not None:
                 rows.append({
@@ -984,12 +1013,14 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                     "value":        dcp_g,
                     "unit":         unit,
                     "pct": None, "rda_type": None, "rda_css": None,
+                    "rda_minimum": None, "rda_target": None, "rda_maximum": None,
                     "day_pct": None, "day_rda_css": None,
                     "optimal_goal": None, "optimal_type": None, "optimal_pct": None, "optimal_css": None,
                     "optimal_day_pct": None, "optimal_day_css": None,
                     "limit_warn": None, "ul_val": None, "ul_display": None, "ul_pct": None, "ul_css": None,
                     "is_dcp_row":   True,
                     "dcp_incomplete": bool(dcp_missing),
+                    "is_subtype":   False,
                 })
         if rows:
             sections.append({"name": group_name, "rows": rows})
@@ -2289,16 +2320,23 @@ async def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
 
 
 @app.post("/food/cache/delete", response_class=RedirectResponse)
-async def food_cache_delete(fdc_id: int = Form(...), q: str = Form(""),
+async def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form(""),
                              sort: str = Form(""), show_archived: int = Form(0)):
     """Delete a cached food — refused if a pantry entry, recipe, or meal still
     references it, since that would silently orphan the reference (it would
     keep pointing at an fdc_id with no data behind it, breaking that food's
     page). Use Archive instead to hide a still-referenced food."""
     params = {"q": q, "sort": sort, "show_archived": show_archived}
+    ajax = _is_ajax_row_action(request)
     with _db.get_db() as conn:
         refs = _db.food_references(conn, fdc_id)
         if refs["pantry"] or refs["recipes"] or refs["meals"]:
+            if ajax:
+                # Blocked deletes need the full explanation page (which
+                # pantry entry/recipe/meal is holding it) — not worth
+                # reproducing that markup client-side, so fall back to a
+                # normal navigation for this one case.
+                return JSONResponse({"ok": False})
             params["delete_blocked"] = 1
             params["blocked_fdc_id"] = fdc_id
             if refs["pantry"]:
@@ -2309,6 +2347,8 @@ async def food_cache_delete(fdc_id: int = Form(...), q: str = Form(""),
                 params["blocked_meals"] = ",".join(str(i) for i in refs["meals"])
             return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
         _db.delete_cached_food(conn, fdc_id)
+    if ajax:
+        return JSONResponse({"ok": True})
     return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
 
 
@@ -2423,13 +2463,16 @@ async def food_cache_import_csv_post(request: Request,
 
 
 @app.post("/food/cache/{fdc_id}/archive", response_class=RedirectResponse)
-async def food_cache_archive(fdc_id: int, q: str = Form(""), sort: str = Form(""),
+async def food_cache_archive(request: Request, fdc_id: int, q: str = Form(""), sort: str = Form(""),
                               show_archived: int = Form(0)):
     """Archive or restore a cached food — flips whichever state it's currently in."""
     params = {"q": q, "sort": sort, "show_archived": show_archived}
+    ajax = _is_ajax_row_action(request)
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         if not cached:
+            if ajax:
+                return JSONResponse({"ok": False})
             return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
         newly_archived = not cached["archived"]
         still_used = 0
@@ -2437,6 +2480,8 @@ async def food_cache_archive(fdc_id: int, q: str = Form(""), sort: str = Form(""
             refs = _db.food_references(conn, fdc_id)
             still_used = int(bool(refs["pantry"] or refs["recipes"] or refs["meals"]))
         _db.set_food_archived(conn, fdc_id, newly_archived)
+    if ajax:
+        return JSONResponse({"ok": True, "archived": newly_archived, "still_used": bool(still_used)})
     params["archived" if newly_archived else "restored"] = 1
     if newly_archived and still_used:
         params["still_used"] = 1
@@ -2830,21 +2875,27 @@ async def pantry_add(
 
 
 @app.post("/pantry/remove/{pantry_id}", response_class=RedirectResponse)
-async def pantry_remove(pantry_id: int):
+async def pantry_remove(request: Request, pantry_id: int):
     with _db.get_db() as conn:
         _db.pantry_remove(conn, pantry_id)
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": True})
     return RedirectResponse("/pantry", status_code=303)
 
 
 @app.post("/pantry/{pantry_id}/archive", response_class=RedirectResponse)
-async def pantry_archive(pantry_id: int):
+async def pantry_archive(request: Request, pantry_id: int):
     """Archive or restore a pantry entry — flips whichever state it's currently in."""
     with _db.get_db() as conn:
         row = _db.pantry_get(conn, pantry_id)
         if not row:
+            if _is_ajax_row_action(request):
+                return JSONResponse({"ok": False})
             return RedirectResponse("/pantry", status_code=303)
         newly_archived = not row["archived"]
         _db.set_pantry_archived(conn, pantry_id, newly_archived)
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": True, "archived": newly_archived})
     flag = "archived=1" if newly_archived else "restored=1"
     return RedirectResponse(f"/pantry?{flag}", status_code=303)
 
@@ -3394,6 +3445,8 @@ async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "",
         cached = _db.get_cached_food(conn, fdc_id)
         ann = _db.get_food_annotation(conn, fdc_id)
     food_name = cached["name"] if cached else f"Food {fdc_id}"
+    profile = _profile.load_profile()
+    gi_default_population = profile.glucose_tolerance if profile and profile.glucose_tolerance else "both"
     return templates.TemplateResponse(request, "food_annotate.html", {
         "editing":   True,
         "fdc_id":    fdc_id,
@@ -3401,7 +3454,16 @@ async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "",
         "annotation": dict(ann) if ann else None,
         "saved":     bool(saved),
         "next":      next,
+        "gi_default_population": gi_default_population,
     })
+
+
+@app.get("/food/annotate/{fdc_id}/gi-lookup", response_class=JSONResponse)
+async def food_annotate_gi_lookup(fdc_id: int, q: str = "", population: str = "both"):
+    if population not in ("normal", "impaired", "both"):
+        population = "both"
+    results = _gi_lookup.search(q, population=population, limit=8)
+    return JSONResponse({"results": results})
 
 
 @app.post("/food/annotate/{fdc_id}", response_class=RedirectResponse)
@@ -5447,6 +5509,7 @@ async def settings_post(
     height_unit:    str   = Form("cm"),
     activity_level: str   = Form(...),
     use_oxalate_data: str | None = Form(None),
+    glucose_tolerance: str = Form(""),
 ):
     if height_unit == "imperial":
         height_cm_val = _profile.ftin_to_cm(height_ft, height_in)
@@ -5465,6 +5528,7 @@ async def settings_post(
         weight_unit=weight_unit,
         height_unit=height_unit,
         use_oxalate_data=bool(use_oxalate_data),
+        glucose_tolerance=glucose_tolerance if glucose_tolerance in ("normal", "impaired") else "",
         optimal_targets=dict(existing.optimal_targets) if existing else {},
         max_limits=dict(existing.max_limits) if existing else {},
     )
@@ -5537,9 +5601,11 @@ async def settings_diaas_override_post(
 
 
 @app.post("/settings/diaas-override/delete", response_class=RedirectResponse)
-async def settings_diaas_override_delete(food_name: str = Form(...)):
+async def settings_diaas_override_delete(request: Request, food_name: str = Form(...)):
     with _db.get_db() as conn:
         _diaas.diaas_override_delete(conn, food_name.strip())
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": True})
     return RedirectResponse("/settings?saved=diaas", status_code=303)
 
 
@@ -6627,9 +6693,11 @@ async def recipe_translation_print(
 
 
 @app.post("/recipe/{recipe_id}/translation/{translation_id}/delete", response_class=RedirectResponse)
-async def recipe_translation_delete(recipe_id: int, translation_id: int):
+async def recipe_translation_delete(request: Request, recipe_id: int, translation_id: int):
     with _db.get_db() as conn:
         _db.recipe_translation_delete(conn, translation_id)
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": True})
     return RedirectResponse(f"/recipe/{recipe_id}", status_code=303)
 
 
@@ -6826,18 +6894,22 @@ async def recipe_edit_post(
 
 
 @app.post("/recipe/{recipe_id}/delete", response_class=RedirectResponse)
-async def recipe_delete_post(recipe_id: int):
+async def recipe_delete_post(request: Request, recipe_id: int):
     with _db.get_db() as conn:
         _db.recipe_delete(conn, recipe_id)
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": True})
     return RedirectResponse("/recipes", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/archive", response_class=RedirectResponse)
-async def recipe_archive(recipe_id: int):
+async def recipe_archive(request: Request, recipe_id: int):
     """Archive or restore a recipe — flips whichever state it's currently in."""
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
+            if _is_ajax_row_action(request):
+                return JSONResponse({"ok": False})
             return RedirectResponse("/recipes", status_code=303)
         newly_archived = not recipe["archived"]
         still_used = 0
@@ -6846,6 +6918,8 @@ async def recipe_archive(recipe_id: int):
             refs = _db.recipe_references(conn, recipe_id)
             still_used = int(bool(referencing or refs["meals"]))
         _db.set_recipe_archived(conn, recipe_id, newly_archived)
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": True, "archived": newly_archived, "still_used": bool(still_used)})
     flag = "archived=1" if newly_archived else "restored=1"
     suffix = f"&still_used={still_used}" if newly_archived and still_used else ""
     return RedirectResponse(f"/recipes?{flag}{suffix}", status_code=303)
@@ -7305,6 +7379,8 @@ def _apply_plot_scale_factor(series: list[dict], factor: float) -> list[dict]:
                       "label": f"{s['label']} ÷{_fmt_plot_factor(factor)}", "scaled": True}
             if s.get("goal") is not None:
                 new_s["goal"] = s["goal"] / factor
+            if s.get("limit") is not None:
+                new_s["limit"] = s["limit"] / factor
             scaled.append(new_s)
     return scaled
 
@@ -7344,6 +7420,8 @@ def _apply_individual_factors(series: list[dict], factors: dict[str, float]) -> 
                       "label": f"{s['label']} ×{_fmt_plot_factor(k)}", "scaled": True}
             if s.get("goal") is not None:
                 new_s["goal"] = s["goal"] * k
+            if s.get("limit") is not None:
+                new_s["limit"] = s["limit"] * k
             out.append(new_s)
     return out
 
@@ -7390,6 +7468,10 @@ def _nutrient_plot_raw_series(conn, chosen: list[str], dates: list[str],
 
 
 _NUTRIENT_PLOT_GOAL_SUBTITLE = "(Dashed lines indicate profile goal levels)"
+_NUTRIENT_PLOT_LIMIT_SUBTITLE = "(Dotted lines indicate maximum limit levels)"
+_NUTRIENT_PLOT_GOAL_AND_LIMIT_SUBTITLE = (
+    "(Dashed lines indicate profile goal levels; dotted lines indicate maximum limit levels)"
+)
 
 
 def _nutrient_plot_goal(profile, diet_pref: str, key: str) -> float | None:
@@ -7421,6 +7503,26 @@ def _nutrient_plot_add_goals(series: list[dict], profile, diet_pref: str) -> lis
     auto-assigned), so the two always match without this needing to know
     the plot's color-assignment order itself."""
     return [({**s, "goal": goal} if (goal := _nutrient_plot_goal(profile, diet_pref, s["key"])) is not None else s)
+            for s in series]
+
+
+def _nutrient_plot_limit(profile, key: str) -> float | None:
+    """The max-limit reference value a Nutrient Plot dotted line marks for
+    one chosen nutrient key — profile.get_max_limits() (built-in Tolerable
+    Upper Intake Levels merged with the user's own configured caps). None
+    for the DCP pseudo-key and for any nutrient with no established/
+    user-set limit."""
+    if profile is None or key == _DCP_PLOT_KEY:
+        return None
+    return _profile.get_max_limits(profile).get(key)
+
+
+def _nutrient_plot_add_limits(series: list[dict], profile) -> list[dict]:
+    """Attach each series' flat max-limit value (see _nutrient_plot_limit)
+    under its "limit" key, drawn as a dotted reference line — distinct from
+    the dashed "goal" line so a nutrient with both stays readable as two
+    different kinds of reference."""
+    return [({**s, "limit": limit} if (limit := _nutrient_plot_limit(profile, s["key"])) is not None else s)
             for s in series]
 
 
@@ -7719,7 +7821,9 @@ async def nutrient_plot_image(
         highlight_key = _resolve_highlight(chosen, highlight)
         raw_series = _nutrient_plot_raw_series(conn, chosen, dates, highlight_key)
 
-    raw_series = _nutrient_plot_add_goals(raw_series, _profile.load_profile(), _current_diet_pref())
+    profile = _profile.load_profile()
+    raw_series = _nutrient_plot_add_goals(raw_series, profile, _current_diet_pref())
+    raw_series = _nutrient_plot_add_limits(raw_series, profile)
     raw_series = _apply_smoothing(raw_series, _parse_smoothing_window(smoothing))
 
     factor = _parse_plot_factor(scale_factor) or _default_plot_scale_factor(raw_series)
@@ -7735,7 +7839,16 @@ async def nutrient_plot_image(
 
     plot_title = _user_plot_title(title) or _nutrient_plot_default_title(dates)
     plot_ylabel = _nutrient_plot_ylabel(chosen, series)
-    plot_subtitle = _NUTRIENT_PLOT_GOAL_SUBTITLE if any(s.get("goal") is not None for s in series) else ""
+    has_goal = any(s.get("goal") is not None for s in series)
+    has_limit = any(s.get("limit") is not None for s in series)
+    if has_goal and has_limit:
+        plot_subtitle = _NUTRIENT_PLOT_GOAL_AND_LIMIT_SUBTITLE
+    elif has_goal:
+        plot_subtitle = _NUTRIENT_PLOT_GOAL_SUBTITLE
+    elif has_limit:
+        plot_subtitle = _NUTRIENT_PLOT_LIMIT_SUBTITLE
+    else:
+        plot_subtitle = ""
 
     image_bytes = line_plot_image(series, xlabel="Date", ylabel=plot_ylabel,
                                    title=plot_title, subtitle=plot_subtitle,

@@ -494,6 +494,45 @@ class TestBuildComplementDisplay:
                 expected_pct = round((step["dcp"] - base_digestible) / base_digestible * 100, 1)
                 assert step["pct_increase"] == pytest.approx(expected_pct)
 
+    def test_anchor_overrides_pins_grad_steps_to_a_chosen_serving_size(self):
+        # anchor_overrides (the "pin the graduated table to your own serving
+        # size" feature) had zero test coverage despite spanning
+        # _grad_steps()/build_complement_display() here and several backend
+        # route wirings (web/backend.py's _parse_anchor_overrides()).
+        nutrients = {
+            "protein_g":          20.0,
+            "aa_tryptophan_g":    0.08, "aa_threonine_g":    0.30,
+            "aa_isoleucine_g":    0.30, "aa_leucine_g":      0.50,
+            "aa_lysine_g":        0.20, "aa_methionine_g":   0.10,
+            "aa_phenylalanine_g": 0.30, "aa_valine_g":       0.30,
+            "aa_histidine_g":     0.10,
+        }
+        baseline = _complements.build_complement_display(nutrients, [], digestibility=1.0)
+        with_grad_steps = [s for s in baseline["general"] if s["grad_steps"]]
+        assert with_grad_steps, "no suggestion needed enough grams to produce grad_steps"
+        target = with_grad_steps[0]
+        name = target["name"]
+        full_grams = target["grams"]
+        override_grams = 10.0
+        assert override_grams != full_grams, "override must differ from the math-derived full amount"
+
+        anchored = _complements.build_complement_display(
+            nutrients, [], digestibility=1.0,
+            anchor_overrides={name.lower(): override_grams},
+        )
+        anchored_row = next(s for s in anchored["general"] if s["name"] == name)
+        assert anchored_row["anchor_grams"] == override_grams
+        # 100% step should now land at the override amount, not full_grams.
+        assert anchored_row["grad_steps"][-1]["grams"] == round(override_grams)
+        # full_closure_grams surfaces the true math-derived amount only when
+        # it differs meaningfully from the override, per _fmt()'s own rule.
+        assert anchored_row["full_closure_grams"] == full_grams
+
+        # A suggestion the user didn't anchor is unaffected.
+        other_rows = [s for s in anchored["general"] if s["name"] != name]
+        if other_rows:
+            assert other_rows[0]["anchor_grams"] is None
+
 
 # ---------------------------------------------------------------------------
 # comp_sort / diaas_sort — comp_sort has 4 modes: "dcp" (default), "digestible_protein",

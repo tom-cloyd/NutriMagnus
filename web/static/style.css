@@ -563,10 +563,14 @@ table {
    pushed toward true orange (was a brownish amber too close to rda-over's
    red), and all four given the same heavier weight — against a white
    background and at small/unbolded sizes, near and over in particular were
-   close to indistinguishable. */
+   close to indistinguishable. rda-near/rda-low then swapped back
+   (2026-09-20, on request): orange is a warning color, but "near" (70-99% of
+   a minimum — close to met) isn't the state that should read as alarming;
+   "low" (a genuine shortfall) is. rda-near now gets the calmer blue, rda-low
+   the orange. */
 .rda-met  { color: #166534; font-weight: 700; }
-.rda-near { color: #c2410c; font-weight: 700; }
-.rda-low  { color: #1e40af; font-weight: 700; }
+.rda-near { color: #1e40af; font-weight: 700; }
+.rda-low  { color: #c2410c; font-weight: 700; }
 .rda-over { color: #991b1b; font-weight: 700; }
 
 /* Color-coding legend dots — 50% bigger than the surrounding <small> text
@@ -588,6 +592,10 @@ table {
 
 /* ── Digestible Complete Protein row, inserted right below Protein ──────── */
 .dcp-row td { font-style: italic; color: #444; }
+
+/* ── Subtype rows: Fiber/Sugar under Carbohydrates, the three fat types
+   under Fat — subsets of the row above them, not independent totals. ──── */
+.subtype-row td:first-child { padding-left: 1.5em; }
 
 /* ── Custom max-limit warning (Settings → Nutrient targets) ────────────── */
 /* Applied to a nutrient row's Nutrient/Total cells when the day total is
