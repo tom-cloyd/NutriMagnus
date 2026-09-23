@@ -185,71 +185,80 @@ def _volume_label(ml: float) -> str:
     return f"{s} t" if _nice(s) else f"{round(ml / 4.9)} t"
 
 
-def volume_hint(grams: float, food_name: str) -> str | None:
-    """Return a human-readable volume equivalent for *grams* of *food_name*, or None.
-
-    Used wherever the web app displays gram amounts for suggested foods and
-    wants a cups/tbsp/tsp approximation alongside them, where a density
-    estimate is available.
-    """
-    density = _usda.get_density_g_per_ml(food_name, [])
-    if density is None:
-        return None
-    ml = grams / density
-    # Standard measuring cup fractions (value, unicode glyph)
-    _CUP_FRACS = [
-        (0.125, "1/8"), (0.25, "1/4"), (0.333, "1/3"),
-        (0.5, "1/2"),   (0.667, "2/3"), (0.75, "3/4"),
-    ]
-    if ml >= 29.6:  # ≥ 2 tbsp — show in cups or tbsp
-        cups = ml / 236.6
-        whole = int(cups)
-        frac = cups - whole
-        if frac < 0.063:
-            frac_str = ""
-        elif frac > 0.875:
-            whole += 1
-            frac_str = ""
+def _split_portion_description(desc: str) -> tuple[float, str]:
+    """Split a portion description like "1 cup" into (1.0, "cup") so a target
+    amount can be expressed as a multiple of that same named unit. A
+    description with no leading quantity (e.g. "slice") is treated as
+    already being one unit: (1.0, "slice")."""
+    m = re.match(r'^([\d.]+(?:/[\d.]+)?)\s+(.+)$', desc.strip())
+    if not m:
+        return 1.0, desc.strip()
+    num_str, rest = m.group(1), m.group(2)
+    try:
+        if "/" in num_str:
+            n, d = num_str.split("/", 1)
+            val = float(n) / float(d)
         else:
-            frac_str = min(_CUP_FRACS, key=lambda f: abs(f[0] - frac))[1]
-        if whole == 0 and not frac_str:
-            # Less than ⅛ cup but ≥ 2 tbsp — fall through to tbsp display
-            tbsp = ml / 14.8
-            rounded = round(tbsp * 2) / 2
-            val = f"{rounded:.1f}".rstrip("0").rstrip(".")
-            return f"≈ {val} tbsp"
-        cup_str = (frac_str if whole == 0 else
-                   f"{whole} {frac_str}" if frac_str else str(whole))
-        unit = "cup" if whole <= 1 and not (whole == 1 and frac_str) else "cups"
-        return f"≈ {cup_str} {unit}"
-    elif ml >= 4.9:  # ≥ 1 tsp
-        tbsp = ml / 14.8
-        if tbsp >= 1:
-            rounded = round(tbsp * 2) / 2
-            val = f"{rounded:.1f}".rstrip("0").rstrip(".")
-            return f"≈ {val} tbsp"
-        tsp = ml / 4.9
-        rounded = round(tsp * 4) / 4
-        val = f"{rounded:.2f}".rstrip("0").rstrip(".")
-        return f"≈ {val} tsp"
-    return None  # too small to be useful
+            val = float(num_str)
+    except (ValueError, ZeroDivisionError):
+        return 1.0, desc.strip()
+    return (val if val > 0 else 1.0), rest
 
 
-def amount_note(grams: float, food_name: str) -> str:
-    """Human-readable amount hint for *grams* of *food_name*.
+def portion_scaled_display(grams: float, portions: list[dict]) -> str | None:
+    """Express *grams* as a multiple of one of this food's own USDA/user-set
+    portions (e.g. p1 = "1 cup" = 104 g), scaling that known fact to the
+    target amount, instead of a generic density-based cup/tbsp guess — which
+    is frequently wrong and, worse, can openly contradict a portion the user
+    just edited. Returns None only when the food has no portion with a
+    usable gram weight at all; there is nothing to calculate from in that
+    case."""
+    best: str | None = None
+    for p in portions:
+        gw = p.get("gram_weight")
+        desc = (p.get("description") or "").strip()
+        if not gw or gw <= 0 or not desc:
+            continue
+        per_unit_num, unit_desc = _split_portion_description(desc)
+        total_units = grams / gw * per_unit_num
+        nice = _nice_fraction(total_units)
+        if re.search(r'\.\d', nice):
+            # Not a clean whole/fraction — fall back to a short decimal
+            # rather than _nice_fraction's raw many-digit "%g" form.
+            nice = f"{total_units:.2f}".rstrip("0").rstrip(".")
+        label = f"{nice} {unit_desc}".strip()
+        if not re.search(r'\.\d', nice):
+            return label
+        if best is None:
+            best = label
+    return best
 
-    Returns a cups/tbsp/tsp estimate when a density is available (via
-    volume_hint), otherwise a weight-ounces conversion — most whole-food
-    proteins (meat, cheese, eggs) are normally measured by weight, not
-    volume, so a bare "no volume available" message isn't as useful as
-    telling the user how many ounces that is.
-    """
-    hint = volume_hint(grams, food_name)
-    if hint:
-        return hint
-    oz = grams / 28.3495
-    oz_str = f"{oz:.1f}".rstrip("0").rstrip(".")
-    return f"no volume conversion available — {oz_str} oz"
+
+def portion_amount_note(grams: float, portions: list[dict] | None, fdc_id: int | None) -> str:
+    """Human-readable amount hint for *grams*, computed only from this food's
+    own known portions (never a generic density guess — see
+    portion_scaled_display). When no usable portion data exists, prompts the
+    user to add it instead of guessing: with a link to the Food Cache
+    portions editor when the food is a known cached food (fdc_id given),
+    otherwise a plain notice."""
+    display = portion_scaled_display(grams, portions or [])
+    if display:
+        return display
+    if fdc_id:
+        from markupsafe import Markup
+        return Markup(
+            'No portion/weight data exists; '
+            f'<a href="/food/cache/{fdc_id}/portions">edit it here</a>.'
+        )
+    return "No portion/weight data exists for this food."
+
+
+def amount_note(grams: float, food_name: str, fdc_id: int | None = None,
+                 portions: list[dict] | None = None) -> str:
+    """Back-compat wrapper around portion_amount_note() — *food_name* is no
+    longer used (there is no more name-based density guessing to do with
+    it), kept only so existing call sites don't need to drop the argument."""
+    return portion_amount_note(grams, portions, fdc_id)
 
 
 def _tokenize_portion(raw: str) -> list[str]:

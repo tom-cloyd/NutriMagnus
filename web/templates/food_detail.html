@@ -4,7 +4,7 @@
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_rda_legend.html" as _rda_legend %}
 {% import "_dcp_footnote.html" as _dcp_note %}
-{% block title %}NutriMagnus — {{ food.name }}{% endblock %}
+{% block title %}NutriMagnus — {% if from_context == "recipe" %}Recipe ingredient amount: {% elif from_context == "meal" %}Meal item amount: {% endif %}{{ food.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
 {% block main_class %}analysis-content{% endblock %}
@@ -38,7 +38,7 @@
     <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Complement Suggestions</button>
     {% if not complements.no_gaps %}
     <ul class="sb-sub">
-      {% if complements.pantry or complements.pantry_no_qualify or complements.pantry_empty %}
+      {% if complements.pantry %}
       <li><a class="sb-link" href="#cmpl-pantry">From your pantry &amp; recipes</a></li>
       {% endif %}
       {% if complements.general %}
@@ -83,7 +83,7 @@
 </nav>
 
 <div class="mb-2">
-  <h2>{{ food.name }}</h2>
+  <h2>{% if from_context == "recipe" %}Recipe ingredient amount: {% elif from_context == "meal" %}Meal item amount: {% endif %}{{ food.name }}</h2>
   {{ food_id_tag(food.fdc_id) }}
   {% if protein and protein.dcp_g is not none and protein.protein_raw %}
   <p class="mb-1">{% if portion_label %}{{ portion_label }}{% if " g" not in portion_label %} / {{ amount }}&thinsp;g{% endif %}{% else %}{{ amount }}&thinsp;g{% endif %} &rArr;
@@ -100,6 +100,7 @@
     &middot; <a href="/food/{{ food.fdc_id }}/print?amount={{ amount }}&portion_str={{ portion_str | urlencode }}">Print / Save as PDF</a>
   </p>
   <div class="d-flex gap-2 mb-2">
+    <a href="/food/cache/{{ food.fdc_id }}/portions" class="btn btn-sm btn-outline-secondary">Manage portions for this food &rarr;</a>
     {% if food.user_drafted %}
     <a href="/food/custom-profiles/{{ food.fdc_id }}/edit" class="btn btn-sm btn-outline-secondary">Edit nutrients</a>
     <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
@@ -121,7 +122,7 @@
   <div class="alert alert-warning" style="max-width:42rem">
     <strong>&#9888; No nutrient data available for this food.</strong>
     USDA didn't return calories, protein, carbs, or fat for this record, even on retry &mdash;
-    a data gap in this particular FDC record, not a numa bug.
+    a data gap in this particular FDC record, not a NuMa bug.
     <form method="post" action="/food/cache/{{ food.fdc_id }}/refresh" style="display:inline">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Try refreshing from USDA again</button>
     </form>
@@ -169,7 +170,6 @@
               style="margin-left:1.5rem;padding-left:1.5rem;padding-right:1.5rem">Recalculate nutrients</button>
     </div>
   </form>
-  <p class="mt-1 mb-0"><small><a href="/food/cache/{{ food.fdc_id }}/portions">Manage portions for this food &rarr;</a></small></p>
   {% if portion_error %}
   <p class="numa-error mt-1"><small>{{ portion_error }}</small></p>
   {% if portion_density_hint %}

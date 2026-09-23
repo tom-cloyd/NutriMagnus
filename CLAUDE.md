@@ -222,7 +222,7 @@ Essential AAs: all `aa_` keys except `aa_cystine_g` and `aa_tyrosine_g`.
 - **Never `import usda_api` or `import usda_nutrients` directly** — always `import usda as _usda`. `usda.py` is the stable public surface.
 - **Never open the DB outside `get_db()`** — no raw `sqlite3.connect()` calls anywhere.
 - **Add `Docs:` line** to any new module's docstring pointing to the relevant README section.
-- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Run `python3 scripts/bump_version.py` — it sets `VERSION` to the current timestamp and auto-increments `RELEASE_VERSION`'s `-rc.N` counter in one step; never hand-edit either of those two lines. `NEW_VERSION_NOTE` still needs a manual edit to describe the change. If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps by hand the same way (see each file's top few lines for the exact format).
+- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Run `python3 scripts/bump_version.py` — it sets `VERSION` to the current timestamp; never hand-edit that line. `NEW_VERSION_NOTE` still needs a manual edit to describe the change. If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps by hand the same way (see each file's top few lines for the exact format). `RELEASE_VERSION`'s `-rc.N` counter is separate and deliberately NOT bumped on every session (decided 2026-09-21) — it advances only when an actual release is cut, so it stays a meaningful release count rather than a session count.
 
 ---
 
@@ -230,17 +230,29 @@ Essential AAs: all `aa_` keys except `aa_cystine_g` and `aa_tyrosine_g`.
 
 Any turn that changes numa's user-facing behavior (new feature, bug fix, threshold change —
 not pure layout/wording tweaks, since the owner is currently numa's only user and already
-knows about those) ends with a new entry under today's `#### Month Day program updates`
+knows about those) ends with a new entry under today's `#### Month Day updates`
 heading in
 **Appendix A, "Recent program updates log"** (near the top of Part 9 — moved here from
 Appendix K on 2026-08-05 since it's checked far more often than the other appendices),
 plus the `version.py`/manual timestamp bump above.
 
+**Where entries go, and the release procedure** (decided 2026-09-21): there is no "Next
+release" heading. Insert each new entry immediately after the line
+`<!-- Insert new updates below here -->` in Appendix A, newest on top, under today's
+`#### Month Day updates` heading (new form only; older `... program updates` headings stay
+as they are). Every entry title starts with `MANUAL: ` or `PROGRAM: ` (e.g.
+`**PROGRAM: ALL-CAPS TITLE**`).
+
+When cutting a release: insert a new release-boundary header directly under the marker,
+then **copy** (duplicate, don't move) every entry not yet in a release above it. Pending =
+everything between the marker and the newest existing boundary header. The originals
+stay in their dated place so the dated history is preserved.
+
 Every entry from 2026-07-31 onward uses this format — adopted 2026-08-05 because the prior
 single dense run-on line per entry was hard to skim:
 
 ```
-**ALL-CAPS TITLE**
+**PROGRAM: ALL-CAPS TITLE**
 
 One or two plain-language sentences a casual reader can grasp in a hurry. Lead with
 what the user can now do / now sees / now gets — NOT with what was wrong before or

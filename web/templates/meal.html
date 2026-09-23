@@ -63,7 +63,7 @@
     <a class="sb-toggle" href="#sec-complements">Complement Suggestions</a>
     {% if not complements.no_gaps %}
     <ul class="sb-sub">
-      {% if complements.pantry or complements.pantry_no_qualify or complements.pantry_empty %}
+      {% if complements.pantry %}
       <li><a class="sb-link" href="#cmpl-pantry">From your pantry &amp; recipes</a></li>
       {% endif %}
       {% if complements.general %}
@@ -129,6 +129,13 @@
 {% endif %}
 
 {# ── Management actions ───────────────────────────────────────────────── #}
+<p class="muted mb-2" style="font-size:0.85rem" id="meal-rename-failsafe-note">
+  <strong>Failsafe:</strong> if you edit "Rename / change date" below and then click a link
+  elsewhere in NuMa before saving, NuMa will ask whether to save those changes first — or you can
+  choose to leave without saving them. (Closing or refreshing the browser tab instead only shows
+  your browser's own "leave this page?" warning — NuMa can't step in at that point, so save first
+  if you're closing the tab.)
+</p>
 {# align-items-start: without it, a flex row's default stretch makes a bare
    <a class="btn"> child fill the row's full height, while a <button> nested
    inside a <form> child absorbs that same stretch invisibly on the form
@@ -155,7 +162,7 @@
   <details class="d-inline-block popup-edit">
     <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Rename / change date</summary>
     <div class="card card-body mt-1 p-2" style="min-width:22rem;position:absolute;z-index:10">
-      <form method="post" action="/meal/{{ meal.id }}/rename">
+      <form method="post" action="/meal/{{ meal.id }}/rename" id="meal-rename-form">
         <p class="muted mb-2" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
         <div class="mb-2">
           <label class="form-label form-label-sm mb-1">Meal name <span class="text-danger">*</span></label>
@@ -324,6 +331,73 @@
 
     if (!loadingRow) return;  // neither USDA nor Open Food Facts selected — nothing more to fetch
 
+    // The merged external results can land after the user has already
+    // started interacting with a locally-rendered row (picked "Individual
+    // ingredients" instead of the default "Whole recipe", switched the
+    // amount-mode radio, typed a portion/servings amount) — replacing the
+    // table wiped that out silently and fell back to each field's default,
+    // so an "Individual ingredients" pick could turn into "Whole recipe"
+    // with no visible sign it happened. Snapshot every row's current field
+    // values before the replace and restore them onto the matching row
+    // (keyed by which action + which recipe/food id) afterward.
+    function rowKey(form) {
+      var idField = form.querySelector('input[name="recipe_id"], input[name="fdc_id"]');
+      var action = /\/add-recipe$/.test(form.getAttribute('action') || '') ? 'recipe' : 'food';
+      return idField ? action + ':' + idField.value : null;
+    }
+    function snapshotRows() {
+      var map = {};
+      tbody.querySelectorAll('form.add-food-form').forEach(function (form) {
+        var key = rowKey(form);
+        if (!key) return;
+        var data = {};
+        form.querySelectorAll('input, select').forEach(function (el) {
+          if (!el.name || el.type === 'hidden') return;
+          if (el.type === 'radio' || el.type === 'checkbox') {
+            if (el.checked) data[el.name] = el.value;
+          } else {
+            data[el.name] = el.value;
+          }
+        });
+        map[key] = data;
+      });
+      return map;
+    }
+    function restoreRows(map) {
+      tbody.querySelectorAll('form.add-food-form').forEach(function (form) {
+        var key = rowKey(form);
+        var data = key && map[key];
+        if (!data) return;
+        Object.keys(data).forEach(function (name) {
+          form.querySelectorAll('[name="' + name + '"]').forEach(function (el) {
+            if (el.type === 'radio' || el.type === 'checkbox') {
+              el.checked = (el.value === data[name]);
+            } else {
+              el.value = data[name];
+            }
+          });
+        });
+        // amount_mode drives which of the servings/weight/volume input
+        // panels is visible. Match the panel to the restored radio, but
+        // WITHOUT calling recipeAmtSwitch() -- that function also clears
+        // and focuses the newly-active panel's input, which is right for a
+        // user's own click but wrong here: it would wipe out the very value
+        // this restore just wrote back in (e.g. resetting "servings" to
+        // blank on every row, every time the background merge lands, even
+        // when the user never touched that row).
+        var checkedAmt = form.querySelector('input[name="amount_mode"]:checked');
+        var rid = form.querySelector('input[name="recipe_id"]');
+        if (checkedAmt && rid) {
+          var modeMap = {servings: 'srv', weight: 'wt', volume: 'vol'};
+          ['srv', 'wt', 'vol'].forEach(function (key) {
+            var panel = document.getElementById('inp-panel-' + key + '-' + rid.value);
+            if (panel) panel.style.display = (modeMap[checkedAmt.value] === key) ? '' : 'none';
+          });
+        }
+      });
+    }
+
+    var beforeMerge = snapshotRows();
     var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}, limit: {{ limit | tojson }}});
     {{ source | tojson }}.forEach(function (s) { params.append('source', s); });
     fetch('/meal/{{ meal.id }}/search-api-results?' + params.toString())
@@ -333,6 +407,7 @@
         // external), not just new rows — replace, don't append, so a weak
         // local match can't stay pinned above a better external one.
         tbody.innerHTML = html;
+        restoreRows(beforeMerge);
         if (html.trim()) {
           table.style.display = '';
           focusFirstResultField();
@@ -438,7 +513,7 @@
           {% if item.recipe_deleted %}
             {{ item.food_name }}{{ food_id_tag(item.fdc_id, recipe_id=item.recipe_id) }} <span class="text-danger">(recipe deleted)</span>
           {% elif item.fdc_id %}
-            <a href="/food/{{ item.fdc_id }}?amount={{ item.amount | round(1) }}">{{ item.food_name }}</a>{{ food_id_tag(item.fdc_id) }}
+            <a href="/food/{{ item.fdc_id }}?amount={{ item.amount | round(1) }}&from_context=meal">{{ item.food_name }}</a>{{ food_id_tag(item.fdc_id) }}
           {% elif item.recipe_id %}
             <a href="/recipe/{{ item.recipe_id }}">{{ item.food_name }}</a>{{ food_id_tag(None, recipe_id=item.recipe_id) }}
           {% else %}
@@ -1217,6 +1292,82 @@ function recipeAmtSwitch(rid, mode) {
   li.className = 'breadcrumb-item';
   li.appendChild(pill);
   crumbList.appendChild(li);
+})();
+</script>
+<script>
+// Adding/editing/removing a meal item posts a form and the server redirects
+// back to this same page — a fresh navigation, which browsers scroll to the
+// top of by default, throwing you back up from wherever in the item list
+// you were working. Save the scroll offset right before those specific
+// submits and restore it once after the reload. (Mirrors the equivalent
+// script in recipe_edit.html.)
+(function () {
+  var key = 'numa-meal-scroll-{{ meal.id }}';
+  document.addEventListener('submit', function (e) {
+    var action = e.target.getAttribute('action') || '';
+    if (!/\/(add|add-recipe)$|\/(update|remove)\/|\/confirm-aa\b/.test(action)) return;
+    sessionStorage.setItem(key, String(window.scrollY));
+  });
+  var saved = sessionStorage.getItem(key);
+  if (saved !== null) {
+    sessionStorage.removeItem(key);
+    window.scrollTo(0, parseInt(saved, 10) || 0);
+  }
+})();
+</script>
+<script>
+// Failsafe: "Rename / change date" is a small form, but if you type into it
+// and then navigate away without clicking "Save changes", the edit is
+// silently lost. Warn first, and save on the user's behalf if they say yes.
+(function () {
+  var renameForm = document.getElementById('meal-rename-form');
+  if (!renameForm) return;
+  var dirty = false;
+  renameForm.addEventListener('input', function () { dirty = true; });
+  renameForm.addEventListener('change', function () { dirty = true; });
+  renameForm.addEventListener('submit', function () { dirty = false; });
+
+  document.addEventListener('click', function (e) {
+    if (!dirty) return;
+    var link = e.target.closest ? e.target.closest('a[href]') : null;
+    if (!link) return;
+    var href = link.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || link.target === '_blank') return;
+    e.preventDefault();
+    var wantsSave = confirm(
+      'You have unsaved changes in "Rename / change date" above.\n\n' +
+      'Save those changes before leaving this page?\n\n' +
+      'OK = save and continue. Cancel = don\'t save yet.'
+    );
+    if (wantsSave) {
+      fetch(renameForm.action, {method: 'POST', body: new FormData(renameForm)})
+        .then(function () {
+          dirty = false;
+          window.location.href = href;
+        })
+        .catch(function () {
+          alert('Could not save that change — you\'re still on this page. Please try again.');
+        });
+      return;
+    }
+    var wantsDiscard = confirm(
+      'Leave this page without saving those changes? They will be lost.\n\n' +
+      'OK = leave without saving. Cancel = go back and keep editing.'
+    );
+    if (wantsDiscard) {
+      dirty = false;
+      window.location.href = href;
+    }
+  });
+
+  // Closing the tab, refreshing, or navigating outside numa entirely can't
+  // be intercepted this way -- only the browser's own generic warning is
+  // possible there, and there's no way to save before it takes effect.
+  window.addEventListener('beforeunload', function (e) {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 })();
 </script>
 {% endblock %}

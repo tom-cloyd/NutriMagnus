@@ -64,7 +64,7 @@
     <a class="sb-toggle" href="#sec-complements">Complement Suggestions</a>
     {% if not complements.no_gaps %}
     <ul class="sb-sub">
-      {% if complements.pantry or complements.pantry_no_qualify or complements.pantry_empty %}
+      {% if complements.pantry %}
       <li><a class="sb-link" href="#cmpl-pantry">From your pantry &amp; recipes</a></li>
       {% endif %}
       {% if complements.general %}
@@ -130,8 +130,12 @@
 {% endif %}
 {% endif %}
 
+{% if recipe.description or recipe.introduction %}
+<hr class="my-3" style="border-top:2px solid #000;opacity:1">
+{% endif %}
+
 {% if recipe.description %}
-<p class="muted mb-2">{{ recipe.description }}</p>
+<p class="mb-2" style="font-size:1.15rem;font-weight:bold">{{ recipe.description }}</p>
 {% endif %}
 
 {% if recipe.introduction %}
@@ -288,7 +292,7 @@
           {% if ing.ref_recipe_deleted %}
             {{ ing.food_name }}{{ food_id_tag(None, recipe_id=ing.ref_recipe_id) }} <span class="text-danger">(sub-recipe deleted)</span>
           {% elif ing.fdc_id and ing.fdc_id > 0 %}
-            <a href="/food/{{ ing.fdc_id }}?amount={{ ing.amount | round(1) }}">{{ ing.food_name }}</a>{{ food_id_tag(ing.fdc_id) }}
+            <a href="/food/{{ ing.fdc_id }}?amount={{ ing.amount | round(1) }}&from_context=recipe">{{ ing.food_name }}</a>{{ food_id_tag(ing.fdc_id) }}
           {% elif ing.ref_recipe_id %}
             <a href="/recipe/{{ ing.ref_recipe_id }}">{{ ing.food_name }}</a>{{ food_id_tag(None, recipe_id=ing.ref_recipe_id) }}
           {% else %}
@@ -439,7 +443,7 @@
 {% if diaas %}
 <section id="sec-protein-quality" class="analysis-section">
   <h3 class="section-heading">Complete Protein Analysis
-    <small class="muted" style="font-weight:400"> — pooled, digestibility-corrected (DIAAS)</small>
+    <small class="muted" style="font-weight:400"> — pooled, digestibility-corrected (DIAAS), {{ servings }} serving{% if servings != 1 %}s{% endif %}{{ _sn.note(recipe.serving_size) }}</small>
     {{ manual_link("protein-quality") }}
   </h3>
 
@@ -731,7 +735,10 @@
 {# ── DIAAS Boosters ───────────────────────────────────────────────────── #}
 {% if complements.diaas_improvers %}
 <section id="sec-diaas-boost" class="analysis-section">
-  <h3 class="section-heading">DIAAS-Boosting Options {{ manual_link("comp") }}</h3>
+  <h3 class="section-heading">DIAAS-Boosting Options
+    <small class="muted" style="font-weight:400"> — whole recipe ({{ recipe.servings }} servings){{ _sn.note(recipe.serving_size) }}</small>
+    {{ manual_link("comp") }}
+  </h3>
   <p class="muted"><small>
     {% if complements.have_gap_closers %}
     These foods can't close a specific AA gap on their own, but raise the recipe's overall DIAAS score toward 0.90 via protein pooling.

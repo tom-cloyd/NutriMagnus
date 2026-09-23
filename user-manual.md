@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-21:0647* / Reading time: 5 hours, 16 minutes
+*Updated 2026-09-22:2240* / Reading time: 5 hours, 20 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -236,7 +236,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-21), there are 1,076 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-22), there are 1,086 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -2770,17 +2770,204 @@ Every food's [Annotate](#gi) page can now search the full ~2,487-entry Foster-Po
 
 ### A. Recent program updates log
 
-<!-- "Aside from being an update log for the user to access, this section is also used by create_release.py at git push time to produce a release note. It only looks for today's date heading (#### Month Day program updates). Once a release is cut, the matched text is copied into the GitHub release body permanently — nothing re-reads the manual afterward. So date whose release has already happened is safe to prune anytime; it can't retroactively change a past release's notes."-->
-<!-- # "If there is no entry for the date of the push to main, create_release.py falls back to the generic "Automated build from main." message instead of real notes." -->
+<!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New entries go directly after the "Insert new updates below here" marker below, each starting with MANUAL: or PROGRAM:. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... boundary" heading as that release's notes, and inserts a fresh boundary heading right there -- the entries themselves are never rewritten or moved. Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a boundary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
+<!-- # "If there is nothing pending under the marker at release time, create_release.py falls back to the generic "Automated build from main." message instead of real notes." -->
 
-Each entry below has a bold title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed.
+Program updates, and major manual updates, are logged here. They are grouped by program release dates.
+
+Each entry has a bold-font title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed.
 
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
+<!-- Insert new updates below here -->
 
-#### Next release
+#### Sep 22 updates
 
-- The User Manual can now be updated on its own — a separate home-page notice offers a newer manual without needing a program update.
+**PROGRAM: RECIPE INGREDIENT AMOUNTS NO LONGER GUESS CUP/TABLESPOON EQUIVALENTS**
+
+Recipe pages showing an ingredient's amount in cups or tablespoons now calculate that figure only from the food's own known portion data (its p1, p2, etc.), scaling it exactly to whatever amount is in the recipe. Previously this used a generic, name-based density guess that could be quite wrong, and could even openly contradict a portion you'd just edited for that food. When a food has no portion data at all, the recipe page now says so plainly and links straight to where you can add it, instead of guessing — the same policy the [amount-entry side](#ts-no-volume-portion) of NuMa already followed. The same fix applies to protein complement suggestions' "Add to meal/recipe/day" amount hints.
+
+<!--
+```
+Scope: numa_app/services/portions.py (portion_scaled_display(), portion_amount_note()
+replacing volume_hint()/old amount_note()'s _usda.get_density_g_per_ml() guess),
+numa_app/services/complements.py (_amount_note() now threads fdc_id through all 7
+call sites instead of food_name), web/backend.py (_ingredient_volume_display()).
+No template changes needed -- portion_amount_note() returns a markupsafe.Markup
+instance for the "no portion data" case so the <a href="/food/cache/{fdc_id}/portions">
+edit it here</a> link renders through existing {{ ing.volume_display }}/
+{{ f.amount_note }} interpolations without any autoescaping.
+```
+-->
+
+**PROGRAM: EVERY NUTRIENT ON DAILY SUMMARY'S RECENT DAYS TABLE NOW SHOWS % GOAL**
+
+Every nutrient column on the [Daily Summary](#goals) page's Recent Days table — Protein and any extra nutrient you've picked in Settings — now gets its own "% Goal" figure alongside it: the percentage on top, that date's own target amount underneath in parens, both scored against whichever profile is pinned to that date. Previously only Day DCP had this. The Date column now stays put at the left edge as you scroll the table sideways to see it all.
+
+<!--
+```
+Scope: web/backend.py's _build_day_rows() (feeds /summary and /summary/{date}),
+web/templates/summary.html, web/static/style.css, numa_app/services/meal_list_columns.py.
+Per day row, computes profile.compute_rda() once (reused for the existing
+Protein-goal figure too, replacing a separate day_profile.protein_target_for_date()
+call) and a new day_nutrient_raw_totals() helper (raw floats, alongside the
+existing formatted day_nutrient_values()) to get pct = total/rda_val*100 per
+key, stored in pct_goal_map. Template: a new pct_goal_cell() macro renders
+value/goal as a two-line cell (percent, then "(goal)" below) so adding this
+per nutrient column doesn't double the table's width -- also applied to Day
+DCP's own %/Goal, replacing its previous two separate columns. Date column
+gets position:sticky via a new .sticky-col class, with hover/active-row
+background repeated on it (a sticky cell paints over its own background, so
+without this it'd go transparent showing scrolled content underneath).
+```
+-->
+
+#### Sep 21 updates
+
+**PROGRAM: FIXED THE NUTRIENT PLOT PAGE HIDING ITS OWN "SHOW ON HOME PAGE" OPTION**
+
+Opening the [Nutrient Plot](#nutrient-plot) page fresh (not from a saved link) now shows your currently-pinned Home page plot right away, instead of always starting blank. Landing on a blank page like that used to hide the "Show on Home page" toggle entirely (it only appears once something's actually plotted) while still claiming a "different" plot was on the Home page — true of every fresh visit, not just an actual mismatch. Clicking "Remove it from Home page" from that blank state also used to fail outright with an on-screen error; that's fixed too.
+
+<!--
+```
+Scope: web/backend.py's nutrient_plot_page (GET /summary/nutrient-plot) and
+nutrient_plot_home_pref (POST .../home-pref), web/templates/nutrient_plot.html.
+Two bugs: (1) a bare landing (no query params) always rendered with
+chosen=[]/has_plot=False rather than defaulting to the saved
+home_nutrient_plot_qs, so the "Show on Home page" toggle (gated on has_plot)
+never appeared even with a Home plot active, and home_plot_enabled_elsewhere
+was unconditionally true. Added a hidden submitted=1 marker to the form so a
+genuine fresh landing (no marker) redirects to the saved qs, while a real
+"submitted with nothing checked" request (marker present) is left alone.
+(2) nutrient_plot_home_pref declared qs: str = Form(...) (required); FastAPI
+treats a submitted empty-string form value as a MISSING field for a required
+Form param (reproduced directly against a minimal FastAPI app), and the
+hidden qs field is exactly empty on that blank-landing page -- changed to
+Form(default="").
+```
+-->
+
+**PROGRAM: FIXED A NESTED SUB-RECIPE ADDING ITSELF AS A WHOLE PACKAGE IN "INDIVIDUAL INGREDIENTS" MODE**
+
+Adding a recipe to a meal (or another recipe) as "Individual ingredients" now fully flattens it, even when one of its own ingredients is itself another recipe. Previously that inner recipe was added as its own whole-recipe meal item alongside the real ingredients, instead of being broken down into its own leaf foods too.
+
+<!--
+```
+Scope: web/backend.py's meal_add_recipe_item (POST /meal/{meal_id}/add-recipe,
+mode="ingredients"). It only expanded one level: a direct ingredient with
+ref_recipe_id was added via db.meal_add_recipe() (a whole recipe-type meal
+item) instead of being recursed into. Now uses the existing shared recursive
+flattener, numa_app.services.recipe_nutrients.expand_recipe_ingredients(),
+already used for recipe nutrient totaling elsewhere.
+```
+-->
+
+**PROGRAM: FIXED SERVINGS FIELDS GOING BLANK AFTER A BACKGROUND SEARCH MERGE**
+
+On a meal's Add Food or Recipe search, a recipe result's "Servings" field could reset from its default (or whatever you'd typed) to blank once results from USDA/Open Food Facts/etc. finished loading in the background and merged into the list. Fixed as part of the same-day fix below for "Individual ingredients" losing your pick after that merge.
+
+<!--
+```
+Scope: web/templates/meal.html's search-api-results merge handler, the
+restoreRows() fix added earlier the same day. It called recipeAmtSwitch() to
+re-show the right servings/weight/volume panel after the merge replaced the
+table, but that function also clears and focuses the newly-active panel's
+input as part of its normal "user just switched panels" behavior -- which
+ran on every row on every merge, wiping out the very value restoreRows() had
+just written back in. Replaced with panel-visibility-only logic that doesn't
+touch the input's value.
+```
+-->
+
+**PROGRAM: FIXED "ADD AS INDIVIDUAL INGREDIENTS" SILENTLY ADDING THE WHOLE RECIPE INSTEAD**
+
+Adding a recipe to a meal (or another recipe) via a search that also includes an external source (USDA, Open Food Facts, CNF, CoFID, AFCD, or CIQUAL) could quietly reset "Individual ingredients" back to the default "Whole recipe" pick if those external results happened to arrive after you'd already chosen it — with no visible sign it happened. Picking "Individual ingredients" is now reliable regardless of when the background search finishes.
+
+<!--
+```
+Scope: web/templates/meal.html's search-api-results merge handler. It
+replaces the whole results tbody with the server's merged+re-sorted HTML
+once external sources respond, which was silently discarding any
+in-progress row state (the mode radio, amount_mode radio, typed
+portion/servings amounts) set before that replace landed. Now snapshots
+each row's current field values first (keyed by add/add-recipe + recipe or
+food id) and restores them onto the matching row after the replace,
+re-running recipeAmtSwitch so a restored amount_mode also shows the right
+input panel.
+```
+-->
+
+**PROGRAM: EDIT A PORTION IN PLACE**
+
+[Manage Portions](#portion-formats) now lets you edit a custom portion's description and gram weight directly in the list — no more deleting it and re-adding it from scratch to fix a typo or a wrong weight. Editing keeps the portion in its position, so its `pN` shortcut doesn't change.
+
+<!--
+```
+Scope: web/templates/food_cache_portions.html, web/backend.py (new
+POST /food/cache/{fdc_id}/portions/edit route). Each row's description/grams
+became inline form controls tied to a per-row edit form via the HTML `form=`
+attribute; validation mirrors the existing add-portion checks (non-blank
+description, positive gram weight).
+```
+-->
+
+**PROGRAM: RECIPE/MEAL ITEM LINKS SAY WHERE THE AMOUNT CAME FROM**
+
+Clicking a food's name from a recipe's ingredient list or a meal's item list now labels that food-detail page "Recipe ingredient amount: …" or "Meal item amount: …", so it's clear you're looking at one measured amount from that recipe or meal — not a generic 100 g food lookup.
+
+<!--
+```
+Scope: web/backend.py (food_detail route gained a from_context query param,
+validated to "recipe"/"meal"/""), web/templates/food_detail.html (title/h2
+prefix), web/templates/recipe_detail.html and meal.html (ingredient/item
+links now pass &from_context=recipe / &from_context=meal).
+```
+-->
+
+**PROGRAM: LEAVING RECIPE/MEAL DETAILS UNSAVED NOW WARNS — AND LETS YOU CHOOSE**
+
+Editing a recipe's Recipe Details, or a meal's Rename/change date fields, and then clicking a link elsewhere in numa before saving now prompts you: save those changes first, leave without saving them, or stay and keep editing. Previously an in-app click away could silently lose the edit; closing or refreshing the browser tab itself still shows only your browser's own generic warning, since numa can't intervene at that point.
+
+<!--
+```
+Scope: web/templates/recipe_edit.html, web/templates/meal.html. A dirty flag
+on the Recipe Details / rename form is checked on in-app <a> clicks
+(intercepted, chained confirm() for save-then-go vs. discard-then-go vs.
+stay) and on window.beforeunload (browser's own warning only, no custom
+save possible there).
+```
+-->
+
+**PROGRAM: MEAL ITEM LIST KEEPS YOUR SCROLL POSITION**
+
+Adding, editing, or removing an item on a meal's page no longer jumps you back to the top of the page — it stays scrolled to where you were working, matching how the recipe editor's ingredient list already behaved.
+
+<!--
+```
+Scope: web/templates/meal.html — added the same sessionStorage
+scroll-save/restore pattern recipe_edit.html already had for its ingredient
+list, for the add/add-recipe/update/remove/confirm-aa routes.
+```
+-->
+
+**PROGRAM: FIXED A SPURIOUS "LEAVE SITE?" WARNING WHEN ADDING AN INGREDIENT**
+
+Adding a food or recipe to a meal or recipe could sometimes trigger a "Leave site? Changes you made may not be saved" browser prompt even though nothing was actually lost — most noticeably when adding an item redirected to the Annotate page for missing GI/DIAAS data instead of back to the same page. This no longer happens.
+
+<!--
+```
+Scope: web/templates/base.html's generic per-form "unsaved changes" tracker.
+Submitting any tracked form now clears every tracked form's dirty flag, not
+just its own -- a stray dirty flag left on some other untouched-but-modified
+search-result row (typed and abandoned, or filled in by browser autofill)
+was outliving the submit and firing the beforeunload warning on the
+resulting navigation, wherever it redirected to.
+```
+-->
+
+#### Release v2026-09-21-0647 boundary
+
+- MANUAL: The User Manual can now be updated on its own — a separate home-page notice offers a newer manual without needing a program update.
 
 #### Release v2026-09-21-0526 boundary
 

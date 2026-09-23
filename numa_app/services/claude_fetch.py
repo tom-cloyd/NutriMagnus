@@ -69,7 +69,7 @@ Critical rules:
 9. For a packaged/branded product where you have the manufacturer's Nutrition Facts label (per-serving values), do NOT do the per-100g arithmetic yourself. Instead replace the flat nutrient keys with:
      "serving_size_g": 28,
      "nutrition_per_serving": {{ "calories": 120, "protein_g": 3, ... }}
-   numa converts this to per-100g automatically, which is more reliable than an LLM doing the scaling in prose. Use the same key names as above inside nutrition_per_serving.
+   NuMa converts this to per-100g automatically, which is more reliable than an LLM doing the scaling in prose. Use the same key names as above inside nutrition_per_serving.
 
 Foods ({n} total — USDA FDC IDs provided where known):
 {food_list}"""

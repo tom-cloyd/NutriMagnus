@@ -13,8 +13,8 @@
   </ol>
 </nav>
 
-<h2>Edit Recipe {{ manual_link("recipe-ingredients") }}</h2>
-<p class="muted mt-n2 mb-2"><small>{{ recipe.name }} &middot; ID {{ recipe.id }}</small></p>
+<h2>Edit Recipe: <span style="font-size:0.7em">{{ recipe.name }} &middot; ID {{ recipe.id }}</span></h2>
+<p class="muted mt-n2 mb-2">{{ manual_link("recipe-ingredients") }}</p>
 
 {% if saved %}
 <div class="alert alert-success alert-dismissible fade show" role="alert" id="recipe-saved-alert">
@@ -59,6 +59,14 @@
 {% endfor %}
 
 {# ── Metadata form ────────────────────────────────────────────────────── #}
+<p class="muted mb-2" style="font-size:0.85rem" id="recipe-details-failsafe-note">
+  <strong>Failsafe:</strong> if you edit anything in Recipe details below and then click a link
+  elsewhere in NuMa before saving, NuMa will ask whether to save those changes first — or you can
+  choose to leave without saving them. (Closing or refreshing the browser tab instead only shows
+  your browser's own "leave this page?" warning — NuMa can't step in at that point, so save first
+  if you're closing the tab.)
+</p>
+<form method="post" action="/recipe/{{ recipe.id }}/introduction" id="introduction-form"></form>
 <details open>
   <summary><strong>Recipe details</strong></summary>
   <form method="post" action="/recipe/{{ recipe.id }}/edit" id="recipe-details-form" class="mt-3">
@@ -150,7 +158,18 @@
       </div>
 
       <div class="col-12 col-lg-5">
-        <label class="col-form-label" for="instructions">Instructions <small class="text-muted">(optional)</small></label>
+        <div id="sec-introduction">
+          <label class="col-form-label" for="introduction">Introduction <small class="text-muted">(optional)</small></label>
+          <p class="muted mb-1" style="font-size:0.75rem">Background or general information about this recipe — not the step-by-step procedure.</p>
+          <textarea class="form-control" id="introduction" name="introduction" form="introduction-form"
+                    rows="5" style="max-width:38.4rem"
+                    placeholder="Origin, background, tips, serving suggestions…">{{ recipe.introduction or '' }}</textarea>
+          <div class="d-flex gap-2 mt-2">
+            <button type="submit" form="introduction-form" class="btn btn-primary btn-sm">Save introduction</button>
+          </div>
+        </div>
+
+        <label class="col-form-label mt-3" for="instructions">Instructions <small class="text-muted">(optional)</small></label>
         <textarea class="form-control" id="instructions" name="instructions"
                   rows="5" style="max-width:38.4rem">{{ recipe.instructions or '' }}</textarea>
       </div>
@@ -444,6 +463,14 @@
                     class="d-flex flex-column gap-2">
                 <input type="hidden" name="q" value="{{ q }}">
                 <p class="muted mb-0" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
+                {% if not ing.ref_recipe_id and ing.portions %}
+                <div class="mb-1"><small class="muted">
+                  Portions:
+                  {% for p in ing.portions %}
+                  <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+                  {% endfor %}
+                </small></div>
+                {% endif %}
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
                   <input type="text" name="portion_str"
@@ -451,7 +478,7 @@
                          class="form-control form-control-sm" style="width:12rem" required>
                 </div>
                 {% if not ing.ref_recipe_id %}
-                <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp &middot; p1, 6&thinsp;p1 (USDA preset)</div>
+                <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if ing.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
                 {% endif %}
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0 text-nowrap">Name <span class="text-danger">*</span></label>
@@ -485,19 +512,6 @@
   <p class="muted mt-2">No ingredients yet. Use the search below to add them.</p>
   {% endif %}
 </details>
-
-{# ── Introduction ─────────────────────────────────────────────────────── #}
-<section class="mt-3" id="sec-introduction">
-  <h3 class="section-heading">Introduction</h3>
-  <p class="muted mb-1" style="max-width:44rem">Background or general information about this recipe — not the step-by-step procedure.</p>
-  <form method="post" action="/recipe/{{ recipe.id }}/introduction" style="max-width:44rem">
-    <textarea class="form-control" name="introduction" rows="5"
-              placeholder="Origin, background, tips, serving suggestions…">{{ recipe.introduction or '' }}</textarea>
-    <div class="d-flex gap-2 mt-2">
-      <button type="submit" class="btn btn-primary btn-sm">Save introduction</button>
-    </div>
-  </form>
-</section>
 
 {% endblock %}
 
@@ -564,7 +578,12 @@
   // is currently typed into the form — leaving it up while the user edits
   // implies those new edits are already saved, which they aren't. Drop it
   // the moment the form is touched.
-  function markDirty() {
+  function markDirty(e) {
+    // The Introduction textarea/button live inside this form's DOM subtree
+    // for layout purposes only — they actually submit to their own separate
+    // form (via the form="introduction-form" attribute) — so edits there
+    // must not count as unsaved Recipe details changes.
+    if (e.target.closest && e.target.closest('#sec-introduction')) return;
     dirty = true;
     if (savedAlert) {
       savedAlert.remove();
@@ -577,22 +596,71 @@
   document.addEventListener('submit', function (e) {
     if (!dirty) return;
     var action = e.target.getAttribute('action') || '';
-    if (!/\/ingredient\/add(-recipe)?$/.test(action)) return;
+    var isAddIngredient = /\/ingredient\/add(-recipe)?$/.test(action);
+    var isIntroduction = /\/introduction$/.test(action);
+    if (!isAddIngredient && !isIntroduction) return;
     e.preventDefault();
     var proceed = confirm(
       'You have unsaved changes in Recipe details (name, servings, instructions, etc.) above.\n\n' +
-      'Adding this ingredient will save those changes automatically. Continue?'
+      (isAddIngredient
+        ? 'Adding this ingredient will save those changes automatically. Continue?'
+        : 'Saving the introduction will save those changes automatically too. Continue?')
     );
     if (!proceed) return;
-    var addForm = e.target;
+    var otherForm = e.target;
     fetch(detailsForm.action, {method: 'POST', body: new FormData(detailsForm)})
       .then(function () {
         dirty = false;
-        addForm.submit();
+        otherForm.submit();
       })
       .catch(function () {
-        alert('Could not save recipe details — the ingredient was not added. Please try again.');
+        alert('Could not save recipe details — ' + (isAddIngredient ? 'the ingredient was not added.' : 'the introduction was not saved.') + ' Please try again.');
       });
+  });
+
+  // Failsafe: clicking a link elsewhere in numa while Recipe details is
+  // dirty would otherwise abandon those edits silently. Ask first, and save
+  // on the user's behalf if they say yes.
+  document.addEventListener('click', function (e) {
+    if (!dirty) return;
+    var link = e.target.closest ? e.target.closest('a[href]') : null;
+    if (!link) return;
+    var href = link.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || link.target === '_blank') return;
+    e.preventDefault();
+    var wantsSave = confirm(
+      'You have unsaved changes in Recipe details (name, servings, instructions, etc.) above.\n\n' +
+      'Save those changes before leaving this page?\n\n' +
+      'OK = save and continue. Cancel = don\'t save yet.'
+    );
+    if (wantsSave) {
+      fetch(detailsForm.action, {method: 'POST', body: new FormData(detailsForm)})
+        .then(function () {
+          dirty = false;
+          window.location.href = href;
+        })
+        .catch(function () {
+          alert('Could not save recipe details — you\'re still on this page. Please try again.');
+        });
+      return;
+    }
+    var wantsDiscard = confirm(
+      'Leave this page without saving those changes? They will be lost.\n\n' +
+      'OK = leave without saving. Cancel = go back and keep editing.'
+    );
+    if (wantsDiscard) {
+      dirty = false;
+      window.location.href = href;
+    }
+  });
+
+  // Closing the tab, refreshing, or navigating outside numa entirely can't
+  // be intercepted this way -- only the browser's own generic warning is
+  // possible there, and there's no way to save before it takes effect.
+  window.addEventListener('beforeunload', function (e) {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
   });
 })();
 </script>

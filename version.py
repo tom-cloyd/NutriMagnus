@@ -1,14 +1,15 @@
-VERSION = "2026-09-21:0647"
+VERSION = "2026-09-22:2239"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
 # alongside the VERSION build stamp above. It's purely a display label —
 # release tagging and the update-available check both key off VERSION (the
 # build timestamp), not this, so bumping it doesn't affect either. The
-# -rc.N/-beta.N/-alpha.N counter is auto-incremented by scripts/bump_version.py
-# (run that instead of hand-editing this line to bump VERSION); bump the
-# MAJOR.MINOR.PATCH part by hand only for a deliberate milestone (e.g.
-# reaching 1.0.0).
+# -rc.N/-beta.N/-alpha.N counter advances only when an actual release is cut
+# (decided 2026-09-21 -- previously scripts/bump_version.py auto-incremented
+# it on every dev-session bump, which drifted it away from the real release
+# count); bump the MAJOR.MINOR.PATCH part by hand only for a deliberate
+# milestone (e.g. reaching 1.0.0).
 RELEASE_VERSION = "0.1.0-rc.19"
 
 # A short, plain-language note shown next to VERSION on the home page and
@@ -23,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.19"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "the User Manual can now be updated separately from the program"
+NEW_VERSION_NOTE = "recipe ingredient amounts no longer guess cup/tbsp equivalents"

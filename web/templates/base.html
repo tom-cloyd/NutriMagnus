@@ -671,7 +671,15 @@
       form.addEventListener('input', check);
       form.addEventListener('change', check);
       form.addEventListener('submit', function () {
-        dirtyForms.delete(form);
+        // Submitting ANY tracked form is itself a deliberate, intentional
+        // navigation — even if it redirects somewhere other than back to
+        // this same page (e.g. adding a meal/recipe ingredient that needs
+        // GI/DIAAS data can redirect to the Annotate page instead). Clear
+        // every tracked form, not just this one: a stray dirty flag left on
+        // some other untouched-but-modified row (typed and abandoned, or
+        // filled in by browser autofill) shouldn't turn a submit the user
+        // just clicked into a spurious "leave site?" warning.
+        dirtyForms.clear();
       });
     });
 

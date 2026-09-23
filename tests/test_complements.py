@@ -178,7 +178,7 @@ class TestTwoStepCombo:
         assert step1["estimated"] == gc.get("estimated", False)
         assert step1["grams"] == gc["grams"]
         assert step1["diaas"] == (round(gc["diaas"], 2) if gc.get("diaas") else None)
-        assert step1["amount_note"] == _amount_note(gc["grams"], gc["name"])
+        assert step1["amount_note"] == _amount_note(gc["grams"], gc["name"], fdc_id=gc.get("fdc_id"))
         assert step1["dcp_before"] == round(base_digestible, 1)
         # aa_effects() is independently tested elsewhere (TestAAEffects) —
         # here we're only checking step1 actually plumbs gc/gaps/
@@ -269,7 +269,7 @@ class TestTwoStepCombo:
         assert step2["estimated"] is False
         assert step2["diaas"] == pytest.approx(0.97)
         assert step2["grams"] == 30
-        assert step2["amount_note"] == _amount_note(30, "Soy protein isolate")
+        assert step2["amount_note"] == _amount_note(30, "Soy protein isolate", fdc_id=174276)
         assert step2["new_diaas"] == pytest.approx(0.57)
         # step2's "dcp_before" must be exactly step1's "dcp_after" — the pool
         # after step1 is the starting point step2 improves on.
@@ -772,7 +772,7 @@ class TestSortModes:
         assert fmt["recipe_id"] is None
         assert fmt["serving_weight_g"] == pytest.approx(15.0)
         assert fmt["grams"] == 20
-        assert fmt["amount_note"] == _amount_note(20, "TestFood")
+        assert fmt["amount_note"] == _amount_note(20, "TestFood", fdc_id=99)
         assert fmt["grad_steps"] == []  # grams(20) <= _GRAD_THRESHOLD(30)
         assert fmt["diaas"] == pytest.approx(0.88)  # round(0.876, 2)
         assert fmt["new_complete"] is True
@@ -917,7 +917,7 @@ class TestSortModes:
         assert fmt["fdc_id"] == 55
         assert fmt["recipe_id"] is None
         assert fmt["grams"] == 40
-        assert fmt["amount_note"] == _amount_note(40, "ImproverFood")
+        assert fmt["amount_note"] == _amount_note(40, "ImproverFood", fdc_id=55)
         assert fmt["diaas"] == pytest.approx(0.91)
         assert fmt["current_diaas"] == pytest.approx(0.7)
         assert fmt["new_diaas"] == pytest.approx(0.85)
@@ -932,7 +932,7 @@ class TestSortModes:
         assert len(fmt["steps"]) == 1
         assert fmt["steps"][0]["dcp"] == pytest.approx(99.9)
         assert fmt["steps"][0]["pct_increase"] == pytest.approx(399.5)
-        assert fmt["steps"][0]["amount_note"] == _amount_note(40, "ImproverFood")
+        assert fmt["steps"][0]["amount_note"] == _amount_note(40, "ImproverFood", fdc_id=55)
 
     def test_top_level_summary_fields_match_hand_calculation(self, monkeypatch):
         # The top-level echo/summary fields (gap_rows' "score", the

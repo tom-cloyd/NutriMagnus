@@ -9,10 +9,25 @@ import json
 
 import db as _db
 import usda as _usda
-from .portions import amount_note as _amount_note
+from .portions import portion_amount_note as _portion_amount_note
 
 Nutrients = dict[str, float]
 Gaps = list[tuple[str, float, float]]  # (aa_key, orig_score, deficit_g) from usda.get_aa_gaps
+
+
+def _amount_note(grams: float | None, fdc_id: int | None) -> str | None:
+    """Amount-hint text for *grams* of the food identified by *fdc_id*,
+    computed only from that food's own known portions — never a generic
+    density guess. See portion_amount_note()."""
+    if not grams:
+        return None
+    portions: list[dict] = []
+    if fdc_id:
+        with _db.get_db() as conn:
+            cached = _db.get_cached_food(conn, fdc_id)
+        if cached:
+            portions = json.loads(cached["portions_json"] or "[]") or []
+    return _portion_amount_note(grams, portions, fdc_id)
 
 
 def exact_dcp(ingredients: list[dict] | None, extra: list[tuple[str, dict | None, float]]) -> float | None:
@@ -182,7 +197,7 @@ def two_step_combo(
         "estimated":  gc.get("estimated", False),
         "diaas":      round(gc["diaas"], 2) if gc.get("diaas") else None,
         "grams":      gc_grams,
-        "amount_note": _amount_note(gc_grams, gc.get("name", "")) if gc_grams else None,
+        "amount_note": _amount_note(gc_grams, gc.get("fdc_id")),
         "aa_effects": aa_effects(gc, gaps, digestibility=fallback_digestibility, limit=aa_effects_limit),
         "dcp_before": round(base_digestible, 1),
         "dcp_after":  gc_dcp,
@@ -204,7 +219,7 @@ def two_step_combo(
             "estimated":  b.get("estimated", False),
             "diaas":      round(b["diaas"], 2) if b.get("diaas") else None,
             "grams":      b_step["grams"],
-            "amount_note": _amount_note(b_step["grams"], b.get("name", "")) if b_step.get("grams") else None,
+            "amount_note": _amount_note(b_step["grams"], b.get("fdc_id")),
             "new_diaas":  b_step["new_diaas"],
             "dcp_before": gc_dcp,
             "dcp_after":  b_dcp,
@@ -343,7 +358,8 @@ def build_complement_display(
 
     def _grad_steps(full_grams: float | None, dig_full: float, food_name: str,
                     raw_full: float = 0.0, new_scores_full: dict | None = None,
-                    comp_nutrients: dict | None = None, anchor_grams: float | None = None) -> list[dict]:
+                    comp_nutrients: dict | None = None, anchor_grams: float | None = None,
+                    fdc_id: int | None = None) -> list[dict]:
         """anchor_grams: when set (a user-chosen override for this suggestion,
         e.g. because the math-derived full_grams is impractically large), the
         25/50/75/100% steps are taken as fractions of it instead of full_grams,
@@ -367,7 +383,7 @@ def build_complement_display(
                 pct_increase = (round((dcp - base_digestible) / base_digestible * 100, 1)
                                 if dcp is not None and base_digestible > 0 else None)
                 steps.append({
-                    "grams": g, "amount_note": _amount_note(g, food_name),
+                    "grams": g, "amount_note": _amount_note(g, fdc_id),
                     "dig_protein": round(dig_per_gram * g, 1), "dcp": dcp,
                     "pct_increase": pct_increase,
                 })
@@ -387,9 +403,10 @@ def build_complement_display(
         return {
             "name":              name,
             "grams":             full_grams,
-            "amount_note":       _amount_note(full_grams, name) if full_grams else None,
+            "amount_note":       _amount_note(full_grams, s.get("fdc_id")),
             "grad_steps":        _grad_steps(full_grams, dig, name, raw_full=raw, new_scores_full=new_scores,
-                                              comp_nutrients=comp_nutrients, anchor_grams=anchor),
+                                              comp_nutrients=comp_nutrients, anchor_grams=anchor,
+                                              fdc_id=s.get("fdc_id")),
             "anchor_grams":      anchor,
             "full_closure_grams": full_grams if anchor and full_grams and abs(anchor - full_grams) >= 1 else None,
             "fdc_id":            s.get("fdc_id"),
@@ -425,14 +442,14 @@ def build_complement_display(
                             if step_dcp is not None and base_digestible > 0 else None)
             steps_out.append({
                 **step,
-                "amount_note": _amount_note(step["grams"], name) if step.get("grams") else None,
+                "amount_note": _amount_note(step["grams"], s.get("fdc_id")),
                 "dcp": step_dcp,
                 "pct_increase": pct_increase,
             })
         return {
             "name":              name,
             "grams":             grams,
-            "amount_note":       _amount_note(grams, name) if grams else None,
+            "amount_note":       _amount_note(grams, s.get("fdc_id")),
             "fdc_id":            s.get("fdc_id"),
             "recipe_id":         s.get("recipe_id"),
             "serving_weight_g":  s.get("serving_weight_g"),
@@ -454,7 +471,7 @@ def build_complement_display(
                 "recipe_id":     f.get("recipe_id"),
                 "diaas":         round(f["diaas"], 2) if f.get("diaas") else None,
                 "grams":         f.get("grams"),
-                "amount_note":   _amount_note(f["grams"], f.get("name", "")) if f.get("grams") else None,
+                "amount_note":   _amount_note(f.get("grams"), f.get("fdc_id")),
                 "protein_added": f.get("protein_added", 0),
                 "dig_added":     f.get("dig_added", 0),
             }

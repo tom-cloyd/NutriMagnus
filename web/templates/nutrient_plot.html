@@ -119,6 +119,11 @@
 {% endif %}
 
 <form method="get" action="/summary/nutrient-plot" class="mb-3" id="nutrient-plot-form">
+  {# Distinguishes "landed here fresh" (no nutrients picked yet — pre-fill
+     from the saved Home page plot, if any, so it doesn't look unset every
+     time) from "submitted this form with everything unchecked" (a
+     deliberate empty view — leave it alone). See nutrient_plot_page(). #}
+  <input type="hidden" name="submitted" value="1">
   <div class="mb-2 d-flex flex-wrap gap-4 align-items-start">
     <div style="flex-shrink:0">
       <span class="form-label d-block"><strong>Nutrients</strong> <small class="muted">(up to {{ max_nutrients }})</small>

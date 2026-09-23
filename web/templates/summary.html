@@ -35,6 +35,24 @@
 
 {% macro col_header(label) %}{% set parts = label.rsplit(' (', 1) %}{{ parts[0] }}{% if parts|length > 1 %}<br><small class="muted">({{ parts[1] }}</small>{% endif %}{% endmacro %}
 
+{# "% / Goal" over two lines — the plain "% Goal" header read as if the
+   number below the percent in the cell was some other kind of goal, not
+   the goal amount itself; splitting it this way over the cell's own two
+   lines makes it read as "percent [over] goal [amount]" instead. #}
+{% macro pct_goal_header() %}<span style="display:inline-block;padding-right:0.35em">% /</span><br><small class="muted">Goal</small>{% endmacro %}
+
+{# Two-line "% Goal" cell: percent on top, the actual RDA/target/limit amount
+   below it in parens — one column instead of the separate %/Goal pair the
+   Day DCP figure used to use, so adding this per nutrient column doesn't
+   double the table's width on top of itself. #}
+{% macro pct_goal_cell(entry) %}
+{% if entry %}
+<span class="{{ entry.css }}">{{ entry.pct|int }}%</span><br><small class="muted">({{ entry.goal }})</small>
+{% else %}
+<span class="muted">—</span>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -65,30 +83,33 @@
 {# ── Recent days table ────────────────────────────────────────────────── #}
 {% set show_pct_col = day_rows|selectattr('pct_goal', 'none')|list|length < day_rows|length %}
 <details {% if not date_detail %}open{% endif %}>
-  <summary style="display:inline-flex;align-items:center;gap:0.75rem;width:auto">
+  <summary style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:0.75rem;width:auto">
     <strong>Recent Days with Meals</strong>
     <a href="/summary/{{ today }}" class="btn btn-sm btn-outline-primary"
        onclick="event.stopPropagation()">Today's summary</a>
+    {% if day_rows %}
+    <small class="muted">Specify nutrients you want here: <a href="/settings#meal-list-nutrients" onclick="event.stopPropagation()">Settings &rarr; Meals &amp; Log columns</a></small>
+    {% endif %}
   </summary>
   {% if day_rows %}
-  <p class="muted mb-1 mt-2"><small>Specify nutrients you want in this table here: <a href="/settings#meal-list-nutrients">Settings &rarr; Meals &amp; Log columns</a></small></p>
   <div style="overflow-x:auto">
   <table class="table table-sm table-hover mt-2" style="width:auto">
     <thead class="table-light">
       <tr>
-        <th>Date</th>
+        <th class="sticky-col">Date</th>
         <th class="text-center" title="Whether every meal logged on this date is marked complete — an incomplete day's totals may still change">Complete</th>
         {% for col in mandatory_day_cols %}
-        <th class="num-col" style="white-space:nowrap;line-height:1.2"{% if col.title %} title="{{ col.title }}"{% endif %}>{{ col_header(col.label) }}</th>
+        <th class="num-col nutrient-group" style="white-space:nowrap;line-height:1.2"{% if col.title %} title="{{ col.title }}"{% endif %}>{{ col_header(col.label) }}</th>
+        <th class="num-col" style="white-space:nowrap;line-height:1.2" title="That date's own RDA/target/limit for {{ col.label }}">{{ pct_goal_header() }}</th>
         {% endfor %}
-        <th class="num-col" style="white-space:nowrap">Day DCP</th>
+        <th class="num-col nutrient-group" style="white-space:nowrap">Day DCP</th>
         {% if show_pct_col %}
-        <th class="num-col" title="Day DCP ÷ that date's own protein target">% goal</th>
-        <th class="num-col" title="That date's own protein target">Goal</th>
+        <th class="num-col" style="white-space:nowrap;line-height:1.2" title="Day DCP ÷ that date's own protein target">{{ pct_goal_header() }}</th>
         {% endif %}
         {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
         {% for col in day_nutrient_cols %}
-        <th class="num-col" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>
+        <th class="num-col nutrient-group" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>
+        <th class="num-col" style="white-space:nowrap;line-height:1.2" title="That date's own RDA/target/limit for {{ col.label }}">{{ pct_goal_header() }}</th>
         {% endfor %}
         <th></th>
       </tr>
@@ -96,7 +117,7 @@
     <tbody>
       {% for r in day_rows %}
       <tr{% if r.meal_date == date_detail %} class="table-active"{% endif %}>
-        <td>{{ r.meal_date }}</td>
+        <td class="sticky-col">{{ r.meal_date }}</td>
         <td class="text-center">
           {% if r.day_complete %}
           <span class="text-success" title="All meals on this date are marked complete">&#10003;</span>
@@ -105,11 +126,12 @@
           {% endif %}
         </td>
         {% for col in mandatory_day_cols %}
-        <td class="num-col">
+        <td class="num-col nutrient-group">
           {% if r.mandatory_values[col.key] is not none %}{{ r.mandatory_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
         </td>
+        <td class="num-col">{{ pct_goal_cell(r.pct_goal_map.get(col.key)) }}</td>
         {% endfor %}
-        <td class="num-col" style="white-space:nowrap">
+        <td class="num-col nutrient-group" style="white-space:nowrap">
           {% if r.day_bcp is not none %}
           <span class="status-met">{{ "%.1f"|format(r.day_bcp) }} g</span>
           {% else %}
@@ -119,22 +141,21 @@
         {% if show_pct_col %}
         <td class="num-col">
           {% if r.pct_goal is not none %}
-          <span class="{% if r.pct_goal >= 100 %}status-met{% elif r.pct_goal >= 75 %}status-near{% else %}status-low{% endif %}">{{ r.pct_goal|int }}%</span>
+          <span class="{% if r.pct_goal >= 100 %}status-met{% elif r.pct_goal >= 75 %}status-near{% else %}status-low{% endif %}">{{ r.pct_goal|int }}%</span><br>
+          <small class="muted">{% if r.goal is not none %}({{ r.goal|int }}&thinsp;g){% endif %}</small>
           {% else %}
           <span class="muted">—</span>
           {% endif %}
-        </td>
-        <td class="num-col">
-          {% if r.goal is not none %}{{ r.goal|int }}&thinsp;g{% else %}<span class="muted">—</span>{% endif %}
         </td>
         {% endif %}
         {% if show_profile_col %}
         <td><small class="muted">{{ r.profile_name or "—" }}</small></td>
         {% endif %}
         {% for col in day_nutrient_cols %}
-        <td class="num-col">
+        <td class="num-col nutrient-group">
           {% if r.nutrient_values[col.key] is not none %}{{ r.nutrient_values[col.key] }}{% else %}<span class="muted">—</span>{% endif %}
         </td>
+        <td class="num-col">{{ pct_goal_cell(r.pct_goal_map.get(col.key)) }}</td>
         {% endfor %}
         <td><a href="/summary/{{ r.meal_date }}" class="btn btn-sm btn-link p-0">Full nutrient analysis</a></td>
       </tr>

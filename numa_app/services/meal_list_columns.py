@@ -83,11 +83,14 @@ def plot_nutrient_choices() -> list[tuple[str, str]]:
     return choices
 
 
-def day_nutrient_values(conn, meal_date: str, keys: list[str]) -> dict[str, str | None]:
-    """Sum each meal's stored nutrient snapshot across meal_date, formatted
-    per key. A key is None for that date if no meal on it has a snapshot yet
-    (matches the day-total convention used elsewhere: any meal with computed
-    data counts, regardless of whether it's marked complete)."""
+def day_nutrient_raw_totals(conn, meal_date: str, keys: list[str]) -> dict[str, float]:
+    """Sum each meal's stored nutrient snapshot across meal_date, unformatted
+    -- e.g. for computing a percent-of-RDA rather than displaying the total
+    directly. See day_nutrient_values (built on this) for the formatted,
+    display-ready version; a key absent here means no meal on meal_date had
+    a snapshot with that key (matches the day-total convention used
+    elsewhere: any meal with computed data counts, regardless of whether
+    it's marked complete)."""
     totals: dict[str, float] = {}
     for m in _db.meal_list_by_date(conn, meal_date):
         if not m["nutrients_snapshot_json"]:
@@ -97,4 +100,13 @@ def day_nutrient_values(conn, meal_date: str, keys: list[str]) -> dict[str, str 
             val = snapshot.get(key)
             if val is not None:
                 totals[key] = totals.get(key, 0.0) + val
+    return totals
+
+
+def day_nutrient_values(conn, meal_date: str, keys: list[str]) -> dict[str, str | None]:
+    """Sum each meal's stored nutrient snapshot across meal_date, formatted
+    per key. A key is None for that date if no meal on it has a snapshot yet
+    (matches the day-total convention used elsewhere: any meal with computed
+    data counts, regardless of whether it's marked complete)."""
+    totals = day_nutrient_raw_totals(conn, meal_date, keys)
     return {key: (format_value(key, totals[key]) if key in totals else None) for key in keys}

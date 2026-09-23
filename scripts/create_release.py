@@ -12,13 +12,20 @@ the exact names below (nutrimagnus, nutrimagnus.png) must stay in sync with
 that script.
 
 Release notes are pulled from user-manual.md's Appendix A ("Recent program
-updates log") section, from the plain-language summary bullets under the
-"#### Next release" heading — falling back to a generic message if
-that list is empty. On success, that heading is renamed to
-"#### Release <tag> boundary" (marking the point in the log covered by this
-release) and a fresh empty "#### Next release" heading is added above
-it for the next round; individual dated entries below the boundary
-(##### Month Day program updates) are untouched.
+updates log") section: everything between the "<!-- Insert new updates below
+here -->" marker and the next "#### Release ... boundary" heading (or the end
+of the appendix, if no release has ever been cut) — falling back to a generic
+message if that stretch is empty. On success, a new "#### Release <tag>
+boundary" heading is inserted right there, directly below those entries, so
+they read as belonging to this release without moving or rewriting them;
+older, already-released entries below are untouched (decided 2026-09-21,
+replacing an earlier "#### Next release" heading scheme this same script had
+drifted out of sync with).
+
+This is also the one place RELEASE_VERSION's -rc.N/-beta.N/-alpha.N counter
+in version.py advances (decided 2026-09-21) — scripts/bump_version.py only
+touches the VERSION timestamp now, so the counter means "how many releases",
+not "how many dev sessions".
 
 Requires GITHUB_TOKEN in the environment (inside GitHub Actions this is the
 automatic per-run token, granted `contents: write` by the workflow; for
@@ -26,6 +33,7 @@ manual/local use, a personal access token with repo write scope).
 """
 import json
 import pathlib
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -36,9 +44,12 @@ GITHUB_REPO = "NutriMagnus"
 API_BASE = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 UPLOADS_BASE = f"https://uploads.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
+VERSION_FILE = REPO_ROOT / "version.py"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
 CHANGELOG_HEADING = "### A. Recent program updates log"
-RELEASE_TODO_HEADING = "#### Next release"
+INSERT_MARKER = "<!-- Insert new updates below here -->"
+_BOUNDARY_RE = re.compile(r'^#### Release .* boundary\s*$')
+_RELEASE_VERSION_RE = re.compile(r'^(RELEASE_VERSION = ")(.*?)(-(?:rc|beta|alpha)\.)(\d+)("\s*)$', re.M)
 
 # (asset name, file path, content type) — every release asset besides the notes.
 _ASSETS = [
@@ -59,65 +70,77 @@ def _tag_for(version_str: str) -> str:
     return "v" + version_str.replace(":", "-")
 
 
+def _pending_range(lines: list[str]) -> tuple[int | None, int | None]:
+    """Find the marker line and the end of the "pending" (not yet in a
+    release) stretch right after it: the index of the next release-boundary
+    heading, or the next "### " appendix heading if no boundary exists yet
+    (e.g. before the first-ever release cut), or end-of-file otherwise."""
+    marker_idx = None
+    in_appendix = False
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == CHANGELOG_HEADING:
+            in_appendix = True
+            continue
+        if not in_appendix:
+            continue
+        if marker_idx is None:
+            if stripped == INSERT_MARKER:
+                marker_idx = i
+            continue
+        if _BOUNDARY_RE.match(stripped) or stripped.startswith("### "):
+            return marker_idx, i
+    if marker_idx is None:
+        return None, None
+    return marker_idx, len(lines)
+
+
 def _release_notes() -> str:
     if not MANUAL_FILE.exists():
         return "Automated build from main."
     lines = MANUAL_FILE.read_text().splitlines()
-    in_appendix = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == CHANGELOG_HEADING:
-            in_appendix = True
-            continue
-        if not in_appendix:
-            continue
-        if stripped == RELEASE_TODO_HEADING:
-            body_lines = []
-            for later in lines[i + 1:]:
-                if later.startswith("#### ") or later.startswith("### "):
-                    break
-                body_lines.append(later)
-            body = "\n".join(body_lines).strip()
-            if body:
-                return body
-            break
-    return "Automated build from main."
+    marker_idx, end_idx = _pending_range(lines)
+    if marker_idx is None:
+        return "Automated build from main."
+    body = "\n".join(lines[marker_idx + 1:end_idx]).strip()
+    return body or "Automated build from main."
 
 
-def _roll_release_boundary(tag: str) -> None:
-    """Rename "Next release" to a dated boundary for this release,
-    and add a fresh empty "Next release" above it for next time."""
+def _roll_release_boundary(tag: str) -> bool:
+    """Insert a new "#### Release <tag> boundary" heading directly below the
+    pending entries under the marker -- the entries themselves are never
+    rewritten or relocated, they just end up sitting above the new heading,
+    which is what marks them as belonging to this release."""
     if not MANUAL_FILE.exists():
-        return
-    lines = MANUAL_FILE.read_text().splitlines(keepends=True)
-    start = None
-    end = None
-    in_appendix = False
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == CHANGELOG_HEADING:
-            in_appendix = True
-            continue
-        if not in_appendix:
-            continue
-        if stripped == RELEASE_TODO_HEADING:
-            start = i
-            continue
-        if start is not None and (line.startswith("#### ") or line.startswith("### ")):
-            end = i
-            break
-    if start is None:
-        return
-    if end is None:
-        end = len(lines)
-    body = lines[start + 1:end]
-    new_lines = (
-        lines[:start]
-        + [f"{RELEASE_TODO_HEADING}\n", "\n", f"#### Release {tag} boundary\n"]
-        + body
-        + lines[end:]
-    )
+        return False
+    text = MANUAL_FILE.read_text()
+    lines = text.splitlines(keepends=True)
+    marker_idx, end_idx = _pending_range([l.rstrip("\n") for l in lines])
+    if marker_idx is None:
+        return False
+    insertion = [f"#### Release {tag} boundary\n", "\n"]
+    new_lines = lines[:end_idx] + insertion + lines[end_idx:]
     MANUAL_FILE.write_text("".join(new_lines))
+    return True
+
+
+def _bump_release_version() -> str | None:
+    """Increment RELEASE_VERSION's -rc.N/-beta.N/-alpha.N counter in
+    version.py. Returns the new RELEASE_VERSION string, or None if the line
+    has no such suffix to bump (e.g. it's already a plain final release like
+    1.0.0 -- edit version.py by hand for that case)."""
+    if not VERSION_FILE.exists():
+        return None
+    text = VERSION_FILE.read_text()
+
+    def _incr(m: re.Match) -> str:
+        return f"{m.group(1)}{m.group(2)}{m.group(3)}{int(m.group(4)) + 1}{m.group(5)}"
+
+    new_text = _RELEASE_VERSION_RE.sub(_incr, text, count=1)
+    if new_text == text:
+        return None
+    VERSION_FILE.write_text(new_text)
+    return re.search(r'RELEASE_VERSION = "([^"]*)"', new_text).group(1)
 
 
 def _api_request(url: str, token: str, *, method: str = "GET",
@@ -168,8 +191,18 @@ def main() -> int:
     release_id = release["id"]
     print(f"Created release {tag} (id {release_id}).")
 
-    _roll_release_boundary(tag)
-    print(f"Rolled the manual's Recent program updates log boundary to {tag}.")
+    if _roll_release_boundary(tag):
+        print(f"Rolled the manual's Recent program updates log boundary to {tag}.")
+    else:
+        print("WARNING: could not find the changelog marker in user-manual.md — boundary not rolled.",
+              file=sys.stderr)
+
+    new_release_version = _bump_release_version()
+    if new_release_version:
+        print(f"Bumped RELEASE_VERSION to {new_release_version}.")
+    else:
+        print("NOTE: RELEASE_VERSION has no -rc./-beta./-alpha.N suffix to bump "
+              "(e.g. it may already be a plain final release) -- edit version.py by hand if needed.")
 
     # GitHub's asset-upload endpoint takes the raw file bytes as the body
     # (not multipart/form-data like Gitea/Codeberg) with the filename as a

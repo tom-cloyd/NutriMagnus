@@ -29,7 +29,7 @@
 
 <h4 class="mt-4">Current portions</h4>
 {% if portions %}
-<p class="muted"><small>Adding, removing, and reordering (the &uarr;/&darr; buttons below) all save immediately — each click reloads this page with the change already applied, so there's no separate Save button and nothing lost by navigating away.</small></p>
+<p class="muted"><small>Everything here saves immediately — adding, removing, reordering (the &uarr;/&darr; buttons), and editing. To change a portion, edit its description or grams in place and click that row's Save. Each click reloads this page with the change already applied, so nothing is lost by navigating away.</small></p>
 <table class="table table-sm" style="max-width:40rem">
   <thead class="table-light">
     <tr><th>Shortcut</th><th>Description</th><th class="text-end">Grams</th><th></th><th></th></tr>
@@ -38,9 +38,16 @@
     {% for p in portions %}
     <tr>
       <td><code>p{{ loop.index }}</code></td>
-      <td>{{ p.description }}</td>
-      <td class="text-end muted">{{ p.gram_weight }}</td>
+      <td><input type="text" class="form-control form-control-sm" name="description"
+                 form="edit-{{ loop.index0 }}" value="{{ p.description }}" required></td>
+      <td><input type="number" class="form-control form-control-sm text-end" name="gram_weight"
+                 form="edit-{{ loop.index0 }}" value="{{ p.gram_weight }}" step="0.01" min="0.01" required
+                 style="width:6rem;margin-left:auto"></td>
       <td class="text-nowrap">
+        <form id="edit-{{ loop.index0 }}" method="post" action="/food/cache/{{ food.fdc_id }}/portions/edit" style="display:inline">
+          <input type="hidden" name="portion_index" value="{{ loop.index0 }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary" title="Save changes to this portion's description and grams">Save</button>
+        </form>
         <form method="post" action="/food/cache/{{ food.fdc_id }}/portions/move" style="display:inline">
           <input type="hidden" name="portion_index" value="{{ loop.index0 }}">
           <input type="hidden" name="direction" value="up">

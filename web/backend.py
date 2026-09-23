@@ -45,7 +45,7 @@ from numa_app.services import aa_estimate as _aa_estimate
 from numa_app.services.glycemic_load import compute_glycemic_load
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
-from numa_app.services.portions import _ing_amount_display, volume_hint
+from numa_app.services.portions import _ing_amount_display, portion_amount_note
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
 from version import VERSION, NEW_VERSION_NOTE, RELEASE_VERSION
 from numa_app.services import update_check as _update_check
@@ -793,7 +793,7 @@ async def _lifespan(app: FastAPI):
         _refresh_day_pct_goal(_meal_date)
     yield
 
-app = FastAPI(title="numa", lifespan=_lifespan)
+app = FastAPI(title="NuMa", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=_WEB_DIR / "templates")
 
@@ -2619,6 +2619,46 @@ async def food_cache_portions_add(
     })
 
 
+@app.post("/food/cache/{fdc_id}/portions/edit", response_class=HTMLResponse)
+async def food_cache_portions_edit(
+    request: Request,
+    fdc_id: int,
+    portion_index: int = Form(...),
+    description: str = Form(...),
+    gram_weight: str = Form(...),
+):
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if not cached:
+        return RedirectResponse("/food/cache", status_code=303)
+    portions = json.loads(cached["portions_json"] or "[]") or []
+    error = None
+    gw = 0.0
+    try:
+        gw = float(gram_weight)
+        if gw <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        error = "Gram weight must be a positive number."
+    desc = description.strip()
+    if not desc:
+        error = "Description is required."
+    if not error and not 0 <= portion_index < len(portions):
+        error = "That portion no longer exists."
+    if not error:
+        portions[portion_index] = {**portions[portion_index], "description": desc,
+                                   "gram_weight": round(gw, 2)}
+        with _db.get_db() as conn:
+            _db.update_food_portions(conn, fdc_id, portions)
+    return templates.TemplateResponse(request, "food_cache_portions.html", {
+        "food":          {"fdc_id": fdc_id, "name": cached["name"]},
+        "portions":      portions,
+        "saved":         not error,
+        "flash_message": "Portion updated.",
+        "error":         error,
+    })
+
+
 @app.post("/food/cache/{fdc_id}/portions/delete", response_class=HTMLResponse)
 async def food_cache_portions_delete(
     request: Request,
@@ -3706,6 +3746,7 @@ async def food_detail(
     diaas_sort: str | None = None,
     anchor_name: list[str] = Query(default=[]),
     anchor_grams: list[str] = Query(default=[]),
+    from_context: str = Query(default=""),
 ):
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
@@ -3716,6 +3757,7 @@ async def food_detail(
         return templates.TemplateResponse(request, "search.html", {
             "results": [], "query": "", "error": ctx["error"],
         })
+    ctx["from_context"] = from_context if from_context in ("recipe", "meal") else ""
     return templates.TemplateResponse(request, "food_detail.html", ctx)
 
 
@@ -5092,21 +5134,19 @@ async def meal_add_recipe_item(
     if mode == "ingredients":
         r_total_servings = float(recipe["servings"] or 1)
         scale = servings / r_total_servings
+        # Recursively flatten to leaf foods (shared with the nutrient-total
+        # code) rather than stopping one level deep: a direct ingredient that
+        # is itself a sub-recipe used to get added as a single whole-recipe
+        # meal item instead of being expanded further, so "individual
+        # ingredients" for a recipe containing a sub-recipe silently added
+        # that sub-recipe as a package alongside the real ingredients.
         with _db.get_db() as conn:
-            ings = _db.recipe_get_ingredients(conn, recipe_id)
+            leaves = expand_recipe_ingredients(recipe_id, conn, portion_factor=scale)
         with _db.get_db() as conn:
-            for ing in ings:
-                if ing["ref_recipe_deleted"]:
-                    continue
-                if ing["ref_recipe_id"]:
-                    scaled_srv = (ing["amount"] or 1) * scale
-                    sub_unit = f"{scaled_srv:g} serving" + ("s" if scaled_srv != 1 else "")
-                    _db.meal_add_recipe(conn, meal_id, ing["ref_recipe_id"],
-                                        ing["food_name"], scaled_srv, unit=sub_unit)
-                else:
-                    scaled_g = (ing["amount"] or 0) * scale
-                    _db.meal_add_food(conn, meal_id, ing["fdc_id"],
-                                      ing["food_name"], scaled_g, f"{scaled_g:.4g} g")
+            for leaf in leaves:
+                grams = leaf["grams"]
+                _db.meal_add_food(conn, meal_id, leaf["fdc_id"],
+                                  leaf["food_name"], grams, f"{grams:.4g} g")
     else:
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         with _db.get_db() as conn:
@@ -5798,7 +5838,7 @@ async def recipes_list(request: Request, q: str = "", sort: str | None = None,
                         show_archived: bool | None = None, archived: int = 0,
                         restored: int = 0, still_used: int = 0,
                         recipes_created: int = 0, recipes_reused: int = 0):
-    sort = _resolve_sort(sort, "sort_recipes", "recent", set(_RECIPE_SORT_KEYS))
+    sort = _resolve_sort(sort, "sort_recipes", "name", set(_RECIPE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_recipes")
     with _db.get_db() as conn:
         total_count = _db.recipe_count(conn, include_archived=show_archived)
@@ -6327,7 +6367,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
         for _ing in ingredients:
             if not _ing["ref_recipe_id"] and _ing["amount"]:
-                _ing["volume_display"] = volume_hint(_ing["amount"], _ing["food_name"])
+                _ing["volume_display"] = _ingredient_volume_display(conn, _ing)
         _attach_ref_serving_sizes(conn, ingredients)
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
@@ -6530,9 +6570,24 @@ def _recipe_ingredients_with_volume(conn, recipe_id: int) -> list[dict]:
     ingredients = [dict(i) for i in _db.recipe_get_ingredients(conn, recipe_id)]
     for ing in ingredients:
         if not ing["ref_recipe_id"] and ing["amount"]:
-            ing["volume_display"] = volume_hint(ing["amount"], ing["food_name"])
+            ing["volume_display"] = _ingredient_volume_display(conn, ing)
     _attach_ref_serving_sizes(conn, ingredients)
     return ingredients
+
+
+def _ingredient_volume_display(conn, ing: dict) -> str | None:
+    """Scale from the food's own portion data (a known fact, possibly just
+    user-edited) rather than a generic density-based guess, which is
+    frequently wrong and can even contradict a portion the user just set.
+    When the food has no portion data, prompts the user to add it instead of
+    guessing. Returns None only when there's no linked food to even point at
+    (a freeform-typed ingredient with no fdc_id)."""
+    fdc_id = ing.get("fdc_id")
+    if not fdc_id:
+        return None
+    cached = _db.get_cached_food(conn, fdc_id)
+    portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
+    return portion_amount_note(ing["amount"], portions, fdc_id)
 
 
 def _attach_ref_serving_sizes(conn, ingredients: list[dict]) -> None:
@@ -6549,6 +6604,18 @@ def _attach_ref_serving_sizes(conn, ingredients: list[dict]) -> None:
     for ing in ingredients:
         if ing.get("ref_recipe_id"):
             ing["ref_serving_size"] = sizes.get(ing["ref_recipe_id"])
+
+
+def _attach_ingredient_portions(conn, ingredients: list[dict]) -> None:
+    """Attach each food ingredient's cached USDA portions (p1, p2, …) so the
+    inline amount-edit popup can show them the same way the Add Ingredient
+    search results do — without this, editing an amount gives no hint of
+    what "p1" etc. actually mean for that specific food."""
+    for ing in ingredients:
+        if ing.get("ref_recipe_id") or not ing.get("fdc_id"):
+            continue
+        cached = _db.get_cached_food(conn, ing["fdc_id"])
+        ing["portions"] = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
 
 
 def _original_recipe_fields(recipe: dict, target_language: str) -> dict:
@@ -6766,6 +6833,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
             if not _ing["ref_recipe_id"]:
                 _ing["amount_display"] = _ing_amount_display(_ing["unit"], _ing["amount"], _ing["food_name"])
         _attach_ref_serving_sizes(conn, ingredients)
+        _attach_ingredient_portions(conn, ingredients)
 
         # Running nutrition totals for edit-page live feedback — reuse the
         # same shared recipe-nutrient helpers the recipe detail page uses
@@ -7672,10 +7740,27 @@ async def nutrient_plot_page(
     grayscale: bool = Query(False),
     smoothing: str | None = Query(None),
     rolling: bool = Query(False),
+    submitted: bool = Query(False),
 ):
     """Line plot of one or more Daily Summary nutrients over a chosen set of
     days — reuses the same per-day nutrient totals as the Recent Days table
-    and the extra-column picker (numa_app.services.meal_list_columns)."""
+    and the extra-column picker (numa_app.services.meal_list_columns).
+
+    A genuinely fresh landing here (no `submitted` marker — see the form's
+    hidden field) with nothing picked yet redirects to whatever's currently
+    saved as the Home page plot, if any, instead of always rendering blank.
+    Otherwise the page looked "unset" on every visit even with a Home page
+    plot active, which also hid the "Show on Home page" toggle entirely
+    (it only renders once something's actually plotted) while still
+    showing the "a different plot is on the Home page" warning -- true of
+    literally every fresh visit, not just an actual mismatch. A real
+    "submitted this form with everything unchecked" request is left alone,
+    since that's a deliberate empty view, not a fresh landing."""
+    if not submitted and not nutrients:
+        prefs = _load_prefs_file()
+        if prefs.get("home_nutrient_plot_enabled") and prefs.get("home_nutrient_plot_qs"):
+            return RedirectResponse(f"/summary/nutrient-plot?{prefs['home_nutrient_plot_qs']}", status_code=303)
+
     from numa_app.services.meal_list_columns import plot_nutrient_choices
 
     smoothing_n = _parse_smoothing_window(smoothing)
@@ -7786,7 +7871,7 @@ async def nutrient_plot_page(
 
 
 @app.post("/summary/nutrient-plot/home-pref")
-async def nutrient_plot_home_pref(qs: str = Form(...), enabled: str | None = Form(None),
+async def nutrient_plot_home_pref(qs: str = Form(default=""), enabled: str | None = Form(None),
                                    rolling: str | None = Form(None)):
     """"Show this plot on the Home page" toggle on the Nutrient Plot page —
     stores the full plot querystring in prefs.json so index() can reuse it
@@ -7938,10 +8023,13 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
     different profiles with different targets. Also attaches the user's
     chosen extra nutrient columns (shared with Meals & Log), aggregated per
     day rather than per meal, plus the mandatory Protein column every Recent
-    Days row always shows first."""
+    Days row always shows first. Every nutrient column (mandatory or picked)
+    also gets a "% Goal" figure the same way — that date's own pinned
+    profile's RDA/target/limit for that nutrient — stored per-row in
+    pct_goal_map, keyed by nutrient key."""
     from numa_app.services.meal_list_columns import (
         sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, day_nutrient_values,
-        MANDATORY_DAY_COLUMNS, MANDATORY_DAY_KEYS,
+        day_nutrient_raw_totals, MANDATORY_DAY_COLUMNS, MANDATORY_DAY_KEYS,
     )
     show_profile = len(_profile.list_profiles()) > 1
     # Drop Protein if the user separately picked it as a Meals & Log column
@@ -7951,6 +8039,8 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
     # normally if picked (same as any other nutrient).
     nutrient_keys = [k for k in _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
                      if k not in MANDATORY_DAY_KEYS]
+    all_keys = MANDATORY_DAY_KEYS + nutrient_keys
+    diet_pref = _current_diet_pref()
     day_complete_map = _db.day_completion_map(conn)
     day_rows = []
     for r in rows:
@@ -7960,7 +8050,26 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
         if show_profile:
             dp = _db.day_profile_get(conn, d)
             profile_name = dp["profile_name"] if dp else None
-        goal = _day_profile.protein_target_for_date(conn, d, diet_pref=_current_diet_pref())
+        # Computed once per day and reused for both the Protein goal below
+        # and every other nutrient column's % Goal — each day can be pinned
+        # to a different profile, so this can't be hoisted out of the loop.
+        day_profile_obj = _day_profile.get_profile_for_date(conn, d)
+        rda = _profile.compute_rda(day_profile_obj, diet_pref=diet_pref) if day_profile_obj else None
+        goal = rda.get("protein_g", (None,))[0] if rda else None
+        raw_totals = day_nutrient_raw_totals(conn, d, all_keys) if rda else {}
+        pct_goal_map = {}
+        for key in all_keys:
+            if not rda or key not in rda or key not in raw_totals:
+                continue
+            rda_val, rda_unit, rda_type = rda[key]
+            if not rda_val or rda_val <= 0:
+                continue
+            pct = round(raw_totals[key] / rda_val * 100)
+            pct_goal_map[key] = {
+                "pct":  pct,
+                "goal": f"{rda_val:.1f} {rda_unit}",
+                "css":  _rda_css(pct, rda_type),
+            }
         day_rows.append({
             "meal_date":      d,
             "day_bcp":        round(bcp, 1) if bcp is not None else None,
@@ -7970,6 +8079,7 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
             "day_complete":   day_complete_map.get(d, False),
             "mandatory_values": day_nutrient_values(conn, d, MANDATORY_DAY_KEYS),
             "nutrient_values": day_nutrient_values(conn, d, nutrient_keys),
+            "pct_goal_map":   pct_goal_map,
         })
     mandatory_day_cols = [{"key": k, "label": lbl, "title": tip} for k, lbl, tip in MANDATORY_DAY_COLUMNS]
     return day_rows, [{"key": k, "label": _meal_label_for(k)} for k in nutrient_keys], mandatory_day_cols

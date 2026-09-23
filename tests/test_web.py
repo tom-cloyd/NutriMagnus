@@ -644,9 +644,9 @@ def test_recipe_introduction_save_and_display(client: TestClient, db_conn) -> No
     recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
     assert recipe["introduction"] == "A family recipe from grandma."
 
-    # Shows on the edit page, right after Ingredients.
+    # Shows on the edit page, within Recipe details (before Ingredients).
     edit_resp = client.get(f"/recipe/{recipe_id}/edit")
-    assert edit_resp.text.index("sec-ingredients") < edit_resp.text.index("sec-introduction")
+    assert edit_resp.text.index("sec-introduction") < edit_resp.text.index("sec-ingredients")
     assert "A family recipe from grandma." in edit_resp.text
 
     # Shows on the detail page and the print page, right after the title.
@@ -1901,6 +1901,37 @@ def test_recipe_ingredient_edit_and_move(client: TestClient, cached_food, second
         (recipe_id,),
     ).fetchall()
     assert reordered[0]["id"] == second_id
+
+
+def test_recipe_ingredient_volume_display_never_guesses(
+    client: TestClient, cached_food, second_cached_food, db_conn
+) -> None:
+    """The ingredient amount display must be calculated purely from the
+    food's own known portions (never a generic density guess), and must
+    prompt the user to add portion data — with a working link — instead of
+    guessing when a linked food has none at all."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Bowl", "servings": 2}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    # cached_food's only portion is "1 breast" = 174 g — half that amount
+    # must scale to "1/2 breast", calculated from the real portion weight.
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "87 g"},
+        follow_redirects=False,
+    )
+    # second_cached_food has portions_json = "[]" — no portion data at all.
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": second_cached_food["fdcId"], "food_name": second_cached_food["name"], "portion_str": "50 g"},
+        follow_redirects=False,
+    )
+
+    resp = client.get(f"/recipe/{recipe_id}")
+    assert "1/2 breast" in resp.text
+    assert "No portion/weight data exists" in resp.text
+    assert f'href="/food/cache/{second_cached_food["fdcId"]}/portions"' in resp.text
 
 
 def test_recipe_delete_and_copy(client: TestClient, cached_food, db_conn) -> None:
@@ -3578,7 +3609,7 @@ def test_recent_days_shows_complete_column(client: TestClient, cached_food) -> N
     # Isolate each date's actual table row (not the unrelated "Today's
     # summary" link elsewhere on the page, which also contains today's date).
     def _row_for(date: str) -> str:
-        m = re.search(rf"<tr[^>]*>\s*<td>{date}</td>.*?</tr>", r.text, re.DOTALL)
+        m = re.search(rf'<tr[^>]*>\s*<td[^>]*>{date}</td>.*?</tr>', r.text, re.DOTALL)
         assert m, f"no table row found for {date}"
         return m.group(0)
     today_row = _row_for(today)
@@ -3589,6 +3620,41 @@ def test_recent_days_shows_complete_column(client: TestClient, cached_food) -> N
     # Yesterday's row (all meals complete) shows a checkmark, no fix-it link.
     assert f'href="/meals?date={yesterday}"' not in yesterday_row
     assert "&#10003;" in yesterday_row
+
+
+def test_recent_days_shows_pct_goal_for_every_nutrient_column(client: TestClient, cached_food) -> None:
+    """Every nutrient column on Recent Days -- the mandatory Protein column
+    and any extra column picked in Settings -- gets its own "% Goal" column
+    (that date's own pinned profile's RDA/target/limit for that nutrient),
+    not just Day DCP. Previously only Day DCP had a %/goal pair."""
+    client.post("/settings/meal-nutrients", data={"pos_sodium_mg": "1"}, follow_redirects=False)
+
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Dinner", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    client.get(f"/meal/{meal_id}")  # triggers the nutrient-snapshot compute Recent Days reads
+
+    r = client.get("/summary")
+    assert r.status_code == 200
+    text = r.text
+    # Header: one "% / Goal" per nutrient column -- mandatory Protein and the
+    # picked Sodium column (Day DCP's own %goal column is separate and only
+    # appears once a day's DCP has actually been computed).
+    assert text.count('<small class="muted">Goal</small>') == 2
+
+    def _row_for(date: str) -> str:
+        m = re.search(rf'<tr[^>]*>\s*<td[^>]*>{date}</td>.*?</tr>', text, re.DOTALL)
+        assert m, f"no table row found for {date}"
+        return m.group(0)
+    row = _row_for(today)
+    # Both the mandatory Protein column and the picked Sodium column show a
+    # real percentage (not a bare "—"), each followed by its goal amount in
+    # parens on the second line.
+    assert re.search(r'rda-\w+">\d+%</span><br>\s*<small class="muted">\(', row)
+    assert row.count('rda-') >= 2
 
 
 def test_nutrient_plot_home_page_toggle_is_prominent(client: TestClient, cached_food) -> None:
@@ -3896,6 +3962,72 @@ def test_nutrient_plot_stale_home_qs_offers_remove_button(client: TestClient, ca
     assert "Your nutrient plot" not in home.text
 
 
+def test_nutrient_plot_remove_from_home_page_works_with_no_nutrients_chosen(
+    client: TestClient, cached_food,
+) -> None:
+    """Regression: landing on /summary/nutrient-plot with nothing chosen
+    (has_plot False) renders the hidden qs field as value="" -- the "Remove
+    it from Home page" button there used to 422 ("Field required") because
+    FastAPI's Form(...) treats a submitted empty string as a missing field,
+    not an empty one. qs must default to "" instead of being required."""
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=calories")
+    qs = re.search(r'name="qs" value="([^"]*)"', r.text).group(1)
+    client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
+
+    # A fresh visit with nothing chosen at all -- has_plot is False here, so
+    # the hidden qs field is empty, matching what the reported bug hit.
+    r2 = client.get("/summary/nutrient-plot?submitted=1")
+    assert 'name="qs" value=""' in r2.text
+
+    r3 = client.post("/summary/nutrient-plot/home-pref", data={"qs": ""}, follow_redirects=False)
+    assert r3.status_code == 303
+
+    home = client.get("/")
+    assert "Your nutrient plot" not in home.text
+
+
+def test_nutrient_plot_fresh_landing_loads_saved_home_plot(client: TestClient, cached_food) -> None:
+    """A bare GET /summary/nutrient-plot (no query string at all) used to
+    always render blank -- has_plot False, hiding the "Show on Home page"
+    toggle entirely -- even with a plot already pinned to the Home page,
+    and it also unconditionally showed the "a different plot is on the Home
+    page" warning, which was true of literally every fresh visit rather
+    than an actual mismatch. It now redirects to the saved configuration
+    instead. A real form submission with everything unchecked (the hidden
+    submitted=1 marker present) must NOT be redirected -- that's a
+    deliberate empty view."""
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    import html
+    r = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=calories")
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r.text).group(1))
+    client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
+
+    fresh = client.get("/summary/nutrient-plot", follow_redirects=False)
+    assert fresh.status_code == 303
+    assert fresh.headers["location"] == f"/summary/nutrient-plot?{qs}"
+
+    followed = client.get("/summary/nutrient-plot")
+    assert "Show on Home page" in followed.text or "On Home page" in followed.text
+    assert "different plot configuration" not in followed.text
+
+    # A real (if empty) form submission is left alone, not redirected.
+    empty_submit = client.get("/summary/nutrient-plot?submitted=1", follow_redirects=False)
+    assert empty_submit.status_code == 200
+
+
 def test_food_cache_portions_move_swaps_order_and_renumbers_shortcuts(client: TestClient, db_conn):
     """Manage Portions page: the up/down move route swaps a portion with its
     neighbor, which changes which pN shortcut points at it. Out-of-range
@@ -3940,8 +4072,33 @@ def test_food_cache_portions_move_swaps_order_and_renumbers_shortcuts(client: Te
 
     # Shortcuts (rendered as p1/p2/p3 in list order) reflect the new order.
     page = client.get(f"/food/cache/{fdc_id}/portions")
-    assert re.search(r"p1</code>\s*</td>\s*<td>1 slice", page.text)
-    assert re.search(r"p2</code>\s*</td>\s*<td>1 cup", page.text)
+    assert re.search(r'p1</code>\s*</td>\s*<td><input[^>]*value="1 slice"', page.text)
+    assert re.search(r'p2</code>\s*</td>\s*<td><input[^>]*value="1 cup"', page.text)
+
+
+def test_food_cache_portions_edit_updates_in_place_and_rejects_bad_input(client: TestClient, db_conn):
+    """Manage Portions page: the edit route changes a portion's description and
+    grams in place (keeping its position), and rejects bad input unchanged."""
+    fdc_id = 999011
+    portions = [{"description": "1 cup", "gram_weight": 100.0},
+                {"description": "1 slice", "gram_weight": 30.0}]
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (fdc_id, "Test Food", "SR Legacy", json.dumps({"protein_g": 0}), json.dumps(portions)),
+    )
+    db_conn.commit()
+    url = f"/food/cache/{fdc_id}/portions/edit"
+    resp = client.post(url, data={"portion_index": 1, "description": " 2 slices ", "gram_weight": "61.5"})
+    assert "Portion updated." in resp.text
+    row = db_conn.execute("SELECT portions_json FROM foods WHERE fdc_id=?", (fdc_id,)).fetchone()
+    assert json.loads(row["portions_json"]) == [
+        {"description": "1 cup", "gram_weight": 100.0},
+        {"description": "2 slices", "gram_weight": 61.5}]
+    resp = client.post(url, data={"portion_index": 0, "description": "x", "gram_weight": "-3"})
+    assert "positive number" in resp.text
+    row = db_conn.execute("SELECT portions_json FROM foods WHERE fdc_id=?", (fdc_id,)).fetchone()
+    assert json.loads(row["portions_json"])[0]["description"] == "1 cup"
 
 
 
@@ -3976,3 +4133,75 @@ def test_manual_route_serves_verified_downloaded_manual(
     monkeypatch.setattr(_mu, "get_active_manual", lambda baked: {"path": fake, "stamp": "2099-01-01:0000",
                                                                "source": "downloaded", "requires_program": "x"})
     assert "DOWNLOADED MANUAL" in client.get("/manual").text
+
+
+def test_meal_add_recipe_mode_ingredients_expands_server_side(client, cached_food, db_conn) -> None:
+    """/meal/{id}/add-recipe with mode=ingredients must add each ingredient
+    as its own meal item, not the recipe as a single package -- confirms the
+    server side of this is correct. (A real-world report of this "not
+    working" turned out to be a client-side bug: the meal page's background
+    merge of external search results was overwriting the "Individual
+    ingredients" radio pick back to its default before Add was clicked --
+    see the JS-side fix in meal.html's search-api-results merge, not
+    reproducible from a server-only test like this one.)"""
+    rid = int(
+        client.post("/recipe/new", data={"name": "Mexican coffee", "servings": 2}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    resp = client.post(f"/recipe/{rid}/ingredient/add", data={
+        "fdc_id": cached_food["fdcId"], "food_name": "Test Food", "portion_str": "100 g",
+    }, follow_redirects=False)
+    assert resp.status_code == 303
+
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add-recipe", data={
+        "recipe_id": rid, "recipe_name": "Mexican coffee", "servings": 1,
+        "mode": "ingredients", "amount_mode": "servings",
+    }, follow_redirects=False)
+
+    items = db_conn.execute("SELECT * FROM meal_items WHERE meal_id=?", (meal_id,)).fetchall()
+    assert items, "expected the recipe's ingredient to be added"
+    assert all(it["item_type"] == "food" for it in items), "expected expanded ingredients, got a recipe item"
+
+
+def test_meal_add_recipe_mode_ingredients_flattens_a_nested_sub_recipe(client, cached_food, db_conn) -> None:
+    """A recipe whose ingredient list includes another recipe (a sub-recipe
+    reference) must, in "Individual ingredients" mode, expand that
+    sub-recipe's own leaf foods too -- not add the sub-recipe itself as a
+    whole-recipe meal item. Previously it stopped one level deep, so picking
+    "Individual ingredients" for an outer recipe containing a sub-recipe
+    added the real ingredients PLUS that sub-recipe as its own package."""
+    inner_id = int(
+        client.post("/recipe/new", data={"name": "Inner recipe", "servings": 1}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(f"/recipe/{inner_id}/ingredient/add", data={
+        "fdc_id": cached_food["fdcId"], "food_name": "Test Food", "portion_str": "50 g",
+    }, follow_redirects=False)
+
+    outer_id = int(
+        client.post("/recipe/new", data={"name": "Outer recipe", "servings": 1}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(f"/recipe/{outer_id}/ingredient/add-recipe", data={
+        "ref_recipe_id": inner_id, "recipe_name": "Inner recipe", "servings": 1,
+    }, follow_redirects=False)
+
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add-recipe", data={
+        "recipe_id": outer_id, "recipe_name": "Outer recipe", "servings": 1,
+        "mode": "ingredients", "amount_mode": "servings",
+    }, follow_redirects=False)
+
+    items = db_conn.execute("SELECT * FROM meal_items WHERE meal_id=?", (meal_id,)).fetchall()
+    assert items, "expected the inner recipe's leaf ingredient to be added"
+    assert all(it["item_type"] == "food" for it in items), (
+        "expected the sub-recipe to be flattened to its leaf food, not added as its own recipe item"
+    )
+    assert [it["fdc_id"] for it in items] == [cached_food["fdcId"]]
