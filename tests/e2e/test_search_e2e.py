@@ -84,3 +84,32 @@ def test_meal_add_food_fetch_replaces_table_with_merged_results(live_server, pag
 
     page.wait_for_selector("#add-food-tbody >> text=Chickpeas", timeout=10_000)
     assert page.query_selector("#add-food-api-loading") is None
+
+
+def test_gi_lookup_row_click_fills_the_gi_field(live_server, page):
+    """Regression: only the "Use" button carried a click handler, so clicking
+    the food name — the obvious thing to try — did nothing at all, with no
+    visible response of any kind."""
+    page.goto(f"{live_server}/food/annotate?q=Chickpeas")
+    page.click("a.btn:has-text('Edit')")
+    page.click("#gi-lookup-details summary")
+    page.fill("#gi-lookup-query", "Chickpeas")
+    with page.expect_response(lambda r: "/gi-lookup?" in r.url):
+        page.click("#gi-lookup-search")
+    page.wait_for_selector(".gi-pick-row", timeout=10_000)
+
+    row = page.query_selector(".gi-pick-row")
+    expected = row.get_attribute("data-gi")
+    # Click the name cell, not the button.
+    row.query_selector("td").click()
+
+    assert page.input_value("#gi_estimate") == expected
+    # The list of matches goes away and the panel closes, so the filled GI box
+    # and the Save button are what's left on screen — a note at the foot of a
+    # long result list would just be scrolled past.
+    assert page.query_selector(".gi-pick-row") is None
+    assert page.eval_on_selector("#gi-lookup-details", "el => el.open") is False
+    # The value is only in the form at this point, so Save has to be unmissable.
+    save = page.query_selector("#save-annotation-btn")
+    assert "btn-save-pending" in save.get_attribute("class")
+    assert page.evaluate("document.activeElement.id") == "save-annotation-btn"

@@ -55,7 +55,8 @@ from numa_app.services.portions import _VOLUME_TO_ML as _PORTION_VOL_TO_ML
 from numa_app.services.rda_status import rda_status, limit_warning
 from numa_app.services.diet_aware import b12_deficiency_note, iron_zinc_bioavailability_note
 from numa_app.services.recipe_nutrients import (
-    atomic_recipe_ingredients, best_aa_nutrients, expand_recipe_ingredients, recipe_total_nutrients,
+    atomic_recipe_ingredients, best_aa_nutrients, expand_recipe_ingredients,
+    recipe_aa_indicator, recipe_serving_grams, recipe_total_nutrients,
 )
 from numa_app.services.top_contributors import rank_contributors, rank_contributors_by_dcp
 from numa_app.services import recipe_dcp as _recipe_dcp
@@ -810,6 +811,35 @@ def _manual_link(anchor: str, text: str = "Learn more") -> str:
     )
 
 templates.env.globals["manual_link"] = _manual_link
+
+_RELEASE_ANCHOR_RE = re.compile(r'<h4 id="(release-[^"]+-summary[^"]*)"')
+_CHANGELOG_ANCHOR = "a-recent-program-updates-log"
+_release_anchor_cache: dict[str, tuple[float, str]] = {}
+
+def _latest_release_anchor() -> str:
+    """Anchor of the newest "Release <tag> summary" heading in the built manual.
+
+    The home page's "see what changed" link points at what the running version
+    actually shipped with — the most recent release summary — rather than the
+    top of the log, which leads with the still-unreleased "Next release summary
+    to this point". Falls back to the section heading if no release summary is
+    found (a freshly pruned log, or a manual that failed to build).
+    """
+    try:
+        path = _manual_update.get_active_manual(_MANUAL)["path"]
+        mtime = path.stat().st_mtime
+    except OSError:
+        return _CHANGELOG_ANCHOR
+    cached = _release_anchor_cache.get(str(path))
+    if cached and cached[0] == mtime:
+        return cached[1]
+    try:
+        m = _RELEASE_ANCHOR_RE.search(path.read_text(encoding="utf-8"))
+    except OSError:
+        return _CHANGELOG_ANCHOR
+    anchor = m.group(1) if m else _CHANGELOG_ANCHOR
+    _release_anchor_cache[str(path)] = (mtime, anchor)
+    return anchor
 templates.env.globals["is_local_source"] = _is_local_source
 
 def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
@@ -1533,6 +1563,7 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
             "updated": updated,
             "update_error": update_error,
             "manual_stamp": active_manual["stamp"],
+            "changelog_anchor": _latest_release_anchor(),
             "manual_update_available": manual_update_available,
             "manual_updated": manual_updated,
             "manual_update_error": manual_update_error,
@@ -1613,6 +1644,7 @@ def _search_local_results(query: str) -> list[dict]:
             "has_notes": bool(row["notes"]),
         })
     matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
+    recipe_aa_status = _recipe_aa_status([r["id"] for r in matching_recipes])
     for r in matching_recipes:
         results.append({
             "_type":     "recipe",
@@ -1621,7 +1653,7 @@ def _search_local_results(query: str) -> list[dict]:
             "data_type": "Recipe",
             "brand":     "",
             "source":    "recipe",
-            "aa":        "✓" if r["dcp_g"] is not None else "—",
+            "aa":        recipe_aa_status[r["id"]],
             "gi":        None,
             "diaas":     None,
             "has_notes": False,
@@ -2937,7 +2969,7 @@ async def pantry_add(
                 result_flag = "linked=1"
             else:
                 _db.pantry_add(conn, food_name, fdc_id=fdc_id_int, notes=notes)
-    if fdc_id_int is not None and _gi_prompt_needed(fdc_id_int):
+    if fdc_id_int is not None and _annotation_prompt_needed(fdc_id_int):
         from urllib.parse import quote
         return RedirectResponse(
             f"/food/annotate/{fdc_id_int}?next={quote('/pantry?' + result_flag)}", status_code=303
@@ -3474,13 +3506,28 @@ async def food_custom_profiles_copy_from_search(fdc_id: int = Form(...), off_cod
     return RedirectResponse(f"/food/custom-profiles/{new_id}/edit", status_code=303)
 
 
-def _gi_prompt_needed(fdc_id: int) -> bool:
-    """True if this food has no GI estimate and prompts for it aren't suppressed."""
+def _missing_annotations(ann) -> list[str]:
+    """Which of GI / DIAAS this food still has no estimate for and hasn't been
+    told to stop asking about. Drives both whether to detour to the Annotate
+    page after adding a food and what that page says is missing."""
+    if ann is None:
+        return ["GI", "DIAAS"]
+    missing = []
+    if ann["gi_estimate"] is None and not ann["gi_no_prompt"]:
+        missing.append("GI")
+    if ann["diaas_estimate"] is None and not ann["diaas_no_prompt"]:
+        missing.append("DIAAS")
+    return missing
+
+
+def _annotation_prompt_needed(fdc_id: int) -> bool:
+    """True if this food is still missing a GI or DIAAS estimate the user
+    hasn't suppressed prompts for. An estimate that's already stored is never
+    prompted for again — it's edited from the GI/DIAAS cells on the add-food
+    row, or from Annotate a Food."""
     with _db.get_db() as conn:
         ann = _db.get_food_annotation(conn, fdc_id)
-    if ann is None:
-        return True
-    return ann["gi_estimate"] is None and not ann["gi_no_prompt"]
+    return bool(_missing_annotations(ann))
 
 
 @app.get("/food/annotate", response_class=HTMLResponse)
@@ -3523,6 +3570,7 @@ async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "",
         "fdc_id":    fdc_id,
         "food_name": food_name,
         "annotation": dict(ann) if ann else None,
+        "missing":   _missing_annotations(ann),
         "saved":     bool(saved),
         "next":      next,
         "gi_default_population": gi_default_population,
@@ -3566,9 +3614,11 @@ async def food_annotate_edit_post(
 
 @app.post("/food/annotate/{fdc_id}/skip-forever", response_class=RedirectResponse)
 async def food_annotate_skip_forever(fdc_id: int, next: str = Form("")):
-    """Suppress future GI prompts for this food without touching any other annotation field."""
+    """Suppress future GI and DIAAS prompts for this food without touching any
+    stored estimate. Both, because the button reads as "stop asking me about
+    this food" — suppressing only one would keep the detour appearing."""
     with _db.get_db() as conn:
-        _db.upsert_food_annotation(conn, fdc_id, gi_no_prompt=1)
+        _db.upsert_food_annotation(conn, fdc_id, gi_no_prompt=1, diaas_no_prompt=1)
     if next:
         return RedirectResponse(next, status_code=303)
     return RedirectResponse("/food/annotate", status_code=303)
@@ -4199,6 +4249,19 @@ def _compute_gl(meal_id: int) -> tuple[float | None, list[str]]:
     return (None if blockers else round(gl_total, 1), blockers)
 
 
+def _recipe_aa_status(recipe_ids) -> dict[int, str]:
+    """AA-column status per recipe id, for search-result rows.
+
+    A recipe has no nutrients dict of its own to hand aa_indicator(), so the
+    status is derived from its expanded ingredient totals. Recipe rows used to
+    carry no "aa" key at all (or, on Food Search, a dcp_g stand-in that said
+    nothing about AA data), leaving the column blank for recipes that do have
+    amino acid data.
+    """
+    with _db.get_db() as conn:
+        return {rid: recipe_aa_indicator(rid, conn) for rid in recipe_ids}
+
+
 def _expand_recipe_ingredients(recipe_id: int, portion_factor: float, conn) -> list[dict]:
     """Recursively expand a recipe's ingredients for DIAAS, scaling by portion_factor.
     Thin positional-argument wrapper — the recursion itself lives in
@@ -4308,6 +4371,9 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 total_nutrients[k] = total_nutrients.get(k, 0.0) + v
             # Expand recipe ingredients into DIAAS ingredient list (handles sub-recipes)
             ingredients.extend(_expand_recipe_ingredients(row["recipe_id"], portion_factor, conn))
+            # "2 servings" says nothing about how much food that actually is;
+            # stays None when the recipe's serving weight can't be worked out.
+            serving_g = recipe_serving_grams(row["recipe_id"], conn) if recipe else None
             items.append({
                 "id":             row["id"],
                 "food_name":      row["food_name"],
@@ -4315,6 +4381,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 "recipe_id":      row["recipe_id"],
                 "amount":         servings_consumed,
                 "unit":           "serving" + ("s" if servings_consumed != 1 else ""),
+                "grams":          serving_g * servings_consumed if serving_g else None,
                 "notes":          row["notes"] or "",
                 "has_nuts":       bool(per_serving),
                 "recipe_deleted": recipe is None,
@@ -4583,6 +4650,7 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
     ql = q.lower()
     query_words = ql.split()
     matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
+    recipe_aa_status = _recipe_aa_status([r["id"] for r in matching_recipes])
     for r in matching_recipes:
         search_results.append({
             "_type":         "recipe",
@@ -4596,6 +4664,7 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
             "total_volume_unit": r["total_volume_unit"] or "ml",
             "data_type":     "Recipe",
             "source":        "recipe",
+            "aa":            recipe_aa_status[r["id"]],
         })
 
     # Cached foods only — fast, local DB. External USDA/OFF results are
@@ -5093,7 +5162,7 @@ async def meal_add_food(
         return _redirect(error=error_msg)
     with _db.get_db() as conn:
         _db.meal_add_food(conn, meal_id, fdc_id, name, grams, "g")
-    if _gi_prompt_needed(fdc_id):
+    if _annotation_prompt_needed(fdc_id):
         # next= carries an explicit empty q= (not simply omitted) so that,
         # once the annotate flow redirects back to the meal page, the
         # persist-search JS in base.html forgets the saved query instead of
@@ -6594,16 +6663,25 @@ def _attach_ref_serving_sizes(conn, ingredients: list[dict]) -> None:
     """For each ingredient that's a nested sub-recipe (ref_recipe_id set),
     attach that sub-recipe's own serving_size (e.g. "1 muffin") as
     ref_serving_size, so ingredient-list displays showing "N srv" can show
-    what a serving of that sub-recipe actually is, right alongside it."""
+    what a serving of that sub-recipe actually is, right alongside it.
+
+    Also attaches ref_grams — what those N servings weigh — so the same
+    displays can say how much food "N srv" is. It stays None when the
+    sub-recipe's serving weight can't be worked out (see
+    recipe_serving_grams)."""
     ref_ids = {ing["ref_recipe_id"] for ing in ingredients if ing.get("ref_recipe_id")}
     sizes = {}
+    serving_grams: dict[int, float | None] = {}
     for rid in ref_ids:
         sub = _db.recipe_get(conn, rid)
         if sub:
             sizes[rid] = sub["serving_size"]
+            serving_grams[rid] = recipe_serving_grams(rid, conn)
     for ing in ingredients:
         if ing.get("ref_recipe_id"):
             ing["ref_serving_size"] = sizes.get(ing["ref_recipe_id"])
+            per_serving_g = serving_grams.get(ing["ref_recipe_id"])
+            ing["ref_grams"] = per_serving_g * float(ing["amount"]) if per_serving_g and ing["amount"] else None
 
 
 def _attach_ingredient_portions(conn, ingredients: list[dict]) -> None:
@@ -6878,6 +6956,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
             r for r in all_recipes
             if r["id"] != recipe_id and any(w in r["name"].lower() for w in query_words)
         ]
+        recipe_aa_status = _recipe_aa_status([r["id"] for r in matching_recipes])
         for r in matching_recipes:
             search_results.append({
                 "_type":     "recipe",
@@ -6887,6 +6966,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 "serving_size": r["serving_size"],
                 "data_type": "Recipe",
                 "source":    "recipe",
+                "aa":        recipe_aa_status[r["id"]],
             })
         seen: set[int] = set()
         for row in cached:

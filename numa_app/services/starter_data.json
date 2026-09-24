@@ -1,76 +1,48 @@
 {
   "foods": [
     {
-      "fdc_id": 170683,
-      "name": "* Amaranth grain, cooked",
-      "data_type": "SR Legacy",
+      "fdc_id": -3,
+      "name": "* Crackers, saltines (Nabisco)",
+      "data_type": "User Drafted",
       "nutrients": {
-        "calories": 102.0,
-        "protein_g": 3.8,
-        "fat_g": 1.58,
-        "carbs_g": 18.69,
-        "fiber_g": 2.1,
-        "calcium_mg": 47.0,
-        "iron_mg": 2.1,
-        "magnesium_mg": 65.0,
-        "phosphorus_mg": 148.0,
-        "potassium_mg": 135.0,
-        "sodium_mg": 6.0,
-        "zinc_mg": 0.86,
-        "thiamin_mg": 0.015,
-        "riboflavin_mg": 0.022,
-        "niacin_mg": 0.235,
-        "b6_mg": 0.113,
-        "folate_mcg": 22.0,
-        "vitamin_e_mg": 0.19
+        "vitamin_a_mcg": 1.0,
+        "folate_mcg": 134.0,
+        "potassium_mg": 125.0,
+        "thiamin_mg": 0.702,
+        "aa_valine_g": 0.2636,
+        "sodium_mg": 844.0,
+        "phosphorus_mg": 102.0,
+        "magnesium_mg": 23.0,
+        "aa_isoleucine_g": 0.22,
+        "calories": 437.0,
+        "aa_tyrosine_g": 0.1202,
+        "aa_phenylalanine_g": 0.2973,
+        "aa_cystine_g": 0.1533,
+        "aa_leucine_g": 0.4308,
+        "iron_mg": 5.0,
+        "aa_histidine_g": 0.1302,
+        "poly_fat_g": 4.835,
+        "aa_methionine_g": 0.0971,
+        "b6_mg": 0.086,
+        "zinc_mg": 0.69,
+        "aa_lysine_g": 0.1136,
+        "aa_tryptophan_g": 0.0766,
+        "mono_fat_g": 1.986,
+        "vitamin_e_mg": 1.15,
+        "choline_mg": 16.7,
+        "lutein_zeaxanthin_mcg": 17.0,
+        "aa_threonine_g": 0.1771,
+        "protein_g": 6.25,
+        "fat_g": 9.375,
+        "carbs_g": 75.0,
+        "riboflavin_mg": 0.487,
+        "b12_mcg": 0.09,
+        "niacin_mg": 6.442
       },
       "portions": [
         {
-          "description": "cup",
-          "gram_weight": 246.0
-        }
-      ]
-    },
-    {
-      "fdc_id": 171708,
-      "name": "* Cherries, tart, dried, sweetened (Includes foods for USDA's Food Distribution Program)",
-      "data_type": "SR Legacy",
-      "nutrients": {
-        "calories": 333.0,
-        "protein_g": 1.25,
-        "fat_g": 0.73,
-        "carbs_g": 80.45,
-        "fiber_g": 2.5,
-        "calcium_mg": 38.0,
-        "iron_mg": 0.68,
-        "magnesium_mg": 22.0,
-        "phosphorus_mg": 36.0,
-        "potassium_mg": 376.0,
-        "sodium_mg": 13.0,
-        "zinc_mg": 0.25,
-        "vitamin_c_mg": 19.3,
-        "thiamin_mg": 0.058,
-        "riboflavin_mg": 0.101,
-        "niacin_mg": 0.867,
-        "b6_mg": 0.101,
-        "folate_mcg": 11.0,
-        "choline_mg": 14.7,
-        "b12_mcg": 0.0,
-        "vitamin_a_mcg": 141.0,
-        "beta_carotene_mcg": 1697.0,
-        "alpha_carotene_mcg": 0.0,
-        "lycopene_mcg": 0.0,
-        "lutein_zeaxanthin_mcg": 173.0,
-        "vitamin_e_mg": 0.17,
-        "vitamin_d_mcg": 0.0,
-        "saturated_fat_g": 0.146,
-        "mono_fat_g": 0.177,
-        "poly_fat_g": 0.194
-      },
-      "portions": [
-        {
-          "description": "cup",
-          "gram_weight": 40.0
+          "description": "1.75\" square",
+          "gram_weight": 3.25
         }
       ]
     },
@@ -170,6 +142,50 @@
         {
           "description": "cup",
           "gram_weight": 171.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 175083,
+      "name": "* Nabisco Graham Crackers",
+      "data_type": "User Drafted",
+      "nutrients": {
+        "magnesium_mg": 59.0,
+        "thiamin_mg": 0.228,
+        "aa_isoleucine_g": 0.2481,
+        "aa_histidine_g": 0.1381,
+        "saturated_fat_g": 1.56,
+        "aa_lysine_g": 0.2289,
+        "aa_methionine_g": 0.1101,
+        "zinc_mg": 1.94,
+        "aa_phenylalanine_g": 0.3111,
+        "aa_leucine_g": 0.4613,
+        "aa_threonine_g": 0.2202,
+        "b6_mg": 0.1,
+        "aa_cystine_g": 0.1241,
+        "potassium_mg": 177.0,
+        "protein_g": 6.99,
+        "fiber_g": 3.4,
+        "folate_mcg": 46.0,
+        "iron_mg": 4.13,
+        "phosphorus_mg": 202.0,
+        "sodium_mg": 659.0,
+        "aa_tryptophan_g": 0.0856,
+        "carbs_g": 76.2,
+        "mono_fat_g": 3.6,
+        "aa_valine_g": 0.2971,
+        "aa_tyrosine_g": 0.2062,
+        "riboflavin_mg": 0.24,
+        "fat_g": 10.0,
+        "poly_fat_g": 0.46,
+        "calories": 424.0,
+        "niacin_mg": 3.78,
+        "calcium_mg": 79.0
+      },
+      "portions": [
+        {
+          "description": "2 crackers,  sqs., 8 rectangles",
+          "gram_weight": 30.0
         }
       ]
     },
@@ -602,6 +618,484 @@
         {
           "description": "cup",
           "gram_weight": 4.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 2261420,
+      "name": "* Almond Flour",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 579.0,
+        "protein_g": 21.2,
+        "carbs_g": 21.6,
+        "fat_g": 49.9,
+        "fiber_g": 12.5,
+        "sugar_g": 4.4,
+        "saturated_fat_g": 3.8,
+        "mono_fat_g": 31.6,
+        "poly_fat_g": 12.3,
+        "calcium_mg": 269.0,
+        "iron_mg": 3.7,
+        "magnesium_mg": 270.0,
+        "phosphorus_mg": 481.0,
+        "potassium_mg": 733.0,
+        "sodium_mg": 1.0,
+        "zinc_mg": 3.1,
+        "vitamin_c_mg": 0.0,
+        "vitamin_e_mg": 25.6,
+        "vitamin_k_mcg": 0.0,
+        "thiamin_mg": 0.21,
+        "riboflavin_mg": 1.14,
+        "niacin_mg": 3.6,
+        "b6_mg": 0.14,
+        "folate_mcg": 44.0,
+        "b12_mcg": 0.0,
+        "beta_carotene_mcg": 1.0,
+        "lutein_zeaxanthin_mcg": 1.0,
+        "choline_mg": 52.1,
+        "beta_sitosterol_mg": 132.0,
+        "aa_tryptophan_g": 0.214,
+        "aa_threonine_g": 0.611,
+        "aa_isoleucine_g": 0.751,
+        "aa_leucine_g": 1.488,
+        "aa_lysine_g": 0.58,
+        "aa_methionine_g": 0.157,
+        "aa_cystine_g": 0.215,
+        "aa_phenylalanine_g": 1.132,
+        "aa_tyrosine_g": 0.452,
+        "aa_valine_g": 0.855,
+        "aa_histidine_g": 0.539
+      },
+      "portions": null
+    },
+    {
+      "fdc_id": 790085,
+      "name": "* Whole Wheat Flour, unenriched",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 340.0,
+        "protein_g": 13.2,
+        "carbs_g": 72.0,
+        "fat_g": 2.5,
+        "fiber_g": 10.7,
+        "sugar_g": 0.41,
+        "saturated_fat_g": 0.43,
+        "mono_fat_g": 0.28,
+        "poly_fat_g": 1.17,
+        "calcium_mg": 34.0,
+        "iron_mg": 3.6,
+        "magnesium_mg": 137.0,
+        "phosphorus_mg": 357.0,
+        "potassium_mg": 363.0,
+        "sodium_mg": 2.0,
+        "zinc_mg": 2.6,
+        "vitamin_c_mg": 0.0,
+        "vitamin_e_mg": 0.71,
+        "vitamin_k_mcg": 1.9,
+        "thiamin_mg": 0.5,
+        "riboflavin_mg": 0.17,
+        "niacin_mg": 4.96,
+        "b6_mg": 0.41,
+        "folate_mcg": 44.0,
+        "b12_mcg": 0.0,
+        "beta_carotene_mcg": 5.0,
+        "lutein_zeaxanthin_mcg": 220.0,
+        "choline_mg": 31.2,
+        "aa_tryptophan_g": 0.174,
+        "aa_threonine_g": 0.367,
+        "aa_isoleucine_g": 0.443,
+        "aa_leucine_g": 0.898,
+        "aa_lysine_g": 0.359,
+        "aa_methionine_g": 0.228,
+        "aa_cystine_g": 0.275,
+        "aa_phenylalanine_g": 0.682,
+        "aa_tyrosine_g": 0.275,
+        "aa_valine_g": 0.564,
+        "aa_histidine_g": 0.357
+      },
+      "portions": null
+    },
+    {
+      "fdc_id": 172803,
+      "name": "* Leavening agents, baking powder, double-acting, sodium aluminum sulfate",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 53.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "carbs_g": 27.7,
+        "fiber_g": 0.2,
+        "calcium_mg": 5876.0,
+        "iron_mg": 11.02,
+        "magnesium_mg": 27.0,
+        "phosphorus_mg": 2191.0,
+        "potassium_mg": 20.0,
+        "sodium_mg": 10600.0,
+        "zinc_mg": 0.01,
+        "selenium_mcg": 0.2,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.0,
+        "riboflavin_mg": 0.0,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.0,
+        "folate_mcg": 0.0,
+        "choline_mg": 0.0,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.0,
+        "mono_fat_g": 0.0,
+        "poly_fat_g": 0.0,
+        "omega6_la_mg": 0.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
+      },
+      "portions": [
+        {
+          "description": "tsp",
+          "gram_weight": 2.3
+        },
+        {
+          "description": "tsp",
+          "gram_weight": 4.6
+        }
+      ]
+    },
+    {
+      "fdc_id": 173468,
+      "name": "* Salt, table",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 0.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "carbs_g": 0.0,
+        "fiber_g": 0.0,
+        "calcium_mg": 24.0,
+        "iron_mg": 0.33,
+        "magnesium_mg": 1.0,
+        "phosphorus_mg": 0.0,
+        "potassium_mg": 8.0,
+        "sodium_mg": 38758.0,
+        "zinc_mg": 0.1,
+        "selenium_mcg": 0.1,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.0,
+        "riboflavin_mg": 0.0,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.0,
+        "folate_mcg": 0.0,
+        "choline_mg": 0.0,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.0,
+        "mono_fat_g": 0.0,
+        "poly_fat_g": 0.0,
+        "omega6_la_mg": 0.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "aa_tryptophan_g": 0.0,
+        "aa_threonine_g": 0.0,
+        "aa_isoleucine_g": 0.0,
+        "aa_leucine_g": 0.0,
+        "aa_lysine_g": 0.0,
+        "aa_methionine_g": 0.0,
+        "aa_cystine_g": 0.0,
+        "aa_phenylalanine_g": 0.0,
+        "aa_tyrosine_g": 0.0,
+        "aa_valine_g": 0.0,
+        "aa_histidine_g": 0.0
+      },
+      "portions": [
+        {
+          "description": "cup",
+          "gram_weight": 292.0
+        },
+        {
+          "description": "tsp",
+          "gram_weight": 6.0
+        },
+        {
+          "description": "tbsp",
+          "gram_weight": 18.0
+        },
+        {
+          "description": "dash",
+          "gram_weight": 0.4
+        }
+      ]
+    },
+    {
+      "fdc_id": 790508,
+      "name": "* Butter, stick, salted",
+      "data_type": "Foundation",
+      "nutrients": {
+        "fat_g": 82.2,
+        "sugar_g": 0.58,
+        "calcium_mg": 21.0,
+        "iron_mg": 0.06,
+        "magnesium_mg": 1.6,
+        "phosphorus_mg": 22.0,
+        "potassium_mg": 23.0,
+        "sodium_mg": 524.0,
+        "zinc_mg": 0.07,
+        "riboflavin_mg": 0.0,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.0,
+        "folate_mcg": 5.0,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 758.0,
+        "beta_carotene_mcg": 168.0,
+        "alpha_carotene_mcg": 2.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_d_mcg": 0.4,
+        "saturated_fat_g": 45.6,
+        "mono_fat_g": 16.9,
+        "poly_fat_g": 2.52,
+        "omega3_ala_mg": 308.0,
+        "omega3_epa_mg": 24.0,
+        "omega3_dha_mg": 2.0,
+        "aa_tryptophan_g": 0.01,
+        "aa_threonine_g": 0.025,
+        "aa_isoleucine_g": 0.022,
+        "aa_leucine_g": 0.05,
+        "aa_lysine_g": 0.07,
+        "aa_methionine_g": 0.013,
+        "aa_phenylalanine_g": 0.025,
+        "aa_tyrosine_g": 0.017,
+        "aa_valine_g": 0.03,
+        "aa_histidine_g": 0.012
+      },
+      "portions": null
+    },
+    {
+      "fdc_id": 169655,
+      "name": "* Sugars, granulated",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 387.0,
+        "protein_g": 0.0,
+        "fat_g": 0.0,
+        "carbs_g": 99.98,
+        "fiber_g": 0.0,
+        "calcium_mg": 1.0,
+        "iron_mg": 0.05,
+        "magnesium_mg": 0.0,
+        "phosphorus_mg": 0.0,
+        "potassium_mg": 2.0,
+        "sodium_mg": 1.0,
+        "zinc_mg": 0.01,
+        "selenium_mcg": 0.6,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.0,
+        "riboflavin_mg": 0.019,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.0,
+        "folate_mcg": 0.0,
+        "choline_mg": 0.0,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.0,
+        "mono_fat_g": 0.0,
+        "poly_fat_g": 0.0,
+        "omega6_la_mg": 0.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
+      },
+      "portions": [
+        {
+          "description": "cup",
+          "gram_weight": 200.0
+        },
+        {
+          "description": "serving 1 cube",
+          "gram_weight": 2.3
+        },
+        {
+          "description": "tsp",
+          "gram_weight": 4.2
+        },
+        {
+          "description": "serving packet",
+          "gram_weight": 2.8
+        }
+      ]
+    },
+    {
+      "fdc_id": 173471,
+      "name": "* Vanilla extract",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 288.0,
+        "protein_g": 0.06,
+        "fat_g": 0.06,
+        "carbs_g": 12.65,
+        "fiber_g": 0.0,
+        "calcium_mg": 11.0,
+        "iron_mg": 0.12,
+        "magnesium_mg": 12.0,
+        "phosphorus_mg": 6.0,
+        "potassium_mg": 148.0,
+        "sodium_mg": 9.0,
+        "zinc_mg": 0.11,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.011,
+        "riboflavin_mg": 0.095,
+        "niacin_mg": 0.425,
+        "b6_mg": 0.026,
+        "folate_mcg": 0.0,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.01,
+        "mono_fat_g": 0.01,
+        "poly_fat_g": 0.004
+      },
+      "portions": [
+        {
+          "description": "tsp",
+          "gram_weight": 4.2
+        },
+        {
+          "description": "cup",
+          "gram_weight": 208.0
+        },
+        {
+          "description": "tbsp",
+          "gram_weight": 13.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 748967,
+      "name": "* Eggs, Grade A, Large, egg whole",
+      "data_type": "Foundation",
+      "nutrients": {
+        "calories": 148.0,
+        "thiamin_mg": 0.077,
+        "riboflavin_mg": 0.419,
+        "b12_mcg": 1.02,
+        "saturated_fat_g": 3.2,
+        "omega6_la_mg": 1460.0,
+        "lycopene_mcg": 0.0,
+        "protein_g": 12.4,
+        "iron_mg": 1.67,
+        "magnesium_mg": 11.4,
+        "phosphorus_mg": 184.0,
+        "sodium_mg": 129.0,
+        "vitamin_a_mcg": 180.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "selenium_mcg": 31.1,
+        "calcium_mg": 48.0,
+        "potassium_mg": 132.0,
+        "zinc_mg": 1.24,
+        "fat_g": 9.96,
+        "mono_fat_g": 3.63,
+        "poly_fat_g": 1.82,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.063,
+        "carbs_g": 0.96,
+        "vitamin_d_mcg": 2.46,
+        "sugar_g": 0.2,
+        "folate_mcg": 71.0,
+        "iodine_mcg": 49.1,
+        "aa_tryptophan_g": 0.166,
+        "aa_threonine_g": 0.594,
+        "aa_isoleucine_g": 0.616,
+        "aa_leucine_g": 1.05,
+        "aa_lysine_g": 0.832,
+        "aa_methionine_g": 0.418,
+        "aa_phenylalanine_g": 0.66,
+        "aa_tyrosine_g": 0.512,
+        "aa_valine_g": 0.734,
+        "aa_histidine_g": 0.283,
+        "aa_cystine_g": 0.385,
+        "fiber_g": 0.0,
+        "choline_mg": 335.0
+      },
+      "portions": [
+        {
+          "description": "p1 - one egg shelled",
+          "gram_weight": 45.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 171696,
+      "name": "* Applesauce, canned, sweetened, without salt",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 68.0,
+        "protein_g": 0.16,
+        "fat_g": 0.17,
+        "carbs_g": 17.49,
+        "fiber_g": 1.2,
+        "calcium_mg": 3.0,
+        "iron_mg": 0.12,
+        "magnesium_mg": 3.0,
+        "phosphorus_mg": 6.0,
+        "potassium_mg": 75.0,
+        "sodium_mg": 2.0,
+        "zinc_mg": 0.03,
+        "vitamin_c_mg": 1.7,
+        "thiamin_mg": 0.017,
+        "riboflavin_mg": 0.022,
+        "niacin_mg": 0.072,
+        "b6_mg": 0.027,
+        "folate_mcg": 1.0,
+        "choline_mg": 3.3,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 3.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 18.0,
+        "vitamin_e_mg": 0.18,
+        "vitamin_d_mcg": 0.0,
+        "vitamin_k_mcg": 0.0,
+        "saturated_fat_g": 0.03,
+        "mono_fat_g": 0.007,
+        "poly_fat_g": 0.054,
+        "aa_tryptophan_g": 0.002,
+        "aa_threonine_g": 0.007,
+        "aa_isoleucine_g": 0.007,
+        "aa_leucine_g": 0.011,
+        "aa_lysine_g": 0.011,
+        "aa_methionine_g": 0.002,
+        "aa_cystine_g": 0.002,
+        "aa_phenylalanine_g": 0.005,
+        "aa_tyrosine_g": 0.003,
+        "aa_valine_g": 0.008,
+        "aa_histidine_g": 0.003
+      },
+      "portions": [
+        {
+          "description": "cup",
+          "gram_weight": 246.0
         }
       ]
     },
@@ -1160,7 +1654,12 @@
         "aa_valine_g": 0.5967,
         "aa_histidine_g": 0.3433
       },
-      "portions": null
+      "portions": [
+        {
+          "description": "1 cup",
+          "gram_weight": 104.0
+        }
+      ]
     },
     {
       "fdc_id": 170272,
@@ -1333,76 +1832,6 @@
       ]
     },
     {
-      "fdc_id": 173468,
-      "name": "* Salt, table",
-      "data_type": "SR Legacy",
-      "nutrients": {
-        "calories": 0.0,
-        "protein_g": 0.0,
-        "fat_g": 0.0,
-        "carbs_g": 0.0,
-        "fiber_g": 0.0,
-        "calcium_mg": 24.0,
-        "iron_mg": 0.33,
-        "magnesium_mg": 1.0,
-        "phosphorus_mg": 0.0,
-        "potassium_mg": 8.0,
-        "sodium_mg": 38758.0,
-        "zinc_mg": 0.1,
-        "selenium_mcg": 0.1,
-        "vitamin_c_mg": 0.0,
-        "thiamin_mg": 0.0,
-        "riboflavin_mg": 0.0,
-        "niacin_mg": 0.0,
-        "b6_mg": 0.0,
-        "folate_mcg": 0.0,
-        "choline_mg": 0.0,
-        "b12_mcg": 0.0,
-        "vitamin_a_mcg": 0.0,
-        "beta_carotene_mcg": 0.0,
-        "alpha_carotene_mcg": 0.0,
-        "lycopene_mcg": 0.0,
-        "lutein_zeaxanthin_mcg": 0.0,
-        "vitamin_e_mg": 0.0,
-        "vitamin_d_mcg": 0.0,
-        "saturated_fat_g": 0.0,
-        "mono_fat_g": 0.0,
-        "poly_fat_g": 0.0,
-        "omega6_la_mg": 0.0,
-        "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0,
-        "aa_tryptophan_g": 0.0,
-        "aa_threonine_g": 0.0,
-        "aa_isoleucine_g": 0.0,
-        "aa_leucine_g": 0.0,
-        "aa_lysine_g": 0.0,
-        "aa_methionine_g": 0.0,
-        "aa_cystine_g": 0.0,
-        "aa_phenylalanine_g": 0.0,
-        "aa_tyrosine_g": 0.0,
-        "aa_valine_g": 0.0,
-        "aa_histidine_g": 0.0
-      },
-      "portions": [
-        {
-          "description": "cup",
-          "gram_weight": 292.0
-        },
-        {
-          "description": "tsp",
-          "gram_weight": 6.0
-        },
-        {
-          "description": "tbsp",
-          "gram_weight": 18.0
-        },
-        {
-          "description": "dash",
-          "gram_weight": 0.4
-        }
-      ]
-    },
-    {
       "fdc_id": 2281233,
       "name": "* BAKING SODA",
       "data_type": "Branded",
@@ -1537,7 +1966,10 @@
       ]
     }
   ],
-  "pantry": [],
+  "pantry": [
+    "* Crackers, saltines (Nabisco)",
+    "* Crackers, saltines (Nabisco)"
+  ],
   "recipes": [
     {
       "source_recipe_id": 10,
@@ -1590,6 +2022,60 @@
           "* Coriander (cilantro) leaves, raw",
           0.0,
           "1.5 c (weight not known)"
+        ]
+      ]
+    },
+    {
+      "source_recipe_id": 58,
+      "name": "* Thumbprint cookies - almond flour/whole wheat",
+      "description": "Two cookies in one - both excellent!",
+      "servings": 22,
+      "instructions": "I have simplified the mixing instructions; my method works quite well.\r\n\r\n1. Mix dry ingredients well, in a medium bowl.\r\n2. Cream butter and sugar, mix in egg and vanilla, then applesauce - which will curdle the mixture a bit.\r\n3. Dump the butter/sugar mixture into the flour mixture. Cut it in with a large cooking spoon, cutting from the edge to the middle, while constantly turning the bowl. Mix until just combined. Don't over-mix.\r\n4. Put 1.5 T mounds of dough 2\" apart on cookie sheet covered with parchment paper or silicone baking sheet (or greased with butter). Make indentation in center of each dough ball big enough to hold 1/2 T jam or other filling. Fill as desired with jam.\r\n5. Bake at 375F for 20 minutes - until edges brown and tops are very lightly browned. (Exact time will vary with oven, how fine your flours are, etc.)\r\n6. Allow to cool 2 minutes on sheet before removing. Cool completely before serving. Store in air tight container to retain chewy texture.\r\n\r\nNote: An excellent nut-cookie can be made by simply flattening the dough ball to about 5/8\". Bake for 20 minutes or until edges brown and tops are very lightly browned.",
+      "ingredients": [
+        [
+          "* Almond Flour",
+          90.0,
+          "90 g"
+        ],
+        [
+          "* Whole Wheat Flour, unenriched",
+          228.0,
+          "228 g"
+        ],
+        [
+          "* Leavening agents, baking powder, double-acting, sodium aluminum sulfate",
+          2.21,
+          "0.5 t"
+        ],
+        [
+          "* Salt, table",
+          2.99,
+          "0.5 t"
+        ],
+        [
+          "* Butter, stick, salted",
+          107.65,
+          "0.5 c"
+        ],
+        [
+          "* Sugars, granulated",
+          150.83,
+          "0.75 c"
+        ],
+        [
+          "* Vanilla extract",
+          4.2,
+          "1 t"
+        ],
+        [
+          "* Eggs, Grade A, Large, egg whole",
+          45.0,
+          "p1"
+        ],
+        [
+          "* Applesauce, canned, sweetened, without salt",
+          46.16,
+          "3 T"
         ]
       ]
     },
@@ -1685,18 +2171,18 @@
       "ingredients": [
         [
           "* Nuts, almonds, whole, raw",
-          94.63999999999999,
-          "94.64 gr (2/3 c)"
+          104.0,
+          "104 g"
         ],
         [
           "* Nuts, walnuts, English, halves, raw",
-          141.95999999999998,
-          "1 c (142 gr)"
+          104.0,
+          "104 g"
         ],
         [
           "* Chocolate, dark, 60-69% cacao solids",
           90.0,
-          "1 c (90 gr)"
+          "90 gr"
         ],
         [
           "* Sugars, granulated",
@@ -1725,8 +2211,8 @@
         ],
         [
           "* ORGANIC GROUND CAYENNE PEPPER",
-          0.0,
-          "3/4 t (weight not known)"
+          1.65,
+          "0.75 t"
         ]
       ]
     },

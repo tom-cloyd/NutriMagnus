@@ -83,8 +83,8 @@
 </div>
 {% endif %}
 
-{% if next %}
-<p class="muted">No GI estimate on file for this food yet. Add one now, skip for this time only (you'll be asked again next time), or skip forever (add it later via Annotate a Food if you change your mind).</p>
+{% if next and missing %}
+<p class="muted">No {{ missing | join(' or ') }} estimate on file for this food yet. Add {{ 'one' if missing | length == 1 else 'them' }} now, skip for this time only (you'll be asked again next time), or skip forever (add {{ 'it' if missing | length == 1 else 'them' }} later via Annotate a Food if you change your mind). Once a value is saved you won't be asked for it again — edit it from the GI/DIAAS columns on the add-food list, or from Annotate a Food.</p>
 {% endif %}
 
 <div class="card" style="max-width:36rem">
@@ -136,7 +136,7 @@
         </label>
       </div>
 
-      <div class="mb-3 form-check">
+      <div class="mb-1 form-check">
         <input type="checkbox" class="form-check-input" id="diaas_no_prompt" name="diaas_no_prompt"
                value="1" {% if annotation and annotation.diaas_no_prompt %}checked{% endif %}>
         <label class="form-check-label" for="diaas_no_prompt">
@@ -144,14 +144,23 @@
         </label>
       </div>
 
-      <button type="submit" class="btn btn-outline-secondary">Save annotation</button>
+      {# The two boxes above are only for deliberately leaving a value blank —
+         a saved estimate suppresses its own prompt (see _missing_annotations()),
+         and saying so here stops people ticking a box they don't need. #}
+      <p class="muted mb-3"><small>You only need these two boxes if you are leaving a value
+        blank on purpose. Saving a GI or DIAAS estimate already stops NuMa asking for that
+        one again.</small></p>
+
+      <button type="submit" class="btn btn-outline-secondary" id="save-annotation-btn">Save annotation</button>
       {% if next %}
-      <a href="{{ next }}" class="btn btn-primary ms-2" autofocus>Skip for now</a>
+      {# Arriving from a food's own page is a deliberate visit, not a prompt —
+         there is nothing to "skip", so the same link just goes back. #}
+      <a href="{{ next }}" class="btn btn-primary ms-2" autofocus>{% if missing %}Skip for now{% else %}Back without saving{% endif %}</a>
       {% else %}
       <a href="/food/annotate" class="btn btn-primary ms-2" autofocus>Back to list</a>
       {% endif %}
     </form>
-    {% if next %}
+    {% if next and missing %}
     <form method="post" action="/food/annotate/{{ fdc_id }}/skip-forever" class="mt-2">
       <input type="hidden" name="next" value="{{ next }}">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Skip forever for this food</button>
@@ -175,6 +184,27 @@
   var popSelect  = document.getElementById('gi-lookup-population');
   var resultsBox = document.getElementById('gi-lookup-results');
   var giInput    = document.getElementById('gi_estimate');
+  var detailsBox = document.getElementById('gi-lookup-details');
+  var saveBtn    = document.getElementById('save-annotation-btn');
+
+  // Picking a value clears the results list and closes the lookup panel
+  // outright: a note at the foot of a long list of matches is missed, but the
+  // list vanishing — leaving the filled GI box and the Save button in plain
+  // view — can't be. The value is only in the form at this point, so Save is
+  // then highlighted and focused so it can't be walked past.
+  function usePick(row) {
+    giInput.value = row.getAttribute('data-gi');
+    resultsBox.innerHTML = '';
+    if (detailsBox) detailsBox.open = false;
+    giInput.classList.remove('field-just-set');
+    void giInput.offsetWidth;   // restart the highlight if the same field is set twice
+    giInput.classList.add('field-just-set');
+    if (saveBtn) {
+      saveBtn.classList.add('btn-save-pending');
+      saveBtn.focus();
+      if (saveBtn.scrollIntoView) saveBtn.scrollIntoView({block: 'nearest'});
+    }
+  }
 
   function runSearch() {
     var q = queryInput.value.trim();
@@ -188,22 +218,24 @@
         resultsBox.innerHTML = '<span class="muted">No matches found.</span>';
         return;
       }
-      var html = '<table class="table table-sm mb-0"><tbody>';
+      var html = '<table class="table table-sm table-hover mb-0"><tbody>';
       results.forEach(function (r, i) {
         var popLabel = r.population === 'impaired' ? 'Impaired' : 'Normal';
-        html += '<tr>' +
-          '<td>' + r.name.replace(/</g, '&lt;') + '</td>' +
+        var safeName = r.name.replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        html += '<tr class="gi-pick-row" data-gi="' + r.gi_glucose + '" data-name="' + safeName +
+          '" title="Use this GI value">' +
+          '<td>' + safeName + '</td>' +
           '<td class="text-nowrap">GI ' + r.gi_glucose + '</td>' +
           '<td class="text-nowrap muted">' + popLabel + (r.ref ? ' · ref ' + r.ref : '') + '</td>' +
-          '<td><button type="button" class="btn btn-sm btn-outline-primary gi-pick" data-gi="' + r.gi_glucose + '">Use</button></td>' +
+          '<td><button type="button" class="btn btn-sm btn-outline-primary gi-pick">Use this GI value</button></td>' +
           '</tr>';
       });
       html += '</tbody></table>';
       resultsBox.innerHTML = html;
-      resultsBox.querySelectorAll('.gi-pick').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          giInput.value = btn.getAttribute('data-gi');
-        });
+      // The whole row is the target, not just the button — clicking the food
+      // name is the obvious thing to try, and used to do nothing at all.
+      resultsBox.querySelectorAll('.gi-pick-row').forEach(function (row) {
+        row.addEventListener('click', function () { usePick(row); });
       });
     }).catch(function () {
       resultsBox.innerHTML = '<span class="text-warning">Lookup failed.</span>';

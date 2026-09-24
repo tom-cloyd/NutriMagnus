@@ -311,8 +311,7 @@
             </td>
             <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none) if food._type == "recipe" else none) }}</small></td>
             <td>
-              {% if food._type == "recipe" %}<span class="muted">—</span>
-              {% elif food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+              {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
               {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
               {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
               {% elif food.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
@@ -427,7 +426,7 @@
         <td class="num-col muted">{{ loop.index }}</td>
         <td class="num-col" style="white-space:nowrap">
           {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
-            {{ ing.amount | round(2) | string | replace(".0", "") }} srv
+            {{ ing.amount | round(2) | string | replace(".0", "") }} srv{% if ing.ref_grams %} <span class="muted">({{ ing.ref_grams | round | int }}&thinsp;g)</span>{% endif %}
           {% else %}
             {{ ing.amount_display }}
           {% endif %}

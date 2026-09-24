@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-22:2240* / Reading time: 5 hours, 20 minutes
+*Updated 2026-09-23:1718* / Reading time: 5 hours, 25 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -236,7 +236,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-22), there are 1,086 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-23), there are 1,097 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -2770,7 +2770,7 @@ Every food's [Annotate](#gi) page can now search the full ~2,487-entry Foster-Po
 
 ### A. Recent program updates log
 
-<!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New entries go directly after the "Insert new updates below here" marker below, each starting with MANUAL: or PROGRAM:. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... boundary" heading as that release's notes, and inserts a fresh boundary heading right there -- the entries themselves are never rewritten or moved. Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a boundary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
+<!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go directly after the "Insert new updates below here" marker below, each starting with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under the "#### Next release summary to this point" heading that sits between the marker and those dated entries. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
 <!-- # "If there is nothing pending under the marker at release time, create_release.py falls back to the generic "Automated build from main." message instead of real notes." -->
 
 Program updates, and major manual updates, are logged here. They are grouped by program release dates.
@@ -2780,6 +2780,177 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 <!-- Insert new updates below here -->
+
+#### Next release summary to this point (dated details below)
+
+- A food's own detail and Edit Custom Profile pages now link straight to Annotate, for adding or changing its GI and DIAAS estimates.
+- An amount given in servings now shows what it weighs in grams alongside it, on a meal's item list, both recipe ingredient lists, and a printed recipe.
+- In the Annotate page's GI lookup you can now click anywhere on a result to use its GI value; the list then closes, leaving the value and the Save button in view.
+- Recipes in a search list now show whether they have amino acid data, instead of leaving that column blank.
+- The Home page's "see what changed" link now opens the manual at the most recent release's summary, instead of the top of the updates log.
+- You are now asked for a missing DIAAS estimate as well as a missing GI, and the GI/DIAAS figures on the add-food list are clickable for editing a value you have already entered.
+- The Edit Custom Profile page now has the same Contents sidebar the Food Detail and Daily Summary pages use, for moving straight to any of its nine sections.
+- Recipe ingredient amounts shown in cups or tablespoons are now worked out from the food's own portion data, instead of a generic density guess that could be well off.
+- Every nutrient column on the Daily Summary's Recent Days table now shows its own "% Goal" figure, and the Date column stays put as you scroll the table sideways.
+- The Nutrient Plot page now opens showing the plot you've pinned to the Home page, instead of starting blank and hiding its own "Show on Home page" toggle.
+- Adding a recipe as "Individual ingredients" now fully breaks down nested sub-recipes too, instead of adding them as whole-recipe items.
+- A recipe result's "Servings" field no longer goes blank when background search results finish loading and merge into the list.
+- "Add as individual ingredients" no longer quietly reverts to "Whole recipe" when external search results arrive after you've picked it.
+- Manage Portions can now edit a custom portion's description and gram weight in place, keeping its `pN` shortcut unchanged.
+- Clicking a food's name from a recipe's ingredient list or a meal's item list now says which recipe or meal that amount came from.
+- Leaving unsaved Recipe Details, or a meal's Rename/date edits, now offers you the choice to save first, leave without saving, or stay and keep editing.
+- A meal's item list now keeps your scroll position when you add, edit, or remove an item.
+- Fixed a spurious "Leave site?" browser warning when adding an ingredient to a meal or recipe.
+
+#### Sep 23 updates
+
+**PROGRAM: REACH ANNOTATE FROM THE FOOD ITSELF**
+
+A food's detail page and its [Edit Custom Profile](#drafted-foods) page now each carry an **Add or edit GI / DIAAS estimates** button that goes straight to that food's [Annotate](#annotate) page and brings you back when you are done. Until now the only ways in were the post-add prompt, the GI/DIAAS cells on an add-food list, and Foods → Annotate followed by filtering for the food by name — so for a food you were already looking at, there was no obvious way at all.
+
+<!--
+```
+Scope: web/templates/food_detail.html, food_custom_edit.html,
+food_annotate.html, tests/test_web.py.
+Annotate has always accepted any cached fdc_id, user-drafted ones included
+(list_cached_foods/search_cached_foods don't filter on user_drafted) -- the
+gap was purely navigational. The ?next= round-trip is the same one the
+post-add prompt uses. That prompt's "No X estimate on file yet" paragraph
+and its Skip-forever button were gated on `next` alone, so a deliberate
+visit to a food that already had both values rendered "No  estimate on file
+yet" with an empty join; both are now gated on `next and missing`, and the
+return button reads "Back without saving" rather than "Skip for now" when
+there is nothing to skip.
+```
+-->
+
+**PROGRAM: SERVINGS NOW SHOW WHAT THEY WEIGH**
+
+Wherever an amount is given in servings — a recipe added to a meal, or a recipe used as an ingredient inside another recipe — the gram weight of that amount now appears next to it, as in "2 servings (500 g)", on screen and on a printed recipe alike. A serving count on its own says nothing about how much food it is; the weight makes two recipes comparable at a glance. Nothing is shown if the weight can't be worked out, which happens when a recipe has neither a total weight of its own nor a full set of weighable ingredients.
+
+<!--
+```
+Scope: numa_app/services/recipe_nutrients.py (new recipe_serving_grams()),
+web/backend.py (_meal_items_with_nutrients recipe branch, and ref_grams in
+_attach_ref_serving_sizes), web/templates/meal.html, recipe_detail.html,
+recipe_edit.html, print.html, tests/test_web.py.
+recipe_serving_grams() prefers the recipe's own stated total_weight, which
+is stored AS TYPED with its unit (only total_volume is normalized, to ml on
+save), so it converts via portions._UNIT_TO_GRAMS rather than assuming
+grams -- two existing callers do assume grams and are wrong for an oz/lb/kg
+recipe. Falls back to db.recipe_compute_weight() but only when that reports
+complete: an incomplete sum is a lower bound, and a serving weight quietly
+short by an unknown amount is worse than none. The print/export page picks
+ref_grams up from the same shared helper, via _recipe_detail_context.
+```
+-->
+
+**PROGRAM: CLICK ANY GI LOOKUP RESULT TO USE ITS VALUE**
+
+On the [Annotate](#annotate) page, clicking anywhere on a [GI](#gi) lookup result — the food name included — now puts that value in the GI estimate box. The list of matches then disappears and the lookup panel closes, so what you are left looking at is the GI box, which flashes as it fills, and the **Save annotation** button, now highlighted and ready to press. Before, only the small button at the end of the row did anything, and it gave no visible sign it had worked.
+
+<!--
+```
+Scope: web/templates/food_annotate.html (gi-pick-row + usePick()),
+web/static/style.css (.gi-pick-row/.btn-save-pending/.field-just-set),
+tests/e2e/test_search_e2e.py.
+The click handler was bound to .gi-pick (the button) alone, so a click on
+any other cell hit nothing, and the handler's only effect was setting a
+field above a collapsed <details> panel -- indistinguishable from a dead
+click. Handler now binds to the row; the button stays as the explicit
+affordance and rides the same row listener. A confirmation line under the
+results was tried first and dropped: it lands below a result list that can
+be long enough to scroll it out of sight. Instead the pick empties the
+results and sets details.open = false, and the still-unsaved value is
+carried by highlighting and focusing #save-annotation-btn.
+```
+-->
+
+**PROGRAM: RECIPES NOW SHOW THEIR AMINO ACID STATUS IN SEARCH LISTS**
+
+When you search for something to add to a meal or a recipe, or search on the Foods page, the AA column now shows a green checkmark for any recipe whose ingredients carry [amino acid](#gloss-aa) data — the same way it already did for individual foods. Before, that column was simply blank for every recipe, so a recipe with full AA data looked no different from one with none.
+
+<!--
+```
+Scope: numa_app/services/recipe_nutrients.py (new recipe_aa_indicator()),
+web/backend.py (_recipe_aa_status() + the three recipe-row builders:
+_search_local_results, _meal_add_food_local_results, recipe_edit_get),
+web/templates/recipe_edit.html, tests/test_web.py.
+Two of the three recipe-row builders emitted no "aa" key at all, so the
+template's aa branches all fell through; the third (Food Search) set
+"✓" if dcp_g is not None, a stale-DCP proxy that says nothing about AA
+data either way. A recipe has no nutrients dict of its own, so the status
+now comes from aa_indicator() over recipe_total_nutrients() -- an empty or
+fully uncached recipe totals to {} and reports "⚠", matching an uncached
+food. recipe_edit.html also hard-coded an em-dash for recipe rows ahead of
+its own aa branches; removed.
+```
+-->
+
+**PROGRAM: "SEE WHAT CHANGED" NOW OPENS AT THE LAST RELEASE'S SUMMARY**
+
+The "see what changed" link beside the version note on the Home page now takes you straight to the newest release's summary in [Recent program updates](#a-recent-program-updates-log) — the list of what the version you are running actually shipped with. Before, it landed at the top of that log, which leads with a running summary of changes that have not been released yet.
+
+<!--
+```
+Scope: web/backend.py (_latest_release_anchor() beside _manual_link, plus
+changelog_anchor in the home context), web/templates/home.html (both
+"see what changed" links), tests/test_web.py, tests/test_link_integrity.py.
+The anchor can't be a constant: create_release.py renames the running
+"Next release summary to this point" heading to "Release <tag> summary" at
+release time, so the target id changes with every release. _latest_release_anchor()
+regexes the first <h4 id="release-...-summary"> out of the ACTIVE manual html
+(baked-in or downloaded), cached on the file's mtime, falling back to
+#a-recent-program-updates-log when the log has no release summary in it yet.
+test_link_integrity now skips fragments containing "{{" -- a Jinja-computed
+anchor can't be resolved statically.
+```
+-->
+
+**PROGRAM: EDIT A GI OR DIAAS VALUE STRAIGHT FROM THE ADD-FOOD LIST, AND GET ASKED ABOUT DIAAS TOO**
+
+When you add a food and it has no [GI](#gi) estimate yet, NuMa offers you the chance to enter one — and now does the same for a missing [DIAAS](#gloss-diaas) estimate, which it previously never asked about at all. Once a value is saved you are not asked for it again. To change one later, the GI and DIAAS figures in the add-food list are now links: click one to go straight to that food's Annotate page with the value filled in ready to edit, then come back to your search exactly where you left it. A dash in those columns means nothing is recorded yet, and clicking it is how you add one.
+
+<!--
+```
+Scope: web/backend.py (_missing_annotations() + _annotation_prompt_needed()
+replacing _gi_prompt_needed(); both pantry-add and meal-add call sites),
+web/templates/_add_food_row.html (annot_cell macro), food_annotate.html,
+web/static/style.css (.annot-cell/.annot-cell-empty).
+diaas_no_prompt and its Annotate checkbox already existed but nothing ever
+read them -- there was no DIAAS prompt to suppress, so that half of the
+feature was dead. skip-forever now sets both no_prompt flags, since
+suppressing only GI would leave the DIAAS detour firing on every add.
+The Annotate page's prompt text now names only what is actually missing,
+via the new missing=[] context.
+annot_cell uses default('', true) because the cell values arrive in three
+shapes: a preformatted string from _ann_gi/_ann_diaas ("" when unset), None
+from the barcode/cache row builders, and undefined on recipe rows (no
+annotation). An earlier "is none" test silently matched none of them.
+```
+-->
+
+**PROGRAM: A CONTENTS SIDEBAR ON EDIT CUSTOM PROFILE**
+
+The [Edit Custom Profile](#drafted-foods) page now has the same Contents sidebar the Food Detail and Daily Summary pages use, listing all nine of its sections — the two copy-from-another-food tools, Identity, and each nutrient group. It stays put as you scroll, highlights whichever section you're currently in, and takes you straight there, so you no longer have to scroll a very long page to find one group of fields. Picking a section you've collapsed opens it for you. The page also no longer jumps down to the amino-acid search box when it loads, so the heading, the "Profile saved" confirmation, and the sidebar are all visible when you arrive.
+
+<!--
+```
+Scope: web/templates/food_custom_edit.html. Adopts the existing analysis-page
+sidebar pattern rather than a one-off: layout_class=analysis-page,
+main_class=analysis-content, and a sidebar_nav block of
+li.sb-item > a.sb-toggle, same as summary.html/food_detail.html. Section ids
+renamed to the sec-* convention so the standard scroll-spy ([id^="sec-"] ->
+.sb-active) works unchanged; nothing linked to the old #copy-nutrients /
+#estimate-aa ids. Nutrient-group anchors are derived in-template from
+group.name (lower|replace(' ','-')) rather than added to field_groups, which
+is built identically in both the GET and POST handlers. One addition over the
+shared pattern: every section here is a <details>, so a jump opens a collapsed
+target first, otherwise it lands on a bare summary line.
+Also dropped the autofocus on the aa_source_q input: it loaded the page already
+scrolled 482px down, hiding the h2, any alert, and the sidebar.
+```
+-->
 
 #### Sep 22 updates
 
@@ -2965,11 +3136,11 @@ resulting navigation, wherever it redirected to.
 ```
 -->
 
-#### Release v2026-09-21-0647 boundary
+#### Release v2026-09-21-0647 summary
 
 - MANUAL: The User Manual can now be updated on its own — a separate home-page notice offers a newer manual without needing a program update.
 
-#### Release v2026-09-21-0526 boundary
+#### Release v2026-09-21-0526 summary (dated details below)
 
 - Nutrient tables now show separate Minimum, Target, and Maximum columns instead of one ambiguous "Daily Target" column.
 - The Nutrient Plot has a "Clear all nutrient checkmarks" button, and clearer wording on what "completeness" affects.

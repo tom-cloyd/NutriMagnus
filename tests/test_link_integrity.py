@@ -69,7 +69,10 @@ def test_app_template_links_resolve_to_real_routes_and_manual_anchors():
             path, _, frag = href.partition("#")
             path = path.split("?", 1)[0]
             if path in ("/manual", "/user-manual"):
-                if frag and frag not in manual_anchors:
+                # A Jinja-computed fragment (e.g. home.html's changelog_anchor,
+                # which resolves to the newest release-summary heading) can't be
+                # checked statically.
+                if frag and "{{" not in frag and frag not in manual_anchors:
                     broken.append(f"{template.relative_to(_ROOT)}: {href} (no such manual anchor)")
                 continue
             if not _route_matches(path, routes, mounts):

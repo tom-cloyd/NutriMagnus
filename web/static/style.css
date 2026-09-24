@@ -402,6 +402,22 @@ table {
   text-align: center;
 }
 
+/* The GI/DIAAS values are links to that food's Annotate page (see
+   _add_food_row.html's annot_cell macro). Underline only on hover: a whole
+   column of them would otherwise out-shout the food names beside it. The
+   "no value yet" placeholder is dimmer still, since most rows have none. */
+.annot-cell {
+  text-decoration: none;
+}
+
+.annot-cell:hover {
+  text-decoration: underline;
+}
+
+.annot-cell-empty {
+  color: #8a9199;
+}
+
 /* confirm-col is also the table's first child (see note above) — needs the
    same specificity (class+element, matching .nutrient-table td:first-child)
    to actually beat the base 350px/3.6rem first-child rule, since the plain
@@ -1059,4 +1075,28 @@ td.compare-val-col {
   .table-responsive {
     overflow: visible !important;
   }
+}
+
+/* GI lookup results (Annotate page): the whole row picks the value, not just
+   its button. Picking clears the list and closes the panel, so the filled GI
+   field — which flashes — and the Save button are what's left in view. */
+.gi-pick-row {
+  cursor: pointer;
+}
+
+/* A picked GI value is in the form but not yet stored, so Save stops being a
+   quiet secondary button until it's pressed. */
+.btn-save-pending {
+  border-color: #b8860b;
+  background-color: #fff3cd;
+  font-weight: 600;
+}
+
+.field-just-set {
+  animation: field-just-set-flash 1.6s ease-out 1;
+}
+
+@keyframes field-just-set-flash {
+  from { background-color: #fff3cd; }
+  to   { background-color: transparent; }
 }

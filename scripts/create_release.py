@@ -13,14 +13,22 @@ that script.
 
 Release notes are pulled from user-manual.md's Appendix A ("Recent program
 updates log") section: everything between the "<!-- Insert new updates below
-here -->" marker and the next "#### Release ... boundary" heading (or the end
+here -->" marker and the next "#### Release ... summary" heading (or the end
 of the appendix, if no release has ever been cut) — falling back to a generic
-message if that stretch is empty. On success, a new "#### Release <tag>
-boundary" heading is inserted right there, directly below those entries, so
-they read as belonging to this release without moving or rewriting them;
-older, already-released entries below are untouched (decided 2026-09-21,
-replacing an earlier "#### Next release" heading scheme this same script had
-drifted out of sync with).
+message if that stretch is empty. That stretch holds a running "#### Next
+release summary to this point" heading with one bullet per pending change,
+followed by the full dated entries those bullets summarize.
+
+On success, that running heading is renamed in place to "#### Release <tag>
+summary", so the summary already written for the pending work simply becomes
+that release's summary; the entries below it are never moved or rewritten,
+and older, already-released entries stay untouched (summary-heading scheme
+adopted 2026-09-23, replacing a "#### Release <tag> boundary" heading that
+was inserted *below* the entries and carried no summary of its own).
+
+"(dated details below)" is appended to the renamed heading only when dated
+entry sections actually follow it, since a release whose entries have already
+been pruned has no details left to point at.
 
 This is also the one place RELEASE_VERSION's -rc.N/-beta.N/-alpha.N counter
 in version.py advances (decided 2026-09-21) — scripts/bump_version.py only
@@ -48,7 +56,16 @@ VERSION_FILE = REPO_ROOT / "version.py"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
 CHANGELOG_HEADING = "### A. Recent program updates log"
 INSERT_MARKER = "<!-- Insert new updates below here -->"
-_BOUNDARY_RE = re.compile(r'^#### Release .* boundary\s*$')
+_SUMMARY_RE = re.compile(r'^#### Release .+ summary\b.*$')
+# The heading in the manual reads "#### Next release summary to this point
+# (dated details below)". Only its stable opening words are matched, so
+# re-wording the tail (or dropping the parenthetical) can't silently orphan it
+# here -- a mismatch would make a release quietly treat the whole log as
+# pending, which is a bad failure to have hinge on heading prose.
+_NEXT_SUMMARY_RE = re.compile(r'^#### Next release summary\b.*$')
+# Dated entry sections: "#### Sep 22 updates", "##### September 21 program updates".
+_DATED_SECTION_RE = re.compile(r'^#{4,5} .+ updates\s*$')
+_DETAILS_SUFFIX = " (dated details below)"
 _RELEASE_VERSION_RE = re.compile(r'^(RELEASE_VERSION = ")(.*?)(-(?:rc|beta|alpha)\.)(\d+)("\s*)$', re.M)
 
 # (asset name, file path, content type) — every release asset besides the notes.
@@ -72,9 +89,9 @@ def _tag_for(version_str: str) -> str:
 
 def _pending_range(lines: list[str]) -> tuple[int | None, int | None]:
     """Find the marker line and the end of the "pending" (not yet in a
-    release) stretch right after it: the index of the next release-boundary
-    heading, or the next "### " appendix heading if no boundary exists yet
-    (e.g. before the first-ever release cut), or end-of-file otherwise."""
+    release) stretch right after it: the index of the next release-summary
+    heading, or the next "### " appendix heading if no release summary exists
+    yet (e.g. before the first-ever release cut), or end-of-file otherwise."""
     marker_idx = None
     in_appendix = False
     for i, line in enumerate(lines):
@@ -88,7 +105,7 @@ def _pending_range(lines: list[str]) -> tuple[int | None, int | None]:
             if stripped == INSERT_MARKER:
                 marker_idx = i
             continue
-        if _BOUNDARY_RE.match(stripped) or stripped.startswith("### "):
+        if _SUMMARY_RE.match(stripped) or stripped.startswith("### "):
             return marker_idx, i
     if marker_idx is None:
         return None, None
@@ -102,25 +119,39 @@ def _release_notes() -> str:
     marker_idx, end_idx = _pending_range(lines)
     if marker_idx is None:
         return "Automated build from main."
-    body = "\n".join(lines[marker_idx + 1:end_idx]).strip()
-    return body or "Automated build from main."
+    # "Next release summary to this point" is in-manual phrasing for work not
+    # yet shipped; on a release page that work *is* this release, so the
+    # heading reads as a plain summary instead.
+    pending = [
+        "#### Summary" if _NEXT_SUMMARY_RE.match(l.strip()) else l
+        for l in lines[marker_idx + 1:end_idx]
+    ]
+    return "\n".join(pending).strip() or "Automated build from main."
 
 
-def _roll_release_boundary(tag: str) -> bool:
-    """Insert a new "#### Release <tag> boundary" heading directly below the
-    pending entries under the marker -- the entries themselves are never
-    rewritten or relocated, they just end up sitting above the new heading,
-    which is what marks them as belonging to this release."""
+def _roll_release_summary(tag: str) -> bool:
+    """Rename the running "#### Next release summary to this point" heading
+    to "#### Release <tag> summary", so the summary already written for the
+    pending entries becomes this release's summary in place -- the entries
+    below it are never rewritten or relocated. If no running heading exists
+    (nobody started one since the last release), the same heading is inserted
+    directly under the marker instead, which lands it in the same position."""
     if not MANUAL_FILE.exists():
         return False
-    text = MANUAL_FILE.read_text()
-    lines = text.splitlines(keepends=True)
-    marker_idx, end_idx = _pending_range([l.rstrip("\n") for l in lines])
+    lines = MANUAL_FILE.read_text().splitlines(keepends=True)
+    bare = [l.rstrip("\n") for l in lines]
+    marker_idx, end_idx = _pending_range(bare)
     if marker_idx is None:
         return False
-    insertion = [f"#### Release {tag} boundary\n", "\n"]
-    new_lines = lines[:end_idx] + insertion + lines[end_idx:]
-    MANUAL_FILE.write_text("".join(new_lines))
+    has_details = any(_DATED_SECTION_RE.match(l.strip()) for l in bare[marker_idx + 1:end_idx])
+    heading = f"#### Release {tag} summary{_DETAILS_SUFFIX if has_details else ''}\n"
+    for i in range(marker_idx + 1, end_idx):
+        if _NEXT_SUMMARY_RE.match(bare[i].strip()):
+            lines[i] = heading
+            break
+    else:
+        lines[marker_idx + 1:marker_idx + 1] = ["\n", heading]
+    MANUAL_FILE.write_text("".join(lines))
     return True
 
 
@@ -191,10 +222,10 @@ def main() -> int:
     release_id = release["id"]
     print(f"Created release {tag} (id {release_id}).")
 
-    if _roll_release_boundary(tag):
-        print(f"Rolled the manual's Recent program updates log boundary to {tag}.")
+    if _roll_release_summary(tag):
+        print(f"Rolled the manual's Recent program updates log summary heading to {tag}.")
     else:
-        print("WARNING: could not find the changelog marker in user-manual.md — boundary not rolled.",
+        print("WARNING: could not find the changelog marker in user-manual.md — summary heading not rolled.",
               file=sys.stderr)
 
     new_release_version = _bump_release_version()

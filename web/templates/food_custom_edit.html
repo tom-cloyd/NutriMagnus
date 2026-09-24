@@ -2,6 +2,28 @@
 {% import "_source_filter_select.html" as source_filter %}
 {% block title %}NutriMagnus — Edit {{ food.name }}{% endblock %}
 
+{% block layout_class %}analysis-page{% endblock %}
+{% block main_class %}analysis-content{% endblock %}
+
+{# ── Sidebar ───────────────────────────────────────────────────────────── #}
+{# Nutrient-group anchors are derived from each group's name here rather than
+   carried on field_groups, which is built identically in both the GET and the
+   POST handler — one less pair of places to keep in sync. #}
+{% block sidebar_nav %}
+<aside class="analysis-sidebar">
+  <a class="sb-page-title" href="#analysis-content">{{ food.name }}</a>
+  <div class="sb-title">Contents</div>
+  <ul class="sb-list">
+    <li class="sb-item"><a class="sb-toggle" href="#sec-copy-nutrients">Copy nutrient values</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#sec-estimate-aa">Estimate amino acids</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#sec-identity">Identity</a></li>
+    {% for group in field_groups %}
+    <li class="sb-item"><a class="sb-toggle" href="#sec-{{ group.name | lower | replace(' ', '-') }}">{{ group.name }}</a></li>
+    {% endfor %}
+  </ul>
+</aside>
+{% endblock %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -13,6 +35,9 @@
 
 <h2>Edit Custom Profile {{ manual_link("drafted-foods") }}</h2>
 <p class="muted">All nutrient values are <strong>per 100 g</strong>. Leave fields blank to clear them (zero is treated as absent).</p>
+<p class="mb-3"><a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/custom-profiles/%s/edit' % food.fdc_id) | urlencode }}"
+    class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
+  <span class="muted"><small>GI and DIAAS estimates are annotations, not nutrients, so they live on their own page.</small></span></p>
 
 {% if saved %}
 <div class="alert alert-success">Profile saved. <a href="/food/{{ food.fdc_id }}">View food detail</a></div>
@@ -35,7 +60,7 @@
 {% endif %}
 
 {# ── Copy a full nutrient profile from another food ── #}
-<details id="copy-nutrients" class="mb-4" open style="max-width:44rem">
+<details id="sec-copy-nutrients" class="mb-4" open style="max-width:44rem">
   <summary><strong>Copy nutrient values from another food (amino acids included)</strong></summary>
   <p class="muted mt-2 mb-2">
     <small>Search your Food Cache and USDA for a food to copy from, then pick exactly which values to
@@ -92,7 +117,7 @@
 </details>
 
 {# ── Estimate amino acids from another food ── #}
-<details id="estimate-aa" class="mb-4" open style="max-width:44rem">
+<details id="sec-estimate-aa" class="mb-4" open style="max-width:44rem">
   <summary><strong>Estimate amino acids from another food (leaves macros/vitamins/minerals alone)</strong></summary>
   <p class="muted mt-2 mb-2">
     <small>Search your Food Cache and USDA for a similar food with amino acid data, then apply it here —
@@ -104,7 +129,7 @@
     <input type="hidden" name="nutrient_source_q" value="{{ nutrient_source_q }}">
     <div class="d-flex gap-2 mb-2 align-items-center">
       <input type="text" class="form-control form-control-sm" name="aa_source_q" value="{{ aa_source_q }}"
-             placeholder="Search for a similar food…" style="max-width:22rem" {% if not aa_source_q %}autofocus{% endif %}>
+             placeholder="Search for a similar food…" style="max-width:22rem">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
     </div>
     {{ source_filter.select(aa_source, source_filters, source_labels, "aa_source") }}
@@ -151,7 +176,7 @@
 <form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/edit">
 
   {# ── Identity ── #}
-  <div class="card mb-4" style="max-width:44rem">
+  <div class="card mb-4" id="sec-identity" style="max-width:44rem">
     <div class="card-body">
       <h5 class="card-title">Identity</h5>
       <p class="muted mb-2" style="font-size:0.85rem"><span class="text-danger">*</span> required field</p>
@@ -187,7 +212,7 @@
 
   {# ── Nutrient groups ── #}
   {% for group in field_groups %}
-  <details class="mb-3" open>
+  <details class="mb-3" id="sec-{{ group.name | lower | replace(' ', '-') }}" open>
     <summary><strong>{{ group.name }}</strong></summary>
     <div class="card card-body mt-2" style="max-width:44rem">
       <div class="row g-2">
@@ -214,4 +239,36 @@
     <a href="/food/custom-profiles" class="btn btn-outline-secondary">All custom profiles</a>
   </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var sections = Array.from(document.querySelectorAll('[id^="sec-"]'));
+  var links    = Array.from(document.querySelectorAll('.sb-toggle'));
+
+  // Every section but Identity is a <details>. Jumping to one the user has
+  // collapsed would otherwise land on a bare summary line, so open it first.
+  function openTarget(hash) {
+    var el = hash && hash.length > 1 && document.getElementById(hash.slice(1));
+    if (el && el.tagName === 'DETAILS') el.open = true;
+  }
+  links.forEach(function (a) {
+    a.addEventListener('click', function () { openTarget(a.getAttribute('href')); });
+  });
+  openTarget(window.location.hash);
+
+  function update() {
+    var mid = window.scrollY + window.innerHeight / 3;
+    var active = sections[0];
+    sections.forEach(function (s) { if (s.offsetTop <= mid) active = s; });
+    links.forEach(function (a) {
+      var li = a.parentElement;
+      li.classList.toggle('sb-active', active && a.getAttribute('href') === '#' + active.id);
+    });
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
 {% endblock %}

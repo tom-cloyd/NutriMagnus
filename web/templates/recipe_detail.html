@@ -283,7 +283,7 @@
         <td class="num-col muted">{{ loop.index }}</td>
         <td class="num-col" style="white-space:nowrap">
           {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
-            {{ ing.amount | round(2) | string | replace(".0", "") }} srv{{ _sn.note(ing.ref_serving_size) }}
+            {{ ing.amount | round(2) | string | replace(".0", "") }} srv{% if ing.ref_grams %} <span class="muted">({{ ing.ref_grams | round | int }}&thinsp;g)</span>{% endif %}{{ _sn.note(ing.ref_serving_size) }}
           {% else %}
             {{ ing.amount | round(1) }}&thinsp;g{% if ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}
           {% endif %}

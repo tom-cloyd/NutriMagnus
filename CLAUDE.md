@@ -236,17 +236,52 @@ heading in
 Appendix K on 2026-08-05 since it's checked far more often than the other appendices),
 plus the `version.py`/manual timestamp bump above.
 
-**Where entries go, and the release procedure** (decided 2026-09-21): there is no "Next
-release" heading. Insert each new entry immediately after the line
+**Where entries go** (decided 2026-09-21): insert each new entry after the line
 `<!-- Insert new updates below here -->` in Appendix A, newest on top, under today's
 `#### Month Day updates` heading (new form only; older `... program updates` headings stay
 as they are). Every entry title starts with `MANUAL: ` or `PROGRAM: ` (e.g.
 `**PROGRAM: ALL-CAPS TITLE**`).
 
-When cutting a release: insert a new release-boundary header directly under the marker,
-then **copy** (duplicate, don't move) every entry not yet in a release above it. Pending =
-everything between the marker and the newest existing boundary header. The originals
-stay in their dated place so the dated history is preserved.
+**Also add a one-line summary bullet** (adopted 2026-09-23) under the
+`#### Next release summary to this point` heading, which sits between the marker and
+those dated entries — so every dated entry you write gets a matching bullet, newest on
+top. That running list is what the reader (and the GitHub release page) sees first; the
+dated entries below it are the detail. Prefix a bullet with `MANUAL: ` only for
+manual-only changes; program changes take no prefix. Append ` (dated details below)` to
+the heading only while dated entry sections actually follow it.
+
+**The layout to end up with**, always, reading down from the marker:
+
+```
+<!-- Insert new updates below here -->
+
+#### Next release summary to this point (dated details below)
+
+- Newest bullet.            <- your new one-line summary goes on top
+- Older bullet.
+
+#### Month Day updates      <- today's date heading (create if not already today's)
+
+**PROGRAM: ALL-CAPS TITLE** <- your new dated entry, newest on top
+...
+#### Release v<tag> summary <- the previous release; never edit above-the-line into this
+```
+
+**After a release has just been cut** the running heading is gone — `create_release.py`
+renamed it to `#### Release v<tag> summary`, which now sits directly under the marker.
+So the next log update has to rebuild the top of that structure in order: a fresh
+`#### Next release summary to this point` heading, its first bullet, then today's
+`#### Month Day updates` heading, then the entry — all inserted between the marker and
+that `#### Release v<tag> summary` line. Nothing does this for you; it's the one part
+of the cycle that's yours to re-create.
+
+When cutting a release, `scripts/create_release.py` handles the bottom of the cycle: it
+renames the running heading in place to `#### Release <tag> summary`, so the summary
+you've been keeping becomes that release's summary, with the dated entries left
+untouched below it. Pending = everything between the marker and the newest
+`#### Release ... summary` heading. Don't hand-insert release headings. (If the running
+heading is missing at release time, the script inserts one under the marker itself, so a
+release never breaks — but it'll have no summary bullets, which is the thing to avoid.)
 
 Every entry from 2026-07-31 onward uses this format — adopted 2026-08-05 because the prior
 single dense run-on line per entry was hard to skim:

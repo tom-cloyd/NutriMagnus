@@ -20,6 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import db as _db
+from numa_app.services.recipe_nutrients import recipe_aa_indicator
 import diaas as _diaas
 import profile as _profile
 import web.backend as backend
@@ -2320,9 +2321,34 @@ def test_home_page_shows_version_note_prominently(client: TestClient) -> None:
     resp = client.get("/")
     assert NEW_VERSION_NOTE in resp.text
     assert f"(Version note: {NEW_VERSION_NOTE} —" in resp.text
-    assert "#a-recent-program-updates-log" in resp.text
+    # "see what changed" points at the newest release summary in the manual's
+    # updates log, not the top of the log (which leads with the unreleased
+    # "Next release summary to this point").
+    assert f'/manual#{backend._latest_release_anchor()}"' in resp.text
     assert "alert-secondary" not in resp.text
     assert "NEW VERSION NOTE:" not in resp.text
+
+
+def test_see_what_changed_links_to_newest_release_summary(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The home page's "see what changed" link targets the newest
+    "Release <tag> summary" heading in the manual's updates log — not the top
+    of the log, which leads with the still-unreleased "Next release summary to
+    this point" — and falls back to the section heading if the built manual
+    has no release summary in it at all."""
+    manual = tmp_path / "user-manual.html"
+    manual.write_text(
+        '<h4 id="next-release-summary-to-this-point">Next release summary to this point</h4>\n'
+        '<h4 id="release-v2026-09-21-0647-summary">Release v2026-09-21-0647 summary</h4>\n'
+        '<h4 id="release-v2026-09-21-0526-summary">Release v2026-09-21-0526 summary</h4>\n',
+        encoding="utf-8")
+    monkeypatch.setattr(backend, "_MANUAL", manual)
+    backend._release_anchor_cache.clear()
+    assert backend._latest_release_anchor() == "release-v2026-09-21-0647-summary"
+
+    manual.write_text("<h4 id=\"next-release-summary-to-this-point\">Next release summary to this point</h4>\n",
+                      encoding="utf-8")
+    backend._release_anchor_cache.clear()
+    assert backend._latest_release_anchor() == "a-recent-program-updates-log"
 
 
 def test_version_note_sits_inside_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2341,7 +2367,7 @@ def test_version_note_sits_inside_update_available_banner(client: TestClient, mo
     assert resp.text.count(NEW_VERSION_NOTE) == 2
     assert f"NEW VERSION NOTE: {NEW_VERSION_NOTE} —" in resp.text
     assert f"(Version note: {NEW_VERSION_NOTE} —" in resp.text
-    assert resp.text.count("#a-recent-program-updates-log") == 2
+    assert resp.text.count(f"#{backend._latest_release_anchor()}") == 2
     update_banner_pos = resp.text.index("UPDATE AVAILABLE:")
     note_pos = resp.text.index(NEW_VERSION_NOTE)
     welcome_pos = resp.text.index("Welcome to NutriMagnus")
@@ -2787,6 +2813,149 @@ def test_food_annotate_edit_skip_forever(client: TestClient, cached_food, db_con
         "SELECT * FROM food_annotations WHERE fdc_id = ?", (cached_food["fdcId"],)
     ).fetchone()
     assert ann["gi_no_prompt"] == 1
+
+
+def test_food_annotate_page_prefills_saved_gi(client: TestClient, cached_food) -> None:
+    """Revisiting a food's Annotate page is how you change a GI you already
+    entered, so the form must come back carrying the stored value rather than
+    blank — a blank box here reads as "no GI was ever saved"."""
+    fdc_id = cached_food["fdcId"]
+    client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "55"}, follow_redirects=False)
+
+    resp = client.get(f"/food/annotate/{fdc_id}")
+    assert resp.status_code == 200
+    gi_input = next(l for l in resp.text.splitlines() if 'id="gi_estimate"' in l or 'name="gi_estimate"' in l)
+    assert 'value="55.0"' in resp.text, gi_input
+
+
+def test_annotation_prompt_stops_once_both_values_are_saved(client: TestClient, cached_food) -> None:
+    """The add-to-pantry/meal flow only detours through Annotate while a food
+    is still missing an estimate, so being prompted means one isn't stored yet.
+    A GI alone doesn't stop it — DIAAS is still outstanding."""
+    fdc_id = cached_food["fdcId"]
+    assert backend._annotation_prompt_needed(fdc_id) is True
+
+    client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "55"}, follow_redirects=False)
+    assert backend._annotation_prompt_needed(fdc_id) is True
+
+    client.post(
+        f"/food/annotate/{fdc_id}",
+        data={"gi_estimate": "55", "diaas_estimate": "0.9"},
+        follow_redirects=False,
+    )
+    assert backend._annotation_prompt_needed(fdc_id) is False
+
+
+def test_skip_forever_suppresses_both_prompts(client: TestClient, cached_food) -> None:
+    """"Skip forever for this food" means stop asking entirely — suppressing
+    only GI would leave the DIAAS prompt still detouring on every add."""
+    fdc_id = cached_food["fdcId"]
+    client.post(f"/food/annotate/{fdc_id}/skip-forever", follow_redirects=False)
+    assert backend._annotation_prompt_needed(fdc_id) is False
+
+
+def test_add_food_row_links_gi_and_diaas_to_annotate(client: TestClient, cached_food, db_conn) -> None:
+    """A stored estimate is never prompted for again, so the GI/DIAAS cells on
+    the add-food list have to be the way back in to change one."""
+    fdc_id = cached_food["fdcId"]
+    client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "55"}, follow_redirects=False)
+    meal_id = _db.meal_create(db_conn, "Lunch", datetime.date.today().isoformat())
+    db_conn.commit()
+
+    resp = client.get(f"/meal/{meal_id}?q={cached_food['name']}")
+    assert resp.status_code == 200
+    assert f'href="/food/annotate/{fdc_id}?next=' in resp.text
+    assert "annot-cell" in resp.text
+
+
+def test_recipe_rows_show_amino_acid_status(client: TestClient, cached_food, db_conn) -> None:
+    """Regression: recipe rows in the add-food/add-ingredient search lists
+    carried no "aa" key at all, so the AA column was always blank for a recipe
+    — even one whose ingredients plainly do have amino acid data."""
+    rid = _db.recipe_create(db_conn, "AA Status Test Chicken Bake", "", 2.0, "")
+    _db.recipe_add_ingredient(db_conn, rid, cached_food["fdcId"], cached_food["name"], 200.0, "g")
+    empty_rid = _db.recipe_create(db_conn, "AA Status Test Empty Bake", "", 1.0, "")
+    db_conn.commit()
+
+    with _db.get_db() as conn:
+        assert recipe_aa_indicator(rid, conn) == "✓"
+        # Nothing in it — no nutrient data at all, same as an uncached food.
+        assert recipe_aa_indicator(empty_rid, conn) == "⚠"
+
+    meal_id = _db.meal_create(db_conn, "Dinner", datetime.date.today().isoformat())
+    db_conn.commit()
+    # The recipe-edit search excludes the recipe being edited, so that page is
+    # driven from the empty recipe to see the one with AA data listed.
+    for path in (f"/meal/{meal_id}?q=AA+Status+Test", f"/recipe/{empty_rid}/edit?q=AA+Status+Test",
+                 "/food/search?query=AA+Status+Test"):
+        resp = client.get(path)
+        assert resp.status_code == 200, path
+        assert 'title="Amino acid data confirmed"' in resp.text, path
+
+
+def test_serving_amounts_show_their_gram_weight(client: TestClient, cached_food, db_conn) -> None:
+    """An amount given in servings says nothing about how much food that is,
+    so the gram weight goes alongside it — on a meal's item list and on both
+    recipe ingredient lists."""
+    rid = _db.recipe_create(db_conn, "Serving Weight Test Stew", "", 2.0, "",
+                            total_weight=500.0, total_weight_unit="g")
+    _db.recipe_add_ingredient(db_conn, rid, cached_food["fdcId"], cached_food["name"], 500.0, "g")
+    meal_id = _db.meal_create(db_conn, "Dinner", datetime.date.today().isoformat())
+    _db.meal_add_recipe(db_conn, meal_id, rid, "Serving Weight Test Stew", 2.0)
+    # A recipe using that one as a sub-recipe: 1 srv of a 2-serving, 500 g batch.
+    parent = _db.recipe_create(db_conn, "Serving Weight Test Parent", "", 1.0, "")
+    _db.recipe_add_ingredient(db_conn, parent, 0, "Serving Weight Test Stew", 1.0,
+                              "servings", ref_recipe_id=rid)
+    db_conn.commit()
+
+    assert "(500&thinsp;g)" in client.get(f"/meal/{meal_id}").text
+    for path in (f"/recipe/{parent}", f"/recipe/{parent}/edit", f"/recipe/{parent}/print"):
+        assert "(250&thinsp;g)" in client.get(path).text, path
+
+
+def test_serving_gram_weight_omitted_when_it_cannot_be_computed(client: TestClient, db_conn) -> None:
+    """A recipe with no stated weight and no weighable ingredients has no
+    serving weight to show — better nothing than a wrong number."""
+    rid = _db.recipe_create(db_conn, "No Weight Test Soup", "", 2.0, "")
+    meal_id = _db.meal_create(db_conn, "Dinner", datetime.date.today().isoformat())
+    _db.meal_add_recipe(db_conn, meal_id, rid, "No Weight Test Soup", 2.0)
+    db_conn.commit()
+
+    resp = client.get(f"/meal/{meal_id}")
+    assert "No Weight Test Soup" in resp.text
+    assert "&thinsp;g)" not in resp.text
+
+
+def test_food_pages_link_to_annotate(client: TestClient, cached_food, db_conn) -> None:
+    """A food's own pages gave no way to reach Annotate, so a GI or DIAAS
+    estimate could only be added by going to Foods -> Annotate and filtering
+    for the food by name — or not at all, if you didn't know that page existed."""
+    fdc_id = cached_food["fdcId"]
+    db_conn.execute("UPDATE foods SET user_drafted = 1 WHERE fdc_id = ?", (fdc_id,))
+    db_conn.commit()
+
+    for path in (f"/food/{fdc_id}", f"/food/custom-profiles/{fdc_id}/edit"):
+        resp = client.get(path)
+        assert resp.status_code == 200, path
+        assert f"/food/annotate/{fdc_id}?next=" in resp.text, path
+
+
+def test_annotate_page_only_prompts_about_what_is_missing(client: TestClient, cached_food) -> None:
+    """Arriving with ?next= from a food's own page is a deliberate visit, not
+    the post-add prompt: with both estimates already on file there is nothing
+    to skip, so the prompt text and "skip forever" button stay out of the way."""
+    fdc_id = cached_food["fdcId"]
+    nxt = f"/food/{fdc_id}"
+    missing = client.get(f"/food/annotate/{fdc_id}?next={nxt}").text
+    assert "No GI or DIAAS estimate on file" in missing
+    assert "Skip forever for this food" in missing
+
+    client.post(f"/food/annotate/{fdc_id}",
+                data={"gi_estimate": "55", "diaas_estimate": "0.9"}, follow_redirects=False)
+    filled = client.get(f"/food/annotate/{fdc_id}?next={nxt}").text
+    assert "estimate on file" not in filled
+    assert "Skip forever for this food" not in filled
+    assert "Back without saving" in filled
 
 
 class TestParseAnchorOverrides:

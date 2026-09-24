@@ -156,3 +156,45 @@ def best_aa_nutrients(nutrients: Nutrients, food_name: str) -> Nutrients | None:
                     merged[k] = v * scale
             return merged
     return None
+
+
+def recipe_aa_indicator(recipe_id: int, conn) -> str:
+    """AA-column status for a recipe row, in aa_indicator()'s own vocabulary.
+
+    Search/list rows show a food's AA status via usda.aa_indicator(), which
+    takes a nutrients dict — a recipe has none of its own, so its status comes
+    from the totals of its (recursively expanded) ingredients. An empty recipe,
+    or one whose ingredients have no cached nutrients at all, totals to {} and
+    so reports "⚠", exactly as an uncached food does.
+    """
+    return _usda.aa_indicator(recipe_total_nutrients(recipe_id, conn))
+
+
+def recipe_serving_grams(recipe_id: int, conn) -> float | None:
+    """Gram weight of one serving of a recipe, or None if it can't be worked out.
+
+    Two sources, in order: the recipe's own stated total weight (converted from
+    whatever unit it was entered in — it is stored as typed, not normalized),
+    and failing that the sum of its ingredients' weights, but only when
+    db.recipe_compute_weight() reports that sum as complete. An incomplete sum
+    is a lower bound, and a serving weight quietly short by an unknown amount is
+    worse than none at all.
+    """
+    from numa_app.services.portions import _UNIT_TO_GRAMS
+
+    recipe = _db.recipe_get(conn, recipe_id)
+    if not recipe:
+        return None
+    servings = float(recipe["servings"] or 0)
+    if servings <= 0:
+        return None
+
+    if recipe["total_weight"]:
+        factor = _UNIT_TO_GRAMS.get((recipe["total_weight_unit"] or "g").lower())
+        if factor:
+            return float(recipe["total_weight"]) * factor / servings
+
+    computed = _db.recipe_compute_weight(conn, recipe_id)
+    if computed and computed[1] and computed[0] > 0:
+        return computed[0] / servings
+    return None

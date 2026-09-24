@@ -1,4 +1,22 @@
 {% import "_serving_note.html" as _sn %}
+
+{# A stored GI/DIAAS estimate is never prompted for again, so these cells
+   double as the way back in to change one — the value itself is the link.
+   Recipes carry no annotation (no fdc_id), so they stay plain text. #}
+{# default('', true) because these arrive in three shapes: a formatted string
+   from _ann_gi/_ann_diaas ("" when unset), None from the barcode/cache row
+   builders, and undefined on recipe rows, which carry no annotation. #}
+{% macro annot_cell(food, key, label, next_url) %}
+{%- set value = food[key] | default('', true) -%}
+{%- if food._type != "recipe" and food.fdc_id -%}
+<a class="annot-cell{% if not value %} annot-cell-empty{% endif %}"
+   href="/food/annotate/{{ food.fdc_id }}?next={{ next_url }}"
+   title="{% if not value %}No {{ label }} estimate yet — add one{% else %}Edit this food's {{ label }} estimate{% endif %}">{{ value or '–' }}</a>
+{%- else -%}
+{{ value }}
+{%- endif -%}
+{% endmacro %}
+
 {% macro add_food_row(meal_id, food, q) %}
       <tr class="food-meta-row">
         <td class="confirm-col">
@@ -17,8 +35,9 @@
           {% elif food.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
           {% endif %}
         </td>
-        <td class="col-gi"><small>{{ food.gi or '' }}</small></td>
-        <td class="col-diaas"><small>{{ food.diaas or '' }}</small></td>
+        {% set annot_next = ('/meal/%s?q=%s' % (meal_id, q or '')) | urlencode %}
+        <td class="col-gi"><small>{{ annot_cell(food, 'gi', 'GI', annot_next) }}</small></td>
+        <td class="col-diaas"><small>{{ annot_cell(food, 'diaas', 'DIAAS', annot_next) }}</small></td>
         <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none)) }}</small></td>
         <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
       </tr>

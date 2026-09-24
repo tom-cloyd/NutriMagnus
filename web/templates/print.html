@@ -187,7 +187,7 @@
       <td class="num muted">{{ loop.index }}</td>
       <td class="num" style="white-space:nowrap">
         {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
-          {{ ing.amount | round(2) | string | replace(".0", "") }} srv
+          {{ ing.amount | round(2) | string | replace(".0", "") }} srv{% if ing.ref_grams %} <span class="muted">({{ ing.ref_grams | round | int }}&thinsp;g)</span>{% endif %}
         {% else %}
           {{ ing.amount | round(1) }}&thinsp;g
         {% endif %}

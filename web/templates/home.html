@@ -32,7 +32,7 @@
   <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
   (you're running {{ version }}).
   {% if version_note %}
-  <br><small>NEW VERSION NOTE: {{ version_note }} — {{ manual_link("a-recent-program-updates-log", "see what changed") }}</small>
+  <br><small>NEW VERSION NOTE: {{ version_note }} — {{ manual_link(changelog_anchor, "see what changed") }}</small>
   {% endif %}
   <br><small class="muted">Updates sometimes add new starter foods or recipes — after updating, check <strong>Settings → 9. Starter Data → Restore individual starter items</strong> to pick up anything new.</small>
   {% if self_update_available %}
@@ -120,26 +120,23 @@
 <div class="mt-4">
   <h1>Welcome to NutriMagnus</h1>
   <p class="lead">A nutritional analysis tool powered by six nutritional databases from five different countries.</p>
-  <p class="muted mb-0"><small>
-    Dietary preferences: {{ diet_label }} — <a href="/settings">change via Settings</a><br>
-    {% if profile_label %}
-    Active profile: {{ profile_label }} — <a href="/settings">change via Settings</a>
-    {% else %}
-    Active profile: not set — <a href="/settings">configure under Settings</a>
-    {% endif %}
-    <br>Current manual version: {{ manual_stamp or 'unknown' }}<br>Current version date: {{ version_date }}{% if version_note %} (Version note: {{ version_note }} — <a href="/manual#a-recent-program-updates-log" target="_blank" rel="noopener">see what changed</a>){% endif %}
-    {% if not update_available and not manual_update_available %}
-    — <form method="post" action="/check-for-updates" class="d-inline">
-      <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Check for updates now</button>
-    </form>
-    {% endif %}
-  </small></p>
+  <ul class="small mb-0 ps-3">
+    <li class="muted"><strong>Dietary preferences:</strong> {{ diet_label }} /
+      <strong>Active profile:</strong> {% if profile_label %}{{ profile_label }} — <a href="/settings">change both via Settings</a>{% else %}not set — <a href="/settings">configure both via Settings</a>{% endif %}</li>
+    <li class="muted"><strong>Current manual version:</strong> {{ manual_stamp or 'unknown' }} /
+      <strong>Current program version date:</strong> {{ version_date }}{% if version_note %} (Version note: {{ version_note }} — <a href="/manual#{{ changelog_anchor }}" target="_blank" rel="noopener">see what changed</a>){% endif %}
+      {% if not update_available and not manual_update_available %}
+      — <form method="post" action="/check-for-updates" class="d-inline">
+        <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Check for updates now</button>
+      </form>
+      {% endif %}</li>
+  </ul>
   {% if show_plot_notice %}
   <p class="mt-2 mb-0"><small>You can chart nutrients from your logged meals and show that plot right here — see <a href="/summary/nutrient-plot">Nutrient Plot</a> {{ manual_link("nutrient-plot") }}.</small></p>
   {% endif %}
 </div>
 
-<article class="mt-4" style="max-width: 48rem;">
+<article class="mt-4" style="width:88%;max-width:88%;">
   {{ home_body | safe }}
 </article>
 

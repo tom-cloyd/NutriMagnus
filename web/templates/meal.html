@@ -521,7 +521,7 @@
           {% endif %}
         </td>
         <td class="num-col" style="white-space:nowrap">
-          {{ item.amount | round(1) }}&thinsp;{{ item.unit }}
+          {{ item.amount | round(1) }}&thinsp;{{ item.unit }}{% if item.grams %} <span class="muted">({{ item.grams | round | int }}&thinsp;g)</span>{% endif %}
         </td>
         <td>
           {% if item.notes %}<small class="muted">{{ item.notes }}</small>{% endif %}
