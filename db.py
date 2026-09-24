@@ -362,6 +362,38 @@ def init_db() -> None:
             )
         """)
 
+        # Deleting a food that a pantry entry, recipe, or logged meal still
+        # points at leaves that reference aimed at an fdc_id with nothing
+        # behind it — the orphan class check_db_integrity() reports and
+        # repair_db_integrity() cleans up. The delete routes have refused it
+        # in application code for a while (see web/backend.py
+        # food_cache_delete), but nothing stopped a new code path, a script,
+        # or a hand-edited database from doing it anyway. This enforces it at
+        # the database itself, where it cannot be forgotten.
+        #
+        # A trigger rather than a foreign key on recipe_ingredients.fdc_id,
+        # for two reasons a real FK can't handle: a sub-recipe ingredient row
+        # stores fdc_id 0, which matches no food and never will, and adding an
+        # FK to an existing table would require rebuilding it and repairing
+        # every pre-existing orphan first — a trigger guards new deletions
+        # without touching damage already on disk.
+        #
+        # "Referenced" is deliberately the same three tables, with the same
+        # conditions, that food_references() reports to the user.
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_foods_no_delete_when_referenced
+            BEFORE DELETE ON foods
+            FOR EACH ROW
+            WHEN EXISTS (SELECT 1 FROM pantry WHERE fdc_id = OLD.fdc_id)
+              OR EXISTS (SELECT 1 FROM recipe_ingredients WHERE fdc_id = OLD.fdc_id)
+              OR EXISTS (SELECT 1 FROM meal_items
+                          WHERE item_type = 'food' AND fdc_id = OLD.fdc_id)
+            BEGIN
+                SELECT RAISE(ABORT,
+                    'cannot delete a food still used by a pantry entry, recipe, or meal');
+            END
+        """)
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------

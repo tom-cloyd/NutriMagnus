@@ -49,6 +49,29 @@ DEMO_PANTRY: list[str] = _starter["pantry"]
 DEMO_RECIPES: list[dict] = _starter["recipes"]
 
 
+def _ingredient_parts(entry) -> tuple[str, float, str, str]:
+    """(name, amount, unit, kind) for one starter-recipe ingredient entry.
+
+    Entries are [name, amount, unit, kind], where kind is "food" or "recipe"
+    (a sub-recipe, whose name is another starter recipe). A 3-element entry
+    predates nested-recipe support and is always a food."""
+    return entry[0], entry[1], entry[2], (entry[3] if len(entry) > 3 else "food")
+
+
+def _add_ingredients(conn, recipe_id: int, recipe: dict, by_name: dict, recipe_ids: dict) -> None:
+    """Attach one starter recipe's ingredients, foods and sub-recipes alike.
+
+    A sub-recipe row carries fdc_id 0 and a ref_recipe_id, exactly as the app
+    writes one. starter_data.json lists every recipe after the ones it uses,
+    so recipe_ids already holds the id a sub-recipe was created with."""
+    for name, amount, unit, kind in (_ingredient_parts(i) for i in recipe["ingredients"]):
+        if kind == "recipe":
+            _db.recipe_add_ingredient(conn, recipe_id, 0, name, amount, unit,
+                                      ref_recipe_id=recipe_ids[name])
+        else:
+            _db.recipe_add_ingredient(conn, recipe_id, by_name[name]["fdc_id"], name, amount, unit)
+
+
 def is_loaded() -> bool:
     """True if load_demo_data() has been run and not yet cleared."""
     return _MARKER_FILE.exists()
@@ -100,14 +123,15 @@ def load_demo_data(conn) -> dict:
         pantry_ids.append(_db.pantry_add(conn, name, by_name[name]["fdc_id"], "Starter data"))
 
     recipe_ids: list[int] = []
+    rid_by_name: dict[str, int] = {}
     for recipe in DEMO_RECIPES:
         rid = _db.recipe_create(
             conn, name=recipe["name"], description=recipe["description"],
             servings=recipe["servings"], instructions=recipe["instructions"],
             complete=True,
         )
-        for food_name, amount, unit in recipe["ingredients"]:
-            _db.recipe_add_ingredient(conn, rid, by_name[food_name]["fdc_id"], food_name, amount, unit)
+        rid_by_name[recipe["name"]] = rid
+        _add_ingredients(conn, rid, recipe, by_name, rid_by_name)
         _recipe_dcp.recompute_recipe_dcp(rid, conn)
         recipe_ids.append(rid)
 
@@ -121,25 +145,44 @@ def load_demo_data(conn) -> dict:
 
 def clear_demo_data(conn) -> dict:
     """Remove exactly what load_demo_data() inserted, per the marker file.
-    No-op (returns zero counts) if nothing is loaded."""
+    No-op (returns zero counts) if nothing is loaded.
+
+    A starter food the user has since used somewhere of their own — logged in a
+    meal, added to a recipe, kept in the pantry — is left in place and counted
+    in "foods_kept". Deleting it would strand that reference (and the database
+    now refuses outright, via trg_foods_no_delete_when_referenced), so the
+    choice is between keeping one food and failing the whole clear."""
     if not is_loaded():
-        return {"foods": 0, "pantry": 0, "recipes": 0}
+        return {"foods": 0, "pantry": 0, "recipes": 0, "foods_kept": 0}
 
     marker = json.loads(_MARKER_FILE.read_text())
     fdc_ids = marker.get("fdc_ids", [])
     pantry_ids = marker.get("pantry_ids", [])
     recipe_ids = marker.get("recipe_ids", [])
 
-    for rid in recipe_ids:
+    # Reverse order: starter recipes are created sub-recipe-first, so a
+    # sub-recipe still has a parent pointing at it until that parent is gone
+    # (recipe_ingredients.ref_recipe_id is a foreign key onto recipes.id).
+    for rid in reversed(recipe_ids):
         conn.execute("DELETE FROM recipes WHERE id = ?", (rid,))  # cascades to recipe_ingredients
     for pid in pantry_ids:
         conn.execute("DELETE FROM pantry WHERE id = ?", (pid,))
+    # After the starter recipes and pantry entries above are gone, whatever
+    # still references a starter food belongs to the user.
+    deleted_foods = 0
+    kept_foods = 0
     for fdc_id in fdc_ids:
+        refs = _db.food_references(conn, fdc_id)
+        if refs["pantry"] or refs["recipes"] or refs["meals"]:
+            kept_foods += 1
+            continue
         conn.execute("DELETE FROM foods WHERE fdc_id = ?", (fdc_id,))
+        deleted_foods += 1
 
     _MARKER_FILE.unlink()
 
-    return {"foods": len(fdc_ids), "pantry": len(pantry_ids), "recipes": len(recipe_ids)}
+    return {"foods": deleted_foods, "pantry": len(pantry_ids), "recipes": len(recipe_ids),
+            "foods_kept": kept_foods}
 
 
 def starter_status(conn) -> dict:
@@ -175,16 +218,36 @@ def restore_selected(conn, food_fdc_ids: list[int], pantry_names: list[str], rec
     load_demo_data()/clear_demo_data(). Selecting a pantry item or recipe
     auto-includes any starter food it depends on that isn't already cached,
     since a pantry item or recipe ingredient can't exist without its food.
+    A selected recipe likewise pulls in any sub-recipe it uses, and their
+    sub-recipes in turn, for the same reason — an ingredient row pointing at
+    a recipe that isn't there is a broken reference.
     Items already present are skipped, so this is safe to call repeatedly
     with an overlapping selection."""
     by_name = {f["name"]: f for f in DEMO_FOODS}
     by_fdc_id = {f["fdc_id"]: f for f in DEMO_FOODS}
     cached_ids = {row["fdc_id"] for row in conn.execute("SELECT fdc_id FROM foods").fetchall()}
 
-    recipe_defs = [r for r in DEMO_RECIPES if r["name"] in recipe_names]
+    # Widen the selection to every sub-recipe reachable from it, then keep
+    # DEMO_RECIPES order, in which a sub-recipe always precedes its user.
+    recipes_by_name = {r["name"]: r for r in DEMO_RECIPES}
+    wanted_recipes = set(recipe_names)
+    pending = list(wanted_recipes)
+    while pending:
+        recipe = recipes_by_name.get(pending.pop())
+        if recipe is None:
+            continue
+        for name, _amount, _unit, kind in (_ingredient_parts(i) for i in recipe["ingredients"]):
+            if kind == "recipe" and name not in wanted_recipes:
+                wanted_recipes.add(name)
+                pending.append(name)
+    recipe_defs = [r for r in DEMO_RECIPES if r["name"] in wanted_recipes]
     needed_fdc_ids = set(food_fdc_ids) | {by_name[name]["fdc_id"] for name in pantry_names}
     for recipe in recipe_defs:
-        needed_fdc_ids |= {by_name[food_name]["fdc_id"] for food_name, _amount, _unit in recipe["ingredients"]}
+        needed_fdc_ids |= {
+            by_name[name]["fdc_id"]
+            for name, _amount, _unit, kind in (_ingredient_parts(i) for i in recipe["ingredients"])
+            if kind == "food"
+        }
 
     added_foods = 0
     for fdc_id in needed_fdc_ids:
@@ -208,20 +271,21 @@ def restore_selected(conn, food_fdc_ids: list[int], pantry_names: list[str], rec
         _db.pantry_add(conn, name, fdc_id, "Starter data")
         added_pantry += 1
 
-    existing_recipes = {row["name"] for row in _db.recipe_list(conn, include_archived=True)}
+    # Name -> id for every recipe already in the DB, so a parent recipe links
+    # to a sub-recipe that is already there rather than duplicating it.
+    rid_by_name = {row["name"]: row["id"] for row in _db.recipe_list(conn, include_archived=True)}
     added_recipes = 0
     for recipe in recipe_defs:
-        if recipe["name"] in existing_recipes:
+        if recipe["name"] in rid_by_name:
             continue
         rid = _db.recipe_create(
             conn, name=recipe["name"], description=recipe["description"],
             servings=recipe["servings"], instructions=recipe["instructions"],
             complete=True,
         )
-        for food_name, amount, unit in recipe["ingredients"]:
-            _db.recipe_add_ingredient(conn, rid, by_name[food_name]["fdc_id"], food_name, amount, unit)
+        rid_by_name[recipe["name"]] = rid
+        _add_ingredients(conn, rid, recipe, by_name, rid_by_name)
         _recipe_dcp.recompute_recipe_dcp(rid, conn)
         added_recipes += 1
 
     return {"foods": added_foods, "pantry": added_pantry, "recipes": added_recipes}
-    return {"foods": len(fdc_ids), "pantry": len(pantry_ids), "recipes": len(recipe_ids)}

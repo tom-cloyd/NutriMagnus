@@ -5562,7 +5562,7 @@ async def meal_day_profile_override(meal_id: int, profile_name: str = Form(...))
 # ---------------------------------------------------------------------------
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_get(request: Request, saved: str = "", recompute_retry: str = ""):
+async def settings_get(request: Request, saved: str = "", recompute_retry: str = "", kept: int = 0):
     profile = _profile.load_profile()
     diet_pref = _current_diet_pref()
     rda = _profile.compute_rda(profile, diet_pref=diet_pref) if profile else None
@@ -5615,6 +5615,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "activity_labels":      _profile.ACTIVITY_LABELS,
         "sex_values":           _profile.SEX_VALUES,
         "saved":                saved,
+        "starter_foods_kept":   kept,
         "diet_pref":            diet_pref,
         "diet_labels":          _DIET_LABELS,
         "preferred_browser":    _load_prefs_file().get("preferred_browser", ""),
@@ -5815,11 +5816,18 @@ async def settings_demo_data_load():
 
 @app.post("/settings/starter-data/clear", response_class=RedirectResponse)
 async def settings_demo_data_clear():
-    """Remove exactly the starter foods/pantry/recipes settings_demo_data_load() added."""
+    """Remove exactly the starter foods/pantry/recipes settings_demo_data_load() added.
+
+    A starter food the user has since used in a meal, recipe, or their pantry is
+    kept (see clear_demo_data) — the count comes back so the page can say so
+    rather than leaving the food there unexplained."""
     from numa_app.services import demo_data as _demo_data
     with _db.get_db() as conn:
-        _demo_data.clear_demo_data(conn)
-    return RedirectResponse("/settings?saved=starter_data_cleared", status_code=303)
+        result = _demo_data.clear_demo_data(conn)
+    params = {"saved": "starter_data_cleared"}
+    if result.get("foods_kept"):
+        params["kept"] = result["foods_kept"]
+    return RedirectResponse(f"/settings?{urlencode(params)}", status_code=303)
 
 
 @app.post("/settings/starter-data/restore", response_class=RedirectResponse)

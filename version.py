@@ -1,4 +1,4 @@
-VERSION = "2026-09-23:1718"
+VERSION = "2026-09-23:2023"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -10,7 +10,7 @@ VERSION = "2026-09-23:1718"
 # it on every dev-session bump, which drifted it away from the real release
 # count); bump the MAJOR.MINOR.PATCH part by hand only for a deliberate
 # milestone (e.g. reaching 1.0.0).
-RELEASE_VERSION = "0.1.0-rc.20"
+RELEASE_VERSION = "0.1.0-rc.21"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.20"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "reach Annotate straight from a food page"
+NEW_VERSION_NOTE = "the database itself now refuses to delete a food still in use"

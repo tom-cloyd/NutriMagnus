@@ -173,7 +173,7 @@ def test_new_live_ingredient_is_auto_included(
 
     food_fdc_ids = {f["fdc_id"] for f in data["foods"]}
     assert food_fdc_ids == {1, 2}
-    ingredient_names = {name for name, _amount, _unit in data["recipes"][0]["ingredients"]}
+    ingredient_names = {name for name, _amount, _unit, _kind in data["recipes"][0]["ingredients"]}
     assert ingredient_names == {"* Beans", "* Rice"}
 
 
@@ -201,3 +201,67 @@ def test_subrecipe_ingredient_leaves_recipe_untouched(
 
     assert data["recipes"] == starter["recipes"]  # untouched
     assert "sub-recipe" in capsys.readouterr().err
+
+
+def test_subrecipe_ingredient_is_refreshed_in_place(
+    db_conn: sqlite3.Connection, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sub-recipe ingredient refreshes like any other, matched by the live id
+    its entry was exported from — so renaming the sub-recipe live carries
+    through to the parent's ingredient reference."""
+    with _db.get_db() as conn:
+        _add_food(conn, 1, "* Beans")
+        sub_rid = _db.recipe_create(conn, name="* Sauce Renamed", description="", servings=2,
+                                     instructions="")
+        _db.recipe_add_ingredient(conn, sub_rid, 1, "* Beans", 100, "g")
+        outer_rid = _db.recipe_create(conn, name="* Meal", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(conn, outer_rid, 0, "* Sauce", 2, "servings",
+                                   ref_recipe_id=sub_rid)
+
+    starter = {
+        "foods": [{"fdc_id": 1, "name": "* Beans", "data_type": "User Drafted",
+                    "nutrients": {"protein_g": 5.0}, "portions": []}],
+        "pantry": [],
+        "recipes": [
+            {"source_recipe_id": sub_rid, "name": "* Sauce", "description": "", "servings": 2,
+             "instructions": "", "ingredients": [["* Beans", 100, "g", "food"]]},
+            {"source_recipe_id": outer_rid, "name": "* Meal", "description": "", "servings": 1,
+             "instructions": "", "ingredients": [["* Sauce", 1, "1 serving", "recipe"]]},
+        ],
+    }
+    path = _write_starter_data(tmp_path, monkeypatch, starter)
+
+    assert refresh_starter_data.main() == 0
+    data = json.loads(path.read_text())
+
+    assert data["recipes"][1]["ingredients"] == [["* Sauce Renamed", 2.0, "servings", "recipe"]]
+
+
+def test_subrecipe_not_yet_in_starter_data_leaves_the_recipe_untouched(
+    db_conn: sqlite3.Connection, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:
+    """Adding a brand-new sub-recipe is export_starter_data.py's job: it has to
+    order the recipes list so the sub-recipe precedes its user, which this
+    script never reorders."""
+    with _db.get_db() as conn:
+        _add_food(conn, 1, "* Beans")
+        sub_rid = _db.recipe_create(conn, name="* New Sauce", description="", servings=1, instructions="")
+        outer_rid = _db.recipe_create(conn, name="* Meal", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(conn, outer_rid, 1, "* Beans", 100, "g")
+        _db.recipe_add_ingredient(conn, outer_rid, 0, "* New Sauce", 1, "1 serving",
+                                   ref_recipe_id=sub_rid)
+
+    starter = {
+        "foods": [{"fdc_id": 1, "name": "* Beans", "data_type": "User Drafted",
+                    "nutrients": {"protein_g": 5.0}, "portions": []}],
+        "pantry": [],
+        "recipes": [{"source_recipe_id": outer_rid, "name": "* Meal", "description": "",
+                      "servings": 1, "instructions": "", "ingredients": [["* Beans", 100, "g", "food"]]}],
+    }
+    path = _write_starter_data(tmp_path, monkeypatch, starter)
+
+    assert refresh_starter_data.main() == 0
+    data = json.loads(path.read_text())
+
+    assert data["recipes"][0]["ingredients"] == [["* Beans", 100, "g", "food"]]
+    assert "export_starter_data.py" in capsys.readouterr().err

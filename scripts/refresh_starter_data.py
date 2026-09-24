@@ -27,9 +27,11 @@ been edited live since it was exported):
     (deleted), the entry is left untouched. An ingredient whose food isn't
     yet in starter_data.json's foods list (e.g. a new ingredient added live
     since the last export) is auto-included, the same way
-    export_starter_data.py does it. A sub-recipe ingredient is unsupported,
-    same as export_starter_data.py — that recipe entry is left untouched
-    with a warning.
+    export_starter_data.py does it. A sub-recipe ingredient is refreshed in
+    place as [name, amount, unit, "recipe"], but only when that sub-recipe is
+    already a starter recipe — pulling a brand-new one in (and ordering the
+    recipes list so it precedes its user) is export_starter_data.py's job, so
+    the entry is left untouched with a warning telling you to run that.
 
 Nothing is ever removed — this script only updates fields on entries that
 still resolve live; it never deletes an entry just because its live
@@ -130,15 +132,26 @@ def main() -> int:
             ingredient_rows = _db.recipe_get_ingredients(conn, full["id"])
             recipe_name = _canonical_name(full["name"])
 
+            # Sub-recipes are matched by the live id they were exported from,
+            # so a sub-recipe renamed live still resolves to its entry.
+            starter_name_by_source_id = {
+                r["source_recipe_id"]: r["name"] for r in recipes
+                if r.get("source_recipe_id") is not None
+            }
+
             skip_recipe = False
             new_ingredients = []
             for ing in ingredient_rows:
                 if ing["ref_recipe_id"]:
-                    print(f"WARNING: leaving recipe {recipe['name']!r} untouched — "
-                          f"ingredient {ing['food_name']!r} is a sub-recipe, "
-                          "which starter data doesn't support", file=sys.stderr)
-                    skip_recipe = True
-                    break
+                    sub_name = starter_name_by_source_id.get(ing["ref_recipe_id"])
+                    if sub_name is None:
+                        print(f"WARNING: leaving recipe {recipe['name']!r} untouched — "
+                              f"its sub-recipe {ing['food_name']!r} is not starter data "
+                              "yet; run export_starter_data.py to add it", file=sys.stderr)
+                        skip_recipe = True
+                        break
+                    new_ingredients.append([sub_name, ing["amount"], ing["unit"], "recipe"])
+                    continue
                 if ing["fdc_id"] not in foods_by_fdc_id:
                     food_row = _db.get_cached_food(conn, ing["fdc_id"])
                     new_name = _canonical_name(food_row["name"])
@@ -150,7 +163,7 @@ def main() -> int:
                           f"{new_name!r} — used as an ingredient in "
                           f"{recipe_name!r} but not yet in starter_data.json", file=sys.stderr)
                 new_ingredients.append(
-                    [foods_by_fdc_id[ing["fdc_id"]]["name"], ing["amount"], ing["unit"]]
+                    [foods_by_fdc_id[ing["fdc_id"]]["name"], ing["amount"], ing["unit"], "food"]
                 )
 
             if skip_recipe:

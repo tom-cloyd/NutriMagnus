@@ -23,9 +23,17 @@ and all, since that's useful raw material for future workflow examples or
 tutorials on spotting and fixing exactly those problems. Every food, pantry
 item, and recipe in starter_data.json ends up "* "-prefixed as an invariant
 numa_app.services.demo_data relies on (see its is-starter-content naming
-convention). Only a recipe that references a sub-recipe as an "ingredient"
-is skipped (with a warning): sub-recipes have no food row to pull data
-from, and starter data has no nested-recipe support.
+convention).
+
+A sub-recipe used as an ingredient is exported the same way: the referenced
+recipe is exported too (auto-included, with a NOTE, if it isn't itself
+starred), and the exported recipes list is ordered so a sub-recipe always
+appears BEFORE any recipe that uses it — demo_data.load_demo_data() relies
+on that order to have the sub-recipe's new id in hand when it links the
+parent. Each ingredient entry is [name, amount, unit, kind] where kind is
+"food" or "recipe". A recipe is skipped, with a warning, only if a sub-recipe
+it needs can't be exported at all (its recipe row is gone, or the references
+form a cycle).
 
 Each exported recipe carries a "source_recipe_id" field — the live recipes.id
 it was pulled from. demo_data.py ignores it (recipes are recreated fresh on
@@ -89,48 +97,86 @@ def main() -> int:
             if _is_starred(row["food_name"]) and _canonical_name(row["food_name"]) in starred_food_names
         ]
 
-        recipes = []
-        for summary in _db.recipe_list(conn):
-            if not _is_starred(summary["name"]):
-                continue
-            full = _db.recipe_get(conn, summary["id"])
-            recipe_name = _canonical_name(full["name"])
-            ingredient_rows = _db.recipe_get_ingredients(conn, summary["id"])
+        # Insertion-ordered: a recipe is added only after every sub-recipe it
+        # uses, which is exactly the order load_demo_data() needs.
+        recipes_by_id: dict[int, dict] = {}
+        exported_recipe_names: dict[int, str] = {}
+        being_exported: set[int] = set()
 
-            skip_recipe = False
-            ingredients = []
-            for ing in ingredient_rows:
-                if ing["ref_recipe_id"]:
-                    print(f"WARNING: skipping recipe {recipe_name!r} — "
-                          f"ingredient {ing['food_name']!r} is a sub-recipe, "
-                          "which starter data doesn't support", file=sys.stderr)
-                    skip_recipe = True
-                    break
-                if ing["fdc_id"] not in foods_by_fdc_id:
-                    food_row = _db.get_cached_food(conn, ing["fdc_id"])
-                    export_name = _canonical_name(food_row["name"]) if _is_starred(food_row["name"]) \
-                        else _PREFIX + food_row["name"]
-                    foods_by_fdc_id[ing["fdc_id"]] = _food_dict(food_row, name=export_name)
-                    starred_food_names.add(export_name)
-                    print(f"NOTE: auto-including {food_row['name']!r} as "
-                          f"{export_name!r} — used as an ingredient in "
-                          f"{recipe_name!r} but not itself starred", file=sys.stderr)
-                # Use the exported (possibly now-prefixed) name so it matches
-                # the foods list — demo_data.load_demo_data() resolves each
-                # ingredient's fdc_id via by_name[food_name] on that list.
-                ingredients.append((foods_by_fdc_id[ing["fdc_id"]]["name"], ing["amount"], ing["unit"]))
+        def _export_recipe(recipe_id: int, *, needed_by: str | None = None) -> str | None:
+            """Export one recipe plus every sub-recipe it depends on.
 
-            if skip_recipe:
-                continue
+            Returns its exported name, or None if it can't be exported (a
+            missing recipe row, a reference cycle, or a sub-recipe that hit
+            either of those) — the caller then skips it too."""
+            if recipe_id in exported_recipe_names:
+                return exported_recipe_names[recipe_id]
+            if recipe_id in being_exported:
+                print(f"WARNING: skipping recipe {needed_by!r} — its sub-recipe "
+                      "references form a cycle", file=sys.stderr)
+                return None
+            full = _db.recipe_get(conn, recipe_id)
+            if full is None:
+                print(f"WARNING: skipping recipe {needed_by!r} — the sub-recipe it "
+                      f"uses (id {recipe_id}) no longer exists", file=sys.stderr)
+                return None
+            recipe_name = _canonical_name(full["name"]) if _is_starred(full["name"]) \
+                else _PREFIX + full["name"]
+            if needed_by is not None and not _is_starred(full["name"]):
+                print(f"NOTE: auto-including recipe {full['name']!r} as "
+                      f"{recipe_name!r} — used as a sub-recipe in "
+                      f"{needed_by!r} but not itself starred", file=sys.stderr)
 
-            recipes.append({
+            being_exported.add(recipe_id)
+            try:
+                ingredients = []
+                for ing in _db.recipe_get_ingredients(conn, recipe_id):
+                    if ing["ref_recipe_id"]:
+                        sub_name = _export_recipe(ing["ref_recipe_id"], needed_by=recipe_name)
+                        if sub_name is None:
+                            return None
+                        ingredients.append([sub_name, ing["amount"], ing["unit"], "recipe"])
+                        continue
+                    if ing["ref_recipe_deleted"]:
+                        # db.recipe_delete() nulls ref_recipe_id and sets this
+                        # flag, leaving a row with fdc_id 0 and no food behind
+                        # it — following it into the food branch below would
+                        # look up a food that cannot exist.
+                        print(f"WARNING: skipping recipe {recipe_name!r} — its sub-recipe "
+                              f"{ing['food_name']!r} has been deleted", file=sys.stderr)
+                        return None
+                    if ing["fdc_id"] not in foods_by_fdc_id:
+                        food_row = _db.get_cached_food(conn, ing["fdc_id"])
+                        export_name = _canonical_name(food_row["name"]) if _is_starred(food_row["name"]) \
+                            else _PREFIX + food_row["name"]
+                        foods_by_fdc_id[ing["fdc_id"]] = _food_dict(food_row, name=export_name)
+                        starred_food_names.add(export_name)
+                        print(f"NOTE: auto-including {food_row['name']!r} as "
+                              f"{export_name!r} — used as an ingredient in "
+                              f"{recipe_name!r} but not itself starred", file=sys.stderr)
+                    # Use the exported (possibly now-prefixed) name so it matches
+                    # the foods list — demo_data.load_demo_data() resolves each
+                    # ingredient's fdc_id via by_name[food_name] on that list.
+                    ingredients.append([foods_by_fdc_id[ing["fdc_id"]]["name"], ing["amount"],
+                                        ing["unit"], "food"])
+            finally:
+                being_exported.discard(recipe_id)
+
+            exported_recipe_names[recipe_id] = recipe_name
+            recipes_by_id[recipe_id] = {
                 "source_recipe_id": full["id"],
                 "name": recipe_name,
                 "description": full["description"] or "",
                 "servings": full["servings"],
                 "instructions": full["instructions"] or "",
                 "ingredients": ingredients,
-            })
+            }
+            return recipe_name
+
+        for summary in _db.recipe_list(conn):
+            if _is_starred(summary["name"]):
+                _export_recipe(summary["id"])
+        recipes = list(recipes_by_id.values())
 
     foods = list(foods_by_fdc_id.values())
 

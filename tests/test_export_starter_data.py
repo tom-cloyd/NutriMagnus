@@ -57,7 +57,7 @@ def test_recipe_auto_includes_non_starred_ingredient(
     # name as the foods list, since demo_data.load_demo_data() resolves
     # fdc_ids by looking up each ingredient's food name among DEMO_FOODS.
     recipe = data["recipes"][0]
-    ingredient_names = {name for name, _amount, _unit in recipe["ingredients"]}
+    ingredient_names = {name for name, _amount, _unit, _kind in recipe["ingredients"]}
     assert ingredient_names == {"* Starred Beans", "* Unstarred Rice"}
 
 
@@ -81,9 +81,12 @@ def test_star_without_trailing_space_is_recognized_and_normalized(
     assert data["recipes"][0]["name"] == "* Bean Bowl"
 
 
-def test_recipe_referencing_subrecipe_is_skipped(
+def test_recipe_referencing_subrecipe_is_exported_after_it(
     db_conn: sqlite3.Connection, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys,
 ) -> None:
+    """A sub-recipe ingredient exports as a "recipe"-kind entry, and the
+    sub-recipe is listed BEFORE the recipe that uses it — load_demo_data()
+    needs its new id in hand before it can link the parent."""
     with _db.get_db() as conn:
         _add_food(conn, 1, "* Starred Beans")
         sub_rid = _db.recipe_create(conn, name="* Sub Recipe", description="", servings=1, instructions="")
@@ -100,7 +103,58 @@ def test_recipe_referencing_subrecipe_is_skipped(
     assert export_starter_data.main() == 0
     data = json.loads(output.read_text())
 
-    recipe_names = {r["name"] for r in data["recipes"]}
-    assert "* Sub Recipe" in recipe_names
-    assert "* Outer Recipe" not in recipe_names
-    assert "sub-recipe" in capsys.readouterr().err
+    assert [r["name"] for r in data["recipes"]] == ["* Sub Recipe", "* Outer Recipe"]
+    outer = data["recipes"][1]
+    assert outer["ingredients"] == [["* Sub Recipe", 1.0, "1 serving", "recipe"]]
+    # The sub-recipe is not a food, so it must not be faked into the foods list.
+    assert "* Sub Recipe" not in {f["name"] for f in data["foods"]}
+
+
+def test_unstarred_subrecipe_is_auto_included(
+    db_conn: sqlite3.Connection, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:
+    """Same convenience starred recipes get for their ingredient foods: a
+    sub-recipe you never starred still ships, prefixed on export only."""
+    with _db.get_db() as conn:
+        _add_food(conn, 1, "* Starred Beans")
+        sub_rid = _db.recipe_create(conn, name="Plain Sub", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(conn, sub_rid, 1, "* Starred Beans", 100, "g")
+        outer_rid = _db.recipe_create(conn, name="* Outer Recipe", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(conn, outer_rid, 0, "Plain Sub", 2, "servings",
+                                   ref_recipe_id=sub_rid)
+
+    output = tmp_path / "starter_data.json"
+    monkeypatch.setattr(export_starter_data, "OUTPUT", output)
+
+    assert export_starter_data.main() == 0
+    data = json.loads(output.read_text())
+
+    assert [r["name"] for r in data["recipes"]] == ["* Plain Sub", "* Outer Recipe"]
+    assert data["recipes"][1]["ingredients"] == [["* Plain Sub", 2.0, "servings", "recipe"]]
+    assert "auto-including recipe" in capsys.readouterr().err
+
+
+def test_recipe_is_skipped_when_its_subrecipe_was_deleted(
+    db_conn: sqlite3.Connection, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:
+    """db.recipe_delete() leaves the ingredient row behind with ref_recipe_id
+    NULL, ref_recipe_deleted 1 and fdc_id 0 — no food and no recipe to point
+    at, so the recipe carrying it is skipped instead of being followed into a
+    food lookup that cannot succeed."""
+    with _db.get_db() as conn:
+        _add_food(conn, 1, "* Starred Beans")
+        sub_rid = _db.recipe_create(conn, name="* Sub Recipe", description="", servings=1, instructions="")
+        rid = _db.recipe_create(conn, name="* Outer Recipe", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(conn, rid, 1, "* Starred Beans", 100, "g")
+        _db.recipe_add_ingredient(conn, rid, 0, "* Sub Recipe", 1, "1 serving",
+                                   ref_recipe_id=sub_rid)
+        _db.recipe_delete(conn, sub_rid)
+
+    output = tmp_path / "starter_data.json"
+    monkeypatch.setattr(export_starter_data, "OUTPUT", output)
+
+    assert export_starter_data.main() == 0
+    data = json.loads(output.read_text())
+
+    assert [r["name"] for r in data["recipes"]] == []
+    assert "has been deleted" in capsys.readouterr().err

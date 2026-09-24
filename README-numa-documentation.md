@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-09-23:0704
+UPDATED: 2026-09-23:2023
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -716,6 +716,12 @@ The Settings-page action is **Retry**, not a plain dismiss: `web/backend.py`'s `
 
 All nutrient data is stored as a JSON blob in `foods.nutrients_json`, keyed by the same field names used throughout (`calories`, `protein_g`, `carbs_g`, etc.). This avoids schema migrations when nutrient tracking is expanded.
 
+**Deleting a referenced food is refused by the database itself (`trg_foods_no_delete_when_referenced`):** a `BEFORE DELETE` trigger on `foods`, created in `init_db()`, aborts any delete of a food still pointed at by a `pantry` entry, a `recipe_ingredients` row, or a `meal_items` food row — the orphan class `check_db_integrity()` reports and `repair_db_integrity()` cleans up. The delete routes (`food_cache_delete`, `food_custom_profiles_delete`) have refused this in application code for a while, and still do, since they can name which pantry entry/recipe/meal is holding the food; the trigger is the backstop that makes it impossible for a new code path, a script, or a hand-edited database to do it anyway.
+
+A trigger rather than a real foreign key on `recipe_ingredients.fdc_id`, for two reasons a foreign key can't accommodate: a sub-recipe ingredient row stores `fdc_id` 0, which matches no food and never will (its target is `ref_recipe_id`), and adding a foreign key to an existing table would mean rebuilding it *and* repairing every pre-existing orphan first — a trigger guards new deletions without touching damage already on disk. "Referenced" is deliberately the same three tables, with the same conditions, that `food_references()` reports to the user.
+
+One consequence worth knowing when writing code that deletes foods: `demo_data.clear_demo_data()` now skips any starter food the user has since used in a meal, recipe, or pantry entry, and returns the count as `foods_kept` (surfaced on the Settings page). Before the trigger it deleted them and silently orphaned those references; with the trigger and no such check, one food in use would abort the entire clear.
+
 **Archiving (`archived` column):** `foods`, `pantry`, and `recipes` each carry an `archived INTEGER NOT NULL DEFAULT 0` column (added via the same `ALTER TABLE ... ADD COLUMN` migration idiom as the rest of the schema — see `init_db()`). Archiving is the "reserve area" mechanism: it lets a user hide a row from default use without deleting it or risking foreign-key integrity, which ruled out the alternative of a literal second database file (recipes reference `fdc_id`, meals reference `recipe_id`, etc. — a second DB would require cross-database copies or ATTACHed joins to keep those relationships intact).
 
 - `list_cached_foods`, `search_cached_foods`, `pantry_list`, `recipe_list`, `recipe_list_recent` all take `include_archived: bool = False` — the default excludes archived rows, so every existing caller (including all of `web/backend.py`) got this filtering automatically without change.
@@ -1380,7 +1386,7 @@ The starter foods/pantry/recipes a fresh install seeds itself with (see `demo_da
 
 **Regenerating `starter_data.json` from what's starred:** `make push-release` now does this automatically (see its `starter-data` target in the `Makefile`) and hard-stops if it produced an uncommitted change, so a release can't accidentally ship without picking up new stars. To run it by hand instead: `python scripts/export_starter_data.py` from the repo root.
 
-A starred recipe's own ingredients don't need to be starred themselves — they're auto-included by `fdc_id` regardless of name. Full mechanism, edge cases, and the companion `scripts/refresh_starter_data.py` (re-syncs existing starter entries by their original ID rather than by name) are documented in `export_starter_data.py`'s own module docstring — read that before changing the export logic, rather than duplicating it here.
+A starred recipe's own ingredients don't need to be starred themselves — they're auto-included by `fdc_id` regardless of name. The same goes for a recipe used as a sub-recipe ingredient: it's exported too, and the exported `recipes` list is ordered so a sub-recipe always precedes any recipe that uses it, which is what lets `demo_data.load_demo_data()` link the parent to an id it has already created. Ingredient entries are `[name, amount, unit, kind]` with `kind` either `"food"` or `"recipe"`; a three-element entry is a pre-nesting export and is read as a food. Full mechanism, edge cases, and the companion `scripts/refresh_starter_data.py` (re-syncs existing starter entries by their original ID rather than by name) are documented in `export_starter_data.py`'s own module docstring — read that before changing the export logic, rather than duplicating it here.
 
 ### Weekly sweep (Saturdays)
 

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-23:1718* / Reading time: 5 hours, 25 minutes
+*Updated 2026-09-23:2023* / Reading time: 5 hours, 26 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -236,7 +236,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-23), there are 1,097 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-23), there are 1,114 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -2782,6 +2782,72 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Insert new updates below here -->
 
 #### Next release summary to this point (dated details below)
+
+- Deleting a food that one of your recipes, meals, or pantry entries still uses is now refused by the database itself, not just by the page you asked from.
+- A recipe that uses another recipe as an ingredient can now be starter data; one such recipe was previously dropped from every release without saying so on the Home page.
+
+#### Sep 23 updates
+
+**PROGRAM: A FOOD IN USE CANNOT BE DELETED, NOW GUARANTEED BY THE DATABASE**
+
+NuMa has refused for some time to delete a food that one of your recipes, meals, or pantry entries still uses, telling you which one is holding it. That refusal now also lives in the database itself, so no future part of the program — or any script, or anything editing the file directly — can get around it and leave a recipe pointing at a food that no longer exists. If you use the Settings toggle to clear starter data, any starter food you have since used in a meal or recipe of your own is now kept instead, and the page tells you how many and why.
+
+<!--
+```
+Scope: db.py (trg_foods_no_delete_when_referenced in init_db),
+numa_app/services/demo_data.py (clear_demo_data), web/backend.py
+(settings_demo_data_clear), web/templates/settings.html, tests/test_db.py,
+test_demo_data.py, test_web.py, README-numa-documentation.md.
+BEFORE DELETE trigger on foods, aborting when a pantry/recipe_ingredients/
+meal_items row still references the fdc_id -- the same three conditions
+food_references() reports. A trigger, not an FK on recipe_ingredients.fdc_id:
+sub-recipe rows store fdc_id 0 (their target is ref_recipe_id, so no food row
+can ever match), and adding an FK to an existing table needs a table rebuild
+plus repair of every pre-existing orphan, whereas a trigger guards new
+deletions and leaves existing damage to check_db_integrity()/
+repair_db_integrity(). Application-level checks in the delete routes stay --
+they can name the holder, which the trigger cannot.
+clear_demo_data() had to change with it: it deleted every starter food
+outright, silently orphaning a meal logged with one; under the trigger that
+would have aborted the whole clear instead. It now skips still-referenced
+foods and returns foods_kept, which the Settings confirmation reports.
+Three integrity tests that manufactured orphans BY deleting a referenced food
+now write the orphan row directly, since the scenario they simulate is exactly
+what is no longer possible.
+```
+-->
+
+**PROGRAM: A RECIPE BUILT ON ANOTHER RECIPE CAN NOW BE STARTER DATA**
+
+Starter data — the foods, pantry items and recipes a brand-new install arrives with, and that [Settings](#starter-data) can restore individually — now supports a recipe that uses another recipe as one of its ingredients. Marking such a recipe with a leading `*` previously did nothing at all: it was silently left out of every release, along with any food only it used. The sub-recipe travels with it, so restoring the parent on its own brings the sub-recipe too rather than leaving a broken ingredient.
+
+<!--
+```
+Scope: scripts/export_starter_data.py, numa_app/services/demo_data.py,
+scripts/refresh_starter_data.py, numa_app/services/starter_data.json,
+tests/test_demo_data.py, test_export_starter_data.py,
+test_refresh_starter_data.py, README-numa-documentation.md.
+Export is now recursive (_export_recipe): a sub-recipe is exported before its
+user, so the recipes list is in dependency order and load_demo_data() always
+has the sub-recipe's new id when it links the parent. An unstarred sub-recipe
+is auto-included with a NOTE, same as an unstarred ingredient food. Ingredient
+entries gained a 4th element, kind ("food"/"recipe"); demo_data._ingredient_parts()
+reads a 3-element entry as a food so a pre-nesting starter_data.json still loads.
+clear_demo_data() now deletes recipes in REVERSE creation order -- deleting a
+sub-recipe first trips the recipe_ingredients.ref_recipe_id foreign key.
+restore_selected() widens a selection to the sub-recipe closure and links to an
+already-present sub-recipe by name instead of duplicating it.
+Also fixed a latent crash found while doing this: db.recipe_delete() leaves the
+ingredient row with ref_recipe_id NULL, ref_recipe_deleted 1 and fdc_id 0, which
+the export's food branch would have followed into get_cached_food(0) -- that
+recipe is now skipped with a warning. refresh_starter_data.py refreshes existing
+sub-recipe entries by source id but still defers adding a NEW one to the export,
+which is what orders the list. Live effect: starter data goes from 46 foods /
+7 recipes to 47 / 8.
+```
+-->
+
+#### Release v2026-09-23-1718 summary (dated details below)
 
 - A food's own detail and Edit Custom Profile pages now link straight to Annotate, for adding or changing its GI and DIAAS estimates.
 - An amount given in servings now shows what it weighs in grams alongside it, on a meal's item list, both recipe ingredient lists, and a printed recipe.

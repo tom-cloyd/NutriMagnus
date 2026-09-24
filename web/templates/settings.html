@@ -468,7 +468,12 @@
   <p class="status-met mt-2"><strong>&#10003; Starter data loaded.</strong></p>
   {% endif %}
   {% if saved == 'starter_data_cleared' %}
-  <p class="status-met mt-2"><strong>&#10003; Starter data cleared.</strong></p>
+  <p class="status-met mt-2"><strong>&#10003; Starter data cleared.</strong>
+    {% if starter_foods_kept %}
+    {% set _one = starter_foods_kept == 1 %}
+    <br><span class="muted"><small>{{ starter_foods_kept }} starter food{{ '' if _one else 's' }} {{ 'was' if _one else 'were' }} kept, because you are still using {{ 'it' if _one else 'them' }} in a meal, a recipe of your own, or your pantry. Deleting {{ 'it' if _one else 'them' }} would leave those entries pointing at a food that no longer exists.</small></span>
+    {% endif %}
+  </p>
   {% endif %}
   {% if saved == 'starter_data_restored' %}
   <p class="status-met mt-2"><strong>&#10003; Selected starter items restored.</strong></p>

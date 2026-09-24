@@ -721,12 +721,12 @@ class TestArchiving:
         food's page then fails since it's treated as "not cached" and the app
         tries to re-fetch it from USDA by fdc_id."""
         with _db.get_db() as conn:
-            _db.cache_food(conn, SAMPLE_FDC_ID, "Chicken breast", "SR Legacy",
-                           None, 100.0, "g", SAMPLE_NUTRIENTS)
+            # A pantry entry pointing at an fdc_id that is not in the cache.
+            # Nothing in the app can still produce this — the delete routes
+            # refuse, and trg_foods_no_delete_when_referenced now refuses at
+            # the database — but a DB damaged before those guards existed
+            # (or edited by hand) still holds rows like it.
             _db.pantry_add(conn, "Chicken breast", fdc_id=SAMPLE_FDC_ID)
-            # Simulate the food having been deleted out from under the pantry
-            # entry (the exact scenario food_cache_delete() now refuses).
-            conn.execute("DELETE FROM foods WHERE fdc_id = ?", (SAMPLE_FDC_ID,))
 
         with _db.get_db() as conn:
             issues = _db.check_db_integrity(conn)
@@ -737,14 +737,13 @@ class TestArchiving:
 
     def test_repair_db_integrity_removes_orphaned_entries(self):
         with _db.get_db() as conn:
-            _db.cache_food(conn, SAMPLE_FDC_ID, "Chicken breast", "SR Legacy",
-                           None, 100.0, "g", SAMPLE_NUTRIENTS)
+            # As above: references to an fdc_id that was never cached, standing
+            # in for pre-guard damage this repair pass exists to clean up.
             _db.pantry_add(conn, "Chicken breast", fdc_id=SAMPLE_FDC_ID)
             rid = _db.recipe_create(conn, "Soup", "", 1, "")
             _db.recipe_add_ingredient(conn, rid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
             mid = _db.meal_create(conn, "Lunch", "2025-03-15")
             _db.meal_add_food(conn, mid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
-            conn.execute("DELETE FROM foods WHERE fdc_id = ?", (SAMPLE_FDC_ID,))
 
         with _db.get_db() as conn:
             counts = _db.repair_db_integrity(conn)
@@ -803,3 +802,72 @@ class TestArchiving:
         with _db.get_db() as conn:
             refs = _db.recipe_references(conn, sub_rid)
         assert refs == {"recipes": 1, "meals": 1}
+
+
+class TestFoodDeleteGuard:
+    """trg_foods_no_delete_when_referenced (see init_db): the database itself
+    refuses to delete a food a pantry entry, recipe, or meal still points at.
+    The delete routes have checked this in application code for a while; the
+    trigger is what makes it impossible to forget in a new code path, a script,
+    or a hand-edited database."""
+
+    def _cache(self, conn, fdc_id=SAMPLE_FDC_ID):
+        _db.cache_food(conn, fdc_id, "Chicken breast", "SR Legacy",
+                       None, 100.0, "g", SAMPLE_NUTRIENTS)
+
+    def test_unreferenced_food_still_deletes(self):
+        with _db.get_db() as conn:
+            self._cache(conn)
+            assert _db.delete_cached_food(conn, SAMPLE_FDC_ID) is True
+        with _db.get_db() as conn:
+            assert _db.get_cached_food(conn, SAMPLE_FDC_ID) is None
+
+    def test_pantry_reference_blocks_delete(self):
+        with _db.get_db() as conn:
+            self._cache(conn)
+            _db.pantry_add(conn, "Chicken breast", fdc_id=SAMPLE_FDC_ID)
+        with pytest.raises(sqlite3.IntegrityError, match="still used"):
+            with _db.get_db() as conn:
+                _db.delete_cached_food(conn, SAMPLE_FDC_ID)
+        with _db.get_db() as conn:
+            assert _db.get_cached_food(conn, SAMPLE_FDC_ID) is not None
+
+    def test_recipe_ingredient_blocks_delete(self):
+        with _db.get_db() as conn:
+            self._cache(conn)
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            _db.recipe_add_ingredient(conn, rid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
+        with pytest.raises(sqlite3.IntegrityError, match="still used"):
+            with _db.get_db() as conn:
+                _db.delete_cached_food(conn, SAMPLE_FDC_ID)
+
+    def test_meal_item_blocks_delete(self):
+        with _db.get_db() as conn:
+            self._cache(conn)
+            mid = _db.meal_create(conn, "Lunch", "2026-09-23")
+            _db.meal_add_food(conn, mid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
+        with pytest.raises(sqlite3.IntegrityError, match="still used"):
+            with _db.get_db() as conn:
+                _db.delete_cached_food(conn, SAMPLE_FDC_ID)
+
+    def test_delete_allowed_once_the_reference_is_gone(self):
+        with _db.get_db() as conn:
+            self._cache(conn)
+            rid = _db.recipe_create(conn, "Soup", "", 1, "")
+            _db.recipe_add_ingredient(conn, rid, SAMPLE_FDC_ID, "Chicken breast", 100.0, "g")
+        with _db.get_db() as conn:
+            _db.recipe_delete(conn, rid)          # cascades the ingredient row away
+            assert _db.delete_cached_food(conn, SAMPLE_FDC_ID) is True
+
+    def test_prune_leaves_referenced_foods_alone(self):
+        """Prune only ever touches unused foods, so the trigger must never fire
+        during one — if it did, one referenced food would abort the whole run."""
+        with _db.get_db() as conn:
+            self._cache(conn, fdc_id=SAMPLE_FDC_ID)
+            self._cache(conn, fdc_id=SAMPLE_FDC_ID + 1)
+            _db.pantry_add(conn, "Chicken breast", fdc_id=SAMPLE_FDC_ID)
+        with _db.get_db() as conn:
+            deleted = _db.prune_unused_cached_foods(conn)
+        assert [row["fdc_id"] for row in deleted] == [SAMPLE_FDC_ID + 1]
+        with _db.get_db() as conn:
+            assert _db.get_cached_food(conn, SAMPLE_FDC_ID) is not None

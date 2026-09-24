@@ -1620,11 +1620,13 @@ def test_custom_profile_delete_refuses_when_still_referenced(client: TestClient,
 
 
 def test_food_cache_db_check_and_repair(client: TestClient, cached_food, db_conn) -> None:
+    # An fdc_id that is not in the cache: the orphan shape a pre-guard delete
+    # left behind. Deleting a referenced food is refused now, in the route and
+    # by trg_foods_no_delete_when_referenced, so the rows are written directly.
     db_conn.execute(
         "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
-        (cached_food["name"], cached_food["fdcId"]),
+        (cached_food["name"], 999_999_999),
     )
-    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],))
     db_conn.commit()
 
     resp = client.get("/food/cache/db-check")
@@ -1643,16 +1645,15 @@ def test_food_cache_db_check_repair_scoped_to_one_category(client: TestClient, c
     found in the same scan."""
     db_conn.execute(
         "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
-        (cached_food["name"], cached_food["fdcId"]),
+        (cached_food["name"], 999_999_999),
     )
     rid = db_conn.execute(
         "INSERT INTO recipes (name, servings) VALUES ('Soup', 1)"
     ).lastrowid
     db_conn.execute(
         "INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit) VALUES (?, ?, ?, 100, 'g')",
-        (rid, cached_food["fdcId"], cached_food["name"]),
+        (rid, 999_999_999, cached_food["name"]),
     )
-    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],))
     db_conn.commit()
 
     resp = client.post(
@@ -1660,9 +1661,9 @@ def test_food_cache_db_check_repair_scoped_to_one_category(client: TestClient, c
     )
     assert resp.status_code == 303
     assert "repaired=1" in resp.headers["location"]
-    assert db_conn.execute("SELECT * FROM pantry WHERE fdc_id = ?", (cached_food["fdcId"],)).fetchone() is None
+    assert db_conn.execute("SELECT * FROM pantry WHERE fdc_id = ?", (999_999_999,)).fetchone() is None
     assert db_conn.execute(
-        "SELECT * FROM recipe_ingredients WHERE fdc_id = ?", (cached_food["fdcId"],)
+        "SELECT * FROM recipe_ingredients WHERE fdc_id = ?", (999_999_999,)
     ).fetchone() is not None
 
 
@@ -2298,11 +2299,13 @@ def test_home_page_shows_db_integrity_banner(client: TestClient, cached_food, db
     resp = client.get("/")
     assert "UPDATE:" not in resp.text
 
+    # An fdc_id that is not in the cache: the orphan shape a pre-guard delete
+    # left behind. Deleting a referenced food is refused now, in the route and
+    # by trg_foods_no_delete_when_referenced, so the rows are written directly.
     db_conn.execute(
         "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
-        (cached_food["name"], cached_food["fdcId"]),
+        (cached_food["name"], 999_999_999),
     )
-    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],))
     db_conn.commit()
 
     resp = client.get("/")
@@ -4374,3 +4377,20 @@ def test_meal_add_recipe_mode_ingredients_flattens_a_nested_sub_recipe(client, c
         "expected the sub-recipe to be flattened to its leaf food, not added as its own recipe item"
     )
     assert [it["fdc_id"] for it in items] == [cached_food["fdcId"]]
+
+
+def test_settings_clear_starter_data_reports_kept_foods(client: TestClient, db_conn) -> None:
+    """Clearing starter data keeps any starter food the user is still using, so
+    the Settings page has to say which and why — otherwise a food that stayed
+    behind looks like the clear half-failed."""
+    from numa_app.services import demo_data as _demo_data
+
+    resp = client.get("/settings?saved=starter_data_cleared&kept=2")
+    assert resp.status_code == 200
+    assert "2 starter foods were kept" in resp.text
+    assert "a food that no longer exists" in resp.text
+
+    # Without any kept food the extra explanation stays out of the way.
+    plain = client.get("/settings?saved=starter_data_cleared")
+    assert "Starter data cleared" in plain.text
+    assert "were kept" not in plain.text
