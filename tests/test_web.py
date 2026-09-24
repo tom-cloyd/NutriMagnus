@@ -342,9 +342,80 @@ def test_recipe_edit_total_volume_persists_across_other_saves(client: TestClient
     recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
     assert recipe["total_volume"] == 1200.0
 
-    client.post(f"/recipe/{recipe_id}/introduction", data={"introduction": "Grandma's soup."}, follow_redirects=False)
+    client.post(f"/recipe/{recipe_id}/instructions", data={"instructions": "Then season."}, follow_redirects=False)
     recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
     assert recipe["total_volume"] == 1200.0
+
+
+def test_data_entry_safety_note_and_guard_on_every_edit_page(
+    client: TestClient, cached_food, db_conn
+) -> None:
+    """Every page with a substantial edit form shows the "Data-entered
+    safety" note AND marks that form with data-leave-guard — the note
+    describes base.html's leave guard, so a page showing one without the
+    other would promise a rescue that never happens."""
+    resp = client.post("/recipe/new", data={"name": "Guarded", "servings": 2}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    meal_id = _db.meal_create(db_conn, "Guarded meal", datetime.date.today().isoformat())
+    db_conn.commit()
+
+    pages = [
+        f"/recipe/{recipe_id}/edit",
+        f"/meal/{meal_id}",
+        f"/food/custom-profiles/{cached_food['fdcId']}/edit",
+        f"/food/annotate/{cached_food['fdcId']}",
+    ]
+    for path in pages:
+        page = client.get(path)
+        assert page.status_code == 200, path
+        assert "Data-entered safety:" in page.text, path
+        assert "data-leave-guard=" in page.text, path
+
+
+def test_recipe_notes_round_trip_and_survive_other_saves(client: TestClient, db_conn) -> None:
+    """"Notes and documentation" is a free-text recipe field on the Edit
+    Recipe page (below Instructions) for anything the user wants on record
+    about a recipe — sources, substitutions tried, changes to make. It must
+    round-trip through the edit form, show on the recipe detail page, and
+    survive the Instructions and Introduction saves, which each re-save the
+    whole recipe row (same bug class as total_volume above)."""
+    resp = client.post("/recipe/new", data={"name": "Stew", "servings": 4}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+
+    client.post(f"/recipe/{recipe_id}/edit", data={
+        "name": "Stew", "servings": 4,
+        "notes": "Adapted from Grandma. Halve the salt next time.",
+    }, follow_redirects=False)
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["notes"] == "Adapted from Grandma. Halve the salt next time."
+
+    edit_resp = client.get(f"/recipe/{recipe_id}/edit")
+    assert "Notes and documentation" in edit_resp.text
+    assert "Halve the salt next time." in edit_resp.text
+
+    detail_resp = client.get(f"/recipe/{recipe_id}")
+    assert "Notes and Documentation" in detail_resp.text
+    assert "Halve the salt next time." in detail_resp.text
+    # Last section on the page: no other analysis section follows it.
+    assert detail_resp.text.index('id="sec-notes"') > detail_resp.text.index('id="sec-procedure"')
+    assert detail_resp.text.rfind('<section id="sec-') == detail_resp.text.index('<section id="sec-notes"')
+
+    client.post(f"/recipe/{recipe_id}/instructions", data={"instructions": "Simmer."}, follow_redirects=False)
+    recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    assert recipe["notes"] == "Adapted from Grandma. Halve the salt next time."
+
+    # Copying a recipe carries its notes over with everything else.
+    copy_resp = client.post(f"/recipe/{recipe_id}/copy", follow_redirects=False)
+    copy_id = int(copy_resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    copied = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (copy_id,)).fetchone()
+    assert copied["notes"] == "Adapted from Grandma. Halve the salt next time."
+
+
+def test_recipe_notes_section_hidden_when_empty(client: TestClient) -> None:
+    resp = client.post("/recipe/new", data={"name": "Plain", "servings": 1}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    detail_resp = client.get(f"/recipe/{recipe_id}")
+    assert "Notes and Documentation" not in detail_resp.text
 
 
 def test_recipe_serving_description_shows_everywhere_servings_appear(client: TestClient, db_conn) -> None:
@@ -636,9 +707,11 @@ def test_recipe_introduction_save_and_display(client: TestClient, db_conn) -> No
     resp = client.post("/recipe/new", data={"name": "Chili", "servings": 4}, follow_redirects=False)
     recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
 
+    # Introduction is an ordinary field of the Recipe details form — it has
+    # no separate save route or button of its own.
     resp = client.post(
-        f"/recipe/{recipe_id}/introduction",
-        data={"introduction": "A family recipe from grandma."},
+        f"/recipe/{recipe_id}/edit",
+        data={"name": "Chili", "servings": 4, "introduction": "A family recipe from grandma."},
         follow_redirects=False,
     )
     assert resp.status_code == 303
@@ -665,14 +738,115 @@ def test_recipe_introduction_save_and_display(client: TestClient, db_conn) -> No
     })
     assert "A family recipe from grandma." not in hidden_resp.text
 
-    # Saving other recipe metadata must not clobber the introduction.
-    client.post(
-        f"/recipe/{recipe_id}/edit",
-        data={"name": "Chili", "description": "Spicy", "servings": 6},
-        follow_redirects=False,
-    )
+    # The recipe page's own "Save instructions" form re-saves the whole
+    # recipe row, so it must not clobber the introduction.
+    client.post(f"/recipe/{recipe_id}/instructions", data={"instructions": "Simmer."},
+                follow_redirects=False)
     recipe = db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
     assert recipe["introduction"] == "A family recipe from grandma."
+    assert recipe["instructions"] == "Simmer."
+
+
+def test_print_page_uses_no_grey_body_text(client: TestClient, cached_food) -> None:
+    """Printable pages set no light-grey text colour anywhere: mid-greys that
+    read fine on screen come out faint on paper. De-emphasis is carried by
+    size and italics instead. The two status colours are allowed — they carry
+    meaning, and are dark enough to print as dark ink."""
+    resp = client.post("/recipe/new", data={"name": "Ink", "servings": 1}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+        follow_redirects=False,
+    )
+    html = client.get(f"/recipe/{recipe_id}/print").text
+
+    allowed = {"#0f5222", "#7a4400", "#fff", "#c00"}
+    for colour in re.findall(r"color\s*:\s*(#[0-9a-fA-F]{3,6})", html):
+        lowered = colour.lower()
+        if lowered in allowed:
+            continue
+        # Everything else must be dark ink — each channel below 0x66.
+        expanded = lowered[1:]
+        if len(expanded) == 3:
+            expanded = "".join(c * 2 for c in expanded)
+        channels = [int(expanded[i:i + 2], 16) for i in (0, 2, 4)]
+        assert max(channels) < 0x66, f"light text colour {colour} on a printable page"
+
+
+def test_print_shows_ingredient_amounts_as_entered(client: TestClient, cached_food, db_conn) -> None:
+    """A printable recipe lists each ingredient the way the user typed it
+    ("1/2 t"), not the gram weight numa derived from it — "3 g of vanilla
+    extract" is not how anyone measures vanilla. The gram weight still backs
+    every calculation; it just isn't what prints."""
+    resp = client.post("/recipe/new", data={"name": "Spoons", "servings": 1}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "1/2 t"},
+        follow_redirects=False,
+    )
+    ing = _db.recipe_get_ingredients(db_conn, recipe_id)[0]
+    assert ing["unit"] == "0.5 t"      # stored as typed…
+    assert ing["amount"] != 0.5        # …with grams underneath, as before
+
+    print_html = client.get(f"/recipe/{recipe_id}/print").text
+    i = print_html.index("<h2>Ingredients</h2>")
+    table = print_html[i:print_html.index("</table>", i)]
+    assert "1/2 t" in table            # decimal shown as a cook's fraction
+    assert f"{ing['amount']:.1f}&thinsp;g" not in table
+
+
+def test_print_names_the_limiting_amino_acid_in_plain_words(client: TestClient, db_conn) -> None:
+    """A printable analysis whose protein is incomplete used to append the
+    limiting amino acid's bare name ("DCP: 1.4 g · Lysine"), which reads as
+    though the number itself were somehow Lysine. It now says what the name
+    means."""
+    nutrients = dict(SAMPLE_NUTRIENTS)
+    nutrients["aa_lysine_g"] = 0.05
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+        (777001, "Low Lysine Grain", "SR Legacy", json.dumps(nutrients), "[]"),
+    )
+    db_conn.commit()
+    resp = client.post("/recipe/new", data={"name": "Limited", "servings": 1}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": 777001, "food_name": "Low Lysine Grain", "portion_str": "200 g"},
+        follow_redirects=False,
+    )
+
+    print_html = client.get(f"/recipe/{recipe_id}/print").text
+    # Both the one-line header and the Protein Summary section.
+    assert print_html.count("(limited by Lysine)") == 2
+    assert "&middot; Lysine" not in print_html
+
+
+def test_recipe_notes_print_last_and_can_be_unchecked(client: TestClient, cached_food) -> None:
+    """Notes and documentation is an optional print section like the others,
+    and prints at the very bottom — after the nutritional analysis — matching
+    its position on the recipe detail page."""
+    resp = client.post("/recipe/new", data={"name": "Chili", "servings": 6}, follow_redirects=False)
+    recipe_id = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "200 g"},
+        follow_redirects=False,
+    )
+    client.post(f"/recipe/{recipe_id}/edit", data={
+        "name": "Chili", "servings": 6, "notes": "Doubled the cumin, worth keeping.",
+    }, follow_redirects=False)
+
+    print_resp = client.get(f"/recipe/{recipe_id}/print")
+    body = print_resp.text.split("</form>")[-1]  # past the section-picker checkboxes
+    assert "Doubled the cumin, worth keeping." in body
+    assert body.index("Notes and Documentation") > body.index("Nutrient Table")
+
+    hidden = client.get(f"/recipe/{recipe_id}/print", params={
+        "sections": ["ingredients"], "sections_submitted": "1",
+    })
+    assert "Doubled the cumin, worth keeping." not in hidden.text
 
 
 def test_recipe_print_defaults_to_all_available_sections(client: TestClient, cached_food, db_conn) -> None:

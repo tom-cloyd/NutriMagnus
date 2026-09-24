@@ -6,7 +6,7 @@
    bookmarkable and needs no JS beyond the existing onchange-submit idiom. #}
 {% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False) %}
 <div class="d-flex flex-wrap align-items-center gap-3">
-  <h3 class="section-heading mb-0">Top Contributors {{ manual_link("top-contributors") }}</h3>
+  <h3 class="section-heading mb-0">Top Contributors</h3>
   <form method="get" action="{{ form_action }}#sec-contributors" class="d-flex flex-wrap align-items-center gap-2">
     {{ extra_hidden | safe }}
     <label class="muted mb-0" for="rank_nutrient"><small>Rank by</small></label>
@@ -33,6 +33,10 @@
     <span class="muted"><small>{{ contributor_count }} contributor{{ "s" if contributor_count != 1 else "" }}</small></span>
     {% endif %}
   </form>
+  {# The manual link sits at the END of this row, after the Rank by / count
+     controls, rather than next to the heading: between the heading and
+     "Rank by" it read as though it belonged to the control that followed. #}
+  {{ manual_link("top-contributors") }}
 </div>
 {% if contributors %}
 <table class="nutrient-table mt-2">

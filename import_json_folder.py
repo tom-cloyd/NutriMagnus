@@ -32,6 +32,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import db as _db
+from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services.food_import import convert_per_serving, validate_and_strip
 
 _IMPORT_DIR = pathlib.Path(__file__).parent / "food_imports"
@@ -138,6 +139,9 @@ def main() -> None:
                 notes=f["notes"],
                 user_drafted=True,
             )
+            # Overwriting an existing food's nutrients has to reach the
+            # recipes that use it (see recipe_dcp.cascade_food_change).
+            _recipe_dcp.cascade_food_change(f["fdc_id"], conn)
             f["path"].rename(_DONE_DIR / f["path"].name)
 
     print(f"\nDone. Imported {len(foods)} food(s); files moved to {_DONE_DIR}.")

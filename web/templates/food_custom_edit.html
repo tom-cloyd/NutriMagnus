@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as source_filter %}
+{% import "_failsafe_note.html" as _failsafe %}
 {% block title %}NutriMagnus — Edit {{ food.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -34,6 +35,7 @@
 </nav>
 
 <h2>Edit Custom Profile {{ manual_link("drafted-foods") }}</h2>
+{{ _failsafe.note("this food's details", "food-profile-failsafe-note") }}
 <p class="muted">All nutrient values are <strong>per 100 g</strong>. Leave fields blank to clear them (zero is treated as absent).</p>
 <p class="mb-3"><a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/custom-profiles/%s/edit' % food.fdc_id) | urlencode }}"
     class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
@@ -173,7 +175,8 @@
   {% endif %}
 </details>
 
-<form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/edit">
+<form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/edit"
+      data-leave-guard="this food's details (name, serving size, nutrient values)">
 
   {# ── Identity ── #}
   <div class="card mb-4" id="sec-identity" style="max-width:44rem">

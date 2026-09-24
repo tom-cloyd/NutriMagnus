@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-23:2133* / Reading time: 5 hours, 26 minutes
+*Updated 2026-09-24:0910* / Reading time: 5 hours, 33 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -80,7 +80,29 @@ Without the program you're flying blind. With it, even if you only use volume me
 
 ### F. Download and install the program
 
-*Windows instructions are coming soon. The steps below currently cover Linux only.*
+NuMa runs on Windows and on Linux. Find your own system below and ignore the other — the two are installed quite differently. Whichever you're on, read [What kind of program this is](#install-webapp-note) at the end; it explains something about NuMa that surprises nearly everyone at first.
+
+#### Windows {: #install-windows}
+
+NuMa has no installer. It's a single program file that you keep wherever you like and run.
+
+a. **Download it.** Click this link: <https://github.com/tom-cloyd/NutriMagnus/releases/latest/download/nutrimagnus.exe>. It always gives you the newest version.
+
+b. **Put it somewhere permanent.** In File Explorer, make a new folder in **Documents** called **NutriMagnus**, and move `nutrimagnus.exe` into it from your Downloads folder. Leave it in Downloads and it may get cleaned out later.
+
+c. **Get past Windows' two warnings.** Your browser will probably block the download: in **Edge**, click the **...** beside it and choose **Keep**, then **Show more** → **Keep anyway**; in **Chrome**, click the **^** beside it and choose **Keep**, then **Keep anyway**. Then, the first time you run the program, a blue box says **"Windows protected your PC"** — click **More info**, then **Run anyway**. That one is a once-ever step.
+
+   Both warnings mean "Windows doesn't recognize who published this," not "this file is dangerous." Unsigned programs — which means anything whose author hasn't paid a certificate authority an annual fee — always get them. Your antivirus may quarantine the file for the same reason; if it does, allow it through.
+
+d. **Run it.** Double-click `nutrimagnus.exe`. A black window full of text opens — that *is* NuMa running, so leave it alone. A few seconds later your browser opens a tab with NuMa in it, and that tab is what you use. (The first launch can take up to a minute while Windows scans the file.) If no tab opens, go to **http://127.0.0.1:8000** yourself.
+
+e. **Make it easy to start next time.** Right-click `nutrimagnus.exe` and choose **Pin to Start**. For a desktop icon instead: right-click → **Show more options** → **Send to** → **Desktop (create shortcut)**.
+
+f. **Quit it properly.** Close the browser tab *and* the black window. Closing only the tab leaves NuMa running in the background.
+
+g. **Updating it later.** Quit NuMa, download the file again from the link in item a, and drop it into your NutriMagnus folder, replacing the old one. Nothing you've entered is lost: your data lives in your Windows user account area (`%LOCALAPPDATA%\numa` and `%APPDATA%\numa`), not inside the program file. That's also why deleting `nutrimagnus.exe` is all it takes to remove NuMa — delete those two `numa` folders as well if you want your data gone too.
+
+#### Linux {: #install-linux}
 
 a. **Where to get it.** Go to the [NutriMagnus releases page](https://github.com/tom-cloyd/NutriMagnus/releases) and download `install-linux.sh` from the latest release — the only file you need. Built and tested on Ubuntu 24.04 LTS; should work on most other modern Linux distros too, but only Ubuntu is verified. If it doesn't run on yours, see "For developers" in the project's `README.md` to run NuMa from source instead.
 
@@ -98,10 +120,12 @@ d. **How to launch it.** From then on, click NuMa's icon like any other program 
 
 **If the icon never appears,** even after logging back in, you can still run NuMa directly: open a terminal and run `~/.local/bin/nutrimagnus` — the same program the icon would have pointed to. [Contact us](#feedback) too, so this can get fixed for good.
 
-e. **What kind of program this is.** NuMa is a "web app" — it runs quietly in the background and shows its screens in a browser tab, like a website, but it's talking only to itself on your machine; nothing goes out over the internet. Two things follow:
+#### What kind of program this is {: #install-webapp-note}
 
-   - **The browser tab and the program are different things.** Closing the tab doesn't close NuMa — it's still running. To get back, click NuMa's icon again (opens a fresh tab) or open a new tab yourself to the same address.
-   - **Sleep can disconnect the tab.** If your computer sleeps or hibernates while NuMa is open, the background program may stop and need restarting when it wakes — you'll typically see the tab fail to load. This is expected, not a sign anything's broken. Click NuMa's icon again to relaunch it; your data is on disk and unaffected.
+NuMa is a "web app" — it runs quietly in the background and shows its screens in a browser tab, like a website, but it's talking only to itself on your machine. It doesn't need the internet to run at all, and nothing you enter leaves your computer; NuMa reaches out only when you look up a food in an online database, or when it checks whether a newer version has been released. Two things follow from all this:
+
+   - **The browser tab and the program are different things.** Closing the tab doesn't close NuMa — it's still running. To get back, start NuMa again the way you normally do (which opens a fresh tab) or open a new tab yourself to the same address.
+   - **Sleep can disconnect the tab.** If your computer sleeps or hibernates while NuMa is open, the background program may stop and need restarting when it wakes — you'll typically see the tab fail to load. This is expected, not a sign anything's broken. Start NuMa again to relaunch it; your data is on disk and unaffected.
 
 ### G. Set up your personal profile and initialize your My Pantry foods
 
@@ -236,7 +260,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-23), there are 1,137 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-24), there are 1,152 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -286,7 +310,7 @@ Every page has the same navigation bar across the top: **NuMa** (takes you home)
 
 If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
-Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form.
+Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
 
 #### Search boxes remember your last search {: #search-memory}
 On a meal's "Add Food or Recipe" search, a recipe's "Add Ingredient" search, and the Foods: Search page, if you follow a link away to look something up elsewhere and then come straight back to that exact page, your last search and its results are restored automatically — you don't have to retype it. This only applies to a plain link back to the page (the browser's own Back button already preserves it); it's scoped per page, so it never leaks a search from one meal into another.
@@ -450,8 +474,8 @@ The **Recipes** page lists every recipe, with filter/sort options and a **Show a
 Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically, and cascades to every recipe that depends on it too — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 6. You don't need **Recompute DCP for all recipes** just because you changed one recipe; it's there for after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
 
 - **New recipe** — a short form (name, description, servings, total yield) that drops you straight into editing.
-- **Edit** — a details form plus an ingredients table. The details form includes an **Introduction** field, right after Ingredients, for background — where the recipe came from, why you like it, serving notes — anything that isn't the step-by-step procedure. Add an ingredient by searching — the results table is the same one described in [USDA Food Search Results](#food-search), including the Source filter and sort-order dropdowns and the "Fetch full details for selected" AA-confirmation button — then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
-- **Detail** — mirrors a food's detail page (Introduction right after the title, Protein Summary, Ingredients, Procedure, Nutritional Analysis, [Complete Protein Analysis](#meal-diaas) with per-ingredient digestibility, Missing AA Profiles, Complement Suggestions — [ignorable and recalculable](#ignore-complement) here too, [Glycemic Load](#glycemic), Anti-nutrients), plus a servings field to re-analyze at a different batch size. **Print/save recipe** opens a stripped-down, print-friendly version in a new tab, with Introduction included as one of the "Include on this printout" checkboxes. Above those checkboxes, a **Print layout** choice (Full sheet or Half sheet — Half sheet shrinks the title and tightens line spacing throughout, including the Ingredients list) and a **Paper size** choice (US Letter or A4, which sets the exact page dimensions your browser's Print/Save-as-PDF preview paginates against) are both remembered for next time. This printable page — and the same layout/paper choices — is also available from a food's, a meal's, and a day's own detail page, not just a recipe's.
+- **Edit** — a details form plus an ingredients table, with a single **Save recipe details** button (on the "Recipe details" heading row) that saves every field in that form at once. The details form includes an **Introduction** field for background — where the recipe came from, why you like it, serving notes — anything that isn't the step-by-step instructions. Add an ingredient by searching — the results table is the same one described in [USDA Food Search Results](#food-search), including the Source filter and sort-order dropdowns and the "Fetch full details for selected" AA-confirmation button — then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
+- **Detail** — mirrors a food's detail page (Introduction right after the title, Protein Summary, Ingredients, Instructions, Nutritional Analysis, [Complete Protein Analysis](#meal-diaas) with per-ingredient digestibility, Missing AA Profiles, Complement Suggestions — [ignorable and recalculable](#ignore-complement) here too, [Glycemic Load](#glycemic), Anti-nutrients), plus a servings field to re-analyze at a different batch size. **Print/save recipe** opens a stripped-down, print-friendly version in a new tab, with Introduction included as one of the "Include on this printout" checkboxes. Above those checkboxes, a **Print layout** choice (Full sheet or Half sheet — Half sheet shrinks the title and tightens line spacing throughout, including the Ingredients list) and a **Paper size** choice (US Letter or A4, which sets the exact page dimensions your browser's Print/Save-as-PDF preview paginates against) are both remembered for next time. This printable page — and the same layout/paper choices — is also available from a food's, a meal's, and a day's own detail page, not just a recipe's.
 
 ### G. Using the Meals & Log menu
 
@@ -2795,6 +2819,233 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Insert new updates below here -->
 
 #### Next release summary to this point (dated details below)
+
+- Printable pages now use dark ink for every line of text — the greyed-out notes and subtitles came out too faint to read on paper.
+- The Edit Recipe page has one Save button instead of two: Introduction now saves with everything else in Recipe details, and the button sits up on the "Recipe details" heading row.
+- A printed recipe lists each ingredient the way you typed it — "1/2 t", "3 T", "3/4 c" — instead of converting everything to grams.
+- A printable analysis of an incomplete protein now says "(limited by Lysine)" rather than just tacking the amino acid's name onto the DCP figure.
+- A recipe's step-by-step is now called "Instructions" everywhere — the recipe page, the printout, and the translation preview used to call the same thing "Procedure".
+- Every page with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — now carries the same "Data-entered safety" note, and all of them now actually offer to save your typing if you click away before saving.
+- Recipe notes now travel with the recipe: they print on the nutritional analysis (at the very bottom), go into the recipe CSV export, and are included in the AI translation.
+- Recipes now have a "Notes and documentation" field on the Edit Recipe page, for sources, substitutions, and anything else you want on record.
+- Recipes that show "NC (not computed)" in the recipes list are now re-checked automatically when the program starts, so a recipe whose own page shows a real DCP can't keep showing NC in the list.
+- MANUAL: Windows installation is now documented — the install section of Part 1 has separate Windows and Linux instructions, with Windows first.
+
+#### Sep 24 updates
+
+**PROGRAM: PRINTABLE PAGES NOW PRINT IN DARK INK THROUGHOUT**
+
+Every line of text on a printable analysis is now dark enough to read on paper. The greyed-out text — ingredient notes, the subtitle under the title, the small explanatory lines — looked fine on screen but came out faint from a real printer. Nothing moved or changed wording; the lighter text is simply darker, and still set apart by being smaller or italic.
+
+<!--
+```
+Scope: web/templates/print.html stylesheet. .muted now inherits the body ink
+(#111) instead of #666; .meta, .dcp-row and .protein-oneline drop their own
+greys, as does the translation disclaimer paragraph inline style. The two
+semantic status colours stay, because they carry meaning rather than
+emphasis, but were darkened (green #146c2e to #0f5222, amber #a05a00 to
+#7a4400) so a mono printer renders them as dark ink rather than mid-grey.
+A new test walks every colour declaration on a rendered printable page and
+fails any whose channels are not all below 0x66, bar that short allow-list.
+```
+-->
+
+**PROGRAM: ONE SAVE BUTTON ON THE EDIT RECIPE PAGE**
+
+The Introduction box no longer has a Save button of its own — it saves with everything else in Recipe details, so there is one "Save recipe details" button for the whole section and no question about which one to press. That button now sits up on the "Recipe details" heading row rather than taking up a row by itself, and the data-entry safety net covers the Introduction along with every other field in the form.
+
+<!--
+```
+Scope: web/templates/recipe_edit.html, base.html; web/backend.py; three tests
+updated in tests/test_web.py. The Introduction textarea used to belong to a
+second, empty <form id="introduction-form"> via the HTML form="" attribute,
+posting to its own /recipe/<id>/introduction route -- which also meant it had
+to be excluded from the main form dirty tracking (data-leave-guard-ignore)
+and needed its own branch in the cross-form submit guard. It is now an
+ordinary field of the Recipe details form; recipe_edit_post() takes
+introduction as a form field instead of preserving the stored value, and the
+now-callerless /introduction route is deleted. The recipe page's own inline
+"Save instructions" editor (/recipe/<id>/instructions) is unaffected and
+still carries every other text field forward. The single Save button moved
+onto the <summary> row, so it sits outside the form and targets it by id
+with form=""; base.html's unsaved-changes tracker gained a fallback lookup
+for exactly that shape, or such a form would silently lose its "Unsaved
+changes" badge, and a click handler stops the button from collapsing the
+<details> it now lives on.
+```
+-->
+
+**PROGRAM: PRINTED RECIPES SHOW THE AMOUNTS YOU ACTUALLY TYPED**
+
+The Ingredients list on a printable recipe now reads "1/2 t" for the salt and "3 T" for the applesauce, exactly as you entered them, instead of converting every line to grams — nobody measures vanilla extract in grams. The gram weights are unchanged and still drive every calculation behind the scenes; they simply are not what gets printed.
+
+<!--
+```
+Scope: web/backend.py (_ingredient_amount_display(), attached in
+_recipe_detail_context), web/templates/print.html Ingredients table.
+recipe_ingredients already stores both: amount in grams and unit as the
+typed portion string, and portions._ing_amount_display() already rendered
+the latter for the Edit Recipe page. The printout now uses it too, via a
+wrapper that also resolves a stored "p1" shorthand back to that food's own
+portion description, falling back to grams when the portion is gone.
+Ingredient amounts are never scaled by the "servings to analyze" widget
+(only nutrients are), so an as-typed label can never disagree with what is
+printed beside it. The recipe detail page still shows grams plus a volume
+hint -- it is an analysis view, not something you cook from. One new test.
+```
+-->
+
+**PROGRAM: A PRINTOUT NOW SAYS WHAT THE LIMITING AMINO ACID MEANS**
+
+When a printable nutritional analysis shows incomplete protein, it now reads "DCP: 1.4 g - (limited by Lysine)" instead of "DCP: 1.4 g - Lysine", which looked as though the figure itself were somehow Lysine. The Protein Summary section on the same printout says it the same way.
+
+<!--
+```
+Scope: web/templates/print.html, the protein-oneline header and the
+Protein Summary section, both for the pooled meal/recipe DIAAS variant
+which previously rendered diaas.limiting_label bare. The single-food
+variants already read "Incomplete -- limiting AA: X" and were left alone.
+Falls back to "Incomplete" when there is no limiting label, as before.
+One new test.
+```
+-->
+
+**PROGRAM: ONE NAME FOR A RECIPE STEP-BY-STEP: INSTRUCTIONS**
+
+A recipe's step-by-step is called "Instructions" wherever it appears — the recipe page, the printable analysis, and the translation preview all used to head it "Procedure" while the Edit Recipe page called the same box "Instructions". The buttons on the recipe page now read "Edit instructions" and "Save instructions" to match.
+
+<!--
+```
+Scope: web/templates/recipe_detail.html, print.html, recipe_translate_import.html,
+recipe_edit.html; numa_app/services/print_sections.py. Visible labels only. The
+sec-procedure element id and the "procedure" PRINT_SECTION_LABELS key keep their
+old names on purpose: the id is linked to from the instructions-save redirect,
+and the key is what prefs.json stores for the print "what to include" choices,
+so renaming it would silently uncheck that section for anyone who had already
+chosen it. Both are commented in place to say so.
+```
+-->
+
+**PROGRAM: THE SAME DATA-ENTRY SAFETY NET ON EVERY EDIT PAGE**
+
+Edit Custom Profile and Annotate a Food now protect your typing the way the Edit Recipe page already did: click a link elsewhere in NuMa with unsaved edits and NuMa asks whether to save them first, leave without saving, or stay and keep editing. All four edit pages (Edit Recipe, a meal, Edit Custom Profile, Annotate a Food) now carry the same "Data-entered safety" note at the top explaining it.
+
+<!--
+```
+Scope: web/templates/base.html, _failsafe_note.html (new), recipe_edit.html,
+meal.html, food_custom_edit.html, food_annotate.html. The link-interception
+guard existed only as near-duplicate per-page scripts on recipe_edit.html and
+meal.html. It now lives once in base.html, driven by data-leave-guard="<what
+the form edits>" on the form, with data-leave-guard-alert (a Saved banner to
+drop on first keystroke) and data-leave-guard-ignore (fields inside the form
+that submit elsewhere via form="", i.e. the Introduction block) as options,
+and window.numaLeaveGuard.isDirty()/markClean() exposed so recipe_edit.html
+keeps its extra behavior: submitting the ingredient-add or Introduction form
+saves pending Recipe details first. The note text itself is the shared
+_failsafe_note.html macro, so note and behavior can't drift apart; a test
+asserts every page showing the note also marks a form with data-leave-guard.
+Deliberately not added: create-new forms (New Recipe, Add Portion), where
+"save first" would mean creating a record the user has not asked for, and
+one-click pickers like the oxalate link chooser.
+```
+-->
+
+**PROGRAM: RECIPE NOTES PRINT, EXPORT, AND TRANSLATE**
+
+The "Notes and documentation" you write for a recipe now follow it everywhere: they print at the very bottom of the printable nutritional analysis (and can be unchecked there like any other section), they travel in the recipe CSV export and come back on import, and the AI recipe translation now translates them too. On the recipe page itself, the notes now sit at the very bottom, after the analysis.
+
+<!--
+```
+Scope: numa_app/services/print_sections.py, recipe_csv.py, recipe_translate.py;
+web/templates/print.html, recipe_detail.html, recipe_translate_import.html;
+web/backend.py. "notes" added last in PRINT_SECTION_LABELS and rendered last in
+print.html, offered by _recipe_available_sections() only when non-empty. CSV
+gains a recipe_notes column (named to avoid colliding with ingredient_notes);
+parse_recipes_csv() reads it with .get(), so a CSV exported before the column
+existed still imports. RECIPE_TEXT_KEYS gains "notes", which carries it through
+prompt-building, validation fallback-to-English, the import preview, and
+_render_translated_recipe(). The recipe detail section moved from just after
+Procedure to the end of the page, sidebar entry with it. Five new tests.
+```
+-->
+
+**PROGRAM: RECIPES NOW HAVE A NOTES AND DOCUMENTATION FIELD**
+
+Every recipe can now carry free-form notes — where it came from, sources you consulted, substitutions you have tried, changes to make next time. The box sits just below Instructions on the Edit Recipe page and saves with the "Save recipe details" button; once you have written something, it appears as its own "Notes and documentation" section on the recipe page. [Learn more...](#recipes)
+
+<!--
+```
+Scope: Edit Recipe (/recipe/<id>/edit), recipe detail (/recipe/<id>); db.py,
+web/backend.py, web/templates/recipe_edit.html, web/templates/recipe_detail.html.
+New recipes.notes TEXT column, added to the CREATE TABLE for fresh installs
+and to the recipes ALTER TABLE migration list for existing databases (adding
+a column preserves every existing row; existing recipes get NULL). Threaded
+through recipe_create()/recipe_update() as a keyword arg. recipe_update()
+writes every text field on every call, so the Instructions and Introduction
+save routes now pass the current notes through -- same bug class as the
+earlier total_volume/serving_size wipes -- and /recipe/<id>/copy carries
+notes to the copy. The detail-page section and its sidebar entry render only
+when notes are non-empty. Not wired into the printable analysis vocabulary
+(print_sections.py) or recipe CSV export/translation; those stay as they are
+for now. Two new tests in tests/test_web.py.
+```
+-->
+
+**PROGRAM: RECIPES LIST NO LONGER SHOWS "NC" FOR A RECIPE THAT ACTUALLY HAS A DCP**
+
+Every recipe still showing "NC (not computed)" now gets re-checked each time the program starts, so one whose ingredients have since gained the amino acid data it needs picks up its real digestible complete protein figure on its own. Before this, the recipes list could show NC for a recipe whose own page displayed a properly calculated DCP. [Learn more...](#recipes)
+
+<!--
+```
+Scope: Recipes list (/recipes) vs recipe detail (/recipe/<id>); web/backend.py
+lifespan, db.py, import_foods.py, import_json_folder.py, numa_import_claude.py.
+Root cause: the recipes list reads the stored recipes.dcp_g column, while the
+detail page recomputes DIAAS live on every view, so any recipe whose stored
+value was never written (or was cleared while an ingredient lacked AA data)
+displayed NC in the list and a real number on its own page. Several food-write
+paths overwrite an existing food's nutrients via cache_food() without calling
+recipe_dcp.cascade_food_change(), so a food gaining AA data left every recipe
+using it stale: the web Claude AI import route (/food/cache/claude-import) and
+the three CLI importers (import_foods.py, import_json_folder.py,
+numa_import_claude.py) all now cascade. The CSV import needs no cascade — it
+only ever creates new fdc_ids, which no recipe can reference yet. For recipes
+already left stale by those paths, the web app's startup now runs one repair
+pass over db.recipes_missing_dcp() (recipes with dcp_g IS NULL), recomputing
+each; genuinely-uncomputable ones (0 servings, or a significant protein
+ingredient with no AA data) simply stay NC, and a failure is logged to
+recompute_errors rather than blocking startup. Cost is bounded by the number
+of NC recipes, not the recipe count. Found on a real database: 2 of 42
+recipes were stale this way; both now compute. Three new tests in
+tests/test_food_cascade.py cover the Claude-import cascade and both startup
+repair outcomes.
+```
+-->
+
+**MANUAL: WINDOWS INSTALLATION INSTRUCTIONS**
+
+Part 1's "Download and install the program" section now covers Windows as well as Linux, with Windows first since that's what most people will need. It walks through where to put the program file, getting past the two warnings Windows shows for unsigned programs (and why they appear), launching it, pinning it to the Start menu, quitting properly, and updating later without losing your data. [Learn more...](#install-windows)
+
+<!--
+```
+Scope: user-manual.md Part 1, section F. Section F split into "#### Windows
+{: #install-windows}" and "#### Linux {: #install-linux}", Windows first.
+The old item e ("what kind of program this is" / browser-tab and sleep
+caveats) was platform-neutral, so it moved out of the Linux list into its own
+"#### What kind of program this is {: #install-webapp-note}" subsection
+serving both, with its Linux-specific "click NuMa's icon" wording generalized.
+The "Windows instructions are coming soon" line at the top of F is gone. The
+Linux items are otherwise verbatim from before. Windows content reflects the
+actual build: a single unsigned PyInstaller one-file nutrimagnus.exe with
+console=True (hence the "leave the black window open" instruction), data in
+%LOCALAPPDATA%\numa and %APPDATA%\numa per platform_utils.py, so replacing
+the .exe is the whole update procedure. The Windows steps give the releases/latest/download/nutrimagnus.exe
+link and nothing else -- no releases-page navigation -- verified 200 /
+application/octet-stream, so a click downloads rather than opening a page.
+No program change, so no version.py bump.
+```
+-->
+
+#### Release v2026-09-23-2133 summary (dated details below)
 
 - Mutation testing run against the three modules flagged by this week's churn check: six real test gaps found and closed, including one that would have reported a trace-protein food as having confirmed amino acid data.
 - MANUAL: Weekly sweep — the Annotate page's manual section rewritten for the web app, several new features documented, and the sweep moved to Wednesday evening / Thursday morning.

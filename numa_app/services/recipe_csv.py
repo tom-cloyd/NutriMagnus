@@ -22,7 +22,8 @@ from .csv_import import resolve_or_import_foods
 
 RECIPE_COLUMNS = [
     "recipe_name", "recipe_description", "servings", "total_weight", "total_weight_unit",
-    "instructions", "ingredient_food_name", "ingredient_amount", "ingredient_unit",
+    "instructions", "recipe_notes",
+    "ingredient_food_name", "ingredient_amount", "ingredient_unit",
     "ingredient_notes", "ingredient_is_subrecipe",
 ]
 
@@ -51,6 +52,7 @@ def recipes_to_csv(recipes: list[dict]) -> str:
             "total_weight":       row["total_weight"] if row["total_weight"] is not None else "",
             "total_weight_unit":  row["total_weight_unit"] or "",
             "instructions":       row["instructions"] or "",
+            "recipe_notes":       row["notes"] or "",
         }
         ingredients = entry["ingredients"]
         if not ingredients:
@@ -115,7 +117,7 @@ def parse_recipes_csv(content: str) -> tuple[list[dict], list[str]]:
     """Parse recipes.csv text into (recipes, warnings).
 
     Each recipe dict: {name, description, servings, total_weight,
-    total_weight_unit, instructions, ingredients: [{food_name, amount, unit,
+    total_weight_unit, instructions, notes, ingredients: [{food_name, amount, unit,
     notes, is_subrecipe}, ...]}. Rows are grouped by recipe_name in order of
     first appearance; a recipe's metadata is taken from its first row.
     """
@@ -161,6 +163,9 @@ def parse_recipes_csv(content: str) -> tuple[list[dict], list[str]]:
                 "total_weight":      total_weight,
                 "total_weight_unit": (row.get("total_weight_unit") or "").strip() or None,
                 "instructions":      (row.get("instructions") or "").strip(),
+                # A CSV written before recipe_notes existed simply has no
+                # such column — .get() leaves it blank rather than failing.
+                "notes":             (row.get("recipe_notes") or "").strip(),
                 "ingredients":       [],
             }
             order.append(name)
@@ -218,6 +223,9 @@ def import_recipe_bundle(conn, recipes: list[dict], food_rows_valid: list[dict])
         rid = _db.recipe_create(
             conn, r["name"], r["description"], r["servings"], r["instructions"],
             total_weight=r["total_weight"], total_weight_unit=r["total_weight_unit"],
+            # .get(): a caller building recipe dicts by hand (rather than
+            # from parse_recipes_csv) need not supply every optional field.
+            notes=r.get("notes") or None,
         )
         name_to_id[key] = rid
         existing_recipes[key] = rid

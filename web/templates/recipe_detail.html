@@ -28,7 +28,7 @@
   </li>
   {% endif %}
   <li class="sb-item" data-target="sec-procedure">
-    <a class="sb-toggle" href="#sec-procedure">Procedure</a>
+    <a class="sb-toggle" href="#sec-procedure">Instructions</a>
   </li>
   {% if contributor_options %}
   <li class="sb-item" data-target="sec-contributors">
@@ -95,6 +95,11 @@
   {% if oxalate or ingredient_antinutrients %}
   <li class="sb-item" data-target="sec-antinutrients">
     <a class="sb-toggle" href="#sec-antinutrients">Anti-nutrients</a>
+  </li>
+  {% endif %}
+  {% if recipe.notes %}
+  <li class="sb-item" data-target="sec-notes">
+    <a class="sb-toggle" href="#sec-notes">Notes and Documentation</a>
   </li>
   {% endif %}
 </ul>
@@ -325,24 +330,28 @@
 <p class="muted">No ingredients yet. <a href="/recipe/{{ recipe.id }}/edit">Add ingredients.</a></p>
 {% endif %}
 
-{# ── Procedure ────────────────────────────────────────────────────────── #}
+{# ── Instructions ─────────────────────────────────────────────────────── #}
+{# The section id, and the "procedure" print-section key, deliberately keep
+   their original names: the id is linked to from elsewhere and the key is
+   stored in saved print preferences. Only the visible label changed, so it
+   matches the "Instructions" field on the Edit Recipe page. #}
 <section id="sec-procedure" class="analysis-section">
-  <h3 class="section-heading">Procedure</h3>
+  <h3 class="section-heading">Instructions</h3>
   {% if recipe.instructions %}
   <div class="mt-2" style="white-space:pre-wrap;line-height:1.6">{{ recipe.instructions }}</div>
   {% else %}
-  <p class="muted mt-2">No procedure entered yet.</p>
+  <p class="muted mt-2">No instructions entered yet.</p>
   {% endif %}
   <details class="mt-3" id="procedure-details">
     <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer;display:inline-block">
-      {% if recipe.instructions %}Edit procedure{% else %}Add procedure{% endif %}
+      {% if recipe.instructions %}Edit instructions{% else %}Add instructions{% endif %}
     </summary>
     <div class="mt-2" style="max-width:44rem">
       <form method="post" action="/recipe/{{ recipe.id }}/instructions">
         <textarea class="form-control" name="instructions" rows="10"
                   placeholder="Enter step-by-step instructions…">{{ recipe.instructions or '' }}</textarea>
         <div class="d-flex gap-2 mt-2">
-          <button type="submit" class="btn btn-primary btn-sm">Save procedure</button>
+          <button type="submit" class="btn btn-primary btn-sm">Save instructions</button>
         </div>
       </form>
     </div>
@@ -916,6 +925,18 @@ document.getElementById('complements-form').addEventListener('change', function 
   {% endfor %}
   {% endfor %}
   {% endif %}
+</section>
+{% endif %}
+
+{# ── Notes and documentation ──────────────────────────────────────────── #}
+{# Deliberately the last section on the page: it is reference material about
+   the recipe rather than part of its analysis. The printable version puts it
+   last for the same reason. #}
+{% if recipe.notes %}
+<section id="sec-notes" class="analysis-section">
+  <h3 class="section-heading">Notes and Documentation</h3>
+  <div class="mt-2" style="white-space:pre-wrap;line-height:1.6">{{ recipe.notes }}</div>
+  <a class="btn btn-sm btn-outline-secondary mt-3" href="/recipe/{{ recipe.id }}/edit#sec-notes">Edit notes and documentation</a>
 </section>
 {% endif %}
 

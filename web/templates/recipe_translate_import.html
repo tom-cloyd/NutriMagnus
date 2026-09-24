@@ -77,8 +77,13 @@ block — then review before saving.</p>
   {% endif %}
 
   {% if preview.recipe.instructions %}
-  <h4>Procedure</h4>
+  <h4>Instructions</h4>
   <div style="white-space:pre-wrap">{{ preview.recipe.instructions }}</div>
+  {% endif %}
+
+  {% if preview.recipe.notes %}
+  <h4>Notes and Documentation</h4>
+  <div style="white-space:pre-wrap">{{ preview.recipe.notes }}</div>
   {% endif %}
 </div>
 

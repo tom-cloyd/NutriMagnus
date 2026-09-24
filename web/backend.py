@@ -45,7 +45,7 @@ from numa_app.services import aa_estimate as _aa_estimate
 from numa_app.services.glycemic_load import compute_glycemic_load
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
-from numa_app.services.portions import _ing_amount_display, portion_amount_note
+from numa_app.services.portions import _ing_amount_display, _parse_portion_input, portion_amount_note
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
 from version import VERSION, NEW_VERSION_NOTE, RELEASE_VERSION
 from numa_app.services import update_check as _update_check
@@ -792,6 +792,21 @@ async def _lifespan(app: FastAPI):
     # the Daily Summary Recent Days table even though Day DCP now has one.
     for _meal_date in missing_pct_dates:
         _refresh_day_pct_goal(_meal_date)
+    # Repair pass: give every recipe still showing NC one recompute attempt.
+    # A recipe whose ingredient gained amino acid data through a path that
+    # didn't cascade (bulk imports, older versions) would otherwise sit at
+    # NC in the recipes list while its own /recipe/<id> page computes and
+    # displays a real DCP. Genuinely-uncomputable recipes just stay NC, and
+    # the cost is bounded by how many recipes are NC, not by the whole list.
+    with _db.get_db() as conn:
+        _stale_dcp_recipes = [r["id"] for r in _db.recipes_missing_dcp(conn)]
+    for _rid in _stale_dcp_recipes:
+        with _db.get_db() as conn:
+            try:
+                _recipe_dcp.recompute_recipe_dcp(_rid, conn)
+            except Exception as _exc:
+                _db.log_recompute_error(conn, "recipe", _rid,
+                                        f"Startup DCP repair failed: {_exc}")
     yield
 
 app = FastAPI(title="NuMa", lifespan=_lifespan)
@@ -2454,6 +2469,11 @@ async def food_cache_claude_import_post(request: Request,
     if action == "confirm" and valid:
         with _db.get_db() as conn:
             _claude_fetch.import_foods(conn, valid, curator_text)
+            # An import overwrites an existing food's nutrients in place, so
+            # every recipe using it needs its DCP recomputed — a food that
+            # just gained amino acid data can turn an NC recipe computable.
+            for _f in valid:
+                _recipe_dcp.cascade_food_change(_f["fdc_id"], conn)
         return RedirectResponse("/food/cache?imported=" + str(len(valid)), status_code=303)
 
     review_rows = []
@@ -6445,6 +6465,8 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         for _ing in ingredients:
             if not _ing["ref_recipe_id"] and _ing["amount"]:
                 _ing["volume_display"] = _ingredient_volume_display(conn, _ing)
+            if not _ing["ref_recipe_id"]:
+                _ing["amount_display"] = _ingredient_amount_display(conn, _ing)
         _attach_ref_serving_sizes(conn, ingredients)
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
@@ -6591,6 +6613,8 @@ def _recipe_available_sections(ctx: dict) -> list[str]:
     complements = ctx.get("complements")
     if complements and not complements.get("no_data"):
         available.append("complements")
+    if ctx.get("recipe", {}).get("notes"):
+        available.append("notes")
     return available
 
 
@@ -6692,6 +6716,30 @@ def _attach_ref_serving_sizes(conn, ingredients: list[dict]) -> None:
             ing["ref_grams"] = per_serving_g * float(ing["amount"]) if per_serving_g and ing["amount"] else None
 
 
+def _ingredient_amount_display(conn, ing: dict) -> str:
+    """The amount for this ingredient exactly as the user typed it ("1/2 t",
+    "3 T", "90 g"), for pages that present a recipe to read or cook from.
+
+    Those pages used to show the gram weight numa derived from that entry,
+    which is nonsense for something measured in spoons — "3 g of vanilla
+    extract" is not a thing anyone does. The gram weight is still what every
+    calculation uses; it just isn't what gets printed.
+
+    "p1" (shorthand for "this food's first saved portion") is the one entry
+    that means nothing to a reader, so it resolves back to that portion's own
+    description ("1 large egg"), or to grams if the portion is gone.
+    """
+    label = _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"])
+    if not re.fullmatch(r"(?:[\d.]+\s*(?:x|×)?\s*)?p\d+", label.strip(), re.IGNORECASE):
+        return label
+    cached = _db.get_cached_food(conn, ing["fdc_id"]) if ing.get("fdc_id") else None
+    portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
+    parsed = _parse_portion_input(label, portions, ing["food_name"])
+    if parsed and parsed[1]:
+        return parsed[1]
+    return f"{float(ing['amount'] or 0):g} g"
+
+
 def _attach_ingredient_portions(conn, ingredients: list[dict]) -> None:
     """Attach each food ingredient's cached USDA portions (p1, p2, …) so the
     inline amount-edit popup can show them the same way the Add Ingredient
@@ -6710,6 +6758,7 @@ def _original_recipe_fields(recipe: dict, target_language: str) -> dict:
         "description":  recipe.get("description") or "",
         "introduction": recipe.get("introduction") or "",
         "instructions": recipe.get("instructions") or "",
+        "notes":        recipe.get("notes") or "",
         "disclaimer":   _recipe_translate.DISCLAIMER_TEMPLATE.format(language=target_language),
     }
 
@@ -6720,7 +6769,7 @@ def _render_translated_recipe(ctx: dict, translated: dict) -> dict:
     new_ctx = dict(ctx)
 
     recipe = dict(ctx["recipe"])
-    for key in ("name", "description", "introduction", "instructions"):
+    for key in ("name", "description", "introduction", "instructions", "notes"):
         if translated.get(key):
             recipe[key] = translated[key]
     new_ctx["recipe"] = recipe
@@ -7058,7 +7107,9 @@ async def recipe_edit_post(
     total_volume: str = Form(""),
     total_volume_unit: str = Form("ml"),
     serving_size: str = Form(""),
+    introduction: str = Form(""),
     instructions: str = Form(""),
+    notes: str = Form(""),
     complete: str = Form(""),
 ):
     tw = float(total_weight) if total_weight.strip() else None
@@ -7066,7 +7117,6 @@ async def recipe_edit_post(
     if tv is not None:
         tv *= _PORTION_VOL_TO_ML.get(total_volume_unit.lower(), 1.0)
     with _db.get_db() as conn:
-        existing = _db.recipe_get(conn, recipe_id)
         _db.recipe_update(
             conn, recipe_id,
             name=name.strip(), description=description.strip(),
@@ -7074,7 +7124,8 @@ async def recipe_edit_post(
             total_weight=tw, total_weight_unit=total_weight_unit if tw else None,
             total_volume=tv, total_volume_unit="ml" if tv else None,
             complete=bool(complete),
-            introduction=existing["introduction"] if existing else None,
+            introduction=introduction.strip() or None,
+            notes=notes.strip() or None,
             serving_size=serving_size.strip() or None,
         )
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
@@ -7128,6 +7179,7 @@ async def recipe_copy_post(recipe_id: int):
             total_weight=src["total_weight"],
             total_weight_unit=src["total_weight_unit"],
             introduction=src["introduction"],
+            notes=src["notes"],
         )
         for ing in _db.recipe_get_ingredients(conn, recipe_id):
             _db.recipe_add_ingredient(
@@ -7362,30 +7414,10 @@ async def recipe_instructions_post(recipe_id: int, instructions: str = Form(""))
             total_volume_unit=recipe["total_volume_unit"],
             complete=bool(recipe["complete"]),
             introduction=recipe["introduction"],
+            notes=recipe["notes"],
             serving_size=recipe["serving_size"],
         )
     return RedirectResponse(f"/recipe/{recipe_id}#sec-procedure", status_code=303)
-
-
-@app.post("/recipe/{recipe_id}/introduction", response_class=RedirectResponse)
-async def recipe_introduction_post(recipe_id: int, introduction: str = Form("")):
-    with _db.get_db() as conn:
-        recipe = _db.recipe_get(conn, recipe_id)
-        if not recipe:
-            return RedirectResponse("/recipes", status_code=303)
-        _db.recipe_update(
-            conn, recipe_id,
-            name=recipe["name"], description=recipe["description"] or "",
-            servings=recipe["servings"], instructions=recipe["instructions"] or "",
-            total_weight=recipe["total_weight"],
-            total_weight_unit=recipe["total_weight_unit"],
-            total_volume=recipe["total_volume"],
-            total_volume_unit=recipe["total_volume_unit"],
-            complete=bool(recipe["complete"]),
-            introduction=introduction.strip(),
-            serving_size=recipe["serving_size"],
-        )
-    return RedirectResponse(f"/recipe/{recipe_id}/edit#sec-introduction", status_code=303)
 
 
 @app.get("/summary/trend", response_class=HTMLResponse)

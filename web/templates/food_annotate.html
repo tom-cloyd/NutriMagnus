@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_failsafe_note.html" as _failsafe %}
 {% block title %}NutriMagnus — Annotate a Food{% endblock %}
 
 {% block content %}
@@ -75,6 +76,7 @@
 {% else %}
 {# ── Edit view ── #}
 <h2>Annotate: {{ food_name }}</h2>
+{{ _failsafe.note("the GI / DIAAS estimates", "annotate-failsafe-note") }}
 
 {% if saved %}
 <div class="alert alert-success alert-dismissible" role="alert">
@@ -89,7 +91,8 @@
 
 <div class="card" style="max-width:36rem">
   <div class="card-body">
-    <form method="post" action="/food/annotate/{{ fdc_id }}">
+    <form method="post" action="/food/annotate/{{ fdc_id }}"
+          data-leave-guard="the GI / DIAAS estimates">
       {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
       <div class="mb-3">

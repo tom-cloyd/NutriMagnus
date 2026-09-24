@@ -49,6 +49,7 @@ import pathlib
 # Make sure we can import numa's db module from this directory.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import db as _db
+from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services.food_import import convert_per_serving, validate_and_strip
 
 # ---------------------------------------------------------------------------
@@ -356,6 +357,10 @@ def main() -> None:
                 notes=notes,
                 user_drafted=True,
             )
+            # Overwriting an existing food's nutrients has to reach the
+            # recipes that use it, or one that just became computable is
+            # left showing NC in the recipes list.
+            _recipe_dcp.cascade_food_change(food["fdc_id"], conn)
             aa_count = sum(1 for k in nutrients if k.startswith("aa_"))
             suffix = f"  [stripped: {', '.join(sorted(stripped))}]" if stripped else ""
             print(f"  ✓  {food['name']} (FDC {food['fdc_id']})  — {aa_count} AAs{suffix}")

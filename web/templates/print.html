@@ -21,16 +21,24 @@
     h2 { font-size: 1.2rem; margin-top: 1.6rem; margin-bottom: 0.5rem;
          border-bottom: 1px solid #ccc; padding-bottom: 0.2rem; }
     h3 { font-size: 1rem; margin-top: 1rem; margin-bottom: 0.4rem; }
-    .meta { color: #555; font-size: 0.9rem; margin-bottom: 1rem; }
+    .meta { font-size: 0.9rem; margin-bottom: 1rem; }
     table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
     th { text-align: left; border-bottom: 2px solid #999; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
     td { padding: 0.2rem 0.4rem; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
     td.num, th.num { text-align: right; white-space: nowrap; }
-    .muted { color: #666; }
+    /* Body text is never greyed: mid-greys that read fine on a screen come
+       out faint on paper, and this page exists to be printed. De-emphasis is
+       carried by size, italics and placement instead of by colour — which is
+       why .muted, .meta, .dcp-row and .protein-oneline all inherit the body
+       ink rather than setting a lighter one. */
+    .muted { color: inherit; }
     .card { border: 1px solid #ccc; border-radius: 4px; padding: 0.5rem 0.7rem; margin: 0.4rem 0; }
-    .status-met { color: #146c2e; }
-    .status-gap { color: #a05a00; }
-    .dcp-row td { font-style: italic; color: #444; }
+    /* The only two colours left on this page, kept because they carry
+       meaning rather than emphasis — and darkened from their on-screen
+       shades so a mono printer renders them as dark ink, not mid-grey. */
+    .status-met { color: #0f5222; }
+    .status-gap { color: #7a4400; }
+    .dcp-row td { font-style: italic; }
     .subtype-row td:first-child { padding-left: 1.5em; }
     .no-print { margin-top: 1.5rem; margin-bottom: 1.5rem; }
     .btn-print {
@@ -46,7 +54,7 @@
     .layout-form { margin-bottom: 1rem; }
     .layout-form label { font-size: 0.9rem; margin-right: 1.2rem; }
     .layout-form select { font-size: 0.9rem; margin-left: 0.3rem; }
-    .protein-oneline { font-size: 0.75rem; color: #555; margin: 0 0 0.6rem; }
+    .protein-oneline { font-size: 0.75rem; margin: 0 0 0.6rem; }
 
     /* Half-sheet layout: smaller title, tighter spacing throughout, subtitle
        pulled directly under the title instead of leaving a blank line. */
@@ -114,7 +122,7 @@
   {%- if diaas -%}
     {%- if diaas.dcp_g is not none -%}
       DCP: {{ diaas.dcp_g }}&thinsp;g
-      {%- if diaas.score is not none and diaas.score >= 0.9 %} &middot; Complete protein{% else %} &middot; {{ diaas.limiting_label or "Incomplete" }}{% endif -%}
+      {%- if diaas.score is not none and diaas.score >= 0.9 %} &middot; Complete protein{% else %} &middot; {% if diaas.limiting_label %}(limited by {{ diaas.limiting_label }}){% else %}Incomplete{% endif %}{% endif -%}
     {%- elif diaas.score is not none -%}
       Composite DIAAS: {{ "%.3f"|format(diaas.score) }}
     {%- endif -%}
@@ -129,7 +137,7 @@
 </p>
 {% endif %}
 {% if translated and disclaimer %}
-<p class="fst-italic" style="font-style:italic;color:#555">{{ disclaimer }}</p>
+<p class="fst-italic" style="font-style:italic">{{ disclaimer }}</p>
 {% endif %}
 {% if "introduction" in enabled and recipe and recipe.introduction %}
 <p style="white-space:pre-wrap;line-height:1.6">{{ recipe.introduction }}</p>
@@ -189,7 +197,9 @@
         {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
           {{ ing.amount | round(2) | string | replace(".0", "") }} srv{% if ing.ref_grams %} <span class="muted">({{ ing.ref_grams | round | int }}&thinsp;g)</span>{% endif %}
         {% else %}
-          {{ ing.amount | round(1) }}&thinsp;g
+          {# What the user actually typed ("1/2 t", "3 T"), not the gram
+             weight numa derived from it — see _ingredient_amount_display(). #}
+          {{ ing.amount_display or (ing.amount | round(1) | string ~ " g") }}
         {% endif %}
         {% if translated and ing.volume_display %}<br><span class="muted" style="font-size:0.85em">{{ ing.volume_display }}</span>{% endif %}
       </td>
@@ -202,7 +212,7 @@
 {% endif %}
 
 {% if "procedure" in enabled and recipe and recipe.instructions %}
-<h2>Procedure</h2>
+<h2>Instructions</h2>
 <div style="white-space:pre-wrap;line-height:1.6">{{ recipe.instructions }}</div>
 {% endif %}
 
@@ -307,7 +317,7 @@
   {% if diaas.score is not none and diaas.score >= 0.9 %}
   <span class="status-met">&#10003; Complete protein</span>
   {% else %}
-  <span class="status-gap">&#9888; {{ diaas.limiting_label or "Incomplete" }}</span>
+  <span class="status-gap">&#9888; {% if diaas.limiting_label %}(limited by {{ diaas.limiting_label }}){% else %}Incomplete{% endif %}</span>
   {% endif %}
 </p>
 {% if protein_adequacy and not protein_adequacy.no_profile %}
@@ -469,6 +479,13 @@
 {% endfor %}
 {% endif %}
 {% endif %}{# end no_gaps else #}
+{% endif %}
+
+{# Notes and documentation prints last, matching its position at the bottom
+   of the recipe detail page. #}
+{% if "notes" in enabled and recipe and recipe.notes %}
+<h2>Notes and Documentation</h2>
+<p style="white-space:pre-wrap;line-height:1.6">{{ recipe.notes }}</p>
 {% endif %}
 
 </body>

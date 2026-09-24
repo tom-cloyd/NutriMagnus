@@ -36,6 +36,51 @@ class TestBuildTranslatePrompt:
         assert "French translation of the original English-language recipe" in prompt
 
 
+class TestNotesField:
+    """"Notes and documentation" (recipes.notes) is translatable text like
+    the introduction and instructions, so it has to reach the prompt and
+    come back through validation with the same fallback behavior."""
+
+    _with_notes = {**ORIGINAL_RECIPE, "notes": "Adapted from Grandma."}
+
+    def test_notes_included_in_prompt(self):
+        prompt = _rt.build_translate_prompt(self._with_notes, ORIGINAL_INGREDIENTS, "Spanish")
+        assert '"notes"' in prompt
+        assert "Adapted from Grandma." in prompt
+
+    def test_translated_notes_kept(self):
+        translated = {
+            "name": "Sopa", "description": "", "introduction": "",
+            "instructions": "", "notes": "Adaptado de la abuela.",
+            "disclaimer": "...",
+            "ingredients": [
+                {"food_name": "Pechuga de pollo", "notes": "deshuesada", "volume_display": "1 taza"},
+                {"food_name": "Zanahoria", "notes": "", "volume_display": "2 enteras"},
+            ],
+        }
+        clean, _warnings, hard_fail = _rt.validate_translation(
+            self._with_notes, ORIGINAL_INGREDIENTS, translated
+        )
+        assert hard_fail is False
+        assert clean["notes"] == "Adaptado de la abuela."
+
+    def test_dropped_notes_falls_back_to_english_with_warning(self):
+        translated = {
+            "name": "Sopa", "description": "", "introduction": "",
+            "instructions": "", "disclaimer": "...",
+            "ingredients": [
+                {"food_name": "Pechuga de pollo", "notes": "deshuesada", "volume_display": "1 taza"},
+                {"food_name": "Zanahoria", "notes": "", "volume_display": "2 enteras"},
+            ],
+        }
+        clean, warnings, hard_fail = _rt.validate_translation(
+            self._with_notes, ORIGINAL_INGREDIENTS, translated
+        )
+        assert hard_fail is False
+        assert clean["notes"] == "Adapted from Grandma."
+        assert any("'notes'" in w for w in warnings)
+
+
 class TestParseTranslationResponse:
     def test_fenced_json_parsed(self):
         text = '```json\n{"name": "Sopa de Pollo"}\n```'

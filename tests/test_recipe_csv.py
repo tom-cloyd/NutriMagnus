@@ -46,6 +46,35 @@ class TestCollectAndExport:
         assert names == {"Quinoa Bowl", "Cooked Quinoa"}
         assert [f["name"] for f in food_rows] == ["Quinoa"]
 
+    def test_notes_export_and_reimport(self) -> None:
+        """"Notes and documentation" travels in the recipes.csv
+        recipe_notes column, and comes back on import."""
+        with _db.get_db() as conn:
+            _make_food(conn, 1, "Flour")
+            rid = _db.recipe_create(conn, "Bread", "", 4, "Mix and bake.",
+                                    notes="Sourdough starter from Ann.")
+            _db.recipe_add_ingredient(conn, rid, 1, "Flour", 200.0, "200 g")
+            recipes_text, _foods_text = render_recipe_export(conn, [rid])
+
+        assert "recipe_notes" in recipes_text.splitlines()[0]
+        assert "Sourdough starter from Ann." in recipes_text
+
+        parsed, warnings = parse_recipes_csv(recipes_text)
+        assert warnings == []
+        assert parsed[0]["notes"] == "Sourdough starter from Ann."
+
+    def test_csv_without_notes_column_still_imports(self) -> None:
+        """A recipes.csv exported before recipe_notes existed has no such
+        column — it must import with empty notes, not fail."""
+        old_csv = (
+            "recipe_name,recipe_description,servings,instructions,"
+            "ingredient_food_name,ingredient_amount,ingredient_unit\n"
+            "Bread,,4,Mix and bake.,Flour,200,200 g\n"
+        )
+        parsed, warnings = parse_recipes_csv(old_csv)
+        assert warnings == []
+        assert parsed[0]["notes"] == ""
+
     def test_render_recipe_export_round_trips_through_parsers(self) -> None:
         with _db.get_db() as conn:
             _make_food(conn, 1, "Quinoa")

@@ -8,6 +8,7 @@
 {% import "_rda_legend.html" as _rda_legend %}
 {% import "_dcp_footnote.html" as _dcp_note %}
 {% import "_top_contributors.html" as _contrib %}
+{% import "_failsafe_note.html" as _failsafe %}
 {% block title %}NutriMagnus — {{ meal.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -129,13 +130,7 @@
 {% endif %}
 
 {# ── Management actions ───────────────────────────────────────────────── #}
-<p class="muted mb-2" style="font-size:0.85rem" id="meal-rename-failsafe-note">
-  <strong>Failsafe:</strong> if you edit "Rename / change date" below and then click a link
-  elsewhere in NuMa before saving, NuMa will ask whether to save those changes first — or you can
-  choose to leave without saving them. (Closing or refreshing the browser tab instead only shows
-  your browser's own "leave this page?" warning — NuMa can't step in at that point, so save first
-  if you're closing the tab.)
-</p>
+{{ _failsafe.note('"Rename / change date"', "meal-rename-failsafe-note") }}
 {# align-items-start: without it, a flex row's default stretch makes a bare
    <a class="btn"> child fill the row's full height, while a <button> nested
    inside a <form> child absorbs that same stretch invisibly on the form
@@ -162,7 +157,8 @@
   <details class="d-inline-block popup-edit">
     <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Rename / change date</summary>
     <div class="card card-body mt-1 p-2" style="min-width:22rem;position:absolute;z-index:10">
-      <form method="post" action="/meal/{{ meal.id }}/rename" id="meal-rename-form">
+      <form method="post" action="/meal/{{ meal.id }}/rename" id="meal-rename-form"
+            data-leave-guard='"Rename / change date"'>
         <p class="muted mb-2" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
         <div class="mb-2">
           <label class="form-label form-label-sm mb-1">Meal name <span class="text-danger">*</span></label>
@@ -1313,61 +1309,6 @@ function recipeAmtSwitch(rid, mode) {
     sessionStorage.removeItem(key);
     window.scrollTo(0, parseInt(saved, 10) || 0);
   }
-})();
-</script>
-<script>
-// Failsafe: "Rename / change date" is a small form, but if you type into it
-// and then navigate away without clicking "Save changes", the edit is
-// silently lost. Warn first, and save on the user's behalf if they say yes.
-(function () {
-  var renameForm = document.getElementById('meal-rename-form');
-  if (!renameForm) return;
-  var dirty = false;
-  renameForm.addEventListener('input', function () { dirty = true; });
-  renameForm.addEventListener('change', function () { dirty = true; });
-  renameForm.addEventListener('submit', function () { dirty = false; });
-
-  document.addEventListener('click', function (e) {
-    if (!dirty) return;
-    var link = e.target.closest ? e.target.closest('a[href]') : null;
-    if (!link) return;
-    var href = link.getAttribute('href');
-    if (!href || href.charAt(0) === '#' || link.target === '_blank') return;
-    e.preventDefault();
-    var wantsSave = confirm(
-      'You have unsaved changes in "Rename / change date" above.\n\n' +
-      'Save those changes before leaving this page?\n\n' +
-      'OK = save and continue. Cancel = don\'t save yet.'
-    );
-    if (wantsSave) {
-      fetch(renameForm.action, {method: 'POST', body: new FormData(renameForm)})
-        .then(function () {
-          dirty = false;
-          window.location.href = href;
-        })
-        .catch(function () {
-          alert('Could not save that change — you\'re still on this page. Please try again.');
-        });
-      return;
-    }
-    var wantsDiscard = confirm(
-      'Leave this page without saving those changes? They will be lost.\n\n' +
-      'OK = leave without saving. Cancel = go back and keep editing.'
-    );
-    if (wantsDiscard) {
-      dirty = false;
-      window.location.href = href;
-    }
-  });
-
-  // Closing the tab, refreshing, or navigating outside numa entirely can't
-  // be intercepted this way -- only the browser's own generic warning is
-  // possible there, and there's no way to save before it takes effect.
-  window.addEventListener('beforeunload', function (e) {
-    if (!dirty) return;
-    e.preventDefault();
-    e.returnValue = '';
-  });
 })();
 </script>
 {% endblock %}

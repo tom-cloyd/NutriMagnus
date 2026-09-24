@@ -215,6 +215,113 @@
     nav.addEventListener('hidden.bs.collapse', syncNavHeight);
   })();
   </script>
+  <script>
+  // Leave guard ("Data-entered safety" note, _failsafe_note.html): a form
+  // marked data-leave-guard="<what it edits>" is watched for unsaved edits.
+  // Clicking a link elsewhere in numa while it is dirty asks whether to save
+  // first and, if so, saves on the user's behalf before following the link.
+  //
+  // Optional attributes on the same form:
+  //   data-leave-guard-alert="<element id>"  — a "Saved" banner to drop the
+  //     moment the form is touched, since it describes the page-load state,
+  //     not what is now typed in.
+  //   data-leave-guard-ignore                — on any element INSIDE the form
+  //     whose fields actually submit to a different form (via the HTML
+  //     form="" attribute), so edits there don't count as this form's.
+  //
+  // Page scripts that need the same dirty state (e.g. recipe_edit.html, where
+  // submitting the ingredient form has to save pending details first) use
+  // window.numaLeaveGuard — this script deliberately sits above the per-page
+  // scripts block below, so it exists by the time those run.
+  (function () {
+    var guards = [];
+
+    document.querySelectorAll('form[data-leave-guard]').forEach(function (form) {
+      var guard = {form: form, label: form.getAttribute('data-leave-guard'), dirty: false};
+      var alertId = form.getAttribute('data-leave-guard-alert');
+      var savedAlert = alertId ? document.getElementById(alertId) : null;
+
+      function markDirty(e) {
+        if (e && e.target && e.target.closest && e.target.closest('[data-leave-guard-ignore]')) return;
+        guard.dirty = true;
+        if (savedAlert) {
+          savedAlert.remove();
+          savedAlert = null;
+        }
+      }
+      form.addEventListener('input', markDirty);
+      form.addEventListener('change', markDirty);
+      form.addEventListener('submit', function () { guard.dirty = false; });
+      guards.push(guard);
+    });
+
+    if (!guards.length) return;
+
+    function dirtyGuard() {
+      for (var i = 0; i < guards.length; i++) {
+        if (guards[i].dirty) return guards[i];
+      }
+      return null;
+    }
+
+    document.addEventListener('click', function (e) {
+      var guard = dirtyGuard();
+      if (!guard) return;
+      var link = e.target.closest ? e.target.closest('a[href]') : null;
+      if (!link) return;
+      var href = link.getAttribute('href');
+      if (!href || href.charAt(0) === '#' || link.target === '_blank') return;
+      e.preventDefault();
+      var wantsSave = confirm(
+        'You have unsaved changes in ' + guard.label + ' above.\n\n' +
+        'Save those changes before leaving this page?\n\n' +
+        'OK = save and continue. Cancel = don\'t save yet.'
+      );
+      if (wantsSave) {
+        fetch(guard.form.action, {method: 'POST', body: new FormData(guard.form)})
+          .then(function () {
+            guard.dirty = false;
+            window.location.href = href;
+          })
+          .catch(function () {
+            alert('Could not save those changes — you\'re still on this page. Please try again.');
+          });
+        return;
+      }
+      var wantsDiscard = confirm(
+        'Leave this page without saving those changes? They will be lost.\n\n' +
+        'OK = leave without saving. Cancel = go back and keep editing.'
+      );
+      if (wantsDiscard) {
+        guard.dirty = false;
+        window.location.href = href;
+      }
+    });
+
+    // Closing the tab, refreshing, or navigating outside numa entirely can't
+    // be intercepted this way -- only the browser's own generic warning is
+    // possible there, and there's no way to save before it takes effect.
+    window.addEventListener('beforeunload', function (e) {
+      if (!dirtyGuard()) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+
+    window.numaLeaveGuard = {
+      isDirty: function (form) {
+        for (var i = 0; i < guards.length; i++) {
+          if (guards[i].form === form) return guards[i].dirty;
+        }
+        return false;
+      },
+      markClean: function (form) {
+        for (var i = 0; i < guards.length; i++) {
+          if (guards[i].form === form) guards[i].dirty = false;
+        }
+      },
+    };
+  })();
+  </script>
   {% block scripts %}{% endblock %}
   <script>
   // Search boxes across the app (query/search/q inputs) carry the
@@ -652,7 +759,16 @@
       // the badge right after the button shrank that input drastically the
       // moment you typed anything.
       var isAddFoodForm = form.classList.contains('add-food-form');
+      // A submit button can live OUTSIDE its form and target it by id with
+      // the HTML form="" attribute (recipe_edit.html puts "Save recipe
+      // details" up on the disclosure summary row that way) — without this
+      // fallback such a form would silently lose its "Unsaved changes" badge.
       var submitBtn = form.querySelector('button[type=submit], input[type=submit]');
+      if (!submitBtn && form.id) {
+        submitBtn = document.querySelector(
+          'button[type=submit][form="' + form.id + '"], input[type=submit][form="' + form.id + '"]'
+        );
+      }
       var badge = null;
       if (submitBtn && !isAddFoodForm) {
         badge = document.createElement('span');

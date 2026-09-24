@@ -68,6 +68,7 @@ def init_db() -> None:
                 complete        INTEGER NOT NULL DEFAULT 0,
                 instructions    TEXT,
                 introduction    TEXT,
+                notes           TEXT,
                 dcp_g           REAL,
                 dcp_computed_at TEXT,
                 created_at      TEXT    DEFAULT (date('now'))
@@ -155,6 +156,7 @@ def init_db() -> None:
             "total_weight      REAL",
             "total_weight_unit TEXT",
             "introduction      TEXT",
+            "notes             TEXT",
         ):
             try:
                 conn.execute(f"ALTER TABLE recipes ADD COLUMN {_col}")
@@ -803,17 +805,19 @@ def recipe_create(conn: sqlite3.Connection, name: str, description: str,
                   total_weight_unit: str | None = None,
                   serving_size: str | None = None,
                   complete: bool = False,
-                  introduction: str | None = None) -> int:
+                  introduction: str | None = None,
+                  notes: str | None = None) -> int:
     cur = conn.execute("""
         INSERT INTO recipes (name, description, servings, instructions,
                              total_volume, total_volume_unit,
                              total_weight, total_weight_unit,
-                             serving_size, complete, introduction)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             serving_size, complete, introduction, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (name, description or None, servings, instructions or None,
           total_volume, total_volume_unit or None,
           total_weight, total_weight_unit or None,
-          serving_size or None, 1 if complete else 0, introduction or None))
+          serving_size or None, 1 if complete else 0, introduction or None,
+          notes or None))
     assert cur.lastrowid is not None
     return cur.lastrowid
 
@@ -1049,15 +1053,21 @@ def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
                   total_weight_unit: str | None = None,
                   serving_size: str | None = None,
                   complete: bool = False,
-                  introduction: str | None = None) -> None:
+                  introduction: str | None = None,
+                  notes: str | None = None) -> None:
+    """Every text field is written on every call, so a caller that edits one
+    of them (e.g. the Instructions or Introduction save buttons, each of
+    which posts its own route) has to pass the recipe's current values for
+    the others through, or they are cleared."""
     conn.execute(
         "UPDATE recipes SET name=?, description=?, servings=?, instructions=?, "
         "total_volume=?, total_volume_unit=?, total_weight=?, total_weight_unit=?, "
-        "serving_size=?, complete=?, introduction=? WHERE id=?",
+        "serving_size=?, complete=?, introduction=?, notes=? WHERE id=?",
         (name, description or None, servings, instructions or None,
          total_volume, total_volume_unit or None,
          total_weight, total_weight_unit or None,
-         serving_size or None, 1 if complete else 0, introduction or None, recipe_id)
+         serving_size or None, 1 if complete else 0, introduction or None,
+         notes or None, recipe_id)
     )
     conn.execute(
         "UPDATE meal_items SET food_name=? WHERE item_type='recipe' AND recipe_id=?",
@@ -1114,6 +1124,17 @@ def recipes_containing_food(conn: sqlite3.Connection, fdc_id: int) -> list[sqlit
         WHERE ri.fdc_id = ?
         ORDER BY r.name
     """, (fdc_id,)).fetchall()
+
+
+def recipes_missing_dcp(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Return (id, name) rows for recipes with no stored per-serving DCP —
+    the ones the recipes list shows as "NC". Used for the startup repair
+    pass that gives each of them one recompute attempt, so a recipe left
+    stale by a write that changed an ingredient's nutrients without
+    cascading can't sit at NC while its own page computes a real DCP."""
+    return conn.execute(
+        "SELECT id, name FROM recipes WHERE dcp_g IS NULL ORDER BY id"
+    ).fetchall()
 
 
 def recipe_delete(conn: sqlite3.Connection, recipe_id: int) -> bool:

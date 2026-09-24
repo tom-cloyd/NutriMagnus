@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import re
 
-RECIPE_TEXT_KEYS = ["name", "description", "introduction", "instructions", "disclaimer"]
+RECIPE_TEXT_KEYS = ["name", "description", "introduction", "instructions", "notes", "disclaimer"]
 INGREDIENT_TEXT_KEYS = ["food_name", "notes", "volume_display"]
 
 DISCLAIMER_TEMPLATE = (

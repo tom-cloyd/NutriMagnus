@@ -15,13 +15,18 @@ PRINT_SECTION_LABELS: dict[str, str] = {
     "meals_list":      "Meals breakdown",
     "introduction":     "Introduction",
     "ingredients":      "Ingredients",
-    "procedure":        "Procedure",
+    # Key kept as "procedure" although the label now reads "Instructions"
+    # (matching the Edit Recipe field): the key is what saved print
+    # preferences store, so renaming it would silently uncheck this
+    # section for anyone who had already chosen it.
+    "procedure":        "Instructions",
     "nutrient_table":   "Nutrient table",
     "protein_summary":  "Protein summary (DCP)",
     "protein_quality":  "Protein quality (AA / DIAAS)",
     "glycemic_load":    "Glycemic load",
     "antinutrients":    "Anti-nutrients",
     "complements":      "Complement suggestions",
+    "notes":            "Notes and documentation",
 }
 
 

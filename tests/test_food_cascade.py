@@ -259,6 +259,55 @@ class TestWebRoutesTriggerCascade:
         assert calls == [SAMPLE_FDC_ID]
 
 
+    def test_claude_import_triggers_cascade(self, client: TestClient, db_conn, monkeypatch):
+        """The Claude AI import overwrites a cached food's nutrients in place,
+        so a recipe using it can go from NC to computable — it must cascade."""
+        calls = []
+        monkeypatch.setattr(_recipe_dcp, "cascade_food_change", lambda fdc_id, conn: calls.append(fdc_id))
+        response_text = (
+            "```json\n"
+            '{"fdc_id": 9000001, "name": "Imported food", "fdc_type": "User Drafted", '
+            '"nutrients": {"calories": 100, "protein_g": 10, "carbs_g": 5, "fat_g": 2}}\n'
+            "```"
+        )
+        resp = client.post(
+            "/food/cache/claude-import",
+            data={"response_text": response_text, "action": "confirm"},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert calls == [9000001]
+
+
+class TestStartupDcpRepair:
+    """A recipe left at NC by a write that never cascaded must get one
+    recompute attempt at web-app startup, so the recipes list can't show NC
+    for a recipe whose own page computes a real DCP."""
+
+    def test_startup_recomputes_recipes_with_no_stored_dcp(self, db_conn):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (SAMPLE_FDC_ID, "Chicken", "SR Legacy", json.dumps(SAMPLE_NUTRIENTS), "[]"),
+        )
+        rid = _db.recipe_create(db_conn, name="Dish", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, SAMPLE_FDC_ID, "Chicken", 200.0, "g")
+        _db.recipe_set_dcp(db_conn, rid, None)
+        db_conn.commit()
+        recipe_with_food = rid
+        assert [r["id"] for r in _db.recipes_missing_dcp(db_conn)] == [rid]
+        with TestClient(backend.app):
+            pass
+        row = _db.recipe_get(db_conn, recipe_with_food)
+        assert row["dcp_g"] is not None
+
+    def test_startup_leaves_genuinely_uncomputable_recipes_as_nc(self, db_conn):
+        rid = _db.recipe_create(db_conn, name="Empty", description="", servings=1, instructions="")
+        db_conn.commit()
+        with TestClient(backend.app):
+            pass
+        assert _db.recipe_get(db_conn, rid)["dcp_g"] is None
+
+
 class TestRecomputeErrorRetryRoute:
     """The Settings 'Retry' button (settings_recompute_error_resolve) must
     actually re-run the recompute, and only resolve the log entry if that

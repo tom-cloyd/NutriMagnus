@@ -1,0 +1,17 @@
+{# The "Data-entered safety" note shown at the top of every page with an
+   edit form guarded against losing unsaved typing. `what` names the form in
+   the user's own words (e.g. "Recipe details"); `note_id` is optional and
+   only needed where a test or another script has to find this paragraph.
+
+   The note describes base.html's leave guard, so a page that shows it must
+   also mark its form with data-leave-guard="<what>" — otherwise the note
+   promises a rescue that won't happen. #}
+{% macro note(what, note_id="") %}
+<p class="muted mb-2" style="font-size:0.85rem"{% if note_id %} id="{{ note_id }}"{% endif %}>
+  <strong>Data-entered safety:</strong> if you edit anything in {{ what }} below and then click a link
+  elsewhere in NuMa before saving, NuMa will ask whether to save those changes first — or you can
+  choose to leave without saving them. (BUT: Closing or refreshing the browser tab instead only shows
+  your browser's own "leave this page?" warning — NuMa can't step in at that point, so save first
+  if you're closing the tab.)
+</p>
+{% endmacro %}
