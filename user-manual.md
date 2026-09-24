@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-24:0941* / Reading time: 5 hours, 33 minutes
+*Updated 2026-09-24:1643* / Reading time: 5 hours, 33 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -2818,7 +2818,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 <!-- Insert new updates below here -->
 
-#### Next release summary to this point (dated details below)
+#### Release v2026-09-24-0941 summary (dated details below)
 
 - Complement suggestions no longer skip over plant foods like sesame seeds, sunflower seeds and oats — a scoring error had been quietly filtering them out in favour of animal foods.
 - Printable pages now use dark ink for every line of text — the greyed-out notes and subtitles came out too faint to read on paper.
