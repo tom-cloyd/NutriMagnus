@@ -1,4 +1,4 @@
-VERSION = "2026-09-24:0910"
+VERSION = "2026-09-24:0941"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.22"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "printable pages use dark ink throughout, no more faint grey text"
+NEW_VERSION_NOTE = "complement suggestions no longer under-offer plant foods such as sesame, sunflower and oats"

@@ -1094,6 +1094,7 @@ class TestSuggestComplementsAutoEstimate:
 # ---------------------------------------------------------------------------
 
 from usda_nutrients import _score_one_complement, get_aa_gaps
+import diaas as _diaas
 
 class TestScoreOneComplement:
     # Base with Met+Cys gap only (score ~0.70)
@@ -1424,6 +1425,69 @@ _PAIR_CASCADE_NUTRIENTS = {
     "aa_histidine_g":     0.40,
 }
 
+class TestComplementCandidateDigestibilityBasis:
+    """The pooled-DIAAS projection in _score_one_complement must weight the candidate
+    by its TRUE ILEAL DIGESTIBILITY, not by its DIAAS score.
+
+    DIAAS already folds in a food's own limiting-AA shortfall, so reusing it as a
+    digestibility factor double-counts that shortfall. The "don't let this addition
+    reduce digestible protein" guard then wrongly rejected low-DIAAS plant foods whose
+    actual digestibility is perfectly ordinary — sesame seeds are DIAAS 0.44 but TID
+    0.84 — which suppressed exactly the plant complements a legume-based eater needs.
+    _diaas_improver_score has always used TID, so the two tiers also disagreed with
+    each other on the same food.
+    """
+
+    def _lentils(self):
+        return _usda.get_complement_nutrients("Lentils, cooked")
+
+    def test_low_diaas_plant_food_is_offered_as_a_gap_closer(self):
+        # Lentils' one gap is Met+Cys; sesame closes it in ~22 g. Before the fix
+        # sesame was rejected here and appeared only in the DIAAS-improver tier.
+        base = self._lentils()
+        dig, _ = _diaas.get_digestibility("Lentils, cooked")
+        result = _usda.suggest_complements(
+            base, [], base_digestibility=dig, base_food_name="Lentils, cooked"
+        )
+        names = {s["name"] for s in result["general"]}
+        assert "Sesame seeds" in names
+        assert "Sunflower seeds" in names
+        improver_names = {s["name"] for s in result["diaas_improvers"]}
+        assert "Sesame seeds" not in improver_names, (
+            "a food offered as a gap-closer must not also appear as a DIAAS improver"
+        )
+
+    def test_predicted_diaas_uses_tid_not_the_diaas_score(self):
+        base = self._lentils()
+        dig, _ = _diaas.get_digestibility("Lentils, cooked")
+        gaps = get_aa_gaps(base, digestibility=dig)
+        sesame = _usda.get_complement_nutrients("Sesame seeds")
+        sesame_tid, _ = _diaas.get_digestibility("Sesame seeds")
+        m = _score_one_complement(
+            base, gaps, dig, sesame, 0.44, "aa_methionine_g",
+            cand_digestibility=sesame_tid,
+        )
+        assert m is not None
+        # With TID (0.84) the pool clears the base's own 0.83; with the DIAAS score
+        # (0.44) it came out at ~0.75 and tripped the reduction guard.
+        assert m["predicted_diaas"] > dig
+        rejected = _score_one_complement(
+            base, gaps, dig, sesame, 0.44, "aa_methionine_g",
+            cand_digestibility=0.44,
+        )
+        assert rejected is None
+
+    def test_explicit_none_falls_back_to_the_diaas_score(self):
+        """Callers with no candidate name keep the previous behavior."""
+        base = self._lentils()
+        dig, _ = _diaas.get_digestibility("Lentils, cooked")
+        gaps = get_aa_gaps(base, digestibility=dig)
+        sesame = _usda.get_complement_nutrients("Sesame seeds")
+        assert _score_one_complement(
+            base, gaps, dig, sesame, 0.44, "aa_methionine_g",
+        ) is None
+
+
 class TestComplementPairs:
     def test_pairs_key_always_present(self):
         result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [])
@@ -1571,7 +1635,15 @@ class TestComplementPairs:
         # legs via direct _score_one_complement() calls (the same building
         # blocks _build_pairs() itself uses) and cross-checks every
         # pair-level summary field against them.
+        from diaas import get_digestibility
         from usda_nutrients import scale_nutrients, sum_nutrients
+
+        def tid(name):
+            # Mirror production: each leg's amino acids are weighted by its TRUE
+            # ILEAL DIGESTIBILITY in the pooled-DIAAS projection, not by its DIAAS
+            # score (which would double-count that food's own limiting-AA shortfall).
+            return get_digestibility(name)[0]
+
         result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [])
         assert result["pairs"]
         pair = result["pairs"][0]
@@ -1583,6 +1655,7 @@ class TestComplementPairs:
         assert a_nutrients is not None
         a_m = _score_one_complement(
             _PAIR_CASCADE_NUTRIENTS, gaps, 1.0, a_nutrients, a["diaas"], primary_aa,
+            cand_digestibility=tid(a["name"]),
         )
         assert a_m is not None
         assert a["grams"] == a_m["grams"]
@@ -1596,6 +1669,7 @@ class TestComplementPairs:
         assert b_nutrients is not None
         b_m = _score_one_complement(
             combined_after_a, gaps_after_a, 1.0, b_nutrients, b["diaas"], b_target_aa,
+            cand_digestibility=tid(b["name"]),
         )
         assert b_m is not None
         assert b["grams"] == b_m["grams"]

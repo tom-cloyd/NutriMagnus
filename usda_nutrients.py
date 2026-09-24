@@ -679,10 +679,19 @@ def _score_one_complement(
     cand_nutrients: Nutrients,
     cand_diaas: float | None,
     target_aa: str,
+    cand_digestibility: float | None = None,
 ) -> dict | None:
     """
     Compute suggestion metrics for one candidate food targeting a specific AA gap
     in base_nutrients.  Returns None if the candidate cannot close that gap.
+
+    cand_digestibility: the candidate's TRUE ILEAL DIGESTIBILITY (diaas.get_digestibility),
+        used to weight its amino acids in the pooled-DIAAS projection below.  This must
+        not be the candidate's DIAAS score: DIAAS already folds in the food's own
+        limiting-AA shortfall, so using it as a digestibility factor double-counts that
+        shortfall and makes plant complements look like they drag the pool down when they
+        don't (sesame TID 0.84 vs DIAAS 0.44).  Falls back to cand_diaas, then 1.0, when
+        the caller has no name to look it up from.
 
     Solves for grams X: (base_aa + alpha*X) / (base_protein + beta*X) = R
     where alpha = cand_aa/100, beta = cand_protein/100, R = digestibility-adjusted
@@ -728,7 +737,12 @@ def _score_one_complement(
     # base_nutrients scaled by base_digestibility; complement scaled by its own DIAAS.
     # This is more accurate than applying base_digestibility uniformly to the combined
     # raw pool, which overestimates DCP when adding a high-DIAAS complement.
-    comp_dig = cand_diaas if cand_diaas is not None else 1.0
+    # comp_dig is a true ileal digestibility (see cand_digestibility above), matching
+    # the basis base_digestibility arrives on and the one _diaas_improver_score uses.
+    if cand_digestibility is not None:
+        comp_dig = cand_digestibility
+    else:
+        comp_dig = cand_diaas if cand_diaas is not None else 1.0
     total_raw_protein = combined.get("protein_g", 0)
     predicted_diaas: float | None = None
     if total_raw_protein > 0:
@@ -828,12 +842,20 @@ def suggest_complements(
     else:
         base_tid = base_digestibility  # DIAAS used as TID proxy when name unavailable
 
+    def _cand_tid(name: str | None) -> float | None:
+        """Candidate's true ileal digestibility, for the pooled-DIAAS projection.
+        None when there's no name to look up — _score_one_complement then falls back."""
+        if not name:
+            return None
+        return _get_dig(name)[0]
+
     def _score_candidate(nutrients_100g: dict, diaas: float | None,
-                         target_aa: str) -> dict | None:
+                         target_aa: str, cand_name: str | None = None) -> dict | None:
         """Delegate to the module-level helper using this closure's base context."""
         return _score_one_complement(
             base_nutrients, gaps, base_digestibility,
             nutrients_100g, diaas, target_aa,
+            cand_digestibility=_cand_tid(cand_name),
         )
 
     def _diaas_improver_score(
@@ -965,7 +987,7 @@ def suggest_complements(
             # Try gap-closer first (targeted AA-ratio formula)
             metrics = None
             for target_aa, _score, _deficit in gaps:
-                metrics = _score_candidate(cand_nutrients, cand_diaas, target_aa)
+                metrics = _score_candidate(cand_nutrients, cand_diaas, target_aa, name)
                 if metrics is not None:
                     break
             extra = {"recipe_id": recipe_id, "serving_weight_g": serving_weight_g, "estimated": estimated}
@@ -1113,6 +1135,7 @@ def suggest_complements(
             a_m = _score_one_complement(
                 base_nutrients, gaps, base_digestibility,
                 a_nutrients, a_diaas, primary_aa,
+                cand_digestibility=_cand_tid(a_name),
             )
             if a_m is None:
                 continue
@@ -1147,6 +1170,7 @@ def suggest_complements(
                 b_m = _score_one_complement(
                     combined_after_a, gaps_after_a, base_digestibility,
                     b_nutrients, b_diaas, b_target_aa,
+                    cand_digestibility=_cand_tid(b_name),
                 )
                 if b_m is None:
                     continue

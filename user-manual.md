@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-24:0910* / Reading time: 5 hours, 33 minutes
+*Updated 2026-09-24:0941* / Reading time: 5 hours, 33 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -260,7 +260,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-24), there are 1,152 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-24), there are 1,155 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -2820,6 +2820,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- Complement suggestions no longer skip over plant foods like sesame seeds, sunflower seeds and oats — a scoring error had been quietly filtering them out in favour of animal foods.
 - Printable pages now use dark ink for every line of text — the greyed-out notes and subtitles came out too faint to read on paper.
 - The Edit Recipe page has one Save button instead of two: Introduction now saves with everything else in Recipe details, and the button sits up on the "Recipe details" heading row.
 - A printed recipe lists each ingredient the way you typed it — "1/2 t", "3 T", "3/4 c" — instead of converting everything to grams.
@@ -2832,6 +2833,38 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - MANUAL: Windows installation is now documented — the install section of Part 1 has separate Windows and Linux instructions, with Windows first.
 
 #### Sep 24 updates
+
+**PROGRAM: COMPLEMENT SUGGESTIONS NO LONGER OVERLOOK PLANT FOODS**
+
+Foods like sesame seeds, sunflower seeds, oats and pumpkin seeds now appear as protein-complement suggestions where they belong. A scoring error had been quietly dropping plant foods out of the main suggestion list and pushing them down into the secondary list, so the top suggestions leaned toward eggs, cheese, fish and chicken more than they should have. For a bowl of lentils, four plant complements that close the amino acid gap in a normal-sized serving were being left out entirely. [learn more...](#gloss-diaas)
+
+<!--
+```
+Scope: usda_nutrients.py (_score_one_complement, suggest_complements),
+tests/test_usda.py. The pooled-DIAAS projection used by the "would this
+addition reduce digestible protein" guard weighted the base by its true
+ileal digestibility but the candidate by its DIAAS SCORE. DIAAS already
+folds in a food own limiting-amino-acid ratio, so using it as a
+digestibility factor double-counts that shortfall -- sesame is TID 0.84
+but DIAAS 0.44. Low-DIAAS plant foods therefore failed the guard while
+animal foods (DIAAS approx TID approx 1) were unaffected, a systematic
+one-directional bias. It also contradicted _diaas_improver_score, which
+has always used TID, so the same food could be rejected by one tier and
+recommended by the other. _score_one_complement now takes an explicit
+cand_digestibility (TID via diaas.get_digestibility), passed at all three
+call sites including both legs of the gap-cascade pair builder; it falls
+back to the old behaviour only when no candidate name is available. For a
+100 g cooked-lentil base this restores sesame at 22 g, sunflower at 38 g,
+oats at 51 g and pumpkin seeds at 55 g to the gap-closer tier. Three
+regression tests added (TestComplementCandidateDigestibilityBasis), and
+the pair-recompute test updated to mirror the production call. Two new
+reference documents, COMPLEMENT-LOGIC.md and COMPLEMENT-WORKED-EXAMPLE.md,
+describe the whole selection path in plain English with a hand-checkable
+worked example, and scripts/complement_worksheet.py prints every
+intermediate figure for any base food so the result can be verified by
+hand.
+```
+-->
 
 **PROGRAM: PRINTABLE PAGES NOW PRINT IN DARK INK THROUGHOUT**
 
