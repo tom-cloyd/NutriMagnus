@@ -930,16 +930,12 @@
       },
       "portions": [
         {
-          "description": "tsp",
-          "gram_weight": 4.2
+          "description": "1 tsp",
+          "gram_weight": 4.9
         },
         {
-          "description": "cup",
-          "gram_weight": 208.0
-        },
-        {
-          "description": "tbsp",
-          "gram_weight": 13.0
+          "description": "1 T",
+          "gram_weight": 15.0
         }
       ]
     },
@@ -2076,7 +2072,7 @@
       "name": "* Thumbprint cookies - almond flour/whole wheat",
       "description": "Two cookies in one - both excellent!",
       "servings": 22,
-      "instructions": "I have simplified the mixing instructions; my method works quite well.\r\n\r\n1. Mix dry ingredients well, in a medium bowl.\r\n2. Cream butter and sugar, mix in egg and vanilla, then applesauce - which will curdle the mixture a bit.\r\n3. Dump the butter/sugar mixture into the flour mixture. Cut it in with a large cooking spoon, cutting from the edge to the middle, while constantly turning the bowl. Mix until just combined. Don't over-mix.\r\n4. Put 1.5 T mounds of dough 2\" apart on cookie sheet covered with parchment paper or silicone baking sheet (or greased with butter). Make indentation in center of each dough ball big enough to hold 1/2 T jam or other filling. Fill as desired with jam.\r\n5. Bake at 375F for 20 minutes - until edges brown and tops are very lightly browned. (Exact time will vary with oven, how fine your flours are, etc.)\r\n6. Allow to cool 2 minutes on sheet before removing. Cool completely before serving. Store in air tight container to retain chewy texture.\r\n\r\nNote: An excellent nut-cookie can be made by simply flattening the dough ball to about 5/8\". Bake for 20 minutes or until edges brown and tops are very lightly browned.",
+      "instructions": "I have simplified the mixing instructions; my method works quite well.\r\n\r\n1. Mix dry ingredients well, in a medium bowl.\r\n2. Cream butter and sugar, mix in egg and vanilla, then applesauce - which will curdle the mixture a bit.\r\n3. Dump the butter/sugar mixture into the flour mixture. Cut it in with a large cooking spoon, cutting from the edge to the middle, while constantly turning the bowl. Mix until just combined. Don't over-mix.\r\n4. Put 1.5 T mounds of dough 2\" apart on cookie sheet covered with parchment paper or silicone baking sheet (or greased with butter). Make indentation in center of each dough ball big enough to hold 1/2 T jam or other filling. Fill as desired with jam.\r\n5. Bake at 375F for 12-15 minutes - until edges brown and tops are very lightly browned. (Exact time will vary with oven, how fine your flours are, etc.)\r\n6. Allow to cool 2 minutes on sheet before removing. Cool completely before serving. Store in air tight container to retain chewy texture.\r\n\r\nNote: An excellent nut-cookie can be made by simply flattening the dough ball to about 5/8\". Bake for 20 minutes or until edges brown and tops are very lightly browned.",
       "ingredients": [
         [
           "* Almond Flour",
