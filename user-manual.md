@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-23:2023* / Reading time: 5 hours, 26 minutes
+*Updated 2026-09-23:2133* / Reading time: 5 hours, 26 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -236,7 +236,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-23), there are 1,114 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-23), there are 1,137 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -1994,8 +1994,17 @@ Columns:
     selected" — this avoids looking up every uncached result on every single
     search, which would use up more of your daily USDA search allowance than
     necessary.
+    A recipe in the results shows an <a href="#gloss-aa">AA</a> status too,
+    worked out from its ingredients rather than from a nutrient record of its
+    own: a checkmark
+    when they add up to a full amino acid profile, an X when they do not,
+    and a warning sign for a recipe with no usable ingredient data at all.
+
     GI      Your saved glycemic index estimate, if any. See <a href="#gi">Glycemic Index</a>.
+            The figure is a link: click it to edit that value, or click the
+            dash to add one. See <a href="#annotate">Annotate a Food</a>.
     DIAAS   Your saved DIAAS estimate, if any. See <a href="#diaas">DIAAS</a>.
+            Also clickable, the same way.
     CONF.   Checkmark if a confidence/source note is saved. View it from
             the Food Cache.
     ID#     USDA FDC ID, OFF (Open Food Facts), or usr (user-drafted).
@@ -2074,27 +2083,29 @@ The **nutrient table** covers Macronutrients, Minerals, Vitamins, [Phytonutrient
 To run a comparison: click **Compare** in the main nav. Search adds both foods (reaching out to USDA/OFF like any food search) and your own saved recipes. You can save the list under a name for quick reuse in future sessions — previously saved lists are offered at the start of the comparison flow.
 
 
-#### Annotate Food Picker Table {: #annotate}
-Appears when you choose Foods -> Annotate a food. Pick a food from your cache to annotate.
+#### Annotate a Food {: #annotate}
+Your own [GI](#gi) and [DIAAS](#gloss-diaas) estimates for a cached food, plus a short preparation note. Four ways in, all landing on the same page:
 
-Columns:
+- **Foods -> Annotate a Food**, then filter by name and click **Edit** on the food you want.
+- **The food's own detail page**, or its [Edit Custom Profile](#drafted-foods) page — both carry an **Add or edit GI / DIAAS estimates** button, and bring you back when you save.
+- **The GI or DIAAS figure on an add-food list**, which is itself a link: click it to edit that value, or click the dash where a value would be to add one.
+- **The prompt after adding a food** that has neither estimate yet, which offers to take you there.
 
-<pre>
-    #       Row number. Type the number to select that food.
-    Name    Food name.
-    Type    USDA data category or OFF. See <a href="#food-search">Food Search</a> for type meanings.
-</pre>
+The list view shows Name, Type, and your current **GI est.** and **DIAAS est.** for every cached food, with a dash where nothing is recorded yet.
 
-Type /text to filter by food name (e.g. /tofu shows only tofu entries). Type / alone to clear the filter.
-
-After selecting a food, you can add or update:
+What you can set:
 
 <pre>
-    GI      Glycemic index (0-100). See <a href="#gi">Glycemic Index</a>.
-    DIAAS   Your protein quality estimate (0.00-2.00). Useful for packaged
-            foods that lack amino acid data in USDA. See <a href="#diaas">DIAAS</a>.
-    Prep    A short preparation note (e.g. "boiled 20 min", "raw").
+    GI estimate      Glycemic index (0-100). See <a href="#gi">Glycemic Index</a>.
+    DIAAS estimate   Your protein quality estimate (0.00-2.00). Useful for
+                     packaged foods that lack amino acid data in USDA. See
+                     <a href="#diaas">DIAAS</a>.
+    Prep context     A short preparation note (e.g. "boiled 20 min", "raw").
 </pre>
+
+**Looking up a GI value instead of typing one.** Open **Look up a GI value from the published reference table** and search it by name. Click anywhere on a result to take its value: the list closes, the GI box fills in, and the **Save annotation** button highlights — the value is not stored until you press it. See [Where GI values come from](#gi) for the table and how to pick a population.
+
+**The two "don't prompt me again" checkboxes** are only for deliberately leaving a value blank. Saving a GI or DIAAS estimate already stops NuMa asking about that one, so you do not need to tick anything to make the prompt stop.
 
 Annotations appear wherever that food is used: [Food Cache](#gloss-food-cache) list, food and recipe analysis, and meal analysis.
 
@@ -2433,6 +2444,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **Reference value**{: #gloss-reference-value}  —  Short for [FAO](#gloss-fao) reference value: how many mg of one specific essential amino acid a person needs per gram of dietary protein, established independently for each of the nine [EAAs](#gloss-eaa). Dividing a food's own mg-of-that-amino-acid-per-gram-of-protein by its reference value produces that amino acid's [DIAAS](#gloss-diaas)-basis score. See [FAO reference values](#fao).
 
+**Sub-recipe**{: #gloss-sub-recipe}  —  A saved recipe used as one ingredient of another recipe — a sauce inside a pasta dish, a spice blend inside a stew. Its amount is given in servings, not grams, and its nutrients are worked out from its own ingredients and folded into the parent, however many levels deep the nesting goes. See [Recipes: Servings Instead of `pN`](#portions-vs-servings) for how a serving's weight is derived.
+
 **SPI**{: #gloss-spi}  —  Soy Protein Isolate. A concentrated plant protein (95%+ protein by weight) with high digestibility (0.95); frequently cited in complement suggestions. See [Appendix E](#comp-appendix).
 
 **TID**{: #gloss-tid}  —  True Ileal Digestibility. NuMa's abbreviation for [ileal digestibility](#gloss-ileal-digestibility), used as a column heading in per-ingredient digestibility breakdowns.
@@ -2770,23 +2783,114 @@ Every food's [Annotate](#gi) page can now search the full ~2,487-entry Foster-Po
 
 ### A. Recent program updates log
 
-<!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go directly after the "Insert new updates below here" marker below, each starting with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under the "#### Next release summary to this point" heading that sits between the marker and those dated entries. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
+<!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
 <!-- # "If there is nothing pending under the marker at release time, create_release.py falls back to the generic "Automated build from main." message instead of real notes." -->
 
 Program updates, and major manual updates, are logged here. They are grouped by program release dates.
 
 Each entry has a bold-font title and a plain-language description — anywhere from one sentence to a short paragraph — of what you can now do or what changed.
 
-<!-- Many entries also carry a fenced code block underneath, labeled "Scope:", with the technical detail (menu path, files touched, root cause) for anyone who wants it; skip it if you just want the plain-language summary above it. -->
+<!-- Many entries also carry a fenced "Scope:" block underneath, with the technical detail (menu path, files touched, root cause). It is developer-facing only: the next comment explains why it is wrapped in an HTML comment and therefore never reaches a reader of the built manual. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 <!-- Insert new updates below here -->
 
 #### Next release summary to this point (dated details below)
 
+- Mutation testing run against the three modules flagged by this week's churn check: six real test gaps found and closed, including one that would have reported a trace-protein food as having confirmed amino acid data.
+- MANUAL: Weekly sweep — the Annotate page's manual section rewritten for the web app, several new features documented, and the sweep moved to Wednesday evening / Thursday morning.
 - Deleting a food that one of your recipes, meals, or pantry entries still uses is now refused by the database itself, not just by the page you asked from.
 - A recipe that uses another recipe as an ingredient can now be starter data; one such recipe was previously dropped from every release without saying so on the Home page.
 
 #### Sep 23 updates
+
+**PROGRAM: NO VISIBLE CHANGE — MUTATION TESTING CLOSED SIX REAL GAPS IN THIS WEEK'S CODE**
+
+Nothing you can see changed. NuMa's [test suite](#extensive-code-testing) was checked by deliberately planting small errors in the three modules that changed most this week and seeing whether the tests noticed; six places where they would not have are now covered. The most consequential: a food with a trace of protein and no amino acid data could have been reported as having confirmed data, the same wrong-checkmark problem fixed twice before in other places.
+
+<!--
+```
+Scope: tests/test_recipe_nutrients.py, tests/test_complements.py,
+tests/test_usda.py, setup.cfg, README-numa-documentation.md (rotation log).
+Run against the three modules the 2026-09-23 weekly churn check flagged, per
+the documented procedure's "flag it and ask" step -- the deferral offered
+first was mine, not the procedure's, and was withdrawn when asked.
+recipe_nutrients.py 240->244 killed of 293. Four real gaps: servings <= 0 vs
+<= 1 in recipe_serving_grams() (every test used 2+ servings, so the mutant
+returned None for every single-serving recipe); its `or "g"` unit default
+(a NULL total_weight_unit silently lost the weight); and, twice over, a
+`continue` that skips an unusable ingredient becoming `break`, which drops
+every ingredient after it -- once in expand_recipe_ingredients() for an
+uncached food, once in atomic_recipe_ingredients() for a deleted sub-recipe.
+complements.py 1113->1122 killed of 1548; the churn's new _amount_note() went
+12 survivors to 3. Its cache lookup was never exercised because every existing
+assertion recomputed portions.amount_note() in the test and compared, so
+gutting the lookup silently drops the amount hint from every suggestion.
+usda_nutrients.py 1265 killed of 1520. aa_indicator()/has_confirmed_aa_data()/
+has_macro_data() produced no survivors. One real gap: has_amino_acid_data()'s
+"no protein, so AA data is irrelevant" shortcut was tested at exactly 0 and
+with the key absent but never just above it.
+Two infrastructure fixes found by doing this: mutmut's also_copy in setup.cfg
+had gone stale when manual_update.py was added (conftest could not import it
+inside the mutant tree), and naming package files individually only works when
+a source_path already creates numa_app/ inside mutants/ -- which it does not
+when the module under test is at the repo root. also_copy now copies the
+package.
+Survivors left are equivalent mutants, chiefly sqlite3.Row's case-insensitive
+key lookup making ing["FDC_ID"] identical to ing["fdc_id"], plus the scattered
+suggest_complements()/build_complement_display() population characterized on
+2026-09-10. No "no tests" (zero-coverage) regions in any of the three.
+```
+-->
+
+**MANUAL: WEEKLY SWEEP — ANNOTATE SECTION REWRITTEN FOR THE WEB, FOUR FEATURES DOCUMENTED, SWEEP DAY MOVED**
+
+This week's maintenance pass. The manual's **Annotate a Food** section still described the old typed-command picker ("type the number to select that food") rather than the web page the app's own Learn more link sends you to — rewritten, and it now covers all four ways to reach Annotate, the GI lookup's click-a-result behavior, and why the two "don't prompt me again" checkboxes are rarely needed. Newly documented: the gram weight shown beside a serving amount, the amino acid status now shown for recipes in search results, and the clickable GI/DIAAS figures on an add-food list. The front-page feature list was claiming NuMa searched two food databases when it searches six. The weekly sweep itself moves from Saturday to Wednesday evening / Thursday morning.
+
+<!--
+```
+Scope (weekly sweep, 2026-09-23 — first under the new day):
+Longer-cadence checks: none due (monthly 09-01, quarterly fixtures 09-11,
+glossary 09-16, annual datasets 09-20, full manual audit 09-13).
+1 CLAUDE.md drift: version.py was missing from Package Layout despite
+  CLAUDE.md carrying a rule about bumping it. Added.
+2 NuMa capitalization: 3 prose hits fixed. The same grep caught real drift --
+  README described the bundled CIQUAL as the 2020 edition when the 09-20
+  annual check had already upgraded it to 2025 (3,484 entries, verified).
+3 Vendored Bootstrap: 5.3.8 vendored, 5.3.8 upstream. No action.
+4 Changelog pruning: removed the Sep 7 and Sep 6 sections, 168 lines, leaving
+  the Sep 9-23 window.
+5 Manual consolidation: the CLI-era #annotate section (the last such section
+  left -- greps for "Type ?", "^Commands:", "Command line:", a{id} now come
+  back clean outside the changelog); plus the three undocumented features
+  above.
+6 README.md accuracy: food-search bullet named only USDA + OFF against an
+  intro paragraph two lines above it that says six sources; GI reference-table
+  lookup absent from the feature list entirely.
+7 Test coverage: everything from this week had tests except two JS-only
+  behaviors. Closed the meal-item scroll restore with an e2e test aimed at the
+  action-URL regex that gates the save (finding the right form also confirmed
+  the Rename popup correctly does not save an offset). NOT closed: the
+  spurious "Leave site?" suppression -- Playwright auto-dismisses beforeunload
+  dialogs, so a test asserting "no dialog" would pass for the wrong reason.
+8 Links: internal links now covered by tests/test_link_integrity.py (passing).
+  External: 23 non-200s across 75 URLs, all bot-gating hosts already known
+  from previous sweeps (NIH ODS, examine.com, doi.org, researchgate,
+  claude.ai, fdc.nal.usda.gov). No real rot.
+9 Glossary: "sub-recipe" was used 20 times in the manual body with no entry --
+  added, and linked from the two passages written this week.
+Mutation-testing churn check: usda_nutrients.py (+62), complements.py (+61,
+  carried over from the 09-20 flag) and recipe_nutrients.py (+44) all flagged
+  in the rotation log; triage stays a dedicated session.
+Cadence: sweep moved Saturday -> Wednesday evening / Thursday morning, with
+  .github/workflows/e2e-tests.yml moved to cron "0 6 * * 4" so its result is
+  fresh for the sweep.
+Also this session, outside the numbered items: README's Test Suite section
+  claimed 733 tests against an actual 1,117 and was missing 13 test files --
+  corrected, and two new tests in test_packaging_spec.py now fail if that
+  table misses a file or lists a deleted one, so it cannot drift silently
+  between monthly accuracy checks again.
+```
+-->
 
 **PROGRAM: A FOOD IN USE CANNOT BE DELETED, NOW GUARANTEED BY THE DATABASE**
 
@@ -3163,7 +3267,7 @@ links now pass &from_context=recipe / &from_context=meal).
 
 **PROGRAM: LEAVING RECIPE/MEAL DETAILS UNSAVED NOW WARNS — AND LETS YOU CHOOSE**
 
-Editing a recipe's Recipe Details, or a meal's Rename/change date fields, and then clicking a link elsewhere in numa before saving now prompts you: save those changes first, leave without saving them, or stay and keep editing. Previously an in-app click away could silently lose the edit; closing or refreshing the browser tab itself still shows only your browser's own generic warning, since numa can't intervene at that point.
+Editing a recipe's Recipe Details, or a meal's Rename/change date fields, and then clicking a link elsewhere in NuMa before saving now prompts you: save those changes first, leave without saving them, or stay and keep editing. Previously an in-app click away could silently lose the edit; closing or refreshing the browser tab itself still shows only your browser's own generic warning, since NuMa can't intervene at that point.
 
 <!--
 ```
@@ -5034,7 +5138,7 @@ browser installed) via a new `e2e` pytest marker and `addopts = -m "not
 e2e"` in pytest.ini; run explicitly with `pytest -m e2e`.
 requirements.txt gains playwright==1.61.0 (previously present only as an
 incidental transitive dependency, unused). Later the same day: a new
-.github/workflows/e2e-tests.yml runs these on a weekly schedule (Saturday
+.github/workflows/e2e-tests.yml runs these on a weekly schedule (Thursday
 06:00 UTC) plus on-demand via workflow_dispatch — deliberately a separate
 workflow from tests.yml's per-push job, on a plain ubuntu-latest runner
 (not tests.yml's python:3.12-slim container, since `playwright install
@@ -5154,174 +5258,6 @@ the default paper size / auto-selected page breaks in their print preview —
 it does not override a printer's own paper tray setting.
 ```
 -->
-
-##### September 7 program updates
-
-**NUTRIENT PLOT: DASHED LINES NOW SHOW EACH NUTRIENT'S PROFILE GOAL**
-
-The Nutrient Plot page, and any copy of it shown on the Home page, now draws a dashed horizontal line for each plotted nutrient at its profile goal level (your configured Optimal target if you've set one, otherwise the standard RDA/AI/limit) — in that nutrient's own line color, so it's easy to see at a glance how your logged days compare. A small note under the title, "(Dashed lines indicate profile goal levels)," explains the dashed lines; it only appears when at least one plotted nutrient actually has a goal to show.
-
-<!--
-```
-Scope: numa_app/services/plotting.py (line_plot_image: per-series "goal"
-axhline in the series' own color, plus an optional smaller subtitle drawn
-via fig.suptitle + ax.set_title), web/backend.py (_nutrient_plot_goal,
-_nutrient_plot_add_goals — Optimal target takes precedence over RDA/AI/
-limit; Day DCP uses the protein RDA). Uses the currently-active profile,
-not day_profile's per-date pinned profile, since a flat reference line
-isn't a per-day quantity. Goal values are scaled/inverse-scaled alongside
-their series' y-values by the existing step-1/step-2 scale-factor logic so
-the dashed line stays correctly positioned after rescaling.
-```
--->
-
-**MANAGE PORTIONS: REORDER PORTIONS, AND SEE EACH ONE'S `pN` SHORTCUT**
-
-The Manage Portions page (a food's Food Cache entry → **Portions**) now shows each portion's `p1`, `p2`, … shortcut right in the list, and has up/down buttons to reorder portions instead of only add/remove. Each click saves immediately and reloads the page with a confirmation, since there's no separate Save step. A short explanation of what portions and their shortcuts do, with a [learn more...](#portion-formats) link, was also added above the list. See [Editing the p1, p2, … portion shortcuts](#custom-foods) and [A food's portion "pN" shortcut points to the wrong portion](#ts-portion-numbering).
-
-<!--
-```
-Scope: web/backend.py (new food_cache_portions_move route), web/templates/food_cache_portions.html.
-Reordering swaps two entries in portions_json via the existing
-update_food_portions() helper, same pattern as add/delete; the pN shown per
-row is just loop.index (1-based), matching how _parse_portion_str already
-resolves pN to a list position.
-```
--->
-
-##### September 6 program updates
-
-**NUTRIENT PLOT: FIXING A DATE FOR THE HOME PAGE PLOT NO LONGER GETS DISCARDED**
-
-Saving a Nutrient Plot to the Home page with "Roll to last complete day" turned OFF and a specific "Ending on" date set now actually keeps that date. Previously, saving always discarded the date regardless of that checkbox, silently falling back to whatever your most-recently-logged day happened to be — which then kept drifting forward on its own and made "Show on Home page" read as unchecked again on the very next reload.
-
-<!--
-```
-Scope: web/backend.py (nutrient_plot_home_pref).
-Root cause: the handler stripped anchor_date from the saved querystring
-unconditionally, instead of only when the "Roll to last complete day"
-checkbox was actually being turned on. Now anchor_date is only stripped
-alongside adding rolling=1; with rolling left off, the user's chosen date
-passes straight through unchanged.
-```
--->
-
-**NUTRIENT PLOT: TITLE STAYS CURRENT, AND HOME-PAGE TOGGLE STAYS ACCURATE**
-
-The Nutrient Plot's title field now works like Scale factor: it stays blank (showing the auto-generated date-range title as a placeholder) unless you actually type your own title. Previously, resubmitting the form for any reason — after "Roll to last complete day" had shifted the plotted range — would silently lock the title to whatever date range was showing at that moment, so it stopped matching the data; the same could happen from an old bookmarked or saved plot link. Also fixed: the "Show on Home page" checkbox could read as unchecked (while the plot kept showing on the Home page anyway) because auto-computed scale-factor values, which drift as new meals get logged, were being compared as if you'd set them yourself.
-
-<!--
-```
-Scope: web/backend.py (nutrient_plot_page, nutrient_plot_print, nutrient_plot_image), web/templates/nutrient_plot.html.
-Root cause 1: the persisted plot querystring baked in auto-computed scale_factor/
-factor_<key> values instead of only user-set ones, so it could drift from a
-previously-saved home_nutrient_plot_qs and desync the "Show on Home page"
-checkbox's displayed state from the Home page's actual (unaffected)
-home_nutrient_plot_enabled flag. Root cause 2: the title <input>'s value was
-always the full auto-generated title, so any form resubmission, stale
-bookmark, or old saved link echoed it back as a literal, non-blank title=
-param, indistinguishable from one actually typed in, and froze permanently.
-Closed for good (not just for newly-generated links) by treating any title=
-value that matches NuMa's own auto-generated pattern ("Key nutrients
-consumed[, <date> to <date>]") as auto rather than user-set, in a shared
-_user_plot_title() helper used by all three routes that read a title param.
-```
--->
-
-**NUTRIENT PLOT: "SHOW ON HOME PAGE" AND "ROLL TO LAST COMPLETE DAY" NO LONGER FIGHT EACH OTHER**
-
-Turning on "Roll to last complete day" — or even just checking "Show on Home page" while rolling was already on — no longer immediately unchecks "Show on Home page" again. This showed up whenever the plot also had a highlighted nutrient or smoothing set.
-
-<!--
-```
-Scope: web/backend.py (nutrient_plot_home_pref).
-Root cause: the handler always appended rolling=1 to the end of the saved
-querystring, but the canonical builder used to recompute that querystring on
-every page render (_nutrient_plot_qs) always places rolling=1 right after
-days_back/anchor_date. Whenever a later param (highlight, smoothing, ...) was
-also present, the two strings differed only in the position of rolling=1, so
-the exact-match comparison behind "Show on Home page" always failed. Fixed by
-inserting rolling=1 at the same canonical position instead of appending it.
-```
--->
-
-**NUTRIENT PLOT: A STALE HOME-PAGE PLOT CAN ALWAYS BE TURNED OFF**
-
-If the Home page plot no longer matches what's on screen — most often leftover from before one of the fixes above — Nutrient Plot now shows a plain "Remove it from Home page" button that turns it off regardless of the mismatch. Previously, "Show on Home page" could only ever be unchecked from the one exact view that matched what was saved; from any other view it displayed as already unchecked, so there was no way to turn the Home page plot off at all short of editing prefs.json by hand.
-
-<!--
-```
-Scope: web/backend.py (nutrient_plot_page), web/templates/nutrient_plot.html.
-New home_plot_enabled_elsewhere flag (enabled in prefs but qs doesn't match
-this view) drives a warning banner with a button that posts to the existing
-/summary/nutrient-plot/home-pref endpoint with no "enabled" field — that
-handler already disabled unconditionally in that case, the missing piece was
-purely a way to trigger it from a non-matching view.
-```
--->
-
-**NUTRIENT PLOT: SCALE FACTOR NOW LABELED WHEN NUMA HAS CALCULATED IT FOR YOU**
-
-The Scale factor field shows "(auto calculated)" next to it whenever it's blank and NuMa is supplying the number itself (shown as the field's placeholder), so it's clear where that number came from and that the plot is already using it. The field is also narrower now, matching the width of the per-nutrient factor fields below it.
-
-<!--
-```
-Scope: web/templates/nutrient_plot.html.
-```
--->
-
-**FOOD SEARCH, FOOD CACHE, PANTRY: "COPY AS DRAFT" AVAILABLE FOR ANY FOOD**
-
-A "Copy as custom-food draft" link/button is now available on every food row on Food Search, Food Cache, and Pantry's own ingredient-search results — not just Food Search rows missing amino acid data. It creates an editable custom-food draft copy of that food, leaving the original untouched, for any reason you might want one (not only to add missing AA data).
-
-<!--
-```
-Scope: web/templates/_search_result_row.html, food_cache.html, pantry.html.
-Reuses the existing /food/custom-profiles/copy-from-search and
-/food/custom-profiles/copy/{fdc_id} endpoints, both already general-purpose
-(work for cached or not-yet-cached foods) — this was purely a template-side
-restriction (an `if food.aa != "✓"` condition, and simply not being wired up
-on the Cache/Pantry pages at all) with no backend change needed. Renamed from
-"Copy as draft to add AA data" to "Copy as custom-food draft" since it's no
-longer AA-specific.
-```
--->
-
-**FOOD DETAIL: PROTEIN SUMMARY NO LONGER MISREPORTS "NO AMINO ACID DATA"**
-
-A food with full amino acid data but no name match in NuMa's built-in DIAAS reference table (most common for a custom-drafted or oddly-named food) now shows its actual protein completeness and limiting amino acid in the Protein Summary card, instead of a misleading "No amino acid data — quality analysis unavailable" message — the Protein Quality section further down the page was already computing and displaying this correctly from the same data.
-
-<!--
-```
-Scope: web/templates/food_detail.html.
-Root cause: _protein_section() (web/backend.py) only sets dcp_g when
-_usda.get_diaas() finds a keyword match for the food's name; with no match,
-both diaas and dcp_g stay None. The template's final fallback branch was
-written for a "no data at all" case that can't actually reach it (the whole
-section is skipped when the backend's protein dict is None) — it was really
-being hit by "AA data present, no DIAAS reference," and mislabeled
-accordingly. Fixed by adding a "completeness only" card for that case, using
-the already-computed protein.complete/limiting_aa/protein_raw fields.
-```
--->
-
-**NUTRIENT PLOT: "ROLL TO LAST COMPLETE DAY" CAN NOW LAND ON TODAY**
-
-"Roll to last complete day" used to always end the plot at yesterday, on the assumption that today's meals are never finished yet. Now it checks whether today's meals are actually marked complete, and if so, includes today — same as the "Confirmed" indicator already shown on the Meals list.
-
-<!--
-```
-Scope: db.py (new last_complete_meal_date()), web/backend.py (_nutrient_plot_params).
-Root cause: rolling=True unconditionally set anchor_date to
-(today - 1 day), never checking meals' own `complete` flag — the same flag
-the Meals list already uses to mark a day "Confirmed" vs. "Provisional."
-last_complete_meal_date() finds the most recent date where every logged
-meal is complete=1 (falling back to yesterday only if no such date exists
-yet, e.g. a fresh install), and _nutrient_plot_params now uses that instead
-of the hardcoded offset.
-```
--->
-
 
 ---
 
@@ -5796,6 +5732,8 @@ That doesn't mean a recipe's per-serving weight is undefined — it's derived au
 The one place the literal text `p1` *does* work for a recipe is the [Convert](#convert) tool — type `p1` there for a recipe and it resolves to that same auto-derived "1 serving" weight. That isn't a general recipe feature, though: Convert happens to reuse the same portion-parsing code that handles foods' `pN`, and it treats a recipe's one implicit "1 serving" as if it were portion #1. Everywhere else in the app, just use the Servings field directly.
 
 92.5 g is accurate, but it doesn't say what you're actually holding. If a recipe's serving has a natural real-world name — 1 muffin, 1 cookie, 1 slice — set it in the **Serving description** field, right next to Number of servings on the Edit Recipe page. This doesn't change the math at all; it's a label, not a unit conversion. Once set, it shows up as "(1 serving = 1 muffin)" wherever the recipe's serving count is already shown — the recipe's own page, the Recipes list, Convert's named portion, and next to the Servings field anywhere the recipe is added as an ingredient or meal item.
+
+**Where you see that weight.** Anywhere an amount is given in servings — a recipe added to a meal, or a recipe used as an ingredient inside another recipe (a [sub-recipe](#gloss-sub-recipe)) — NuMa now prints the gram weight beside it, as in "2 servings (500 g)", on screen and on a printed recipe alike. It uses the recipe's stated Total yield weight where you have set one, and otherwise the sum of the ingredients, but only when every ingredient has a usable weight: a partial sum would understate the serving by an unknown amount, so nothing is shown at all in that case.
 
 See also [Recipe Ingredient List](#recipe-ingredients) for where these Servings fields appear, and for the Recipe details fields — including Total yield weight and Total yield volume — on the Edit Recipe page.
 

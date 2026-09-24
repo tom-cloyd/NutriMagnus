@@ -355,6 +355,17 @@ class TestHasAminoAcidData:
     def test_zero_protein_returns_true(self):
         assert _usda.has_amino_acid_data({"protein_g": 0.0}) is True
 
+    def test_trace_protein_still_needs_aa_data(self):
+        """Mutation-testing gap (2026-09-23): the "no protein, so AA data is
+        irrelevant" shortcut was tested at exactly 0 g and with the key absent,
+        but never just above it. A food with a trace of protein and no amino
+        acid data is ✗, not a free pass — loosening that guard to `<= 1` is the
+        false-confirmed-checkmark bug this area has produced twice already."""
+        trace = {"calories": 15.0, "protein_g": 0.9}
+        assert _usda.has_amino_acid_data(trace) is False
+        assert _usda.aa_indicator(trace) == "✗"
+        assert _usda.has_confirmed_aa_data(trace) is False
+
     def test_insufficient_aa_count_returns_false(self):
         # Has protein but only 2 AAs — below threshold
         nutrients = {"protein_g": 10.0, "aa_lysine_g": 0.5, "aa_leucine_g": 0.8}

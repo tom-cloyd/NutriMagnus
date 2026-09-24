@@ -1024,3 +1024,47 @@ class TestLoadCacheCandidates:
 
     def test_empty_cache_returns_empty_list(self):
         assert _complements.load_cache_candidates() == []
+
+
+class TestPrivateAmountNote:
+    """complements._amount_note(): the wrapper that turns a suggestion's gram
+    amount into a human hint ("about 2 tablespoons") using that food's OWN
+    cached portions — never a generic density guess.
+
+    Mutation-testing gap (2026-09-23): every existing assertion here compares a
+    suggestion's amount_note against portions.amount_note() computed in the
+    test, which never exercises this wrapper's own cache lookup. Gutting that
+    lookup — returning no portions for every food — silently drops the hint
+    from every suggestion in the app, and nothing noticed."""
+
+    def _cache_food_with_portion(self, db_conn, fdc_id=555):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json)"
+            " VALUES (?,?,?,?,?)",
+            (fdc_id, "Peanut butter", "SR Legacy", json.dumps(SAMPLE_NUTRIENTS),
+             json.dumps([{"description": "tablespoon", "gram_weight": 16.0}])),
+        )
+        db_conn.commit()
+        return fdc_id
+
+    def test_uses_the_food_s_own_cached_portion(self, db_conn):
+        fdc_id = self._cache_food_with_portion(db_conn)
+        note = _complements._amount_note(32.0, fdc_id)
+        assert note and "tablespoon" in note
+
+    def test_says_so_rather_than_guessing_when_there_are_no_portions(self, db_conn):
+        """No fdc_id means no portions to consult. The deliberate behavior is to
+        say there is no portion data — not to fall back on a density guess."""
+        note = _complements._amount_note(32.0, None)
+        assert "No portion/weight data" in note
+
+    def test_offers_a_fix_link_for_an_uncached_food(self, db_conn):
+        """With an fdc_id in hand it can point at that food's Portions page."""
+        note = _complements._amount_note(32.0, 999_999)
+        assert "No portion/weight data" in note
+        assert "/food/cache/999999/portions" in note
+
+    def test_no_hint_without_an_amount(self, db_conn):
+        fdc_id = self._cache_food_with_portion(db_conn, fdc_id=556)
+        assert _complements._amount_note(0, fdc_id) is None
+        assert _complements._amount_note(None, fdc_id) is None

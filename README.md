@@ -20,7 +20,7 @@ Anyone who wants to understand what they're actually eating — especially peopl
 
 ## Key features
 
-- **Food search** — search the USDA database and Open Food Facts; view detailed macro and micronutrient profiles
+- **Food search** — search six nutrition databases from five countries (USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK, Australian, and French national food composition tables); view detailed macro and micronutrient profiles
 - **Portion analysis** — analyze any quantity of any food against your personal RDA targets
 - **Recipes** — build, save, and fully analyze recipes; develop them interactively with live nutritional feedback
 - **Meal logging** — log meals by date; view and analyze what you ate; daily nutrition summary
@@ -31,6 +31,7 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Personalized nutrient targets** — set a custom "optimal" target above the standard RDA for any nutrient (e.g. higher Vitamin D for older adults), and custom max limits that warn you as you approach them
 - **Personal pantry** — keep a list of protein sources on hand; the complement advisor draws from it first
 - **Glycemic load tracking** — see the glycemic load of foods, recipes, and full meals
+- **Glycemic index lookup** — search the full published GI reference table (~2,500 entries) by food name, for normal or impaired glucose tolerance, and attach a value to any food in one click
 - **Nutrient trends over time** — average your intake over 7, 14, or 30 days, or plot any nutrient across your logged days, to catch a chronic shortfall a single day's numbers would hide
 - **CSV export/import** — move foods and recipes between installs, or edit them in a spreadsheet
 - **Archive** — hide a food, pantry entry, or recipe you're not currently using without deleting it

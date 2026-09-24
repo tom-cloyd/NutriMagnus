@@ -210,7 +210,7 @@ Agreed sequence: 6 → 2 → 1, hold 3/4/5 until those land.
     `.github/workflows/e2e-tests.yml` (plain `ubuntu-latest` runner, not
     `tests.yml`'s slim container, since `playwright install --with-deps`
     needs real apt access) runs `pytest -m e2e` on a weekly schedule
-    (`cron: "0 6 * * 6"` — Saturday, same day as the manual weekly sweep,
+    (`cron: "0 6 * * 4"` — Thursday, aligned with the manual weekly sweep,
     though the two run independently) plus `workflow_dispatch` for an
     on-demand run from the Actions tab. Deliberately not folded into
     `tests.yml`'s per-push job — see that file's own header comment and
@@ -1366,7 +1366,7 @@ Two parts, per the original plan:
   minutes to every push and a different flakiness profile to a currently
   100%-reliable fast check) — instead a new, separate
   `.github/workflows/e2e-tests.yml` runs `pytest -m e2e` on a weekly
-  schedule (Saturdays 06:00 UTC, same day as the manual weekly sweep, though
+  schedule (Thursdays 06:00 UTC, aligned with the manual weekly sweep, though
   independent of it) plus on-demand via `workflow_dispatch` ("Run workflow"
   in the Actions tab). **#4 is now fully closed, nothing further planned.**
 - **#5 — mutation testing.** Pilot (`diaas.py`), rotation group 1 (core
@@ -1584,7 +1584,7 @@ way:**
    as of 2026-09-09).
 2. Confirm CI is green on the latest push (GitHub Actions tab) — both
    `tests.yml` (every push) and, once it's had a chance to run on its
-   Saturday schedule or been triggered manually, `e2e-tests.yml`.
+   Thursday schedule or been triggered manually, `e2e-tests.yml`.
 3. **Done 2026-09-11** — item #3's fixture-recording step (needed your real
    USDA API key + live network) ran, and `tests/test_source_fixtures.py`
    is written and passing. See "Done (2026-09-11) — #3" above — this also

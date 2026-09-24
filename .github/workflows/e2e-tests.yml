@@ -17,10 +17,11 @@ name: E2E Tests
 
 on:
   schedule:
-    # Saturday 06:00 UTC — same day as the weekly maintenance sweep
+    # Thursday 06:00 UTC — lands just before the weekly maintenance sweep
+    # (Wednesday evening / Thursday morning), so its result is fresh for it
     # (README-numa-documentation.md's Maintenance section), though this
     # runs independently of that manual checklist.
-    - cron: "0 6 * * 6"
+    - cron: "0 6 * * 4"
   workflow_dispatch:
 
 jobs:

@@ -45,6 +45,8 @@ oxalate_source_data.py  — oxalate reference data compiled from a Harvard
                          build_oxalate_db.py
 build_oxalate_db.py     — one-time/refresh script: populates the committed
                          oxalate.db from oxalate_source_data.py
+version.py              — VERSION build stamp, RELEASE_VERSION, and
+                          NEW_VERSION_NOTE (see the bump rule below)
 platform_utils.py       — cross-platform config/data directory resolution
                          (Linux/macOS ~/.config, ~/.local/share; Windows
                          %APPDATA%/%LOCALAPPDATA% equivalents)

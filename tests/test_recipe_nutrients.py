@@ -346,3 +346,144 @@ class TestBestAANutrients:
         # True higher up, in has_amino_acid_data()'s "no protein" branch.
         result = _rn.best_aa_nutrients({}, "Lentils")
         assert result is None
+
+
+class TestRecipeAAIndicator:
+    """recipe_aa_indicator(): a recipe has no nutrient record of its own, so its
+    AA status comes from its expanded ingredient totals."""
+
+    def test_confirmed_when_ingredients_carry_full_aa_data(self, db_conn):
+        aa = {"protein_g": 20.0, "calories": 200.0,
+              "aa_tryptophan_g": 0.2, "aa_threonine_g": 0.8, "aa_isoleucine_g": 0.9,
+              "aa_leucine_g": 1.6, "aa_lysine_g": 1.4, "aa_methionine_g": 0.5,
+              "aa_valine_g": 1.0, "aa_histidine_g": 0.5, "aa_phenylalanine_g": 0.9}
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (11, "AA food", "SR Legacy", json.dumps(aa), "[]"))
+        rid = _db.recipe_create(db_conn, name="Full AA", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 11, "AA food", 100.0, "g")
+        assert _rn.recipe_aa_indicator(rid, db_conn) == "✓"
+
+    def test_missing_when_ingredients_have_protein_but_no_aa(self, db_conn):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (12, "Plain", "SR Legacy", json.dumps({"protein_g": 9.0, "calories": 100.0}), "[]"))
+        rid = _db.recipe_create(db_conn, name="No AA", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 12, "Plain", 100.0, "g")
+        assert _rn.recipe_aa_indicator(rid, db_conn) == "✗"
+
+    def test_warns_when_there_is_no_ingredient_data_at_all(self, db_conn):
+        """An empty recipe totals to {} — indistinguishable from a protein-free
+        food to has_amino_acid_data() alone, which is why aa_indicator() has a
+        separate no-macro-data branch."""
+        rid = _db.recipe_create(db_conn, name="Empty", description="", servings=1, instructions="")
+        assert _rn.recipe_aa_indicator(rid, db_conn) == "⚠"
+
+    def test_counts_a_sub_recipe_s_ingredients_too(self, db_conn, nested_recipe):
+        """The totals are recursive, so a sub-recipe's ingredients are what
+        decide the parent's status — here they carry protein and no amino
+        acids, which is an ✗ rather than the ⚠ an empty recipe would get."""
+        assert _rn.recipe_aa_indicator(nested_recipe["top_id"], db_conn) == "✗"
+
+
+class TestRecipeServingGrams:
+    """recipe_serving_grams(): stated total weight first, a complete ingredient
+    sum second, and nothing at all rather than a number known to be short."""
+
+    def test_uses_stated_total_weight(self, db_conn):
+        rid = _db.recipe_create(db_conn, name="Stated", description="", servings=4, instructions="",
+                                total_weight=1000.0, total_weight_unit="g")
+        assert _rn.recipe_serving_grams(rid, db_conn) == 250.0
+
+    def test_converts_a_non_gram_total_weight(self, db_conn):
+        """total_weight is stored as typed, with its unit — only total_volume is
+        normalized on save — so a lb/oz/kg recipe has to be converted."""
+        rid = _db.recipe_create(db_conn, name="Pounds", description="", servings=2, instructions="",
+                                total_weight=1.0, total_weight_unit="lb")
+        assert _rn.recipe_serving_grams(rid, db_conn) == pytest.approx(226.796, rel=1e-3)
+
+    def test_a_single_serving_recipe_is_its_whole_weight(self, db_conn):
+        """Mutation-testing gap (2026-09-23): every other case here uses 2+
+        servings, so nothing distinguished the `servings <= 0` guard from
+        `servings <= 1` — which would have returned None for every
+        single-serving recipe, the commonest kind there is."""
+        rid = _db.recipe_create(db_conn, name="One", description="", servings=1, instructions="",
+                                total_weight=320.0, total_weight_unit="g")
+        assert _rn.recipe_serving_grams(rid, db_conn) == 320.0
+
+    def test_a_weight_with_no_unit_recorded_is_read_as_grams(self, db_conn):
+        """Mutation-testing gap (2026-09-23): the `or "g"` default had no test,
+        so a recipe whose total_weight_unit is NULL — older rows, and anything
+        written outside the edit form — could have silently lost its weight."""
+        rid = _db.recipe_create(db_conn, name="Unitless", description="", servings=2, instructions="",
+                                total_weight=500.0)
+        db_conn.execute("UPDATE recipes SET total_weight_unit = NULL WHERE id = ?", (rid,))
+        assert _rn.recipe_serving_grams(rid, db_conn) == 250.0
+
+    def test_falls_back_to_a_complete_ingredient_sum(self, db_conn):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (13, "Thing", "SR Legacy", json.dumps({"protein_g": 1.0}), "[]"))
+        rid = _db.recipe_create(db_conn, name="Summed", description="", servings=2, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 13, "Thing", 300.0, "g")
+        assert _rn.recipe_serving_grams(rid, db_conn) == 150.0
+
+    def test_none_when_the_ingredient_sum_is_incomplete(self, db_conn):
+        """A zero-amount ingredient makes the sum a lower bound; a serving
+        weight quietly short by an unknown amount is worse than none."""
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (14, "Thing", "SR Legacy", json.dumps({"protein_g": 1.0}), "[]"))
+        rid = _db.recipe_create(db_conn, name="Partial", description="", servings=2, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 14, "Thing", 300.0, "g")
+        _db.recipe_add_ingredient(db_conn, rid, 14, "Thing", 0.0, "g")
+        assert _rn.recipe_serving_grams(rid, db_conn) is None
+
+    def test_none_for_an_empty_recipe(self, db_conn):
+        rid = _db.recipe_create(db_conn, name="Nothing", description="", servings=2, instructions="")
+        assert _rn.recipe_serving_grams(rid, db_conn) is None
+
+    def test_none_when_servings_is_zero(self, db_conn):
+        rid = _db.recipe_create(db_conn, name="Zero", description="", servings=1, instructions="",
+                                total_weight=500.0, total_weight_unit="g")
+        db_conn.execute("UPDATE recipes SET servings = 0 WHERE id = ?", (rid,))
+        assert _rn.recipe_serving_grams(rid, db_conn) is None
+
+    def test_none_for_a_missing_recipe(self, db_conn):
+        assert _rn.recipe_serving_grams(99999, db_conn) is None
+
+
+class TestASkippedIngredientDoesNotStopTheRest:
+    """Mutation-testing gaps (2026-09-23), same shape in two functions: each
+    loop skips an unusable ingredient with `continue`, and nothing caught that
+    `continue` becoming `break` — which would silently drop every ingredient
+    after the unusable one, understating the recipe rather than failing."""
+
+    def _good_food(self, db_conn, fdc_id=21, protein=10.0):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (fdc_id, f"Good {fdc_id}", "SR Legacy",
+             json.dumps({"protein_g": protein, "calories": 100.0}), "[]"))
+
+    def test_expand_keeps_going_past_an_uncached_food(self, db_conn):
+        self._good_food(db_conn)
+        rid = _db.recipe_create(db_conn, name="Mixed", description="", servings=1, instructions="")
+        # 777 is not in the foods table at all — the uncached case.
+        _db.recipe_add_ingredient(db_conn, rid, 777, "Missing", 100.0, "g")
+        _db.recipe_add_ingredient(db_conn, rid, 21, "Good 21", 50.0, "g")
+        db_conn.commit()
+
+        leaves = _rn.expand_recipe_ingredients(rid, db_conn)
+        assert [leaf["fdc_id"] for leaf in leaves] == [21]
+
+    def test_atomic_keeps_going_past_a_deleted_sub_recipe(self, db_conn):
+        self._good_food(db_conn, fdc_id=22)
+        sub_id = _db.recipe_create(db_conn, name="Doomed sub", description="", servings=1, instructions="")
+        rid = _db.recipe_create(db_conn, name="Parent", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 0, "Doomed sub", 1.0, "serving", ref_recipe_id=sub_id)
+        _db.recipe_add_ingredient(db_conn, rid, 22, "Good 22", 100.0, "g")
+        _db.recipe_delete(db_conn, sub_id)       # sets ref_recipe_deleted, nulls the id
+        db_conn.commit()
+
+        items = _rn.atomic_recipe_ingredients(rid, db_conn)
+        assert [i["fdc_id"] for i in items] == [22]

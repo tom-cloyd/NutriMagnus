@@ -113,3 +113,64 @@ def test_gi_lookup_row_click_fills_the_gi_field(live_server, page):
     save = page.query_selector("#save-annotation-btn")
     assert "btn-save-pending" in save.get_attribute("class")
     assert page.evaluate("document.activeElement.id") == "save-annotation-btn"
+
+
+def test_meal_item_submits_save_the_scroll_offset(live_server, page):
+    """Editing/adding/removing a meal item posts and redirects back to the same
+    page — a fresh navigation, which the browser scrolls to the top. meal.html
+    saves the offset in sessionStorage just before those submits and restores
+    it on the way back.
+
+    What is checked here is the save half, and specifically the action-URL test
+    that gates it: that regex is the part that silently stops matching when a
+    route is renamed or added, and nothing else would notice. Restoring is one
+    scrollTo on the next load. Deliberately not asserting a pixel offset after
+    a real round trip: page height, viewport and the add-panel's own autofocus
+    all move that number around, and a test tuned to them would break for
+    reasons that have nothing to do with this feature."""
+    resp = page.request.post(f"{live_server}/meals/create",
+                             form={"name": "Scroll Test Meal", "meal_date": "2026-09-23"})
+    assert resp.ok
+    meal_url = resp.url
+    meal_id = meal_url.rstrip("/").split("/")[-1]
+
+    page.goto(f"{meal_url}?q=Chickpeas")
+    page.wait_for_selector("input[name=portion_str]")   # visible; fdc_id beside it is hidden
+    add = page.request.post(
+        f"{live_server}/meal/{meal_id}/add",
+        form={"fdc_id": page.get_attribute("input[name=fdc_id]", "value"),
+              "food_name": page.get_attribute("input[name=food_name]", "value"),
+              "off_code": "", "q": "", "portion_str": "100"})
+    assert add.ok
+
+    page.goto(f"{meal_url}?q=")
+    page.wait_for_selector("details.popup-edit")
+    key = f"numa-meal-scroll-{meal_id}"
+    assert page.evaluate(f"sessionStorage.getItem('{key}')") is None
+
+    # A bubbling submit event runs the page's listener without navigating, so
+    # this observes exactly what the listener does with this form's action.
+    saved = page.evaluate("""() => {
+        window.scrollTo(0, 120);
+        // By action, not position: the first popup-edit form on the page is
+        // Rename / change date, which correctly does NOT save an offset.
+        const form = document.querySelector("form[action*='/update/']");
+        form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+        return sessionStorage.getItem('numa-meal-scroll-""" + meal_id + """');
+    }""")
+    assert saved is not None, (
+        "submitting a meal item's edit form no longer matches the action-URL "
+        "test in meal.html's scroll-restore script"
+    )
+
+    # And a form that does not change the item list must NOT hijack the offset.
+    page.goto(f"{meal_url}?q=")
+    ignored = page.evaluate("""() => {
+        sessionStorage.clear();
+        const f = document.createElement('form');
+        f.setAttribute('action', '/settings');
+        document.body.appendChild(f);
+        f.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
+        return sessionStorage.length;
+    }""")
+    assert ignored == 0

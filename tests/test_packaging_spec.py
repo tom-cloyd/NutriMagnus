@@ -41,3 +41,45 @@ def test_every_backend_root_file_is_bundled_in_the_spec():
         "in a dev checkout, since _PROJECT_ROOT only equals the repo root "
         "unpackaged."
     )
+
+
+# ── README test-suite section ─────────────────────────────────────────────
+# The "## Test Suite" section of README-numa-documentation.md is hand-written
+# and was only ever checked by the monthly accuracy pass, so it drifted badly
+# (it claimed 733 tests when the suite had grown past 1,100, and was missing
+# a dozen test files). The mechanical parts of it are checkable on every run,
+# which is what this does — the prose descriptions still need a human.
+
+_README = _PROJECT_ROOT / "README-numa-documentation.md"
+# Infrastructure, not test files: no behavior of their own to describe, and
+# the e2e directory gets its own prose section rather than table rows.
+_NOT_TABLE_ROWS = {"tests/__init__.py", "tests/conftest.py"}
+
+
+def _readme_listed_test_files() -> set[str]:
+    rows = re.findall(r"^\|\s*`(tests/[\w/]+\.py)`", _README.read_text(encoding="utf-8"), re.M)
+    return set(rows)
+
+
+def _actual_test_files() -> set[str]:
+    return {
+        p.relative_to(_PROJECT_ROOT).as_posix()
+        for p in (_PROJECT_ROOT / "tests").rglob("test_*.py")
+        if "__pycache__" not in p.parts and "e2e" not in p.parts
+    }
+
+
+def test_readme_test_table_lists_every_test_file():
+    missing = _actual_test_files() - _readme_listed_test_files() - _NOT_TABLE_ROWS
+    assert not missing, (
+        f"README-numa-documentation.md's Test Suite table is missing {sorted(missing)} — "
+        "add a row describing what each one covers."
+    )
+
+
+def test_readme_test_table_has_no_rows_for_deleted_files():
+    stale = {f for f in _readme_listed_test_files() if not (_PROJECT_ROOT / f).exists()}
+    assert not stale, (
+        f"README-numa-documentation.md's Test Suite table still lists {sorted(stale)}, "
+        "which no longer exist."
+    )

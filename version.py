@@ -1,4 +1,4 @@
-VERSION = "2026-09-23:2023"
+VERSION = "2026-09-23:2133"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.21"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "the database itself now refuses to delete a food still in use"
+NEW_VERSION_NOTE = "mutation testing closed six real test gaps in this week code"
