@@ -592,6 +592,73 @@
   </form>
 </details>
 
+{# ── Glycemic index reference table ───────────────────────────────────── #}
+{# Read-only status, not a setting: which edition answers a GI lookup depends
+   on whether a gi_data_local.json exists, and both its arrival and its
+   disappearance are otherwise invisible. Deliberately opens itself when the
+   bundled 2008 fallback is what is in use, since that is the state a user is
+   most likely not to have noticed. #}
+<details id="gi-table" {% if gi_table.edition != 2021 %}open{% endif %}>
+  <summary><strong>Glycemic Index Reference Table</strong>
+    {% if gi_table.edition == 2021 %}
+    <span class="status-met"> — 2021 edition, {{ "{:,}".format(gi_table.rows) }} foods</span>
+    {% elif gi_table.edition == 2008 %}
+    <span class="muted"> — 2008 edition (bundled), {{ "{:,}".format(gi_table.rows) }} foods</span>
+    {% else %}
+    <span class="text-danger"> — none found</span>
+    {% endif %}
+  </summary>
+
+  <p class="mt-2">Which published table answers the GI lookup on a food's
+  <a href="/food/annotate">Annotate</a> page {{ manual_link("gi") }}. NuMa ships the 2008
+  edition, which is Creative Commons licensed. The 2021 edition is over 4,000 foods, each
+  with the year its study was run, but its licence permits text and data mining while
+  forbidding redistribution — so NuMa ships the program that builds it and never the
+  result. You build your own copy, from your own access to the published tables.
+  {{ manual_link("gi-editions") }}</p>
+
+  {% if gi_table.edition == 2021 %}
+  <p class="status-met mt-2"><strong>&#10003; Your locally-built 2021 table is in use.</strong></p>
+  <table class="nutrient-table mt-2" style="max-width:40rem">
+    <tbody>
+      <tr><td>In use</td><td><strong>2021 edition</strong> (locally built, supersedes the bundled table)</td></tr>
+      <tr><td>File</td><td><code>{{ gi_table.path }}</code></td></tr>
+      <tr><td>Built</td><td>{{ gi_table.built }}</td></tr>
+      <tr><td>Foods</td><td>{{ "{:,}".format(gi_table.rows) }} —
+        {{ "{:,}".format(gi_table.rows_2021) }} from the 2021 edition,
+        {{ gi_table.rows_2008 }} carried forward from 2008 for foods 2021 does not appear to cover</td></tr>
+      <tr><td>Subject groups</td><td>{{ "{:,}".format(gi_table.normal) }} normal glucose tolerance
+        &middot; {{ gi_table.impaired }} impaired &middot; {{ gi_table.unknown }} not stated</td></tr>
+    </tbody>
+  </table>
+  <p class="mt-2 muted"><small>Every lookup result names the edition it came from, and so does the
+  provenance line saved with a GI value you pick. Delete, rename or move that file and the lookup
+  silently falls back to the bundled 2008 table — this section is where to check.</small></p>
+  {% elif gi_table.edition == 2008 %}
+  <p class="mt-2"><strong>The bundled 2008 table is in use.</strong> No locally-built 2021 table
+  was found, so lookup results carry no year of test.</p>
+  <table class="nutrient-table mt-2" style="max-width:40rem">
+    <tbody>
+      <tr><td>In use</td><td><strong>2008 edition</strong> (bundled with NuMa)</td></tr>
+      <tr><td>File</td><td><code>{{ gi_table.path }}</code></td></tr>
+      <tr><td>Foods</td><td>{{ "{:,}".format(gi_table.rows) }}</td></tr>
+      <tr><td>Subject groups</td><td>{{ "{:,}".format(gi_table.normal) }} normal glucose tolerance
+        &middot; {{ gi_table.impaired }} impaired &middot; {{ gi_table.unknown }} not stated</td></tr>
+    </tbody>
+  </table>
+  <p class="mt-2">To use the 2021 edition instead: download both supplemental table PDFs from the
+  publisher's own page for the article, then run</p>
+  <pre class="border rounded p-2" style="font-size:0.85rem"><code>python scripts/build_gi_data.py supp_table_1.pdf supp_table_2.pdf</code></pre>
+  <p class="muted"><small>NuMa picks the result up automatically, with no restart needed beyond the
+  next lookup. It is looked for at these paths, in this order:</small></p>
+  <ul class="muted"><small>{% for path in gi_table_candidates %}<li><code>{{ path }}</code></li>{% endfor %}</small></ul>
+  {% else %}
+  <p class="numa-error mt-2"><strong>No GI reference table could be read at all.</strong>
+  The lookup on the Annotate page will find nothing. The bundled table,
+  <code>gi_data.json</code>, appears to be missing from this install.</p>
+  {% endif %}
+</details>
+
 {# ── 10. System issues ───────────────────────────────────────────────── #}
 <details id="system-issues" {% if recompute_errors %}open{% endif %}>
   <summary data-ak="0"><u class="ak">0</u>. <strong>System Issues</strong>

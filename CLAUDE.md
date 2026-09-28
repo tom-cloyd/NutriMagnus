@@ -4,6 +4,11 @@ Nutritional analysis web app (FastAPI). USDA FoodData Central + Open Food Facts.
 
 Full architecture docs: `README-numa-documentation.md`
 
+**Weekly maintenance sweep** — the nine numbered items live in that same file, under
+`## Maintenance` → `### Weekly sweep`, each one its own `#### N. Title` heading so it can be
+linked by number (the README's Table of Contents lists all nine directly). Longer-cadence
+checks — monthly, quarterly, annual — follow the nine items, under *Longer-cadence checks*.
+
 ---
 
 ## Run / Test
@@ -57,10 +62,21 @@ import_json_folder.py   — import one food per JSON file dropped into
 import_gi_seed.py       — bulk-apply exact-name GI matches from a small
                          62-item starter set (see gi_lookup.py for the full
                          reference table, used by the web Annotate page)
-gi_lookup.py            — fuzzy name search over the full Foster-Powell GI
-                         reference table (gi_data.json, built by
-                         scripts/build_gi_data.py); powers the web Annotate
-                         page's GI lookup
+gi_lookup.py            — fuzzy name search over the bundled GI reference
+                         table; powers the web Annotate page's GI lookup.
+                         TWO tables are possible: gi_data.json (the Creative
+                         Commons 2008 edition, committed and shipped) and
+                         gi_data_local.json (built from the Atkinson 2021
+                         tables by scripts/build_gi_data.py, preferred when
+                         present). NEVER commit or bundle the latter — the
+                         2021 licence permits text/data mining but forbids
+                         redistribution; tests enforce both. Population is a
+                         per-row field, NOT a property of which published
+                         table a row came from (the 2021 split is ISO method
+                         compliance) — read that script's docstring before
+                         touching either file.
+                         scripts/build_gi_data_2008.py is the superseded
+                         2008-edition ingest, kept but not part of a build.
 numa_gen_prompt.py      — generate a Claude nutrition-data request prompt
                          (interactive, --pantry, or from a food-list file)
 numa_import_claude.py   — parse a Claude nutrition response (```json blocks)

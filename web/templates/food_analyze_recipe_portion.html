@@ -456,9 +456,7 @@
     <p>
       <strong>Glycemic load:</strong> {{ gl.total }}
       <small class="muted">&mdash;
-        {% if gl.total < 10 %}Low
-        {% elif gl.total < 20 %}Medium
-        {% else %}High{% endif %}
+        {{ gl_band(gl.total, "serving") }}
       </small>
     </p>
     {% else %}

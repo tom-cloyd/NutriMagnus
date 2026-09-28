@@ -71,8 +71,12 @@
       <li class="muted" style="font-size:0.9em">
         {{ it.food_name }}{{ food_id_tag(it.fdc_id, recipe_id=it.recipe_id) }}
         &mdash;
-        {% if it.unit %}{{ it.unit }}
-        {% elif it.amount %}{{ it.amount | round(1) }}&thinsp;g
+        {# Amount first, then its unit ("150 g", "1 servings") — the unit on
+           its own says nothing about how much was eaten. Every item carries
+           a unit ("g" for foods, "servings" for recipes), so the amount was
+           previously never shown here at all. #}
+        {% if it.amount is not none %}{{ it.amount | round(1) }}&thinsp;{{ it.unit or "g" }}
+        {% elif it.unit %}{{ it.unit }}
         {% endif %}
         {% if it.item_type == "recipe" and it.recipe_deleted %}<small class="text-danger">(recipe deleted)</small>
         {% elif it.item_type == "recipe" %}<small>(recipe)</small>{% endif %}
@@ -369,12 +373,10 @@
     {% if gl.total is not none %}
     <p>
       <strong>Glycemic load:</strong> {{ gl.total }}
-      <small class="muted">&mdash;
-        {% if gl.total < 10 %}Low
-        {% elif gl.total < 20 %}Medium
-        {% else %}High{% endif %}
-      </small>
+      <small class="muted">&mdash; {{ gl_band(gl.total, "day") }}</small>
     </p>
+    <p class="muted"><small>{{ gl_band_caveat("day") }}</small></p>
+    <p class="muted"><small>Per-meal figures are banded on the separate per-serving scale &mdash; low 10 or under, medium 11&ndash;19, high 20 or more &mdash; so a day total and a meal total are not read against the same numbers.</small></p>
     {% else %}
     <p class="muted">GL cannot be computed &mdash; missing GI annotations for:</p>
     <ul class="list-unstyled ms-2">

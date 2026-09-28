@@ -172,7 +172,9 @@ def main() -> None:
 
     with _db.get_db() as conn:
         for gi_name, gi_value, category, row in exact_matches:
-            _db.upsert_food_annotation(conn, row["fdc_id"], gi_estimate=float(gi_value))
+            _db.upsert_food_annotation(conn, row["fdc_id"], gi_estimate=float(gi_value),
+                                       gi_source=f"{_SOURCE_NOTE} Matched on the exact name "
+                                                 f"\u201c{gi_name}\u201d.")
 
     print(f"\nWrote GI values for {len(exact_matches)} food(s).")
     print(f"Note: {_SOURCE_NOTE}")

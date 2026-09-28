@@ -55,7 +55,7 @@
     <tr>
       <td><strong>{{ food.name }}</strong></td>
       <td class="muted">{{ food.data_type or "—" }}</td>
-      <td class="text-center muted">
+      <td class="text-center muted"{% if food.gi_source %} title="GI value taken from: {{ food.gi_source }}"{% endif %}>
         {{ "%.0f"|format(food.gi) if food.gi is not none else "—" }}
       </td>
       <td class="text-center muted">
@@ -86,9 +86,19 @@
 {% endif %}
 
 {% if next and missing %}
+{# settled = the estimate NuMa is NOT asking about on this visit (it has a
+   value, or its "don't prompt" box is ticked). Naming it explicitly stops
+   the page reading as a repeat of a prompt the user already dealt with --
+   the form shows both estimates either way, so without this the DIAAS
+   prompt and the GI prompt look identical. #}
+{% set settled = ['GI', 'DIAAS'] | reject('in', missing) | list %}
+{% if settled %}
+<p class="muted mb-1"><strong>{{ settled | join(' and ') }} {{ 'is' if settled | length == 1 else 'are' }} already settled for this food</strong> — NuMa is not asking about {{ 'that one' if settled | length == 1 else 'those' }} again. Only {{ missing | join(' and ') }} below {{ 'is' if missing | length == 1 else 'are' }} still open.</p>
+{% endif %}
 <p class="muted">No {{ missing | join(' or ') }} estimate on file for this food yet. Add {{ 'one' if missing | length == 1 else 'them' }} now, skip for this time only (you'll be asked again next time), or skip forever (add {{ 'it' if missing | length == 1 else 'them' }} later via Annotate a Food if you change your mind). Once a value is saved you won't be asked for it again — edit it from the GI/DIAAS columns on the add-food list, or from Annotate a Food.</p>
 {% endif %}
 
+<div class="d-flex flex-wrap align-items-start gap-4">
 <div class="card" style="max-width:36rem">
   <div class="card-body">
     <form method="post" action="/food/annotate/{{ fdc_id }}"
@@ -96,14 +106,61 @@
       {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
       <div class="mb-3">
-        <label for="gi_estimate" class="form-label">GI estimate <span class="muted">(0–100, optional)</span></label>
+        <label for="gi_estimate" class="form-label">GI estimate <span class="muted">(0–100, optional)</span>
+          {% if next and missing %}{% if 'GI' in missing %}<span class="badge text-bg-warning ms-1">Asking for this one</span>{% else %}<span class="badge text-bg-secondary ms-1">Settled — not being asked about</span>{% endif %}{% endif %}
+        </label>
         <input type="number" class="form-control" id="gi_estimate" name="gi_estimate"
                value="{{ annotation.gi_estimate if annotation and annotation.gi_estimate is not none else '' }}"
                min="0" max="100" step="0.1" placeholder="Leave blank if unknown">
 
+        {# Provenance of the GI value: filled in by the lookup below when you pick
+           a row, cleared by it if you then type over the number by hand. Saved
+           with the annotation and shown on the food's own page. #}
+        <input type="hidden" id="gi_source" name="gi_source"
+               value="{{ annotation.gi_source if annotation and annotation.gi_source else '' }}">
+        <p class="muted mt-1 mb-0" id="gi-source-line"
+           style="font-size:0.85rem{% if not (annotation and annotation.gi_source) %};display:none{% endif %}">
+          <strong>Value taken from:</strong> <span id="gi-source-text">{{ annotation.gi_source if annotation and annotation.gi_source else '' }}</span>
+        </p>
+
         <details class="mt-2" id="gi-lookup-details">
-          <summary class="muted">Look up a GI value from the published reference table {{ manual_link("gi") }}</summary>
+          {# Which edition answers this lookup is an install-level fact nothing
+             else on the page reveals, and a locally-built 2021 table both
+             appears and disappears silently. Badge on the closed summary so it
+             is visible without opening the panel; full detail inside. #}
+          <summary class="muted">Look up a GI value from the published reference table {{ manual_link("gi") }}
+            {% if gi_table and gi_table.edition == 2021 %}
+            <span class="badge text-bg-success ms-1" title="Answered from your own locally-built 2021 table">2021 edition</span>
+            {% elif gi_table and gi_table.edition == 2008 %}
+            <span class="badge text-bg-secondary ms-1" title="Answered from the 2008 table bundled with NuMa. No local 2021 table was found.">2008 edition</span>
+            {% else %}
+            <span class="badge text-bg-danger ms-1" title="No GI reference table could be read at all">no table found</span>
+            {% endif %}
+          </summary>
           <div class="border rounded p-2 mt-2" style="max-width:34rem">
+            {% if gi_table and gi_table.edition == 2021 %}
+            <p class="mb-2" style="font-size:0.85rem">
+              <strong>Searching your local 2021 table</strong> &mdash; {{ "{:,}".format(gi_table.rows) }} foods
+              ({{ "{:,}".format(gi_table.rows_2021) }} from the 2021 edition, {{ gi_table.rows_2008 }} carried
+              forward from 2008), built {{ gi_table.built }}.
+              <span class="muted">Each result below says which edition it came from. Remove that file and this
+              lookup drops back to the bundled 2008 table.</span>
+              <a href="/settings#gi-table">Details in Settings</a>
+            </p>
+            {% elif gi_table and gi_table.edition == 2008 %}
+            <p class="mb-2" style="font-size:0.85rem">
+              <strong>Searching the bundled 2008 table</strong> &mdash; {{ "{:,}".format(gi_table.rows) }} foods,
+              with no year of test recorded.
+              <span class="muted">You have not built the 2021 table (over 4,000 foods, each with the year it was
+              tested); licensing prevents NuMa from shipping it.</span>
+              <a href="/settings#gi-table">How to build it</a>
+            </p>
+            {% else %}
+            <p class="numa-error mb-2" style="font-size:0.85rem">
+              <strong>No GI reference table could be read</strong> &mdash; this lookup will find nothing.
+              <a href="/settings#gi-table">Details in Settings</a>
+            </p>
+            {% endif %}
             <div class="input-group input-group-sm mb-2">
               <input type="text" class="form-control" id="gi-lookup-query" value="{{ food_name }}" placeholder="Search food name…">
               <select class="form-select" id="gi-lookup-population" style="max-width:12rem">
@@ -119,7 +176,9 @@
       </div>
 
       <div class="mb-3">
-        <label for="diaas_estimate" class="form-label">DIAAS estimate <span class="muted">(0–2.0, optional)</span></label>
+        <label for="diaas_estimate" class="form-label">DIAAS estimate <span class="muted">(0–2.0, optional)</span>
+          {% if next and missing %}{% if 'DIAAS' in missing %}<span class="badge text-bg-warning ms-1">Asking for this one</span>{% else %}<span class="badge text-bg-secondary ms-1">Settled — not being asked about</span>{% endif %}{% endif %}
+        </label>
         <input type="number" class="form-control" id="diaas_estimate" name="diaas_estimate"
                value="{{ annotation.diaas_estimate if annotation and annotation.diaas_estimate is not none else '' }}"
                min="0" max="2.0" step="0.01" placeholder="Leave blank if unknown">
@@ -152,7 +211,11 @@
          and saying so here stops people ticking a box they don't need. #}
       <p class="muted mb-3"><small>You only need these two boxes if you are leaving a value
         blank on purpose. Saving a GI or DIAAS estimate already stops NuMa asking for that
-        one again.</small></p>
+        one again. Either way, once you click <strong>Save annotation</strong> this food stops
+        interrupting you when you add it to a meal or pantry — come back here any time via
+        Annotate a Food to fill in whatever you left blank. Use
+        <strong>Skip for now</strong> instead if you would rather be asked again next
+        time.</small></p>
 
       <button type="submit" class="btn btn-outline-secondary" id="save-annotation-btn">Save annotation</button>
       {% if next %}
@@ -179,6 +242,77 @@
   </div>
 </div>
 
+{# Side panel: the GI lookup shows each match's subject population and the
+   study's own method, both of which are meaningless without explanation.
+   Full version lives in the manual under "How to read a lookup result". #}
+<aside class="gi-lookup-guide small" style="flex:1 1 20rem; min-width:18rem; max-width:30rem">
+  <h5 class="h6">Reading a GI database lookup result {{ manual_link("gi-result-row", "Learn more") }}</h5>
+  {% if gi_table and gi_table.edition == 2021 %}
+  <p class="mb-1"><span class="badge text-bg-success">2021 edition</span> is answering these
+    lookups, so a row also carries the year its study was run.</p>
+  <p>Each result is one row of NuMa's GI database. A search for
+    <em>black beans</em> can return a row like this:</p>
+  <pre class="border rounded p-2 mb-2" style="white-space:pre-wrap"><code>Beans, dried, boiled, type NS (Italy)16
+GI 20 ±4 · tested 1992 · non-ISO method
+Impaired glucose tolerance (Type 2, n=8) · ref 76</code></pre>
+  {% else %}
+  <p class="mb-1"><span class="badge text-bg-secondary">2008 edition</span> is answering these
+    lookups — the table bundled with NuMa. Its rows carry no year of test.
+    <a href="/settings#gi-table">Use the 2021 edition instead</a></p>
+  <p>Each result is one row of NuMa's GI database. A search for
+    <em>black beans</em> can return a row like this:</p>
+  <pre class="border rounded p-2 mb-2" style="white-space:pre-wrap"><code>Beans, dried, boiled, type NS (Italy)16
+GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
+  {% endif %}
+  <ul class="ps-3">
+    <li><strong>type NS</strong> — type not specified; the study didn't record which bean.
+      A trailing small number (<strong>16</strong>) is the published table's own footnote
+      marker, not part of the name.</li>
+    <li><strong>GI 20</strong> — always on the glucose = 100 scale, the one NuMa uses
+      everywhere. No rescaling needed, whatever the study's reference food was.
+      {% if gi_table and gi_table.edition == 2021 %}A <strong>±</strong> figure is the
+      study's standard error {{ manual_link("gloss-standard-error", "?") }}.{% endif %}</li>
+    {% if gi_table and gi_table.edition == 2021 %}
+    <li><strong>tested 1992</strong> — when the study was run, not when it was published: a
+      commercial product measured decades ago may have been reformulated since. Hover it to
+      see which edition and published table the row came from.
+      A row reading <strong>2008 edition</strong> instead was carried forward from the older
+      table because 2021 does not appear to cover that food, and has no year on record.</li>
+    <li><strong>non-ISO method</strong> — flags a 2021 row whose study deviated from the ISO
+      26642:2010 standard — fewer than ten subjects, an unusual carbohydrate portion, or
+      widely scattered results. Prefer a row without it when one exists.</li>
+    {% else %}
+    <li><strong>2008 edition</strong> — every row says this, because it is the only table
+      this install has. The 2021 edition would give the year each study was run and flag the
+      ones with weaker method. <a href="/settings#gi-table">How to add it</a></li>
+    {% endif %}
+    <li><strong>Impaired</strong> — who the food was tested in, not a claim about the food:
+      glucose-intolerant or diabetic subjects, whose blood glucose responds differently.
+      With normal glucose tolerance, prefer a <strong>Normal</strong> row when one exists.
+      {% if gi_table and gi_table.edition == 2021 %}On a <strong>2021</strong> row this is
+      the study's own reported subject group, shown after it in brackets. On a
+      <strong>2008</strong> row it is which of that edition's two tables the row sat in,
+      which is all that edition recorded.{% else %}On these <strong>2008</strong> rows it is
+      which of that edition's two tables the row sat in — all that edition recorded — so it
+      also picks up some rows flagged only for very few subjects or widely scattered
+      results. Be sceptical of extreme Impaired values.{% endif %}
+      {{ manual_link("gi-populations", "Learn more") }}</li>
+    <li><strong>ref {% if not (gi_table and gi_table.edition == 2021) %}Bread, 2h {% endif %}76</strong>
+      — which source study the value came from ({% if gi_table and gi_table.edition == 2021 %}<strong>76</strong>{% else %}the
+      trailing <strong>76</strong>{% endif %}; a <strong>UO</strong> code means unpublished
+      observations){% if not (gi_table and gi_table.edition == 2021) %}, and the study's
+      method: the comparison food it fed (<strong>Bread</strong>, or Glucose) and how long
+      blood glucose was tracked (<strong>2h</strong>){% endif %}.</li>
+  </ul>
+  <p class="mb-0"><strong>What NuMa saves:</strong> the number, plus a one-line record of the
+    row you took it from — shown under the GI box here and on the food's own page, so you can
+    always see where a value came from. Type over the number by hand and that record is dropped,
+    since it would no longer describe the value. Glycemic load is never imported: NuMa computes
+    it live from this food's own carbohydrate content and the amount you eat.
+    {{ manual_link("gi-what-is-stored", "Learn more") }}</p>
+</aside>
+</div>
+
 <script>
 (function () {
   var searchBtn = document.getElementById('gi-lookup-search');
@@ -189,6 +323,23 @@
   var giInput    = document.getElementById('gi_estimate');
   var detailsBox = document.getElementById('gi-lookup-details');
   var saveBtn    = document.getElementById('save-annotation-btn');
+  var srcInput   = document.getElementById('gi_source');
+  var srcLine    = document.getElementById('gi-source-line');
+  var srcText    = document.getElementById('gi-source-text');
+
+  function setSource(text) {
+    if (!srcInput) return;
+    srcInput.value = text || '';
+    if (srcText) srcText.textContent = text || '';
+    if (srcLine) srcLine.style.display = text ? '' : 'none';
+  }
+
+  // A hand-typed number is nobody else's value, so the saved provenance of the
+  // previous one has to go with it — otherwise the food's page would cite a
+  // reference-table row that no longer has anything to do with the figure shown.
+  if (giInput) {
+    giInput.addEventListener('input', function () { setSource(''); });
+  }
 
   // Picking a value clears the results list and closes the lookup panel
   // outright: a note at the foot of a long list of matches is missed, but the
@@ -197,6 +348,7 @@
   // then highlighted and focused so it can't be walked past.
   function usePick(row) {
     giInput.value = row.getAttribute('data-gi');
+    setSource(row.getAttribute('data-source'));
     resultsBox.innerHTML = '';
     if (detailsBox) detailsBox.open = false;
     giInput.classList.remove('field-just-set');
@@ -223,13 +375,62 @@
       }
       var html = '<table class="table table-sm table-hover mb-0"><tbody>';
       results.forEach(function (r, i) {
-        var popLabel = r.population === 'impaired' ? 'Impaired' : 'Normal';
+        var popLabel = r.population === 'impaired' ? 'Impaired glucose tolerance'
+                     : r.population === 'unknown'  ? 'Subject group not stated'
+                     :                               'Normal glucose tolerance';
+        if (r.subjects_type && r.subjects_n) {
+          popLabel += ' (' + r.subjects_type + ', n=' + r.subjects_n + ')';
+        } else if (r.subjects_type) {
+          popLabel += ' (' + r.subjects_type + ')';
+        }
         var safeName = r.name.replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        var giText = 'GI ' + r.gi_glucose + (r.sem !== null ? ' \u00b1' + r.sem : '');
+
+        // The date of the study, not of the edition it was published in: a
+        // value measured on a commercial product decades ago may no longer
+        // describe today's product. 2008-edition rows never had a year
+        // captured, so they say so rather than borrowing the edition's.
+        var dateText, dateTitle;
+        if (r.edition === 2008) {
+          dateText = '2008 edition';
+          dateTitle = 'Carried forward from the 2008 edition, which 2021 does '
+                    + 'not appear to cover. Year of test was not recorded by '
+                    + 'that edition.';
+        } else {
+          dateText = r.year ? ('tested ' + r.year) : 'year not stated';
+          dateTitle = '2021 edition, '
+                    + (r.iso ? 'Supplemental Table 1 (method consistent with ISO 26642:2010)'
+                             : 'Supplemental Table 2 (method deviations or wide variability)');
+          if (r.country) dateTitle += '. Food produced in ' + r.country + '.';
+        }
+        var quality = (r.edition === 2021 && !r.iso) ? ' \u00b7 non-ISO method' : '';
+
+        // Saved with the value as its provenance: edition and published table,
+        // the row's own food name, when and where it was tested, and who in.
+        var source;
+        if (r.edition === 2008) {
+          source = 'Atkinson 2008 international GI tables (carried forward; '
+                 + 'year of test not recorded): \u201c' + r.name + '\u201d'
+                 + ' \u00b7 ' + popLabel;
+        } else {
+          source = 'Atkinson 2021 international GI tables, '
+                 + (r.iso ? 'Supplemental Table 1 (ISO 26642:2010 method)'
+                          : 'Supplemental Table 2 (method deviations)')
+                 + ': \u201c' + r.name + '\u201d'
+                 + (r.year ? ' \u00b7 tested ' + r.year : '')
+                 + (r.country ? ', ' + r.country : '')
+                 + ' \u00b7 ' + popLabel;
+        }
+        if (r.ref) source += ' \u00b7 ref ' + r.ref;
+        var safeSource = source.replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        var safeTitle  = dateTitle.replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
         html += '<tr class="gi-pick-row" data-gi="' + r.gi_glucose + '" data-name="' + safeName +
-          '" title="Use this GI value">' +
+          '" data-source="' + safeSource + '" title="Use this GI value">' +
           '<td>' + safeName + '</td>' +
-          '<td class="text-nowrap">GI ' + r.gi_glucose + '</td>' +
-          '<td class="text-nowrap muted">' + popLabel + (r.ref ? ' · ref ' + r.ref : '') + '</td>' +
+          '<td class="text-nowrap">' + giText + '</td>' +
+          '<td class="text-nowrap muted" title="' + safeTitle + '">' + dateText + quality + '</td>' +
+          '<td class="muted">' + popLabel + (r.ref ? ' \u00b7 ref ' + r.ref : '') + '</td>' +
           '<td><button type="button" class="btn btn-sm btn-outline-primary gi-pick">Use this GI value</button></td>' +
           '</tr>';
       });

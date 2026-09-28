@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 # this exists to avoid.
 MAX_X_LABELS = 18
 
-# Same fixed categorical color order as plotutil.py, so a chart built here
+# Same fixed categorical color order as plotutil.py, so a plot built here
 # reads consistently with any GeTIpy plot the same data might also appear in.
 CATEGORICAL_COLORS = [
     "#2a78d6",  # blue
@@ -41,6 +41,21 @@ MAX_SERIES = len(CATEGORICAL_COLORS)
 # unambiguous at a glance even before you've matched legend to line).
 LINESTYLES = ["--", ":", "-.", (0, (3, 1, 1, 1, 1, 1)), (0, (5, 1)), (0, (1, 1)), (0, (4, 2, 1, 2))]
 
+# Legend layout. Wrapping at 4 columns keeps a long nutrient name from being
+# squeezed; the two pads (in points) are the vertical room an above-the-plot
+# legend needs — a fixed gap plus one row's worth per wrapped row.
+LEGEND_MAX_NCOL = 4
+LEGEND_POSITIONS = ("auto", "top", "bottom")
+LEGEND_TOP_PAD_BASE = 12
+LEGEND_TOP_PAD_PER_ROW = 15
+# Extra breathing room (points) between an above-the-plot legend and the top
+# of the plot frame, on top of the legend's own ~5pt border padding — i.e.
+# the gap is half again as wide as matplotlib leaves it. Anchoring the legend
+# at exactly 1.0 sat it too close to the frame to read as a separate block.
+# The subtitle's pad grows by the same amount, so the legend gains the room
+# below it without losing any above.
+LEGEND_TOP_EXTRA_GAP_PT = 2.5
+
 GRID_COLOR = "#CCCCCC"
 GRAYSCALE_COLOR = "#222222"
 FIGSIZE = (9, 4.5)
@@ -49,7 +64,7 @@ DPI = 150
 
 def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "",
                      subtitle: str = "", image_format: str = "png", grayscale: bool = False,
-                     hide_y_values: bool = False) -> bytes:
+                     hide_y_values: bool = False, legend_pos: str = "auto") -> bytes:
     """Render a line plot to image bytes (PNG or SVG). Each series dict:
     {"x": [...], "y": [...], "label": str, "color": str (optional),
     "highlight": bool (optional), "goal": float (optional), "limit": float
@@ -70,7 +85,7 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
     plus an axes-level title, so it can carry a distinct (smaller) font size
     from `title` itself; ignored if `title` is blank.
 
-    hide_y_values: when different nutrients on the chart are on different
+    hide_y_values: when different nutrients on the plot are on different
     per-series scale factors, no single number on a shared y-axis means
     the same thing for every line — printing it (or a "Value" title) would
     just be misleading. Set True to drop the axis title and tick numbers
@@ -84,12 +99,23 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
 
     Grayscale mode (grayscale=True): every line is the same dark gray —
     the "highlight" series (if any) draws solid, every other series cycles
-    through distinct dash patterns instead of colors, so the chart still
+    through distinct dash patterns instead of colors, so the plot still
     reads correctly printed on a non-color printer.
 
-    The legend is drawn below the plot, wrapped horizontally rather than
-    stacked vertically, so it never overlaps a data line and stays
-    print-friendly. Drawn only when there's more than one series."""
+    The legend is wrapped horizontally rather than stacked vertically, so
+    it never overlaps a data line and stays print-friendly. Drawn only when
+    there's more than one series.
+
+    legend_pos: "top" puts the legend between the subtitle and the top of
+    the plot frame, "bottom" puts it under the plot, and "auto" (the
+    default) picks "top" while the legend still fits on one row and
+    "bottom" once it would wrap — a wrapped multi-row block above the plot
+    squeezes the plot area and reads as a heavy header, which is exactly
+    the case below-the-plot placement handles better. Any unrecognized
+    value is treated as "auto". Above-the-plot placement has to reserve its
+    own vertical room (the subtitle's pad and the axes' top both shrink by
+    the legend's row count) because, unlike the below case, there's no free
+    margin there to grow into."""
     fig, ax = plt.subplots(figsize=FIGSIZE)
     n = len(series)
     claimed = {s["color"] for s in series if s.get("color")}
@@ -124,18 +150,41 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
         ax.set_yticklabels([])
     else:
         ax.set_ylabel(ylabel)
+    # Worked out before the titles are drawn: an above-the-plot legend sits
+    # in space the title/subtitle would otherwise occupy, so how far to push
+    # them up depends on how many rows the legend wraps to.
+    legend_ncol = min(n, LEGEND_MAX_NCOL)
+    legend_rows = math.ceil(n / legend_ncol) if n > 1 else 0
+    if legend_pos not in LEGEND_POSITIONS:
+        legend_pos = "auto"
+    if legend_pos == "auto":
+        legend_pos = "top" if legend_rows <= 1 else "bottom"
+    legend_above = n > 1 and legend_pos == "top"
+    title_pad = (LEGEND_TOP_PAD_BASE + LEGEND_TOP_PAD_PER_ROW * legend_rows
+                 + LEGEND_TOP_EXTRA_GAP_PT) if legend_above else None
     if title and subtitle:
         fig.suptitle(title, y=0.98)
-        ax.set_title(subtitle, fontsize=9, style="italic", color="#555555")
+        ax.set_title(subtitle, fontsize=9, style="italic", color="#555555", pad=title_pad)
     elif title:
-        ax.set_title(title)
+        ax.set_title(title, pad=title_pad)
+    if legend_above and title:
+        fig.subplots_adjust(top=max(0.50, 0.86 - 0.06 * legend_rows))
     ax.grid(True, color=GRID_COLOR, linewidth=0.6)
     ax.set_axisbelow(True)
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
     if n > 1:
-        ncol = min(n, 4)
-        ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.28), ncol=ncol)
+        if legend_above:
+            # The gap is specified in points, so it stays the same visual size
+            # whatever the axes ends up being; converting needs the axes box
+            # after subplots_adjust above, not before.
+            axes_height_pt = ax.get_position().height * FIGSIZE[1] * 72
+            gap = LEGEND_TOP_EXTRA_GAP_PT / axes_height_pt if axes_height_pt else 0
+            ax.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, 1.0 + gap),
+                      ncol=legend_ncol)
+        else:
+            ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.28),
+                      ncol=legend_ncol)
 
     n_dates = len(series[0]["x"]) if series else 0
     if n_dates > MAX_X_LABELS:

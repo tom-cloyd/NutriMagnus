@@ -10,6 +10,14 @@ repo root where every file already exists. This caught DISCLAIMER.md
 missing from datas (found via manual testing of a packaged Windows build,
 2026-09-13) with no earlier warning from pytest.
 
+The same trap applies to the bundled static reference datasets, which each
+module loads as `Path(__file__).parent / "<name>.json"` -- that resolves into
+sys._MEIPASS in a packaged build, so an absent file means the lookup quietly
+returns nothing rather than failing. All four were in fact missing from datas
+(found 2026-09-27 while replacing the glycemic index table), which would have
+silently emptied the GI, CoFID, AFCD and CIQUAL lookups in every packaged
+build shipped to date.
+
 Docs: README-numa-documentation.md (Web app section).
 """
 import re
@@ -28,6 +36,41 @@ def _spec_bundled_root_files() -> set[str]:
     """Every top-level ('some-file', '.') entry in nutrimagnus.spec's datas."""
     text = (_PROJECT_ROOT / "nutrimagnus.spec").read_text(encoding="utf-8")
     return set(re.findall(r"\(\s*'([^']+)'\s*,\s*'\.'\s*\)", text))
+
+
+def _root_data_files_loaded_by_modules() -> set[str]:
+    """Every `Path(__file__).parent / "some.json"` literal in a root module."""
+    found: set[str] = set()
+    for module in _PROJECT_ROOT.glob("*.py"):
+        text = module.read_text(encoding="utf-8")
+        found.update(re.findall(
+            r'Path\(__file__\)\.parent\s*/\s*"([^"]+\.json)"', text))
+    return found
+
+
+def test_every_bundled_reference_dataset_is_in_the_spec():
+    used = _root_data_files_loaded_by_modules()
+    assert used, "sanity check: at least one root module should load a JSON dataset"
+    missing = used - _spec_bundled_root_files()
+    assert not missing, (
+        f"nutrimagnus.spec's datas is missing {sorted(missing)} -- the lookups "
+        "that read them will silently return no results in a packaged build, "
+        "since Path(__file__).parent resolves into sys._MEIPASS there while "
+        "pointing at the repo root in a dev checkout."
+    )
+
+
+def test_the_locally_built_gi_table_is_never_bundled():
+    """gi_data_local.json is built from the Atkinson 2021 tables, whose licence
+    permits text and data mining but forbids redistribution. Shipping it inside a
+    packaged build would be redistribution, so it must stay out of datas however
+    convenient it looks on a developer machine that happens to have one."""
+    bundled = _spec_bundled_root_files()
+    assert "gi_data_local.json" not in bundled, (
+        "nutrimagnus.spec bundles gi_data_local.json -- that table is built from "
+        "a source that forbids redistribution. Ship gi_data.json (the Creative "
+        "Commons 2008 baseline) and scripts/build_gi_data.py instead."
+    )
 
 
 def test_every_backend_root_file_is_bundled_in_the_spec():

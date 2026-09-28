@@ -1,4 +1,4 @@
-VERSION = "2026-09-24:0941"
+VERSION = "2026-09-27:2329"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.23"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "complement suggestions no longer under-offer plant foods such as sesame, sunflower and oats"
+NEW_VERSION_NOTE = "NuMa now says outright which glycemic index reference table it is searching, and adding a food to a meal no longer pops up a browser warning about leaving the page"

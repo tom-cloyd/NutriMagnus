@@ -42,7 +42,8 @@ from numa_app.services import recipe_csv as _recipe_csv
 from numa_app.services import recipe_translate as _recipe_translate
 from numa_app.services import day_profile as _day_profile
 from numa_app.services import aa_estimate as _aa_estimate
-from numa_app.services.glycemic_load import compute_glycemic_load
+from numa_app.services.glycemic_load import (average_day_gl, compute_glycemic_load, day_gl_totals,
+                                             gl_band, gl_band_caveat)
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, _parse_portion_input, portion_amount_note
@@ -622,6 +623,14 @@ MAX_PLOT_NUTRIENTS = 8
 _DCP_PLOT_KEY = "dcp"
 _DCP_PLOT_LABEL = "Day DCP (g)"
 
+# Daily glycemic load, same pseudo-nutrient treatment as Day DCP: it isn't a
+# NUTRIENT_MAP entry either (it's derived per day from each food's annotated GI
+# and the carbohydrate actually eaten), and it's unitless, so it never
+# contributes a shared unit to the y-axis label. A day whose GI coverage is
+# incomplete plots as a gap, not as a low value.
+_GL_PLOT_KEY = "gl"
+_GL_PLOT_LABEL = "Daily glycemic load"
+
 # The "highlighted" nutrient (user-selectable, defaults to Day DCP if
 # chosen) always draws in this fixed red and solid, so the one figure
 # everything else is usually compared against stands out — regardless of
@@ -633,6 +642,8 @@ _HIGHLIGHT_COLOR = "#e34948"
 def _plot_label_for(key: str) -> str:
     if key == _DCP_PLOT_KEY:
         return _DCP_PLOT_LABEL
+    if key == _GL_PLOT_KEY:
+        return _GL_PLOT_LABEL
     from numa_app.services.meal_list_columns import label_for as _nutrient_label_for
     return _nutrient_label_for(key)
 
@@ -712,6 +723,14 @@ def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str,
             return str(int(round(ann["gi_estimate"])))
         return ""
 
+    def _ann_gi_source(fdc_id: int) -> str:
+        """Where a GI estimate came from, for the GI cell's tooltip — a rounded
+        number in a narrow column says nothing about how trustworthy it is."""
+        ann = annotations.get(fdc_id)
+        if ann and ann["gi_estimate"] is not None and "gi_source" in ann.keys():
+            return ann["gi_source"] or ""
+        return ""
+
     def _ann_diaas(fdc_id: int) -> str:
         ann = annotations.get(fdc_id)
         if ann and ann["diaas_estimate"] is not None:
@@ -740,6 +759,7 @@ def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str,
             "portions":  [],
             "aa":        _aa_status(fid, dtype, source),
             "gi":        _ann_gi(fid),
+            "gi_source": _ann_gi_source(fid),
             "diaas":     _ann_diaas(fid),
         })
     return _sort_search_results(results, q, sort)
@@ -955,6 +975,12 @@ def _rda_type_title(rda_type: str | None) -> str:
 templates.env.globals["rda_type_abbr"] = _rda_type_abbr
 templates.env.globals["rda_type_title"] = _rda_type_title
 
+# GL band classification — "serving" for a food/meal/recipe portion, "day" for a
+# whole-day total. Every GL display goes through these so the two scales can
+# never drift apart again (they had, until 2026-09-27).
+templates.env.globals["gl_band"] = gl_band
+templates.env.globals["gl_band_caveat"] = gl_band_caveat
+
 
 def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                        daily_nutrients: dict | None = None,
@@ -1054,12 +1080,39 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                 "is_subtype":   key in _SUBTYPE_KEYS,
             })
             if key == "protein_g" and dcp_g is not None:
+                # The DCP row is compared against the SAME protein target as
+                # the raw-protein row above it. That is the comparison the
+                # protein RDA is actually written for: 0.8 g/kg assumes
+                # protein "of mixed quality as typically consumed", i.e.
+                # highly digestible, so the target is effectively denominated
+                # in reference-quality protein — which is exactly what DCP
+                # measures. For an omnivore the two rows nearly coincide
+                # (pooled DIAAS near 1.0); the gap between them widens as
+                # protein quality falls, which is the whole point of showing
+                # both. Leaving this row's percent blank (as it was) meant
+                # the only percentage on the page was the raw-protein one,
+                # which overstates adequacy for a plant-heavy diet.
+                dcp_pct = dcp_css = None
+                dcp_min = dcp_target = dcp_max = None
+                dcp_type = None
+                if rda and key in rda:
+                    p_val, p_unit, dcp_type = rda[key]
+                    if p_val and p_val > 0:
+                        p_goal = f"{p_val:.1f} {p_unit}"
+                        if dcp_type == "minimum":
+                            dcp_min = p_goal
+                        elif dcp_type == "target":
+                            dcp_target = p_goal
+                        elif dcp_type == "limit":
+                            dcp_max = p_goal
+                        dcp_pct = round(dcp_g / p_val * 100, 0)
+                        dcp_css = _rda_css(dcp_pct, dcp_type)
                 rows.append({
                     "label":        "(Digestible Complete Protein)" + (" *" if dcp_missing else ""),
                     "value":        dcp_g,
                     "unit":         unit,
-                    "pct": None, "rda_type": None, "rda_css": None,
-                    "rda_minimum": None, "rda_target": None, "rda_maximum": None,
+                    "pct": dcp_pct, "rda_type": dcp_type, "rda_css": dcp_css,
+                    "rda_minimum": dcp_min, "rda_target": dcp_target, "rda_maximum": dcp_max,
                     "day_pct": None, "day_rda_css": None,
                     "optimal_goal": None, "optimal_type": None, "optimal_pct": None, "optimal_css": None,
                     "optimal_day_pct": None, "optimal_day_css": None,
@@ -1263,13 +1316,26 @@ def _oxalate_word_match(query: str, match_name: str) -> bool:
     return bool(q_words & m_words)
 
 
+def _ann_source(ann) -> str:
+    """The provenance of a row's GI estimate, or "" — for the GI cell tooltips in
+    food/pantry/search listings, where the column is too narrow to show it.
+    Empty unless there is a GI value for it to describe."""
+    if ann is None or ann["gi_estimate"] is None:
+        return ""
+    return (ann["gi_source"] or "") if "gi_source" in ann.keys() else ""
+
+
 def _oxalate_info(fdc_id: int | None, food_name: str) -> dict | None:
     """Return oxalate data for one food, auto-linking on first call if not yet linked.
 
     Returns None when oxalate.db is unavailable, fdc_id is invalid/negative, or no
     good match was found.  Returned dict keys:
         mg_per_100g (float|None), mg_per_serving (float|None), serving_size (str|None),
-        category (str), ref_name (str), confirmed (bool)
+        category (str), ref_name (str), confirmed (bool), food_group (str),
+        directly_measured (bool)
+
+    directly_measured is the reference table's own asterisk: the value was
+    measured in that food, rather than estimated from a similar one.
     """
     if not fdc_id or fdc_id < 0:
         return None
@@ -1294,6 +1360,8 @@ def _oxalate_info(fdc_id: int | None, food_name: str) -> dict | None:
             "category":      ox_row["category"],
             "ref_name":      ox_row["food_name"],
             "confirmed":     confirmed,
+            "food_group":    ox_row["food_group"] or "",
+            "directly_measured": bool(ox_row["directly_measured"]),
         }
 
     if link is not None:
@@ -1655,6 +1723,7 @@ def _search_local_results(query: str) -> list[dict]:
             "pantry_id": pantry_id_by_fdc.get(row["fdc_id"]),
             "aa":        _usda.aa_indicator(nutrients),
             "gi":        round(ann["gi_estimate"]) if ann and ann["gi_estimate"] is not None else None,
+            "gi_source": _ann_source(ann),
             "diaas":     round(ann["diaas_estimate"], 2) if ann and ann["diaas_estimate"] is not None else None,
             "has_notes": bool(row["notes"]),
         })
@@ -2355,6 +2424,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
             "brand":          row["brand"] or "",
             "has_aa":         has_aa,
             "gi":             ann["gi_estimate"] if ann else None,
+            "gi_source":      _ann_source(ann),
             "diaas":          diaas,
             "diaas_saved":    diaas_saved is not None,
             "notes":          row["notes"] or "",
@@ -2807,6 +2877,7 @@ async def food_cache_refresh(request: Request, fdc_id: int):
                 "brand":         row["brand"] or "",
                 "has_aa":        _usda.has_confirmed_aa_data(nuts),
                 "gi":            ann["gi_estimate"] if ann else None,
+                "gi_source":     _ann_source(ann),
                 "diaas":         ann["diaas_estimate"] if ann else None,
                 "notes":         row["notes"] or "",
                 "curator_notes": row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
@@ -2847,6 +2918,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
                 "data_type":   cached["data_type"] if cached else "",
                 "has_aa":      has_aa,
                 "gi":          ann["gi_estimate"] if ann else None,
+                "gi_source":   _ann_source(ann),
                 "diaas":       diaas,
                 "diaas_saved": diaas_saved is not None,
             })
@@ -3541,12 +3613,24 @@ def _missing_annotations(ann) -> list[str]:
 
 
 def _annotation_prompt_needed(fdc_id: int) -> bool:
-    """True if this food is still missing a GI or DIAAS estimate the user
-    hasn't suppressed prompts for. An estimate that's already stored is never
-    prompted for again — it's edited from the GI/DIAAS cells on the add-food
-    row, or from Annotate a Food."""
+    """True if adding this food should detour to the Annotate page: it is
+    still missing a GI or DIAAS estimate the user hasn't suppressed prompts
+    for, AND they haven't already saved the Annotate form for it. An estimate
+    that's already stored is never prompted for again — it's edited from the
+    GI/DIAAS cells on the add-food row, or from Annotate a Food.
+
+    The "reviewed" half matters because the detour is all-or-nothing across
+    both estimates: before it existed, saving a GI (even with "don't prompt
+    me for a GI again" ticked) still left DIAAS unsettled, so the very same
+    food kept interrupting every time it was added, and the page it landed
+    on looked exactly like the GI prompt the user thought they had just
+    dismissed. Saving the form now means "I have seen both and made my
+    choices" — deliberately leaving one blank included. "Skip for now"
+    saves nothing, so it still asks again next time."""
     with _db.get_db() as conn:
         ann = _db.get_food_annotation(conn, fdc_id)
+    if ann is not None and ann["reviewed"]:
+        return False
     return bool(_missing_annotations(ann))
 
 
@@ -3568,6 +3652,7 @@ async def food_annotate_list(request: Request, q: str = ""):
             "name":      row["name"],
             "data_type": row["data_type"] or "",
             "gi":        ann["gi_estimate"] if ann else None,
+            "gi_source": _ann_source(ann),
             "diaas":     ann["diaas_estimate"] if ann else None,
         })
     return templates.TemplateResponse(request, "food_annotate.html", {
@@ -3594,6 +3679,7 @@ async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "",
         "saved":     bool(saved),
         "next":      next,
         "gi_default_population": gi_default_population,
+        "gi_table":  _gi_lookup.active_table_info(),
     })
 
 
@@ -3609,6 +3695,7 @@ async def food_annotate_gi_lookup(fdc_id: int, q: str = "", population: str = "b
 async def food_annotate_edit_post(
     fdc_id: int,
     gi_estimate:     str = Form(""),
+    gi_source:       str = Form(""),
     diaas_estimate:  str = Form(""),
     prep_context:    str = Form(""),
     gi_no_prompt:    str = Form(""),
@@ -3618,10 +3705,15 @@ async def food_annotate_edit_post(
     gi   = float(gi_estimate)    if gi_estimate.strip()    else None
     dias = float(diaas_estimate) if diaas_estimate.strip() else None
     prep = prep_context.strip() or None
+    # gi_source is filled in by the reference-table lookup on the page (and
+    # cleared by it if the GI box is then hand-edited), so it arrives as
+    # ordinary form text -- trimmed to a sane length before it is stored.
+    src  = " ".join(gi_source.split())[:300] or None
     with _db.get_db() as conn:
         _db.set_food_annotation(
             conn, fdc_id,
             gi_estimate=gi,
+            gi_source=src,
             gi_no_prompt=bool(gi_no_prompt),
             diaas_estimate=dias,
             diaas_no_prompt=bool(diaas_no_prompt),
@@ -3776,6 +3868,20 @@ def _food_detail_context(
     if oxalate and amount and oxalate.get("mg_per_100g") is not None:
         oxalate_mg_portion = round(oxalate["mg_per_100g"] * amount / 100.0, 1)
 
+    with _db.get_db() as conn:
+        ann = _db.get_food_annotation(conn, fdc_id)
+    gi_estimate = ann["gi_estimate"] if ann else None
+    gi_source   = (ann["gi_source"] if ann and "gi_source" in ann.keys() else None) \
+                  if gi_estimate is not None else None
+
+    # GL for the portion actually being analyzed. Both halves of the formula are
+    # already here — the annotated GI and this portion's carbohydrate grams — so
+    # showing only GI would leave the reader to do GI x carbs / 100 by hand on
+    # the one page where portion experiments happen.
+    gl_portion: float | None = None
+    if gi_estimate is not None:
+        gl_portion = round(gi_estimate * display_nutrients.get("carbs_g", 0.0) / 100.0, 1)
+
     protein_section = _protein_section(food["name"], display_nutrients)
 
     return {
@@ -3801,6 +3907,9 @@ def _food_detail_context(
         "missing_macros":     missing_macros,
         "oxalate":            oxalate,
         "oxalate_mg_portion": oxalate_mg_portion,
+        "gi_estimate":        gi_estimate,
+        "gi_source":          gi_source,
+        "gl_portion":         gl_portion,
     }
 
 
@@ -3898,6 +4007,8 @@ def _food_available_sections(ctx: dict) -> list[str]:
     available = []
     if ctx.get("nutrient_sections"):
         available.append("nutrient_table")
+    if ctx.get("gl_portion") is not None:
+        available.append("glycemic_load")
     if ctx.get("protein"):
         available.append("protein_summary")
         available.append("protein_quality")
@@ -3926,6 +4037,12 @@ async def food_print(
         return templates.TemplateResponse(request, "search.html", {
             "results": [], "query": "", "error": ctx["error"],
         })
+
+    # print.html renders GL from a {"total", "blockers"} dict, the same shape the
+    # meal/day/recipe print pages pass; a single food's GL never has blockers,
+    # since a missing GI simply means there is no GL to show at all.
+    if ctx.get("gl_portion") is not None:
+        ctx["gl"] = {"total": ctx["gl_portion"], "blockers": []}
 
     available = _food_available_sections(ctx)
     prefs = _load_prefs_file()
@@ -4080,7 +4197,11 @@ def _protein_adequacy(nutrients: dict, diaas_dcp_g: float | None, rda: dict | No
     else:
         target = _REFERENCE_ADULT_PROTEIN_G
         personal = False
-    intake = diaas_dcp_g if diaas_dcp_g else nutrients.get("protein_g", 0.0)
+    # Both the value and its label key off the same test. Keying the value
+    # off truthiness while the label used "is not None" meant a DCP of
+    # exactly 0.0 — every contributing food lacking amino-acid data — showed
+    # the raw protein figure under the "Digestible complete protein" label.
+    intake = diaas_dcp_g if diaas_dcp_g is not None else nutrients.get("protein_g", 0.0)
     label = "Digestible complete protein" if diaas_dcp_g is not None else "Protein"
     pct = intake / target * 100.0
     return {"target": round(target, 1), "intake": round(intake, 1),
@@ -4714,6 +4835,14 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
             return str(int(round(ann["gi_estimate"])))
         return ""
 
+    def _ann_gi_source(fdc_id: int) -> str:
+        """Where a GI estimate came from, for the GI cell's tooltip — a rounded
+        number in a narrow column says nothing about how trustworthy it is."""
+        ann = annotations.get(fdc_id)
+        if ann and ann["gi_estimate"] is not None and "gi_source" in ann.keys():
+            return ann["gi_source"] or ""
+        return ""
+
     def _ann_diaas(fdc_id: int) -> str:
         ann = annotations.get(fdc_id)
         if ann and ann["diaas_estimate"] is not None:
@@ -4734,6 +4863,7 @@ def _meal_add_food_local_results(q: str) -> list[dict]:
             "portions":  portions,
             "aa":        _aa_status(fid, dtype),
             "gi":        _ann_gi(fid),
+            "gi_source": _ann_gi_source(fid),
             "diaas":     _ann_diaas(fid),
         })
 
@@ -5557,6 +5687,7 @@ async def meal_day_print(
         "available_sections": available,
         "enabled":            enabled,
         "portion_label":      "full day",
+        "gl_scope":           "day",
         "day_meals":          ctx["meals"],
         **layout_ctx,
         **ctx,
@@ -5655,6 +5786,8 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "starter_status":       starter_status,
         "recompute_errors":     recompute_errors,
         "recompute_retry":      recompute_retry,
+        "gi_table":             _gi_lookup.active_table_info(),
+        "gi_table_candidates":  _gi_lookup.local_table_candidates(),
     })
 
 
@@ -7446,6 +7579,16 @@ async def summary_trend(request: Request, days: int = Query(7)):
 
     avg_nutrients, num_days = average_from_daily_totals(daily_totals)
 
+    # Average daily GL across the window. Weekly averages are the figure worth
+    # acting on -- any single day's GL swings with what happened to be eaten --
+    # but a day with incomplete GI coverage has no GL at all, so the count of
+    # days that actually contributed is disclosed rather than hidden inside
+    # the average.
+    with _db.get_db() as conn:
+        gl_by_date = day_gl_totals(conn, sorted(daily_totals))
+    avg_gl, avg_gl_days = average_day_gl(gl_by_date)
+    gl_unknown_dates = sorted(d for d, v in gl_by_date.items() if v is None)
+
     # RDA targets reflect the profile pinned to the *end* of the window
     # (today, for the common "last N days" case). If any logged day used a
     # different profile at the time, disclose it rather than silently
@@ -7488,6 +7631,10 @@ async def summary_trend(request: Request, days: int = Query(7)):
         "avg_dcp_pct":       avg_dcp_pct,
         "avg_dcp_days":      len(day_dcp),
         "protein_target":    protein_target,
+        "avg_gl":            avg_gl,
+        "avg_gl_days":       avg_gl_days,
+        "gl_by_date":        gl_by_date,
+        "gl_unknown_dates":  gl_unknown_dates,
     })
 
 
@@ -7508,7 +7655,7 @@ def _nutrient_plot_params(conn, nutrients: list[str], days_back: str | None, anc
     completed instead of freezing at whatever date it was turned on. This can
     land on today, once today's meals are all marked complete — "complete"
     was never about the calendar date, just the meals' own complete flag."""
-    valid_keys = {key for key, _label, _unit in _usda.NUTRIENT_MAP.values()} | {_DCP_PLOT_KEY}
+    valid_keys = {key for key, _label, _unit in _usda.NUTRIENT_MAP.values()} | {_DCP_PLOT_KEY, _GL_PLOT_KEY}
     chosen = [k for k in nutrients if k in valid_keys][:MAX_PLOT_NUTRIENTS]
 
     all_dates = sorted(r["meal_date"] for r in _db.meal_dates_with_bcp(conn, limit=1_000_000))
@@ -7608,7 +7755,7 @@ def _apply_plot_scale_factor(series: list[dict], factor: float) -> list[dict]:
 def _default_individual_factors(series: list[dict]) -> dict[str, float]:
     """Step 2, run after step 1's global factor is already applied. A
     single shared factor can still leave one nutrient nearly flat if its
-    own variance is far below the chart's most-variable nutrient — dividing
+    own variance is far below the plot's most-variable nutrient — dividing
     two things down to roughly the same level doesn't help a third that's
     smaller than both. Set a variance floor at 25% of the largest variance
     among the (already step-1-scaled) series; any series still under it
@@ -7667,17 +7814,23 @@ def _nutrient_plot_raw_series(conn, chosen: list[str], dates: list[str],
                                highlight_key: str | None) -> list[dict]:
     from numa_app.services.meal_list_columns import day_nutrient_values
 
-    plain_keys = [k for k in chosen if k != _DCP_PLOT_KEY]
+    plain_keys = [k for k in chosen if k not in (_DCP_PLOT_KEY, _GL_PLOT_KEY)]
     day_values = {d: day_nutrient_values(conn, d, plain_keys) for d in dates} if plain_keys else {}
     dcp_by_date: dict[str, float | None] = {}
     if _DCP_PLOT_KEY in chosen:
         dcp_by_date = {r["meal_date"]: r["day_bcp"] for r in _db.meal_dates_with_bcp(conn, limit=1_000_000)}
+    gl_by_date: dict[str, float | None] = day_gl_totals(conn, dates) if _GL_PLOT_KEY in chosen else {}
 
     series = []
     for key in chosen:
         y = []
         for d in dates:
-            v = dcp_by_date.get(d) if key == _DCP_PLOT_KEY else day_values[d][key]
+            if key == _DCP_PLOT_KEY:
+                v = dcp_by_date.get(d)
+            elif key == _GL_PLOT_KEY:
+                v = gl_by_date.get(d)
+            else:
+                v = day_values[d][key]
             y.append(float(v) if v is not None else float("nan"))
         s = {"key": key, "x": dates, "y": y, "label": _plot_label_for(key)}
         if key == highlight_key:
@@ -7694,6 +7847,16 @@ _NUTRIENT_PLOT_GOAL_AND_LIMIT_SUBTITLE = (
 )
 
 
+def _plot_legend_pos(value: str | None) -> str:
+    """Sanitize the Nutrient Plot legend-placement param to one of
+    plotting.LEGEND_POSITIONS. Anything unrecognized (including a hand-edited
+    or stale querystring) falls back to "auto", which lets plotting.py pick
+    top while the legend fits one row and bottom once it would wrap."""
+    from numa_app.services.plotting import LEGEND_POSITIONS
+    cleaned = (value or "auto").strip().lower()
+    return cleaned if cleaned in LEGEND_POSITIONS else "auto"
+
+
 def _nutrient_plot_goal(profile, diet_pref: str, key: str) -> float | None:
     """The single reference value a Nutrient Plot dashed goal line marks for
     one chosen nutrient key, from the currently-active profile (a flat
@@ -7703,7 +7866,7 @@ def _nutrient_plot_goal(profile, diet_pref: str, key: str) -> float | None:
     built-in RDA/AI/limit (profile.compute_rda) when both exist — Optimal is
     the value the user deliberately chose to aim for instead. Returns None
     when no profile is set or the nutrient has neither."""
-    if profile is None:
+    if profile is None or key == _GL_PLOT_KEY:
         return None
     if key == _DCP_PLOT_KEY:
         rda = _profile.compute_rda(profile, diet_pref=diet_pref)
@@ -7732,7 +7895,7 @@ def _nutrient_plot_limit(profile, key: str) -> float | None:
     Upper Intake Levels merged with the user's own configured caps). None
     for the DCP pseudo-key and for any nutrient with no established/
     user-set limit."""
-    if profile is None or key == _DCP_PLOT_KEY:
+    if profile is None or key in (_DCP_PLOT_KEY, _GL_PLOT_KEY):
         return None
     return _profile.get_max_limits(profile).get(key)
 
@@ -7795,7 +7958,9 @@ def _nutrient_plot_ylabel(chosen: list[str], series: list[dict]) -> str:
     units = {unit for key, _label, unit in _usda.NUTRIENT_MAP.values() if key in chosen}
     if _DCP_PLOT_KEY in chosen:
         units.add("g")
-    return units.pop() if len(units) == 1 else _GENERIC_PLOT_YLABEL
+    if _GL_PLOT_KEY in chosen:
+        units.add("")   # unitless — forces the generic label unless GL is alone
+    return units.pop() if len(units) == 1 and units != {""} else _GENERIC_PLOT_YLABEL
 
 
 def _nutrient_plot_default_title(dates: list[str]) -> str:
@@ -7824,7 +7989,7 @@ def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | No
                        scale_factor: str | None, title: str | None,
                        highlight: str | None, grayscale: bool, smoothing: int,
                        nutrient_factors: dict[str, str] | None = None,
-                       rolling: bool = False) -> str:
+                       rolling: bool = False, legend: str = "auto") -> str:
     from urllib.parse import urlencode
     params = [("nutrients", k) for k in chosen]
     if days_back:
@@ -7841,6 +8006,13 @@ def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | No
         params.append(("highlight", highlight))
     if grayscale:
         params.append(("grayscale", "1"))
+    # Omitted entirely while the legend placement is left on "auto", so a
+    # home_nutrient_plot_qs saved before this option existed still matches
+    # the qs recomputed for the same view (is_home_plot compares the two
+    # with ==, and an unconditional param would make every saved plot read
+    # as "not the Home page one" the first time it was reloaded).
+    if legend in ("top", "bottom"):
+        params.append(("legend", legend))
     params.append(("smoothing", str(smoothing)))
     for key, val in (nutrient_factors or {}).items():
         if val:
@@ -7858,6 +8030,7 @@ async def nutrient_plot_page(
     title: str | None = Query(None),
     highlight: str | None = Query(None),
     grayscale: bool = Query(False),
+    legend: str = Query("auto"),
     smoothing: str | None = Query(None),
     rolling: bool = Query(False),
     submitted: bool = Query(False),
@@ -7929,15 +8102,16 @@ async def nutrient_plot_page(
     # desync qs from a previously-saved home_nutrient_plot_qs and make the
     # "Show on Home page" checkbox read as unchecked even though the plot is
     # still showing there.
+    legend_pos = _plot_legend_pos(legend)
     qs_scale_factor = scale_factor if user_factor else None
     qs_individual_factors = {k: v for k, v in raw_factor_params.items() if _parse_plot_factor(v)}
 
     qs = (_nutrient_plot_qs(chosen, days_back, anchor, qs_scale_factor, user_title,
                              highlight_key, grayscale, smoothing_n, qs_individual_factors,
-                             rolling=rolling)
+                             rolling=rolling, legend=legend_pos)
           if has_plot else "")
 
-    available = [(_DCP_PLOT_KEY, _DCP_PLOT_LABEL)] + plot_nutrient_choices()
+    available = [(_DCP_PLOT_KEY, _DCP_PLOT_LABEL), (_GL_PLOT_KEY, _GL_PLOT_LABEL)] + plot_nutrient_choices()
     available_dicts = [{"key": k, "label": lbl} for k, lbl in available]
     # Split into 2 columns for the checklist (was 3 — narrowed so the
     # checklist box leaves enough width for the Days back/Highlight/Plot
@@ -7984,6 +8158,7 @@ async def nutrient_plot_page(
         "title_placeholder": effective_title,
         "highlight":  highlight_key,
         "grayscale":  grayscale,
+        "legend_pos": legend_pos,
         "smoothing":  smoothing_n,
         "rolling":    rolling,
         "home_plot_enabled_elsewhere": home_plot_enabled_elsewhere,
@@ -8042,6 +8217,7 @@ async def nutrient_plot_image(
     title: str | None = Query(None),
     highlight: str | None = Query(None),
     grayscale: bool = Query(False),
+    legend: str = Query("auto"),
     smoothing: str | None = Query(None),
     fmt: str = Query("png"),
     download: bool = Query(False),
@@ -8090,7 +8266,8 @@ async def nutrient_plot_image(
     image_bytes = line_plot_image(series, xlabel="Date", ylabel=plot_ylabel,
                                    title=plot_title, subtitle=plot_subtitle,
                                    image_format=image_format, grayscale=grayscale,
-                                   hide_y_values=(plot_ylabel == _GENERIC_PLOT_YLABEL))
+                                   hide_y_values=(plot_ylabel == _GENERIC_PLOT_YLABEL),
+                                   legend_pos=_plot_legend_pos(legend))
     media_type = "image/svg+xml" if image_format == "svg" else "image/png"
     headers = ({"Content-Disposition": f'attachment; filename="numa-nutrient-plot.{image_format}"'}
                if download else {})
@@ -8107,6 +8284,7 @@ async def nutrient_plot_print(
     title: str | None = Query(None),
     highlight: str | None = Query(None),
     grayscale: bool = Query(False),
+    legend: str = Query("auto"),
     smoothing: str | None = Query(None),
     rolling: bool = Query(False),
 ):
@@ -8124,7 +8302,7 @@ async def nutrient_plot_print(
     # plot" link doesn't freeze the auto title at today's date range.
     qs = _nutrient_plot_qs(chosen, days_back, anchor, scale_factor, user_title,
                             highlight_key, grayscale, _parse_smoothing_window(smoothing), raw_factor_params,
-                            rolling=rolling)
+                            rolling=rolling, legend=_plot_legend_pos(legend))
 
     return templates.TemplateResponse(request, "nutrient_plot_print.html", {
         "labels":     [_plot_label_for(k) for k in chosen],

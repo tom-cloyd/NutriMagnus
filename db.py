@@ -124,10 +124,19 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS food_annotations (
                 fdc_id          INTEGER PRIMARY KEY REFERENCES foods(fdc_id) ON DELETE CASCADE,
                 gi_estimate     REAL,
+                gi_source       TEXT,
                 gi_no_prompt    INTEGER DEFAULT 0,
                 diaas_estimate  REAL,
                 diaas_no_prompt INTEGER DEFAULT 0,
                 prep_context    TEXT,
+                -- 1 once the user has saved the Annotate form for this food,
+                -- i.e. has seen the GI/DIAAS prompt and made their choices
+                -- (including deliberately leaving one blank). Distinct from
+                -- the two no_prompt flags: those say "never ask about THIS
+                -- estimate", while this says "stop interrupting me about
+                -- this food" -- see _annotation_prompt_needed() in
+                -- web/backend.py.
+                reviewed        INTEGER DEFAULT 0,
                 updated_at      TEXT    DEFAULT (datetime('now'))
             );
         """)
@@ -232,7 +241,8 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
-        for _col in ("gi_no_prompt INTEGER DEFAULT 0", "diaas_no_prompt INTEGER DEFAULT 0"):
+        for _col in ("gi_no_prompt INTEGER DEFAULT 0", "diaas_no_prompt INTEGER DEFAULT 0",
+                     "gi_source TEXT", "reviewed INTEGER DEFAULT 0"):
             try:
                 conn.execute(f"ALTER TABLE food_annotations ADD COLUMN {_col}")
             except sqlite3.OperationalError:
@@ -732,21 +742,30 @@ def upsert_food_annotation(
     diaas_estimate: float | None = None,
     diaas_no_prompt: int | None = None,
     prep_context: str | None = None,
+    gi_source: str | None = None,
 ) -> None:
     """Update annotation fields for a food. Pass None to leave a field unchanged.
-    gi_no_prompt / diaas_no_prompt: 0 = re-enable prompts, 1 = suppress prompts."""
+    gi_no_prompt / diaas_no_prompt: 0 = re-enable prompts, 1 = suppress prompts.
+
+    Any caller writing gi_estimate should write gi_source too (even to say where
+    a hand-typed value came from): the fields are only meaningful together, and
+    leaving gi_source alone here would keep an older value's provenance beside a
+    new number."""
     conn.execute("""
         INSERT INTO food_annotations
-            (fdc_id, gi_estimate, gi_no_prompt, diaas_estimate, diaas_no_prompt, prep_context, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            (fdc_id, gi_estimate, gi_source, gi_no_prompt, diaas_estimate, diaas_no_prompt,
+             prep_context, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(fdc_id) DO UPDATE SET
             gi_estimate     = COALESCE(excluded.gi_estimate,     gi_estimate),
+            gi_source       = COALESCE(excluded.gi_source,       gi_source),
             gi_no_prompt    = COALESCE(excluded.gi_no_prompt,    gi_no_prompt),
             diaas_estimate  = COALESCE(excluded.diaas_estimate,  diaas_estimate),
             diaas_no_prompt = COALESCE(excluded.diaas_no_prompt, diaas_no_prompt),
             prep_context    = COALESCE(excluded.prep_context,    prep_context),
             updated_at      = datetime('now')
-    """, (fdc_id, gi_estimate, gi_no_prompt, diaas_estimate, diaas_no_prompt, prep_context))
+    """, (fdc_id, gi_estimate, gi_source, gi_no_prompt, diaas_estimate, diaas_no_prompt,
+          prep_context))
 
 
 def set_food_annotation(
@@ -758,22 +777,43 @@ def set_food_annotation(
     diaas_estimate: float | None,
     diaas_no_prompt: bool,
     prep_context: str | None,
+    gi_source: str | None = None,
+    reviewed: bool = True,
 ) -> None:
     """Write all annotation fields at once (explicit NULLs clear existing values).
-    Use this for web forms; use upsert_food_annotation for a single field-at-a-time update."""
+    Use this for web forms; use upsert_food_annotation for a single field-at-a-time update.
+
+    reviewed defaults to True because this is the whole-form writer: saving the
+    Annotate form means the user has been shown both estimates and settled them,
+    even if they left one blank on purpose. That stops the add-a-food detour
+    firing again for this food (see _annotation_prompt_needed()). Pass False to
+    write annotation values without counting as a review.
+
+    gi_source is the provenance of gi_estimate — the reference-table row a value
+    was picked from (see gi_lookup.py). It is descriptive text only, and is
+    meaningless without gi_estimate, so it is dropped whenever that is None."""
+    if gi_estimate is None:
+        gi_source = None
     conn.execute("""
         INSERT INTO food_annotations
-            (fdc_id, gi_estimate, gi_no_prompt, diaas_estimate, diaas_no_prompt, prep_context, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            (fdc_id, gi_estimate, gi_source, gi_no_prompt, diaas_estimate, diaas_no_prompt,
+             prep_context, reviewed, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(fdc_id) DO UPDATE SET
             gi_estimate     = excluded.gi_estimate,
+            gi_source       = excluded.gi_source,
             gi_no_prompt    = excluded.gi_no_prompt,
             diaas_estimate  = excluded.diaas_estimate,
             diaas_no_prompt = excluded.diaas_no_prompt,
             prep_context    = excluded.prep_context,
+            -- Never un-reviews a food: a later non-review write (a GI seed
+            -- import, say) must not make an already-settled food start
+            -- interrupting again.
+            reviewed        = MAX(excluded.reviewed, food_annotations.reviewed),
             updated_at      = datetime('now')
-    """, (fdc_id, gi_estimate, 1 if gi_no_prompt else 0,
-          diaas_estimate, 1 if diaas_no_prompt else 0, prep_context))
+    """, (fdc_id, gi_estimate, gi_source, 1 if gi_no_prompt else 0,
+          diaas_estimate, 1 if diaas_no_prompt else 0, prep_context,
+          1 if reviewed else 0))
 
 
 def delete_food_annotation(conn: sqlite3.Connection, fdc_id: int) -> None:

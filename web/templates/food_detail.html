@@ -99,6 +99,16 @@
     {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
     &middot; <a href="/food/{{ food.fdc_id }}/print?amount={{ amount }}&portion_str={{ portion_str | urlencode }}">Print / Save as PDF</a>
   </p>
+  {# An annotated GI, with the reference-table row it was taken from when there is
+     one — the value is only as good as its source, so they are shown together. #}
+  {% if gi_estimate is not none %}
+  <p class="muted mb-2" style="font-size:0.85rem; max-width:42rem">
+    <strong>GI {{ gi_estimate | round | int }}</strong> (glycemic index, annotated){% if gl_portion is not none %} &middot;
+    <strong>GL {{ gl_portion }}</strong> ({{ gl_band(gl_portion, "serving") }}) for this {% if portion_label %}{{ portion_label }}{% else %}{{ amount }}&thinsp;g{% endif %}{% endif %} {{ manual_link("gi") }}
+    {% if gl_portion is not none %}<br><span class="ms-0">GL = GI &times; the portion&rsquo;s carbohydrate grams &divide; 100, so halving the portion halves the GL while the GI stays put.</span>{% endif %}
+    {% if gi_source %}<br><span class="ms-0">Value taken from: {{ gi_source }}</span>{% endif %}
+  </p>
+  {% endif %}
   <div class="d-flex gap-2 mb-2">
     <a href="/food/cache/{{ food.fdc_id }}/portions" class="btn btn-sm btn-outline-secondary">Manage portions for this food &rarr;</a>
     <a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}" class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
@@ -413,7 +423,10 @@
     </tbody>
   </table>
   <p class="muted mt-1" style="font-size:0.8rem">
-    Reference: {{ oxalate.ref_name }}{% if not oxalate.confirmed %} <span class="text-warning">(auto-matched — <a href="/food/{{ food.fdc_id }}/oxalate-link">correct if wrong</a>)</span>{% endif %}
+    Reference: {{ oxalate.ref_name }}{% if oxalate.food_group %} ({{ oxalate.food_group }}){% endif %}
+    &middot; {% if oxalate.directly_measured %}value measured in this food{% else %}value estimated from similar foods{% endif %}
+    {{ manual_link("oxalate-measured", "Learn more") }}{% if not oxalate.confirmed %}
+    <span class="text-warning">(auto-matched — <a href="/food/{{ food.fdc_id }}/oxalate-link">correct if wrong</a>)</span>{% endif %}
   </p>
   {% endif %}
   {% if antinutrients %}
@@ -509,7 +522,7 @@
 
   {% if ignored_complements %}
   {% for name in ignored_complements %}<input type="hidden" name="ignore_complements" value="{{ name }}">{% endfor %}
-  <details class="mt-1 mb-1">
+  <details class="mt-1 mb-1" data-remember="ignored-complements">
     <summary class="muted" style="cursor:pointer"><small>Ignoring {{ ignored_complements|length }} suggestion{{ 's' if ignored_complements|length != 1 else '' }} &mdash; manage</small></summary>
     <table class="table table-sm mt-1" style="max-width:26rem">
       <thead><tr><th>Food</th><th>Remove ignore</th></tr></thead>

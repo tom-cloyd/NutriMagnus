@@ -69,6 +69,26 @@
 {% elif has_profile %}
 <p class="muted"><small>DCP not yet computed for any day in this window — raw protein below is not a substitute; use "Calculate DCP and calories" on the <a href="/meals">Meals</a> page.</small></p>
 {% endif %}
+{# Average daily glycemic load. A weekly average is the figure worth acting on;
+   any single day swings with what happened to be eaten. #}
+{% if avg_gl is not none %}
+<div class="protein-summary-card mb-3">
+  <div class="ps-metric">
+    <div class="ps-label">Average daily glycemic load <small class="muted">(over {{ avg_gl_days }} of {{ num_days }} day(s) &mdash; days without full GI coverage are skipped, not counted as zero)</small></div>
+    <div class="ps-value">{{ avg_gl }}
+      <small class="muted">&mdash; {{ gl_band(avg_gl, "day") }}</small>
+    </div>
+  </div>
+</div>
+<p class="muted"><small>{{ gl_band_caveat("day") }}</small></p>
+{% if gl_unknown_dates %}
+<p class="muted"><small>No GL for {{ gl_unknown_dates | length }} day(s) in this window ({{ gl_unknown_dates | join(", ") }}) &mdash; something logged on each lacks a GI annotation, or is a recipe with no computed GL yet. <a href="/food/annotate">Annotate a food</a> to close the gap.</small></p>
+{% endif %}
+<p class="muted"><small><a href="/summary/nutrient-plot?nutrients=gl&amp;days_back={{ days }}">Plot daily GL across this window &rarr;</a></small></p>
+{% elif gl_unknown_dates %}
+<p class="muted"><small>No day in this window has a computable glycemic load &mdash; every logged day has at least one food with no GI annotation, or a recipe with no computed GL. <a href="/food/annotate">Annotate a food</a> to start building the trend.</small></p>
+{% endif %}
+
 {% if has_profile %}{{ _rda_legend.legend() }}{% endif %}
 
 {% for section in nutrient_sections %}

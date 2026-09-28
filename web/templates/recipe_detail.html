@@ -674,7 +674,7 @@
 
   {% if ignored_complements %}
   {% for name in ignored_complements %}<input type="hidden" name="ignore_complements" value="{{ name }}">{% endfor %}
-  <details class="mt-1 mb-1">
+  <details class="mt-1 mb-1" data-remember="ignored-complements">
     <summary class="muted" style="cursor:pointer"><small>Ignoring {{ ignored_complements|length }} suggestion{{ 's' if ignored_complements|length != 1 else '' }} &mdash; manage</small></summary>
     <table class="table table-sm mt-1" style="max-width:26rem">
       <thead><tr><th>Food</th><th>Remove ignore</th></tr></thead>
@@ -855,9 +855,7 @@ document.getElementById('complements-form').addEventListener('change', function 
     <p>
       <strong>{{ gl.total }}</strong>
       <small class="muted">&mdash;
-        {% if gl.total < 10 %}Low
-        {% elif gl.total < 20 %}Medium
-        {% else %}High{% endif %}
+        {{ gl_band(gl.total, "serving") }}
       </small>
     </p>
     {% else %}

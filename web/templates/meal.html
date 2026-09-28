@@ -183,7 +183,7 @@
 </div>
 
 {# ── Add food (inline control — not an analysis section) ──────────────── #}
-<details open class="mb-3" id="add-food-details">
+<details open class="mb-3" id="add-food-details" data-remember="add-food">
   <summary><strong>Add Food or Recipe</strong></summary>
   {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
 
@@ -393,17 +393,32 @@
       });
     }
 
-    var beforeMerge = snapshotRows();
     var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}, limit: {{ limit | tojson }}});
     {{ source | tojson }}.forEach(function (s) { params.append('source', s); });
     fetch('/meal/{{ meal.id }}/search-api-results?' + params.toString())
       .then(function (r) { return r.text(); })
       .then(function (html) {
+        // Snapshot HERE, not before the fetch was issued: the whole point is
+        // to carry across what the user typed WHILE the external search was
+        // running, and at fetch time they have not typed anything yet.
+        var beforeMerge = snapshotRows();
         // Server response is the FULL merged+re-sorted result set (local +
         // external), not just new rows — replace, don't append, so a weak
         // local match can't stay pinned above a better external one.
         tbody.innerHTML = html;
+        // base.html's unsaved-changes guard snapshotted the rows this replace
+        // just threw away. Drop those (detached, so unclearable — they made
+        // "Add to meal" pop the browser's "Leave site?" dialog) and register
+        // the replacements, taking each baseline from the row as rendered so
+        // restoreRows' typed-back values below still read as unsaved.
+        if (window.numaDirtyGuard) {
+          window.numaDirtyGuard.prune();
+          window.numaDirtyGuard.track(tbody);
+        }
         restoreRows(beforeMerge);
+        // restoreRows writes values programmatically, which fires no
+        // input/change event, so the guard has to be asked to re-compare.
+        if (window.numaDirtyGuard) window.numaDirtyGuard.recheck(tbody);
         if (html.trim()) {
           table.style.display = '';
           focusFirstResultField();
@@ -583,7 +598,7 @@
 
 {# ── Merge meals (operational control — not an analysis section) ──────── #}
 {% if sibling_meals %}
-<details class="mb-3">
+<details class="mb-3" data-remember="merge">
   <summary><strong>Merge with other meals on {{ meal.meal_date }}</strong></summary>
   <div class="mt-2">
     <form method="post" action="/meal/{{ meal.id }}/merge">
@@ -951,7 +966,7 @@
 
   {% if ignored_complements %}
   {% for name in ignored_complements %}<input type="hidden" name="ignore_complements" value="{{ name }}">{% endfor %}
-  <details class="mt-1 mb-1">
+  <details class="mt-1 mb-1" data-remember="ignored-complements">
     <summary class="muted" style="cursor:pointer"><small>Ignoring {{ ignored_complements|length }} suggestion{{ 's' if ignored_complements|length != 1 else '' }} &mdash; manage</small></summary>
     <table class="table table-sm mt-1" style="max-width:26rem">
       <thead><tr><th>Food</th><th>Remove ignore</th></tr></thead>
@@ -1130,9 +1145,7 @@ document.getElementById('complements-form').addEventListener('change', function 
     <p>
       <strong>{{ gl.total }}</strong>
       <small class="muted">&mdash;
-        {% if gl.total < 10 %}Low
-        {% elif gl.total < 20 %}Medium
-        {% else %}High{% endif %}
+        {{ gl_band(gl.total, "serving") }}
       </small>
     </p>
     {% else %}

@@ -3005,15 +3005,96 @@ def test_food_annotate_page_prefills_saved_gi(client: TestClient, cached_food) -
     assert 'value="55.0"' in resp.text, gi_input
 
 
-def test_annotation_prompt_stops_once_both_values_are_saved(client: TestClient, cached_food) -> None:
-    """The add-to-pantry/meal flow only detours through Annotate while a food
-    is still missing an estimate, so being prompted means one isn't stored yet.
-    A GI alone doesn't stop it — DIAAS is still outstanding."""
+def test_gi_source_is_saved_and_shown_on_the_food_page(client: TestClient, cached_food) -> None:
+    """A GI picked off the reference table is only as good as the row behind it,
+    so the row is stored with it and shown wherever the value is -- the Annotate
+    form and the food's own page."""
+    fdc_id = cached_food["fdcId"]
+    source = ('Foster-Powell 2008 reference table, Table A2 (impaired): '
+              '"Beans, dried, boiled, type NS (Italy)16" - ref Bread, 2h 76')
+    client.post(f"/food/annotate/{fdc_id}",
+                data={"gi_estimate": "20", "gi_source": source},
+                follow_redirects=False)
+
+    annotate = client.get(f"/food/annotate/{fdc_id}")
+    assert "Table A2 (impaired)" in annotate.text
+    assert "ref Bread, 2h 76" in annotate.text
+
+    detail = client.get(f"/food/{fdc_id}")
+    assert "GI 20" in detail.text
+    assert "Value taken from:" in detail.text
+    assert "ref Bread, 2h 76" in detail.text
+
+
+def test_gi_columns_carry_the_source_as_a_tooltip(client: TestClient, cached_food, db_conn) -> None:
+    """A GI column is one rounded number wide, which says nothing about where the
+    figure came from — so every listing that has the column hangs the provenance
+    off it as a tooltip rather than leaving the number unexplained."""
+    fdc_id = cached_food["fdcId"]
+    source = "Foster-Powell 2008 reference table, Table A1 (normal): x - ref Glucose, 2h 23"
+    client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "20", "gi_source": source},
+                follow_redirects=False)
+    name = cached_food["name"]
+    _db.pantry_add(db_conn, name, fdc_id)
+    db_conn.commit()
+
+    for path in ("/food/cache", "/food/annotate", "/pantry",
+                 f"/food/search?query={name}", f"/food/search-api-results?query={name}",
+                 f"/food/analyze-portion-api-results?query={name}"):
+        assert "taken from: Foster-Powell" in client.get(path).text, path
+
+
+def test_hand_typed_gi_drops_a_stale_source(client: TestClient, cached_food, db_conn) -> None:
+    """Typing your own GI over a looked-up one must not leave the old citation
+    behind it: the food's page would then credit a reference-table row for a
+    number that did not come from it."""
+    fdc_id = cached_food["fdcId"]
+    client.post(f"/food/annotate/{fdc_id}",
+                data={"gi_estimate": "20", "gi_source": "Foster-Powell 2008, Table A1 (normal): x"},
+                follow_redirects=False)
+    # The page's JS clears the hidden field on a hand edit, so it posts empty.
+    client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "35", "gi_source": ""},
+                follow_redirects=False)
+
+    row = db_conn.execute("SELECT * FROM food_annotations WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    assert row["gi_estimate"] == 35.0
+    assert row["gi_source"] is None
+
+    detail = client.get(f"/food/{fdc_id}")
+    assert "GI 35" in detail.text
+    assert "Value taken from:" not in detail.text
+
+
+def test_clearing_gi_clears_its_source(client: TestClient, cached_food, db_conn) -> None:
+    """A source line describes a value, so it cannot outlive one -- even if the
+    form still posts the old text alongside an emptied GI box."""
+    fdc_id = cached_food["fdcId"]
+    source = "Foster-Powell 2008 reference table, Table A1 (normal): x"
+    client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "20", "gi_source": source},
+                follow_redirects=False)
+    client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "", "gi_source": source},
+                follow_redirects=False)
+
+    row = db_conn.execute("SELECT * FROM food_annotations WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    assert row["gi_estimate"] is None
+    assert row["gi_source"] is None
+
+
+def test_annotation_prompt_stops_once_the_form_is_saved(client: TestClient, cached_food) -> None:
+    """The add-to-pantry/meal flow detours through Annotate until the user has
+    saved that form once, settling the food either way. Saving a GI alone is
+    enough even though DIAAS is still blank: the detour is all-or-nothing
+    across both estimates, so before this a food the user had deliberately
+    dealt with kept interrupting on every add, landing them on a page that
+    looked exactly like the GI prompt they had just dismissed. The page still
+    reports DIAAS as outstanding — settled is not the same as answered."""
     fdc_id = cached_food["fdcId"]
     assert backend._annotation_prompt_needed(fdc_id) is True
 
     client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "55"}, follow_redirects=False)
-    assert backend._annotation_prompt_needed(fdc_id) is True
+    assert backend._annotation_prompt_needed(fdc_id) is False
+    with _db.get_db() as conn:
+        assert backend._missing_annotations(_db.get_food_annotation(conn, fdc_id)) == ["DIAAS"]
 
     client.post(
         f"/food/annotate/{fdc_id}",
@@ -3021,6 +3102,32 @@ def test_annotation_prompt_stops_once_both_values_are_saved(client: TestClient, 
         follow_redirects=False,
     )
     assert backend._annotation_prompt_needed(fdc_id) is False
+
+
+def test_annotation_prompt_survives_skip_for_now(client: TestClient, cached_food) -> None:
+    """"Skip for now" saves nothing, so the food stays unsettled and is asked
+    about again next time — the whole point of it sitting beside Save."""
+    fdc_id = cached_food["fdcId"]
+    assert backend._annotation_prompt_needed(fdc_id) is True
+    client.get(f"/food/annotate/{fdc_id}?next=/pantry")
+    assert backend._annotation_prompt_needed(fdc_id) is True
+
+
+def test_annotation_page_names_which_estimate_it_wants(client: TestClient, cached_food) -> None:
+    """When only one of the two estimates is outstanding, the prompt says which
+    — the form shows both fields either way, so without this a DIAAS prompt is
+    indistinguishable from the GI prompt the user just dealt with."""
+    fdc_id = cached_food["fdcId"]
+    with _db.get_db() as conn:
+        _db.set_food_annotation(conn, fdc_id, gi_estimate=55.0, gi_no_prompt=False,
+                                diaas_estimate=None, diaas_no_prompt=False,
+                                prep_context=None, reviewed=False)
+
+    page = client.get(f"/food/annotate/{fdc_id}?next=/pantry")
+    assert "GI is already settled for this food" in page.text
+    assert "Only DIAAS below is still open." in page.text
+    assert "Asking for this one" in page.text
+    assert "Settled — not being asked about" in page.text
 
 
 def test_skip_forever_suppresses_both_prompts(client: TestClient, cached_food) -> None:
@@ -3802,6 +3909,31 @@ def test_oxalate_link_page_renders_and_finds_candidates(client: TestClient, cach
     assert "Correct oxalate match" in resp.text
 
 
+def test_oxalate_link_page_explains_its_candidate_rows(client: TestClient, cached_food) -> None:
+    """A candidate row is a serving size, two possible units, a category and an
+    evidence flag on one line, so the page has to say what they mean -- and each
+    row has to show the group and whether the value was measured or estimated."""
+    resp = client.get(f"/food/{cached_food['fdcId']}/oxalate-link", params={"q": "spinach"})
+    assert "Reading a reference entry" in resp.text
+    assert "/manual#oxalate-categories" in resp.text
+    assert "/manual#oxalate-what-is-stored" in resp.text
+    # Spinach, Raw is directly measured and has no per-100g figure.
+    assert "measured in this food" in resp.text
+    assert "per-serving only" in resp.text
+    assert "Vegetables" in resp.text
+
+
+def test_food_page_says_whether_oxalate_value_was_measured(client: TestClient, cached_food) -> None:
+    """Estimated and directly-measured oxalate values carry different weight, and
+    the reference table distinguishes them, so a food's page must not show both
+    the same way."""
+    fdc_id = cached_food["fdcId"]
+    client.post(f"/food/{fdc_id}/oxalate-link", data={"choice": "429"}, follow_redirects=False)
+    detail = client.get(f"/food/{fdc_id}")
+    assert "value measured in this food" in detail.text
+    assert "/manual#oxalate-measured" in detail.text
+
+
 def test_oxalate_link_page_404s_for_unknown_food(client: TestClient) -> None:
     resp = client.get("/food/999999999/oxalate-link")
     assert resp.status_code == 404
@@ -4087,13 +4219,24 @@ def test_nutrient_plot_scale_factor_auto_link(client: TestClient, cached_food) -
     assert 'id="scale-factor-auto"' in r2.text
 
 
+# The opening words of the Home page's "you could plot this" nudge
+# (web/templates/home.html), used to tell that notice apart from every other
+# mention of the Nutrient Plot on that page.
+NUTRIENT_PLOT_NOTICE = "You can plot nutrients"
+
+
 def test_home_page_nutrient_plot_notice(client: TestClient, cached_food) -> None:
     """A brief notice pointing to Nutrient Plot only shows once there's
     actually something to plot (a logged meal) and only until the user has
-    already put a plot on the home page — no point nudging them again."""
+    already put a plot on the home page — no point nudging them again.
+
+    Asserts on the notice's own sentence rather than the bare words
+    "Nutrient Plot": the home page also prints version.NEW_VERSION_NOTE,
+    which names whatever shipped last and so can legitimately mention the
+    Nutrient Plot with no notice on screen at all."""
     # No meals logged yet -> no notice
     r = client.get("/")
-    assert "Nutrient Plot" not in r.text
+    assert NUTRIENT_PLOT_NOTICE not in r.text
 
     today = datetime.date.today().isoformat()
     resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
@@ -4104,7 +4247,7 @@ def test_home_page_nutrient_plot_notice(client: TestClient, cached_food) -> None
 
     # Meals logged, no home plot yet -> notice shows, with both links
     r2 = client.get("/")
-    assert "Nutrient Plot" in r2.text
+    assert NUTRIENT_PLOT_NOTICE in r2.text
     assert "#nutrient-plot" in r2.text
     assert 'href="/summary/nutrient-plot"' in r2.text
 
@@ -4115,7 +4258,7 @@ def test_home_page_nutrient_plot_notice(client: TestClient, cached_food) -> None
     qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', plot_resp.text).group(1))
     client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
     r3 = client.get("/")
-    assert "You can chart nutrients" not in r3.text
+    assert NUTRIENT_PLOT_NOTICE not in r3.text
 
 
 def test_home_page_plot_notes_rolling_to_complete_day(client: TestClient, cached_food) -> None:
@@ -4568,3 +4711,370 @@ def test_settings_clear_starter_data_reports_kept_foods(client: TestClient, db_c
     plain = client.get("/settings?saved=starter_data_cleared")
     assert "Starter data cleared" in plain.text
     assert "were kept" not in plain.text
+
+
+def test_nav_memory_skips_post_rendered_pages(client: TestClient, db_conn) -> None:
+    """A POST action that renders its result page in place (rather than
+    redirecting) leaves a POST-only URL in the address bar. The nav-memory
+    script must not remember it — a section nav link or quick-return chip
+    pointing there answers "Method Not Allowed" when followed."""
+    import json as _json
+
+    fdc_id = 999101
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (fdc_id, "Potatoes, microwaved", "User Drafted", _json.dumps({"protein_g": 2.0}),
+         _json.dumps([{"description": "1 cup", "gram_weight": 150.0}])),
+    )
+    db_conn.commit()
+
+    got = client.get(f"/food/cache/{fdc_id}/portions")
+    assert "var isGetPage = true;" in got.text
+
+    posted = client.post(f"/food/cache/{fdc_id}/portions/delete", data={"portion_index": 0})
+    assert posted.status_code == 200
+    assert "var isGetPage = false;" in posted.text
+
+
+def test_page_state_memory_panels_are_marked(client: TestClient, cached_food) -> None:
+    """The long pages carry data-remember on their disclosure panels so the
+    base.html page-state script can restore them, and the inline edit panels
+    deliberately do not — reopening one would resurface a discarded edit."""
+    resp = client.get("/summary")
+    assert resp.status_code == 200
+    # The mechanism itself ships on every page.
+    assert "details[data-remember]" in resp.text
+    assert "numa_ui_open:" in resp.text
+    # Jinja must not have eaten the {% for %} mention inside the comment.
+    assert "inside a {% for %} loop" in resp.text
+    assert 'data-remember="recent-days"' in resp.text
+
+    # The full-day analysis sections only exist on a dated summary that has
+    # something in it to analyze.
+    today = datetime.date.today().isoformat()
+    meal_id = int(
+        client.post("/meals/create", data={"meal_date": today, "name": "Lunch"},
+                    follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                      "portion_str": "150 g"},
+                follow_redirects=False)
+    dated = client.get(f"/summary/{today}")
+    assert dated.status_code == 200
+    for key in ("diaas", "complements", "glycemic-load", "nutrients"):
+        assert f'data-remember="{key}"' in dated.text
+
+    # The profile "Change" popup on a dated summary is an edit form — opted out.
+    assert 'class="d-inline-block ms-1" data-remember' not in dated.text
+
+
+def test_summary_meal_items_show_amount_not_just_unit(client: TestClient, cached_food) -> None:
+    """The per-meal item list on the Daily Summary (and the Recent Days detail
+    it shares markup with) has to show how much of a food was eaten. Every
+    meal item carries a unit — "g" for a food, "servings" for a recipe — so a
+    template that printed the unit alone showed every item as a bare "— g"."""
+    today = datetime.date.today().isoformat()
+    meal_id = int(
+        client.post("/meals/create", data={"meal_date": today, "name": "Lunch"},
+                    follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                      "portion_str": "150 g"},
+                follow_redirects=False)
+
+    for url in (f"/summary/{today}", f"/meal/{meal_id}/day"):
+        resp = client.get(url)
+        assert resp.status_code == 200, url
+        assert "150.0&thinsp;g" in resp.text or "150.0\u2009g" in resp.text, url
+        # The old bug: the dash followed straight by a bare unit.
+        assert "&mdash;\n        g" not in resp.text, url
+
+
+def test_dcp_row_is_compared_to_the_same_protein_target_as_raw_protein() -> None:
+    """The protein RDA (0.8 g/kg) assumes protein "of mixed quality as
+    typically consumed" — i.e. highly digestible — so it is effectively
+    denominated in reference-quality protein, which is what DCP measures.
+    Both the raw-protein row and the DCP row below it therefore compare
+    against that same target. Showing a percent only on the raw row
+    overstates adequacy for a plant-heavy diet, where the two diverge."""
+    rda = {"protein_g": (56.0, "g", "minimum")}
+
+    rows = backend._nutrient_sections({"protein_g": 78.0}, rda=rda, dcp_g=61.2)
+    protein = next(r for s in rows for r in s["rows"] if r["label"] == "Protein")
+    dcp = next(r for s in rows for r in s["rows"] if r["is_dcp_row"])
+
+    # Same denominator, different numerators.
+    assert protein["pct"] == round(78.0 / 56.0 * 100, 0)
+    assert dcp["pct"] == round(61.2 / 56.0 * 100, 0)
+    assert dcp["rda_minimum"] == protein["rda_minimum"] == "56.0 g"
+    assert dcp["rda_type"] == "minimum"
+    assert dcp["rda_css"] is not None
+
+    # A low-quality (plant-heavy) day: raw protein clears the target while
+    # the protein actually usable does not. Both facts must be visible.
+    rows = backend._nutrient_sections({"protein_g": 62.0}, rda=rda, dcp_g=41.0)
+    protein = next(r for s in rows for r in s["rows"] if r["label"] == "Protein")
+    dcp = next(r for s in rows for r in s["rows"] if r["is_dcp_row"])
+    assert protein["pct"] >= 100 and dcp["pct"] < 100
+
+    # No profile set: no target to compare against, so no percent on either.
+    rows = backend._nutrient_sections({"protein_g": 78.0}, dcp_g=61.2)
+    dcp = next(r for s in rows for r in s["rows"] if r["is_dcp_row"])
+    assert dcp["pct"] is None and dcp["rda_minimum"] is None
+
+
+def test_dcp_row_percent_reaches_the_rendered_page(client: TestClient, cached_food) -> None:
+    """The nutrient table template renders row.pct generically, so the DCP
+    row's percent appears on every page using it once the backend fills it."""
+    today = datetime.date.today().isoformat()
+    meal_id = int(
+        client.post("/meals/create", data={"meal_date": today, "name": "Lunch"},
+                    follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                      "portion_str": "200 g"},
+                follow_redirects=False)
+
+    resp = client.get(f"/meal/{meal_id}")
+    assert resp.status_code == 200
+    assert "(Digestible Complete Protein)" in resp.text
+
+    # Isolate the DCP row itself and confirm it now carries a percent and a
+    # goal figure, not the bare gram value it used to show alone.
+    import re as _re
+    row = _re.search(r'<tr class="[^"]*dcp-row.*?</tr>', resp.text, _re.S)
+    assert row, "no DCP row in the rendered nutrient table"
+    assert "%" in row.group(0), row.group(0)
+
+
+def test_protein_adequacy_label_and_value_agree_when_dcp_is_zero() -> None:
+    """A DCP of exactly 0.0 (every contributing food lacking amino-acid data)
+    is still a DCP figure. Keying the value off truthiness while the label
+    used "is not None" put the raw protein number under the DCP label."""
+    rda = {"protein_g": (56.0, "g", "minimum")}
+
+    zero = backend._protein_adequacy({"protein_g": 78.0}, 0.0, rda)
+    assert zero["label"] == "Digestible complete protein"
+    assert zero["intake"] == 0.0
+
+    # No DCP at all still falls back to raw protein, under the raw label.
+    none = backend._protein_adequacy({"protein_g": 78.0}, None, rda)
+    assert none["label"] == "Protein"
+    assert none["intake"] == 78.0
+
+
+def test_plot_legend_placement_auto_switches_at_one_row() -> None:
+    """"Auto" legend placement means above the plot while the legend still
+    fits on one row, and below once it would wrap — so it renders
+    byte-identically to an explicit "top" at four series (one row) and to an
+    explicit "bottom" at five (two rows). An unrecognized value falls back
+    to auto rather than raising, since it can arrive from a hand-edited or
+    stale saved querystring."""
+    from numa_app.services.plotting import LEGEND_MAX_NCOL, line_plot_image
+
+    dates = ["2026-09-01", "2026-09-02", "2026-09-03"]
+
+    def render(n_series: int, legend_pos: str) -> bytes:
+        series = [{"x": dates, "y": [1.0 + i, 2.0, 3.0], "label": f"Nutrient {i}"}
+                  for i in range(n_series)]
+        return line_plot_image(series, xlabel="Date", ylabel="Value",
+                               title="T", subtitle="(sub)", legend_pos=legend_pos)
+
+    one_row, two_rows = LEGEND_MAX_NCOL, LEGEND_MAX_NCOL + 1
+    assert render(one_row, "auto") == render(one_row, "top")
+    assert render(one_row, "auto") != render(one_row, "bottom")
+    assert render(two_rows, "auto") == render(two_rows, "bottom")
+    assert render(two_rows, "auto") != render(two_rows, "top")
+    assert render(one_row, "sideways") == render(one_row, "auto")
+
+
+def test_nutrient_plot_legend_placement_round_trips(client: TestClient, cached_food) -> None:
+    """The legend-placement picker offers all three choices, renders an
+    image for an explicit one, and keeps "legend" out of the saved plot
+    querystring while it's left on auto — an unconditional param would make
+    a home_nutrient_plot_qs saved before this option existed stop matching
+    the qs recomputed for the same view."""
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+
+    page = client.get("/summary/nutrient-plot?submitted=1&nutrients=calories")
+    assert page.status_code == 200
+    assert 'name="legend"' in page.text
+    for value in ("auto", "top", "bottom"):
+        assert f'value="{value}"' in page.text
+    assert "legend=" not in page.text
+
+    chosen = client.get("/summary/nutrient-plot?submitted=1&nutrients=calories&legend=top")
+    assert 'value="top" selected' in chosen.text
+    assert "legend=top" in chosen.text
+
+    img = client.get("/summary/nutrient-plot/image?nutrients=calories&nutrients=protein_g&legend=bottom")
+    assert img.status_code == 200
+    assert img.headers["content-type"] == "image/png"
+
+
+# ---------------------------------------------------------------------------
+# Glycemic load — day-scale banding, portion GL, and the GL trend
+# ---------------------------------------------------------------------------
+
+def _gl_rice(db_conn) -> int:
+    """A carb-heavy food with a GI annotation, so a logged day has a real GL."""
+    db_conn.execute(
+        "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?,?,?,?,?)",
+        (900001, "Rice, white, cooked", "SR Legacy",
+         json.dumps({"calories": 130.0, "protein_g": 2.7, "carbs_g": 28.0, "fat_g": 0.3}), "[]"),
+    )
+    _db.set_food_annotation(db_conn, 900001, gi_estimate=73.0, gi_no_prompt=False,
+                            diaas_estimate=None, diaas_no_prompt=False, prep_context=None)
+    db_conn.commit()
+    return 900001
+
+
+def _log_gl_day(client: TestClient, fdc_id: int, meal_date: str, grams: str = "400 g") -> int:
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": meal_date},
+                       follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": fdc_id, "food_name": "Rice, white, cooked", "portion_str": grams},
+                follow_redirects=False)
+    return meal_id
+
+
+def test_day_gl_uses_the_day_scale_not_the_per_serving_scale(client: TestClient, db_conn) -> None:
+    """A whole-day GL total is banded against <80 / 80-120 / >120, not the
+    per-serving <=10 / 11-19 / >=20 bands. Until 2026-09-27 the Daily Summary
+    used the serving bands, so every real day read "High"."""
+    fdc_id = _gl_rice(db_conn)
+    today = datetime.date.today().isoformat()
+    meal_id = _log_gl_day(client, fdc_id, today)   # 400 g rice -> GL ~81.8
+
+    r = client.get(f"/meal/{meal_id}/day")
+    assert r.status_code == 200
+    assert "Moderate" in r.text
+    # The day-scale caveat is shown, and the per-serving scale is named so the
+    # two numbers can't be read against each other by mistake.
+    assert "not a validated clinical target" in r.text
+    assert "per-serving scale" in r.text
+
+
+def test_meal_gl_still_uses_the_per_serving_scale(client: TestClient, db_conn) -> None:
+    fdc_id = _gl_rice(db_conn)
+    today = datetime.date.today().isoformat()
+    meal_id = _log_gl_day(client, fdc_id, today, grams="50 g")   # GL ~10.2 -> Medium
+
+    r = client.get(f"/meal/{meal_id}")
+    assert r.status_code == 200
+    assert "Medium" in r.text
+    # The day-scale caveat belongs only to day totals.
+    assert "not a validated clinical target" not in r.text
+
+
+def test_food_detail_shows_gl_for_the_analyzed_portion(client: TestClient, db_conn) -> None:
+    """Both halves of GI x carbs / 100 are already on this page; showing only
+    GI left the reader to do the arithmetic on the one page where portion
+    experiments happen."""
+    fdc_id = _gl_rice(db_conn)
+    r = client.get(f"/food/{fdc_id}?amount=100")
+    assert r.status_code == 200
+    assert "GI 73" in r.text
+    assert "GL 20.4" in r.text
+
+    # Halving the portion halves the GL; the GI is unchanged.
+    r2 = client.get(f"/food/{fdc_id}?amount=50")
+    assert "GI 73" in r2.text
+    assert "GL 10.2" in r2.text
+
+
+def test_food_without_a_gi_annotation_shows_no_gl(client: TestClient, cached_food) -> None:
+    r = client.get(f"/food/{cached_food['fdcId']}?amount=100")
+    assert r.status_code == 200
+    assert "GL " not in r.text
+
+
+def test_nutrient_plot_offers_daily_gl_as_a_series(client: TestClient, db_conn) -> None:
+    fdc_id = _gl_rice(db_conn)
+    today = datetime.date.today().isoformat()
+    _log_gl_day(client, fdc_id, today)
+
+    r = client.get("/summary/nutrient-plot")
+    assert 'value="gl"' in r.text
+    assert "Daily glycemic load" in r.text
+
+    r2 = client.get("/summary/nutrient-plot?nutrients=gl")
+    assert r2.status_code == 200
+    assert "Daily glycemic load" in r2.text
+
+
+def test_trend_page_averages_daily_gl(client: TestClient, db_conn) -> None:
+    fdc_id = _gl_rice(db_conn)
+    today = datetime.date.today()
+    for back in (0, 1):
+        _log_gl_day(client, fdc_id, (today - datetime.timedelta(days=back)).isoformat())
+
+    r = client.get("/summary/trend?days=7")
+    assert r.status_code == 200
+    assert "Average daily glycemic load" in r.text
+    assert "over 2 of 2 day(s)" in r.text
+    assert "Moderate" in r.text
+
+
+def test_trend_gl_skips_days_with_incomplete_gi_coverage(client: TestClient, db_conn, cached_food) -> None:
+    """A day holding an unannotated food has no GL at all, rather than a
+    partial total that would understate it — and the skipped days are named."""
+    fdc_id = _gl_rice(db_conn)
+    today = datetime.date.today()
+    _log_gl_day(client, fdc_id, today.isoformat())
+
+    gap_date = (today - datetime.timedelta(days=1)).isoformat()
+    resp = client.post("/meals/create", data={"name": "Gap", "meal_date": gap_date},
+                       follow_redirects=False)
+    gap_meal = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{gap_meal}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                      "portion_str": "150 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary/trend?days=7")
+    assert "over 1 of 2 day(s)" in r.text
+    assert gap_date in r.text
+
+
+def test_settings_reports_which_gi_reference_table_is_in_use(client: TestClient) -> None:
+    """Whether a GI lookup is answered by the bundled 2008 table or a
+    locally-built 2021 one is otherwise invisible: the local table supersedes
+    the bundled one silently, and deleting it falls back just as silently."""
+    import gi_lookup
+    info = gi_lookup.active_table_info()
+    r = client.get("/settings")
+    assert r.status_code == 200
+    assert 'id="gi-table"' in r.text
+    assert info["path"] in r.text
+    if info["edition"] == 2021:
+        assert "2021 edition" in r.text
+        assert "locally built" in r.text
+    else:
+        # The fallback state opens itself, since it is the one a user is most
+        # likely not to have noticed, and says how to build the 2021 table.
+        assert 'id="gi-table" open' in r.text
+        assert "scripts/build_gi_data.py" in r.text
+
+
+def test_annotate_page_badges_the_active_gi_table_edition(client: TestClient,
+                                                          cached_food) -> None:
+    """Shown on the closed lookup panel's summary, so the edition answering the
+    search is visible without opening it."""
+    import gi_lookup
+    edition = gi_lookup.active_table_info()["edition"]
+    r = client.get(f"/food/annotate/{cached_food['fdcId']}")
+    assert r.status_code == 200
+    assert f"{edition} edition</span>" in r.text
+    assert "/settings#gi-table" in r.text

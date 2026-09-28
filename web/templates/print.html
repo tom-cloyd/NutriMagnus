@@ -367,7 +367,9 @@
 
 {% if "glycemic_load" in enabled and gl and gl.total is not none %}
 <h2>Glycemic Load</h2>
-<p><strong>{{ gl.total }}</strong> <span class="muted">&mdash; {% if gl.total < 10 %}Low{% elif gl.total < 20 %}Medium{% else %}High{% endif %}</span></p>
+{% set _gl_scope = gl_scope | default("serving") %}
+<p><strong>{{ gl.total }}</strong> <span class="muted">&mdash; {{ gl_band(gl.total, _gl_scope) }}</span></p>
+{% if gl_band_caveat(_gl_scope) %}<p class="muted"><small>{{ gl_band_caveat(_gl_scope) }}</small></p>{% endif %}
 {% endif %}
 
 {% if "antinutrients" in enabled and (oxalate_agg or ingredient_antinutrients) %}

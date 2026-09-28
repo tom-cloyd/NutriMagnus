@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-09-24:0858
+UPDATED: 2026-09-27:2005
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -25,6 +25,20 @@ Last annual static-dataset check: 2026-09-20 (first run — see Maintenance sect
 - [Data Storage](#data-storage)
 - [Test Suite](#test-suite)
 - [Maintenance](#maintenance)
+  - [Weekly sweep](#weekly-sweep-wednesday-evening--thursday-morning) — **the nine numbered items** live here:
+    [1. CLAUDE.md drift](#1-claudemd-drift) ·
+    [2. "NuMa" capitalization](#2-numa-capitalization-in-prose) ·
+    [3. Vendored dependency check](#3-vendored-dependency-check) ·
+    [4. Changelog pruning](#4-changelog-pruning) ·
+    [5. Manual consolidation](#5-manual-consolidation) ·
+    [6. README.md accuracy](#6-readmemd-accuracy) ·
+    [7. Test coverage gaps](#7-test-coverage-gaps) ·
+    [8. Stale internal links](#8-stale-internal-links) ·
+    [9. Glossary coverage](#9-glossary-coverage)
+  - [Monthly deep check](#monthly-deep-check-first-weekly-sweep-of-each-month)
+  - [Quarterly source-fixture refresh](#quarterly-source-fixture-refresh-every-3-months)
+  - [Quarterly glossary audit](#quarterly-glossary-audit-every-3-months)
+  - [Quarterly mutation-testing rotation](#quarterly-mutation-testing-rotation-plus-a-weekly-churn-check)
 
 ---
 
@@ -99,13 +113,17 @@ numa/
       diet_aware.py                  — B12/iron/zinc bioavailability notes based on dietary preference
       food_ids.py                    — classify_food_id() — food/recipe ID → (id_str, source_label)
       food_import.py                 — shared food-cache import logic (used by import_foods.py etc.)
-      glycemic_load.py               — shared glycemic load aggregation: compute_glycemic_load()
+      glycemic_load.py               — shared glycemic load aggregation: compute_glycemic_load();
+                                       two-scale banding (gl_band/gl_band_caveat — "serving"
+                                       vs "day", which are NOT interchangeable); and day-level
+                                       totals for the GL trend and plot (day_gl_total,
+                                       day_gl_totals, average_day_gl)
       manual_build.py                — rebuild_manual_if_stale(), used by the web app's /manual route
       meal_bcp.py                    — shared meal-DCP fallback: recipe_dcp_fallback()
       meal_list_columns.py           — nutrient-column picker logic shared by Meals & Log, Recent
                                       Days/Daily Summary, and the Nutrient Plot picker
       nutrient_trend.py              — nutrient averaging across days
-      plotting.py                    — nutrient trend line-chart rendering
+      plotting.py                    — nutrient trend line-plot rendering
       portions.py                    — _parse_portion_input() — portion-string parsing
       print_sections.py              — shared vocabulary/prefs resolution for printable
                                       nutritional-analysis "what to include" checkboxes
@@ -187,7 +205,7 @@ numa/
       analysis_food_use_recipes.html — Analysis: frequency of a food's use across recipes
       summary.html                 — Daily summary landing page (Recent Days list)
       trend.html                   — nutrient averages across days view
-      nutrient_plot.html           — Nutrient trend line-chart picker/display
+      nutrient_plot.html           — Nutrient trend line-plot picker/display
       nutrient_plot_print.html     — Print-formatted nutrient plot
       print.html                   — Shared printable nutritional-analysis page (food/recipe/meal/day)
       settings.html                — User profile, dietary preferences, USDA API key, DIAAS overrides,
@@ -284,11 +302,52 @@ For user-facing documentation of the food cache — what gets stored, the quick-
 
 ### Food annotations (GI and DIAAS estimates)
 
-The `food_annotations` table stores user-supplied estimates attached to individual cached foods by `fdc_id` (fields: `gi_estimate`, `diaas_estimate`, `prep_context`, `gi_no_prompt`, `diaas_no_prompt`). See the [User Manual](user-manual.html) for the annotation workflow.
+The `food_annotations` table stores user-supplied estimates attached to individual cached foods by `fdc_id` (fields: `gi_estimate`, `gi_source`, `diaas_estimate`, `prep_context`, `gi_no_prompt`, `diaas_no_prompt`, `reviewed`). `reviewed` is set by `set_food_annotation()` (the whole-form writer, so a save from the Annotate page) and means "the user has seen this food's prompt and settled it"; `_annotation_prompt_needed()` in `web/backend.py` treats it as a stop, which is what keeps a food from detouring again when the user filled in one estimate and deliberately left the other blank. It is never cleared by a later write — a non-review writer such as a GI seed import must not make an already-settled food start interrupting again. `gi_source` is free text describing where `gi_estimate` came from — composed by the Annotate page's reference-table lookup (table/population/entry name/study method) and displayed under the GI field there and on the food's own page. It is meaningless without a value, so `set_food_annotation()` drops it whenever `gi_estimate` is None, the page's JS clears it when the GI box is hand-edited, and any caller writing `gi_estimate` should write it too (see `upsert_food_annotation`'s docstring). See the [User Manual](user-manual.html) for the annotation workflow.
 
 **Prompt on first add:** `web/backend.py:_gi_prompt_needed()` fires the first time a food is added to the Pantry (single-add path) or to a meal, if that food has no `gi_estimate` on file and `gi_no_prompt` isn't set. `/pantry/add` and `/meal/{id}/add` redirect to `/food/annotate/{fdc_id}?next=...` when a prompt is warranted; the annotate page offers "Skip for now" (no DB write, redirects to `next`) vs. "Skip forever for this food" (POSTs to `/food/annotate/{fdc_id}/skip-forever`, which sets `gi_no_prompt=1` via `upsert_food_annotation` without touching other fields). `diaas_no_prompt` exists in the schema but is not currently wired into any add flow.
 
 **Seeding GI values in bulk:** `import_gi_seed.py` (repo root) writes `gi_estimate` for cached foods whose name exactly matches an entry in a small hardcoded table sourced from Foster-Powell/Holt/Brand-Miller (2008) *Diabetes Care* 31(12):2281-3 (CC-licensed, ~60 common foods). Ambiguous/fuzzy matches are printed for manual review rather than written automatically — see the script's docstring. Run with `--apply` to write; without it, it's a dry run.
+
+**GI reference table lookup (`gi_lookup.py` — glycemic index table lookup):** The Annotate page's
+"look up a GI value" search is a local fuzzy name match over `gi_data.json`, built by
+`scripts/build_gi_data.py`. No live API; same category as CoFID/AFCD/CIQUAL.
+
+**Two tables, and the licence that forces the split.** `gi_data.json` (committed, shipped, bundled in
+the spec) is the 2008 edition — 2,487 rows, Creative Commons licensed, which is why it can ship.
+`gi_data_local.json` is built by the user from the two online supplemental tables of Atkinson et al.
+2021, *International tables of glycemic index and glycemic load values* (AJCN 114:1625–1632,
+doi:10.1093/ajcn/nqab233) — 4,017 rows from that edition plus ~369 carried forward from 2008, and it
+is **gitignored and deliberately absent from `nutrimagnus.spec`'s `datas`**. That edition is under
+the Elsevier user licence: text and data mining for non-commercial purposes is expressly permitted,
+redistribution and adaptation expressly forbidden, copyright held by the American Society for
+Nutrition. So NuMa ships the parser, each user mines their own copy, and the result never leaves
+their machine. `gi_lookup.active_table_path()` prefers the local table (user data dir first, so a
+packaged install can take an upgrade, then beside the module) and falls back to the bundled one.
+`tests/test_gi_lookup.py` asserts `gi_data.json` holds only edition-2008 rows;
+`tests/test_packaging_spec.py` asserts the spec never bundles the local file. Source PDFs and the
+full citation live in `data-sources/` (PDFs gitignored).
+
+Three things about the data model are easy to get wrong:
+
+* **`population` is a per-row field, not a property of which published table a row came from.** The
+  2021 supplement splits its two tables by ISO 26642:2010 *method compliance*, not by subject group
+  — roughly 1,250 rows in the non-compliant table were still measured in normal-tolerance subjects.
+  The 2008 edition's A1/A2 appendices genuinely were split by population, so code carried over from
+  that era cannot be trusted here. ISO compliance rides along separately as `iso`.
+* **`year` is the study's year of test, not the edition's.** Rows tagged `edition: 2008` carry
+  `year: None`, because that extraction never captured one and the edition year is not a measurement
+  date. The Annotate picker shows those as "2008 edition" with no year rather than implying one.
+* **Rows with `population: "unknown"` are returned for *either* requested population**, not withheld
+  from both — see `gi_lookup.search()`.
+
+`scripts/build_gi_data_2008.py` is the superseded 2008-edition ingest. It writes `gi_data_2008.json`
+and is not part of a normal build; it exists only in case those A1/A2 PDFs ever need re-parsing.
+
+**Provenance on a pick:** choosing a row writes a one-line human-readable citation into
+`food_annotations.gi_source` alongside the value — edition and published table, the row's own food
+name, year and country of test, subject group, and the source-study reference number. Values saved
+under an older format are never rewritten: the string records where a number came from, not a live
+pointer.
 
 **Visibility columns:** The **Ann** column in search result tables (`GI`, `DI`, or `GI DI` in green) and the `AA`/`GI`/`DIAAS` columns in the cached food list are driven by joins against `food_annotations` keyed on `fdc_id`.
 
@@ -683,7 +742,7 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 | `meals`              | Meal log entries with date                           |
 | `meal_items`         | Foods or recipes added to a meal; foreign key to `meals` |
 | `pantry`             | User's protein-source inventory (food name, optional fdc_id, notes) |
-| `food_annotations`   | Per-food user-supplied estimates (GI, DIAAS, prep context), keyed by fdc_id; also stores `gi_no_prompt` / `diaas_no_prompt` suppression flags |
+| `food_annotations`   | Per-food user-supplied estimates (GI, GI provenance, DIAAS, prep context), keyed by fdc_id; also stores `gi_no_prompt` / `diaas_no_prompt` suppression flags and the `reviewed` "user has settled this food" flag |
 | `diaas_overrides`    | User-set true ileal digestibility coefficients, keyed by food name (used by meal-level DIAAS in `diaas.py`; distinct from per-food annotations above) |
 | `saved_mixed_comparisons` | Named, saved Compare lists — foods and/or recipes (`/compare/save` and friends) |
 | `saved_comparisons`, `saved_recipe_comparisons` | Superseded 2026-09 by `saved_mixed_comparisons`; left in place (unused) so pre-existing rows aren't dropped |
@@ -1056,7 +1115,7 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | GET | `/summary/{meal_date}` | Daily summary for one date |
 | POST | `/summary/{meal_date}/profile` | Set/override the profile pinned to that date |
 | GET | `/summary/trend` | Nutrient averages across days view |
-| GET | `/summary/nutrient-plot`, `nutrient-plot/image`, `nutrient-plot/print` | Nutrient trend line-chart picker, rendered image, and print view |
+| GET | `/summary/nutrient-plot`, `nutrient-plot/image`, `nutrient-plot/print` | Nutrient trend line-plot picker, rendered image, and print view |
 | POST | `/summary/nutrient-plot/home-pref` | Toggle showing the current nutrient plot on the home page |
 | GET | `/analysis/food-use` | Frequency of a food's use across meals/date ranges |
 | POST | `/analysis/food-use/substitute` | Substitute one food for another across matched meal items |
@@ -1261,7 +1320,7 @@ Nutrient averages across days view: averages a chosen set of nutrients across a 
 
 #### `nutrient_plot.html`, `nutrient_plot_print.html`
 
-Line-chart view of a chosen nutrient's day-by-day totals over a date range (`numa_app/services/plotting.py`), and a print-formatted variant.
+Line-plot view of a chosen nutrient's day-by-day totals over a date range (`numa_app/services/plotting.py`), and a print-formatted variant.
 
 #### `print.html`
 
@@ -1336,7 +1395,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_complements_properties.py` | Property-based tests for `numa_app/services/complements.py`, complementing `test_complements.py`'s hand-picked cases |
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
 | `tests/test_recipe_csv.py` | `numa_app/services/recipe_csv.py`: recipe CSV export/import, sub-recipe closure collection, two-pass dedup-and-create import |
-| `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL rollup via `gl_g`, partial totals alongside blockers |
+| `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL rollup via `gl_g`, partial totals alongside blockers, serving-vs-day band boundaries, day totals and multi-day averaging |
 | `tests/test_meal_bcp.py` | `numa_app/services/meal_bcp.py`: `recipe_dcp_fallback()` sums precomputed recipe `dcp_g` when ingredient-level AA data is unavailable |
 | `tests/test_rda_status.py` | `numa_app/services/rda_status.py`: `rda_status()` tier boundaries for minimum/target and limit-type nutrients; `limit_warning()` 90%/100% thresholds |
 | `tests/test_food_import.py` | `numa_app/services/food_import.py`: `VALID_NUTRIENT_KEYS` completeness, `convert_per_serving()` scaling/validation, `validate_and_strip()` key/type filtering |
@@ -1356,7 +1415,8 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_cofid.py` | `cofid_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
 | `tests/test_afcd.py` | `afcd_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
 | `tests/test_ciqual.py` | `ciqual_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
-| `tests/test_gi_lookup.py` | `gi_lookup.py`: fuzzy name search over the Foster-Powell glycemic index reference table, population filtering |
+| `tests/test_gi_lookup.py` | `gi_lookup.py`: fuzzy name search over the Atkinson glycemic index reference table, population filtering, edition/year-of-test reporting |
+| `tests/test_build_gi_data.py` | `scripts/build_gi_data.py`: per-row population classification, GI/SEM cell parsing, the 2008-to-2021 merge rule, legacy name repair, column geometry |
 | `tests/test_food_ids.py` | `numa_app/services/food_ids.py`: `classify_food_id()` mapping a food/recipe id to its display id and source label |
 | `tests/test_search_suggest.py` | `numa_app/services/search_suggest.py`: local "did you mean" suggestions for a search that returned nothing |
 | `tests/test_recipe_translate.py` | `numa_app/services/recipe_translate.py`: prompt-building and response-parsing for the manual-paste recipe translation workflow |
@@ -1366,6 +1426,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_manual_update.py` | `numa_app/services/manual_update.py`: Ed25519-verified manual downloads, stamp comparison, and refusal of anything that fails verification |
 | `tests/test_manual_format.py` | `user-manual.md`'s own structure: changelog entry format, hidden Scope blocks, heading conventions |
 | `tests/test_link_integrity.py` | Internal links: every manual `#anchor` against the built HTML, and every template `href="/..."` against a registered route (weekly-sweep item 8, automated) |
+| `tests/test_manual_abbreviations.py` | Every abbreviation in the manual is expanded inline or glossary-linked **within the section it appears in**, since any heading can be landed on directly (weekly-sweep item 9, automated) |
 | `tests/test_packaging_spec.py` | `nutrimagnus.spec`'s bundled-data list against what the app actually loads at runtime, plus this README's test table |
 | `tests/test_source_fixtures.py` | Live-source response shapes against the recorded fixtures (quarterly source-fixture refresh, automated) |
 
@@ -1411,7 +1472,55 @@ A starred recipe's own ingredients don't need to be starred themselves — they'
 
 A recurring maintenance pass, scoped to what changed since the last sweep — not a full re-audit each time. **Run the items in this order** — it's not arbitrary: pruning has to happen before the items that scan the changelog (so they're not reading entries about to be deleted), and items 8-9 (link check, glossary coverage) have to happen last (so they catch anything the manual-editing items introduce) — order between 8 and 9 themselves doesn't matter.
 
-**Before the numbered items below, check whether any longer-cadence maintenance is due** — this is the only place that check happens, so skipping it means those checks silently never run. Compare today's date against each date line in this file's header:
+**The nine weekly items are immediately below**, each with its own heading so you can link to one by number. Before starting them, check whether any longer-cadence maintenance is also due — that list follows the items, under *Longer-cadence checks*.
+
+#### 1. CLAUDE.md drift
+
+The package-layout listing near the top of `CLAUDE.md` is hand-maintained; check it against what's actually in `numa_app/` and the repo root, since new modules added during the week won't show up unless someone remembers to add them. Fast and independent — do it first for an easy win.
+
+#### 2. "NuMa" capitalization in prose
+
+`user-manual.md` and `README-numa-documentation.md` prose must say **NuMa** (never lowercase `numa` or mis-capitalized `Numa`) whenever referring to the program by name. This does *not* apply to filesystem paths, filenames, or code identifiers that happen to be spelled lowercase (`numa_app/`, `numa.db`, `~/.config/numa/`, `README-numa-documentation.md`, `cd numa`, `#gloss-numa` anchors) — only to the word used as the product name in a sentence. Quick check: `grep -n '\bnuma\b'` and `grep -n '\bNuma\b'` (word-boundary, so it won't match `numa_app`) over both files, then eyeball each hit — most existing hits will be legitimate paths. Fast and independent.
+
+#### 3. Vendored dependency check
+
+`web/static/vendor/bootstrap/` (CSS + JS, currently 5.3.8) is vendored locally rather than loaded from a CDN, so the app works offline. Low urgency since this is a locally-run app with no untrusted remote input reaching it, but worth a quick check for newer Bootstrap releases/patches at this cadence rather than a separate one. Also fast and independent.
+
+#### 4. Changelog pruning
+
+Entry placement and the release-summary procedure are in CLAUDE.md's Changelog section: new entries go under `<!-- Insert new updates below here -->`, each also getting a bullet under the running `#### Next release summary to this point` heading, which `create_release.py` renames to `#### Release <tag> summary` when a release is cut) — the "Recent program updates log" lives in `user-manual.md` Appendix A (moved here from Appendix K on 2026-08-05 since it's checked far more often than the other appendices). Keep roughly the **last 2 weeks** of entries. Older entries are safe to delete: `create_release.py` copies same-day entries into the release notes at push time and never re-reads the file afterward, so a pruned old entry can't retroactively change a past release's notes (stated in the manual's own `[//]: #` comment above the log). Do this **before** items 5-7 below — they all scan "the last two weeks" of this same log, so pruning first means less to read and no risk of auditing an entry that's about to be deleted anyway. **Known limitation, accepted rather than fixed** (raised and dismissed as not worth solving, 2026-09-20): the 2-week cutoff is a flat date boundary, not release-aware, so it can clip off some of the entries a still-relevant bottom-most release's notes were drawn from — those entries are already permanently copied into that release's GitHub notes per the paragraph above, so nothing is actually lost, but a reader of the in-app log specifically (not the GitHub release page) loses that older context. Not worth a fix for a gap this narrow.
+
+#### 5. Manual consolidation
+
+The same mechanism explained more than once (once per page/interface) that should live once in Part 4 — Shared Operations (or an existing Part 3 reference section) of `user-manual.md`, cross-linked from every place it applies; a feature documented for only one interface/page despite applying to more than one; two command/column lists for the same menu that have drifted out of sync (fix by pointing the thinner one at the canonical list, not updating both); a real behavior change that only exists in the changelog and was never written into the manual body; an Appendix A entry that contradicts a later entry (e.g. a feature marked "not built yet" when a subsequent same-day or later entry announces it shipped). Also worth a dedicated pass: leftover CLI-era content (typed single-letter commands like `a{id}=analyze`, `Type ?keyword` help references) that survived past the 2026-08-04 CLI removal — grep `user-manual.md` for `Type ?`, `^Commands:`, and `Command line:` as a quick way to surface it; the first full sweep (2026-08-17) found a meaningful amount still there, so don't assume one pass caught it all.
+
+#### 6. README.md accuracy
+
+Repo-root `README.md` (the public-facing overview: disclaimer, who it's for, key features list, download section) checked against current app behavior — a feature listed there that changed or was removed, or a new user-facing feature that should be added to the "Key features" list. Distinct from this file (`README-numa-documentation.md`), which is the internal architecture doc.
+
+#### 7. Test coverage gaps
+
+Cross-check the week's changelog entries against `tests/` to catch a shipped behavior change that never got a test.
+
+#### 8. Stale internal links
+
+Two separate targets, both worth checking, since a broken link in either one is invisible to the normal test suite (routes/anchors that exist just don't get exercised by a broken `href` — nothing errors, the link just 404s for a real user):
+   - **The manual's own links** — every `#anchor` reference in `user-manual.md` checked against actual anchor definitions (`[name]` tags / heading IDs, including auto-slugged ones from headings with no explicit `{: #foo}` tag — check these against `id="..."` in the *built* `user-manual.html`, not against `{: #foo}` tags alone, or every auto-slugged heading falsely shows up as "missing"). A quick way: extract every `](#anchor)` reference from the .md and diff against every `id="..."` in the built .html (two `re.findall` calls). Also worth a pass over external URLs (footnotes, source citations) for rot: `curl -s -o /dev/null -w "%{http_code}"` with a browser-like `-A` user agent and `-L` to follow redirects, but treat a 403/429 as inconclusive (bot-blocking, not necessarily rot) and only trust a 404/redirect-to-an-error-page as real rot.
+   - **The app's own screens** — every `href="/..."` in `web/templates/**/*.html` checked against both `@app.get`/`@app.post` routes actually registered in `web/backend.py` and (for a `/manual#anchor`-style deep link) the same built-manual anchor set as above; anything under a mounted static prefix (`/static`) is exempt. This direction is the one that's gone unchecked longest — found for the first time on 2026-09-13, immediately turning up a genuine dead link present since the oxalate-reporting feature's original commit (a "correct if wrong" link on food pages with no route ever built for it). Do this **last** — item 5 (manual consolidation) is the item most likely to add new `[text](#anchor)` links, so checking beforehand just means checking again afterward anyway.
+
+#### 9. Glossary coverage
+
+Scoped to what the week's changelog entries introduced, not a full pass over the whole manual (that's the monthly/full-audit's job — see below). Two checks, both cheap: (a) an abbreviation or term newly introduced this week (`CSV`, a new nutrient short-name, a new source label) that reads like it belongs in the Glossary (Part 9, `{: #gloss-*}` entries) but has no entry yet; (b) a term that already has a `#gloss-*` entry, used in a new passage this week, whose first/prominent mention in that passage isn't linked (`[TERM](#gloss-term)`). The convention is one link (or one inline expansion) per term per section, not every occurrence — **and as of 2026-09-27 that rule is enforced automatically** by `tests/test_manual_abbreviations.py`, so a bare abbreviation in a section that neither expands nor links it now fails the suite rather than waiting for this sweep to spot it. What the test cannot judge is whether a *newly introduced* abbreviation deserves a Glossary entry at all, so that part stays manual: check the week's changelog entries for a term that reads like it belongs in the Glossary (Part 9, `{: #gloss-*}` entries) and has no entry yet. If the test flags something that genuinely needs no expansion — a file format, a country code, a paper size — add it to the `_ALLOWED` set in that test file with a one-line reason rather than working around it in the prose. The per-section rule exists because the manual is never read front to back: every heading is a landing point reached from the app's "learn more..." links, the table of contents, or manual search, so a term spelled out three sections earlier is undefined for the reader who arrives mid-document.
+
+#### Notes on the items above
+
+Items 4-6 all scan the same two-week changelog window for gaps, just against three different targets (manual body, README, test suite) — do a single read-through of the changelog and produce three gap-lists from it, rather than re-reading the same entries three separate times (the first full sweep, 2026-08-17, ran two separate audits that each re-read the same window from scratch).
+
+After a sweep: log the result as a new `user-manual.md` Appendix A entry (or a suitable per-item entry if the fixes span categories), and bump the manual's own timestamp header. Pure doc/config consolidation does not require a `version.py` bump (no application behavior changed) — but a real bug fix found via item 6 (missing test written, bug fixed) does.
+
+#### Longer-cadence checks — verify before starting the items above
+
+**Before running the numbered items above, check whether any longer-cadence maintenance is due** — this is the only place that check happens, so skipping it means those checks silently never run. Compare today's date against each date line in this file's header:
 
 - **Monthly deep check** — due if "Last monthly accuracy check" isn't in the current month. See that section below.
 - **Quarterly source-fixture refresh** — due if "Last quarterly source-fixture check" is 3+ months ago (or has never been run). See that section below.
@@ -1421,22 +1530,6 @@ A recurring maintenance pass, scoped to what changed since the last sweep — no
 - **Mutation-testing weekly churn check** — a different kind of check, run every single week, not just when something is "due": for each module in that section's log NOT due this quarter, check whether it's had substantial code/test changes since its logged commit (`git log <commit>..HEAD -- <module> tests/...`) and flag it if so, per that section's procedure.
 
 Flag whichever are due, then run them (each has its own procedure in its own section) before or after the numbered weekly items — order between them and the weekly items doesn't matter, they don't share dependencies.
-
-1. **CLAUDE.md drift** — the package-layout listing near the top of `CLAUDE.md` is hand-maintained; check it against what's actually in `numa_app/` and the repo root, since new modules added during the week won't show up unless someone remembers to add them. Fast and independent — do it first for an easy win.
-2. **"NuMa" capitalization in prose** — `user-manual.md` and `README-numa-documentation.md` prose must say **NuMa** (never lowercase `numa` or mis-capitalized `Numa`) whenever referring to the program by name. This does *not* apply to filesystem paths, filenames, or code identifiers that happen to be spelled lowercase (`numa_app/`, `numa.db`, `~/.config/numa/`, `README-numa-documentation.md`, `cd numa`, `#gloss-numa` anchors) — only to the word used as the product name in a sentence. Quick check: `grep -n '\bnuma\b'` and `grep -n '\bNuma\b'` (word-boundary, so it won't match `numa_app`) over both files, then eyeball each hit — most existing hits will be legitimate paths. Fast and independent.
-3. **Vendored dependency check** — `web/static/vendor/bootstrap/` (CSS + JS, currently 5.3.8) is vendored locally rather than loaded from a CDN, so the app works offline. Low urgency since this is a locally-run app with no untrusted remote input reaching it, but worth a quick check for newer Bootstrap releases/patches at this cadence rather than a separate one. Also fast and independent.
-4. **Changelog pruning** (entry placement and the release-summary procedure are in CLAUDE.md's Changelog section: new entries go under `<!-- Insert new updates below here -->`, each also getting a bullet under the running `#### Next release summary to this point` heading, which `create_release.py` renames to `#### Release <tag> summary` when a release is cut) — the "Recent program updates log" lives in `user-manual.md` Appendix A (moved here from Appendix K on 2026-08-05 since it's checked far more often than the other appendices). Keep roughly the **last 2 weeks** of entries. Older entries are safe to delete: `create_release.py` copies same-day entries into the release notes at push time and never re-reads the file afterward, so a pruned old entry can't retroactively change a past release's notes (stated in the manual's own `[//]: #` comment above the log). Do this **before** items 5-7 below — they all scan "the last two weeks" of this same log, so pruning first means less to read and no risk of auditing an entry that's about to be deleted anyway. **Known limitation, accepted rather than fixed** (raised and dismissed as not worth solving, 2026-09-20): the 2-week cutoff is a flat date boundary, not release-aware, so it can clip off some of the entries a still-relevant bottom-most release's notes were drawn from — those entries are already permanently copied into that release's GitHub notes per the paragraph above, so nothing is actually lost, but a reader of the in-app log specifically (not the GitHub release page) loses that older context. Not worth a fix for a gap this narrow.
-5. **Manual consolidation** — the same mechanism explained more than once (once per page/interface) that should live once in Part 4 — Shared Operations (or an existing Part 3 reference section) of `user-manual.md`, cross-linked from every place it applies; a feature documented for only one interface/page despite applying to more than one; two command/column lists for the same menu that have drifted out of sync (fix by pointing the thinner one at the canonical list, not updating both); a real behavior change that only exists in the changelog and was never written into the manual body; an Appendix A entry that contradicts a later entry (e.g. a feature marked "not built yet" when a subsequent same-day or later entry announces it shipped). Also worth a dedicated pass: leftover CLI-era content (typed single-letter commands like `a{id}=analyze`, `Type ?keyword` help references) that survived past the 2026-08-04 CLI removal — grep `user-manual.md` for `Type ?`, `^Commands:`, and `Command line:` as a quick way to surface it; the first full sweep (2026-08-17) found a meaningful amount still there, so don't assume one pass caught it all.
-6. **README.md accuracy** — repo-root `README.md` (the public-facing overview: disclaimer, who it's for, key features list, download section) checked against current app behavior — a feature listed there that changed or was removed, or a new user-facing feature that should be added to the "Key features" list. Distinct from this file (`README-numa-documentation.md`), which is the internal architecture doc.
-7. **Test coverage gaps** — cross-check the week's changelog entries against `tests/` to catch a shipped behavior change that never got a test.
-8. **Stale internal links** — two separate targets, both worth checking, since a broken link in either one is invisible to the normal test suite (routes/anchors that exist just don't get exercised by a broken `href` — nothing errors, the link just 404s for a real user):
-   - **The manual's own links** — every `#anchor` reference in `user-manual.md` checked against actual anchor definitions (`[name]` tags / heading IDs, including auto-slugged ones from headings with no explicit `{: #foo}` tag — check these against `id="..."` in the *built* `user-manual.html`, not against `{: #foo}` tags alone, or every auto-slugged heading falsely shows up as "missing"). A quick way: extract every `](#anchor)` reference from the .md and diff against every `id="..."` in the built .html (two `re.findall` calls). Also worth a pass over external URLs (footnotes, source citations) for rot: `curl -s -o /dev/null -w "%{http_code}"` with a browser-like `-A` user agent and `-L` to follow redirects, but treat a 403/429 as inconclusive (bot-blocking, not necessarily rot) and only trust a 404/redirect-to-an-error-page as real rot.
-   - **The app's own screens** — every `href="/..."` in `web/templates/**/*.html` checked against both `@app.get`/`@app.post` routes actually registered in `web/backend.py` and (for a `/manual#anchor`-style deep link) the same built-manual anchor set as above; anything under a mounted static prefix (`/static`) is exempt. This direction is the one that's gone unchecked longest — found for the first time on 2026-09-13, immediately turning up a genuine dead link present since the oxalate-reporting feature's original commit (a "correct if wrong" link on food pages with no route ever built for it). Do this **last** — item 5 (manual consolidation) is the item most likely to add new `[text](#anchor)` links, so checking beforehand just means checking again afterward anyway.
-9. **Glossary coverage** — scoped to what the week's changelog entries introduced, not a full pass over the whole manual (that's the monthly/full-audit's job — see below). Two checks, both cheap: (a) an abbreviation or term newly introduced this week (`CSV`, a new nutrient short-name, a new source label) that reads like it belongs in the Glossary (Part 9, `{: #gloss-*}` entries) but has no entry yet; (b) a term that already has a `#gloss-*` entry, used in a new passage this week, whose first/prominent mention in that passage isn't linked (`[TERM](#gloss-term)`). Glossary linking has never been exhaustive by design — DCP and DIAAS, the two most-used terms, sit around 25% and 53% linked respectively (`grep -c` the bare word vs. `grep -c` the linked form to check) — the existing convention is roughly one link per term per distinct passage/section, not literally every occurrence, so don't try to make a term's coverage exhaustive; just make sure this week's new content follows the same convention new terms and passages elsewhere already do.
-
-Items 4-6 all scan the same two-week changelog window for gaps, just against three different targets (manual body, README, test suite) — do a single read-through of the changelog and produce three gap-lists from it, rather than re-reading the same entries three separate times (the first full sweep, 2026-08-17, ran two separate audits that each re-read the same window from scratch).
-
-After a sweep: log the result as a new `user-manual.md` Appendix A entry (or a suitable per-item entry if the fixes span categories), and bump the manual's own timestamp header. Pure doc/config consolidation does not require a `version.py` bump (no application behavior changed) — but a real bug fix found via item 6 (missing test written, bug fixed) does.
 
 ### Monthly deep check (first weekly sweep of each month)
 

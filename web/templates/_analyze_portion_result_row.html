@@ -7,7 +7,7 @@
     {% elif food.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
     {% else %}<span class="muted">—</span>{% endif %}
   </td>
-  <td class="muted"><small>{{ food.gi or "—" }}</small></td>
+  <td class="muted"{% if food.gi_source %} title="GI value taken from: {{ food.gi_source }}"{% endif %}><small>{{ food.gi or "—" }}</small></td>
   <td class="muted"><small>{{ food.diaas or "—" }}</small></td>
   <td class="muted">{% if food.has_notes %}<span title="Has a saved note">y</span>{% endif %}</td>
   <td>

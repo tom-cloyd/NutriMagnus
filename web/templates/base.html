@@ -566,7 +566,14 @@
       return null;
     }
     var here = sectionFor(window.location.pathname);
-    if (here) {
+    // Only a page you can reach again with a plain GET is worth remembering.
+    // Some action endpoints (e.g. POST /food/cache/<id>/portions/delete)
+    // render their result page in place rather than redirecting, so the URL
+    // bar holds a POST-only URL; remembering that would hand the section nav
+    // link and quick-return chip a link that answers "Method Not Allowed"
+    // when followed.
+    var isGetPage = {{ 'true' if request.method == 'GET' else 'false' }};
+    if (here && isGetPage) {
       var pageLabel = document.title.replace(/^NutriMagnus\s*(—|-)\s*/, '').trim() || document.title;
       sessionStorage.setItem('numa_last:' + here, window.location.pathname + window.location.search);
       sessionStorage.setItem('numa_last_label:' + here, pageLabel);
@@ -616,6 +623,79 @@
         chip.title = 'Back to ' + (label || 'where you left off in ' + sectionName);
         chip.classList.remove('d-none');
       }
+    });
+  })();
+  </script>
+  <script>
+  // Page-state memory: coming back to a page you were just on — by a plain
+  // link, a section nav link, or a quick-return chip — restores what it
+  // looked like when you left, instead of handing you a collapsed page
+  // scrolled back to the top. Two things are remembered, both in
+  // sessionStorage, both per URL:
+  //
+  //   * every <details data-remember="<key>"> panel's open/closed state,
+  //     keyed on pathname alone, so changing a filter or a date on that page
+  //     doesn't reset the panels you have open;
+  //   * scroll position, keyed on pathname + query string, since a different
+  //     query is a different list and its old offset means nothing there.
+  //
+  // Panels opt IN by carrying data-remember, and that is deliberate: an
+  // inline edit form (details.popup-edit, recipe_detail's "Edit
+  // instructions", summary's profile "Change" popup) must NOT reopen on
+  // return. Closing one discards what was typed, so resurrecting it would
+  // look like an edit is still pending when it isn't. A panel rendered
+  // inside a {% raw %}{% for %}{% endraw %} loop needs the row's own id in its key rather than
+  // its position, or deleting a row hands its state to its neighbour.
+  (function () {
+    var OPEN_KEY   = 'numa_ui_open:' + window.location.pathname;
+    var SCROLL_KEY = 'numa_ui_scroll:' + window.location.pathname + window.location.search;
+
+    function readOpen() {
+      try { return JSON.parse(sessionStorage.getItem('numa_ui_open:' + window.location.pathname) || '{}'); }
+      catch (err) { return {}; }
+    }
+
+    document.querySelectorAll('details[data-remember]').forEach(function (d) {
+      var key = d.getAttribute('data-remember');
+      var state = readOpen();
+      if (Object.prototype.hasOwnProperty.call(state, key)) d.open = !!state[key];
+      // Written on each toggle rather than on unload: a toggle is a
+      // deliberate act, and unload-time handlers aren't guaranteed to run.
+      // Note the base.html auto-focus handler above ignores this, since it
+      // only acts when the panel's own <summary> has focus — a programmatic
+      // open here never does.
+      d.addEventListener('toggle', function () {
+        var now = readOpen();
+        now[key] = d.open;
+        try { sessionStorage.setItem(OPEN_KEY, JSON.stringify(now)); } catch (err) {}
+      });
+    });
+
+    // Scroll. The browser restores its own offset on a reload or a
+    // Back/Forward move, so only a fresh navigation is ours to handle —
+    // otherwise the two restores fight each other. A #anchor in the URL
+    // always wins over a remembered offset.
+    var navEntry = (window.performance && performance.getEntriesByType
+                    ? performance.getEntriesByType('navigation')[0] : null);
+    if (!window.location.hash && navEntry && navEntry.type === 'navigate') {
+      var y = parseInt(sessionStorage.getItem(SCROLL_KEY) || '0', 10);
+      if (y > 0) {
+        // Two frames: let tables, images and the panel restores above settle
+        // first, and don't jump past the end of a page that came back
+        // shorter than it was.
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            if (document.body.scrollHeight > y) window.scrollTo(0, y);
+          });
+        });
+      }
+    }
+    window.addEventListener('pagehide', function () {
+      try {
+        var at = window.scrollY || document.documentElement.scrollTop || 0;
+        if (at > 0) sessionStorage.setItem(SCROLL_KEY, String(at));
+        else sessionStorage.removeItem(SCROLL_KEY);
+      } catch (err) {}
     });
   })();
   </script>
@@ -735,15 +815,26 @@
   // editable field is snapshotted on load; input/change marks it dirty and
   // colors its submit button + shows a badge; submitting clears the flag.
   // beforeunload warns if any tracked form is still dirty.
+  //
+  // Pages that REPLACE part of the DOM after load (the food-search tables,
+  // which render local results instantly and then swap the whole tbody for
+  // the merged local+external set) must tell this script about it through
+  // window.numaDirtyGuard — see meal.html. Without that, the forms it
+  // snapshotted are detached but still counted as dirty, while their
+  // replacements are tracked by nothing, so submitting one never clears the
+  // flag and the browser's generic "Leave site?" dialog fires on a submit
+  // the user just asked for.
   (function () {
     function serialize(form) {
       return new URLSearchParams(new FormData(form)).toString();
     }
 
     var dirtyForms = new Set();
-    var forms = document.querySelectorAll('form[method="post"]');
+    var tracked = [];   // {form, check} per tracked form, for recheck/prune
 
-    forms.forEach(function (form) {
+    function trackForm(form) {
+      if (form.numaDirtyTracked) return;
+      form.numaDirtyTracked = true;
       var hasEditable = form.querySelector(
         'input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select'
       );
@@ -797,9 +888,38 @@
         // just clicked into a spurious "leave site?" warning.
         dirtyForms.clear();
       });
-    });
+      tracked.push({form: form, check: check});
+    }
+
+    // Forms removed from the document (a replaced results table) must stop
+    // counting: a detached form can never be submitted, so its dirty flag
+    // could never be cleared again.
+    function prune() {
+      dirtyForms.forEach(function (form) {
+        if (!form.isConnected) dirtyForms.delete(form);
+      });
+      tracked = tracked.filter(function (t) { return t.form.isConnected; });
+    }
+
+    function trackAll(root) {
+      (root || document).querySelectorAll('form[method="post"]').forEach(trackForm);
+    }
+
+    // Re-run the dirty comparison without any user input — for values a page
+    // script wrote back programmatically (which fires no input/change event)
+    // after freshly-tracked forms took their baseline.
+    function recheck(root) {
+      tracked.forEach(function (t) {
+        if (!root || root.contains(t.form)) t.check();
+      });
+    }
+
+    trackAll(document);
+
+    window.numaDirtyGuard = {track: trackAll, recheck: recheck, prune: prune};
 
     window.addEventListener('beforeunload', function (e) {
+      prune();
       if (dirtyForms.size === 0) return;
       e.preventDefault();
       e.returnValue = '';

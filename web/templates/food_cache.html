@@ -180,7 +180,7 @@
         <span class="muted" title="No amino acid data">&#8212;</span>
         {% endif %}
       </td>
-      <td class="text-center muted">
+      <td class="text-center muted"{% if food.gi_source %} title="GI value taken from: {{ food.gi_source }}"{% endif %}>
         {{ "%.0f"|format(food.gi) if food.gi is not none else "—" }}
       </td>
       <td class="text-center muted">

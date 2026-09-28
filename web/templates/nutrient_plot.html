@@ -202,7 +202,15 @@
           </div>
           <div class="form-check mb-1">
             <input class="form-check-input" type="checkbox" id="grayscale" name="grayscale" value="1" {% if grayscale %}checked{% endif %}>
-            <label class="form-check-label" for="grayscale" title="Renders every line in black, using a different dash pattern per nutrient instead of color, so the chart still reads correctly on a printer that can't print color. Preview it here before you print.">Black &amp; white (printer-friendly)</label>
+            <label class="form-check-label" for="grayscale" title="Renders every line in black, using a different dash pattern per nutrient instead of color, so the plot still reads correctly on a printer that can't print color. Preview it here before you print.">Black &amp; white (printer-friendly)</label>
+          </div>
+          <div>
+            <label class="form-label mb-0" for="legend" title="Where the list naming each colored line sits. Auto puts it above the plot while it fits on one line, and below once it would wrap onto several. Saved with this plot, including the print view, downloads, and the Home page copy."><strong>Legend placement</strong></label>
+            <select class="form-select form-select-sm" id="legend" name="legend" style="width:12rem">
+              <option value="auto" {% if legend_pos == 'auto' %}selected{% endif %}>Auto (above if it fits)</option>
+              <option value="top" {% if legend_pos == 'top' %}selected{% endif %}>Always above the plot</option>
+              <option value="bottom" {% if legend_pos == 'bottom' %}selected{% endif %}>Always below the plot</option>
+            </select>
           </div>
           {% endif %}
           <div>
@@ -277,27 +285,39 @@
 <p class="muted mt-2"><small>{{ dates|length }} day(s) plotted, {{ dates[0] }} to {{ dates[-1] }}.</small></p>
 <script>
 (function () {
-  // Instant on-screen preview: toggling Black & white re-fetches the chart
-  // image (and keeps the download/print links in sync) immediately,
-  // without waiting for a full Plot click / page reload.
-  var checkbox = document.getElementById('grayscale');
-  if (!checkbox) return;
+  // Instant on-screen preview: changing Black & white or Legend placement
+  // re-fetches the plot image (and keeps the download/print links in sync)
+  // immediately, without waiting for a full Plot click / page reload. Both
+  // controls drive the same URL rewrite, so changing one leaves the other's
+  // param as it found it.
   var targets = [
     {el: document.getElementById('plot-img'), attr: 'src'},
     {el: document.getElementById('plot-dl-png'), attr: 'href'},
     {el: document.getElementById('plot-dl-svg'), attr: 'href'},
     {el: document.getElementById('plot-print'), attr: 'href'},
   ];
-  checkbox.addEventListener('change', function () {
-    targets.forEach(function (t) {
-      if (!t.el) return;
-      var url = new URL(t.el[t.attr], window.location.origin);
-      if (checkbox.checked) {
-        url.searchParams.set('grayscale', '1');
-      } else {
-        url.searchParams.delete('grayscale');
-      }
-      t.el[t.attr] = url.pathname + '?' + url.searchParams.toString();
+  // Each control says which querystring value its current state means;
+  // returning null means "leave the param off entirely" (the default), so
+  // an untouched control never bloats the saved plot querystring.
+  var controls = [
+    {id: 'grayscale', param: 'grayscale', value: function (el) { return el.checked ? '1' : null; }},
+    {id: 'legend', param: 'legend', value: function (el) { return el.value === 'auto' ? null : el.value; }},
+  ];
+  controls.forEach(function (c) {
+    var el = document.getElementById(c.id);
+    if (!el) return;
+    el.addEventListener('change', function () {
+      var v = c.value(el);
+      targets.forEach(function (t) {
+        if (!t.el) return;
+        var url = new URL(t.el[t.attr], window.location.origin);
+        if (v === null) {
+          url.searchParams.delete(c.param);
+        } else {
+          url.searchParams.set(c.param, v);
+        }
+        t.el[t.attr] = url.pathname + '?' + url.searchParams.toString();
+      });
     });
   });
 })();

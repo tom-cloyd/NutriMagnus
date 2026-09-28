@@ -20,6 +20,8 @@
 <div class="alert {{ 'alert-success' if current_confirmed else 'alert-warning' }} mb-3">
   Current reference: <strong>{{ current_ox_row.food_name }}</strong> ({{ category_label(current_ox_row.category) }})
   {% if current_confirmed %}— confirmed by you{% else %}— auto-matched, not yet confirmed{% endif %}
+  <br><small>{{ format_oxalate(current_ox_row) }}
+    &middot; {% if current_ox_row.directly_measured %}measured in this food{% else %}estimated from similar foods{% endif %}</small>
 </div>
 {% elif current_no_match %}
 <div class="alert alert-secondary mb-3">
@@ -29,6 +31,8 @@
 <div class="alert alert-secondary mb-3">No oxalate reference currently linked.</div>
 {% endif %}
 
+<div class="d-flex flex-wrap align-items-start gap-4">
+<div style="flex:1 1 26rem; min-width:20rem">
 <form method="get" action="/food/{{ food.fdc_id }}/oxalate-link" class="mb-3">
   <div class="input-group" style="max-width:32rem">
     <input type="text" name="q" class="form-control" value="{{ query }}" placeholder="Search the oxalate reference table…">
@@ -45,6 +49,9 @@
              {% if current_ox_row and current_ox_row.id == row.id %}checked{% endif %}>
       <span>
         <strong>{{ row.food_name }}</strong> — {{ format_oxalate(row) }}
+        <br><small class="muted">{{ row.food_group }} &middot;
+          {% if row.directly_measured %}measured in this food{% else %}estimated from similar foods{% endif %}
+          {% if row.oxalate_mg_per_100g is none %} &middot; per-serving only, so it cannot be totalled in a recipe{% endif %}</small>
       </span>
     </label>
     {% endfor %}
@@ -58,7 +65,41 @@
     <span>This food is <strong>not</strong> in the oxalate reference table — stop trying to match it.</span>
   </label>
 
-  <button type="submit" class="btn btn-primary">Save</button>
+  <button type="submit" class="btn btn-primary">Save this oxalate match</button>
   <a href="/food/{{ food.fdc_id }}" class="btn btn-outline-secondary ms-2">Cancel</a>
 </form>
+</div>
+
+{# Side panel: a candidate row packs the serving, two different units, a category
+   and an evidence flag into one line. Full version in the manual, section M. #}
+<aside class="oxalate-match-guide small" style="flex:1 1 20rem; min-width:18rem; max-width:30rem">
+  <h5 class="h6">Reading a reference entry {{ manual_link("oxalate-row", "Learn more") }}</h5>
+  <p>An entry in the Harvard table (433 foods) looks like this:</p>
+  <pre class="border rounded p-2 mb-2" style="white-space:pre-wrap"><code>Spinach, Raw — 316.2 mg  / 1 cup  [very high]
+Vegetables · measured in this food</code></pre>
+  <ul class="ps-3">
+    <li><strong>316.2 mg / 1 cup</strong> — oxalate per the serving the table used, not per
+      100&thinsp;g. Where the serving is a weight (ounces), NuMa also shows
+      <strong>= x mg/100g</strong> and can scale it to any amount you eat. Where it's a cup,
+      piece or tablespoon, there is no per-100&thinsp;g figure, and that food is left out of
+      recipe oxalate totals rather than guessed at.</li>
+    <li><strong>[very high]</strong> — the band NuMa colours the value with. From a
+      per-100&thinsp;g figure: <em>very high</em> 300&thinsp;mg or more, <em>high</em> 100+,
+      <em>moderate</em> 25+, <em>low</em> 5+, <em>negligible</em> below that. Rows that have
+      only a per-serving figure are banded on that instead, at 100 / 26 / 10 / 2&thinsp;mg.
+      {{ manual_link("oxalate-categories", "Learn more") }}</li>
+    <li><strong>Vegetables</strong> — the table's own food group, useful when two entries have
+      near-identical names.</li>
+    <li><strong>measured in this food</strong> — the table marks which values were measured
+      directly and which were estimated from a similar food. An estimated value is still worth
+      having, but it is an inference, not a measurement.
+      {{ manual_link("oxalate-measured", "Learn more") }}</li>
+  </ul>
+  <p class="mb-0"><strong>What NuMa saves:</strong> your choice of entry, marked as confirmed by
+    you — so the warning stops and the name-matching never runs for this food again. Choosing
+    <em>not in the reference table</em> is saved the same way, and means this food contributes
+    no oxalate figure at all rather than an inaccurate one.
+    {{ manual_link("oxalate-what-is-stored", "Learn more") }}</p>
+</aside>
+</div>
 {% endblock %}

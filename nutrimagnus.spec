@@ -19,6 +19,15 @@ a = Analysis(
         ('scripts/build_manual.py', 'scripts'),
         ('oxalate.db', '.'),
         ('numa_app/services/starter_data.json', 'numa_app/services'),
+        # Bundled static reference datasets. Each is loaded by its own module as
+        # Path(__file__).parent / "<name>.json", which inside a packaged build
+        # resolves into sys._MEIPASS -- so if one is missing here that lookup
+        # silently returns no results in the packaged app while working
+        # perfectly in a dev checkout. See test_packaging_spec.py.
+        ('gi_data.json', '.'),
+        ('cofid_data.json', '.'),
+        ('afcd_data.json', '.'),
+        ('ciqual_data.json', '.'),
     ],
     hiddenimports=['backend'],
     hookspath=[],

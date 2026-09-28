@@ -61,3 +61,16 @@ mutmut-stats.json
 
 # Windows build VM: SSH pubkey copy served to the VM by `make vm-setup`
 numa_build_key.txt
+
+# --- Licensed source documents and locally-built data ---------------------
+# The Atkinson 2021 international GI tables are published under the Elsevier
+# user license, which permits text and data mining but explicitly forbids
+# redistribution. So neither the article PDFs nor any table built from them may
+# be committed to this public repo. NuMa ships the parser
+# (scripts/build_gi_data.py) and the Creative Commons 2008 baseline table
+# instead; each user mines their own copy under their own access rights.
+data-sources/*.pdf
+gi_data_local.json
+
+# --- Stray research/scratch files dropped into the project root -----------
+compass_artifact_wf-*_text_markdown.md
