@@ -20,11 +20,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
           pip install --no-cache-dir -r requirements.txt
+
+      # user-manual.html is git-ignored, but the link-integrity tests read it.
+      - name: Build manual
+        run: python scripts/build_manual.py
 
       - name: Run tests
         run: pytest -q
