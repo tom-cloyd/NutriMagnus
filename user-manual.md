@@ -1,16 +1,16 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-27:2353* / Reading time: 6 hours, 15 minutes
+*Updated 2026-09-29:1636* / Reading time: 6 hours, 29 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
-**NutriMagnus ("NuMa")** is a computer program with publicly available code which provides a thorough nutritional analysis of a user's food choices. NuMa is particularly focused on protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill:
+**NutriMagnus ("NuMa")** is a computer program with publicly available code which provides a thorough nutritional analysis of a user's food choices. NuMa has special resources for tracking and analysis of protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill:
 
 * **Vegetarians and vegans** must deal with protein that has digestibility issues and amino acid completeness problems. 
 * **Older people** are impacted by multiple factors reducing the chances of their being well nourished, including a much-reduced ability to make use of protein. 
 * The **chronically-ill**, as well as **older people**, also have typically reduced appetites. 
 
-None of these groups generally have an accurate sense of the nutritional adequacy of their diet. The information is obscure, technically dense, and when it's on commercial packaging outright misleading.
+People in these groups rarely have an accurate sense of the nutritional adequacy of their diet. The information is obscure, technically dense, and when it's on commercial packaging is both inadequate and misleading.
 
 **Eating usually involves making choices, and good choice requires good information.** The three major problems impeding good food choice are a) lack of awareness of the choices available, and b) lack of information about the nutritional character of those choices, and c) lack of information as to what constitutes a good choice. All of these problems are addressed by NuMa, in detail.
 
@@ -48,7 +48,7 @@ NuMa runs as a web app, opened in your ordinary browser — there is nothing to 
 ## Part 1 — To get a quick start
 ### A. Start with what's easiest
 
-This is a complex and powerful analytical program. A careful Internet search reveals that it is unique in its power and depth. It can be successfully approached by moving slowly and thoughtfully, with real benefit obtained from using some of its easiest and simplest features. 
+This is a complex and powerful analytical program. A careful Internet search reveals that it is unique in its power and depth. It can be successfully approached by moving slowly and thoughtfully, with real benefit obtained early from using some of its easiest and simplest features. 
 
 Start with what is easiest to understand: analysis of single foods and simple recipes. Use the manual to learn more. Do not expect to learn it all in a few sessions. [Contact us](#feedback) quickly rather than slowly if you start to get overwhelmed — one of our goals is to minimize the risk of that happening!
 
@@ -62,7 +62,7 @@ Start with what is easiest to understand: analysis of single foods and simple re
 
 While we don't yet have on-board local [AI](#gloss-ai) to help you with NuMa and your food questions, we do have NuMa remembering recent entries you've made to text input boxes, and a number of different options you've selected. 
 
-One huge asset is the [Food cache](#FoodCache) database you'll set up. This serves as a memory of every food you've looked up or put into your Pantry. Saved is the food name, [ID](#gloss-id) number, and nutrition data. Data retrievals from the online databases take time; retrievals from you personal Food cache are essentially instant.
+One huge asset is the [Food cache](#FoodCache) [database](#gloss-database) you'll set up. This serves as a memory of every food you've looked up or put into your Pantry. Saved is the food name, [ID](#gloss-id) number, and nutrition data. Data retrievals from the online [databases](#gloss-database) take time; retrievals from you personal Food cache are essentially instant.
 
 ### D. Stuck? 
 
@@ -84,13 +84,13 @@ NuMa runs on Windows and on Linux. Find your own system below and ignore the oth
 
 #### Windows {: #install-windows}
 
-NuMa has no installer. It's a single program file that you keep wherever you like and run.
+NuMa has no installer. It's a single program file that you keep wherever you like and just run.
 
 a. **Download it.** Click this link: <https://github.com/tom-cloyd/NutriMagnus/releases/latest/download/nutrimagnus.exe>. It always gives you the newest version.
 
 b. **Put it somewhere permanent.** In File Explorer, make a new folder in **Documents** called **NutriMagnus**, and move `nutrimagnus.exe` into it from your Downloads folder. Leave it in Downloads and it may get cleaned out later.
 
-c. **Get past Windows' two warnings.** Your browser will probably block the download: in **Edge**, click the **...** beside it and choose **Keep**, then **Show more** → **Keep anyway**; in **Chrome**, click the **^** beside it and choose **Keep**, then **Keep anyway**. Then, the first time you run the program, a blue box says **"Windows protected your PC"** — click **More info**, then **Run anyway**. That one is a once-ever step.
+c. **Get past Windows' two warnings.** Your browser will probably block the download: in **Edge**, click the **...** beside it and choose **Keep**, then **Show more** → **Keep anyway**; in **Chrome**, click the **^** beside it and choose **Keep**, then **Keep anyway**. Then, the first time you run the program, a blue box says **"Windows protected your PC"** — click **More info**, then **Run anyway**. Once you allow it, it won't ask again about that copy of the program.
 
    Both warnings mean "Windows doesn't recognize who published this," not "this file is dangerous." Unsigned programs — which means anything whose author hasn't paid a certificate authority an annual fee — always get them. Your antivirus may quarantine the file for the same reason; if it does, allow it through.
 
@@ -100,7 +100,17 @@ e. **Make it easy to start next time.** Right-click `nutrimagnus.exe` and choose
 
 f. **Quit it properly.** Close the browser tab *and* the black window. Closing only the tab leaves NuMa running in the background.
 
-g. **Updating it later.** Quit NuMa, download the file again from the link in item a, and drop it into your NutriMagnus folder, replacing the old one. Nothing you've entered is lost: your data lives in your Windows user account area (`%LOCALAPPDATA%\numa` and `%APPDATA%\numa`), not inside the program file. That's also why deleting `nutrimagnus.exe` is all it takes to remove NuMa — delete those two `numa` folders as well if you want your data gone too.
+g. **Updating it later.**{: #update-windows} Windows won't let a running program replace itself, so updating NuMa means swapping the program file yourself. There are five steps:
+
+   1. **Download the new version.** When one is out, an **UPDATE AVAILABLE** message appears at the top of NuMa's home page. Click its **Download NutriMagnus** button. (If you dismissed that message, or don't want to wait for it, the link in item a always downloads the newest version.) The new `nutrimagnus.exe` goes to your **Downloads** folder. If your browser warns you about it, choose **Keep**, then **Keep anyway**, as in item c.
+   2. **Quit NuMa.** Close NuMa's black window; that's what actually stops the program. You can leave this manual open in its tab, so you can keep following these steps.
+   3. **Replace the old program file.** In File Explorer, move the new `nutrimagnus.exe` from Downloads into your NutriMagnus folder. The UPDATE AVAILABLE message shows you exactly which folder that is. When Windows asks, choose **Replace the file in the destination**. If Windows instead says the file is in use, NuMa is still running: go back to step 2.
+   4. **Start NuMa again** the way you usually do. Your Start-menu pin or desktop shortcut still works. If the blue "Windows protected your PC" box appears, which a new version can trigger, click **More info**, then **Run anyway**.
+   5. **Refresh every browser tab that has this User Manual open: click in the tab and press the F5 key.** Do this for each one.
+
+   **Don't skip step 5.** An open manual tab does *not* update itself. Until you refresh it, it keeps showing the *old* manual: old instructions, and a Recent program updates log without the changes you just installed. Nothing on the page tells you it's out of date. The same goes for any other NuMa tab you left open, so press F5 in those too.
+
+   Nothing you've entered is lost: your data lives in your Windows user account area (`%LOCALAPPDATA%\numa` and `%APPDATA%\numa`), not inside the program file. That's also why deleting `nutrimagnus.exe` is all it takes to remove NuMa — delete those two `numa` folders as well if you want your data gone too.
 
 #### Linux {: #install-linux}
 
@@ -124,20 +134,83 @@ d. **How to launch it.** From then on, click NuMa's icon like any other program 
 
 #### What kind of program this is {: #install-webapp-note}
 
-NuMa is a "web app" — it runs quietly in the background and shows its screens in a browser tab, like a website, but it's talking only to itself on your machine. It doesn't need the internet to run at all, and nothing you enter leaves your computer; NuMa reaches out only when you look up a food in an online database, or when it checks whether a newer version has been released. Two things follow from all this:
+NuMa is a "web app" — it runs quietly in the background and shows its screens in a browser tab, like a website, but it's talking only to itself on your machine. It doesn't need the internet to run at all, and nothing you enter leaves your computer; NuMa reaches out only when you look up a food in an online [database](#gloss-database), or when it checks whether a newer version has been released. Two things follow from all this:
 
    - **The browser tab and the program are different things.** Closing the tab doesn't close NuMa — it's still running. To get back, start NuMa again the way you normally do (which opens a fresh tab) or open a new tab yourself to the same address.
    - **Sleep can disconnect the tab.** If your computer sleeps or hibernates while NuMa is open, the background program may stop and need restarting when it wakes — you'll typically see the tab fail to load. This is expected, not a sign anything's broken. Start NuMa again to relaunch it; your data is on disk and unaffected.
 
-### G. Set up your personal profile and initialize your My Pantry foods
+#### Backing up your data {: #backup}
 
-**Starter foods and recipes.** The first time you launch a fresh install, your Food Cache and Recipes list already contain a small set of starter items — foods with verified [USDA](#gloss-usda) nutrient and amino-acid data, and a few recipes chosen to demonstrate real protein-complementarity gains. Their names begin with an asterisk (for example, `* Pinto-quinoa meal`) so you can always tell them apart from anything you've added yourself, and remove or keep them as you like — see the [Settings](#settings) starter-data toggle if you clear them and want them back.
+Everything you put into NuMa lives in two folders on your computer, kept apart from the program itself: your foods, pantry, recipes, logged meals, annotations, profile and settings, and your 2021 glycemic index table if you built one.
 
-a. Go to Settings and set up your personal profile, if you want the program to immediately apply to you. 
+   - **Windows:** `%LOCALAPPDATA%\numa` and `%APPDATA%\numa`. Type either one, exactly as written, into File Explorer's address bar and press Enter to open it.
+   - **Linux:** `~/.local/share/numa` and `~/.config/numa`. These are hidden folders in your home folder; press Ctrl+H in your file manager to show them.
 
-b. Set up your Pantry foods as available primary protein sources: Go to [Appendix C](#appendix-c) below and review the listed foods. Some you will likely have. The others you should consider buying if you're serious about making plant protein sources your sole or primary protein concern.
+**To back up,** copy both folders somewhere safe — a memory stick, an external drive, or a cloud-synced folder. Do it when NuMa isn't in the middle of saving something; the simplest way is to do it before you start NuMa for the day. Repeat it now and then: a backup only holds what you'd entered when you made it.
 
-c. **Getting new starter foods and recipes after an update.** From time to time, a new version of NuMa adds a few new starter foods or recipes to the small set described above. You don't need to do anything to keep the ones you already have — they're untouched. To pick up anything new: go to **Settings → 9. Starter Data**, open **Restore individual starter items**, and check the box next to anything you don't already have. Anything you already have won't be listed again, so this is always safe to check after an update, even if nothing new was actually added that time.
+**To restore** — on a new computer, or after your system was wiped — install NuMa as described above, but don't start it yet. Copy both backed-up `numa` folders into place, replacing any that exist, and then start NuMa. Everything comes back as it was.
+
+A [CSV](#gloss-csv) export from the Food Cache or Recipes pages is *not* a full backup. It's for moving selected foods or recipes around, and leaves out your meals, pantry, profile and settings.
+
+### G. Setting NuMa up: first time, or after losing your data {: #first-setup}
+
+Use this list the first time you run NuMa. Use it again if your computer was wiped or replaced and your NuMa data wasn't saved.
+
+**Lost your data? Check this first.** If you have a backup of NuMa's two data folders, restore it — see [Backing up your data](#backup). Everything comes back, and you can skip the rest of this list. Only without a backup do you need the steps below.
+
+**Starter foods and recipes.** A fresh install doesn't start empty. Your Food Cache and Recipes list already hold a small set of starter items: common foods, most with full amino acid data, and a few recipes showing protein complementing at work. Their names begin with an asterisk and a space (for example, `* Quinoa, cooked`), so you can always tell them apart from anything you've added yourself. Keep them or remove them as you like — see Step 2.
+
+#### Step 1 — Settings you must address before you start
+
+Go to **Settings**. Until these three are done, NuMa's results are either blank or quietly misleading.
+
+1. **Your Profile (section 1).** Enter your age, sex, weight, height and activity level. Without them, every "% of daily target" column is blank. On the same form, also set:
+    - the **Glycemic index lookup default** — choose impaired glucose tolerance if you have diabetes, pre-diabetes or insulin resistance; otherwise leave it searching both;
+    - the **oxalate lookup** checkbox, if oxalates matter to you (for kidney stones, say).
+2. **Dietary Preferences (section 3).** Choose all foods, vegetarian, or plant-based only. This filters *every* search and suggestion in NuMa, so a wrong setting hides foods you'd expect to see.
+3. **[USDA](#gloss-usda) [API](#gloss-api) Key (section 5).** NuMa gets most of its food data from the US government's FoodData Central website. That site asks every program that uses it to identify itself with a **key**: a long code, like a password, that USDA gives out free to anyone who asks. Until you enter your own, NuMa uses one shared key for all its users, and when that shared key gets overused your food searches can fail for a while. Getting your own takes about a minute and costs nothing — see [how to get a USDA key](#food-data).
+
+Then open **Computed Daily Targets (section 2)** and glance at the targets calculated for you, to check they look sensible.
+
+#### Step 2 — Settings worth doing at some point
+
+- **Glycemic Index Reference Table (section 11)** — only if you plan to track glycemic index (see Step 4): build the 2021 table ([how](#gi-editions)). Do this before Step 4, so your values come from the better table.
+- **Nutrient Targets (section 7):** click **Load recommended Revised Optimal targets**, and add Max limits for anything you need to keep low.
+- **Starter Data (section 9):** decide whether to keep the starter foods and recipes, or clear them.
+- **Browser to Launch (section 10):** pick a browser, if you run more than one and don't want to be asked which each time.
+- **Meals & Log columns (section 8):** choose which nutrient columns your meal lists show.
+- **Protein Digestibility Overrides (section 6):** nothing to do now. It's for later, if you find a better digestibility figure for a particular food.
+
+#### Step 3 — Set up your pantry
+
+Your pantry is the list of protein foods you actually keep at home. NuMa looks there first when it suggests foods to fill a protein gap, so a good pantry makes those suggestions practical ones.
+
+1. Look through [Appendix C](#appendix-c) and note the foods there that you have, or would buy.
+2. **Check the starter foods first.** Some of the foods you want are probably already in your Food Cache as starter foods — the ones whose names begin with `* `. They come with their nutrient data already checked, so using them saves real time. Go to **Foods → Food Cache**, type `*` in the filter box to list them, and add the ones you want to your pantry from there.
+3. For anything not among them, go to **Foods → My Pantry** and add it **by search**, picking a result from the list. Only a search-and-select brings in the food's nutrient data, including its amino acids.
+4. Prefer results with a ✓ in the **[AA](#gloss-aa)** (amino acid) column. Only foods with amino acid data can be used in protein suggestions, and plain, unbranded [USDA](#gloss-usda) entries are the likeliest to have it.
+5. Can't find a food right away? Open **Can't find it? Save just the name for now** under the search box to save just its name, and link it to real data later with **Link a food**.
+
+#### Step 4 — Glycemic index values for your core foods (optional)
+
+**Most people can skip this step.** It's only for those who want to track glycemic index (GI) — for example, because of diabetes or pre-diabetes, or to manage blood sugar swings. If that isn't you, you're done.
+
+NuMa never fills in GI values by itself; each one is a choice you make from the reference table. You don't need GI for everything, only for the **carbohydrate foods you eat most often**: grains, bread, rice, pasta, oats and breakfast cereals; potatoes and other starchy vegetables; beans and lentils; fruit; sweeteners. Skip foods with little carbohydrate (oils, most nuts, tofu, meat, fish, eggs, cheese) — a GI number means little for them.
+
+For each food, go to **Foods → Annotate**, click **Edit**, and use **Look up a GI value from the published reference table**. When choosing between results, prefer, in this order:
+
+1. **The same food, prepared the same way.** Boiled versus baked, whole grain versus flour, and cooking time all change GI a lot.
+2. **The population that matches you** — normal or impaired glucose tolerance.
+3. **Rows not flagged as "non-ISO method"** — that is, studies that didn't follow the international measuring standard, ISO (International Organization for Standardization) 26642 ([more](#gi-method-quality)).
+4. **More recent studies, with more people tested and a smaller ± (standard error).**
+
+If nothing is a genuine match, leave the value blank. No value is better than a wrong one. See [How to read a lookup result](#gi-result-row) for what each part of a result means.
+
+Adding a food to your pantry or a meal also offers to ask you for its GI, so if you're tracking GI, say yes there too.
+
+#### After an update: new starter items
+
+From time to time, a new version of NuMa adds starter foods or recipes, or improves ones you already have. **NuMa tells you.** The **UPDATE AVAILABLE** message says what an update will change in them before you install it, and the first time the new version runs, a **NEW STARTER ITEMS** message on the home page says what it added or improved. Nothing in your data changes on its own; you choose, in [Settings → 9. Starter Data](#starter-data).
 
 ### H. Skim Part 2, A and F, just to know they exist.
 
@@ -162,7 +235,7 @@ This program necessarily uses some specialized vocabulary. You have two options:
 The five items in the top navigation bar correspond to the five major things you can do with the program:
 
 - **Foods**
-    - Search the [USDA](#gloss-usda) and Open Food Facts[^3] databases
+    - Search the [USDA](#gloss-usda) and Open Food Facts[^3] [databases](#gloss-database)
     - Analyze the nutrients in a specific portion of any food or recipe
     - Compare up to eight foods side-by-side
     - Manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles
@@ -243,9 +316,9 @@ NuMa has been under intense development and is still being developed. Over time,
 
 **[NuMa](#gloss-numa) draws on multiple data sources, and tells you which ones it is using.** Wherever the program makes a suggestion, it shows you which sources it consulted.
 
-- **[USDA](#gloss-usda) FoodData Central**[^2] — the primary nutrient database, one of the most comprehensive public nutrition sources in the world. Used for most food searches.
+- **[USDA](#gloss-usda) FoodData Central**[^2] — the primary nutrient [database](#gloss-database), one of the most comprehensive public nutrition sources in the world. Used for most food searches.
 - **Open Food Facts**[^3] — supplements [USDA](#gloss-usda) for branded and international foods, especially packaged products with a barcode.
-- **Canadian Nutrient File** — Health Canada's reference database; particularly good amino acid coverage, which helps with [DIAAS](#gloss-diaas) calculations.
+- **Canadian Nutrient File** — Health Canada's reference [database](#gloss-database); particularly good amino acid coverage, which helps with [DIAAS](#gloss-diaas) calculations.
 - **UK CoFID** (Composition of Foods Integrated Dataset) — ~2,900 UK foods from Public Health England/[DHSC](#gloss-dhsc); strong on macros, minerals, and vitamins, but has no amino acid data of its own.
 - **Australian AFCD** (Australian Food Composition Database) — ~1,600 Australian foods from [FSANZ](#gloss-fsanz); also has real amino acid coverage, like Canadian Nutrient File.
 - **French [CIQUAL](#gloss-ciqual)** — ~3,480 French/European foods from [ANSES](#gloss-anses) (2025 edition); like CoFID, no amino acid data. 
@@ -262,7 +335,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-27), there are 1,229 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-29), there are 1,268 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -302,7 +375,7 @@ Right below the **Welcome to NutriMagnus** heading is a small block of status li
 - **Active profile** — a one-line summary of your profile (age, sex, weight, height, activity level), or "not set" with a link to configure one if you haven't yet.
 - **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`, alongside a human-facing release version (e.g. `0.1.0-rc.1`). Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build. Right after it, a **Check for updates now** link re-checks GitHub immediately instead of waiting for the periodic check — useful right after dismissing an UPDATE AVAILABLE banner if you change your mind, since it also undoes that dismissal. It only appears when no update is currently showing.
 
-Above all of that, a few one-time or conditional banners can appear when relevant: a database-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, plus a reminder to check [Settings → Starter Data](#starter-data) for anything new after updating, since some releases add a few, and a **Don't show this again for this version** checkbox — same idea as the System Issues banner's "Got it" checkbox below.
+Above all of that, a few one-time or conditional banners can appear when relevant: a **NEW TO NUMA?** message linking to the [setup checklist](#first-setup) until your profile is saved, a **NEW STARTER ITEMS** message the first time a new version runs, if it added or improved starter foods or recipes (see [Starter Data](#starter-data)), a [database](#gloss-database)-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, says what the update would add to or improve in the [starter foods and recipes](#starter-data) you have, and has a **Don't show this again for this version** checkbox — same idea as the System Issues banner's "Got it" checkbox below.
 
 **When does NuMa actually check for a new release?** Every time the home page loads — at launch, on a manual reload, or by navigating back to it from anywhere else in the program — it asks whether a newer version exists. That check itself is cached for a few hours, so bouncing back to the home page repeatedly doesn't re-contact GitHub every time; it just reuses the last answer until the cache expires. Once a newer version is available, the **UPDATE AVAILABLE** banner shows on every single page load — it never disappears on its own — until you either install the update or check the "Don't show this again for this version" box; a later, different release always shows regardless of what you've dismissed.
 
@@ -356,7 +429,7 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 
 **Before you start, set up your profile.** Click **Settings**, fill in your age, sex, weight, height, and activity level, and save. This is what lets NuMa compare your protein intake against a target built for you, rather than a generic default — you'll see it reflected in the % goal figures later in this workflow and in Workflow 4.
 
-**Step 1 — Add a food to your Pantry.** Click **Foods** in the navigation bar, then click **7. My Pantry**. On the Pantry page, type `hemp seeds` into the search box under "Add a pantry item — search for full amino acid data" and click **Search**. A results table appears — click **Add to pantry** next to the best match. (The separate "Quick add by name only" box further down the page skips the search and saves just the name, with no nutrient data — use it only when you can't find a match.)
+**Step 1 — Add a food to your Pantry.** Click **Foods** in the navigation bar, then click **7. My Pantry**. On the Pantry page, type `hemp seeds` into the search box under "Add a pantry item — search for full amino acid data" and click **Search**. A results table appears — click **Add to pantry** next to the best match. (The **Can't find it? Save just the name for now** link just under the search box skips the search and saves just the name, with no nutrient data — use it only when you can't find a match.)
 
 **Step 2 — Create a meal.** Click **Meals & Log** in the navigation bar. Click **New Meal**, give it a name (e.g., "Lunch today"), and a date. The meal page opens with a search box. Type `brown rice cooked`, click **Search**, then click the matching food and enter `1 cup` as the portion. Repeat with `black beans cooked` at `½ cup`. Both foods now appear in the meal's item list.
 
@@ -392,7 +465,7 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 **Foods → Compare.** Add up to eight foods side by side in one table (checkboxes in the search results, a gram amount for each) — a quick way to answer "which of these is actually better for me" instead of flipping between separate detail pages. A comparison can be saved under a name and reopened later.
 
-**Foods → Custom food profiles.** Enter a homemade dish, a supplement, or a product NuMa's databases don't have (or have incompletely) — either from scratch, or by copying an existing cached food as a starting draft and editing its nutrients from there.
+**Foods → Custom food profiles.** Enter a homemade dish, a supplement, or a product NuMa's [databases](#gloss-database) don't have (or have incompletely) — either from scratch, or by copying an existing cached food as a starting draft and editing its nutrients from there.
 
 **Recipes: use one recipe inside another.** A recipe can be added as an ingredient of another recipe — a lentil sauce used inside three different dinners, say. Editing and saving the base recipe keeps every recipe built on it up to date automatically — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 6.
 
@@ -437,9 +510,9 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 Add up to eight foods (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
 
 #### Food Cache {: #food-cache-web}
-Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. Per-food actions: **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
+Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A **Sort by** dropdown orders the list by Name, [ID](#gloss-id), Type, [DIAAS](#gloss-diaas), or [GI](#gloss-gi) estimate. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. Per-food actions: **Add to pantry** (adds the food to your [Pantry](#pantry) and returns you to the same row; a food already there shows **In pantry** instead, which opens the Pantry), **Portions** (add or edit named portion sizes), **Refresh** (re-fetch nutrient data from USDA while keeping your portions and notes), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
 
-**Check database integrity.**{: #db-check} Scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited database file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by [ID](#gloss-id) — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
+**Check [database](#gloss-database) integrity.**{: #db-check} Scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited [database](#gloss-database) file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by [ID](#gloss-id) — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
 
 - **Pantry entries** — low impact; removing one only takes it off your pantry list.
 - **Recipe ingredients** — removing one deletes that ingredient line from its recipe; the recipe's nutrient totals recalculate without it.
@@ -456,11 +529,11 @@ Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3]
 
 #### My Pantry
 
-Foods you keep on hand — see [My Pantry](#pantry) in Part 5 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Quick add by name only** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 5. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items; a quick-add item with no linked data can't be compared.
+Foods you keep on hand — see [My Pantry](#pantry) in Part 5 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Can't find it? Save just the name for now** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 5. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items; a quick-add item with no linked data can't be compared.
 
 #### Custom food profiles
 
-Create a food NuMa doesn't already have — a homemade dish, a supplement, or a product with an incomplete database entry. Either start from scratch, or **copy a cached food as a draft** and edit its nutrients from there — both of the page's "copy from another food" searches have the same [Source filter](#food-search) too, and can now reach Open Food Facts as well as your cache and [USDA](#gloss-usda). A misspelled "copy a cached food as a draft" search also offers a ["Did you mean"](#search-suggestions) correction. See [Entering custom foods and dietary supplements](#custom-foods) below.
+Create a food NuMa doesn't already have — a homemade dish, a supplement, or a product with an incomplete [database](#gloss-database) entry. Either start from scratch, or **copy a cached food as a draft** and edit its nutrients from there — both of the page's "copy from another food" searches have the same [Source filter](#food-search) too, and can now reach Open Food Facts as well as your cache and [USDA](#gloss-usda). A misspelled "copy a cached food as a draft" search also offers a ["Did you mean"](#search-suggestions) correction. See [Entering custom foods and dietary supplements](#custom-foods) below.
 
 #### Annotate
 
@@ -510,9 +583,17 @@ Leave this form empty and NuMa still works — you can search, log, and analyze 
 Starting NuMa opens a browser tab automatically. If you have more than one browser running at the time (Firefox, Chrome, Chromium, Brave, Vivaldi, Opera, Edge, or GNOME Web), NuMa normally asks which one to use via a small dialog. Setting a **Browser to Launch** here skips that dialog and always uses the one you pick — leave it on "Ask each time" (the default) if you're fine being asked, or don't run more than one browser at once.
 
 #### Starter Data {: #starter-data}
-A small set of curated content — real [USDA](#gloss-usda) foods (with full amino-acid data), a few of them in your pantry, and two recipes picked to show protein complementarity actually working — "* Black Beans & Rice" and "* Lentils & Oats Bowl," each combining a legume and a grain so the amino acids each is short on are covered by the other. Their names all start with `* ` so you can always tell them apart from anything you've added yourself. A brand-new install loads this automatically the first time you launch it, so your Food Cache, Pantry, and Recipes aren't empty on day one — this section is for anyone who cleared it and wants it back, or an existing install that never had it.
+
+This is a small set of curated content — real [USDA](#gloss-usda) foods (with full amino-acid data) and two recipes picked to show protein complementarity actually working — "* Black Beans & Rice" and "* Lentils & Oats Bowl," each combining a legume and a grain so the amino acids each is short on are covered by the other. Their names all start with `* ` so you can always tell them apart from anything you've added yourself. A brand-new install loads this automatically the first time you launch it, so your Food Cache and Recipes aren't empty on day one — this section is for anyone who cleared it and wants it back, or an existing install that never had it. Your pantry starts empty: it's the list of foods *you* keep at home, so only you can fill it (see [Set up your pantry](#first-setup)).
 
 Loading starter data never touches anything already in your cache, pantry, or recipes — it's tracked separately so **Clear starter data** (which appears once it's loaded) removes exactly what was added, nothing else. Loading again while it's already loaded is a no-op.
+
+**When a new version changes the starter set.** NuMa remembers which starter foods and recipes the version you ran before came with, so after an update it can tell you exactly what's different:
+
+   - **New items** are marked **(new in this version)** in the **Restore individual starter items** list, which opens by itself when there are any. Check the ones you want and click **Restore selected**. Something you deleted on purpose is never presented as new; only items the new version actually added are.
+   - **Improved items** — starter foods or recipes you already have, which the new version has corrected or improved — are listed under **Improved in this version of NuMa**. Check the ones you want and click **Update the checked items to the new version**. Updating replaces your copy with the new one, *including any changes you made to it yourself*, so leave unchecked anything you've edited and want to keep. Meals, recipes and pantry entries that use an updated item keep working, and their figures are recalculated. **Keep all my copies as they are** stops NuMa offering the improved versions.
+
+These lists stay until you act on them, even after you dismiss the home-page message about them. If you skip a version, nothing is lost: the next version's lists include the skipped one's changes.
 
 #### Computed Daily Targets
 
@@ -940,7 +1021,7 @@ Saving on the match page records your choice of reference entry against that foo
 
 Choosing "This food is not in the oxalate reference table" is saved the same way, and means the food contributes no [oxalate](#gloss-oxalate) figure at all — which is the honest outcome when nothing in the table matches, and better than carrying a wrong number into every recipe total the food appears in.
 
-Note that this is *your* map from food to reference row, stored in your own database. The Harvard table itself is a bundled read-only file that NuMa never writes to, so nothing you do here changes the reference data — only which row your food points at.
+Note that this is *your* map from food to reference row, stored in your own [database](#gloss-database). The Harvard table itself is a bundled read-only file that NuMa never writes to, so nothing you do here changes the reference data — only which row your food points at.
 
 #### Important limitations
 
@@ -958,7 +1039,7 @@ For background on [oxalates](#gloss-oxalate) and kidney health, see the Harvard 
 ### N. Glycemic Index {: #gi}
 The glycemic index ([GI](#gloss-gi)) measures how quickly a carbohydrate-containing food raises blood glucose compared to pure glucose ([GI](#gloss-gi) = 100). Low-[GI](#gloss-gi) foods (55 or below) produce a slower, more gradual rise; high-[GI](#gloss-gi) foods (70 and above) cause a faster spike.
 
-**Every [GI](#gloss-gi) figure NuMa shows is one you put there.** Nothing looks [GI](#gloss-gi) up automatically, because no nutrient database NuMa draws on carries it — so a food shows a [GI](#gloss-gi) if, and only if, you supplied one, either by typing it in or by picking a row from the bundled reference table (see [Where GI values come from](#gi-source-para) below). Choosing which published value fits a food is a judgment call, and it stays yours; NuMa won't make it for you. Once saved, the value appears in the **GI** column wherever that food is listed — Food Cache, Pantry, food search, a meal's add-food panel — on the food's own page, and in any glycemic load NuMa computes from it.
+**Every [GI](#gloss-gi) figure NuMa shows is one you put there.** Nothing looks [GI](#gloss-gi) up automatically, because no nutrient [database](#gloss-database) NuMa draws on carries it — so a food shows a [GI](#gloss-gi) if, and only if, you supplied one, either by typing it in or by picking a row from the bundled reference table (see [Where GI values come from](#gi-source-para) below). Choosing which published value fits a food is a judgment call, and it stays yours; NuMa won't make it for you. Once saved, the value appears in the **GI** column wherever that food is listed — Food Cache, Pantry, food search, a meal's add-food panel — on the food's own page, and in any glycemic load NuMa computes from it.
 
 **What it's good for.** [GI](#gloss-gi) is at its most reliable comparing like with like, where the two foods differ in one respect you're choosing between — this bread against that bread, parboiled rice against sticky rice. But it is genuinely useful across categories too, whenever two foods are candidates for the same job: bread and rice at breakfast really do behave differently, largely because of physical form, and [GI](#gloss-gi) is what tells you so. What *doesn't* survive the comparison is quantity. [GI](#gloss-gi) is measured on a fixed dose of available carbohydrate (usually 50 g) rather than on a serving of food, so two foods with the same [GI](#gloss-gi) can have very different effects at the amounts you'd actually eat. That's what glycemic load is for — see [Glycemic Load](#gl).
 
@@ -1057,15 +1138,13 @@ NuMa ships with the **2008** edition of the *International Tables of Glycemic In
 
 NuMa can't ship that newer edition, for a straightforward reason. The 2008 edition is Creative Commons licensed, so it can be copied and distributed freely, which is why it's the one built in. The 2021 edition is published under a licence that expressly **permits you to download it and extract data from it for your own non-commercial use**, but **forbids redistributing it**. So NuMa includes the tool that reads it, and you supply the document — which the licence entitles you to do.
 
-**What you need:** the two supplemental PDFs from the publisher's page for the 2021 article[^8], reached via its "Supplementary data" link; a copy of NuMa's source code (not the packaged download); Python; and the `pdftotext` utility, which is part of `poppler-utils` on Linux.
+**What to do** — it's all in one place, **Settings → 11. Glycemic Index Reference Table**:
 
-**What to do:** save the two PDFs somewhere, then run one command from NuMa's folder, giving it Supplemental Table 1 first and Table 2 second:
+1. Open the 2021 article's page at the publisher[^8] (the section links straight to it), find its **Supplementary data** section, and download both PDFs there — Supplemental Table 1 and Supplemental Table 2. NuMa can't fetch them for you: the publisher's site turns away programs, and only a person can collect them.
+2. Back in that Settings section, choose both files together (hold Ctrl, or Shift, to pick the second one). The order doesn't matter — NuMa reads which table is which from the PDFs themselves.
+3. Click **Build my 2021 GI table**.
 
-```
-python3 scripts/build_gi_data.py table1.pdf table2.pdf
-```
-
-It takes a few seconds and writes a file called `gi_data_local.json`. From then on NuMa searches that instead, automatically — there's no setting to change. Delete the file and NuMa goes back to the built-in table. See `data-sources/README.md` in the source folder for the full citation and the exact command.
+It takes about a minute. The section shows a "Building…" message and refreshes itself until it's done, then says how many foods it read. From then on the Annotate page's [GI](#gloss-gi) lookup searches the new table, straight away, with no restart. The PDFs aren't kept, only the table built from them. If you pick the wrong files — the same table twice, or some other document — NuMa says so and changes nothing, and if you already had a 2021 table it stays in use. To rebuild later (a fresh download, say), the same button is there, relabelled **Rebuild**.
 
 That file is yours alone. It isn't shared, uploaded, or included in anything NuMa distributes, and it shouldn't be passed on to anyone else — the same licence that lets you build it is what stops it being handed around.
 
@@ -1077,7 +1156,7 @@ One honest caveat about that set: the 2021 authors rewrote most food description
 
 Two candidate sources exist for bulk [GI](#gloss-gi) data, and they're related but not the same. Brand-Miller — a co-author of the published tables[^8] — also runs the University of Sydney's GI research group, and a great many entries in those tables came from the Sydney group's own lab testing, so there's real lineage and overlap between the two.
 
-But they differ in ways that matter for a bulk local lookup table. The published tables are a fixed, peer-reviewed, citable snapshot: a static document that can be read into a file once and then work offline and identically every time — and in the 2008 edition's case, explicitly Creative Commons licensed, so NuMa can ship it outright. The Sydney database (glycemicindex.com) is a live, continuously updated, searchable website — larger and more current, but a site to query rather than a table with a clear bulk-redistribution license; scraping it for a local table would be a licensing gray area at best.
+But they differ in ways that matter for a bulk local lookup table. The published tables are a fixed, peer-reviewed, citable snapshot: a static document that can be read into a file once and then work offline and identically every time — and in the 2008 edition's case, explicitly Creative Commons licensed, so NuMa can ship it outright. The Sydney [database](#gloss-database) (glycemicindex.com) is a live, continuously updated, searchable website — larger and more current, but a site to query rather than a table with a clear bulk-redistribution license; scraping it for a local table would be a licensing gray area at best.
 
 That's why NuMa's built-in table comes from the published tables, and why glycemicindex.com is listed in [Internet resources](#internet-resources) as a manual look-up fallback rather than something NuMa imports from directly.
 
@@ -1528,7 +1607,7 @@ Neither food alone would produce this result — lentils score poorly on [Met+Cy
 
 #### A note about missing amino acid data
 
-Not every food in the [USDA](#gloss-usda) database has a complete amino acid profile. When an ingredient is missing that data, NuMa runs the meal-level [DIAAS](#gloss-diaas) calculation using only the ingredients for which data exists, and flags the result as an estimate. The digestible [complete protein](#gloss-complete-protein) figure is then computed against only the protein that comes from those data-complete ingredients — so the result remains meaningful rather than artificially inflated.
+Not every food in the [USDA](#gloss-usda) [database](#gloss-database) has a complete amino acid profile. When an ingredient is missing that data, NuMa runs the meal-level [DIAAS](#gloss-diaas) calculation using only the ingredients for which data exists, and flags the result as an estimate. The digestible [complete protein](#gloss-complete-protein) figure is then computed against only the protein that comes from those data-complete ingredients — so the result remains meaningful rather than artificially inflated.
 
 ##### Filling missing AA profiles at analysis time
 
@@ -2082,7 +2161,7 @@ recipe that in turn uses one of them as a sub-recipe.
 A recipe can never be substituted into referencing itself; that combination
 is silently skipped rather than creating a broken self-reference.
 
-This writes to the database immediately when you click through the
+This writes to the [database](#gloss-database) immediately when you click through the
 confirmation prompt — there's no automatic undo, so it's worth double-
 checking the ID numbers first.
 
@@ -2289,11 +2368,11 @@ See [Ordering food search results](#search-ranking) in Part 6 for the full expla
 
 **Source filter.** A row of checkboxes next to the search box itself — visible before you've even typed a query, not just after results come back — narrows the list to any combination of sources you check: Pantry, Food Cache, Recipes, [USDA](#gloss-usda) FoodData Central, Open Food Facts, Canadian Nutrient File, CoFID, AFCD, CIQUAL (USDA and Open Food Facts, the two most-used external sources, lead the external group). Check as many as you like; unchecking every box is treated the same as checking them all, since a filter that hides everything isn't useful. Each checkbox is labeled with the short badge used elsewhere plus its full name (e.g. "USDA — USDA FoodData Central") and re-runs the search the moment you check or uncheck it. A **Select all sources** button re-checks every box in one click. A **What are these sources? →** link next to the "Source" label jumps to [Food data — where it comes from and how it is stored](#food-data). Your choice is sticky across every search box that has this filter, the same way the sort-order choice is. It appears next to every food search in the app: the standalone Foods → Search page, Analyze a Food Portion, Convert a Portion, Comparison, My Pantry's "Add a food" search, the Meals & Log "Add Food or Recipe" panel, a recipe's ingredient search, and the two "copy from another food" searches on the Edit Custom Profile page.
 
-**"Did you mean" suggestions on a search with no results.**{: #search-suggestions} Every one of those same search boxes offers likely corrections right next to a "No results" message — e.g. searching "brocoli" suggests **broccoli**. Click a suggestion to re-run the search with it, or press Esc to dismiss the suggestions and keep what you typed. This works fully offline: it checks your own previously searched/cached foods, pantry items, and recipes first, then the food names bundled with the CoFID/[AFCD](#gloss-afcd)/CIQUAL databases — it can't invent a suggestion for a brand name it's never encountered anywhere. It also appears on searches that don't have a Source filter, since they only ever look at your own cached data: [Food Cache](#food-cache-web), [Annotate](#annotate), [Recipes](#recipes-menu-web), [Search meal history](#meal-history), and Custom food profiles' "copy a cached food as a draft" search.
+**"Did you mean" suggestions on a search with no results.**{: #search-suggestions} Every one of those same search boxes offers likely corrections right next to a "No results" message — e.g. searching "brocoli" suggests **broccoli**. Click a suggestion to re-run the search with it, or press Esc to dismiss the suggestions and keep what you typed. This works fully offline: it checks your own previously searched/cached foods, pantry items, and recipes first, then the food names bundled with the CoFID/[AFCD](#gloss-afcd)/CIQUAL [databases](#gloss-database) — it can't invent a suggestion for a brand name it's never encountered anywhere. It also appears on searches that don't have a Source filter, since they only ever look at your own cached data: [Food Cache](#food-cache-web), [Annotate](#annotate), [Recipes](#recipes-menu-web), [Search meal history](#meal-history), and Custom food profiles' "copy a cached food as a draft" search.
 
 **Omitted-source warning.** Because the Source filter is sticky, a box unchecked once (even by accident, or while narrowing down a different search) stays unchecked everywhere until you re-check it — silently, with no visual difference from a normal search. If that hides a food you expected to see, it can look exactly like a search or ranking bug rather than a filter setting. On the Foods search page and the Meals & Log "Add Food or Recipe" panel, whenever one or more sources are unchecked, a small red note appears next to the Sort by control — **Omitted from search: RECIPE**, for example — naming exactly which ones. Check the Source filter row below to bring them back.
 
-While a live database (USDA, Open Food Facts, or Canadian Nutrient File) is being searched, a status line names exactly which ones it's contacting — just "Searching USDA FoodData Central…" if you've unchecked the other two, for instance. If you've unchecked all three, that line (and the network requests behind it) doesn't appear at all. CoFID, AFCD, and [CIQUAL](#gloss-ciqual) are different: each is a bundled dataset, not a live lookup, so their results appear instantly alongside your own Pantry/Cache/Recipe matches — checking or unchecking any of them never triggers a network wait.
+While a live [database](#gloss-database) (USDA, Open Food Facts, or Canadian Nutrient File) is being searched, a status line names exactly which ones it's contacting — just "Searching USDA FoodData Central…" if you've unchecked the other two, for instance. If you've unchecked all three, that line (and the network requests behind it) doesn't appear at all. CoFID, AFCD, and [CIQUAL](#gloss-ciqual) are different: each is a bundled dataset, not a live lookup, so their results appear instantly alongside your own Pantry/Cache/Recipe matches — checking or unchecking any of them never triggers a network wait.
 
 **Result limit.** A "Show up to ___ search results" box next to the Source filter controls how many results are fetched and shown, per source (default 25, up to 500). Type a number and press Enter or click Search to apply it — like the Source filter, your choice is remembered as the default for next time.
 
@@ -2415,6 +2494,8 @@ Columns:
 Only pantry foods with [AA](#gloss-aa) data (checkmark) appear in complement suggestions. Name-only entries (--) and those without [AA](#gloss-aa) data (X) may still appear if their name matches a built-in complement table entry. Archived pantry entries never appear in complement suggestions.
 
 Actions: **Add a food** ([USDA](#gloss-usda) search or name-only — the search results table is the same one described in [USDA Food Search Results](#food-search), including the Source filter and sort-order dropdowns), **Remove**, **Archive/Restore** (see [archiving](#archive)), and an **Edit** button on each row that jumps straight to that food's Food Cache entry for editing. A name-only entry (no USDA link) shows a **Link a food** button instead — search and pick a match to attach real nutrient data to that same pantry row, rather than adding a duplicate.
+
+**Why save just a name?**{: #pantry-name-only} It's a placeholder: it records that you have a food on hand when a search doesn't turn up a good match, you're offline, or you'd rather pick the right match later. To add one, click **Can't find it? Save just the name for now** just under the Pantry search box. A name-only entry has no nutrient data at all, so it can't be analyzed or compared until you link it — but it keeps your pantry list complete in the meantime, and **Link a food** turns it into a full entry without retyping anything.
 
 **Only a search-and-select adds a food to your [Food Cache](#gloss-food-cache).** Picking a real match from **Add a food** caches it, the same as any other food search in NuMa — see [how foods enter your Food Cache](#food-data) in Part 8. Typing a **name-only** entry does not: nothing is written to the cache until you use **Link a food** to attach a real match, which is why a name-only row shows "--" in the [AA](#gloss-aa) column above instead of a checkmark or X.
 
@@ -2544,9 +2625,9 @@ The ignored list is not saved anywhere — it resets the moment you navigate awa
 ### A. Food data — where it comes from and how it is stored {: #food-data}
 **Six large tables** are NuMa's primary sources of food information:
 
-- **[USDA](#gloss-usda) FoodData Central** — the U.S. government's nutrition database, covering hundreds of thousands of whole foods, ingredients, and branded products. This is NuMa's primary source. ([FoodData Central FAQ](https://fdc.nal.usda.gov/faq/))
-- **Open Food Facts** — a community-maintained database of packaged and processed food products, especially useful for branded items not found in the [USDA](#gloss-usda) table. ([Open Food Facts](https://world.openfoodfacts.org/discover))
-- **Canadian Nutrient File** — Health Canada's reference database, particularly good on amino acid coverage. ([Canadian Nutrient File](https://food-nutrition.canada.ca/cnf-fce/?lang=eng))
+- **[USDA](#gloss-usda) FoodData Central** — the U.S. government's nutrition [database](#gloss-database), covering hundreds of thousands of whole foods, ingredients, and branded products. This is NuMa's primary source. ([FoodData Central FAQ](https://fdc.nal.usda.gov/faq/))
+- **Open Food Facts** — a community-maintained [database](#gloss-database) of packaged and processed food products, especially useful for branded items not found in the [USDA](#gloss-usda) table. ([Open Food Facts](https://world.openfoodfacts.org/discover))
+- **Canadian Nutrient File** — Health Canada's reference [database](#gloss-database), particularly good on amino acid coverage. ([Canadian Nutrient File](https://food-nutrition.canada.ca/cnf-fce/?lang=eng))
 - **UK CoFID** — ~2,900 UK foods from Public Health England/[DHSC](#gloss-dhsc), bundled into NuMa directly rather than looked up live (it has no [API](#gloss-api) of its own). No amino acid data. ([CoFID](https://www.gov.uk/government/publications/composition-of-foods-integrated-dataset-cofid))
 - **Australian [AFCD](#gloss-afcd)** — ~1,600 Australian foods from [FSANZ](#gloss-fsanz), also bundled directly. Has real amino acid data, unlike CoFID. ([AFCD](https://www.foodstandards.gov.au/science-data/monitoringnutrients/afcd))
 - **French [CIQUAL](#gloss-ciqual)** — ~3,200 French/European foods from [ANSES](#gloss-anses), also bundled directly. No amino acid data. ([CIQUAL](https://ciqual.anses.fr/))
@@ -2578,7 +2659,7 @@ Food enters your [Food Cache](#gloss-food-cache) in four ways:
 
 In every case, NuMa saves the food's original ID number alongside its data. That ID is the key that allows everything else in the program to refer back to a specific food unambiguously.
 
-**Adding to [My Pantry](#pantry) doesn't always mean caching.** Picking a real search result when you add a food to your pantry caches it exactly like ways 1–3 above — there's no separate pantry-specific mechanism. But Pantry's **Quick add by name only** option skips the cache entirely: it stores just a name, with no nutrient data, until you later use **Link a food** to attach a real match and cache it. See [My Pantry](#pantry) in Part 5 for the full picture, including how a name-only entry shows up in that table.
+**Adding to [My Pantry](#pantry) doesn't always mean caching.** Picking a real search result when you add a food to your pantry caches it exactly like ways 1–3 above — there's no separate pantry-specific mechanism. But Pantry's **Can't find it? Save just the name for now** option skips the cache entirely: it stores just a name, with no nutrient data, until you later use **Link a food** to attach a real match and cache it. See [My Pantry](#pantry) in Part 5 for the full picture, including how a name-only entry shows up in that table.
 
 **[Food Annotations](#gloss-food-annotation)** are a second table on your computer. They hold extra information you choose to add about a specific food — information that does not exist in either online table:
 
@@ -2639,6 +2720,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **CSV**{: #gloss-csv}  —  Comma-Separated Values. A plain-text spreadsheet format — one line per row, commas between columns — that Excel, Google Sheets, and most spreadsheet programs can open directly. NuMa uses it for exporting and importing Food Cache and recipe data. See [Food Cache](#food-cache-web).
 
+**Database**{: #gloss-database}  —  An organized collection of information, stored so a program can search it and pull out exactly the piece it needs. NuMa works with two kinds. The food databases it looks foods up in: online ones such as [USDA](#gloss-usda) FoodData Central and Open Food Facts, plus the bundled ones that ship with it ([CoFID](#gloss-cofid), [AFCD](#gloss-afcd), [CIQUAL](#gloss-ciqual)). And your own database — a single file on your computer holding your [Food Cache](#gloss-food-cache), pantry, recipes, logged meals and annotations. See [Food data](#food-data).
+
 **DCP**{: #gloss-dcp}  —  Digestible Complete Protein. Grams of protein in a food or meal that are both digestible (absorbed by the body) and complete (all essential amino acids present at adequate levels). See [digestible complete protein](#dcp).
 
 **DHA**{: #gloss-dha}  —  Docosahexaenoic Acid. A marine omega-3 fatty acid — found in fish and seafood — that NuMa tracks alongside ALA and EPA. See [Omega-3 Fatty Acids](#omega3).
@@ -2661,15 +2744,15 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **FAO**{: #gloss-fao}  —  Food and Agriculture Organization of the United Nations. The body that published the 2013 amino acid reference standard used for all protein quality scoring in NuMa. See [FAO reference values](#fao).
 
-**FDC**{: #gloss-fdc}  —  FoodData Central. The USDA's online nutrition database and NuMa's primary food data source. Each food has a unique numeric FDC ID. Website: https://fdc.nal.usda.gov/
+**FDC**{: #gloss-fdc}  —  FoodData Central. The USDA's online nutrition [database](#gloss-database) and NuMa's primary food data source. Each food has a unique numeric FDC ID. Website: https://fdc.nal.usda.gov/
 
 **FDC ID**{: #gloss-fdc-id}  —  The unique numeric identifier assigned to each food entry in USDA FoodData Central. You can enter an FDC ID directly at any "Search food or recipe" prompt instead of typing a name.
 
-**Food Cache**{: #gloss-food-cache}  —  Your local database of previously retrieved foods. Searching the cache is instant (no network required); foods are added automatically when you select them from USDA or Open Food Facts[^3] results.
+**Food Cache**{: #gloss-food-cache}  —  Your local [database](#gloss-database) of previously retrieved foods. Searching the cache is instant (no network required); foods are added automatically when you select them from USDA or Open Food Facts[^3] results.
 
-**Food Annotation**{: #gloss-food-annotation}  —  Extra information you attach to a cached food: glycemic index, a DIAAS estimate, or a preparation note. Stored locally; not part of any online database.
+**Food Annotation**{: #gloss-food-annotation}  —  Extra information you attach to a cached food: glycemic index, a DIAAS estimate, or a preparation note. Stored locally; not part of any online [database](#gloss-database).
 
-**FSANZ**{: #gloss-fsanz}  —  Food Standards Australia New Zealand, the agency publishing the [AFCD](#gloss-afcd) food composition database bundled with NuMa.
+**FSANZ**{: #gloss-fsanz}  —  Food Standards Australia New Zealand, the agency publishing the [AFCD](#gloss-afcd) food composition [database](#gloss-database) bundled with NuMa.
 
 **GI**{: #gloss-gi}  —  Glycemic Index. A scale from 0 to 100 measuring how quickly a food raises blood glucose relative to pure glucose (100). See [glycemic index](#gi).
 
@@ -2701,7 +2784,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **ODS**{: #gloss-ods}  —  Office of Dietary Supplements, part of the [NIH](#gloss-nih). The direct source for most [RDA](#gloss-rda) and Adequate Intake values in NuMa. See [Recommended Dietary Allowances](#rda).
 
-**OFF**{: #gloss-off}  —  Open Food Facts. A community-maintained database of packaged and branded food products; NuMa's secondary data source. Website: https://world.openfoodfacts.org/
+**OFF**{: #gloss-off}  —  Open Food Facts. A community-maintained [database](#gloss-database) of packaged and branded food products; NuMa's secondary data source. Website: https://world.openfoodfacts.org/
 
 **Oxalate**{: #gloss-oxalate}  —  A naturally occurring compound (oxalic acid / oxalate ion) found in many plant foods, especially spinach, beets, nuts, and chocolate. At high dietary levels it can promote calcium-oxalate kidney stones in susceptible individuals. NuMa can optionally display oxalate content using the Harvard T.H. Chan School of Public Health reference table. Enable it under Settings → Oxalate data. See [oxalate data](#oxalate).
 
@@ -2721,7 +2804,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **Standard error**{: #gloss-standard-error}  —  A measure of how much the individual people in a study disagreed with each other, reported alongside an average as "±3" or "±15". A small figure means their results clustered tightly around the average, so that average is a dependable estimate; a large one means they scattered widely, so the average is shaky and could easily have come out differently with a different handful of subjects. It is written **SEM** in the published glycemic index tables (standard error of the mean). See [How to read a lookup result](#gi-result-row).
 
-**SR**{: #gloss-sr}  —  Standard Reference, as in "SR Legacy" — the [USDA](#gloss-usda)'s pre-2019 food composition database. Along with Foundation foods, it is the [USDA](#gloss-usda) data type most likely to carry a full amino acid profile. See [Food data](#food-data).
+**SR**{: #gloss-sr}  —  Standard Reference, as in "SR Legacy" — the [USDA](#gloss-usda)'s pre-2019 food composition [database](#gloss-database). Along with Foundation foods, it is the [USDA](#gloss-usda) data type most likely to carry a full amino acid profile. See [Food data](#food-data).
 
 **Sub-recipe**{: #gloss-sub-recipe}  —  A saved recipe used as one ingredient of another recipe — a sauce inside a pasta dish, a spice blend inside a stew. Its amount is given in servings, not grams, and its nutrients are worked out from its own ingredients and folded into the parent, however many levels deep the nesting goes. See [Recipes: Servings Instead of `pN`](#portions-vs-servings) for how a serving's weight is derived.
 
@@ -2761,11 +2844,11 @@ National Institutes of Health Office of Dietary Supplements. (n.d.). Office of D
 
 Open Food Facts. (n.d.). Open Food Facts—World food products database. Retrieved August 2, 2026, from https://world.openfoodfacts.org
 
-> The crowd-sourced packaged-food database NuMa already queries for barcode lookups; browsing it directly lets you see ingredient lists, Nutri-Score, and photos that NuMa doesn't surface.
+> The crowd-sourced packaged-food [database](#gloss-database) NuMa already queries for barcode lookups; browsing it directly lets you see ingredient lists, Nutri-Score, and photos that NuMa doesn't surface.
 
 University of Sydney. (n.d.). Glycemic Index Database. Retrieved August 2, 2026, from https://glycemicindex.com
 
-> The original research database behind glycemic index and glycemic load values; useful for looking up [GI](#gloss-gi) numbers for foods not yet annotated in NuMa.
+> The original research [database](#gloss-database) behind glycemic index and glycemic load values; useful for looking up [GI](#gloss-gi) numbers for foods not yet annotated in NuMa.
 
 ### D. Using this manual's search {: #search-howto}
 Use the sidebar search box near the top of the table of contents.
@@ -2777,6 +2860,8 @@ Use the sidebar search box near the top of the table of contents.
 **Results are sections, not raw text.** Instead of jumping straight to every individual occurrence of your words scattered across the whole manual, search shows you a short list of section headings that contain all of them — click one (or press **Enter** to jump straight to the top match) to open it, and NuMa highlights every matching word within that section so you can see at a glance where they landed. **Enter**/**Shift+Enter** (or the &#x25B2;/&#x25BC; buttons) then step between highlighted words inside that one section, not across the whole document.
 
 **The "Only show things you can do" checkbox** narrows the results further, to sections that contain some instruction — add, edit, change, remove, and similar words — rather than sections that merely *discuss* a topic. Turn it on when you're trying to do something rather than understand something: `portion size` with the box checked skips past conceptual explanations of what a portion is and goes straight to the section that tells you how to add or correct one. It's a heuristic, not a guarantee — a section phrased with an instruction word this checkbox doesn't happen to recognize can still be missed, and unchecking the box always shows you the same results or more, never fewer, so it's worth trying both if the checked list comes up empty.
+
+**The "Match case" and "Whole words only" checkboxes** are for short terms that are also pieces of everyday words. Searching for "AI" (artificial intelligence) normally matches every "ai" in the manual — *main*, *detail*, *said* — which buries the few places that mean what you were looking for. Check **Match case** and it matches only capital "AI"; check **Whole words only** as well, and it no longer matches inside words written in all capitals, such as the titles in the [Recent program updates log](#a-recent-program-updates-log), either. **Whole words only** on its own is handy for short abbreviations like [GI](#gloss-gi) and [AA](#gloss-aa), too. Both boxes also apply to "exact phrase" searches and to the highlights inside a section you open.
 
 ## Part 8 — Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 If something seems broken or confusing, there's a good chance the answer is already below. The topics are grouped by how the problem *feels* rather than which menu it's in, since that's usually how you'll remember it later — and a few topics are listed in more than one group, since the same problem can feel different ways depending on what you were expecting. There aren't so many that you can't just skim the headings if nothing matches at first.
@@ -2903,7 +2988,7 @@ Once you've applied the estimate to every food that needed it, the proxy food fr
 #### I searched for a food I know exists and got nothing {: #ts-search-empty}
 Try different search terms. "beans cooked" and "beans canned" may seem to be the same thing but they are not. The latter is a subgroup of the former. Playing with search terms can yield seriously variable results.
 
-Check your **Dietary Preference** setting (Settings). If it's set to "Plant-based only" or "Vegetarian," foods outside that category are filtered out of *every* search, comparison, and lookup in NuMa — not just from complement suggestions — so a food you know is in [USDA](#gloss-usda)'s database can still return zero results. Temporarily switch to "All animal foods," search, then switch back.
+Check your **Dietary Preference** setting (Settings). If it's set to "Plant-based only" or "Vegetarian," foods outside that category are filtered out of *every* search, comparison, and lookup in NuMa — not just from complement suggestions — so a food you know is in [USDA](#gloss-usda)'s [database](#gloss-database) can still return zero results. Temporarily switch to "All animal foods," search, then switch back.
 
 #### The food I wanted wasn't at the top of the search results {: #ts-search-order}
 This is usually not a bug — it's the order you typed your search words in. NuMa ranks results first by how many of your search words a name contains, but when there's a tie, it treats the *order* you typed your words in as a signal of priority: matching your earlier words outranks matching your later ones. So searching `milk dry instant` will favor a "milk dry ..." match over a "milk instant ..." match whenever only one of those two words is present in a given result, simply because "dry" was typed before "instant."
@@ -2947,7 +3032,7 @@ If you'll be entering this food by volume repeatedly, teach NuMa the conversion 
 #### A food's portion or volume conversion looks flatly wrong {: #ts-bad-portion-data}
 Occasionally a [USDA](#gloss-usda) record's portion weight is simply implausible for what it describes — a "1 large" egg listed at a weight that doesn't match a scale, or a "1 cup" measure clearly sized for a different preparation than the one you have. This is a data-entry error on USDA's side, inherited as-is; NuMa doesn't second-guess or adjust USDA's published portion weights, since there'd be no reliable way to tell a genuine correction from a wrong override.
 
-If a portion weight doesn't match what you measure: weigh your actual amount and enter the gram figure directly for that one use, and — if you'll use this food again — replace the bad portion with a corrected one via the same Portions editor (the [Food Cache](#food-cache-web) entry's **Portions** action). Custom portions you add there are yours — they aren't overwritten by a later **Refresh** of the food's nutrient data. If you're confident the USDA source itself is wrong (not just unusual), [let us know](#feedback) — it's worth tracking so other users hit it less often, even though NuMa can't correct USDA's database directly.
+If a portion weight doesn't match what you measure: weigh your actual amount and enter the gram figure directly for that one use, and — if you'll use this food again — replace the bad portion with a corrected one via the same Portions editor (the [Food Cache](#food-cache-web) entry's **Portions** action). Custom portions you add there are yours — they aren't overwritten by a later **Refresh** of the food's nutrient data. If you're confident the USDA source itself is wrong (not just unusual), [let us know](#feedback) — it's worth tracking so other users hit it less often, even though NuMa can't correct USDA's [database](#gloss-database) directly.
 
 *See also:* [Enter food portions as weights, not volume measures, whenever possible](#portion-formats).
 
@@ -3081,6 +3166,15 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- The manual's search box has two new checkboxes, **Match case** and **Whole words only**, so short terms like "AI" or "GI" can be found without matching every word that contains those letters.
+- NuMa now tells you which starter foods and recipes an update adds or improves, both before you install it and the first time it runs, and lets you choose which to take; new installs start with an empty pantry.
+- A new setup checklist, linked from the home page and Settings, walks you through first-time setup, or setting up again after losing your data; the manual also now explains how to back up your data.
+- Every Settings section is now numbered, 1 to 12, in order; Alt+Shift+0 now opens section 10, Browser to Launch.
+- On Windows, the update-available message now links straight to the manual's update steps and names your NuMa folder; after any update, the manual now tells you to refresh open User Manual tabs (F5).
+- MANUAL: "Database" is now in the Glossary, and every mention of a database in the manual links to it.
+- The 2021 glycemic index tables can now be added from Settings: download the two PDFs, choose them, click **Build** — no command line, and it works in the downloadable program too.
+- Every Food Cache row now has an **Add to pantry** button (or shows **In pantry**), and the Food Cache can be sorted by ID.
+- The home page's "Current manual version" date now always matches the latest manual edit, instead of lagging until the manual itself was opened.
 - The Annotate page's guide to reading a GI lookup result now says plainly that each result is one row of NuMa's own GI database, and the **non-ISO method** explanation is a bullet of its own instead of being buried at the end of the one above it.
 - NuMa now says outright which glycemic index reference table it is searching — the bundled 2008 edition or your own locally-built 2021 one — on the Annotate page and in a new Settings section, so a local table's presence, and its silent disappearance, are both visible.
 - Adding a food to a meal no longer pops up a browser warning about leaving the page, and an amount typed while the search of outside sources is still running is now kept when those results arrive.
@@ -3105,6 +3199,178 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - The oxalate reference-match page now explains its entries the same way, and every entry — there and on a food's page — says whether its value was measured in that food or estimated from a similar one.
 - A GI value picked from the reference table now remembers which row it came from, shown under the GI field and on the food's own page, so you can always see what a saved figure is based on.
 - The GI lookup on a food's Annotate page now explains its own results right beside the form — what "Impaired" means, what "ref Bread, 2h 76" is telling you, and what NuMa actually saves when you pick a row — with the full account in the manual.
+
+#### Sep 29 updates
+
+**PROGRAM: MATCH CASE AND WHOLE WORDS IN THE MANUAL'S SEARCH**
+
+The manual's sidebar search now has **Match case** and **Whole words only** checkboxes, so you can find "AI" (artificial intelligence) without also matching *main*, *said*, or MAIN. [learn more...](#search-howto)
+
+<!--
+```
+Scope: User Manual sidebar search -- scripts/build_manual.py (JS + CSS +
+HTML template). Section index now keeps original-case text alongside a
+lowercased copy (the lowercase copy still drives the "things you can do"
+verb check). Query words are no longer lowercased; each becomes a global
+RegExp (escaped, flag 'i' unless Match case, wrapped in
+(?<![A-Za-z0-9_])...(?![A-Za-z0-9_]) lookarounds for Whole words only --
+lookarounds rather than \b so terms starting/ending in punctuation work).
+The same regexes drive section filtering, scoring, and in-section
+highlighting. Both checkboxes re-run the search on change.
+```
+-->
+
+**PROGRAM: NUMA TELLS YOU WHAT AN UPDATE CHANGES IN THE STARTER FOODS AND RECIPES**
+
+When a new version adds starter foods or recipes, or improves ones you already have, NuMa now says so. The **UPDATE AVAILABLE** message tells you before you install, and a **NEW STARTER ITEMS** message appears the first time the new version runs. In **Settings → 9. Starter Data**, new items are marked **(new in this version)**, and improved ones are listed for you to update, or keep as they are, item by item. Nothing changes in your data unless you choose it, and something you deleted on purpose is never offered back to you as "new". New installs also now start with an empty pantry, since a pantry is the list of foods *you* keep at home. [learn more...](#starter-data)
+
+<!--
+```
+Scope: numa_app/services/demo_data.py (starter_manifest, diff_manifests,
+record_version_changes, pending_changes, preview_changes,
+apply_improvements, decline_improvements, describe_changes; state in
+<data dir>/starter_versions.json), update_check.py (fetches the release's
+starter_manifest.json asset), scripts/create_release.py (writes and uploads
+it), web/backend.py (home + Settings wiring, 3 new POST routes),
+home.html, settings.html, export_starter_data.py (pantry always []),
+starter_data.json (pantry emptied), tests/conftest.py fixture isolating
+starter_versions.json. Previously starter_status() compared only bundled
+set vs DB, so "new in this version" and "deleted on purpose" looked the
+same, and an improved item the user already had was never noticed.
+Improvements apply by UPDATE, not cache_food()'s INSERT OR REPLACE, so ids,
+archived flags, annotations and references survive; recipes keep their id.
+First run of this version records silently (nothing earlier to compare).
+```
+-->
+
+**PROGRAM: A SETUP CHECKLIST FOR NEW INSTALLS, AND HOW TO BACK UP YOUR DATA**
+
+Part 1.G of the manual is now a step-by-step setup checklist: the three settings to do first, the ones that can wait, setting up your pantry (starting from the starter foods already there), and — only if you track it — adding glycemic index values to the carbohydrate foods you eat most. It covers setting up again after losing your data, too. Until you've saved a profile, a **NEW TO NUMA?** message on the home page links to the checklist, and Settings links to it at all times. A new **Backing up your data** section says which two folders hold everything you've entered, and how to copy and restore them. [learn more...](#first-setup)
+
+<!--
+```
+Scope: user-manual.md Part 1.G rewritten (#first-setup), new Part 1.F
+subsection #backup; web/templates/home.html (banner shown while
+profile_label is empty, i.e. load_profile() is None);
+web/templates/settings.html (link under the page heading). Backup
+guidance avoids needing NuMa quit: no documented way to quit on Linux
+exists yet. Data dirs per platform_utils.get_data_dir/get_config_dir;
+gi_data_local.json lives in the data dir, so a backup includes it.
+```
+-->
+
+**PROGRAM: SETTINGS SECTIONS NUMBERED 1 TO 12**
+
+Every section on the Settings page now has a number, in order: Browser to Launch is 10, Glycemic Index Reference Table is 11, and System Issues is 12. The keyboard shortcut **Alt+Shift+0** now opens section 10; sections 11 and 12 have no shortcut, since the number keys run out. [learn more...](#web-shortcuts)
+
+<!--
+```
+Scope: web/templates/settings.html. Browser to Launch and the GI table
+section had no number; System Issues was "0" so it could own Alt+Shift+0.
+Now 10/11/12, with data-ak="0" moved to section 10 (the underlined 0 in
+"10"). The Keyboard Shortcuts section's list also gained its missing 9
+and 0 rows.
+```
+-->
+
+**PROGRAM: CLEARER WINDOWS UPDATE STEPS, AND A REMINDER TO REFRESH THE MANUAL**
+
+On Windows, the **UPDATE AVAILABLE** message on the home page now has a link straight to the update steps in this manual, and it shows the exact folder your copy of NuMa runs from, so you don't have to remember where you put it. Those steps now end with the one that's easy to miss: refresh (press F5 in) every browser tab that has the User Manual open. An open manual tab doesn't update itself, so without a refresh it quietly keeps showing the old manual. Linux's "UPDATED" message now gives the same reminder. [learn more...](#update-windows)
+
+<!--
+```
+Scope: Home page update banners (web/templates/home.html): the Windows
+branch (new self_update.windows_exe_dir(), passed as windows_exe_dir by
+backend.py's index route) keeps the Download button, adds a manual_link
+to #update-windows and the exe folder; the Linux "UPDATED" banner gains
+the F5 reminder. user-manual.md Part 1F Windows item g rewritten as five
+steps with anchor #update-windows (step 2 now says closing the black
+window alone quits, so the manual tab can stay open to read from); item
+c's "once-ever" claim corrected, since a replaced unsigned .exe can
+re-trigger SmartScreen. Windows locks a running .exe, so is_available()
+stays Linux-only. A first draft put the whole procedure in the banner
+itself, which told the user to close the very tab they were reading.
+```
+-->
+
+**MANUAL: "DATABASE" EXPLAINED IN THE GLOSSARY**
+
+The manual talks about databases constantly — the online ones NuMa looks foods up in, the ones bundled with it, and your own. "Database" now has a plain-language Glossary entry explaining all three, and every mention of the word in the manual links to it. [learn more...](#gloss-database)
+
+<!--
+```
+Scope: user-manual.md Glossary (#gloss-database, between CSV and DCP), plus
+links on every prose occurrence of "database(s)" outside Appendix A. Left
+unlinked: indented column-legend code blocks, the GI section heading about the
+Sydney database, proper names ("Australian Food Composition Database",
+"Glycemic Index Database"), and reference/footnote citation titles. This
+deliberately departs from the usual one-link-per-passage convention, at the
+owner's request.
+```
+-->
+
+#### Sep 28 updates
+
+**PROGRAM: BUILD THE 2021 GI TABLES FROM SETTINGS**
+
+You can now add the 2021 glycemic index tables — over 4,000 foods, each with the year it was tested — without a command line. Download the two PDFs from the publisher, choose them in **Settings → Glycemic Index Reference Table**, and click **Build my 2021 GI table**. About a minute later the Annotate page's GI lookup is searching them, with no restart. This works in the downloadable program as well, not just from source code. [learn more...](#gi-editions)
+
+<!--
+```
+Scope: Settings -> Glycemic Index Reference Table; numa_app/services/gi_table_build.py
+(new: the parser moved out of scripts/build_gi_data.py, now a thin CLI over it),
+gi_lookup.py (user_table_path(), reload()), web/backend.py
+(POST /settings/gi-table/build, settings_get), web/templates/settings.html,
+requirements.txt (+pdfminer.six), tests/test_build_gi_data.py, tests/test_web.py.
+pdftotext (poppler) replaced by pdfminer.six so packaged Windows/Linux builds can
+parse -- verified in a PyInstaller onefile probe (139 pages, 2,091 rows). Word y
+uses baseline + 0.9*size, not pdfminer's descender-based bbox top, which split
+one wrapped name; against the pdftotext build every row's name/GI/SEM/year/
+country/subjects/ref matches bar one name pdftotext had wrong (a "Jujubes"
+heading glued onto grapefruit). Tables identified from their own "Supplemental
+Table N." heading, so upload order is irrelevant. Bad input (same table twice,
+not a table, <1,500 rows) raises BuildError and writes nothing; output replaced
+atomically. Build runs on a thread (~70 s); Settings reloads itself every 4 s
+while running, shows the outcome once. Also fixed: gi_lookup cached its table
+for the whole process, so a new/deleted local table was not seen until restart
+despite Settings saying otherwise.
+```
+-->
+
+**PROGRAM: ADD TO PANTRY FROM THE FOOD CACHE, AND SORT IT BY ID**
+
+Each food in the Food Cache now has an **Add to pantry** button that puts it in your Pantry and brings you straight back to the same spot in the list. Foods already there show **In pantry** instead, which opens the Pantry. The Food Cache's "Sort by" list also has a new **ID** choice. [learn more...](#food-cache-web)
+
+<!--
+```
+Scope: Foods -> Food Cache; web/backend.py (food_cache_get, _FOOD_CACHE_SORT_KEYS,
+pantry_add), web/templates/food_cache.html, tests/test_web.py.
+The row button posts to the existing /pantry/add with a new optional `next`
+field (local paths only; "//host" rejected) so it returns to
+/food/cache?q=..&sort=..#food-<fdc_id> instead of /pantry -- also threaded
+through the annotation-prompt detour. "In pantry" counts archived pantry rows
+too. Rows got id="food-<fdc_id>" for the return anchor. Same session: the
+details>summary tint in style.css doubled (#f0f4f8 -> #e1e9f1) so collapsible
+headers read as controls; Annotate's GI lookup results now scroll inside
+their card instead of spilling over the reading-guide panel.
+```
+-->
+
+**PROGRAM: HOME PAGE MANUAL DATE STAYS CURRENT**
+
+The "Current manual version" date on the home page now always reflects the latest change to the manual. Before, it could show an older date until you opened the manual itself.
+
+<!--
+```
+Scope: Home page; web/backend.py home route, tests/conftest.py, tests/test_web.py.
+The stamp is read from the built user-manual.html, which only /manual rebuilt
+(manual_build.rebuild_manual_if_stale) -- so an edit to user-manual.md showed
+up at once in the home-page Preface excerpt (read live from the .md) but not
+in the stamp beside it. The home route now runs the same stale-check rebuild
+(in a threadpool; a no-op unless the .md is newer) before reading the stamp.
+Tests stub the rebuild autouse so none can rewrite the repo's real html.
+```
+-->
 
 #### Sep 27 updates
 
@@ -6668,7 +6934,7 @@ Think of it like fuel efficiency: a car that gets 50 miles per gallon is efficie
 The [DIAAS](#gloss-diaas) table characterizes the quality of each gram. Hitting your daily protein target is about counting how many grams you eat.
 
 ### C. Plant protein sources in your pantry {: #appendix-c}
-("pantry" here has two meanings: your actual pantry, and the pantry database that is in NuMa (see the Foods dropdown menu), which is a list of foods in your actual pantry.)
+("pantry" here has two meanings: your actual pantry, and the pantry [database](#gloss-database) that is in NuMa (see the Foods dropdown menu), which is a list of foods in your actual pantry.)
 
 This appendix profiles the plant protein sources currently kept in a typical [NuMa](#gloss-numa) pantry, including nutritional yeast, which is not a plant but is grouped here because it fills the same dietary role. For each source: what form it takes, where it comes from, its essential amino acid ([EAA](#gloss-eaa)) strengths and weaknesses relative to the [FAO](#gloss-fao) reference values described in [Appendix B](#appendix-b), and its typical role in cooking.
 
@@ -7593,5 +7859,5 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Disclaimer {: #disclaimer}
 
-NuMa is a personal food-record and nutrient-calculation tool, not a source of medical or dietary advice, and it makes no claim about health or illness. Its figures are informed estimates pooled from third-party food databases and checked routinely for internal correctness — they are not a substitute for a physician, registered dietitian, or product label. See the full [Disclaimer](/disclaimer) for details on data accuracy, review practices, and your own responsibility when using this program.
+NuMa is a personal food-record and nutrient-calculation tool, not a source of medical or dietary advice, and it makes no claim about health or illness. Its figures are informed estimates pooled from third-party food [databases](#gloss-database) and checked routinely for internal correctness — they are not a substitute for a physician, registered dietitian, or product label. See the full [Disclaimer](/disclaimer) for details on data accuracy, review practices, and your own responsibility when using this program.
 

@@ -398,16 +398,17 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 }
 #search-clear:hover { background: var(--accent-light); color: var(--accent); }
 #search-clear.visible { display: block; }
-#search-func-toggle {
+.search-toggle {
     display: flex;
     align-items: center;
     gap: 0.35em;
     font-size: 13px;
     color: var(--muted);
-    margin-top: 6px;
+    margin-top: 2px;
     cursor: pointer;
 }
-#search-func-toggle input { margin: 0; cursor: pointer; }
+#search-func-toggle { margin-top: 6px; }
+.search-toggle input { margin: 0; cursor: pointer; }
 #search-results {
     list-style: none;
     margin: 6px 0 0;
@@ -503,7 +504,7 @@ JS = """\
 
   var sections = [], resultItems = [], currentWords = [];
   var openSection = null, sectionMatches = [], idx = 0;
-  var input, funcCheckbox, resultsEl, clearBtn;
+  var input, funcCheckbox, caseCheckbox, wordCheckbox, resultsEl, clearBtn;
 
   function buildSectionIndex() {
     var headings = Array.prototype.slice.call(
@@ -519,7 +520,8 @@ JS = """\
         title: h.textContent.replace(/\\u00b6/g, '').trim(),
         el: h,
         nextEl: next,
-        text: text.toLowerCase(),
+        text: text,
+        lower: text.toLowerCase(),
       };
     });
   }
@@ -531,18 +533,27 @@ JS = """\
     return els;
   }
 
-  function countOccurrences(haystack, needle) {
-    if (!needle) return 0;
-    var count = 0, pos = 0;
-    while ((pos = haystack.indexOf(needle, pos)) !== -1) { count++; pos += needle.length; }
-    return count;
+  /* One global RegExp per query word, honoring the "Match case" and
+     "Whole words only" checkboxes. Whole-word uses lookarounds rather than
+     \\b so a term that starts or ends with punctuation still works. */
+  function wordRegex(w) {
+    var src = w.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+    if (wordCheckbox.checked) src = '(?<![A-Za-z0-9_])' + src + '(?![A-Za-z0-9_])';
+    return new RegExp(src, caseCheckbox.checked ? 'g' : 'gi');
   }
 
-  function scoreOf(section, words) {
+  function countOccurrences(haystack, re) {
+    re.lastIndex = 0;
+    var m = haystack.match(re);
+    return m ? m.length : 0;
+  }
+
+  function scoreOf(section, regexes) {
     var score = 0;
-    words.forEach(function (w) {
-      score += countOccurrences(section.text, w);
-      if (section.title.toLowerCase().indexOf(w) !== -1) score += 5;
+    regexes.forEach(function (re) {
+      score += countOccurrences(section.text, re);
+      re.lastIndex = 0;
+      if (re.test(section.title)) score += 5;
     });
     return score;
   }
@@ -558,7 +569,7 @@ JS = """\
     sectionMatches = []; idx = 0;
   }
 
-  function highlightWordInRoot(root, word) {
+  function highlightWordInRoot(root, re) {
     var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function (n) {
         return n.parentElement.closest('script,style,mark,.headerlink') ?
@@ -570,16 +581,17 @@ JS = """\
     while ((n = walker.nextNode())) nodes.push(n);
     nodes.forEach(function (node) {
       var text = node.textContent;
-      var lower = text.toLowerCase();
-      var pos = 0, start, frags = [];
-      while ((start = lower.indexOf(word, pos)) !== -1) {
+      var pos = 0, m, frags = [];
+      re.lastIndex = 0;
+      while ((m = re.exec(text)) !== null) {
+        var start = m.index;
         if (start > pos) frags.push(document.createTextNode(text.slice(pos, start)));
         var mark = document.createElement('mark');
         mark.className = 'search-hit';
-        mark.textContent = text.slice(start, start + word.length);
+        mark.textContent = m[0];
         frags.push(mark);
         sectionMatches.push(mark);
-        pos = start + word.length;
+        pos = start + m[0].length;
       }
       if (frags.length) {
         if (pos < text.length) frags.push(document.createTextNode(text.slice(pos)));
@@ -602,8 +614,8 @@ JS = """\
     closeSectionHighlights();
     openSection = item.section;
     var roots = [openSection.el].concat(elementsBetween(openSection.el, openSection.nextEl));
-    currentWords.forEach(function (w) {
-      roots.forEach(function (r) { highlightWordInRoot(r, w); });
+    currentWords.map(wordRegex).forEach(function (re) {
+      roots.forEach(function (r) { highlightWordInRoot(r, re); });
     });
     sectionMatches.sort(function (a, b) {
       var pos = a.compareDocumentPosition(b);
@@ -650,8 +662,8 @@ JS = """\
     // back to AND-of-words if the quotes aren't a matched pair wrapping the
     // whole query.
     var m = /^"(.+)"$/.exec(query);
-    if (m && m[1].trim()) return [m[1].toLowerCase()];
-    return query.toLowerCase().split(/\\s+/).filter(Boolean);
+    if (m && m[1].trim()) return [m[1]];
+    return query.split(/\\s+/).filter(Boolean);
   }
 
   function runSearch() {
@@ -665,13 +677,14 @@ JS = """\
       renderResults(resultItems, funcMode);
       return;
     }
+    var regexes = currentWords.map(wordRegex);
     resultItems = sections.filter(function (s) {
-      var allPresent = currentWords.every(function (w) { return s.text.indexOf(w) !== -1; });
+      var allPresent = regexes.every(function (re) { re.lastIndex = 0; return re.test(s.text); });
       if (!allPresent) return false;
-      if (funcMode) return VERBS.some(function (v) { return s.text.indexOf(v) !== -1; });
+      if (funcMode) return VERBS.some(function (v) { return s.lower.indexOf(v) !== -1; });
       return true;
     }).map(function (s) {
-      return { section: s, score: scoreOf(s, currentWords) };
+      return { section: s, score: scoreOf(s, regexes) };
     }).sort(function (a, b) { return b.score - a.score; });
     renderResults(resultItems, funcMode);
   }
@@ -700,6 +713,8 @@ JS = """\
     sections = buildSectionIndex();
     input = document.getElementById('search-input');
     funcCheckbox = document.getElementById('search-func-mode');
+    caseCheckbox = document.getElementById('search-case-mode');
+    wordCheckbox = document.getElementById('search-word-mode');
     resultsEl = document.getElementById('search-results');
     clearBtn = document.getElementById('search-clear');
     var timer;
@@ -709,6 +724,8 @@ JS = """\
       timer = setTimeout(runSearch, 180);
     });
     funcCheckbox.addEventListener('change', runSearch);
+    caseCheckbox.addEventListener('change', runSearch);
+    wordCheckbox.addEventListener('change', runSearch);
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
       if (e.key === 'Escape') { clearSearch(); }
@@ -989,9 +1006,17 @@ HTML_TEMPLATE = """\
              autocomplete="off" spellcheck="false">
       <button id="search-clear" type="button" title="Clear search" aria-label="Clear search">X</button>
     </div>
-    <label id="search-func-toggle">
+    <label class="search-toggle" id="search-func-toggle">
       <input type="checkbox" id="search-func-mode">
       Only show things you can do
+    </label>
+    <label class="search-toggle" id="search-case-toggle">
+      <input type="checkbox" id="search-case-mode">
+      Match case
+    </label>
+    <label class="search-toggle" id="search-word-toggle">
+      <input type="checkbox" id="search-word-mode">
+      Whole words only
     </label>
     <ul id="search-results"></ul>
     <div id="search-nav">

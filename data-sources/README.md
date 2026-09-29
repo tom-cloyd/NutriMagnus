@@ -42,8 +42,10 @@ them again from the publisher's own Supplementary data link.**
 
 ### Ingested by
 
-`scripts/build_gi_data.py` → `gi_data.json`. Run it with both PDFs as arguments,
-in table order:
+`numa_app/services/gi_table_build.py` → `gi_data_local.json` (never
+`gi_data.json`, which stays the 2008 baseline). Users run it from Settings →
+Glycemic Index Reference Table by uploading both PDFs; developers can use the CLI
+wrapper, with the PDFs in either order:
 
 ```bash
 python3 scripts/build_gi_data.py \

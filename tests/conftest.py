@@ -157,6 +157,15 @@ def use_test_profile(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.fixture(autouse=True)
+def use_test_starter_versions(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the record of which starter set this install last ran with
+    (demo_data._VERSIONS_FILE, written on every home/Settings page load)
+    out of the real data directory. Applied automatically to every test."""
+    from numa_app.services import demo_data as _demo_data
+    monkeypatch.setattr(_demo_data, "_VERSIONS_FILE", tmp_path / "starter_versions.json")
+
+
+@pytest.fixture(autouse=True)
 def no_off(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     Stub out Open Food Facts search/barcode lookup to return no results so
@@ -193,6 +202,10 @@ def no_update_check(monkeypatch: pytest.MonkeyPatch) -> None:
     from numa_app.services import manual_update as _manual_update
     monkeypatch.setattr(_manual_update, "_fetch", lambda *a, **kw: None)
     _manual_update.clear_cache()
+    # The home page (like /manual) rebuilds a stale user-manual.html — never
+    # let a test rewrite the real one in the repo.
+    from numa_app.services import manual_build as _manual_build
+    monkeypatch.setattr(_manual_build, "rebuild_manual_if_stale", lambda: None)
 
 
 # ---------------------------------------------------------------------------

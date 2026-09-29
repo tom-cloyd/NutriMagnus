@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-09-27:2005
+UPDATED: 2026-09-29:1112
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -109,7 +109,10 @@ numa/
       demo_data.py                   — starter foods/pantry/recipes, loaded from starter_data.json:
                                       seed_if_fresh_install() (runs once on a truly empty DB),
                                       load_demo_data()/clear_demo_data()/restore_selected() back the
-                                      Settings starter-data toggle
+                                      Settings starter-data toggle; starter_manifest()/
+                                      record_version_changes()/pending_changes()/apply_improvements()
+                                      track what each version added or improved (see "Starter-set
+                                      changes between versions" below)
       diet_aware.py                  — B12/iron/zinc bioavailability notes based on dietary preference
       food_ids.py                    — classify_food_id() — food/recipe ID → (id_str, source_label)
       food_import.py                 — shared food-cache import logic (used by import_foods.py etc.)
@@ -309,8 +312,8 @@ The `food_annotations` table stores user-supplied estimates attached to individu
 **Seeding GI values in bulk:** `import_gi_seed.py` (repo root) writes `gi_estimate` for cached foods whose name exactly matches an entry in a small hardcoded table sourced from Foster-Powell/Holt/Brand-Miller (2008) *Diabetes Care* 31(12):2281-3 (CC-licensed, ~60 common foods). Ambiguous/fuzzy matches are printed for manual review rather than written automatically — see the script's docstring. Run with `--apply` to write; without it, it's a dry run.
 
 **GI reference table lookup (`gi_lookup.py` — glycemic index table lookup):** The Annotate page's
-"look up a GI value" search is a local fuzzy name match over `gi_data.json`, built by
-`scripts/build_gi_data.py`. No live API; same category as CoFID/AFCD/CIQUAL.
+"look up a GI value" search is a local fuzzy name match over `gi_data.json` (bundled) or
+`gi_data_local.json` (user-built, below). No live API; same category as CoFID/AFCD/CIQUAL.
 
 **Two tables, and the licence that forces the split.** `gi_data.json` (committed, shipped, bundled in
 the spec) is the 2008 edition — 2,487 rows, Creative Commons licensed, which is why it can ship.
@@ -323,6 +326,22 @@ redistribution and adaptation expressly forbidden, copyright held by the America
 Nutrition. So NuMa ships the parser, each user mines their own copy, and the result never leaves
 their machine. `gi_lookup.active_table_path()` prefers the local table (user data dir first, so a
 packaged install can take an upgrade, then beside the module) and falls back to the bundled one.
+**Building the local table** (`numa_app/services/gi_table_build.py`): Settings → Glycemic Index
+Reference Table takes both PDFs as one multi-file upload (`POST /settings/gi-table/build`), saves them
+to a temp dir, and `start_build()` runs `build_table()` on a background thread (~70 s; the page polls
+by reloading every 4 s while `build_status()["running"]`). Which file is Table 1 is read from each
+PDF's "Supplemental Table N." heading, not the upload order. `build_table()` raises `BuildError` —
+writing nothing — for two copies of one table, a PDF with neither heading, or under 1,500 rows from
+either table; on success it writes to a temp name, `os.replace()`s it into
+`gi_lookup.user_table_path()` (the data dir), and calls `gi_lookup.reload()`, since the lookup
+otherwise caches its table for the life of the process. PDF words come from **pdfminer.six** (pure
+Python, so the packaged builds need no poppler binary; PyInstaller's contrib hook bundles its cmap
+data). Word *y* is taken from each character's baseline + 0.9 × font size rather than pdfminer's
+bbox top, which varies by font descender and split one wrapped name across rows; checked against the
+earlier `pdftotext` build, every row's name/GI/SEM/year/country/subjects/ref matches, bar one name
+that `pdftotext` had got wrong. `scripts/build_gi_data.py` is now a thin CLI over the same module.
+The Annotate page shows only an edition badge; setup lives in Settings alone.
+
 `tests/test_gi_lookup.py` asserts `gi_data.json` holds only edition-2008 rows;
 `tests/test_packaging_spec.py` asserts the spec never bundles the local file. Source PDFs and the
 full citation live in `data-sources/` (PDFs gitignored).
@@ -1133,6 +1152,8 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | POST | `/settings/diaas-override`, `diaas-override/delete` | Add/update or delete a DIAAS digestibility override |
 | POST | `/settings/nutrient-target`, `nutrient-target/load-defaults` | Edit / reset Profile Optimal targets and max limits |
 | POST | `/settings/starter-data/load`, `clear`, `restore` | Load / clear / selectively restore demo starter data |
+| POST | `/settings/starter-data/improve`, `keep-mine` | Update the checked starter items to this version's improved ones in place / decline all pending improvements |
+| POST | `/starter-notice/ack` | Dismiss the home page's NEW STARTER ITEMS notice (Settings keeps listing the items) |
 | POST | `/settings/meal-nutrients` | Save the Meals & Log custom-column selection |
 | POST | `/settings/recompute-error/{error_id}/resolve` | Retry a failed DCP recompute (Settings > System Issues) |
 | POST | `/recompute-errors/ack-banner` | Dismiss the home-page recompute-error banner |
@@ -1416,12 +1437,13 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_afcd.py` | `afcd_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
 | `tests/test_ciqual.py` | `ciqual_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
 | `tests/test_gi_lookup.py` | `gi_lookup.py`: fuzzy name search over the Atkinson glycemic index reference table, population filtering, edition/year-of-test reporting |
-| `tests/test_build_gi_data.py` | `scripts/build_gi_data.py`: per-row population classification, GI/SEM cell parsing, the 2008-to-2021 merge rule, legacy name repair, column geometry |
+| `tests/test_build_gi_data.py` | `numa_app/services/gi_table_build.py`: per-row population classification, GI/SEM cell parsing, the 2008-to-2021 merge rule, legacy name repair, column geometry, table identification, refusal of wrong/short input without touching the existing table, background build status, lookup reload |
 | `tests/test_food_ids.py` | `numa_app/services/food_ids.py`: `classify_food_id()` mapping a food/recipe id to its display id and source label |
 | `tests/test_search_suggest.py` | `numa_app/services/search_suggest.py`: local "did you mean" suggestions for a search that returned nothing |
 | `tests/test_recipe_translate.py` | `numa_app/services/recipe_translate.py`: prompt-building and response-parsing for the manual-paste recipe translation workflow |
 | `tests/test_openfoodfacts.py` | `openfoodfacts.py`: search/barcode lookup parsing and id assignment (network mocked) |
-| `tests/test_update_check.py` | `numa_app/services/update_check.py`: the GitHub latest-release check behind the home-page update banner, including its offline silence |
+| `tests/test_update_check.py` | `numa_app/services/update_check.py`: the GitHub latest-release check behind the home-page update banner, including its offline silence and the release's starter-manifest fetch |
+| `tests/test_create_release_manifest.py` | `scripts/create_release.py`: the starter-set manifest it writes and uploads, under the asset name `update_check.py` fetches |
 | `tests/test_self_update.py` | `numa_app/services/self_update.py`: `perform_update()` self-replacing the packaged Linux binary, and `is_available()` gating it to a packaged install |
 | `tests/test_manual_update.py` | `numa_app/services/manual_update.py`: Ed25519-verified manual downloads, stamp comparison, and refusal of anything that fails verification |
 | `tests/test_manual_format.py` | `user-manual.md`'s own structure: changelog entry format, hidden Scope blocks, heading conventions |
@@ -1464,9 +1486,22 @@ The starter foods/pantry/recipes a fresh install seeds itself with (see `demo_da
 
 **In the app itself:** mark a food, pantry entry, or recipe you want included by giving it a name starting with `*` — `*Tofu` or `* Tofu` both work, always normalized to `* ` on export. For a real (non-drafted) food specifically, its own detail page has a one-click **Mark as starter food** button (`POST /food/{fdc_id}/toggle-starter`) instead of hand-editing the name — deliberately a plain rename (`db.rename_cached_food()`), not a full profile edit, so it never sets `user_drafted` and never blocks that food from refreshing from USDA later. Recipes and pantry entries have no equivalent button yet — rename by hand for those.
 
+**The pantry always ships empty** (owner's decision, 2026-09-29): `export_starter_data.py` writes `"pantry": []` whatever your own pantry holds, since a pantry is one person's kitchen. A starred food that's in your pantry is exported as a food only. `tests/test_demo_data.py` asserts the shipped list is empty.
+
 **Regenerating `starter_data.json` from what's starred:** `make push-release` now does this automatically (see its `starter-data` target in the `Makefile`) and hard-stops if it produced an uncommitted change, so a release can't accidentally ship without picking up new stars. To run it by hand instead: `python scripts/export_starter_data.py` from the repo root.
 
 A starred recipe's own ingredients don't need to be starred themselves — they're auto-included by `fdc_id` regardless of name. The same goes for a recipe used as a sub-recipe ingredient: it's exported too, and the exported `recipes` list is ordered so a sub-recipe always precedes any recipe that uses it, which is what lets `demo_data.load_demo_data()` link the parent to an id it has already created. Ingredient entries are `[name, amount, unit, kind]` with `kind` either `"food"` or `"recipe"`; a three-element entry is a pre-nesting export and is read as a food. Full mechanism, edge cases, and the companion `scripts/refresh_starter_data.py` (re-syncs existing starter entries by their original ID rather than by name) are documented in `export_starter_data.py`'s own module docstring — read that before changing the export logic, rather than duplicating it here.
+
+
+#### Starter-set changes between versions
+
+`starter_data.json` can't say what changed since the version a user ran before, and `starter_status()` only compares the bundled set against the database, so it can't tell "new in this version" from "the user deleted it". So `demo_data.starter_manifest()` summarizes a starter set as one 16-hex-digit content hash per item (foods keyed by `fdc_id` as a string, recipes by name; `source_recipe_id` is excluded, being the curator's DB id rather than content), and:
+
+- **After updating:** `record_version_changes()` keeps the manifest this install last ran with in `starter_versions.json` in the data dir, and on the first page load of a new version stores `diff_manifests(old, new)` as pending changes. The very first run (fresh install, or the first version with this feature) records silently. Unacknowledged changes merge forward across skipped versions, and an item may sit in both `new_*` and `improved_*`: `_relevant()` shows it as new only if the user lacks it, as improved only if they have it. The home page shows a NEW STARTER ITEMS notice until `/starter-notice/ack`; Settings -> 9 keeps listing the items until each is applied (`apply_improvements()`) or declined (`decline_improvements()`).
+- **`apply_improvements()` updates in place:** foods by `UPDATE` (never `cache_food()`'s `INSERT OR REPLACE`, which would delete and reinsert the row), so the `fdc_id`, archived flag, annotations and every reference survive; recipes keep their id, get their fields and ingredient list rewritten, and have any newly needed starter food or sub-recipe added first via `restore_selected()`. DCP is then cascaded (`cascade_food_change()` / `recompute_recipe_dcp()`). It overwrites user edits to that item, which the Settings text says plainly; nothing is ever applied without the user checking it.
+- **Before updating:** `scripts/create_release.py` writes the manifest to `dist/starter_manifest.json` and uploads it as a release asset; `update_check._fetch_starter_manifest()` downloads it when the release lists that asset, and `preview_changes()` gives the UPDATE AVAILABLE banner its one-line summary. A release without the asset (all releases before 2026-09-29) falls back to the old generic reminder.
+
+Tests redirect `starter_versions.json` via the autouse `use_test_starter_versions` fixture in `tests/conftest.py`, since every home and Settings page load writes it.
 
 ### Weekly sweep (Wednesday evening / Thursday morning)
 
@@ -1591,19 +1626,39 @@ AFCD, CoFID, and CIQUAL (`afcd_data.json`, `cofid_data.json`, `ciqual_data.json`
 
 ### Quarterly mutation-testing rotation, plus a weekly churn check
 
-Mutation testing (`mutmut`) deliberately breaks a small piece of the code (a "mutant") and reruns the tests to see if anything notices — it measures whether the test suite would actually catch a real bug, which a normal passing test run can't tell you. See TESTING-ROADMAP.md item #5 for the full pilot writeup (found and fixed a real gap: `diaas.py`'s `pooled_tid()`, used in 7 places, had zero test coverage anywhere in the suite).
+Mutation testing (`mutmut`) deliberately breaks a small piece of the code (a "mutant") and reruns the tests to see if anything notices — it measures whether the test suite would actually catch a real bug, which a normal passing test run can't tell you. Everything needed to run it is in this section; TESTING-ROADMAP.md item #5 is the historical record of how it was set up and what the 2026-09 rounds found (the pilot alone found `diaas.py`'s `pooled_tid()`, used in 7 places, had zero test coverage anywhere in the suite).
 
 **This isn't a calendar-driven risk like the two checks above it** — a module doesn't develop a new coverage gap just because time passed; the risk only grows when the module's code or tests actually change. So this uses two separate mechanisms instead of one date:
 
-- **Quarterly rotation (the floor):** one subsystem group per quarter, so everything gets checked at least once a year regardless of how much or little it changed. See TESTING-ROADMAP.md's "Ongoing cadence for #5" section for the four groups and which one is next. **Next due: 2026-12-05** (rotation group 1 — core nutrient math — was run far more deeply than a normal rotation pass this session, well past the quarterly floor; group 2, data-source parsing, is next in sequence — see TESTING-ROADMAP.md's "Handoff notes for the next mutation-testing round" for what to actually do when this comes up).
+- **Quarterly rotation (the floor):** one subsystem group per quarter, so everything gets checked at least once a year regardless of how much or little it changed. The four groups are listed below. **Next due: 2026-12-05 — group 2, data-source parsing, never yet run.** (Group 1 was run far more deeply than a normal pass in 2026-09, well past the quarterly floor; a normal-scope pass is fine from here on.)
 - **Weekly churn check (pulls a check forward early):** during every weekly sweep, check the log below against `git log` for each module *not* due this quarter — a module with substantial code or test changes since its last mutation-tested commit gets flagged, and you're asked then whether to run it now or leave it for its scheduled quarter. Nothing runs unattended between sessions; this only fires when the weekly sweep itself is run.
+
+**Rotation groups** (highest-risk first; agreed 2026-09-10):
+
+1. Core nutrient math — `usda_nutrients.py`, `diaas.py`, `profile.py`, `complements.py`, `aa_estimate.py`, `recipe_nutrients.py`, `glycemic_load.py`, `rda_status.py`. Deeply worked 2026-09. `glycemic_load.py` is the exception — only ever screened, never fully run — so it gets a proper run before re-treading the others.
+2. Data-source parsing — `usda_api.py`, `openfoodfacts.py`, `cnf_api.py`, the CoFID/AFCD/CIQUAL lookups, `food_import.py`, `csv_import.py`/`csv_export.py`, `recipe_csv.py`. **Never run.**
+3. Web-layer glue — `web/backend.py` route logic, `day_profile.py`, `meal_bcp.py`, `recipe_dcp.py`, `top_contributors.py`, `search_ranking.py`, `search_suggest.py`. Never run.
+4. Everything else — `export.py`, `demo_data.py`, `plotting.py`, `nutrient_trend.py`, `portions.py`, etc. Never run.
 
 **Procedure:**
 
 1. During the weekly sweep, for each module in the log below not due this quarter: `git log --oneline <last-tested-commit>..HEAD -- <module.py> tests/test_<module>*.py` — a nontrivial result (more than a trivial doc/comment change) means it's due early. Flag it and ask.
-2. To actually run a check: edit `[mutmut]` in `setup.cfg` (`source_paths` and `pytest_add_cli_args_test_selection`) to point at the module(s) in question, then `mutmut run` (see TESTING-ROADMAP.md's pilot writeup for real timing — a ~440-line module took about a minute). `mutmut results` lists survivors; `mutmut show <id>` shows the actual diff for one. Delete the generated `mutants/` dir when done (gitignored, regenerated every run).
+2. To actually run a check: edit `[mutmut]` in `setup.cfg` (`source_paths` and `pytest_add_cli_args_test_selection`) to point at the module(s) in question, then `mutmut run` (a ~440-line module takes about a minute; a 1,000-1,500-mutant file several minutes — see the practical notes below). `mutmut results` lists survivors; `mutmut show <id>` shows the actual diff for one. Delete the generated `mutants/` dir when done (gitignored, regenerated every run).
 3. Triage survivors: a "no tests" result (nothing reaches that code at all) is always worth a look — that's the cheapest, highest-signal finding. A "survived" result needs a judgment call — some are real gaps, some are harmless "equivalent mutants" that don't actually change behavior (the pilot found one: a `>`/`>=` swap on a filter where the excluded/included item contributes zero either way). This triage step is Claude's job, not yours — you don't need the code familiarity to review it.
 4. Update the log entry below (module → today's date → current commit short hash) for whatever was just checked, whether or not anything needed fixing.
+
+**Practical notes for running a round** (learned the hard way in 2026-09):
+
+- **One source file per run.** Mutating several files at once inflates survivor counts for any function that calls into another mutated file (`complements.py`'s true counts were 4-6x lower once isolated from `usda_nutrients.py`). `also_copy` already copies the whole `numa_app/` package, so no per-file `__init__.py` juggling is needed. Still, sanity-check any too-good or too-bad "no tests" result by confirming the module even imports inside `mutants/`.
+- **Memory and `/tmp`.** This machine runs tight under normal desktop load. Check `free -h` first, always use `--max-children 2`, and run `mutmut run` with `run_in_background`. `/tmp` is RAM-backed and every mutmut pytest child leaves a `/tmp/pytest-N` dir behind; `rm -rf /tmp/pytest-of-tomc` before and during long runs (always safe — it once filled the disk mid-run).
+- **Sample survivors before deleting `mutants/`.** The results database lives inside it, so `mutmut show <id>` stops working once it's gone.
+- **Look for concentration, not just count.** Sample ~20 survivor IDs spread evenly across the full range and read each diff. If 40%+ cluster in one code region, that's usually a whole untested path — worth a dedicated pass. Re-sample after fixing; `_build_pairs()` took three rounds (48%→38%→27%) to reach baseline scatter.
+- **Comprehensive whole-dict field tests** — one test asserting every field of a function's output from one hand-computed input kills dozens of scattered dict-key and default-value mutants at once.
+- **Test at non-default values.** When every test omits a parameter like `digestibility=1.0` or `ingredients=None`, bugs in the non-default path are invisible. This recurred at least four times; write at least one test with a real non-default value and an exact dependent result.
+- **Closures with no direct entry point** (e.g. `_diaas_improver_score()`): reimplement the docstring's formula standalone in the test, using the same real constants, and cross-check every output field. This found the single biggest gap (a ~95-line closure with zero coverage).
+- **Not worth chasing:** dead-default `.get(key, X)` mutants where the app always supplies the key; string-literal mutants that still match as a substring (`"tablespoon"` inside `"XXtablespoonXX"`); `row["FDC_ID"]`-style case mutants on `sqlite3.Row`, whose key lookup is case-insensitive.
+
+**Open testing work outside this rotation:** scenario/journey tests — long, stateful tests chaining real actions in one session (search → cache → recipe → meal → log across days → trend → substitute an ingredient → confirm downstream updates). Planned in 2026-08 as the last step of TESTING-ROADMAP.md's tier sequence, never started, not blocked on anything (`client` + `_mock_api` suffice).
 
 **Log** (module → last mutation-tested → commit):
 

@@ -34,7 +34,7 @@ def _fake_response(payload: dict):
         def __exit__(self, *a):
             return False
 
-        def read(self):
+        def read(self, *_):
             return json.dumps(payload).encode()
 
     return _Resp()
@@ -123,3 +123,25 @@ def test_non_program_release_tag_is_not_an_update(monkeypatch):
     uc.clear_cache()
     monkeypatch.setattr(uc, "_fetch_latest_release", lambda: {"tag_name": "z-manual-latest", "html_url": "x"})
     assert uc.check_for_update("2026-01-01:0000") is None
+
+
+def test_release_starter_manifest_is_fetched_when_published(monkeypatch):
+    manifest = {"foods": {"1": {"name": "* A", "hash": "x"}}, "recipes": {}}
+    release = {"tag_name": "v2026-09-01-0000", "html_url": "https://example.com/x",
+               "assets": [{"name": "nutrimagnus", "browser_download_url": "https://example.com/bin"},
+                          {"name": _uc.STARTER_MANIFEST_ASSET, "browser_download_url": "https://example.com/m"}]}
+
+    def _urlopen(req, *a, **kw):
+        url = req.full_url if hasattr(req, "full_url") else req
+        return _fake_response(manifest if url == "https://example.com/m" else release)
+
+    monkeypatch.setattr(_uc.urllib.request, "urlopen", _urlopen)
+    assert _uc.check_for_update("2026-08-31:0744")["starter_manifest"] == manifest
+
+
+def test_release_without_starter_manifest_gives_none(monkeypatch):
+    monkeypatch.setattr(
+        _uc.urllib.request, "urlopen",
+        lambda *a, **kw: _fake_response({"tag_name": "v2026-09-01-0000", "html_url": "https://example.com/x"}),
+    )
+    assert _uc.check_for_update("2026-08-31:0744")["starter_manifest"] is None

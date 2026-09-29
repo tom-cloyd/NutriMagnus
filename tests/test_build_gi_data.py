@@ -1,19 +1,22 @@
 """
-Tests for scripts/build_gi_data.py — the one-time ingest of the Atkinson 2021
-International Tables supplemental PDFs into gi_data.json.
+Tests for numa_app/services/gi_table_build.py — building the user's own
+gi_data_local.json from the Atkinson 2021 International Tables supplemental
+PDFs (Settings -> Glycemic Index Reference Table, or scripts/build_gi_data.py).
 
-The PDFs themselves are not in the repo (a developer fetches them from the
-publisher), so these cover the decision logic rather than the PDF reading:
-which population a row belongs to, which 2008 rows survive the merge, and the
-cell parsing that the column windows feed.
+The PDFs themselves are not in the repo (their licence forbids redistribution),
+so these cover the decision logic rather than the PDF reading: which population
+a row belongs to, which 2008 rows survive the merge, the cell parsing that the
+column windows feed, and build_table()'s refusal to replace a working table
+with a bad one.
 """
-import importlib.util
+import json
+import time
 from pathlib import Path
 
-_SCRIPT = Path(__file__).parent.parent / "scripts" / "build_gi_data.py"
-_spec = importlib.util.spec_from_file_location("build_gi_data", _SCRIPT)
-build_gi_data = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(build_gi_data)
+import pytest
+
+import gi_lookup
+from numa_app.services import gi_table_build as build_gi_data
 
 
 # --- population, which is a per-row fact and not a property of the table ----
@@ -145,3 +148,100 @@ def test_food_numbers_keep_a_misprinted_out_of_sequence_number() -> None:
     candidates = [(100.0, 2210, 53.0), (130.0, 2111, 53.0), (160.0, 2212, 53.0)]
     assert build_gi_data._food_numbers(candidates) == [
         (100.0, 2210), (130.0, 2111), (160.0, 2212)]
+
+
+# --- build_table(): which file is which, and refusing bad input ------------
+
+def _heading_page(n: int) -> list[tuple[float, float, str]]:
+    words = f"Supplemental Table {n}. Glycemic index (GI) values".split()
+    return [(40.0 + i * 30, 50.0, w) for i, w in enumerate(words)]
+
+
+def test_table_number_is_read_from_the_heading() -> None:
+    assert build_gi_data._table_number([_heading_page(1)]) == 1
+    assert build_gi_data._table_number([[], _heading_page(2)]) == 2
+    assert build_gi_data._table_number([[(40.0, 50.0, "Something else")]]) is None
+
+
+def _fake_rows(n: int, iso: bool) -> list[dict]:
+    return [{"food_number": i, "name": f"Food {iso} {i}", "gi_glucose": 50.0,
+             "sem": None, "year": 2000, "country": None, "subjects_type": "Normal",
+             "subjects_n": 10, "category": None, "subcategory": None, "iso": iso,
+             "edition": 2021, "ref": "", "population": "normal"} for i in range(n)]
+
+
+def _stub_pdfs(monkeypatch, tables: dict[str, int | None], rows: int = 2000) -> None:
+    """Make _pdf_pages report each file's table number from `tables` (by file
+    name), and _parse_pages return `rows` rows per table."""
+    monkeypatch.setattr(build_gi_data, "_pdf_pages",
+                        lambda path: [_heading_page(tables[path.name])] if tables[path.name] else [[]])
+    monkeypatch.setattr(build_gi_data, "_parse_pages",
+                        lambda pages, iso: (_fake_rows(rows, iso), []))
+    monkeypatch.setattr(build_gi_data, "BASELINE", Path("/nonexistent/gi_data.json"))
+
+
+def test_build_accepts_the_two_tables_in_either_order(tmp_path, monkeypatch) -> None:
+    _stub_pdfs(monkeypatch, {"a.pdf": 2, "b.pdf": 1})
+    out = tmp_path / "gi_data_local.json"
+    result = build_gi_data.build_table([tmp_path / "a.pdf", tmp_path / "b.pdf"], out)
+    assert (result["table1"], result["table2"]) == (2000, 2000)
+    data = json.loads(out.read_text())
+    assert sum(1 for r in data["normal"] if r["iso"]) == 2000   # table 1 parsed as ISO
+
+
+@pytest.mark.parametrize("tables, message", [
+    ({"a.pdf": 1, "b.pdf": 1}, "Both files are Supplemental Table 1"),
+    ({"a.pdf": 1, "b.pdf": None}, "doesn't look like either supplemental table"),
+])
+def test_build_refuses_wrong_files_and_writes_nothing(tmp_path, monkeypatch, tables, message) -> None:
+    _stub_pdfs(monkeypatch, tables)
+    out = tmp_path / "gi_data_local.json"
+    out.write_text("existing")
+    with pytest.raises(build_gi_data.BuildError, match=message):
+        build_gi_data.build_table([tmp_path / "a.pdf", tmp_path / "b.pdf"], out)
+    assert out.read_text() == "existing"
+
+
+def test_build_refuses_a_table_that_yields_too_few_rows(tmp_path, monkeypatch) -> None:
+    _stub_pdfs(monkeypatch, {"a.pdf": 1, "b.pdf": 2}, rows=40)
+    out = tmp_path / "gi_data_local.json"
+    with pytest.raises(build_gi_data.BuildError, match="Only 40 foods"):
+        build_gi_data.build_table([tmp_path / "a.pdf", tmp_path / "b.pdf"], out)
+    assert not out.exists()
+
+
+def test_build_rejects_a_file_that_is_not_a_pdf(tmp_path) -> None:
+    junk = tmp_path / "notes.pdf"
+    junk.write_text("not a pdf at all")
+    with pytest.raises(build_gi_data.BuildError, match="could not be read as a PDF"):
+        build_gi_data.build_table([junk, junk], tmp_path / "out.json")
+
+
+def test_a_finished_build_is_picked_up_without_a_restart(tmp_path, monkeypatch) -> None:
+    """gi_lookup caches its table for the life of the process; the build must
+    invalidate that, or the new table stays invisible until restart."""
+    _stub_pdfs(monkeypatch, {"a.pdf": 1, "b.pdf": 2})
+    out = tmp_path / "gi_data_local.json"
+    monkeypatch.setattr(gi_lookup, "_local_paths", lambda: [out])
+    gi_lookup.reload()
+    assert gi_lookup.active_table_info()["edition"] == 2008
+    build_gi_data.build_table([tmp_path / "a.pdf", tmp_path / "b.pdf"], out)
+    assert gi_lookup.active_table_info()["edition"] == 2021
+    gi_lookup.reload()
+
+
+def test_background_build_reports_its_outcome(tmp_path, monkeypatch) -> None:
+    _stub_pdfs(monkeypatch, {"a.pdf": 1, "b.pdf": 1})
+    scratch = tmp_path / "uploads"
+    scratch.mkdir()
+    assert build_gi_data.start_build([tmp_path / "a.pdf", tmp_path / "b.pdf"],
+                                     tmp_path / "out.json", cleanup_dir=scratch)
+    for _ in range(200):
+        if not build_gi_data.build_status()["running"]:
+            break
+        time.sleep(0.01)
+    status = build_gi_data.build_status()
+    assert status["error"] and "Both files are Supplemental Table 1" in status["error"]
+    assert not scratch.exists()          # uploads removed either way
+    build_gi_data.clear_status()
+    assert build_gi_data.build_status()["error"] is None

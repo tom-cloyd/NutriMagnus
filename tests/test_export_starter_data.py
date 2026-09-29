@@ -77,7 +77,7 @@ def test_star_without_trailing_space_is_recognized_and_normalized(
     data = json.loads(output.read_text())
 
     assert [f["name"] for f in data["foods"]] == ["* Beans"]
-    assert data["pantry"] == ["* Beans"]
+    assert data["pantry"] == []  # the pantry always ships empty
     assert data["recipes"][0]["name"] == "* Bean Bowl"
 
 

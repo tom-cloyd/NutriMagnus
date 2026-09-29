@@ -52,6 +52,10 @@ GITHUB_REPO = "NutriMagnus"
 API_BASE = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 UPLOADS_BASE = f"https://uploads.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
+# Written fresh by _write_starter_manifest() on every run, then uploaded, so
+# the home page of an older install can preview this release's starter
+# changes (numa_app/services/update_check.py fetches it by this name).
+STARTER_MANIFEST_PATH = REPO_ROOT / "dist" / "starter_manifest.json"
 VERSION_FILE = REPO_ROOT / "version.py"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
 CHANGELOG_HEADING = "### A. Recent program updates log"
@@ -73,7 +77,18 @@ _ASSETS = [
     ("nutrimagnus", BINARY_PATH, "application/octet-stream"),
     ("nutrimagnus.png", REPO_ROOT / "web" / "static" / "icon-256.png", "image/png"),
     ("install-linux.sh", REPO_ROOT / "scripts" / "install-linux.sh", "text/x-sh"),
+    ("starter_manifest.json", STARTER_MANIFEST_PATH, "application/json"),
 ]
+
+
+def _write_starter_manifest() -> None:
+    """Summarize the starter set being released (one content hash per item;
+    see demo_data.starter_manifest()) into STARTER_MANIFEST_PATH."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    from numa_app.services import demo_data
+    STARTER_MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STARTER_MANIFEST_PATH.write_text(json.dumps(demo_data.starter_manifest(), indent=2) + "\n")
 
 
 def _version() -> str:
@@ -192,6 +207,7 @@ def main() -> int:
     if not token:
         print("ERROR: GITHUB_TOKEN is not set.", file=sys.stderr)
         return 1
+    _write_starter_manifest()
     for name, path, _ in _ASSETS:
         if not path.exists():
             print(f"ERROR: {path} not found (needed for asset {name!r}) — build it first.", file=sys.stderr)

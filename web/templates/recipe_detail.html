@@ -158,9 +158,11 @@
   <a href="/recipe/{{ recipe.id }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">Print / save recipe</a>
   <a href="/recipe/{{ recipe.id }}/export.csv" class="btn btn-sm btn-outline-secondary"
      title="Download this recipe as a CSV bundle — includes every sub-recipe and food ingredient's full data, ready to hand to someone else">Export CSV</a>
-  <a href="/recipe/{{ recipe.id }}/translate" class="btn btn-sm btn-outline-secondary">Translate for printing</a>
+  <a href="/recipe/{{ recipe.id }}/translate" class="btn btn-sm btn-outline-secondary"
+     title="Make a printable copy of this recipe in another language — NuMa builds a prompt you paste into an AI chat tool, then you paste the reply back here. Useful for sharing a recipe with someone who reads a different language. Only the text is translated; amounts and nutrient data stay unchanged, and your original recipe is not altered">Translate for printing</a>
   <form method="post" action="/recipe/{{ recipe.id }}/copy" style="margin:0">
-    <button type="submit" class="btn btn-sm btn-outline-secondary">Copy recipe</button>
+    <button type="submit" class="btn btn-sm btn-outline-secondary"
+            title="Create a new recipe named &quot;Copy of …&quot; with the same ingredients, servings, and text, then open it for editing. Useful for trying a variation (different ingredients or amounts) without changing the original">Copy recipe</button>
   </form>
   <form method="post" action="/recipe/{{ recipe.id }}/delete" style="margin:0"
         {% if referencing_recipes %}

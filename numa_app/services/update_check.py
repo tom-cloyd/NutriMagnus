@@ -30,6 +30,11 @@ _CACHE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
 # sending the user to the GitHub release page instead.
 _PLATFORM_ASSET = {"win32": "nutrimagnus.exe", "linux": "nutrimagnus"}
 
+# Published with every release by scripts/create_release.py, so the banner
+# can say what the update changes in the starter foods and recipes.
+STARTER_MANIFEST_ASSET = "starter_manifest.json"
+_MAX_MANIFEST_BYTES = 1_000_000
+
 
 def _direct_download_url() -> str | None:
     for prefix, asset in _PLATFORM_ASSET.items():
@@ -75,11 +80,30 @@ def _fetch_latest_release() -> dict | None:
         return None
 
 
+def _fetch_starter_manifest(release: dict) -> dict | None:
+    """The release's starter-set manifest (see demo_data.starter_manifest(),
+    published by scripts/create_release.py), or None — releases from before
+    it was published have none, and any failure counts the same as none."""
+    url = next((a.get("browser_download_url") for a in release.get("assets") or []
+                if a.get("name") == STARTER_MANIFEST_ASSET), None)
+    if not url:
+        return None
+    req = urllib.request.Request(url, headers={"User-Agent": "NutriMagnus-update-check"})
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
+            manifest = json.loads(resp.read(_MAX_MANIFEST_BYTES + 1).decode())
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError, OSError):
+        return None
+    return manifest if isinstance(manifest, dict) else None
+
+
 def check_for_update(current_version: str) -> dict | None:
-    """Return {'tag', 'url', 'download_url'} if a newer release than
-    current_version is published on GitHub, else None. 'download_url' is a
-    direct one-click download link for this platform's build, or None if
-    no build is published for this platform (falls back to 'url').
+    """Return {'tag', 'url', 'download_url', 'starter_manifest'} if a newer
+    release than current_version is published on GitHub, else None.
+    'download_url' is a direct one-click download link for this platform's
+    build, or None if no build is published for this platform (falls back
+    to 'url'). 'starter_manifest' is that release's starter-set summary, or
+    None if it published none.
 
     The fixed-width "YYYY-MM-DD:HHMM" stamp (tag-ified to
     "vYYYY-MM-DD-HHMM") sorts correctly as a plain string, so a direct
@@ -103,6 +127,7 @@ def check_for_update(current_version: str) -> dict | None:
                 "tag": latest_tag,
                 "url": data.get("html_url", ""),
                 "download_url": _direct_download_url(),
+                "starter_manifest": _fetch_starter_manifest(data),
             }
 
     _cache = result

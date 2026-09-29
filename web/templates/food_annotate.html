@@ -170,7 +170,9 @@
               </select>
               <button type="button" class="btn btn-outline-secondary" id="gi-lookup-search">Search</button>
             </div>
-            <div id="gi-lookup-results" class="small"></div>
+            {# overflow-x: the results table can be wider than this card; without it
+               the table spilled out sideways over the reading-guide panel. #}
+            <div id="gi-lookup-results" class="small" style="overflow-x:auto"></div>
           </div>
         </details>
       </div>
@@ -245,7 +247,7 @@
 {# Side panel: the GI lookup shows each match's subject population and the
    study's own method, both of which are meaningless without explanation.
    Full version lives in the manual under "How to read a lookup result". #}
-<aside class="gi-lookup-guide small" style="flex:1 1 20rem; min-width:18rem; max-width:30rem">
+<aside class="gi-lookup-guide small" style="flex:1 1 20rem; min-width:18rem; max-width:30rem; margin-left:1rem">
   <h5 class="h6">Reading a GI database lookup result {{ manual_link("gi-result-row", "Learn more") }}</h5>
   {% if gi_table and gi_table.edition == 2021 %}
   <p class="mb-1"><span class="badge text-bg-success">2021 edition</span> is answering these

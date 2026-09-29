@@ -30,6 +30,7 @@
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
             onchange="this.form.submit()">
       <option value="name"  {% if sort == "name"  %}selected{% endif %}>Name</option>
+      <option value="id"    {% if sort == "id"    %}selected{% endif %}>ID</option>
       <option value="type"  {% if sort == "type"  %}selected{% endif %}>Type</option>
       <option value="diaas" {% if sort == "diaas" %}selected{% endif %}>DIAAS</option>
       <option value="gi"    {% if sort == "gi"    %}selected{% endif %}>GI estimate</option>
@@ -156,7 +157,7 @@
   </thead>
   <tbody>
     {% for food in foods %}
-    <tr{% if food.archived %} class="text-muted"{% endif %}>
+    <tr id="food-{{ food.fdc_id }}"{% if food.archived %} class="text-muted"{% endif %}>
       <td>
         <input type="checkbox" class="form-check-input claude-fetch-cb" form="claude-fetch-form"
                name="fdc_id" value="{{ food.fdc_id }}" data-has-aa="{{ 1 if food.has_aa else 0 }}">
@@ -202,6 +203,18 @@
         {% endif %}
       </td>
       <td style="white-space:nowrap">
+        {% if food.in_pantry %}
+        <a href="/pantry" class="btn btn-sm btn-outline-success me-1"
+           title="This food is already in your Pantry — click to open the Pantry">In pantry</a>
+        {% else %}
+        <form method="post" action="/pantry/add" style="display:inline">
+          <input type="hidden" name="food_name" value="{{ food.name }}">
+          <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+          <input type="hidden" name="next" value="/food/cache?q={{ (q or '') | urlencode }}&sort={{ sort }}#food-{{ food.fdc_id }}">
+          <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
+                  title="Add this food to your Pantry (the foods you keep on hand, used for complement suggestions), then return here">Add to pantry</button>
+        </form>
+        {% endif %}
         <a href="/food/cache/{{ food.fdc_id }}/portions"
            class="btn btn-sm btn-outline-secondary me-1" title="Edit portions (cup, piece, custom weights)">Portions</a>
         <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">

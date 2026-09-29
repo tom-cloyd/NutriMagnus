@@ -67,7 +67,8 @@ gi_lookup.py            — fuzzy name search over the bundled GI reference
                          TWO tables are possible: gi_data.json (the Creative
                          Commons 2008 edition, committed and shipped) and
                          gi_data_local.json (built from the Atkinson 2021
-                         tables by scripts/build_gi_data.py, preferred when
+                         tables by numa_app/services/gi_table_build.py, via
+                         Settings or scripts/build_gi_data.py; preferred when
                          present). NEVER commit or bundle the latter — the
                          2021 licence permits text/data mining but forbids
                          redistribution; tests enforce both. Population is a
@@ -112,6 +113,9 @@ numa_app/
     static_source_lookup.py — StaticSource class: shared local-search/lookup
                          machinery for bundled static datasets (CoFID/AFCD/
                          CIQUAL); cofid_lookup.py etc. are thin wrappers around it
+    gi_table_build.py   — builds the user's own gi_data_local.json from the two
+                         Atkinson 2021 supplemental PDFs (pdfminer.six);
+                         Settings' upload/Build button runs it on a thread
     glycemic_load.py    — shared GL aggregation: compute_glycemic_load()
     manual_build.py     — rebuild_manual_if_stale(), used by the /manual route
     meal_bcp.py         — shared meal-DCP fallback: recipe_dcp_fallback()

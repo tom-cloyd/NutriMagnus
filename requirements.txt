@@ -5,6 +5,7 @@ Markdown==3.10.2
 python-multipart==0.0.32
 cryptography==50.0.1
 matplotlib==3.11.1   # Nutrient Plot rendering (numa_app/services/plotting.py)
+pdfminer.six==20260107   # Settings -> build the 2021 GI table from its PDFs (gi_table_build.py)
 
 # test/dev only
 pytest==9.0.3

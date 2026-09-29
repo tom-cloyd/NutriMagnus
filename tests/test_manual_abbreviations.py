@@ -54,6 +54,8 @@ _ALLOWED = {
     # Vitamin and nutrient identifiers. "B12" is the vitamin's name, not a
     # contraction of anything longer.
     "B1", "B2", "B3", "B6", "B12", "D2", "D3", "K1", "K2",
+    # Keyboard key names, always written beside "key" ("press the F5 key").
+    "F5",
     # Everyday English abbreviations needing no gloss.
     "ASAP", "AKA", "ETC", "IE", "EG", "AM", "PM",
 }
@@ -69,6 +71,7 @@ _NOT_ABBREVIATIONS = {
     "NEW", "ONE", "TWO", "DRY", "MILK", "NONFAT", "WITH", "FROM", "THAT",
     "THIS", "YOUR", "OWN", "USE", "SEE", "ADD", "SET", "GET", "NO", "OK",
     "IN", "ON", "AT", "OF", "OR", "BY", "AS", "IT", "BE", "DO", "SO", "UP",
+    "ITEMS",  # the home page's NEW STARTER ITEMS banner label
 }
 
 

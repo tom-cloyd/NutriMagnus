@@ -3,6 +3,8 @@
 
 {% block content %}
 <h2>Settings</h2>
+<p class="muted"><small>Setting NuMa up for the first time, or again after losing your data? The setup checklist says which of these sections must be done first, and which can wait.
+  {{ manual_link("first-setup", "Open the setup checklist in the User Manual") }}</small></p>
 
 {# ── 1. Profile form ───────────────────────────────────────────────────── #}
 <details open>
@@ -226,6 +228,8 @@
         <li><kbd>6</kbd> — Protein Digestibility Overrides</li>
         <li><kbd>7</kbd> — Nutrient Targets</li>
         <li><kbd>8</kbd> — Meals &amp; Log Columns</li>
+        <li><kbd>9</kbd> — Starter Data</li>
+        <li><kbd>0</kbd> — Browser to Launch (section 10)</li>
       </ul>
     </div>
   </div>
@@ -459,7 +463,7 @@
 </details>
 
 {# ── 9. Starter data ─────────────────────────────────────────────────── #}
-<details id="starter-data">
+<details id="starter-data" {% if starter_changes.improved_foods or starter_changes.improved_recipes or starter_changes.new_foods or starter_changes.new_recipes %}open{% endif %}>
   <summary data-ak="9"><u class="ak">9</u>. <strong>Starter Data</strong>
     <span class="muted"> — populate the app with curated foods, pantry items, and recipes to explore or build on</span>
   </summary>
@@ -478,15 +482,45 @@
   {% if saved == 'starter_data_restored' %}
   <p class="status-met mt-2"><strong>&#10003; Selected starter items restored.</strong></p>
   {% endif %}
+  {% if saved == 'starter_data_improved' %}
+  <p class="status-met mt-2"><strong>&#10003; Your copies of the selected starter items now match this version.</strong></p>
+  {% endif %}
+  {% if saved == 'starter_data_kept' %}
+  <p class="status-met mt-2"><strong>&#10003; Kept your copies as they are.</strong> NuMa won't offer those improved versions again.</p>
+  {% endif %}
+
+  {% if starter_changes.improved_foods or starter_changes.improved_recipes %}
+  <div class="border rounded px-3 py-2 mt-2" id="starter-data-improved">
+    <p class="mb-1"><strong>Improved in this version of NuMa</strong></p>
+    <p class="mb-1 muted"><small>These starter items have been improved since the version you had before, and you have a copy of each.
+      Check the ones you want brought up to date. <strong>Updating replaces your copy with the new version, including any changes you made to it yourself.</strong>
+      Meals, recipes and pantry entries that use it keep working.</small></p>
+    <form method="post" action="/settings/starter-data/improve" class="mb-1">
+      <ul class="mt-0 mb-1" style="list-style:none; padding-left:0;">
+        {% for food in starter_changes.improved_foods %}
+        <li><small><label><input type="checkbox" name="improve_fdc_id" value="{{ food.fdc_id }}"> Food: {{ food.name }}</label></small></li>
+        {% endfor %}
+        {% for name in starter_changes.improved_recipes %}
+        <li><small><label><input type="checkbox" name="improve_recipe_name" value="{{ name }}"> Recipe: {{ name }}</label></small></li>
+        {% endfor %}
+      </ul>
+      <button type="submit" class="btn btn-outline-secondary btn-sm">Update the checked items to the new version</button>
+    </form>
+    <form method="post" action="/settings/starter-data/keep-mine" class="mb-0"
+          onsubmit="return confirm('Keep your current copies of all these items, and stop offering the improved versions?')">
+      <button type="submit" class="btn btn-link btn-sm p-0">Keep all my copies as they are</button>
+    </form>
+  </div>
+  {% endif %}
 
   {% if not starter_data_loaded %}
   <p class="mt-2 muted"><small>
-    Adds {{ starter_food_count }} real, USDA-sourced foods with full amino-acid data, {{ starter_pantry_count }}
-    of them to your pantry, and {{ starter_recipe_count }} recipes chosen to show protein complementarity working —
+    Adds {{ starter_food_count }} real, USDA-sourced foods with full amino-acid data{% if starter_pantry_count %}, {{ starter_pantry_count }}
+    of them to your pantry,{% endif %} and {{ starter_recipe_count }} recipes chosen to show protein complementarity working —
     without touching anything already in your cache, pantry, or recipes.
   </small></p>
   <form method="post" action="/settings/starter-data/load"
-        onsubmit="return confirm('Add {{ starter_food_count }} starter foods, {{ starter_pantry_count }} pantry items, and {{ starter_recipe_count }} starter recipes?')">
+        onsubmit="return confirm('Add {{ starter_food_count }} starter foods{% if starter_pantry_count %}, {{ starter_pantry_count }} pantry items,{% endif %} and {{ starter_recipe_count }} starter recipes?')">
     <button type="submit" class="btn btn-outline-secondary btn-sm">Load starter data</button>
   </form>
   {% else %}
@@ -495,8 +529,8 @@
         onsubmit="return confirm('Remove all starter foods, pantry items, and recipes? This cannot be undone.')">
     <button type="submit" class="btn btn-outline-danger btn-sm">Clear starter data</button>
     <p class="mt-2 muted"><small>
-      Removes the {{ starter_food_count }} starter foods from your Food Cache, the {{ starter_pantry_count }}
-      starter items from your Pantry, and the {{ starter_recipe_count }} starter recipes from your Recipes list —
+      Removes the {{ starter_food_count }} starter foods from your Food Cache{% if starter_pantry_count %}, the {{ starter_pantry_count }}
+      starter items from your Pantry,{% endif %} and the {{ starter_recipe_count }} starter recipes from your Recipes list —
       exactly what "Load starter data" added. Nothing else in your Food Cache, Pantry, or Recipes list is touched,
       even if you renamed or edited a starter item afterward.
     </small></p>
@@ -506,7 +540,7 @@
   {% set missing_foods = starter_status.foods|selectattr('present', 'equalto', false)|list %}
   {% set missing_pantry = starter_status.pantry|selectattr('present', 'equalto', false)|list %}
   {% set missing_recipes = starter_status.recipes|selectattr('present', 'equalto', false)|list %}
-  <details class="mt-2" id="starter-data-restore">
+  <details class="mt-2" id="starter-data-restore" {% if starter_changes.new_foods or starter_changes.new_recipes %}open{% endif %}>
     <summary><small>Restore individual starter items ({{ starter_status.foods|length }} foods, fdc_id shown)</small></summary>
     {% if not (missing_foods or missing_pantry or missing_recipes) %}
     <p class="mt-2 muted"><small>Every starter food, pantry item, and recipe is already present — nothing to restore.</small></p>
@@ -520,7 +554,7 @@
       <p class="mt-2 mb-1"><small><strong>Foods</strong></small></p>
       <ul class="mt-0 muted" style="max-height:12rem; overflow-y:auto; list-style:none; padding-left:0;">
         {% for food in missing_foods %}
-        <li><small><label><input type="checkbox" name="food_fdc_id" value="{{ food.fdc_id }}"> {{ food.fdc_id }} — {{ food.name }}</label></small></li>
+        <li><small><label><input type="checkbox" name="food_fdc_id" value="{{ food.fdc_id }}"> {{ food.fdc_id }} — {{ food.name }}{% if food.fdc_id in starter_new_food_ids %} <strong>(new in this version)</strong>{% endif %}</label></small></li>
         {% endfor %}
       </ul>
       {% endif %}
@@ -536,7 +570,7 @@
       <p class="mt-2 mb-1"><small><strong>Recipes</strong></small></p>
       <ul class="mt-0 muted" style="list-style:none; padding-left:0;">
         {% for recipe in missing_recipes %}
-        <li><small><label><input type="checkbox" name="recipe_name" value="{{ recipe.name }}"> {{ recipe.name }}</label></small></li>
+        <li><small><label><input type="checkbox" name="recipe_name" value="{{ recipe.name }}"> {{ recipe.name }}{% if recipe.name in starter_changes.new_recipes %} <strong>(new in this version)</strong>{% endif %}</label></small></li>
         {% endfor %}
       </ul>
       {% endif %}
@@ -563,9 +597,9 @@
 </details>
 
 
-{# ── Browser to launch ────────────────────────────────────────────────── #}
+{# ── 10. Browser to launch (Alt+Shift+0: the 0 in "10") ────────────────── #}
 <details id="browser-preference">
-  <summary><strong>Browser to Launch</strong>
+  <summary data-ak="0">1<u class="ak">0</u>. <strong>Browser to Launch</strong>
     <span class="muted"> — which browser opens when NuMa starts</span>
   </summary>
 
@@ -598,8 +632,8 @@
    disappearance are otherwise invisible. Deliberately opens itself when the
    bundled 2008 fallback is what is in use, since that is the state a user is
    most likely not to have noticed. #}
-<details id="gi-table" {% if gi_table.edition != 2021 %}open{% endif %}>
-  <summary><strong>Glycemic Index Reference Table</strong>
+<details id="gi-table" {% if gi_table.edition != 2021 or gi_build.running or gi_build.result or gi_build.error or gi_build_error %}open{% endif %}>
+  <summary>11. <strong>Glycemic Index Reference Table</strong>
     {% if gi_table.edition == 2021 %}
     <span class="status-met"> — 2021 edition, {{ "{:,}".format(gi_table.rows) }} foods</span>
     {% elif gi_table.edition == 2008 %}
@@ -614,8 +648,25 @@
   edition, which is Creative Commons licensed. The 2021 edition is over 4,000 foods, each
   with the year its study was run, but its licence permits text and data mining while
   forbidding redistribution — so NuMa ships the program that builds it and never the
-  result. You build your own copy, from your own access to the published tables.
-  {{ manual_link("gi-editions") }}</p>
+  result. You build your own copy, from your own access to the published tables — see
+  <a href="#gi-build-form">Build the 2021 table</a> below. {{ manual_link("gi-editions") }}</p>
+
+  {% if gi_build.running %}
+  <p class="mt-2" id="gi-build-running"><span class="spinner-border spinner-border-sm me-1" role="status"></span>
+  <strong>Building your 2021 table…</strong> This takes about a minute. This page refreshes itself
+  when it's done — you can also leave and come back.</p>
+  <script>setTimeout(function () { location.reload(); }, 4000);</script>
+  {% elif gi_build.result %}
+  <p class="status-met mt-2"><strong>&#10003; 2021 table built and now in use:</strong>
+  {{ "{:,}".format(gi_build.result.table1 + gi_build.result.table2) }} foods from the 2021 edition,
+  plus {{ gi_build.result.legacy }} carried forward from 2008 for foods 2021 does not appear to cover.</p>
+  {% elif gi_build.error or gi_build_error %}
+  <p class="numa-error mt-2"><strong>The 2021 table was not built.</strong>
+  {% if gi_build_error == 'count' %}Choose both PDF files — Supplemental Table 1 and Supplemental Table 2 — together, in one go.
+  {% elif gi_build_error == 'size' %}One of the files is far larger than either supplemental table (about 1.6 MB each), so it can't be one of them.
+  {% else %}{{ gi_build.error }}{% endif %}
+  {% if gi_table.edition == 2021 %}Your existing 2021 table is unchanged and still in use.{% endif %}</p>
+  {% endif %}
 
   {% if gi_table.edition == 2021 %}
   <p class="status-met mt-2"><strong>&#10003; Your locally-built 2021 table is in use.</strong></p>
@@ -646,22 +697,41 @@
         &middot; {{ gi_table.impaired }} impaired &middot; {{ gi_table.unknown }} not stated</td></tr>
     </tbody>
   </table>
-  <p class="mt-2">To use the 2021 edition instead: download both supplemental table PDFs from the
-  publisher's own page for the article, then run</p>
-  <pre class="border rounded p-2" style="font-size:0.85rem"><code>python scripts/build_gi_data.py supp_table_1.pdf supp_table_2.pdf</code></pre>
-  <p class="muted"><small>NuMa picks the result up automatically, with no restart needed beyond the
-  next lookup. It is looked for at these paths, in this order:</small></p>
-  <ul class="muted"><small>{% for path in gi_table_candidates %}<li><code>{{ path }}</code></li>{% endfor %}</small></ul>
   {% else %}
   <p class="numa-error mt-2"><strong>No GI reference table could be read at all.</strong>
   The lookup on the Annotate page will find nothing. The bundled table,
   <code>gi_data.json</code>, appears to be missing from this install.</p>
   {% endif %}
+
+  {% if not gi_build.running %}
+  <h6 class="mt-3" id="gi-build-form">{% if gi_table.edition == 2021 %}Rebuild the 2021 table{% else %}Build the 2021 table{% endif %}</h6>
+  <ol class="mb-2">
+    <li>Open the article's page at the publisher,
+      <a href="https://doi.org/10.1093/ajcn/nqab233" target="_blank" rel="noopener">doi.org/10.1093/ajcn/nqab233</a>,
+      find its <strong>Supplementary data</strong> section, and download both PDFs there:
+      Supplemental Table 1 and Supplemental Table 2. (NuMa can't fetch them for you — the publisher's
+      site turns away programs.)</li>
+    <li>Choose both files below, together — in either order.</li>
+    <li>Click <strong>Build</strong>. It takes about a minute; nothing else in NuMa is affected meanwhile.</li>
+  </ol>
+  <form method="post" action="/settings/gi-table/build" enctype="multipart/form-data"
+        class="d-flex flex-wrap align-items-center gap-2">
+    <input type="file" name="files" accept=".pdf,application/pdf" multiple required
+           class="form-control form-control-sm" style="max-width:28rem"
+           title="Select both supplemental-table PDFs at once (Ctrl-click or Shift-click the second one)">
+    <button type="submit" class="btn btn-sm btn-primary"
+            title="Read both PDFs and build your own copy of the 2021 GI table, used by the Annotate page's GI lookup from then on">
+      {% if gi_table.edition == 2021 %}Rebuild my 2021 GI table{% else %}Build my 2021 GI table{% endif %}</button>
+  </form>
+  <p class="muted mt-1"><small>The PDFs themselves aren't kept — only the table built from them, saved
+  for your use alone at <code>{{ gi_table_candidates[0] }}</code>. If the files turn out to be wrong,
+  NuMa says so and changes nothing.</small></p>
+  {% endif %}
 </details>
 
-{# ── 10. System issues ───────────────────────────────────────────────── #}
+{# ── 12. System issues (no shortcut key — digits run out at 10) ─────────── #}
 <details id="system-issues" {% if recompute_errors %}open{% endif %}>
-  <summary data-ak="0"><u class="ak">0</u>. <strong>System Issues</strong>
+  <summary>12. <strong>System Issues</strong>
     {% if recompute_errors %}
     <span class="text-danger"> — {{ recompute_errors|length }} unresolved</span>
     {% else %}

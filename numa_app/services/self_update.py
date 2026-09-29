@@ -4,9 +4,10 @@ replace the currently-running packaged install in place, for the home
 page's "Update Now" button.
 
 Only meaningful for a packaged (PyInstaller onefile) Linux install —
-a source/dev checkout has nothing sensible to self-replace, and there's
-no Windows build published from this same release flow yet. is_available()
-gates both.
+a source/dev checkout has nothing sensible to self-replace, and Windows
+locks a running .exe so it can't be replaced in place. is_available()
+gates both. For a packaged Windows install, windows_exe_dir() instead
+supports the home page's by-hand replacement instructions.
 
 Replacing the binary while it's still running is safe on Linux: os.replace()
 is atomic, and the OS keeps the current process's already-open executable
@@ -39,6 +40,17 @@ def is_available() -> bool:
     """True only for a packaged (PyInstaller onefile) Linux install — the
     one thing this can safely self-replace."""
     return bool(getattr(sys, "frozen", False)) and sys.platform.startswith("linux")
+
+
+def windows_exe_dir() -> str | None:
+    """The folder holding the running nutrimagnus.exe, for a packaged
+    Windows install; None anywhere else. Windows locks a running .exe, so
+    it can't self-replace — the home-page banner instead walks the user
+    through replacing it by hand, and naming this folder spares them
+    having to remember where they put the program."""
+    if getattr(sys, "frozen", False) and sys.platform == "win32":
+        return str(Path(sys.executable).resolve().parent)
+    return None
 
 
 def _download(url: str, *, min_bytes: int = 0) -> bytes:

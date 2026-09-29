@@ -19,6 +19,7 @@ load/clear toggle (settings_demo_data_load/clear in web/backend.py) uses the
 same load_demo_data()/clear_demo_data() for anyone who cleared it and wants
 it back.
 """
+import hashlib
 import json
 import pathlib
 import sys
@@ -289,3 +290,258 @@ def restore_selected(conn, food_fdc_ids: list[int], pantry_names: list[str], rec
         added_recipes += 1
 
     return {"foods": added_foods, "pantry": added_pantry, "recipes": added_recipes}
+
+
+# ── What changed in the starter set between NuMa versions ─────────────────
+# starter_status() above can only say whether each bundled starter item is in
+# the database right now. It can't tell "new in this version" from "you
+# deleted it on purpose", and it never notices that an item you already have
+# was improved. So each version's starter set is summarized as a manifest —
+# one short content hash per item — and the manifest this install last ran
+# with is kept in _VERSIONS_FILE. The first run of a newer version diffs the
+# two and remembers the result until the user has seen it (home-page notice)
+# and acted on it (Settings -> 9, which offers improved versions item by item
+# and never applies one on its own).
+#
+# The same manifest is published with each GitHub release
+# (scripts/create_release.py), so the home page's UPDATE AVAILABLE message can
+# preview the starter changes before the user updates (see preview_changes()).
+
+_VERSIONS_FILE = _platform_utils.get_data_dir() / "starter_versions.json"
+_CHANGE_KEYS = ("new_foods", "improved_foods", "new_recipes", "improved_recipes")
+
+
+def _item_hash(item: dict) -> str:
+    # source_recipe_id is the curator's own DB id, not content — it can change
+    # without the recipe changing (see export_starter_data.py).
+    content = {k: v for k, v in item.items() if k != "source_recipe_id"}
+    return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def starter_manifest(foods: list[dict] | None = None, recipes: list[dict] | None = None) -> dict:
+    """{'foods': {str(fdc_id): {'name', 'hash'}}, 'recipes': {name: {'hash'}}}
+    for the given starter set, or the bundled one by default. Food keys are
+    strings so the manifest survives a JSON round trip unchanged."""
+    foods = DEMO_FOODS if foods is None else foods
+    recipes = DEMO_RECIPES if recipes is None else recipes
+    return {
+        "foods": {str(f["fdc_id"]): {"name": f["name"], "hash": _item_hash(f)} for f in foods},
+        "recipes": {r["name"]: {"hash": _item_hash(r)} for r in recipes},
+    }
+
+
+def _empty_changes() -> dict:
+    return {k: [] for k in _CHANGE_KEYS}
+
+
+def diff_manifests(old: dict, new: dict) -> dict:
+    """Items in `new` that `old` lacks (new_*) or has with different content
+    (improved_*). Items dropped from the set are not reported: removing a
+    starter item never touches anyone's copy of it."""
+    out = _empty_changes()
+    for kind in ("foods", "recipes"):
+        before = old.get(kind, {})
+        for key, item in new.get(kind, {}).items():
+            if key not in before:
+                out[f"new_{kind}"].append(key)
+            elif before[key]["hash"] != item["hash"]:
+                out[f"improved_{kind}"].append(key)
+    return out
+
+
+def _read_versions() -> dict | None:
+    try:
+        return json.loads(_VERSIONS_FILE.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _write_versions(state: dict) -> None:
+    _VERSIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _VERSIONS_FILE.write_text(json.dumps(state, indent=2))
+
+
+def record_version_changes() -> dict:
+    """Compare the bundled starter set with the one this install last ran
+    with, and remember any differences. Safe to call on every page load: it
+    writes only when the bundled set has actually changed.
+
+    The very first call — a fresh install, or the first version to carry this
+    feature — records the current set and reports nothing, since there is no
+    earlier set to compare with. Changes not yet acknowledged when another
+    version arrives are merged with that version's, so skipping a version
+    loses nothing."""
+    current = starter_manifest()
+    state = _read_versions()
+    if state is None:
+        state = {"manifest": current, "changes": _empty_changes(), "acknowledged": True}
+        _write_versions(state)
+        return state
+    if state.get("manifest") == current:
+        return state
+
+    fresh = diff_manifests(state.get("manifest", {}), current)
+    # Unapplied earlier changes carry forward (only items still in the set).
+    # An item can sit in both lists — new in one version, changed again in a
+    # later one. _relevant() then shows it as whichever fits: "new" if the
+    # user doesn't have it, "improved" if they added it in the meantime.
+    prior = state.get("changes") or _empty_changes()
+    merged = _empty_changes()
+    for kind in ("foods", "recipes"):
+        still_there = current[kind].keys()
+        for change in ("new", "improved"):
+            key = f"{change}_{kind}"
+            merged[key] = [k for k in dict.fromkeys(prior.get(key, []) + fresh[key]) if k in still_there]
+    state = {"manifest": current, "changes": merged,
+             "acknowledged": state.get("acknowledged", True) and not any(fresh.values())}
+    _write_versions(state)
+    return state
+
+
+def acknowledge_version_changes() -> None:
+    """Hide the home-page notice. The changes stay listed in Settings -> 9
+    until each improved item is updated or declined."""
+    state = _read_versions()
+    if state is not None:
+        state["acknowledged"] = True
+        _write_versions(state)
+
+
+def _present(conn) -> tuple[set[str], set[str]]:
+    food_keys = {str(r["fdc_id"]) for r in conn.execute("SELECT fdc_id FROM foods").fetchall()}
+    recipe_names = {r["name"] for r in _db.recipe_list(conn, include_archived=True)}
+    return food_keys, recipe_names
+
+
+def _relevant(conn, changes: dict, manifest: dict) -> dict:
+    """Narrow raw changes to what matters to this user: a new item only if
+    they don't already have it, an improved item only if they do. Returned
+    with display names: foods as {'fdc_id', 'name'}, recipes as names."""
+    food_keys, recipe_names = _present(conn)
+    foods = manifest.get("foods", {})
+
+    def _food(k: str) -> dict:
+        return {"fdc_id": int(k), "name": foods.get(k, {}).get("name", k)}
+
+    return {
+        "new_foods": [_food(k) for k in changes.get("new_foods", []) if k not in food_keys],
+        "improved_foods": [_food(k) for k in changes.get("improved_foods", []) if k in food_keys],
+        "new_recipes": [n for n in changes.get("new_recipes", []) if n not in recipe_names],
+        "improved_recipes": [n for n in changes.get("improved_recipes", []) if n in recipe_names],
+    }
+
+
+def pending_changes(conn) -> dict:
+    """This version's starter changes that still apply to this user, plus
+    'acknowledged' (whether the home-page notice has been dismissed)."""
+    state = record_version_changes()
+    result = _relevant(conn, state.get("changes") or _empty_changes(), state["manifest"])
+    result["acknowledged"] = bool(state.get("acknowledged"))
+    return result
+
+
+def preview_changes(conn, release_manifest: dict | None) -> dict | None:
+    """What a not-yet-installed release would change in the starter set, as
+    far as this user is concerned — for the UPDATE AVAILABLE message. None if
+    the release published no manifest or it changes nothing relevant."""
+    if not isinstance(release_manifest, dict):
+        return None
+    try:
+        changes = diff_manifests(starter_manifest(), release_manifest)
+        result = _relevant(conn, changes, release_manifest)
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None  # a malformed manifest must never break the home page
+    return result if any(result.values()) else None
+
+
+def _forget_improvements(food_fdc_ids: list[int], recipe_names: list[str]) -> None:
+    state = _read_versions()
+    if state is None:
+        return
+    changes = state.setdefault("changes", _empty_changes())
+    done_foods = {str(i) for i in food_fdc_ids}
+    changes["improved_foods"] = [k for k in changes.get("improved_foods", []) if k not in done_foods]
+    changes["improved_recipes"] = [n for n in changes.get("improved_recipes", []) if n not in set(recipe_names)]
+    _write_versions(state)
+
+
+def apply_improvements(conn, food_fdc_ids: list[int], recipe_names: list[str]) -> dict:
+    """Replace the user's copies of the chosen starter items with this
+    version's improved ones, in place.
+
+    Foods are updated with UPDATE, never INSERT OR REPLACE: the row keeps its
+    fdc_id, archived flag and annotations, and every meal, recipe and pantry
+    entry pointing at it keeps working. Recipes keep their id too (meals log
+    recipes by id); their fields and ingredient list are rewritten, and any
+    starter food or sub-recipe the new version needs is added first if
+    missing. DCP is recomputed afterwards, up through anything that uses the
+    changed item."""
+    by_name = {f["name"]: f for f in DEMO_FOODS}
+    by_fdc_id = {f["fdc_id"]: f for f in DEMO_FOODS}
+    recipes_by_name = {r["name"]: r for r in DEMO_RECIPES}
+
+    updated_foods = 0
+    for fdc_id in food_fdc_ids:
+        food = by_fdc_id.get(fdc_id)
+        if food is None or _db.get_cached_food(conn, fdc_id) is None:
+            continue
+        conn.execute(
+            "UPDATE foods SET name = ?, data_type = ?, nutrients_json = ?, portions_json = ? WHERE fdc_id = ?",
+            (food["name"], food["data_type"], json.dumps(food["nutrients"]),
+             json.dumps(food["portions"] or []), fdc_id),
+        )
+        _recipe_dcp.cascade_food_change(fdc_id, conn)
+        updated_foods += 1
+
+    wanted = [n for n in recipe_names if n in recipes_by_name]
+    # Adds whatever the new versions need that isn't there yet (skipping the
+    # recipes themselves, which are present); see restore_selected().
+    restore_selected(conn, [], [], wanted)
+    rid_by_name = {row["name"]: row["id"] for row in _db.recipe_list(conn, include_archived=True)}
+    updated_recipes = 0
+    for recipe in DEMO_RECIPES:  # set order: a sub-recipe before its users
+        if recipe["name"] not in wanted or recipe["name"] not in rid_by_name:
+            continue
+        rid = rid_by_name[recipe["name"]]
+        conn.execute(
+            "UPDATE recipes SET description = ?, servings = ?, instructions = ? WHERE id = ?",
+            (recipe["description"], recipe["servings"], recipe["instructions"], rid),
+        )
+        conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (rid,))
+        _add_ingredients(conn, rid, recipe, by_name, rid_by_name)
+        _recipe_dcp.recompute_recipe_dcp(rid, conn)
+        updated_recipes += 1
+
+    _forget_improvements(food_fdc_ids, recipe_names)
+    return {"foods": updated_foods, "recipes": updated_recipes}
+
+
+def decline_improvements() -> None:
+    """Keep the user's current copies: stop offering every pending
+    improvement. New items are unaffected (they stay restorable)."""
+    state = _read_versions()
+    if state is None:
+        return
+    changes = state.setdefault("changes", _empty_changes())
+    changes["improved_foods"], changes["improved_recipes"] = [], []
+    _write_versions(state)
+
+
+def _count(n: int, what: str) -> str:
+    return f"{n} starter {what}{'' if n == 1 else 's'}"
+
+
+def describe_changes(changes: dict) -> str:
+    """Plain-English summary of relevant changes, e.g. "adds 2 new starter
+    foods and 1 new starter recipe, and has improved versions of 3 starter
+    foods you already have". Empty string if there's nothing to say."""
+    new = [_count(len(changes.get(f"new_{k}s", [])), f"{k}") for k in ("food", "recipe")
+           if changes.get(f"new_{k}s")]
+    improved = [_count(len(changes.get(f"improved_{k}s", [])), f"{k}") for k in ("food", "recipe")
+                if changes.get(f"improved_{k}s")]
+    parts = []
+    if new:
+        parts.append("adds " + " and ".join(n.replace("starter ", "new starter ", 1) for n in new))
+    if improved:
+        parts.append("has improved versions of " + " and ".join(improved) + " you already have")
+    return ", and ".join(parts)

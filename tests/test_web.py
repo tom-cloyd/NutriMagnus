@@ -1651,6 +1651,37 @@ def test_food_cache_delete_and_prune(client: TestClient, cached_food, db_conn) -
     ).fetchone() is None
 
 
+def test_food_cache_add_to_pantry_button(client: TestClient, cached_food, db_conn) -> None:
+    """Each Food Cache row offers "Add to pantry" until the food is in the
+    Pantry, then "In pantry"; adding from there returns to the Food Cache
+    (possibly via the annotation prompt), not the Pantry page."""
+    fdc_id = cached_food["fdcId"]
+    assert "Add to pantry" in client.get("/food/cache").text
+    resp = client.post("/pantry/add", data={
+        "food_name": cached_food["name"], "fdc_id": str(fdc_id),
+        "next": f"/food/cache?q=&sort=name#food-{fdc_id}",
+    }, follow_redirects=False)
+    assert resp.status_code == 303
+    assert "/food/cache?" in urllib.parse.unquote(resp.headers["location"])
+    assert db_conn.execute("SELECT 1 FROM pantry WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    page = client.get("/food/cache").text
+    assert "In pantry" in page and "Add to pantry" not in page
+
+
+def test_pantry_add_ignores_offsite_next(client: TestClient) -> None:
+    resp = client.post("/pantry/add", data={"food_name": "Thing", "next": "//evil.example/"},
+                       follow_redirects=False)
+    assert resp.headers["location"].startswith("/pantry?")
+
+
+def test_food_cache_sort_by_id(client: TestClient, db_conn) -> None:
+    for fid, name in ((300, "Aaa"), (100, "Zzz"), (200, "Mmm")):
+        _db.cache_food(db_conn, fid, name, "Foundation", None, None, None, {}, [])
+    db_conn.commit()
+    page = client.get("/food/cache?sort=id").text
+    assert page.index("Zzz") < page.index("Mmm") < page.index("Aaa")
+
+
 def test_food_cache_delete_preserves_search_filter(client: TestClient, cached_food, db_conn) -> None:
     """Regression test: deleting from a filtered /food/cache?q=... view previously
     redirected to the unfiltered list, dropping q/sort/show_archived — making a
@@ -2467,6 +2498,27 @@ def test_disclaimer_page_renders(client: TestClient) -> None:
     assert '<a href="/disclaimer">Disclaimer</a>' in resp.text
 
 
+def test_home_page_rebuilds_stale_manual_before_reading_its_stamp(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The home page's "Current manual version" is read from the built
+    user-manual.html, so the home route must rebuild a stale one first —
+    otherwise an edit to user-manual.md shows up in the home-page text but
+    not in the stamp beside it."""
+    from numa_app.services import manual_build as _manual_build
+    from numa_app.services import manual_update as _manual_update
+    calls: list[str] = []
+    monkeypatch.setattr(_manual_build, "rebuild_manual_if_stale", lambda: calls.append("rebuild"))
+    real_get_active = _manual_update.get_active_manual
+    monkeypatch.setattr(
+        _manual_update, "get_active_manual",
+        lambda path: calls.append("stamp") or real_get_active(path),
+    )
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert calls[:2] == ["rebuild", "stamp"]
+
+
 def test_home_page_shows_db_integrity_banner(client: TestClient, cached_food, db_conn) -> None:
     """The opening page should surface a referential-integrity problem
     without the user having to know to visit /food/cache/db-check."""
@@ -2660,6 +2712,152 @@ def test_update_now_button_shown_only_for_packaged_install(client: TestClient, m
     resp = client.get("/")
     assert "Update now" in resp.text
     assert 'action="/update-now"' in resp.text
+
+
+def test_updated_banner_says_to_refresh_manual_tabs(client: TestClient) -> None:
+    resp = client.get("/?updated=1")
+    assert "UPDATED:" in resp.text
+    assert "press the F5 key" in resp.text
+
+
+def test_windows_update_banner_links_to_manual_steps(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A packaged Windows install can't self-replace, so its banner must send
+    the user to the manual's by-hand update steps — and name the folder
+    their current copy runs from, which the manual can't know."""
+    from numa_app.services import update_check as _update_check
+    from numa_app.services import self_update as _self_update
+
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://example.invalid/v2099-01-01-0000",
+                          "download_url": "https://example.invalid/nutrimagnus.exe"},
+    )
+    resp = client.get("/")
+    assert "/manual#update-windows" not in resp.text
+
+    monkeypatch.setattr(_self_update, "windows_exe_dir", lambda: r"C:\Users\pat\Documents\NutriMagnus")
+    resp = client.get("/")
+    assert "/manual#update-windows" in resp.text
+    assert r"C:\Users\pat\Documents\NutriMagnus" in resp.text
+    assert "https://example.invalid/nutrimagnus.exe" in resp.text
+    assert "Update now" not in resp.text
+
+
+def test_setup_checklist_links(client: TestClient) -> None:
+    """Settings always links to the manual's setup checklist; the home page
+    does too, but only until a profile exists. use_test_profile (conftest)
+    pre-populates one; deleting it gives the fresh-install view."""
+    assert "/manual#first-setup" in client.get("/settings").text
+    assert "NEW TO NUMA?" not in client.get("/").text
+
+    for f in _profile._PROFILES_DIR.glob("*.json"):
+        f.unlink()
+    assert _profile.load_profile() is None
+    resp = client.get("/")
+    assert "NEW TO NUMA?" in resp.text
+    assert "/manual#first-setup" in resp.text
+
+
+def _starter_v1_then_v2(monkeypatch: pytest.MonkeyPatch, db_conn) -> None:
+    """Simulate running one version, then updating to a newer one whose
+    starter set improves food 1 and adds food 2 and a recipe."""
+    from numa_app.services import demo_data as _dd
+
+    def _f(fdc_id, name, protein=9.0):
+        return {"fdc_id": fdc_id, "name": name, "data_type": "SR Legacy", "portions": [],
+                "nutrients": {"calories": 100.0, "protein_g": protein, "carbs_g": 20.0, "fat_g": 1.0}}
+
+    monkeypatch.setattr(_dd, "DEMO_PANTRY", [])
+    monkeypatch.setattr(_dd, "DEMO_FOODS", [_f(1, "* Old Beans")])
+    monkeypatch.setattr(_dd, "DEMO_RECIPES", [])
+    _dd.restore_selected(db_conn, [1], [], [])
+    db_conn.commit()
+    _dd.record_version_changes()
+    monkeypatch.setattr(_dd, "DEMO_FOODS", [_f(1, "* Old Beans", 14.0), _f(2, "* New Lentils")])
+    monkeypatch.setattr(_dd, "DEMO_RECIPES", [{"source_recipe_id": 1, "name": "* New Bowl", "description": "",
+                                               "servings": 1, "instructions": "",
+                                               "ingredients": [["* New Lentils", 100, "g", "food"]]}])
+
+
+def test_home_notice_for_new_starter_items_until_acknowledged(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, db_conn,
+) -> None:
+    assert "NEW STARTER ITEMS:" not in client.get("/").text
+    _starter_v1_then_v2(monkeypatch, db_conn)
+    resp = client.get("/")
+    assert "NEW STARTER ITEMS:" in resp.text
+    assert "adds 1 new starter food and 1 new starter recipe" in resp.text
+    assert "improved versions of 1 starter food you already have" in resp.text
+
+    client.post("/starter-notice/ack")
+    assert "NEW STARTER ITEMS:" not in client.get("/").text
+    # Still offered in Settings until acted on.
+    settings = client.get("/settings").text
+    assert "Improved in this version of NuMa" in settings
+    assert "(new in this version)" in settings
+
+
+def test_settings_updates_an_improved_starter_food(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, db_conn,
+) -> None:
+    import json as _json
+    _starter_v1_then_v2(monkeypatch, db_conn)
+    client.get("/")
+    resp = client.post("/settings/starter-data/improve", data={"improve_fdc_id": "1"}, follow_redirects=True)
+    assert "now match this version" in resp.text
+    assert "Improved in this version of NuMa" not in resp.text
+    row = db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = 1").fetchone()
+    assert _json.loads(row["nutrients_json"])["protein_g"] == 14.0
+
+
+def test_settings_keep_mine_declines_improvements(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, db_conn,
+) -> None:
+    _starter_v1_then_v2(monkeypatch, db_conn)
+    client.get("/")
+    resp = client.post("/settings/starter-data/keep-mine", follow_redirects=True)
+    assert "Kept your copies as they are" in resp.text
+    assert "Improved in this version of NuMa" not in resp.text
+
+
+def test_update_banner_previews_release_starter_changes(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, db_conn,
+) -> None:
+    from numa_app.services import update_check as _update_check
+    from numa_app.services import demo_data as _dd
+
+    food = dict(_dd.DEMO_FOODS[0])
+    release_manifest = _dd.starter_manifest(
+        list(_dd.DEMO_FOODS) + [{**food, "fdc_id": 424242, "name": "* Brand New"}], list(_dd.DEMO_RECIPES))
+    monkeypatch.setattr(
+        _update_check, "check_for_update",
+        lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://example.invalid/r",
+                          "starter_manifest": release_manifest},
+    )
+    resp = client.get("/")
+    assert "this update adds 1 new starter food" in resp.text
+    assert "Restore individual starter items" not in resp.text
+
+
+def test_update_windows_manual_anchor_exists() -> None:
+    """The Windows banner links to #update-windows; the built manual must
+    actually carry that anchor, or the link silently lands at the top."""
+    from pathlib import Path
+    html = (Path(__file__).resolve().parent.parent / "user-manual.html").read_text(encoding="utf-8")
+    assert 'id="update-windows"' in html
+
+
+def test_windows_exe_dir_only_for_packaged_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    from numa_app.services import self_update as _self_update
+
+    monkeypatch.setattr(_self_update.sys, "platform", "win32")
+    monkeypatch.setattr(_self_update.sys, "frozen", True, raising=False)
+    assert _self_update.windows_exe_dir() is not None
+    monkeypatch.setattr(_self_update.sys, "platform", "linux")
+    assert _self_update.windows_exe_dir() is None
+    monkeypatch.setattr(_self_update.sys, "platform", "win32")
+    monkeypatch.delattr(_self_update.sys, "frozen")
+    assert _self_update.windows_exe_dir() is None
 
 
 def test_update_now_route_success_and_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -5063,9 +5261,10 @@ def test_settings_reports_which_gi_reference_table_is_in_use(client: TestClient)
         assert "locally built" in r.text
     else:
         # The fallback state opens itself, since it is the one a user is most
-        # likely not to have noticed, and says how to build the 2021 table.
+        # likely not to have noticed, and points to Settings' own Build form.
         assert 'id="gi-table" open' in r.text
-        assert "scripts/build_gi_data.py" in r.text
+        assert 'href="#gi-build-form"' in r.text
+        assert "Build the 2021 table</h6>" in r.text
 
 
 def test_annotate_page_badges_the_active_gi_table_edition(client: TestClient,
@@ -5078,3 +5277,46 @@ def test_annotate_page_badges_the_active_gi_table_edition(client: TestClient,
     assert r.status_code == 200
     assert f"{edition} edition</span>" in r.text
     assert "/settings#gi-table" in r.text
+
+
+# --- Settings: build the 2021 GI table from uploaded PDFs --------------------
+
+def test_settings_gi_table_build_needs_both_files(client: TestClient) -> None:
+    resp = client.post("/settings/gi-table/build",
+                       files=[("files", ("t1.pdf", b"%PDF-1.4", "application/pdf"))],
+                       follow_redirects=False)
+    assert resp.status_code == 303
+    assert "gi_build_error=count" in resp.headers["location"]
+    page = client.get(resp.headers["location"]).text
+    assert "Choose both PDF files" in page
+
+
+def test_settings_gi_table_build_starts_a_background_build(client: TestClient, monkeypatch, tmp_path) -> None:
+    from numa_app.services import gi_table_build
+    calls = []
+    monkeypatch.setattr(gi_table_build, "start_build",
+                        lambda paths, output, cleanup_dir=None: calls.append((paths, output)) or True)
+    monkeypatch.setattr(backend._gi_lookup, "user_table_path", lambda: tmp_path / "gi_data_local.json")
+    resp = client.post("/settings/gi-table/build", files=[
+        ("files", ("b.pdf", b"%PDF-1.4 two", "application/pdf")),
+        ("files", ("a.pdf", b"%PDF-1.4 one", "application/pdf")),
+    ], follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"].endswith("#gi-table")
+    (paths, output), = calls
+    assert output == tmp_path / "gi_data_local.json"
+    assert sorted(p.read_bytes() for p in paths) == [b"%PDF-1.4 one", b"%PDF-1.4 two"]
+    import shutil
+    shutil.rmtree(paths[0].parent)      # the stubbed build never removes its uploads
+
+
+def test_settings_shows_gi_build_progress_then_outcome_once(client: TestClient, monkeypatch) -> None:
+    from numa_app.services import gi_table_build
+    monkeypatch.setitem(gi_table_build._state, "running", True)
+    page = client.get("/settings").text
+    assert "Building your 2021 table" in page and "location.reload" in page
+    monkeypatch.setitem(gi_table_build._state, "running", False)
+    monkeypatch.setitem(gi_table_build._state, "error", "Both files are Supplemental Table 2.")
+    assert "Both files are Supplemental Table 2." in client.get("/settings").text
+    assert "Both files are Supplemental Table 2." not in client.get("/settings").text
+    assert "Build my 2021 GI table" in client.get("/settings").text or \
+        "Rebuild my 2021 GI table" in client.get("/settings").text

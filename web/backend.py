@@ -7,6 +7,7 @@ import io
 import json
 import math
 import re
+import shutil
 import sys
 import zipfile
 from contextlib import asynccontextmanager
@@ -41,6 +42,7 @@ from numa_app.services import csv_import as _csv_import
 from numa_app.services import recipe_csv as _recipe_csv
 from numa_app.services import recipe_translate as _recipe_translate
 from numa_app.services import day_profile as _day_profile
+from numa_app.services import gi_table_build as _gi_table_build
 from numa_app.services import aa_estimate as _aa_estimate
 from numa_app.services.glycemic_load import (average_day_gl, compute_glycemic_load, day_gl_totals,
                                              gl_band, gl_band_caveat)
@@ -1608,7 +1610,14 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
         unacked_errors = [dict(r) for r in _db.list_unacked_recompute_errors(conn)]
         db_issues = _db.check_db_integrity(conn)
         has_any_meals = _db.meal_count_recent(conn) > 0
+        # Starter foods/recipes this version added or improved since the
+        # last version this install ran (see demo_data.record_version_changes).
+        from numa_app.services import demo_data as _demo_data
+        starter_changes = _demo_data.pending_changes(conn)
     db_issue_count = sum(len(v) for v in db_issues.values())
+    if starter_changes["acknowledged"] or not any(
+            starter_changes[k] for k in ("new_foods", "improved_foods", "new_recipes", "improved_recipes")):
+        starter_changes = None
     # Right after a successful self-update, the running process hasn't
     # restarted yet — VERSION in memory is still the old value, so the
     # check would (correctly, but confusingly) still report the release
@@ -1616,6 +1625,16 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
     update_available = None if updated else await run_in_threadpool(_update_check.check_for_update, VERSION)
     if update_available and not _should_show_update_notice(update_available["tag"]):
         update_available = None
+    # What that release would change in the starter set, for its banner.
+    starter_preview = None
+    if update_available and update_available.get("starter_manifest"):
+        with _db.get_db() as conn:
+            starter_preview = _demo_data.preview_changes(conn, update_available["starter_manifest"])
+    # Same stale-html rebuild /manual does, so the "Current manual version"
+    # stamp below reflects the latest user-manual.md edit, not whatever
+    # user-manual.html happened to be built from last.
+    from numa_app.services.manual_build import rebuild_manual_if_stale
+    await run_in_threadpool(rebuild_manual_if_stale)
     active_manual = _manual_update.get_active_manual(_MANUAL)
     manual_update_available = None if manual_updated else await run_in_threadpool(
         _manual_update.check_for_manual_update, active_manual["stamp"], VERSION)
@@ -1643,6 +1662,9 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
             "db_issue_count": db_issue_count,
             "update_available": update_available,
             "self_update_available": _self_update.is_available(),
+            "windows_exe_dir": _self_update.windows_exe_dir(),
+            "starter_changes_text": _demo_data.describe_changes(starter_changes) if starter_changes else "",
+            "starter_preview_text": _demo_data.describe_changes(starter_preview) if starter_preview else "",
             "updated": updated,
             "update_error": update_error,
             "manual_stamp": active_manual["stamp"],
@@ -2386,6 +2408,7 @@ def _build_compare_groups(entries: list[dict]) -> list[dict]:
 
 _FOOD_CACHE_SORT_KEYS = {
     "name":  lambda f: (f["name"] or "").lower(),
+    "id":    lambda f: f["fdc_id"],
     "type":  lambda f: ((f["data_type"] or "").lower(), (f["name"] or "").lower()),
     "diaas": lambda f: (f["diaas"] is None, -(f["diaas"] or 0), (f["name"] or "").lower()),
     "gi":    lambda f: (f["gi"] is None, -(f["gi"] or 0), (f["name"] or "").lower()),
@@ -2407,6 +2430,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
             rows = _db.list_cached_foods(conn, include_archived=show_archived)
         fdc_ids = [r["fdc_id"] for r in rows]
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
+        pantry_fdc_ids = {r["fdc_id"] for r in _db.pantry_list(conn, include_archived=True)}
 
     foods = []
     for row in rows:
@@ -2430,6 +2454,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
             "notes":          row["notes"] or "",
             "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
             "archived":       bool(row["archived"]),
+            "in_pantry":      row["fdc_id"] in pantry_fdc_ids,
         })
     foods.sort(key=_FOOD_CACHE_SORT_KEYS[sort])
     return templates.TemplateResponse(request, "food_cache.html", {
@@ -3017,8 +3042,12 @@ async def pantry_add(
     fdc_id: str = Form(""),
     off_code: str = Form(""),
     link_id: str = Form(""),
+    next: str = Form(""),
 ):
     food_name = food_name.strip()
+    # Where to land afterwards: Pantry by default, or back on the calling page
+    # (the Food Cache's "Add to pantry" button). Local paths only.
+    back = next if next.startswith("/") and not next.startswith("//") else ""
     notes = notes.strip() or None
     fdc_id_int: int | None = None
     try:
@@ -3061,12 +3090,13 @@ async def pantry_add(
                 result_flag = "linked=1"
             else:
                 _db.pantry_add(conn, food_name, fdc_id=fdc_id_int, notes=notes)
+    dest = back or f"/pantry?{result_flag}"
     if fdc_id_int is not None and _annotation_prompt_needed(fdc_id_int):
         from urllib.parse import quote
         return RedirectResponse(
-            f"/food/annotate/{fdc_id_int}?next={quote('/pantry?' + result_flag)}", status_code=303
+            f"/food/annotate/{fdc_id_int}?next={quote(dest)}", status_code=303
         )
-    return RedirectResponse(f"/pantry?{result_flag}", status_code=303)
+    return RedirectResponse(dest, status_code=303)
 
 
 @app.post("/pantry/remove/{pantry_id}", response_class=RedirectResponse)
@@ -5713,7 +5743,8 @@ async def meal_day_profile_override(meal_id: int, profile_name: str = Form(...))
 # ---------------------------------------------------------------------------
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_get(request: Request, saved: str = "", recompute_retry: str = "", kept: int = 0):
+async def settings_get(request: Request, saved: str = "", recompute_retry: str = "", kept: int = 0,
+                       gi_build_error: str = ""):
     profile = _profile.load_profile()
     diet_pref = _current_diet_pref()
     rda = _profile.compute_rda(profile, diet_pref=diet_pref) if profile else None
@@ -5733,6 +5764,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
         recompute_errors = [dict(r) for r in _db.list_unresolved_recompute_errors(conn)]
         starter_status = _demo_data.starter_status(conn)
+        starter_changes = _demo_data.pending_changes(conn)
 
     nutrient_target_rows = []
     if profile:
@@ -5760,6 +5792,12 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         for key, label, unit in AVAILABLE_NUTRIENTS
     ]
 
+    # A finished 2021-table build's outcome is shown once, then forgotten, so a
+    # later visit to Settings doesn't keep announcing an old build.
+    gi_build = _gi_table_build.build_status()
+    if not gi_build["running"]:
+        _gi_table_build.clear_status()
+
     return templates.TemplateResponse(request, "settings.html", {
         "profile":              profile,
         "rda_rows":             rda_rows,
@@ -5784,10 +5822,14 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "starter_pantry_count": len(_demo_data.DEMO_PANTRY),
         "starter_recipe_count": len(_demo_data.DEMO_RECIPES),
         "starter_status":       starter_status,
+        "starter_changes":      starter_changes,
+        "starter_new_food_ids": {f["fdc_id"] for f in starter_changes["new_foods"]},
         "recompute_errors":     recompute_errors,
         "recompute_retry":      recompute_retry,
         "gi_table":             _gi_lookup.active_table_info(),
         "gi_table_candidates":  _gi_lookup.local_table_candidates(),
+        "gi_build":             gi_build,
+        "gi_build_error":       gi_build_error,
     })
 
 
@@ -5956,6 +5998,34 @@ async def settings_nutrient_target_load_defaults():
     return RedirectResponse("/settings?saved=nutrient_target_defaults", status_code=303)
 
 
+_GI_PDF_MAX_BYTES = 20 * 1024 * 1024   # each real supplemental table is ~1.6 MB
+
+
+@app.post("/settings/gi-table/build", response_class=RedirectResponse)
+async def settings_gi_table_build(files: list[UploadFile] = File(...)):
+    """Build the user's own 2021 GI table from the two supplemental-table PDFs
+    they uploaded. Parsing takes about a minute, so it runs on a background
+    thread (gi_table_build.start_build) and Settings polls until it's done.
+    The uploads go to a temporary folder the build removes when it finishes."""
+    import tempfile
+    pdfs = [f for f in files if f.filename]
+    if len(pdfs) != 2:
+        return RedirectResponse("/settings?gi_build_error=count#gi-table", status_code=303)
+    tmp_dir = Path(tempfile.mkdtemp(prefix="numa-gi-"))
+    paths: list[Path] = []
+    for i, upload in enumerate(pdfs):
+        data = await upload.read(_GI_PDF_MAX_BYTES + 1)
+        if len(data) > _GI_PDF_MAX_BYTES:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            return RedirectResponse("/settings?gi_build_error=size#gi-table", status_code=303)
+        path = tmp_dir / f"table_{i}.pdf"
+        path.write_bytes(data)
+        paths.append(path)
+    if not _gi_table_build.start_build(paths, _gi_lookup.user_table_path(), cleanup_dir=tmp_dir):
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    return RedirectResponse("/settings#gi-table", status_code=303)
+
+
 @app.post("/settings/starter-data/load", response_class=RedirectResponse)
 async def settings_demo_data_load():
     """Populate a fresh install with starter foods/pantry/recipes to explore
@@ -5997,6 +6067,36 @@ async def settings_demo_data_restore(request: Request):
     with _db.get_db() as conn:
         _demo_data.restore_selected(conn, food_fdc_ids, pantry_names, recipe_names)
     return RedirectResponse("/settings?saved=starter_data_restored#starter-data", status_code=303)
+
+
+@app.post("/settings/starter-data/improve", response_class=RedirectResponse)
+async def settings_starter_data_improve(request: Request):
+    """Replace the user's copies of the checked starter items with this
+    version's improved ones, in place — see demo_data.apply_improvements()."""
+    from numa_app.services import demo_data as _demo_data
+    form = await request.form()
+    food_fdc_ids = [int(v) for v in form.getlist("improve_fdc_id")]
+    recipe_names = form.getlist("improve_recipe_name")
+    with _db.get_db() as conn:
+        _demo_data.apply_improvements(conn, food_fdc_ids, recipe_names)
+    return RedirectResponse("/settings?saved=starter_data_improved#starter-data", status_code=303)
+
+
+@app.post("/settings/starter-data/keep-mine", response_class=RedirectResponse)
+async def settings_starter_data_keep_mine():
+    """Decline every pending starter improvement; the user's copies stay as they are."""
+    from numa_app.services import demo_data as _demo_data
+    _demo_data.decline_improvements()
+    return RedirectResponse("/settings?saved=starter_data_kept#starter-data", status_code=303)
+
+
+@app.post("/starter-notice/ack", response_class=RedirectResponse)
+async def starter_notice_ack():
+    """'Got it' on the home page's new/improved starter items notice. The
+    items themselves stay listed in Settings -> 9 until dealt with."""
+    from numa_app.services import demo_data as _demo_data
+    _demo_data.acknowledge_version_changes()
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/settings/meal-nutrients", response_class=RedirectResponse)

@@ -1,9 +1,39 @@
-# NutriMagnus testing elevation — status and next steps
+# NutriMagnus testing elevation — history (2026-08-28 to 2026-09-28)
+
+> **Status of this file: closed, historical record only (since 2026-09-28).**
+> Nothing reads it on a schedule — not the weekly sweep, not the quarterly
+> mutation-testing rotation. Everything needed to *run* testing work now
+> lives in README-numa-documentation.md's Maintenance section ("Quarterly
+> mutation-testing rotation, plus a weekly churn check"), including the
+> open-items list; don't add new status or plans here. The file is kept
+> because ~40 code comments, test docstrings, and older changelog entries
+> cite its item numbers (`TESTING-ROADMAP.md item #N`) to explain why a
+> test exists. One quirk in those citations: comments dated 2026-09-11
+> that say "item #1" mean the **source-fixture work** (tier #3 — it was
+> item 1 of this file's old to-do list), not tier #1, journey tests.
 
 Started 2026-08-28 in a Cowork session (with the VSCodium Claude extension
-handling the doc updates). This file is the handoff point for picking the
-work back up. Test suite is at 966 tests as of the last manual update
-(user-manual.md Part 2E, "Extensive code testing") — 731 as of 2026-08-28,
+handling the doc updates). It served as the handoff point for this work
+until 2026-09-28.
+
+**Final snapshot (2026-09-28, when this file was closed):** `pytest -q` → **1,230 passed**,
+plus **5 Playwright e2e tests** (deselected by default; `pytest -m e2e`).
+Of the six original tiers: #6 (CI), #2 (property tests), #4 (Playwright
+E2E) are done; #3 (source fidelity) is done apart from its quarterly
+refresh; #5 (mutation testing) is ongoing on a quarterly rotation plus
+weekly churn check; **#1 (scenario/journey tests) has never been
+started** (now listed in the README's rotation section). Since the long 2026-09-10/11 push,
+mutation work has continued only as weekly-sweep churn-check runs
+(2026-09-13, -20, -23) — see "Done (2026-09-13 to 2026-09-23)" below.
+Two modules have changed since their last mutation run and will be
+flagged by the next churn check: `usda_nutrients.py` (1b7eb49, 2026-09-24,
+complement scoring switched from DIAAS to true ileal digestibility) and
+`numa_app/services/glycemic_load.py` (bee1af7, 2026-09-27, +116 lines of
+GL aggregation — and this module was only ever screened, never fully
+run).
+
+**Count history through 2026-09-11** (kept for the record; the figures
+below are historical, not current): 966 tests at that point — 731 as of 2026-08-28,
 +69 from unrelated feature/bugfix work through 2026-09-09, +5 from item #2's
 remainder, completed 2026-09-09, +3 from item #4 (Playwright E2E), completed
 2026-09-10 (all three candidate routes now covered, including the
@@ -262,6 +292,10 @@ Agreed sequence: 6 → 2 → 1, hold 3/4/5 until those land.
 
 ### Ongoing cadence for #5 (agreed 2026-09-10)
 
+*(The original agreement, kept for the record. The live, maintained copy
+of the groups and procedure is in README-numa-documentation.md's
+Maintenance section.)*
+
 Two mechanisms, not redundant — one guarantees a floor, the other pulls
 checks forward when warranted:
 
@@ -387,7 +421,7 @@ math) — not an exhaustive pass on all ~1966 survivors this run produced.
   confirmed killed. Full suite: 834 tests (was 815 after the diaas.py
   pilot).
 - **Rotation group 2 (data-source parsing) not yet run** — deferred given
-  time already spent this session; see "Not done" below.
+  time already spent this session; see "Where the live material went" at the end.
 
 ## Done (2026-09-10, continued) — #5, complements.py/suggest_complements deep-dive
 
@@ -470,7 +504,7 @@ still fully open.
   `usda_nutrients.py`'s `suggest_complements()` (lines ~731-1150, the
   candidate-building/pairing/DIAAS-improver logic it delegates to) before
   sampling survivors — the code wasn't summarized anywhere reusable this
-  session, only read once and worked from directly. See "Not done" below
+  session, only read once and worked from directly. See "Where the live material went" at the end
   for the concrete next step.
 
 ## Done (2026-09-10, continued) — #5, build_complement_display/two_step_combo (the rest of the deep-dive)
@@ -1325,289 +1359,60 @@ changed shape again, `test_source_fixtures.py` is what will now catch it,
 the same way today's manual read of the fixture files caught these three
 by hand.
 
-## Not done — pick up here
+## Done (2026-09-13 to 2026-09-23) — #5 churn-check runs, plus e2e additions
 
-### 1. #3, the rest: cross-source data plausibility
+No dedicated testing session since 2026-09-11; everything here came out of
+weekly sweeps. The authoritative per-module detail is the rotation-log
+table in README-numa-documentation.md ("Quarterly mutation-testing
+rotation"); this is the summary.
 
-**Correction to the original framing, worth re-reading before starting:**
-of the six data sources, only **USDA** (`usda_api.py`), **CNF**
-(`cnf_api.py`), and **Open Food Facts** (`openfoodfacts.py`) are live APIs —
-those are the ones where "the API changed its response shape out from under
-us" is a real risk worth fixture-testing. **AFCD, CoFID, and CIQUAL are
-static local JSON files already bundled in the repo**
-(`afcd_data.json`, `cofid_data.json`, `ciqual_data.json`, 1.5-2MB each) —
-their lookup modules (`afcd_lookup.py`, `ciqual_lookup.py`,
-`cofid_lookup.py`) are ~2KB each, consistent with a simple local-JSON
-lookup, not a full API client. So the risk profile for those three is
-different: not runtime drift, but "does our parser still read the bundled
-JSON correctly," which only matters when that JSON gets refreshed. Worth
-confirming this by actually reading the three lookup files (not yet done)
-before designing tests around it.
+- **`rda_status.py` (2026-09-13)** — pulled forward by the churn check
+  (new "target" branch). First *full* run, replacing the 2026-09-10
+  screening pass: 1 survivor (`limit_warning()`'s `limit > 0` vs `> 1`),
+  fixed. **0/50 survive.**
+- **`aa_estimate.py` (2026-09-20)** — pulled forward by the AA-checkmark
+  fix. 13 real survivors (unpinned error text, untested rounding
+  precision, `<= 0` boundary, `copy_nutrients_note()` with zero tests),
+  all fixed; 16 new tests in `tests/test_aa_estimate.py`. **0/48 survive.**
+- **`recipe_nutrients.py` (2026-09-20, then 2026-09-23)** — 85→43
+  survivors on 09-20 (`best_aa_nutrients()`'s whole merge path had never
+  run; 21 new tests); 53→49 on 09-23 after the new `recipe_serving_grams()`
+  (`servings <= 0` vs `<= 1`, `or "g"` default) and two `continue`→`break`
+  skip-branch gaps. Remainder confirmed equivalent: `sqlite3.Row` key
+  lookup is case-insensitive, so `ing["FDC_ID"]`-style mutants can't
+  change behavior.
+- **`usda_nutrients.py` (2026-09-20 flagged, 2026-09-23 run)** — 1,520
+  mutants, 255 survived. New `aa_indicator()`/`has_confirmed_aa_data()`/
+  `has_macro_data()` had no survivors. One real gap fixed:
+  `has_amino_acid_data()`'s no-protein shortcut was never tested just
+  above 0 g (the false-AA-checkmark class again). The rest is the same
+  scattered population characterized on 2026-09-10.
+- **`complements.py` (2026-09-20 flagged, 2026-09-23 run)** — 1,548
+  mutants, 426 survived. New `_amount_note()` 12→3 (its cache lookup had
+  never actually been exercised); `anchor_overrides` only equivalent/
+  sub-gram survivors. `build_complement_display()`'s 359 remain the
+  scattered population from 2026-09-10.
+- **`setup.cfg` fix (2026-09-23)** — `also_copy` had gone stale (missing
+  `manual_update.py`) and only worked while a `source_paths` entry created
+  `numa_app/` inside `mutants/`. Now copies the whole `numa_app/` package,
+  so the per-file `__init__.py`/sibling juggling described in the older
+  notes below is no longer needed.
+- **E2E (#4) grew from 3 to 5 tests** — `test_gi_lookup_row_click_fills_the_gi_field`
+  and `test_meal_item_submits_save_the_scroll_offset` (the latter aimed at
+  the action-URL regex gating scroll restore; the "Leave site?"
+  suppression stays deliberately untested because Playwright
+  auto-dismisses `beforeunload`, so a test would pass for the wrong reason).
+- **Doc-drift guard** — two tests in `tests/test_packaging_spec.py` now
+  fail if README's Test Suite file table drifts from `tests/` again (it
+  had claimed 733 tests and was missing 13 files).
 
-Two parts, per the original plan:
-- **Source-fidelity fixtures (USDA, CNF, OFF only, given the correction
-  above) — DONE 2026-09-11**, including `tests/test_source_fixtures.py`,
-  and three real live parsing bugs it surfaced and fixed on the very
-  first real run (one of them — CNF nutrient resolution being completely
-  broken, 100% of lookups — the most severe finding of this whole effort).
-  See "Done (2026-09-11) — #3" above for the full writeup. Nothing further
-  planned here beyond the normal quarterly re-run cadence.
-- **Estimation-path coverage (CoFID, CIQUAL, most OFF)** — this part is
-  actually already covered by the `/copy-aa` route tests added above, since
-  those are exactly the sources with no native AA data. Nothing further
-  needed here unless new gaps turn up.
+## Where the live material went (2026-09-28)
 
-### 2. Lower priority, unchanged from the original plan
-
-- **#4 — narrow Playwright E2E, fully done 2026-09-10, CI wiring also done
-  2026-09-10** — all three original candidate routes covered: `/food/search`,
-  `/food/analyze-portion`, and `/meal/{meal_id}/search-api-results`.
-  Deliberately not wired into `tests.yml`'s per-push job (would add real
-  minutes to every push and a different flakiness profile to a currently
-  100%-reliable fast check) — instead a new, separate
-  `.github/workflows/e2e-tests.yml` runs `pytest -m e2e` on a weekly
-  schedule (Thursdays 06:00 UTC, aligned with the manual weekly sweep, though
-  independent of it) plus on-demand via `workflow_dispatch` ("Run workflow"
-  in the Actions tab). **#4 is now fully closed, nothing further planned.**
-- **#5 — mutation testing.** Pilot (`diaas.py`), rotation group 1 (core
-  nutrient math), and a six-round deep-dive into group 1's biggest
-  finding all done 2026-09-10 — see above for the full writeup. Real gaps
-  found and fixed: `pooled_tid()`, `atomic_recipe_ingredients()`,
-  `compute_rda()`'s age boundaries, `rename_profile()`/`delete_profile()`/
-  `get_profile_file()`, `_score_one_complement()`'s `predicted_diaas`
-  formula and `denom==0` boundary, `suggest_complements()`'s primary-gap
-  sort order, `_grad_steps()`'s inverted fallback condition, `exact_dcp()`'s
-  inverted return, `load_cache_candidates()`'s `break`/`continue` bug and
-  `"diaas"` field, `aa_effects()`'s `"label"`/`"met"`/`"before"` fields,
-  `two_step_combo()`'s step1, step2, `exclude_names` handling, AND
-  `aa_effects_limit` passthrough, `_dcp_at_frac()`'s weighted-pool formula,
-  `has_estimate_or_generic`'s neutered `"estimated"` check, the
-  `"gap_effect"` AND `"grams"`/`"diaas_sort=grams"` sort modes' silently
-  broken sort keys (three separate instances of the same stable-sort-
-  masking bug pattern), and the pairs tier's `total_dig_complete`
-  multiply/divide bug. Cadence agreed and wired into
-  README-numa-documentation.md's Maintenance section (weekly churn-check
-  block + rotation log). The earlier "mutmut aggregate-count anomaly" is
-  now understood well enough to act on (see above) — not fully root-caused,
-  but resolved practically: sample and verify by mutant ID, don't trust
-  the aggregate total from a single run. **Two techniques discovered,
-  both dramatically more efficient than one-test-per-mutant sampling:**
-  (1, round 4) a comprehensive "every field of one function's output,
-  hand-computed" test — first use dropped `build_complement_display` from
-  675 to 428 in one step; reused against `two_step_combo`'s step1/step2/
-  `_dcp_at_frac` in round 5, its single biggest-drop round (93→64). (2,
-  round 6) systematically providing a real `ingredients` list to close the
-  previously-untested per-ingredient `exact_dcp()` recompute path — every
-  test through round 5 used `ingredients=None`; 4 new tests (one per call
-  site: `_fmt`, `_grad_steps`, `two_step_combo` step1, `_fmt_pair`) each
-  cross-checked against an independent direct `exact_dcp()` call,
-  confirming correct wiring (no new bugs found, but a real dimension
-  closed rather than left unknown). `two_step_combo`'s step2 `b_dcp` with
-  real ingredients remains unexplored — extracting a curated-table
-  winner's real `comp_nutrients` for an independent cross-check proved
-  more involved than the other three call sites. **Still open, in
-  priority order:**
-  1. `build_complement_display()` (341 survivors) and `two_step_combo()`
-     (51) remain the overwhelming majority of `complements.py`'s
-     survivors — sampled across seven rounds now (down from the original
-     ~948, a 59% reduction), still not systematically worked through start
-     to finish, and diminishing returns are visibly setting in — though
-     real bugs are still turning up most rounds, so not exhausted. Round
-     7 closed both concrete next steps named after round 6: (a)
-     `two_step_combo`'s step2 `b_dcp` with real ingredients; (b) the
-     comprehensive-field-test technique applied to `_total_dig()`'s scale
-     branch and the `new_complete` top-of-tier promotion invariant. The
-     sort-key lambdas' exact tie-break values are the main remaining
-     candidate for that technique.
-  2. `suggest_complements()` closed heavily across rounds 3-4 above:
-     394→209→117 (70% total reduction), headlined by two genuine
-     concentrations found by actually sampling rather than guessing — the
-     entire zero-coverage `diaas_improvers` tier (round 3) and
-     `_build_pairs()`'s candidate-pool/leg-resolution logic (round 4,
-     found via 48%→38%→27% concentration sampling across three cycles).
-     Real bugs fixed along the way: `diet_pref`/`exclude_names` filtering,
-     two `continue`→`break` logic bugs (one in the pairs cascade, one in
-     `general_candidates` construction that could've silently hidden most
-     of the "general" suggestions tier), several dict-key-identity checks,
-     and a `+=`→`-=` paired-AA bug in the pooled-DIAAS formula. Its
-     remaining 117 are now confirmed (by re-sampling) to be genuine
-     scattered/low-value noise — no further concentration detected.
-     `_score_one_complement()` closed further in round 2
-     (57→39, 10 more real bugs fixed); its remaining 39 are dead-default
-     `.get()` noise plus two known-unresolved gaps (the
-     `base_digestibility` kwarg silently not reaching the internal
-     `protein_completeness()` call, and the `target_still_gapped = None`
-     mutant needing a fragile rounding-boundary construction — see the
-     `NOTE:` comment in `tests/test_usda.py`).
-     `get_density_g_per_ml()` closed 53→13 (75% reduction — the best
-     per-test yield of any function this session), the entire USDA-portion
-     parsing fallback having previously been almost completely untested.
-     Its remaining 13 are equivalent-mutant/dead-default classes, not
-     worth chasing further. **This whole `usda_nutrients.py`/`complements.py`
-     thread is now at a reasonable stopping point** — not because it's
-     "finished" (it never fully is; see the quarterly rotation cadence
-     below) but because two independent sampling passes confirmed no
-     further concentrated blind spot remains undetected.
-  3. Rotation group 2 (data-source parsing: `usda_api.py`,
-     `openfoodfacts.py`, `cnf_api.py`, the CoFID/AFCD/CIQUAL lookups,
-     `food_import.py`, `csv_import.py`/`csv_export.py`, `recipe_csv.py`)
-     — not yet run at all.
-  4. Rotation groups 3-4 (web-layer glue, everything else) — normal
-     quarterly pace, no pre-release urgency.
-
-The original "#5 queued behind #1" sequencing no longer holds — #5's pilot
-ran ahead of #1 on 2026-09-10, once it became clear #5 had no dependency on
-#1 and #1 was blocked on your key/network anyway. Both are now independent,
-parallel open items: #1 waiting on you, #5 waiting on the next rotation
-chunk (either can be picked up first). (#2 and #4 are both fully done,
-above.)
-
-~~Run the real, full suite once~~ — done, repeatedly: `pytest -q` has been
-run clean, locally, in every session since 2026-08-28, and `tests.yml` has
-been running it on every push/PR the whole time. No longer worth listing as
-a distinct step.
-
-## Handoff notes for the next mutation-testing round (target: 2026-12-05)
-
-Written 2026-09-10 at the end of a very long single-session deep-dive, for
-whoever (or whichever Claude session) picks this back up in ~3 months. The
-session that wrote this closed rotation group 1 (core nutrient math) far
-more deeply than a normal quarterly pass — don't expect future rounds to
-run this long; this was unusually thorough because the user kept saying
-"keep going" and it kept finding real things. Next time, a normal-scope
-quarterly pass is fine.
-
-**What's done, what's not:**
-- Rotation group 1 (`diaas.py`, `usda_nutrients.py`, `profile.py`,
-  `numa_app/services/complements.py`, `aa_estimate.py`,
-  `recipe_nutrients.py`, `glycemic_load.py`, `rda_status.py`) — deeply
-  worked. See README-numa-documentation.md's rotation-log table for a
-  one-line summary per module, and the many "Done (2026-09-10, continued)"
-  sections above for the full detail. `glycemic_load.py` and
-  `rda_status.py` were only screened (zero-coverage + safety-critical
-  triage), not fully characterized — if group 1 comes up for its next
-  quarterly check, those two are the least-explored and worth a proper
-  look before re-treading the heavily-worked functions above them.
-- **Rotation group 2 (data-source parsing) has never been run at all** —
-  `usda_api.py`, `openfoodfacts.py`, `cnf_api.py`, the CoFID/AFCD/CIQUAL
-  lookups, `food_import.py`, `csv_import.py`/`csv_export.py`,
-  `recipe_csv.py`. This is the natural next target when this cadence comes
-  up — either because it's genuinely due (calendar floor) or because the
-  weekly churn check flags real changes there. Start here rather than
-  re-visiting group 1 unless the weekly churn check specifically flags a
-  group-1 module.
-- Rotation groups 3-4 (web-layer glue, everything else) — untouched,
-  normal quarterly pace, no urgency.
-
-**Practical lessons, so the next round doesn't re-learn them the hard
-way:**
-- **Scope `setup.cfg`'s `[mutmut]` section to ONE source file at a time**,
-  not a whole rotation group at once. Mutating multiple files in the same
-  run inflates apparent survivor counts for any function that calls into
-  another mutated file (confirmed twice this session — `complements.py`'s
-  true counts were 4-6x lower once isolated from `usda_nutrients.py`).
-  `also_copy` needs the *unmutated* real versions of anything the target
-  file (or its test selection's `conftest.py`) imports — for anything
-  under `numa_app/services/`, that means both `__init__.py` files at
-  minimum, plus whatever sibling modules it actually imports. A "no
-  tests" result on 5 of 7 modules in one run turned out to be exactly
-  this bug, not a real finding — always sanity-check a too-good/too-bad
-  "no tests" result against whether the module even imports cleanly
-  inside `mutants/` before reporting it.
-- **Memory and `/tmp` hygiene, every time, not just once:** this machine
-  runs tight under normal desktop load. Always `--max-children 2`. Check
-  `free -h` before starting and `df -h /tmp` periodically during a long
-  session — pytest subprocesses spawned by `mutmut` each get their own
-  `/tmp/pytest-N` scratch dir that never gets cleaned up across siblings,
-  and `/tmp` is a RAM-backed tmpfs, so it silently eats memory *and* can
-  fill disk outright (`sqlite3.OperationalError: database or disk is
-  full` happened once this session). Fix: `rm -rf /tmp/pytest-of-tomc`
-  before/during any long run — always safe, those are ended-session
-  scratch dirs. A `mutmut run` on a real-sized file (1000-1500 mutants)
-  takes several minutes — always run it with `run_in_background`, never
-  foreground.
-- **`mutmut`'s results database lives inside `mutants/`** — deleting that
-  directory (the standard cleanup step after each run) also deletes the
-  ability to `mutmut show <id>` or re-query `mutmut results` for anything
-  from that run. If you want to sample survivor diffs, do it *before*
-  cleaning up, or budget time to `mutmut run` again first.
-- **The sampling-for-concentration technique** (new this session, proved
-  itself twice — see round 4/5 above for `_build_pairs`): don't assume a
-  large survivor count is "just scattered noise." Sample a spread of
-  ~20 survivor IDs (evenly across the full ID range, not just the first
-  20), read each `mutmut show <id>` diff, and check whether they cluster
-  in one code region. If a meaningful fraction (40%+) cluster together,
-  that's very likely a real, previously-unexercised chunk of the function
-  (a whole closure, a whole code path) — worth a dedicated pass, not just
-  one-off fixes. After fixing, re-sample rather than assuming it's done;
-  this session needed three rounds (48%→38%→27%) before the concentration
-  was confirmed resolved to baseline scatter. Don't stop after one
-  fix-and-hope pass on a large survivor count without at least one
-  reconnaissance sample first.
-- **Two other techniques worth reusing**, both discovered this session and
-  dramatically more efficient than one-test-per-mutant sampling:
-  1. **Comprehensive whole-dict field tests** — one test that asserts on
-     *every* field of a function's output at once, from one fully
-     hand-computed input, kills dozens of scattered dict-key-literal and
-     default-value mutations in a single pass (first use dropped one
-     function's survivor count by 40% in one step).
-  2. **Defeat "tested only at the default" masking** — when a function
-     takes a parameter like `digestibility=1.0` or `ingredients=None` and
-     every existing test either omits it or passes the default, any bug
-     in the code path that only matters at a *non-default* value is
-     invisible. This pattern recurred at least four separate times this
-     session (digestibility divide/multiply bugs, an `ingredients`-list
-     recompute path, `cand_diaas=None` fallback defaults) — when a
-     function has an optional parameter with a "usually 1.0/None/all"
-     default, deliberately write at least one test that supplies a real,
-     non-default value and checks an exact dependent result.
-- **Independently reimplementing a documented formula** is the right
-  technique for testing a closure with no direct entry point (like
-  `_diaas_improver_score()`, only reachable through
-  `suggest_complements()`'s output) — read the function's own docstring
-  formula, reimplement it standalone in the test using the same real
-  constants/lookups the function itself uses, and cross-check every
-  output field against it. Caught the single biggest finding of the
-  whole session this way (an entire ~95-line closure with zero coverage).
-- **A category of mutant isn't worth chasing**: dead-default `.get(key,
-  X)` mutations where the key is always present in real data (common
-  when a dict is built by the app itself, not user input), and string-
-  literal mutations on lookup keywords that happen to still match as a
-  substring after mutation (`"tablespoon"` still matches inside
-  `"XXtablespoonXX"`). Both showed up repeatedly this session; don't
-  spend time constructing sparse-dict tests to chase them.
-
-## Quick-start for next session
-
-1. Re-read this file (the "Done (2026-09-10)" section above, specifically —
-   #4 is now fully closed, including CI wiring; #2 was already fully closed
-   as of 2026-09-09).
-2. Confirm CI is green on the latest push (GitHub Actions tab) — both
-   `tests.yml` (every push) and, once it's had a chance to run on its
-   Thursday schedule or been triggered manually, `e2e-tests.yml`.
-3. **Done 2026-09-11** — item #3's fixture-recording step (needed your real
-   USDA API key + live network) ran, and `tests/test_source_fixtures.py`
-   is written and passing. See "Done (2026-09-11) — #3" above — this also
-   found and fixed three real live parsing bugs (USDA Branded-record
-   nutrients, CNF nutrient resolution being completely broken, an OFF
-   key-name typo), not just closed the checklist item.
-4. #3 and #4 both have nothing left. #5 remains open, not urgent — see the
-   "Handoff notes for the next mutation-testing round" section above
-   (target ~2026-12-05; next real step there is **rotation group 2**,
-   data-source parsing, never run). No blocking open item remains before
-   moving to the Windows port, which is where this session is headed next.
-5. On memory: this machine runs tight on RAM under normal desktop load
-   (Firefox/Obsidian/VSCodium). A `mutmut run` across a rotation group hit
-   OOM twice before succeeding with `--max-children 2` after a reboot —
-   check `free -h` first, use `--max-children 2`, and expect to need
-   `run_in_background` (a multi-thousand-mutant run exceeds a normal
-   command timeout). Also check `df -h /tmp` and `rm -rf /tmp/pytest-of-tomc`
-   — see the handoff section above for why.
-6. `[mutmut]` in `setup.cfg` currently points at `usda_nutrients.py` alone
-   (this session's last-used scope) — edit it to point at whichever
-   module(s) run next. **Scope to one source file at a time**, not a whole
-   rotation group at once (cross-file mutation inflates apparent survivor
-   counts — confirmed twice this session). If touching anything under
-   `numa_app/services/`, make sure `also_copy` includes both `__init__.py`
-   files plus any sibling module it imports — see the "false-alarm
-   scoping bug" note above for exactly what tripped this up last time.
+The "Not done — pick up here," "Handoff notes for the next
+mutation-testing round," and "Quick-start for next session" sections that
+used to end this file were moved on 2026-09-28 into
+README-numa-documentation.md → Maintenance → "Quarterly mutation-testing
+rotation, plus a weekly churn check": the four rotation groups, which one
+is next, the practical notes for running a round, and the one open item
+outside the rotation (scenario/journey tests, tier #1, never started).
+Their full pre-move text is in git history (`git log -p -- TESTING-ROADMAP.md`).

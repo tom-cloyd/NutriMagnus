@@ -60,6 +60,33 @@
   {{ _rli.input(limit) }}
 </form>
 
+{# ── Name-only placeholder — no nutrient data until linked ── #}
+{% if not link_id %}
+<details class="mb-3" style="max-width:36rem">
+  {# A link inside <summary> follows the link without toggling the box. #}
+  <summary class="muted">Can't find it? Save just the name for now
+    <small class="ms-2">{{ manual_link("pantry-name-only", "Why do this? Learn more...") }}</small></summary>
+  <div class="mt-2">
+    <p class="muted mb-2" style="font-size:0.85rem">Saves only the name, with no nutrient data,
+      so it can't be analyzed or compared until you use its
+      <strong>Link a food</strong> button in the pantry list to attach a real match.</p>
+    <form method="post" action="/pantry/add">
+      <div class="mb-2">
+        <label for="food_name" class="form-label">Food name <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="food_name" name="food_name"
+               placeholder="e.g. rolled oats" required>
+      </div>
+      <div class="mb-2">
+        <label for="notes" class="form-label">Notes <span class="muted">(optional)</span></label>
+        <textarea class="form-control" id="notes" name="notes" rows="2"
+                  placeholder="e.g. brand, variety, storage location"></textarea>
+      </div>
+      <button type="submit" class="btn btn-outline-secondary">Save name only to pantry</button>
+    </form>
+  </div>
+</details>
+{% endif %}
+
 {% if search_error %}
 <p class="numa-error">{{ search_error }}</p>
 {% endif %}
@@ -138,27 +165,6 @@
   </tbody>
 </table>
 {% endif %}
-
-{# ── Quick add without search — no USDA amino acid data ── #}
-<div class="card mb-4" style="max-width:36rem">
-  <div class="card-body">
-    <h5 class="card-title">Quick add by name only <span class="muted">(no USDA amino acid data)</span></h5>
-    <p class="muted mb-2" style="font-size:0.85rem"><span class="text-danger">*</span> required field</p>
-    <form method="post" action="/pantry/add">
-      <div class="mb-2">
-        <label for="food_name" class="form-label">Food name <span class="text-danger">*</span></label>
-        <input type="text" class="form-control" id="food_name" name="food_name"
-               placeholder="e.g. rolled oats" required>
-      </div>
-      <div class="mb-2">
-        <label for="notes" class="form-label">Notes <span class="muted">(optional)</span></label>
-        <textarea class="form-control" id="notes" name="notes" rows="2"
-                  placeholder="e.g. brand, variety, storage location"></textarea>
-      </div>
-      <button type="submit" class="btn btn-outline-secondary">Add without USDA data</button>
-    </form>
-  </div>
-</div>
 
 {# ── Pantry list ── #}
 {% if items %}

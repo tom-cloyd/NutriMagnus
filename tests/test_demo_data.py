@@ -3,6 +3,7 @@ test_demo_data.py — numa_app/services/demo_data.py: load/clear starter
 foods/pantry/recipes, fresh-install auto-seeding, idempotency, and that
 real data is never touched.
 """
+import json
 import pathlib
 import sqlite3
 
@@ -381,3 +382,171 @@ def test_clear_keeps_a_starter_food_the_user_is_still_using(
     assert db_conn.execute("SELECT COUNT(*) FROM foods WHERE fdc_id=802").fetchone()[0] == 0
     # The meal is intact, not left pointing at a food that no longer exists.
     assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE fdc_id=801").fetchone()[0] == 1
+
+
+# ── Starter-set changes between versions ──────────────────────────────────
+
+def test_shipped_starter_pantry_is_empty() -> None:
+    """The pantry is personal — it always ships empty (owner's decision,
+    2026-09-29), whatever the curator's own pantry holds at export time."""
+    assert demo_data.DEMO_PANTRY == []
+
+
+def _starter_set(monkeypatch: pytest.MonkeyPatch, foods: list[dict], recipes: list[dict]) -> None:
+    monkeypatch.setattr(demo_data, "DEMO_FOODS", foods)
+    monkeypatch.setattr(demo_data, "DEMO_PANTRY", [])
+    monkeypatch.setattr(demo_data, "DEMO_RECIPES", recipes)
+
+
+def _food(fdc_id: int, name: str, protein: float = 9.0) -> dict:
+    return {"fdc_id": fdc_id, "name": name, "data_type": "SR Legacy",
+            "nutrients": {"calories": 100.0, "protein_g": protein, "carbs_g": 20.0, "fat_g": 1.0},
+            "portions": []}
+
+
+def _recipe(name: str, ingredients: list, servings: int = 1, description: str = "") -> dict:
+    return {"source_recipe_id": 1, "name": name, "description": description, "servings": servings,
+            "instructions": "", "ingredients": ingredients}
+
+
+def test_diff_manifests_reports_new_and_improved_only() -> None:
+    old = demo_data.starter_manifest([_food(1, "* A"), _food(2, "* B")], [_recipe("* R", [])])
+    new = demo_data.starter_manifest([_food(1, "* A"), _food(2, "* B", protein=10.0), _food(3, "* C")],
+                                     [_recipe("* R", [], servings=2), _recipe("* S", [])])
+    assert demo_data.diff_manifests(old, new) == {
+        "new_foods": ["3"], "improved_foods": ["2"],
+        "new_recipes": ["* S"], "improved_recipes": ["* R"],
+    }
+
+
+def test_source_recipe_id_alone_is_not_an_improvement() -> None:
+    a = _recipe("* R", [])
+    b = dict(a, source_recipe_id=99)
+    assert demo_data.starter_manifest([], [a]) == demo_data.starter_manifest([], [b])
+
+
+def test_first_run_records_silently(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    _starter_set(monkeypatch, [_food(1, "* A")], [])
+    changes = demo_data.pending_changes(db_conn)
+    assert changes["acknowledged"] is True
+    assert not any(changes[k] for k in demo_data._CHANGE_KEYS)
+
+
+def test_new_version_reports_new_and_improved_until_acted_on(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import db as _db
+
+    _starter_set(monkeypatch, [_food(1, "* A"), _food(2, "* B")], [])
+    demo_data.load_demo_data(db_conn)
+    demo_data.pending_changes(db_conn)  # the version the user had
+
+    # Next version: B improved, C added, and A deliberately deleted by the user
+    # earlier — A must not be reported as "new" just because it's missing.
+    _db.cache_food(db_conn, 999, "Mine", "User Drafted", None, None, None, {"protein_g": 1.0})
+    db_conn.execute("DELETE FROM foods WHERE fdc_id = 1")
+    _starter_set(monkeypatch, [_food(1, "* A"), _food(2, "* B", protein=12.0), _food(3, "* C")], [])
+
+    changes = demo_data.pending_changes(db_conn)
+    assert changes["acknowledged"] is False
+    assert [f["fdc_id"] for f in changes["new_foods"]] == [3]
+    assert [f["fdc_id"] for f in changes["improved_foods"]] == [2]
+    assert "adds 1 new starter food" in demo_data.describe_changes(changes)
+
+    demo_data.acknowledge_version_changes()
+    changes = demo_data.pending_changes(db_conn)
+    assert changes["acknowledged"] is True
+    assert [f["fdc_id"] for f in changes["improved_foods"]] == [2]  # still offered in Settings
+
+
+def test_skipped_version_changes_carry_forward(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    _starter_set(monkeypatch, [_food(1, "* A")], [])
+    demo_data.load_demo_data(db_conn)
+    demo_data.record_version_changes()
+    _starter_set(monkeypatch, [_food(1, "* A", protein=11.0)], [])
+    demo_data.record_version_changes()  # v2: A improved, never acted on
+    _starter_set(monkeypatch, [_food(1, "* A", protein=11.0), _food(4, "* D")], [])
+    changes = demo_data.pending_changes(db_conn)  # v3
+    assert [f["fdc_id"] for f in changes["improved_foods"]] == [1]
+    assert [f["fdc_id"] for f in changes["new_foods"]] == [4]
+
+
+def test_apply_improvement_updates_food_in_place(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    import db as _db
+
+    _starter_set(monkeypatch, [_food(1, "* A")], [_recipe("* R", [["* A", 100, "g", "food"]])])
+    demo_data.load_demo_data(db_conn)
+    demo_data.record_version_changes()
+    db_conn.execute("UPDATE foods SET archived = 1 WHERE fdc_id = 1")
+    rid = db_conn.execute("SELECT id FROM recipes WHERE name = '* R'").fetchone()["id"]
+
+    _starter_set(monkeypatch, [_food(1, "* A", protein=15.0)], [_recipe("* R", [["* A", 100, "g", "food"]])])
+    assert [f["fdc_id"] for f in demo_data.pending_changes(db_conn)["improved_foods"]] == [1]
+
+    assert demo_data.apply_improvements(db_conn, [1], []) == {"foods": 1, "recipes": 0}
+    row = _db.get_cached_food(db_conn, 1)
+    assert json.loads(row["nutrients_json"])["protein_g"] == 15.0
+    assert row["archived"] == 1  # an UPDATE, not a delete-and-reinsert
+    assert db_conn.execute("SELECT COUNT(*) FROM recipe_ingredients WHERE recipe_id = ?", (rid,)).fetchone()[0] == 1
+    assert demo_data.pending_changes(db_conn)["improved_foods"] == []
+
+
+def test_apply_improvement_rewrites_recipe_keeping_its_id(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _starter_set(monkeypatch, [_food(1, "* A")], [_recipe("* R", [["* A", 100, "g", "food"]])])
+    demo_data.load_demo_data(db_conn)
+    demo_data.record_version_changes()
+    rid = db_conn.execute("SELECT id FROM recipes WHERE name = '* R'").fetchone()["id"]
+
+    # The new version also needs a food the user doesn't have yet.
+    _starter_set(monkeypatch, [_food(1, "* A"), _food(2, "* B")],
+                 [_recipe("* R", [["* A", 50, "g", "food"], ["* B", 50, "g", "food"]], servings=2,
+                          description="better")])
+    assert demo_data.pending_changes(db_conn)["improved_recipes"] == ["* R"]
+
+    assert demo_data.apply_improvements(db_conn, [], ["* R"])["recipes"] == 1
+    row = db_conn.execute("SELECT id, servings, description FROM recipes WHERE name = '* R'").fetchone()
+    assert (row["id"], row["servings"], row["description"]) == (rid, 2, "better")
+    assert db_conn.execute("SELECT COUNT(*) FROM recipe_ingredients WHERE recipe_id = ?", (rid,)).fetchone()[0] == 2
+    assert db_conn.execute("SELECT COUNT(*) FROM foods WHERE fdc_id = 2").fetchone()[0] == 1
+
+
+def test_decline_improvements_stops_offering_them(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    _starter_set(monkeypatch, [_food(1, "* A")], [])
+    demo_data.load_demo_data(db_conn)
+    demo_data.record_version_changes()
+    _starter_set(monkeypatch, [_food(1, "* A", protein=15.0)], [])
+    assert demo_data.pending_changes(db_conn)["improved_foods"]
+    demo_data.decline_improvements()
+    assert demo_data.pending_changes(db_conn)["improved_foods"] == []
+
+
+def test_preview_changes_against_a_release_manifest(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _starter_set(monkeypatch, [_food(1, "* A")], [])
+    demo_data.load_demo_data(db_conn)
+    release = demo_data.starter_manifest([_food(1, "* A", protein=15.0), _food(2, "* B")], [])
+    preview = demo_data.preview_changes(db_conn, release)
+    assert [f["fdc_id"] for f in preview["new_foods"]] == [2]
+    assert [f["fdc_id"] for f in preview["improved_foods"]] == [1]
+    assert demo_data.preview_changes(db_conn, demo_data.starter_manifest()) is None
+    assert demo_data.preview_changes(db_conn, None) is None
+    assert demo_data.preview_changes(db_conn, {"foods": "garbage"}) is None
+
+
+def test_item_new_then_improved_is_offered_as_improved_once_added(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """New in v2 (user restores it without dismissing anything), improved in
+    v3: the improvement must be offered, not hidden as a still-"new" item."""
+    _starter_set(monkeypatch, [], [])
+    demo_data.record_version_changes()
+    _starter_set(monkeypatch, [_food(5, "* E")], [])
+    assert [f["fdc_id"] for f in demo_data.pending_changes(db_conn)["new_foods"]] == [5]
+    demo_data.restore_selected(db_conn, [5], [], [])
+    _starter_set(monkeypatch, [_food(5, "* E", protein=20.0)], [])
+    changes = demo_data.pending_changes(db_conn)
+    assert changes["new_foods"] == []
+    assert [f["fdc_id"] for f in changes["improved_foods"]] == [5]

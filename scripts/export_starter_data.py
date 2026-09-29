@@ -4,8 +4,8 @@ export_starter_data.py — regenerate numa_app/services/starter_data.json from
 whatever foods/pantry/recipes in the real database are marked as starter
 content by a leading "*" in their name.
 
-This is how starter content is curated: rename or create a food/pantry entry/
-recipe in the app itself with a name starting with "*", then run this script
+This is how starter content is curated: rename or create a food or recipe
+in the app itself with a name starting with "*", then run this script
 before cutting a release. numa_app/services/demo_data.py reads the resulting
 JSON — it has no starter data of its own baked in. The leading "*" doesn't
 need a following space to count as starred ("*Foo" and "* Foo" both match) —
@@ -91,11 +91,11 @@ def main() -> int:
         }
         starred_food_names = {f["name"] for f in foods_by_fdc_id.values()}
 
-        pantry_rows = _db.pantry_list(conn)
-        pantry = [
-            _canonical_name(row["food_name"]) for row in pantry_rows
-            if _is_starred(row["food_name"]) and _canonical_name(row["food_name"]) in starred_food_names
-        ]
+        # The pantry always ships empty. A pantry is the list of foods one
+        # person keeps at home, so the curator's own pantry is never a sensible
+        # starting point for anyone else; a starred food that happens to be in
+        # it is exported as a food only. (Owner's decision, 2026-09-29.)
+        pantry: list[str] = []
 
         # Insertion-ordered: a recipe is added only after every sub-recipe it
         # uses, which is exactly the order load_demo_data() needs.

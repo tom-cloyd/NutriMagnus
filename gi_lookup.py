@@ -16,9 +16,9 @@ Two tables can supply entries, and which one is in use depends on the install:
 * An **optional local** table (`gi_data_local.json`) built by the user from the
   2021 edition, which is published under a licence permitting text and data
   mining but forbidding redistribution — so NuMa ships the parser for it
-  (scripts/build_gi_data.py) and never the result. When present it supersedes
-  the bundled table, since the builder folds the 2008 rows 2021 does not cover
-  into its own output.
+  (numa_app/services/gi_table_build.py, run from Settings) and never the
+  result. When present it supersedes the bundled table, since the builder folds
+  the 2008 rows 2021 does not cover into its own output.
 
 Each result therefore reports which edition it came from and, for 2021 rows,
 the year the study was run — a 1998 value for a commercial product that has
@@ -68,6 +68,20 @@ def _local_paths() -> list[Path]:
     except Exception:
         pass            # data dir unavailable: the bundled table still works
     return paths
+
+
+def user_table_path() -> Path:
+    """Where the Settings page's Build button writes a 2021 table: the first
+    (highest-priority) of _local_paths(), i.e. the user's data directory."""
+    return _local_paths()[0]
+
+
+def reload() -> None:
+    """Drop the in-memory table so the next lookup re-reads whichever file is
+    now active. The table is otherwise loaded once per app run, so a build (or
+    a deletion) would not be seen until restart."""
+    global _data_cache
+    _data_cache = None
 
 
 def active_table_path() -> Path | None:

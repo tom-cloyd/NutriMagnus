@@ -79,7 +79,7 @@
 <body class="layout-{{ layout or 'full' }}">
 
 <div class="no-print">
-  <form method="get" action="{{ request.url.path }}" class="section-form">
+  <form method="get" action="{{ request.url.path }}" class="section-form" id="print-sections-form">
     {% for key, url_val in fixed_params.items() %}<input type="hidden" name="{{ key }}" value="{{ url_val }}">{% endfor %}
     <input type="hidden" name="sections_submitted" value="1">
     <input type="hidden" name="layout_submitted" value="1">
@@ -109,10 +109,15 @@
     </label>
     {% endif %}
     {% endfor %}
-    <button type="submit" class="btn-print" style="margin-top:0.5rem">Update selection</button>
   </form>
-  <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
-  <a class="btn-back" href="{{ back_url }}">{{ back_label }}</a>
+  {# The Update button lives outside the form (tied to it by form=) so it can
+     share one row with Print and Back — inside the block-level form it
+     always sat on a row of its own. #}
+  <div style="margin-top:0.5rem">
+    <button type="submit" form="print-sections-form" class="btn-print">Update selection</button>
+    <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+    <a class="btn-back" href="{{ back_url }}">{{ back_label }}</a>
+  </div>
 </div>
 
 <h1>{{ title }}</h1>

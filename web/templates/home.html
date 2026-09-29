@@ -6,6 +6,13 @@
   <small>NuMa is not medical advice and makes no claims about health or illness — see the
   <a href="/disclaimer">Disclaimer</a> before relying on anything it reports.</small>
 </p>
+{% if not profile_label %}
+<div class="alert alert-info mt-4">
+  <strong>NEW TO NUMA?</strong> A few settings need doing before NuMa's results mean much — your profile first of all.
+  {{ manual_link("first-setup", "Open the setup checklist in the User Manual") }}
+  <br><small class="muted">This message goes away once your profile is saved in <a href="/settings">Settings</a>.</small>
+</div>
+{% endif %}
 {% if db_issue_count %}
 <div class="alert alert-warning mt-4">
   <strong>UPDATE:</strong> the database check found <strong>{{ db_issue_count }}</strong>
@@ -18,6 +25,8 @@
 <div class="alert alert-success mt-4">
   <strong>UPDATED:</strong> NutriMagnus has been updated. Close this browser tab, then relaunch
   NutriMagnus (from your usual icon or shortcut) to start using the new version.
+  <br><strong>Then refresh every browser tab that has the User Manual open: click in the tab and press the F5 key.</strong>
+  An open manual tab does not update itself — until you refresh it, it keeps showing the old manual.
 </div>
 {% endif %}
 {% if update_error %}
@@ -34,7 +43,11 @@
   {% if version_note %}
   <br><small>NEW VERSION NOTE: {{ version_note }} — {{ manual_link(changelog_anchor, "see what changed") }}</small>
   {% endif %}
+  {% if starter_preview_text %}
+  <br><small><strong>Starter foods and recipes:</strong> this update {{ starter_preview_text }}. After updating, NuMa will list them for you to choose from — nothing is added or changed on its own.</small>
+  {% elif not update_available.starter_manifest %}
   <br><small class="muted">Updates sometimes add new starter foods or recipes — after updating, check <strong>Settings → 9. Starter Data → Restore individual starter items</strong> to pick up anything new.</small>
+  {% endif %}
   {% if self_update_available %}
   <form method="post" action="/update-now" class="mt-2 mb-0" id="update-now-form">
     <button type="submit" id="update-now-btn" class="btn btn-sm btn-primary">Update now</button>
@@ -56,6 +69,14 @@
       });
     })();
   </script>
+  {% elif windows_exe_dir and update_available.download_url %}
+  <div class="mt-2">
+    <a href="{{ update_available.download_url }}" class="btn btn-sm btn-primary">Download NutriMagnus {{ update_available.tag }}</a>
+    <a href="{{ update_available.url }}" target="_blank" rel="noopener" class="ms-2">what's new</a>
+  </div>
+  <div class="mt-2">On Windows you finish the update by hand, because Windows won't let a running program replace itself.
+    {{ manual_link("update-windows", "Open the update steps in the User Manual") }}</div>
+  <div class="mt-1"><small>For step 3 of those steps, your current copy of NuMa is in this folder: <code>{{ windows_exe_dir }}</code></small></div>
   {% elif update_available.download_url %}
   <a href="{{ update_available.download_url }}" class="btn btn-sm btn-primary">Download NutriMagnus {{ update_available.tag }}</a>
   <a href="{{ update_available.url }}" target="_blank" rel="noopener" class="ms-2">what's new</a>
@@ -67,6 +88,19 @@
     <div class="form-check">
       <input class="form-check-input" type="checkbox" id="update-notice-dismiss-checkbox" onchange="if(this.checked) this.form.requestSubmit();">
       <label class="form-check-label" for="update-notice-dismiss-checkbox">Don't show this again for this version.</label>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% if starter_changes_text %}
+<div class="alert alert-info mt-4">
+  <strong>NEW STARTER ITEMS:</strong> This version of NuMa {{ starter_changes_text }}.
+  Nothing in your data has been changed — you choose which ones you want in
+  <a href="/settings#starter-data">Settings → 9. Starter Data</a>.
+  <form method="post" action="/starter-notice/ack" class="mt-2 mb-0">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="starter-notice-ack" onchange="if(this.checked) this.form.requestSubmit();">
+      <label class="form-check-label" for="starter-notice-ack">Got it. Don't remind me again.</label>
     </div>
   </form>
 </div>
