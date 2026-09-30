@@ -1693,6 +1693,31 @@ class TestComplementPairs:
         assert b["protein_added"] == pytest.approx(round(b_prot, 1))
         assert b["dig_added"] == pytest.approx(round(b_dig, 1))
 
+    def test_pair_first_leg_is_weighted_by_tid_not_diaas(self):
+        # 2026-09-30 mutation run: passing cand_digestibility=None for leg A
+        # (so it fell back to Oats' DIAAS 0.57 instead of its TID 0.82) survived,
+        # because every other pair test runs at base_digestibility=1.0, where the
+        # "pool must not drop below the base" rejection never fires. At 0.8 it
+        # does: weighted by DIAAS, Oats looks like it drags the pool below 0.8 and
+        # the Oats + Cheddar pair silently disappears.
+        from diaas import get_digestibility
+
+        dig = 0.8
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [], base_digestibility=dig)
+        pair_keys = [tuple(f["name"] for f in p["foods"]) for p in result["pairs"]]
+        assert ("Oats", "Cheese, cheddar") in pair_keys
+
+        # And the premise: with DIAAS as the weight, leg A would be rejected.
+        gaps = get_aa_gaps(_PAIR_CASCADE_NUTRIENTS, digestibility=dig)
+        oats = _usda.get_complement_nutrients("Oats")
+        oats_diaas = next(p["foods"][0]["diaas"] for p in result["pairs"]
+                          if p["foods"][0]["name"] == "Oats")
+        assert get_digestibility("Oats")[0] > oats_diaas
+        assert _score_one_complement(
+            _PAIR_CASCADE_NUTRIENTS, gaps, dig, oats, oats_diaas, gaps[0][0],
+            cand_digestibility=oats_diaas,
+        ) is None
+
     def test_pantry_sourced_pairs_candidate_fields_reflect_input(self):
         # _build_pairs()'s OWN candidate-pool resolution (all_candidates_ordered)
         # re-extracts fdc_id/recipe_id/serving_weight_g from the pantry

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-30:0615* / Reading time: 6 hours, 34 minutes
+*Updated 2026-09-30:0653* / Reading time: 6 hours, 18 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -201,7 +201,7 @@ For each food, go to **Foods → Annotate**, click **Edit**, and use **Look up a
 
 1. **The same food, prepared the same way.** Boiled versus baked, whole grain versus flour, and cooking time all change GI a lot.
 2. **The population that matches you** — normal or impaired glucose tolerance.
-3. **Rows not flagged as "non-ISO method"** — that is, studies that didn't follow the international measuring standard, ISO (International Organization for Standardization) 26642 ([more](#gi-method-quality)).
+3. **Rows not flagged as "non-ISO method"** — that is, studies that didn't follow the international measuring standard, [ISO](#gloss-iso) (International Organization for Standardization) 26642 ([more](#gi-method-quality)).
 4. **More recent studies, with more people tested and a smaller ± (standard error).**
 
 If nothing is a genuine match, leave the value blank. No value is better than a wrong one. See [How to read a lookup result](#gi-result-row) for what each part of a result means.
@@ -383,7 +383,7 @@ Above all of that, a few one-time or conditional banners can appear when relevan
 
 Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
 
-If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
+If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Browser to Launch, is `Alt+Shift+0`, and sections 11 and 12 have no shortcut). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
 
@@ -551,7 +551,7 @@ The **Recipes** page lists every recipe, with filter/sort options and a **Show a
 Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically, and cascades to every recipe that depends on it too — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 6. You don't need **Recompute DCP for all recipes** just because you changed one recipe; it's there for after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
 
 - **New recipe** — a short form (name, description, servings, total yield) that drops you straight into editing.
-- **Edit** — a details form plus an ingredients table, with a single **Save recipe details** button (on the "Recipe details" heading row) that saves every field in that form at once. The details form includes an **Introduction** field for background — where the recipe came from, why you like it, serving notes — anything that isn't the step-by-step instructions. Add an ingredient by searching — the results table is the same one described in [USDA Food Search Results](#food-search), including the Source filter and sort-order dropdowns and the "Fetch full details for selected" [AA](#gloss-aa)-confirmation button — then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
+- **Edit** — a details form plus an ingredients table, with a single **Save recipe details** button (on the "Recipe details" heading row) that saves every field in that form at once. The details form includes an **Introduction** field for background — where the recipe came from, why you like it, serving notes — anything that isn't the step-by-step instructions — and, below Instructions, a **Notes and documentation** field for anything you want on record: sources you consulted, substitutions you have tried, changes to make next time. Notes print at the very bottom of the recipe's nutritional analysis, go into the recipe [CSV](#gloss-csv) export, and are included in the [AI](#gloss-ai) translation. Add an ingredient by searching — the results table is the same one described in [USDA Food Search Results](#food-search), including the Source filter and sort-order dropdowns and the "Fetch full details for selected" [AA](#gloss-aa)-confirmation button — then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
 - **Detail** — mirrors a food's detail page (Introduction right after the title, Protein Summary, Ingredients, Instructions, Nutritional Analysis, [Complete Protein Analysis](#meal-diaas) with per-ingredient digestibility, Missing AA Profiles, Complement Suggestions — [ignorable and recalculable](#ignore-complement) here too, [Glycemic Load](#glycemic), Anti-nutrients), plus a servings field to re-analyze at a different batch size. **Print/save recipe** opens a stripped-down, print-friendly version in a new tab, with Introduction included as one of the "Include on this printout" checkboxes. Above those checkboxes, a **Print layout** choice (Full sheet or Half sheet — Half sheet shrinks the title and tightens line spacing throughout, including the Ingredients list) and a **Paper size** choice (US Letter or A4, which sets the exact page dimensions your browser's Print/Save-as-[PDF](#gloss-pdf) preview paginates against) are both remembered for next time. This printable page — and the same layout/paper choices — is also available from a food's, a meal's, and a day's own detail page, not just a recipe's.
 
 ### G. Using the Meals & Log menu
@@ -571,7 +571,7 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 Both Food Use pages have a **Substitute a food or recipe** panel for bulk-replacing one food or recipe with another across whatever's currently selected — see [Substituting a Food or Recipe](#fooduse-substitute).
 
 ### I. Using the Settings menu {: #settings}
-Settings is organized into collapsible sections: **[Your Profile](#profile-setup)** (age, sex, weight, height, activity level — this drives all your daily nutrient targets — plus a checkbox enabling [oxalate](#oxalate) lookup and the [glycemic index lookup default](#gi)), **Computed Daily Targets** (see [Part 6](#daily-nutrient-targets)), **Dietary Preferences** (affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and — see [Dietary Preferences](#diet) — every search and lookup in the program), **Keyboard Shortcuts**, **Browser to Launch** — see below, **[USDA](#gloss-usda) [API](#gloss-api) Key** (lets you use your own free personal code from USDA's website instead of the one NuMa shares with every user by default, so your searches are less likely to get temporarily blocked when many people are using NuMa at once — see [Food data](#food-data) for how to get one; also has the [search result depth](#search-ranking) setting), **Protein Digestibility Overrides** (custom digestibility numbers for specific foods), **Nutrient Targets** (optional per-nutrient [Revised Optimal (Recent Research)](#optimal) targets and [Max limits](#maxlimits), with a one-click button to load recommended defaults), **Starter Data** — see below, and **System Issues** — see [below](#system-issues-howto).
+Settings is organized into twelve numbered, collapsible sections: **1. [Your Profile](#profile-setup)** (age, sex, weight, height, activity level — this drives all your daily nutrient targets — plus a checkbox enabling [oxalate](#oxalate) lookup and the [glycemic index lookup default](#gi)), **2. Computed Daily Targets** (see [Part 6](#daily-nutrient-targets)), **3. Dietary Preferences** (affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and — see [Dietary Preferences](#diet) — every search and lookup in the program), **4. Keyboard Shortcuts**, **5. [USDA](#gloss-usda) [API](#gloss-api) Key** (lets you use your own free personal code from USDA's website instead of the one NuMa shares with every user by default, so your searches are less likely to get temporarily blocked when many people are using NuMa at once — see [Food data](#food-data) for how to get one; also has the [search result depth](#search-ranking) setting), **6. Protein Digestibility Overrides** (custom digestibility numbers for specific foods), **7. Nutrient Targets** (optional per-nutrient [Revised Optimal (Recent Research)](#optimal) targets and [Max limits](#maxlimits), with a one-click button to load recommended defaults), **8. [Meals & Log columns](#meal-columns)**, **9. [Starter Data](#starter-data)**, **10. Browser to Launch** — see below, **11. Glycemic Index Reference Table** (which [GI](#gloss-gi) table lookups search, and building the 2021 one — see [Upgrading to the 2021 tables](#gi-editions)), and **12. System Issues** — see [below](#system-issues-howto).
 
 #### Your Profile {: #profile-setup}
 Age, sex, weight, height, and activity level. This is the one form that everything else in NuMa's nutrient-target system depends on: your [RDA](#rda) values (Part 5, Section P), the age/sex-adjusted [Daily Nutrient Goals](#goals) (Section Q), and — where you've set them — your [Revised Optimal targets](#optimal) and [Maximum Nutrient Limits](#maxlimits) all key off the age, sex, weight, height, and activity level you enter here. Also on this form: a checkbox enabling [oxalate](#oxalate) lookup, off by default.
@@ -1071,7 +1071,7 @@ By default the lookup searches both populations at once. If you'd rather it defa
 
 #### Method quality, and why some rows are flagged {: #gi-method-quality}
 
-Subject group is one axis; how well the study was run is a separate one, and the table[^8] splits its rows on exactly that. There is an international standard for measuring [GI](#gloss-gi) — ISO (International Organization for Standardization) 26642:2010 — which sets out how much carbohydrate the test portion must contain, how many people must be tested, and when blood must be sampled.
+Subject group is one axis; how well the study was run is a separate one, and the table[^8] splits its rows on exactly that. There is an international standard for measuring [GI](#gloss-gi) — [ISO](#gloss-iso) (International Organization for Standardization) 26642:2010 — which sets out how much carbohydrate the test portion must contain, how many people must be tested, and when blood must be sampled.
 
 * Rows from studies that **met** that standard carry no flag. They are the bulk of what you'll see, and they are the ones to trust.
 
@@ -1097,7 +1097,7 @@ Reading it left to right:
 
 * **tested 1998** — the year the study was run, which is the most useful thing on the row after the value itself. A [GI](#gloss-gi) measured on a commercial product decades ago may no longer describe what's in the packet today, since recipes get reformulated. Hover over the date for the food's country of production and which published table the row came from. Rows carried over from the older 2008 edition of the tables say **2008 edition** instead, because that edition didn't record a year of test at all — see below.
 
-* **non-ISO method** — present only when the study deviated from the measurement standard, as described under [non-ISO method values](#gi-method-quality). Most rows don't have it.
+* **non-ISO method** — present only when the study deviated from the international [GI](#gloss-gi) measurement standard, [ISO](#gloss-iso) 26642, as described under [non-ISO method values](#gi-method-quality). Most rows don't have it.
 
 * **Impaired glucose tolerance (Type 2, n=8)** — the subject group and, where the table says, how many people were tested.
 
@@ -2775,6 +2775,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **IOM**{: #gloss-iom}  —  Institute of Medicine. The US body whose 2005 report set the Dietary Reference Intakes NuMa uses, including the 0.8 g/kg protein figure; renamed the National Academy of Medicine in 2015. See [The protein target assumes high-quality protein](#protein-rda-quality).
 
+**ISO**{: #gloss-iso}  —  International Organization for Standardization. The independent international body that publishes agreed standards for how things are measured, tested and made. In NuMa it matters for one standard, ISO 26642:2010, which sets out how a [GI](#gloss-gi) study must be run: how much carbohydrate the test portion contains, how many people are tested, and when blood is sampled. Rows in the GI reference tables from studies that deviated from it are flagged **non-ISO method** — a warning about the evidence, not the food. See [Method quality, and why some rows are flagged](#gi-method-quality).
+
 **IU**{: #gloss-iu}  —  International Units. A dosage measurement used for vitamins A, D, and E on supplement labels. On a [custom food profile](#custom-foods), you can type these vitamins' amounts directly in IU and NuMa converts them automatically.
 
 **Limiting amino acid**{: #gloss-limiting-amino-acid}  —  The essential amino acid in shortest supply relative to the FAO reference, which caps how much of a food's protein can be incorporated into tissue. The overall DIAAS score equals the ratio for the limiting amino acid. See [limiting amino acid](#gap).
@@ -3173,6 +3175,9 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- MANUAL: "ISO", the international standard behind the GI lookup's **non-ISO method** flag, is now in the Glossary and linked where it appears.
+- Mutation testing run against this week's two most-changed modules: real test gaps closed in glycemic load totals and in the two-food complement pairs.
+- MANUAL: Weekly sweep — the Settings overview now lists all twelve numbered sections, the new recipe Notes field is documented, and the updates log is trimmed to the last two weeks.
 - **Save recipe details** on the Edit Recipe page works again. Since September 24 it had silently saved nothing — if you edited a recipe's name, servings or instructions since then, check that the change is there.
 - A food's page no longer shows the starter-data curation button, which was only ever meant for the program's maintainer.
 - A food you've edited now shows where it came from and that you changed it ("SR Legacy · user-edited"), and fetching a food again no longer erases its GI and DIAAS values.
@@ -3217,6 +3222,77 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - The GI lookup on a food's Annotate page now explains its own results right beside the form — what "Impaired" means, what "ref Bread, 2h 76" is telling you, and what NuMa actually saves when you pick a row — with the full account in the manual.
 
 #### Sep 30 updates
+
+**MANUAL: "ISO" IS NOW IN THE GLOSSARY**
+
+The Glossary now explains [ISO](#gloss-iso), the international standards body whose GI measuring standard decides which rows of the GI reference tables carry a **non-ISO method** flag, and each section that mentions it links there.
+
+<!--
+```
+Scope: user-manual.md -- new #gloss-iso entry (between IOM and IU);
+first ISO mention linked in Part 1 Step 4, #gi-method-quality and
+#gi-result-row. Flagged by this week's sweep (item 9): 16 uses, spelled
+out inline per section but never defined; owner chose a Glossary entry
+over inline expansion alone.
+```
+-->
+
+**PROGRAM: NO VISIBLE CHANGE — MUTATION TESTING CLOSED REAL GAPS IN GLYCEMIC LOAD AND COMPLEMENT PAIRS**
+
+Nothing you can see changed. NuMa's [test suite](#extensive-code-testing) was checked by deliberately planting small errors in the two modules that changed most this week, and the places where the tests would not have noticed are now covered. The most consequential: had the glycemic load of a meal ever started counting only its last food, no test would have caught it.
+
+<!--
+```
+Scope: tests/test_glycemic_load.py (11 new tests), tests/test_usda.py
+(1 new test), README-numa-documentation.md mutation-testing log.
+Flagged by the weekly churn check; run at the owner's request.
+glycemic_load.py (first full run; 116 new lines since 2026-09-10):
+232 mutants, 57 -> 19 survivors, the 19 all equivalent (sqlite3.Row
+case-insensitive keys, default-scope strings that fall back to "serving").
+Gaps: no test summed two computable items (+= -> = survived on food and
+recipe paths); every blocker was last in its list (continue -> break on
+all four blocker branches); no-nutrient-data food, no-carbs food, deleted
+recipe, 0-servings recipe, blocker tuple contents, meal_line_items()'s
+recipe mapping, and rounding of day totals/averages all unexercised.
+usda_nutrients.py (27 lines since 2026-09-23, the TID-not-DIAAS change):
+1536 mutants, 257 -> 254 survivors. Only new-code survivors: the pairs
+tier's first leg losing cand_digestibility and falling back to DIAAS,
+masked because every pair test ran at base_digestibility=1.0. New
+test_pair_first_leg_is_weighted_by_tid_not_diaas runs at 0.8, where
+Oats + Cheddar is a real pair the DIAAS weighting would drop.
+```
+-->
+
+**MANUAL: WEEKLY SWEEP — SETTINGS OVERVIEW RENUMBERED, RECIPE NOTES DOCUMENTED, LOG TRIMMED**
+
+The [Settings overview](#settings) now lists all twelve sections by number, including Meals & Log columns, Browser to Launch, and the Glycemic Index Reference Table, and says which keyboard shortcut reaches section 10. The recipe **Notes and documentation** field is now described with the rest of the [Edit Recipe](#recipes-menu-web) page. This log now covers the last two weeks only.
+
+<!--
+```
+Scope: user-manual.md, README.md, CLAUDE.md, README-numa-documentation.md,
+tests/test_manual_search_js.py (new), .claude/settings.local.json.
+Longer-cadence checks: none due (monthly check next sweep, in October).
+Mutation churn check flagged glycemic_load.py and usda_nutrients.py; both
+run (entry above). Item 1: CLAUDE.md descriptions for glycemic_load.py
+(GL bands, day totals) and demo_data.py (starter identity, manifest)
+brought current; numa_gen_prompt.py / numa_import_claude.py marked as
+gitignored local tools. Item 2: clean. Item 3: Bootstrap 5.3.8 still
+latest. Item 4: Sept 9-15 entries and the v2026-09-14-2336 boundary
+pruned (1,093 lines). Item 5: Settings overview (Part 3 I) listed 10
+unnumbered sections, now all 12 numbered; Alt+Shift+0 for section 10
+added to the shortcut paragraph; recipe Notes and documentation field
+(shipped 2026-09-24) had no body mention. Item 6: README.md key features
+now cover whole-day GL, GL trend/plot, the buildable 2021 GI table, and
+starter foods/recipes with the setup checklist. Item 7: manual search's
+Match case / Whole words only had no test; new test_manual_search_js.py
+runs build_manual.JS's wordRegex() under Node (skipped without Node).
+Item 8: every manual #anchor and app /manual# deep link resolves;
+template hrefs all match routes; new external URLs return 200. Item 9:
+one bare AI in the new recipe-notes sentence, now glossary-linked
+(caught by test_manual_abbreviations). ISO (16 uses, expanded inline in
+each section, no glossary entry) flagged to the owner.
+```
+-->
 
 **PROGRAM: "SAVE RECIPE DETAILS" SAVES AGAIN**
 
@@ -5787,1099 +5863,6 @@ load: with no location.hash (a plain nav click) it scrolls to the saved
 section; an explicit hash (a deep "Learn more" link) always wins instead.
 localStorage rather than sessionStorage since target="_blank" opens a
 fresh tab with its own session storage each time.
-```
--->
-
-##### September 15 program updates
-
-**FOOD SEARCH NO LONGER SHOWS A FALSE "AMINO ACID DATA CONFIRMED" CHECKMARK FOR FOODS WITH NO NUTRIENT DATA AT ALL**
-
-A food whose cached record was missing every macro (calories, protein, carbs, fat) — not just amino acids — was showing a green checkmark in the AA column, because the underlying check treats "no protein" as "amino acid data isn't needed here," which is correct for genuinely protein-free foods but wrong for a food with no nutrient data at all. Such foods now show a distinct warning symbol instead, and their own page explains the problem and offers a one-click retry or a path to fill in the data by hand from a similar food. Separately, fetching a food's details from USDA now retries once more when the response comes back with some nutrients but no macros at all — a rarer USDA data gap than the empty-response case already handled, but the same fix works for it.
-
-<!--
-```
-Scope: usda_nutrients.py — new has_macro_data() and aa_indicator() (checks
-CORE_MACRO_KEYS presence before falling through to has_amino_acid_data()'s
-existing "no protein" branch); CORE_MACRO_KEYS moved to usda_api.py to avoid
-a circular import, re-exported via usda_nutrients. web/backend.py — all
-"aa" search-result fields and both inline _aa_status() helpers now call
-_usda.aa_indicator() instead of a raw has_amino_acid_data() ternary;
-_food_detail_context() adds a missing_macros flag surfaced in
-food_detail.html as a new alert with "Try refreshing from USDA again" and
-"Copy as a custom-food draft" actions. usda_api.py get_food_detail() —
-added a third retry branch (alongside the existing 404-fallback and
-empty-nutrients-fallback cases) for a non-empty nutrients dict missing
-every CORE_MACRO_KEYS entry, found via fdc_id 2758993 ("Bread, white,
-commercial"). Templates updated: _search_result_row.html,
-_add_food_row.html, _analyze_portion_result_row.html, recipe_edit.html,
-pantry.html.
-```
--->
-
-**THE EDIT CUSTOM PROFILE PAGE'S TWO SEARCH BOXES ARE EASIER TO USE**
-
-On [Edit Custom Profile](#drafted-foods), the "Copy a full nutrient profile" and "Estimate amino acids" search boxes previously packed the search field, the Search button, and the whole row of Source checkboxes onto a single line — cramped enough on a normal-width screen that the Search button could end up squeezed out of easy reach. The search box and button now sit on their own row above the Source checkboxes, with room to breathe.
-
-<!--
-```
-Scope: web/templates/food_custom_edit.html — both search forms (nutrient
-copy and AA estimate) restructured: the outer <form> no longer applies
-d-flex directly; the text input + Search button are now wrapped in their
-own "d-flex gap-2 mb-2 align-items-center" div, with the
-source_filter.select() row rendered below it instead of inline in the same
-flex row.
-```
--->
-
-**THE MANUAL'S BREADCRUMB BAR NO LONGER COVERS THE TOP OF THE SECTION YOU JUMP TO, AND IS EASIER TO READ**
-
-Clicking a table-of-contents entry (or following any in-manual link straight to a subsection) could land you with the first line or two of that section hidden underneath the sticky breadcrumb bar at the top of the page — worse for a deeply-nested subsection, whose longer trail needed more room than the bar was given credit for. The breadcrumb trail now wraps onto a second line instead of being force-fit onto one, its text is about 20% larger, and the line under it is twice as thick — and every heading now reserves exactly enough space above it for its own breadcrumb trail's actual height, so jumping to a section never leaves it partly hidden.
-
-<!--
-```
-Scope: scripts/build_manual.py — #breadcrumb-bar CSS: font-size 13px→16px,
-border-bottom 1px→2px, white-space nowrap/overflow-x auto removed (wraps
-normally now). Root cause of the overlap: scroll-margin-top on headings was
-being computed from whichever heading was already active (via a shared
---breadcrumb-h custom property synced after the fact), which is always one
-step behind for a fresh jump — by the time the "correct" height was known,
-the jump had already landed. Replaced with precomputeScrollMargins(),
-which renders each heading's own breadcrumb trail into the bar up front
-(headings can be at different nesting depths, so their trails wrap
-differently) and sets that heading's scroll-margin-top from the real
-measured height — independent of scroll position. Re-run debounced on
-resize (wrapping also depends on viewport width) and once more explicitly
-against location.hash on load, since a direct/bookmarked link to a deep
-anchor scrolls before this script runs at all.
-```
--->
-
-#### Release v2026-09-14-2336 boundary
-
-##### September 14 program updates
-
-**THE MANUAL NOW SHOWS A BREADCRUMB TRAIL AS YOU SCROLL**
-
-A sticky bar at the top of the reading area now shows where you are in the document — Part, then section, then subsection — updating as you scroll, and every level is a clickable link. This pairs with the sidebar's table of contents (which already highlights your current section) to make it much easier to keep your bearings in a long document.
-
-<!--
-```
-Scope: scripts/build_manual.py — new #breadcrumb-bar sticky nav element in
-HTML_TEMPLATE, driven by the existing TOC scroll-spy JS block: activate()
-now also calls updateBreadcrumb(id), which walks the flat #content
-h1-h4[id] heading list up to the active heading, keeping a stack of the
-innermost heading seen so far at each level (the ancestor-tracking a
-nested TOC needs, done here against the flat DOM list), and renders it as
-clickable crumbs separated by "›". The document's single h1 (page title)
-leads the trail naturally.
-```
--->
-
-**THE CLAUDE AI FETCH PROMPT NO LONGER INCLUDES THE STARTER-FOOD MARKER IN A FOOD'S NAME**
-
-A food marked as [starter content](#starter-data) has "\* " at the front of its name, purely a local curation flag. That prefix was leaking into the generated "Fetch missing data from Claude AI" prompt, needlessly cluttering the food name Claude sees. The prompt now strips it (a bare "\*" with no trailing space is caught too); matching your pasted response back to the right food was always done by FDC ID, not name, so this was cosmetic only and never risked a mismatched import.
-
-<!--
-```
-Scope: numa_app/services/claude_fetch.py — build_prompt() now strips a
-leading "* " (or bare "*") via new _strip_starter_marker() helper before
-formatting each food line. tests/test_claude_fetch.py: 2 new tests
-(test_strips_starter_food_marker, test_strips_starter_food_marker_missing_space).
-```
--->
-
-**NEW: A FOOD'S OWN PAGE CAN NOW COPY IT AS A CUSTOM-FOOD DRAFT, AND MARK IT AS STARTER CONTENT, IN ONE CLICK**
-
-A real food's own detail page previously had no way to start editing a copy of it — that button only existed on Food Search/Cache/Pantry rows and on already-drafted foods' own pages. It's now available everywhere. Separately, marking a food as [starter content](#starter-data) for a new release used to mean hand-renaming it, which also wrongly marked it as user-modified and silently blocked it from ever refreshing from USDA again — a new **Mark as starter food** button does a plain rename instead, leaving USDA refresh untouched.
-
-<!--
-```
-Scope: db.py — new rename_cached_food() (plain UPDATE of name only, no
-user_drafted touch — deliberately distinct from update_cached_food_profile(),
-which defaults user_drafted=True). web/backend.py — new POST
-/food/{fdc_id}/toggle-starter route using it. web/templates/food_detail.html
-— "Copy as custom-food draft" button (reusing the existing
-/food/custom-profiles/copy/{fdc_id} route) now shown for every food, not
-just already-drafted ones; new "Mark/Unmark as starter food" button
-alongside it. tests/test_web.py: 2 new tests, including one asserting
-user_drafted stays 0 across a toggle. user-manual.md (#food-detail area)
-and README-numa-documentation.md (route table, starter-data maintenance
-section) updated.
-```
--->
-
-##### September 13 program updates
-
-**THE "UPDATE AVAILABLE" BANNER NOW REMINDS YOU TO CHECK FOR NEW STARTER FOODS/RECIPES**
-
-Since a new release occasionally adds a new starter food or recipe to the small built-in set every fresh install starts with, the home page's UPDATE AVAILABLE banner now includes a reminder to check Settings → Starter Data after updating — that page only ever lists what you don't already have, so checking it costs nothing even when a given update didn't add anything new. Part 1.G of the manual also gained a plain-language walkthrough of this for anyone new to the idea.
-
-<!--
-```
-Scope: web/templates/home.html — one new reminder line inside the existing
-UPDATE AVAILABLE alert block, alongside the version-note/notification-
-frequency lines already there. user-manual.md — new Part 1.G item c, plus
-a mention in the home-page-tour section (#home-page-tour). tests/test_web.py:
-test_home_page_shows_update_available_banner extended to check for it.
-```
--->
-
-**FOOD CACHE: THE FETCH CHECKBOX COLUMN NOW HAS A LABEL, AND ITS BUTTONS SHOW WHEN THEY'RE ACTUALLY USEFUL**
-
-Food Cache had two checkbox columns per row but only one column header ("Compare") — the other, for selecting foods to send to Claude AI for missing data, had no label at all. It's now labeled "Fetch." Separately, the "Fetch missing data from Claude AI" button is only colored when at least one food in the current list is actually missing amino acid data, and "Compare nutrition of selected" is only colored once you've checked 2 or more foods — both previously looked equally clickable regardless of whether clicking would do anything.
-
-<!--
-```
-Scope: web/templates/food_cache.html — added a <th> for the fetch checkbox
-column; Fetch button class computed from `foods | rejectattr('has_aa') |
-list` (server-rendered, based on the current filtered list); Compare
-button gets a new updateCompareButtonColor() JS listener on each
-.compare-cb checkbox's change event, toggling btn-primary/btn-outline-
-secondary at a 2-checked threshold. tests/test_web.py: 2 new tests.
-Also documented for the first time in user-manual.md's Food Cache column
-guide (#cached) — the Fetch column had never been listed there at all.
-```
--->
-
-**NEW: YOU CAN NOW ACTUALLY CORRECT A WRONG AUTOMATIC OXALATE MATCH**
-
-A food page's "auto-matched — correct if wrong" note now goes somewhere real: a new search page over the Harvard oxalate reference table where you can pick the right entry, or say the food isn't in the table at all. This link has existed since oxalate tracking was first built but never went anywhere until now. [learn more...](#oxalate-link-correction)
-
-<!--
-```
-Scope: web/backend.py — new GET/POST /food/{fdc_id}/oxalate-link routes,
-built on the pre-existing (but previously uncalled) db.oxalate_link_save()/
-oxalate_link_get() and oxalate.search_similar()/get_by_id()/format_oxalate().
-New web/templates/oxalate_link.html: search box (defaults to the food's own
-name), radio list of candidates, and a "not in the table" option; POST
-saves via oxalate_link_save() and redirects back to the food page.
-web/templates/food_detail.html: the "correct if wrong" link restored to
-point at the new route. tests/test_web.py: 4 new tests (page renders with
-real search results, 404 for an unknown food, POST saves a confirmed
-match, POST saves a no-match decision) — the class of gap
-tests/test_link_integrity.py (added earlier today) exists to catch:
-a link that resolves to nothing is invisible to every other kind of test.
-```
--->
-
-**FIXED: THE DISCLAIMER LINK 404'D IN ANY PACKAGED INSTALL, AND A DEAD "CORRECT THIS OXALATE MATCH" LINK IS REMOVED**
-
-The **Disclaimer** link on the home page 404'd in every packaged install (the Windows build, and the Linux binary) — DISCLAIMER.md was never bundled into the executable, only read straight off disk in a from-source checkout, so nobody running the actual released program could ever open it. Found during manual testing of today's Windows build; now bundled and working. Separately, a food page's oxalate reference note has linked to a "correct if wrong" page for auto-matched entries since the feature was first built — that page never existed, so the link always 404'd. It was removed as a same-day stopgap, then given a real destination later the same day — see the entry above.
-
-<!--
-```
-Scope: nutrimagnus.spec (datas gains ('DISCLAIMER.md', '.')), web/templates/food_detail.html
-(dead <a href="/food/{fdc_id}/oxalate-link"> removed, plain-text note kept).
-New tests/test_packaging_spec.py (checks every _PROJECT_ROOT-relative file
-web/backend.py references is listed in nutrimagnus.spec's datas — the class
-of bug that let DISCLAIMER.md go unbundled) and tests/test_link_integrity.py
-(checks every href in web/templates/**/*.html against real registered
-routes/mounts and, for /manual#anchor links, real built-manual anchors --
-the class of bug that let the oxalate-link 404 survive since its original
-commit). README-numa-documentation.md's weekly-sweep item 8 rewritten to
-cover app-screen links, not just the manual's own internal links, which is
-how both of today's findings surfaced.
-```
--->
-
-**MAINTENANCE: WEEKLY SWEEP — WINDOWS DOWNLOAD LINK FIXED IN README, THREE TEST GAPS CLOSED, CHANGELOG PRUNED**
-
-Item 1 (CLAUDE.md drift) found real gaps: seven root-level modules (oxalate handling, cross-platform path resolution, and several one-off import/prompt-generation scripts) existed in the codebase but were never listed in CLAUDE.md's Package Layout — now added. Item 2 found one stray lowercase "numa" in manual prose, fixed. Item 3 (vendored Bootstrap) confirmed still current at 5.3.8. Item 6 (README.md) found the most consequential gap: the public README still said "(Windows version coming.)" in the Download section, even though a working Windows build now exists — fixed with a real download line. Item 5 (manual consolidation) added two real shipped features to the manual body that had only ever appeared in the changelog: the home page's release-version display, and repeated-food grouping on Top Contributors/Meal-Level Protein Analysis tables. Item 7 (test coverage) found and closed three real gaps from the last few days of shipped changes, all now covered by regression tests: the "(Digestible Complete Protein)" nutrient-table row, the %-of-target color legend, and the home page's release-version display — none had any test at all. Item 8 (stale links) found nothing broken — all three apparently-missing anchors turned out to be auto-slugged heading ids, and all ten external URLs cited in the manual returned 200 (one 403 on claude.ai is a bot-block, not rot). Item 4 pruned this log back to the last two weeks. The mutation-testing weekly churn check flagged `numa_app/services/rda_status.py` — its new "target" branch (added today) had no dedicated mutation-testing pass yet. Run at the user's request: 50 mutants, 1 real survivor found and fixed in `limit_warning()` (a `>0`/`>1` boundary only distinguishable at a limit of exactly 1, untested); 0/50 survive after the fix.
-
-<!--
-```
-Scope: CLAUDE.md (Package Layout: oxalate.py, oxalate_source_data.py,
-build_oxalate_db.py, platform_utils.py, import_foods.py,
-import_json_folder.py, import_gi_seed.py, numa_gen_prompt.py,
-numa_import_claude.py added), user-manual.md ("Starting numa" ->
-"Starting NuMa"; home-page-tour section documents release_version and the
-Windows/non-packaged download-button banner path; Top Contributors and
-Meal Protein Digestibility Analysis sections document same-food grouping;
-~230 lines of August 23-27 changelog entries pruned), README.md (Download
-section: Windows now listed instead of "coming"), tests/test_web.py (new
-test_nutrient_table_shows_dcp_row_and_color_legend and
-test_home_page_shows_release_version).
-```
--->
-
-**THE "NEW VERSION AVAILABLE" BANNER NOW OFFERS A DIRECT DOWNLOAD LINK**
-
-On Windows, the home-page banner that appears when a new NutriMagnus version is out now includes a "Download NutriMagnus" button that goes straight to the installer file, instead of only a link to a GitHub release page you'd have to find the download on yourself.
-
-<!--
-```
-Scope: numa_app/services/update_check.py — check_for_update() now returns a
-'download_url' key alongside 'tag'/'url': a direct
-github.com/.../releases/latest/download/<asset> link for platforms with a
-published build (win32 -> nutrimagnus.exe, linux -> nutrimagnus), or None
-for platforms without one (e.g. macOS), computed by a new
-_direct_download_url() helper keyed on sys.platform. web/templates/home.html
-— the non-self-update banner branch (self_update_available is False, which
-is every Windows install and any non-packaged dev checkout) now shows a
-"Download NutriMagnus {tag}" button linking to download_url when present,
-falling back to the old GitHub-release-page link only when it's None.
-tests/test_update_check.py updated for the new field plus a new
-test_direct_download_url_per_platform covering all three branches.
-```
--->
-
-**NUTRIENT-TABLE COLOR CODING IS EASIER TO TELL APART, AND CALORIES OVER TARGET IS NOW FLAGGED**
-
-Every nutrient table's color coding got a legibility pass: the column header is now a light blue instead of near-white, the table body and the color legend both have a light grey backdrop, and the four status colors (met/near/below minimum/over the limit) are bolder and use more distinct hues — "below minimum" moved from a near-black grey to a clear medium-dark blue, and "near" moved from a brownish amber toward true orange, so it no longer reads so close to "over the limit"'s red. Separately, Calories — and any Revised Optimal target you've configured — is a "target" you're meant to land close to, not just clear like a minimum; that type now actually flags going too far over 100%, showing amber then red the same way falling too far short already did, instead of treating any amount over 100% as equally "met."
-
-<!--
-```
-Scope: web/static/style.css — .nutrient-table thead th background changed
-to #d9e3f3; .nutrient-table tbody tr / tbody tr:nth-child(even) given
-#eef0f2/#e4e6ea backgrounds (previously white / #fafafa stripe only);
-.rda-met/.rda-near/.rda-low/.rda-over all set to font-weight:700 (was
-unweighted except rda-met/rda-over, which is what made green look
-"bigger" than amber/grey before this pass); .rda-low recolored
-#374151->#1e40af, .rda-near recolored #92400e->#c2410c. New .rda-legend
-class (added to _rda_legend.html's <p>) gives the legend the same grey
-backdrop as the table body so its dots read the same color as the table
-cells. numa_app/services/rda_status.py — rda_status() gains a real
-"target" branch: <70% low, 70-99% near, 100-130% met, 131-150% near,
->150% over (previously "target" fell through to the same >=100%-is-always-
-met logic as "minimum", so a calorie total at 200% of target still showed
-green). tests/test_rda_status.py: new TestTargetThresholds covering the
-new branch.
-```
--->
-
-##### September 12 program updates
-
-**NUTRITIONAL ANALYSIS TABLES NOW SHOW DIGESTIBLE COMPLETE PROTEIN RIGHT BELOW RAW PROTEIN**
-
-Every nutrient table that analyzes what you're actually eating — a food portion, a meal, a full day, a recipe, or the multi-day nutrient average — now shows a second, indented "(Digestible Complete Protein)" line right below the plain Protein line, whenever a digestibility/amino-acid-adjusted figure is available for that item. Raw protein is what a label reports; DCP is what your body can actually turn into tissue once digestibility and amino acid completeness are accounted for — the number this program exists to surface. If one or more of the foods contributing to that figure had no amino acid data on file, the DCP line gets an asterisk and a footnote naming them, since the true total is at least that much higher than shown.
-
-<!--
-```
-Scope: web/backend.py — _nutrient_sections() gains dcp_g/dcp_missing
-params; when dcp_g is given, a synthetic row (is_dcp_row=True) is appended
-right after the protein_g row in the Macronutrients group, labeled
-"(Digestible Complete Protein)" (+ " *" when dcp_missing is non-empty).
-All 8 call sites now pass diaas_display["dcp_g"]/["missing"] (or, for a
-single food, _protein_section()'s own dcp_g with no missing-list concept;
-for the multi-day trend page, the already-computed avg_dcp card figure,
-with no missing-list tracking across averaged days). New
-web/templates/_dcp_footnote.html macro renders the "* ... excluded ..."
-footnote from a dcp_missing_names context list threaded alongside
-nutrient_sections at each call site. Row gets a new .dcp-row CSS class
-(web/static/style.css, and print.html's own inline stylesheet) for a
-subtle italic treatment. Existing %/RDA/UL column macros already render
-"—" for a None value, so no template changes were needed there — only the
-row's <tr> class and the new footnote line.
-```
--->
-
-**NUTRIENT TABLES WITH COLOR-CODED %-OF-TARGET COLUMNS NOW SHOW A LEGEND**
-
-Any nutrient table whose "% of daily target" (or "Rev. Opt.") column uses color to show whether you're under, near, or over target now has a brief Legend line right below the table's title, explaining what each color means. This appears on a food's, meal's, recipe's, and day's Nutritional Analysis, and on the Nutrient Averages trend page — wherever those colors show up, so the colors are self-explanatory instead of relying on guesswork.
-
-<!--
-```
-Scope: new web/templates/_rda_legend.html macro (legend()), imported and
-called (guarded by has_profile) right after the existing "no profile"
-notice and before the per-nutrient-group table loop, in meal.html,
-meal_day.html, food_detail.html, recipe_detail.html, summary.html,
-trend.html, and food_analyze_recipe_portion.html. print.html was left
-alone — its printable nutrient table renders plain numbers with no
-color coding at all. Legend text/colors match the existing
-rda-met/rda-near/rda-low/rda-over CSS classes (web/static/style.css)
-already used for these cells.
-```
--->
-
-**THE HOME PAGE INTRODUCTION IS SHORTER**
-
-The home page used to show the User Manual's entire Preface. It now shows just the first three paragraphs, followed by a note that the introduction continues at the beginning of the User Manual, reachable from the main menu.
-
-<!--
-```
-Scope: web/backend.py — _extract_manual_preface() now returns only lines
-7-11 of user-manual.md (the first 3 Preface paragraphs) instead of
-everything between the "*Last full audit...*" line and the next "---"
-rule. _HOME_CLOSING_PARAGRAPH text updated to match. web/home_body.cache
-deleted so it regenerates from the new logic.
-```
--->
-
-**THE HOME PAGE NOW SHOWS A RELEASE VERSION ALONGSIDE THE BUILD STAMP**
-
-The version line at the bottom of the home page now reads something like "NutriMagnus 0.1.0-rc.1 (build 2026-09-12:0206)" instead of just the build timestamp on its own — a stable release number for talking about "which version" in plain terms, alongside the precise build stamp for troubleshooting.
-
-<!--
-```
-Scope: version.py — new RELEASE_VERSION constant (hand-maintained SemVer
-string, independent of VERSION). web/backend.py passes it into home.html's
-template context as release_version; web/templates/home.html's footer line
-now shows both. Purely a display addition — release tagging and the
-update-available check in numa_app/services/update_check.py still key off
-VERSION alone, unaffected by this.
-```
--->
-
-##### September 11 program updates
-
-**REPEATED FOODS NO LONGER SPLIT INTO DUPLICATE ROWS ON A MEAL'S ANALYSIS TABLES**
-
-If a meal logged the same food more than once — say, an orange eaten twice, or a food that shows up both on its own and inside a recipe in that meal — the meal's Top Contributors and Meal-Level Protein Analysis tables used to list it as two separate rows instead of one combined one. Both tables now group repeated foods together, summing their amounts, on both the per-meal page and the day-level Analysis rollup.
-
-<!--
-```
-Scope: web/backend.py — new _group_ingredients_by_food() helper groups the
-ingredient dicts consumed by rank_contributors()/rank_contributors_by_dcp()
-(numa_app/services/top_contributors.py) and diaas.meal_level_diaas(), keyed
-by fdc_id (falling back to lowercased food_name), summing "grams" per group.
-Applied at the end of _meal_expand_for_diaas() (used by both _meal_totals
-and _day_analysis) and again after _day_analysis's cross-meal
-all_ingredients.extend() loop, so same-food duplicates are merged both
-within one meal and across every meal on a day.
-```
--->
-
-**NUMA NOW OPENS IN YOUR ACTUAL BROWSER, NOT ALWAYS FIREFOX**
-
-Starting NuMa used to always try to open a Firefox tab (or launch Firefox if it wasn't running), regardless of which browser you actually use day to day. It now opens in whichever browser you already have running — Firefox, Chrome, Chromium, Brave, Vivaldi, Opera, Edge, or GNOME Web. If more than one is running at once, a small dialog pops up asking which one to use. If you'd rather skip that dialog and always use one specific browser, a new "Browser to Launch" option in [Settings](#settings) (with a short explanation right there) lets you pin one.
-
-<!--
-```
-Scope: web/launcher.py — _detect_running_browsers() pgrep-checks a fixed
-list of browser process names and collapses results to one entry per actual
-browser (some, like Brave, run child/renderer processes under a different
-name than their main or launchable binary). With none or one browser
-running, that's used directly; with more than one, _prompt_browser_choice()
-shows a native radiolist dialog (zenity, falling back to kdialog) and waits
-up to 30s for a pick, falling back to the first-detected browser silently
-if no dialog tool is installed, the user cancels, or it times out. Either
-way the chosen binary is launched via subprocess.Popen() rather than going
-through webbrowser.open(), which was resolving to the OS-registered default
-browser via xdg-open regardless of what the user actually had running;
-still falls back to webbrowser.open() if nothing is detected, on non-Linux
-platforms, or if Popen fails. New _preferred_browser_pref() reads
-prefs.json directly (not via backend.py, to avoid pulling in FastAPI/DB
-startup cost) and, when set, skips detection/prompting entirely.
-web/backend.py: new _BROWSER_LABELS/_VALID_BROWSER_PREFS, preferred_browser
-passed into the /settings template context, and a new POST /settings/browser
-route saving the "preferred_browser" key to prefs.json (empty string = ask
-each time). web/templates/settings.html: new "Browser to Launch" details
-section (with an explanatory paragraph of the ask-each-time/dialog/pin
-behavior above the radio choices) following the same radio-button/
-save-preference pattern as the existing diet-preference and
-update-notification-frequency settings.
-
-Two bugs found testing this against the real desktop launch path (the
-actual user-visible fix, since the above alone wasn't enough): (1)
-web/launch-web.sh — the script actually invoked by the user's application
-launcher — had `firefox "$URL" &` hardcoded, bypassing all of the above
-entirely; it now calls the same launcher.py logic via a new
-`launcher.py --open-browser URL` mode (added to main(), used only after
-the script's own readiness-polling loop confirms the server is up,
-preserving that existing slow-start protection). (2) a desktop-entry /
-application-launcher shortcut typically runs with a minimal $PATH that
-omits directories a browser can actually live in (e.g. Brave's snap
-install at /snap/bin) — subprocess.Popen(["brave", url]) then raised
-FileNotFoundError, caught silently, falling through to webbrowser.open()
-(Firefox again). New _resolve_executable() checks $PATH first, then a
-fallback list of common install dirs (/snap/bin, both system and per-user
-Flatpak export dirs, /usr/local/bin, /usr/bin) and returns an absolute
-path, which _pick_and_open_browser() (the refactored, reusable core of the
-old _open_after()) now always resolves through before calling Popen.
-Verified against the real desktop: with Brave the only browser running,
-`bash web/launch-web.sh` now opens a "NutriMagnus - Brave" window (per
-`wmctrl -l`) and Firefox never starts (`pgrep -x firefox` empty) — even
-when $PATH is deliberately stripped to /usr/bin:/bin to reproduce the
-restricted-launcher-environment failure mode.
-```
--->
-
-**A CANADIAN NUTRIENT FILE FOOD LOOKUP BUG THAT SILENTLY ZEROED OUT NUTRITION DATA — FOUND AND FIXED**
-
-If you've ever added a food that came from the Canadian Nutrient File source and its nutrition numbers looked suspiciously empty or missing, this is why: a bug meant every single CNF food lookup was silently returning no nutrition data at all, regardless of which food it was. It's now fixed — CNF foods you look up going forward will show their real numbers. Two smaller, related bugs were also found and fixed the same way: some USDA-sourced packaged/branded foods were also silently missing their nutrition data, and Open Food Facts foods were showing a missing or blank carbohydrate value specifically (other nutrients from that source were unaffected). All three were caught by a new automated check that compares real, live responses from each of the three online food-data sources against what NuMa expects — the same kind of test that was added for offline reliability in recent updates, now covering "did an online source quietly change its own data format" too.
-
-<!--
-```
-Scope: usda_api.py (get_food_detail() now retries with format=abridged and
-merges its nutrients whenever the primary parse yields none despite real
-foodNutrients data being present -- some Branded records' full-format
-foodNutrients items carry no identifiable nutrient id at all), cnf_api.py
-(get_food_detail() was reading a "nutrient_symbol" field that the live
-/nutrientamount/ endpoint never actually returns -- only a numeric
-nutrient_name_id; now resolves it via the separate /nutrientname/
-reference table, fetched and cached once per process), openfoodfacts.py
-(carbohydrates_100g was mapped to the key "carb_g" instead of the
-canonical "carbs_g" used everywhere else in the app -- one-line fix).
-All three found via TESTING-ROADMAP.md item #3's newly-written
-tests/test_source_fixtures.py, run for the first time against real
-fixtures recorded by scripts/record_source_fixtures.py (run by the user
-with their own USDA key/network, per the documented one-time setup).
-New/extended tests: TestGetFoodDetailAbridgedFallback (tests/test_usda.py,
-3 tests), corrected mocks + 3 new tests in tests/test_cnf.py's
-TestGetFoodDetail (the existing mocks had been passing against the same
-wrong nutrient_symbol assumption the production code made -- a genuine
-"test matches the bug, not the API" trap), new tests/test_openfoodfacts.py
-(4 tests, openfoodfacts.py had zero unit coverage before this), and the
-37-test tests/test_source_fixtures.py itself (parametrized over every
-recorded fixture: no negative values, a non-empty parsed nutrients dict,
-protein_g present, essential-AA total never exceeding protein_g for
-USDA/CNF, and has_amino_acid_data() true for CNF samples specifically --
-not USDA, since USDA's default search includes Branded/packaged products
-whose labels never carry amino acids, confirmed live this run). Full
-suite: 966 tests (was 919). See TESTING-ROADMAP.md item #3 for the full
-writeup.
-```
--->
-
-##### September 10 program updates
-
-**A REAL TESTING GAP FOUND (AND FIXED) BY A NEW MUTATION-TESTING PASS**
-
-No visible change to the app. A new testing technique — mutation testing, which deliberately breaks a small piece of code and checks whether any test notices — found that `pooled_tid()` in `diaas.py`, which feeds complement-suggestion sizing on the Recipe, Meal, and Daily Summary pages, had no test coverage at all despite being used in seven places. Ten new tests close that gap.
-
-A broader pre-release pass the same day, across the rest of the core nutritional-math code, found and fixed three more real gaps: a recipe's own digestibility pooling (`atomic_recipe_ingredients()`) had no coverage at all; three profile-management functions (rename/delete/find a saved profile) had none either; and the daily RDA targets (`compute_rda()`) had no test pinning down the *exact* age each nutrient's recommended amount changes at (magnesium at 31, calcium at 51/60/70 depending on sex, etc.) — existing tests only confirmed the right general direction, not the precise cutoff. 19 more tests close those.
-
-One larger gap — in the protein-complement suggestion engine itself — was found and progressively addressed the same day. First, a real bug in how suggestions are *ordered* (a food that closes your single biggest amino-acid shortfall wasn't guaranteed to be shown first, even when a much smaller addition would close a lesser one). Then, continuing further: the "add this much for 25%/50%/75%/100% of the effect" dosage preview could silently show blank values instead of an estimate in some contexts; a deeper display calculation had, in effect, stopped returning real numbers at all in favor of a much rougher stand-in; and a "skip this one food" filter had a bug that could silently stop the whole search early instead of just skipping that one food. All four are now fixed and covered.
-
-A third round the same day found several more: the display text explaining *why* a nutritional-completeness estimate was used could, in a narrow case, fail to appear even though the app was in fact estimating; one of the four ways to sort protein-complement suggestions ("by biggest effect on the amino acid gap") had quietly stopped actually sorting by that in most cases, silently falling back to whatever order the suggestions happened to already be in; a two-food pairing's displayed protein total, in one fallback situation, would have shown a wildly wrong (typically far too high) number instead of the intended calculation; and the amino-acid label shown on a suggestion's "before/after" comparison could show a measurement unit instead of the nutrient's actual name. All of those are now fixed too.
-
-A fourth round the same day closed the one previously-known-but-unfixed gap ("ignore this food" wasn't actually being honored when picking a second suggestion for a two-food pairing — confirmed and fixed) and found the *same* sorting bug as before affecting two more of the sort options ("smallest addition needed"), both now fixed the same way.
-
-A fifth round refined the display around a two-food pairing suggestion further (a limit on how many amino-acid comparisons are shown was silently being ignored in one place) and confirmed the underlying "how much would this pairing actually help" math with a full hand-worked check.
-
-A sixth round confirmed, with real example data, that four separate places computing "how much would this actually help" correctly use the precise per-ingredient calculation when the full ingredient breakdown is available (rather than an approximation) — no new problems found, but a previously-unverified part of the math is now confirmed correct rather than just assumed.
-
-A seventh round closed the one remaining loose end from round six (the same precise-calculation check, for the second food in a two-step suggestion pairing) and added two more checks confirming documented-but-never-verified behavior actually holds: a fallback math formula used when a full breakdown isn't available, and the rule that a food completing your entire amino-acid profile always shows at the very top of the list no matter which sort order you've chosen. No new problems found this round either — both closed real gaps in what had been checked, not new bugs.
-
-A separate pass the same day went back into the underlying suggestion-scoring math itself (not the display layer) and found and fixed ten more real bugs, several sharing the same root cause as earlier findings: a check only ever having been tested under the one "everything is perfectly digestible" scenario, which quietly hides a wrong formula until a real-world (less than perfectly digestible) food is involved. One of the ten could have let a genuinely poor-quality food pairing (one that actually lowers your overall protein quality) get suggested instead of rejected.
-
-A third pass the same day went into the main complement-suggestion function itself and found the single biggest gap of the whole testing effort: an entire secondary suggestion type — a "boost your overall protein quality" recommendation shown when a food can't close one specific gap but still meaningfully helps overall (foods like nutritional yeast, which are strong almost everywhere but weak in one or two amino acids) — had never been tested at all, in any way. That's now fully covered, plus two other previously-untested filters (your vegetarian/plant-only diet preference, and the "ignore this food" list) and a real bug where a valid two-food suggestion could silently go missing depending on which order candidate foods happened to be considered in.
-
-A fourth pass the same day closed out the density-estimation helper used when converting a volume measurement (like "2 tablespoons") into a weight for foods that only have volume-based serving data — over-three-quarters of that function had never been exercised at all.
-
-A fifth pass went back to the main complement-suggestion function a second time, checking deliberately (rather than assuming) whether real problems remained: it did, in the machinery that pairs two foods together — including a bug where excluding one "ignore this food" match could have silently hidden most of the app's other general suggestions too, and a formula bug in how the secondary suggestion type from the third pass pools two amino acids together. Both are now fixed; a follow-up check confirmed no further such surprises remain in that area.
-
-Most of that engine's display logic is still unaudited, and is logged for a dedicated follow-up rather than rushed. See [Extensive code testing](#extensive-code-testing) in Part 2.
-
-<!--
-```
-Scope: setup.cfg (new [mutmut] section — mutmut 3.7.0 requires config even
-to run --help). tests/test_diaas.py gains TestPooledTid (10 tests): weighted
-average across ingredients, ignoring non-AA/zero-protein/missing-protein_g
-ingredients, boundary cases (protein_g=0.5 distinguishing "> 0" from an
-off-by-one "> 1"), and an integration test against a real meal_level_diaas()
-result rather than only hand-built dicts. Verified against the actual tool:
-piloted mutmut against diaas.py scoped to its own two test files (369
-mutants, ~61s); the fix took 3 rounds (first 8 tests killed 30/31
-previously-uncovered mutants, a second mutmut run surfaced 6 more real
-boundary-value survivors, 2 more tests closed all of them — confirmed via a
-third run: 0/369 survive against pooled_tid now). One accepted true
-equivalent mutant elsewhere in the file (a ">"/">=" swap where the
-excluded/included item contributes exactly 0 either way — behaviorally
-unobservable). mutants/ (mutmut's regenerated working copy) added to
-.gitignore. README-numa-documentation.md gains a "Quarterly mutation-testing
-rotation" Maintenance section (rotation groups by subsystem risk, a weekly
-churn-check wired into the existing due-date block at the top of the weekly
-sweep, and a module -> last-checked-commit log) — see TESTING-ROADMAP.md
-item #5 for the full pilot writeup and the reasoning behind the two-track
-cadence (quarterly calendar floor + weekly churn-triggered early check).
-
-Later the same day: ran rotation group 1 (core nutrient math) ahead of the
-normal quarterly cadence, at the user's request, as a broader pre-release
-check. usda_nutrients.py, profile.py, complements.py, aa_estimate.py,
-recipe_nutrients.py, glycemic_load.py, rda_status.py -- 4176 mutants, ~13
-min compute (twice OOM-killed on a memory-constrained desktop before
-succeeding with `mutmut run --max-children 2` after a reboot). A setup.cfg
-also_copy scoping bug (missing numa_app/__init__.py etc.) initially made 5
-of 7 modules falsely show 100% "no tests" -- caught and fixed before being
-reported as a finding. Real fixes: tests/test_recipe_nutrients.py gains
-TestAtomicRecipeIngredients (2 tests, atomic_recipe_ingredients() had 111
-zero-coverage mutants -- feeds a recipe's own DIAAS/digestibility pooling).
-tests/test_profile.py gains TestProfileFileCrud (6 tests,
-rename_profile()/delete_profile()/get_profile_file() had 28 zero-coverage
-mutants combined) and TestAgeBoundariesExact (11 parametrized tests --
-compute_rda()'s age-threshold step functions for magnesium/fiber/calcium/
-iron all had a survived mutant on their exact boundary condition, e.g.
-`age >= 31` silently becoming `age >= 32`; existing tests only compared a
-young and old profile both well past the threshold, never the boundary
-itself). copy_nutrients_note() (2 zero-coverage mutants, a trivial
-string-formatting helper) deliberately left untested. Verification rerun:
-"no tests" dropped from 150 to 2 (only copy_nutrients_note, left on
-purpose); the compute_rda magnesium-boundary mutant confirmed killed.
-NOT fixed, flagged for a dedicated future session: complements.py's
-build_complement_display() (757 survivors) and two_step_combo() (191),
-plus usda_nutrients.py's suggest_complements() (357) and
-_score_one_complement() (105) -- roughly 1400 of ~1966 survivors this run
-produced. A ~10-diff sample found some low-value default-parameter-value
-noise but also substantive internal-branch gaps (dict-key lookups and an
-argument substitution that survived) -- real, but far too large (roughly
-4x everything else fixed in this pass combined) to characterize or fix in
-one session. See TESTING-ROADMAP.md item #5 for the full writeup, the
-README-numa-documentation.md rotation-log table entries, and the priority
-order for what's next.
-
-Same day, follow-up: went into that flagged finding at the user's request.
-_score_one_complement() read in full and all 105 survivors characterized
-by sampling across the ID range (not random spot checks). Fixed, each
-verified with an exact hand-derived expected value: predicted_diaas had NO
-correctness check at all (a sampled survivor changed a multiply to a
-divide in that exact formula and nothing caught it) -- new test in
-tests/test_usda.py's TestScoreOneComplement builds a sparse,
-fully-hand-computable nutrient profile (only protein/methionine/cystine
-present) so every intermediate number can be derived by hand and compared
-exactly; the denom<=0 boundary (a previous survivor changed it to <0,
-which would let denom==0 fall through into a ZeroDivisionError instead of
-the documented None return); result["comp_nutrients"] field identity.
-NOT fixed: base_digestibility being silently dropped from the internal
-protein_completeness() call -- an attempted fix rested on a wrong premise
-(new_scores are documented as always raw/pre-digestibility, so comparing
-them across digestibility levels doesn't test what it looks like it
-tests) -- left as a NOTE: comment in the test file rather than a forced,
-fragile test. Verification rerun: 105 -> 52 survivors for this function.
-suggest_complements() sampled only (357 survivors, ~1/9 examined) -- one
-real fix: the gap-closer sort key's primary-gap tiebreaker
-(not r.get("closes_primary")) had a survivor replacing it with
-not r.get(None), which is True for every row, silently disabling "the
-candidate closing the PRIMARY gap sorts first" entirely -- directly
-affects which suggestion a real user sees first. New test constructs two
-candidates (one closing the primary gap needing 75g, one closing only a
-secondary gap needing ~1.2g) and confirms the primary-gap closer still
-sorts first. Verification rerun: 357 -> 352 (this function is still
-almost entirely uncharacterized). Full suite: 837 tests (net +3 over the
-834 above -- 5 new tests, 2 removed: the flawed digestibility test plus
-one superseded). build_complement_display() (757 survivors) and
-two_step_combo() (191) remain completely untouched -- 0% triaged. See
-TESTING-ROADMAP.md item #5's "complements.py/suggest_complements
-deep-dive" section for the full writeup and what a future session should
-read first before continuing.
-
-Continued the same day at the user's explicit request ("push on") into
-build_complement_display()/two_step_combo(). Correction found along the
-way: the originally-reported 757/191 survivor counts were inflated by a
-scoping artifact (usda_nutrients.py being mutated simultaneously in the
-same run) -- isolated correctly, the true counts were 125/191. Root cause
-of two_step_combo()'s high count: it had exactly ONE test before this
-(only the early None-return), so its entire step1/step2-building success
-path had never been exercised. exact_dcp() had ZERO direct tests at all.
-Fixed, each verified against the actual mutant diff before and after:
-_grad_steps()'s fallback had "if dcp is None: dcp = _dcp_at_frac(...)"
-inverted to "if dcp is not None:" -- since no `ingredients` list means
-exact_dcp() always returns None (the common single-food case), every
-graduated dosage step would have silently shown blank dcp/pct_increase.
-exact_dcp()'s own final return had "is not None"/"is None" inverted --
-would have made it always return None even with a real value, forcing
-every caller into fallback approximations permanently; new TestExactDcp
-class exercises its real DB-backed success path for the first time,
-cross-checked against an independent direct diaas.meal_level_diaas() call.
-load_cache_candidates()'s excluded-name check used "break" instead of
-"continue" -- would silently stop searching the rest of the curated table
-after the first excluded name; the existing test couldn't catch this
-(only ever inserted one matching food) -- new test inserts a second food
-matching the very next curated entry and confirms it's still found.
-two_step_combo()'s step1 path gains a real test built from an actual
-suggest_complements() result. NOT fixed, disclosed: two_step_combo()'s
-step2 path (a working non-None scenario wasn't found in the time
-available) and most of build_complement_display()'s remaining ~100
-survivors (mostly default-parameter noise) and suggest_complements()'s
-remaining ~350. Unresolved anomaly, disclosed rather than glossed over: a
-verification rerun showed total survivors INCREASE (358 -> 874) despite
-all specific targeted mutant IDs confirmed individually killed by name and
-all 843 tests passing cleanly across 5 repeated direct runs -- looks like
-a mutmut coverage-tracking artifact from DB-touching tests combined with
-its -x (stop-on-first-failure) pytest invocation, not a real regression,
-but not run to ground. Treat any future mutmut aggregate count for this
-file with suspicion until understood -- verify specific mutant IDs by
-name, not the totals. Full suite: 843 tests (was 837). See
-TESTING-ROADMAP.md item #5 for the full writeup.
-
-Third round, same day, at the user's explicit repeated request to keep
-going. The aggregate-count anomaly resolved practically rather than by
-root cause: sampling aa_effects()'s "new" 17 survivors (previously 0
-reported) found they were REAL bugs a first incomplete pass had simply
-never sampled, not tooling noise -- best working theory is
-test_complements_properties.py's Hypothesis-randomized inputs make
-mutmut's one-time coverage snapshot vary slightly run to run, though this
-wasn't fully proven; counts did stabilize identically across two
-back-to-back reruns (633/863 twice, including with
-track_dependencies=False) once no further test changes were made.
-Practical conclusion: sample and verify by mutant ID, don't trust a single
-run's aggregate total. Real bugs fixed: aa_effects()'s "label" field used
-nutrient_label(aa)[1] (the unit) instead of [0] (the display name); its
-"met" boundary at exactly 1.0; its "before" field's value/rounding.
-load_cache_candidates()'s "diaas" field (renamed key, wrong row's name
-used for lookup). two_step_combo()'s step2 path finally got a working
-test -- two earlier attempts (this session) failed to construct a
-scenario where a qualifying DIAAS-improver exists; the working one uses a
-small fully-controlled sparse nutrient profile instead of relying on
-curated-table data to cooperate; found but not yet fixed via this test:
-exclude_names is silently dropped from step2's internal
-suggest_complements() call, so an "ignored" food could still surface as a
-two-step suggestion. build_complement_display()'s has_estimate_or_generic
-check had its "estimated" half silently neutered (row.get("estimated")
--> row.get(None)) -- the EXISTING test for this didn't catch it because
-its scenario happened to also include an unrelated generic suggestion, so
-the flag stayed True via the other half of the check by coincidence; new
-test explicitly excludes every generic entry, isolating "estimated"
-specifically. The "gap_effect" comp_sort mode's sort key was silently
-broken (-(gaps_closed or 0) survived as -(gaps_closed and 0), which
-evaluates to -0 for any nonzero gaps_closed -- neutering the primary sort
-key for the overwhelmingly common case) -- even sneakier, the EXISTING
-sort-mode test didn't catch this either: Python's stable sort left the
-neutered-and-tied rows in their original list order, which happened to
-already match the correct sorted order by coincidence of the test's own
-input ordering; new test feeds the same two candidates in reversed
-starting order, forcing the sort to actually prove itself. The pairs tier
-(_fmt_pair()) had NO test at all -- a survivor swapped "*" for "/" in the
-total_dig_complete fallback formula (25.0*0.6=15.0 vs 25.0/0.6=41.7,
-wildly different); new test is the first to exercise this tier's
-formatting at all. Verification: full suite 849 tests (was 843); rerun
-confirmed all 6 spot-checked targeted mutants killed, zero regressions.
-Aggregate counts for context only:
-build_complement_display 707->675, two_step_combo 133->96,
-load_cache_candidates 12->10, aa_effects 17->4, exact_dcp unchanged at 5.
-Both functions' survivor pools remain overwhelmingly unexamined -- see
-TESTING-ROADMAP.md item #5 for the full writeup and exactly what's left.
-
-Fourth round, same day, user again explicitly asked to keep going.
-Fixed the one already-known-but-unfixed bug first: two_step_combo()'s
-step2 exclude_names handling -- turned out to already work correctly in
-real code, just needed a test (confirmed: excluding step2's own winning
-candidate by name correctly removes it). Then switched technique: instead
-of one narrow test per mutant sampled, wrote a few comprehensive tests
-that assert on EVERY field of one function's output at once (_fmt(),
-_fmt_improver(), _fmt_pair(), and the top-level summary fields), built
-from one fully-controlled, hand-computed input each. Payoff far exceeded
-expectations: those 3 tests alone dropped build_complement_display's
-survivors from 675 to 428 in a single step -- each comprehensive test
-happens to kill dozens of scattered dict-key-literal and default-value
-mutations at once, since it touches nearly every line of output
-construction. Recommended technique for future rotation groups: prefer
-this over one-test-per-mutant when a function is mostly assembling a dict
-from simple expressions. Also fixed, using the "reverse the input order"
-technique from round 3: two more instances of the same stable-sort-
-masking bug pattern, this time in comp_sort="grams" and
-diaas_sort="grams" (their sort keys were both silently neutered by
-survivors renaming/dropping the field being sorted on, undetected because
-the stub test data's given order happened to already match the correct
-sorted order -- Python's stable sort left the now-fully-tied list
-untouched, passing by coincidence). Checked every other sort-mode test's
-stub ordering while here; dcp and digestible_protein modes confirmed NOT
-susceptible (their expected order genuinely differs from the stub's given
-order already). Verification: full suite 855 tests (was 849); rerun
-confirmed the comp_sort="grams" fix killed, zero regressions. Aggregate
-counts for context: build_complement_display 675->424 (net, since the
-exclude_names test targeted behavior an earlier test already covered),
-two_step_combo unchanged at 93. 424 + 93 = 517 survivors remain across
-these two functions -- diminishing returns setting in (a quick sample
-found more low-value cases this round: unkillable default parameters, one
-confirmed-dead/unreachable branch), but not exhausted -- the two
-additional sneaky-sort-bug catches this round show real bugs are still
-findable. Next-session suggestion: apply the comprehensive-field-test
-technique to two_step_combo()'s step2 output and to _dcp_at_frac()
-directly before more narrow sampling.
-
-Fifth round, same day, user again explicitly asked to keep going -- did
-exactly the suggested next step above. two_step_combo()'s step2 test
-extended from checking 4 fields to pinning all 10 (scenario confirmed
-fully deterministic across repeated runs); step1 completed similarly
-(aa_effects was the one missing field). Sampling the remainder found one
-more real gap: aa_effects_limit silently dropped from step1's internal
-aa_effects() call (passed limit=None instead) -- invisible in every
-existing scenario since none had more gaps than the default limit of 3 to
-prove anything; new test uses a 9-gap scenario with explicit
-aa_effects_limit=2 to distinguish. _dcp_at_frac()'s own weighted-pool IAA
-formula hand-verified across all four graduated dosage steps (25/50/75/
-100%) -- previously only reachable indirectly through a test checking
-pct_increase's formula, never this function's own per-AA weighted math
-directly. Verification: full suite 857 tests (was 855); rerun confirmed
-real improvement, zero regressions. Aggregate counts: two_step_combo
-93->64 (its single biggest-drop round -- the comprehensive step1/step2
-tests mattered more here than any other round's fixes),
-build_complement_display 424->400. Diminishing returns now visibly
-setting in (more unkillable-default-param and narrow-edge-case survivors
-each round), though real bugs are still turning up every round -- not
-exhausted. Newly-named gap pattern worth flagging for whoever continues:
-every test in this file uses ingredients=None (realistic for a
-single-food context) -- none exercise the real per-ingredient recompute
-path (exact_dcp() actually returning a value instead of short-circuiting
-to None) -- a meal/recipe-context scenario with a genuine ingredients
-list is a distinct, unexplored dimension from the per-field/per-branch
-gaps found so far.
-
-Sixth round, same day, user again explicitly asked to keep going -- did
-exactly the named next step. Added 4 new tests, one per exact_dcp() call
-site (_fmt()'s total_dig, _grad_steps()'s per-step dcp across all 4
-dosage steps, two_step_combo()'s step1 dcp_after, _fmt_pair()'s
-total_dig_complete), each providing a real ingredients list (a controlled
-Oats/Peanut-butter/Cheese scenario) and cross-checking the result against
-an independent direct exact_dcp() call with the same data. For _fmt() and
-step1 specifically also confirmed the real value is NUMERICALLY DIFFERENT
-from what the fallback formula would give (13.4 vs 19.0; 5.1 vs 15.0 for
-the identical scenario without ingredients from an earlier round) --
-proving the real path is genuinely taken, not coincidentally matching a
-fallback. No new bugs found this round -- a real, useful result in
-itself: confirms exact_dcp()'s wiring into all four call sites is correct
-when given real data, closing a previously-untested dimension rather than
-leaving it unknown. two_step_combo()'s step2 b_dcp with real ingredients
-investigated but not completed -- extracting a curated-table winner's
-real comp_nutrients for an independent cross-check proved more involved
-than the other three call sites; left open. Verification: full suite 861
-tests (was 857); rerun confirmed real improvement, zero regressions.
-Aggregate counts: build_complement_display 400->371, two_step_combo
-64->57 -- combined 428, more than halved from ~948 at the start of this
-deep-dive. Environment note: machine memory trending down across this
-session's repeated long-running mutation-testing runs (routinely down to
-~14GB available mid-run on a 39GB machine) -- worth checking free -h and
-df -h /tmp before each further run. See TESTING-ROADMAP.md item #5 for
-the full writeup.
-
-Seventh round, same day, user again explicitly asked to keep going --
-closed the specific next steps named at the end of round six. Added 3
-new tests: (1) two_step_combo()'s step2 b_dcp with real ingredients --
-the one corner round six left open -- using usda.get_complement_nutrients()
-to independently fetch the deterministic winner's real curated nutrient
-profile for the cross-check against a direct exact_dcp() call, rather
-than hard-coding it; confirmed correct wiring (the real and fallback
-values happen to coincide at 32.0 for this specific scenario -- confirmed
-a genuine coincidence via the independent cross-check, not a sign the
-real path isn't exercised). (2) _total_dig()'s scale-formula branch --
-every prior test only ever exercised its "else" fallback branch; hand-
-computed the other branch's exact result (24.0) against a stubbed
-candidate. (3) the "a food completing your entire amino-acid profile
-always sorts first" invariant, documented in the function's own comments
-but never actually tested -- verified it holds across all four sort
-modes even when the complete-profile candidate is worse by every other
-metric than the alternative. No new application bugs found this round --
-all three closed real test-coverage gaps rather than catching new
-mutants. Verification: full suite 864 tests (was 861); rerun confirmed
-real improvement, zero regressions. Aggregate counts:
-build_complement_display 371->341, two_step_combo 57->51 -- combined
-392, a 59% reduction from ~948 at the start of this deep-dive. See
-TESTING-ROADMAP.md item #5 for the full writeup.
-
-Same day, separate pass: went back to usda_nutrients.py's
-_score_one_complement() (setup.cfg re-scoped to source_paths=
-usda_nutrients.py, also_copy=usda_api.py/usda.py, test selection
-tests/test_usda.py -- isolating it from complements.py the same way that
-file was isolated from usda_nutrients.py earlier). Read all ~57 remaining
-survivors in full (not sampled) and fixed 10 real bugs, each verified with
-an exact hand-derived expected value -- see tests/test_usda.py's
-TestScoreOneComplement for the worked arithmetic in each test's comments:
-R's digestibility divide silently becoming a multiply, and the same
-divide/multiply swap recurring inside predicted_diaas's per-AA loop --
-both masked by every prior test using base_digestibility=1.0, where divide
-and multiply by 1 are indistinguishable; new tests use 0.5, where the two
-diverge sharply. The grams<=0-or-grams>500 guard's "or" silently becoming
-"and" (making the guard permanently unsatisfiable, since grams can never
-be both <=0 and >500 at once) -- two new boundary tests. gaps_closed's
-subtraction silently becoming addition. The per-AA "skip if absent from
-both foods" guard's "and" silently becoming "or" (dropping any AA present
-in only one of the two foods from the predicted_diaas calculation).
-comp_dig's and dig_added's "assume fully digestible when the candidate's
-own DIAAS is unknown" fallback silently becoming 2.0 instead of 1.0 in two
-places. The final rejection guard (reject a candidate whose predicted
-pooled DIAAS would fall below the base meal's own digestibility) had its
-"is not None" silently become "is None", inverting when a low-quality
-pairing gets rejected -- nothing exercised the actual rejection path
-before, since every prior test used the digestibility=1.0 default where
-this guard is a documented no-op; new test constructs a candidate that
-closes the target gap in raw terms but whose own poor digestibility drags
-the pooled prediction below the base's -- must be rejected. closes_primary's
-empty-base_gaps else-branch had no test ever calling the function that
-way. new_complete's dict-key lookup had several survived
-key-literal/key-type mutations, none caught because no existing test
-scenario actually produced new_complete=True, so the mutants' wrong
-default of False coincidentally matched the real (also False) result --
-extended an existing full-closure test to assert True explicitly, closing
-all of them at once. Not fixed, left open: roughly a dozen dead-default
-.get(key, 0.0)->.get(key, 1.0)-style mutations that are unreachable in
-practice (every real nutrient dict carries every key, so the fallback
-default is never hit) -- not worth fragile sparse-dict tests to chase; and
-one real-but-hard-to-construct gap (a candidate that fails to actually
-close its target gap after rounding, which the "if target_still_gapped"
-check exists to catch) requiring a fragile rounding-boundary construction
-not found in the time available. Verification: full suite 871 tests (was
-864). Mutmut rerun confirmed real improvement, zero regressions:
-_score_one_complement 57->39 (18 killed, 2 more than the 10 targeted bugs,
-from incidental kills via the exact-value cross-checks), plus a bonus drop
-in protein_completeness 40->39 (same file, hit incidentally since
-_score_one_complement calls it internally). suggest_complements (394
-survivors, untouched this round) is now the single largest uncharacterized
-target remaining in the whole mutation-testing effort. See
-TESTING-ROADMAP.md item #5 for the full writeup.
-
-Same day, third pass: targeted suggest_complements() directly (~420 lines,
-usda_nutrients.py lines 731-1150), read in full before sampling. Biggest
-finding of the whole session: _diaas_improver_score() -- the ~95-line
-closure building the "diaas_improvers" tier -- had ZERO test coverage of
-any kind; no test ever referenced result["diaas_improvers"]. New
-TestDiaasImprovers class (6 tests): a synthetic candidate whose every
-essential AA sits exactly at the FAO reference ratio (denom==0 for every
-gap-closer target, guaranteeing the diaas-improver fallback path),
-verified against an independent reimplementation of the function's own
-documented pooled-DIAAS formula (using the real diaas.FAO_REFERENCE/
-_IAA_PAIRS/get_digestibility()) -- every field cross-checked: current_diaas,
-each step's new_diaas/dcp, grams, protein_added, digestible_protein_added,
-diaas. Also covered the current_diaas_val>=target early-exit and the
-base_food_name TID-lookup branch (never previously passed to
-suggest_complements at all). This alone dropped the count 394->291 (103
-killed) -- the single largest jump of the whole session. Also closed,
-each previously entirely untested: diet_pref filtering (vegetarian/
-plant_only, both the explicit-value and default-value paths -- 6 tests),
-exclude_names (the web app's per-suggestion "ignore" checkbox wiring -- 4
-tests), the gap-closer sort key's second tiebreaker (-r["gaps_closed"],
-most-gaps-closed-wins), duplicate-candidate-name dedup, and the pairs
-tier's summary fields (total_protein_added/total_dig_added/predicted_diaas/
-new_complete/new_scores/gaps_closed -- previously only structural checks,
-no exact values; new test independently recomputes both legs via direct
-_score_one_complement() calls, the same building blocks _build_pairs()
-itself uses). Real bug found: the pairs cascade's second-leg acceptance
-check had a survived continue->break mutation -- would abandon the search
-for a valid second leg entirely the moment ANY candidate failed, instead
-of trying the next one; new test places a bad second-leg candidate before
-a good one in pantry order and confirms the good pairing is still found.
-Several dict-key-literal mutations closed with direct field-identity
-assertions (diaas/fdc_id/recipe_id/comp_nutrients across gap-closer,
-diaas-improver, and pairs-food dicts). Not fixed, left open (real,
-lower-value-per-effort, same character as gaps left open in earlier
-rounds): more dead-default .get() noise; a base_protein<=0-or-comp_protein
-<=0 guard hard to reach through the public API since suggest_complements()
-itself early-returns first; a step-size list-literal boundary; two
-candidate-resolution spots in _build_pairs()'s own candidate-pool building
-needing a dedicated pantry-sourced-pairs scenario not yet built.
-Verification done incrementally across 4 mutmut reruns as tests were added
-in batches: 394->291->253->249->209 (47% reduction this round; combined
-with rounds 1-2, well over 75% down from the original ~948 survivor figure
-at the very start of this whole mutation-testing effort). 23 new tests
-this round. Full suite: 892 tests (was 871). Zero regressions at any
-point; get_density_g_per_ml (53 survivors) is now completely untouched
-and the most attention-starved function of meaningful size left in
-usda_nutrients.py. See TESTING-ROADMAP.md item #5 for the full writeup.
-
-Same day, fourth pass: get_density_g_per_ml() (53 lines, density
-estimation for volume-unit portions like "2 tablespoons") -- completely
-untouched until now; existing coverage (11 tests) only exercised the
-static keyword-table lookup, not the USDA-portion parsing fallback where
-almost all 53 survivors lived. 17 new tests across two verification
-passes. Round 1 (12 tests, 53->21): fraction count parsing ("1/2 cup"),
-the T/t/c case-sensitive abbreviation expansions, missing-leading-number
-defaulting count to 1.0, zero-gram-weight skip, out-of-bounds density
-falling through to the next portion rather than stopping, the fl oz/
-teaspoon/tbs keywords, None portions not crashing, an
-unrecognized-unit portion being ignored, and the count multiplier
-actually scaling the ml value. Round 2 (5 tests, 21->13): the tbsp/tsp
-keywords specifically (distinct from tablespoon/tbs and from the
-t->teaspoon abbreviation expansion, which had been coincidentally masking
-tsp never being reached directly); the gw<=0 skip guard's boundary (a
-survived gw<=1 mutation -- gram_weight=1 is real data that yields a
-plausible density and must not be treated as zero/missing); a
-continue->break bug (a zero-weight portion earlier in the list must not
-prevent a later valid portion from being used -- same bug class as round
-3's pairs-cascade finding above); and the 0.15/1.6 plausibility bounds'
-inclusivity at both exact boundary values. Left open: several string-
-literal mutations on the abbreviation-expansion table turned out to be
-genuine equivalent mutants (the mutated string still contains the real
-keyword as a substring, so the later matching check still succeeds
-regardless) -- a real, understood limit of mutation testing rather than a
-gap worth chasing. Verification: full suite 909 tests (was 892). Zero
-regressions; suggest_complements (209), _score_one_complement (39), and
-the rest held steady throughout. get_density_g_per_ml: 53->13 (75%
-reduction -- the best per-test yield of any function this session).
-suggest_complements()'s remaining 209 survivors, spread across smaller
-pockets, are now the largest pool left in usda_nutrients.py. See
-TESTING-ROADMAP.md item #5 for the full writeup.
-
-Same day, fifth pass: went back into suggest_complements() a second
-time, this time with an explicit question to answer rather than an
-open-ended "keep going" -- the user asked how to know whether stopping
-was safe or whether real unknowns remained, having no personal basis to
-judge that themselves. Answered with evidence, not a guess: sampled a
-spread of 21 of the 209 remaining survivors and found 9 of 21 (43%,
-confirmed as 48% of all 209 by ID range) concentrated in one specific
-code region -- _build_pairs()'s own candidate-pool construction and its
-two-food-pairing field-resolution logic -- a second genuine concentration
-on par with round 3's diaas_improvers finding, invisible without actually
-sampling. Fixed with 9 new tests: a paired-amino-acid formula bug
-(+=->-= , would have subtracted instead of added the second amino acid in
-a Met+Cys or Phe+Tyr pair), a dropped max_improver_grams setting (would
-have silently ignored the smaller serving-size cap meant for meal/food/
-daily contexts), a candidate's own quality rating being silently
-discarded in two different ways when falling back to the built-in food
-table, and several field-identity mutations. Verification: 209->141 (68
-killed -- far more than directly targeted, from broad knock-on effects).
-Re-sampled again rather than assuming done: concentration dropped to 38%,
-still elevated, so kept looking -- found two more real bugs, the more
-serious being a break-instead-of-continue in the "exclude this food"
-handling for general suggestions that could have silently hidden most of
-that entire list once one match got excluded (not just the one food, all
-the ones after it in an internal ordered list). Fixed with 2 more tests:
-141->117. Re-sampled a third time: concentration down to 27%, converging
-toward that code region's actual share of the function, confirming it's
-now genuine scattered noise rather than a hidden concentration. Full
-suite: 919 tests (was 909). Zero regressions across all three
-verification passes; a bonus incidental fix also closed
-_find_complement_by_name's last 2 survivors. suggest_complements(): 394
-at the start of this whole thread -> 117 now (70% reduction); combined
-with every other function touched this session, over 85% down from the
-~948 survivor count at the very start of the entire mutation-testing
-deep-dive. This thread is now at a reasonable stopping point -- not
-because mutation testing is ever fully "finished" (it's an ongoing
-quarterly-rotation practice, not a one-time task), but because two
-independent sampling-and-fix cycles each found and closed a genuine
-concentration, and a third pass confirmed none remained. See
-TESTING-ROADMAP.md item #5 for the full writeup.
-```
--->
-
-**BROWSER-LEVEL TESTS FOR THE SEARCH PAGES' BEHIND-THE-SCENES REFRESH**
-
-No visible change to the app. This is a testing-infrastructure addition, noted here only because it closes a real gap: the [Food Search](#gloss-fdc-id), Analyze a Food Portion, and a meal's Add Food panel all show your own pantry/cache results instantly, then quietly re-fetch and re-sort the full result set once USDA/Open Food Facts/CNF respond — previously that JS was checked only by confirming the page *contains* the right fetch code, not that it actually runs end-to-end in a real browser. See [Extensive code testing](#extensive-code-testing) in Part 2.
-
-<!--
-```
-Scope: platform_utils.py (get_config_dir()/get_data_dir() gain a
-NUMA_CONFIG_DIR/NUMA_DATA_DIR env-var override, needed so a Playwright test
-run can point a live server subprocess at an isolated temp dir — no prior
-env-var hook existed anywhere; tests previously only ran in-process via
-TestClient + monkeypatch, which can't reach a separate process).
-web/backend.py (_PREFS_FILE now derived from platform_utils.get_data_dir()
-instead of a hardcoded ~/.local/share/numa path — same real location on
-Linux/macOS, picks up the new env-var override, and incidentally fixes a
-latent Windows bug where that hardcoded path never existed).
-tests/e2e/ (new): conftest.py's live_server fixture launches
-_run_isolated_server.py as a subprocess (stubs usda/openfoodfacts/cnf_api
-search_foods to return [] so no live network call or API key is ever
-needed, then runs uvicorn in-process) pointed at temp NUMA_DATA_DIR/
-NUMA_CONFIG_DIR; test_search_e2e.py drives it with Playwright (sync API),
-asserting via page.expect_response() that the search-api-results /
-analyze-portion-api-results / meal search-api-results fetch actually fires
-and resolves 200 (the meal-search test creates its own meal first via a
-plain POST to /meals/create, reading the new meal's id back off the
-post-create redirect) — checked by deliberately breaking each fetch URL in
-turn and confirming the corresponding test fails before reverting. New
-tests excluded from the default `pytest -q` run (and hence CI, which has no
-browser installed) via a new `e2e` pytest marker and `addopts = -m "not
-e2e"` in pytest.ini; run explicitly with `pytest -m e2e`.
-requirements.txt gains playwright==1.61.0 (previously present only as an
-incidental transitive dependency, unused). Later the same day: a new
-.github/workflows/e2e-tests.yml runs these on a weekly schedule (Thursday
-06:00 UTC) plus on-demand via workflow_dispatch — deliberately a separate
-workflow from tests.yml's per-push job, on a plain ubuntu-latest runner
-(not tests.yml's python:3.12-slim container, since `playwright install
---with-deps` needs real apt access) rather than adding Chromium + its OS
-deps to every push's fast check. See TESTING-ROADMAP.md item #4.
-```
--->
-
-##### September 9 program updates
-
-**RECIPES LIST: SORT BY RECIPE NUMBER; A SEARCH-RESULT CURSOR-FOCUS BUG FIXED**
-
-The Recipes list's **Sort by** dropdown now offers **Recipe number**, alongside Last accessed, Name, and DCP/serving. Separately, on the Edit Recipe page's ingredient search: after a search, the cursor is supposed to land automatically in the first result's amount field — it does on every other search-results list in the app (Meals & Log, most notably), but on this one it silently didn't, in two ways: it only ever looked for a food ingredient's amount box, so if the very first result was actually a recipe (which uses a differently-named field), focus landed on the wrong row or nowhere; and even when it did find the right box, a page-wide script elsewhere immediately stole focus back to the Search button. Both are now fixed, matching Meals & Log's already-correct behavior.
-
-<!--
-```
-Scope: web/backend.py (_RECIPE_SORT_KEYS gains "id"), web/templates/recipes.html
-(new <option value="id"> in the Sort by select). web/templates/recipe_edit.html
-(the {% block scripts %} search-focus script): selector now matches
-.add-food-form input[name="portion_str"] OR input[name="servings"] (a
-nested-recipe ingredient row uses the latter) instead of only portion_str;
-the focus() call is now deferred via setTimeout(0), same fix already applied
-in meal.html, since base.html's global autofocus-to-Search-button script
-(scoped to any [autofocus] input already holding a value) runs synchronously
-right after this page's own scripts and would otherwise steal focus back to
-the Search button on every load. Regression test:
-test_recipe_edit_search_focus_script_covers_recipe_rows_and_defers in
-tests/test_web.py.
-```
--->
-
-**MEAL ANALYSIS: TOP CONTRIBUTORS COLUMN RENAMED FOR ACCURACY**
-
-On a meal's Top Contributors table, the first column header now reads **Food or ingredient** instead of just "Food" — a small wording fix, since a recipe used in that meal is broken into its individual ingredients for this table, so "ingredient" is often the more accurate word for what a row actually names. (A recipe's own Top Contributors table, which can legitimately show a whole sub-recipe by name, keeps its existing "Food / Recipe" header.)
-
-**HOME PAGE PLOT AND RECENT DAYS: SURFACING WHICH DAYS AREN'T MARKED COMPLETE YET**
-
-The Home page's saved Nutrient Plot, when its "Roll to last complete day" option is on, silently stops at the most recent day whose meals are *all* marked complete — a day with even one still-in-progress meal, and every day after it, just doesn't appear, with no indication why. The Home page now says so directly under that plot, with a link to **Meals & Log** to find and complete the meal that's holding it back. Separately, the Recent Days table (both the Daily Summary landing page and the same table shown when viewing one day's full analysis) now has a **Complete** column — a checkmark if every meal logged that date is marked complete, otherwise a link that jumps to Meals & Log around that date.
-
-<!--
-```
-Scope: web/backend.py (home route now parses the saved home_nutrient_plot_qs
-for rolling=1 and passes plot_rolls_to_complete to home.html; new
-db.day_completion_map() — one GROUP BY query mapping meal_date -> "all
-meals complete" — feeding a new day_complete field on each row returned by
-_build_day_rows(), shared by /summary and the day-detail sidebar),
-web/templates/home.html (conditional caveat paragraph under the plot image,
-linking to /meals), web/templates/summary.html (new Complete column; a
-day's link target is /meals?date=<date>, reusing meal_list_recent()'s
-existing before_date filter to jump the Meals & Log list to that date rather
-than adding a new exact-date filter). Regression tests:
-test_home_page_plot_notes_rolling_to_complete_day and
-test_recent_days_shows_complete_column in tests/test_web.py.
-```
--->
-
-**RECIPE EDIT: NAME WHAT ONE SERVING ACTUALLY IS**
-
-The Edit Recipe page now has a **Serving description** field (with suggestions like "1 muffin," "1 cookie," "1 slice" — or type your own) for saying, in plain terms, what one serving of a recipe actually is — previously a recipe's serving was just a number with no way to attach a real-world unit to it. Once set, it shows up everywhere that recipe's serving count is displayed: the recipe's own page, the Recipes list, the "Analyze a Saved Recipe Portion" page, the [Convert](#convert) tool's named portion for that recipe, and — when the recipe is nested as an ingredient inside another recipe or added to a meal — right next to the serving-count field there too. See [Recipes: servings instead of `pN`](#portions-vs-servings).
-
-<!--
-```
-Scope: db.py (recipe.serving_size column already existed but was dead — never
-read for recipes anywhere; recipe_list()/recipe_list_recent() now select it),
-web/backend.py (recipe_edit_post now saves the submitted serving_size instead
-of only preserving the existing value; _attach_ref_serving_sizes() looks up a
-nested ingredient's own recipe's serving_size for ingredient-list display;
-recipe search-result dicts for meal-add and recipe-add-ingredient now carry
-serving_size; food_convert_recipe's auto-built "1 serving" portion now reads
-"1 serving (1 muffin)" when set), web/templates/_serving_note.html (new
-shared macro rendering " (1 serving = X)", imported wherever a recipe's
-serving count is shown: recipe_detail.html, recipe_edit.html, _add_food_row.html),
-web/templates/recipes.html and food_analyze_recipe_portion.html (serving_size
-shown alongside the servings column/heading). Regression test:
-test_recipe_serving_description_shows_everywhere_servings_appear in
-tests/test_web.py.
-```
--->
-
-**RECIPE EDIT: TOTAL YIELD VOLUME, AND A DATA-LOSS BUG FIXED**
-
-The Edit Recipe page (Recipe details section) now has a **Total yield volume (mL)** field alongside the existing Number of servings and Total yield weight — together these are a recipe's "portion size," used by the [Convert](#convert) tool to translate a recipe's amounts between servings, weight, and volume. Also fixed: saving the Instructions or Introduction box on a recipe was silently erasing that recipe's total yield volume (and an internal serving-size field) back to blank, because those two save actions re-saved the whole recipe row without carrying those fields forward — now they do.
-
-<!--
-```
-Scope: web/templates/recipe_edit.html (new total_volume input, mL only —
-matches the existing backend assumption that only "ml" is understood for
-weight/volume density conversion), web/backend.py (recipe_edit_post now
-accepts and saves total_volume, always as unit "ml"; recipe_instructions_post
-and recipe_introduction_post now carry total_volume/total_volume_unit/
-serving_size through unchanged instead of omitting them from the
-_db.recipe_update() call, which defaulted those columns to NULL on every
-such save). serving_size has no UI of its own (only ever set via CSV/manual
-import) so it's preserved but not exposed. Regression test:
-test_recipe_edit_total_volume_persists_across_other_saves in tests/test_web.py.
-```
--->
-
-**PRINT PAGES: HALF-SHEET LAYOUT, PAPER SIZE, AND A QUICK PROTEIN LINE**
-
-Every printable page (food, recipe, meal, and daily summary) now offers a **Print layout** choice — Full sheet or Half sheet — and a **Paper size** choice — US Letter or A4 — right above the "Include on this printout" checkboxes. Half sheet shrinks the title, tightens the space between the title and the "#123 / 1.0 serving analyzed..." line underneath it, and squeezes the line spacing throughout, including the Ingredients list. Paper size sets the exact page dimensions the browser's own Print / Save as PDF preview paginates against, so opening that preview shows real page breaks for whichever paper you're actually printing on. Both choices are remembered for next time. Also, when "Protein summary (DCP)" is checked, a small-print one-line summary (e.g. "DCP: 29.8 g · Complete protein") now appears as the third line on the page, right under the title and subtitle, in addition to the full Protein Summary section further down.
-
-<!--
-```
-Scope: numa_app/services/print_sections.py (PRINT_LAYOUTS, PRINT_PAPERS,
-PRINT_PAGE_SIZES, PRINT_PAGE_MARGINS, resolve_layout/resolve_paper/
-save_layout_prefs/resolve_layout_context), web/templates/print.html
-(layout/paper <select>s in the existing section-picker form, body.layout-half
-compact CSS, a @page { size; margin } rule driven by the resolved paper, and
-a .protein-oneline paragraph reading from either `protein` (food) or `diaas`/
-`protein_adequacy` (recipe/meal/day) context), web/backend.py (all 5 routes
-that render print.html: food_print, meal_print, meal_day_print, recipe_print,
-recipe_translation_print — each now resolves layout/paper the same way
-sections are resolved: query params win when submitted, else the saved pref,
-else full/letter). Paper size only sets @page, which most browsers honor as
-the default paper size / auto-selected page breaks in their print preview —
-it does not override a printer's own paper tray setting.
 ```
 -->
 

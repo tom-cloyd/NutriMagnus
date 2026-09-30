@@ -82,6 +82,8 @@ numa_gen_prompt.py      — generate a Claude nutrition-data request prompt
                          (interactive, --pantry, or from a food-list file)
 numa_import_claude.py   — parse a Claude nutrition response (```json blocks)
                          and import the results into numa
+                         (these last two are personal, gitignored scratch
+                         tools — present locally, not part of the repo)
 
 numa_app/
   services/
@@ -103,7 +105,10 @@ numa_app/
                          content in a real DB, not hand-coded):
                          seed_if_fresh_install() runs once on app startup for a
                          truly empty DB; load_demo_data()/clear_demo_data() back
-                         the Settings toggle for anyone who cleared it
+                         the Settings toggle for anyone who cleared it;
+                         also starter identity (starter_key/starter_uid),
+                         edit-safe clear, and the between-version starter
+                         manifest (starter_manifest(), apply_improvements())
     diet_aware.py       — diet-preference-aware analysis notes (iron/zinc RDA bump etc.)
                          for the daily summary / RDA comparison views
     food_ids.py        — classify_food_id() — food/recipe ID → (id_str, source_label)
@@ -116,7 +121,10 @@ numa_app/
     gi_table_build.py   — builds the user's own gi_data_local.json from the two
                          Atkinson 2021 supplemental PDFs (pdfminer.six);
                          Settings' upload/Build button runs it on a thread
-    glycemic_load.py    — shared GL aggregation: compute_glycemic_load()
+    glycemic_load.py    — shared GL aggregation: compute_glycemic_load();
+                         per-serving vs whole-day GL bands (gl_band(),
+                         gl_band_caveat()); day totals/averages for trends
+                         and plots (day_gl_total(s), average_day_gl())
     manual_build.py     — rebuild_manual_if_stale(), used by the /manual route
     meal_bcp.py         — shared meal-DCP fallback: recipe_dcp_fallback()
     meal_list_columns.py — nutrient-column picker logic shared by Meals & Log,
