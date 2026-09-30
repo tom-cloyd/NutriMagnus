@@ -130,7 +130,7 @@
         </form>
       </td>
       <td class="muted">{{ r.brand or "—" }}</td>
-      <td class="muted">{{ r.data_type }}</td>
+      <td class="muted">{{ food_type(r) }}</td>
       <td>
         {% if r.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
         {% elif r.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy)">~✓</span>
@@ -215,7 +215,7 @@
         <span class="muted">—</span>
         {% endif %}
       </td>
-      <td class="muted"><small>{{ item.data_type or "—" }}</small></td>
+      <td class="muted"><small>{{ food_type(item, "—") }}</small></td>
       <td class="text-center">
         {% if item.has_aa %}
         <span class="status-met" title="Amino acid data available">&#10003;</span>

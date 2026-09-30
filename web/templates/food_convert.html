@@ -56,7 +56,7 @@
     <tr>
       <td><a href="{{ food.convert_url }}"><strong>{{ food.name }}</strong></a></td>
       <td class="muted">{{ food.brand or "—" }}</td>
-      <td class="muted">{{ food.data_type }}</td>
+      <td class="muted">{{ food_type(food) }}</td>
       <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
     </tr>
     {% endfor %}

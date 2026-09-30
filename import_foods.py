@@ -344,7 +344,7 @@ def main() -> None:
                 notes = f"{notes}  {note}" if notes else note
             else:
                 nutrients, stripped = validate_and_strip(food["nutrients"])
-            _db.cache_food(
+            _db.cache_user_supplied_food(
                 conn,
                 fdc_id=food["fdc_id"],
                 name=food["name"],

@@ -68,6 +68,19 @@ class TestParseResponse:
         assert "SR Legacy" in curator_text
         assert "more foods" in curator_text
 
+    def test_json_array_leaves_no_punctuation_as_curator_text(self):
+        """A reply listing its foods as a JSON array used to leave the commas
+        between them behind as every imported food's curator notes."""
+        text = ('```json\n[\n  {"name": "A", "fdc_id": 1, "protein_g": 1},\n'
+                '  {"name": "B", "fdc_id": 2, "protein_g": 2},\n'
+                '  {"name": "C", "fdc_id": 3, "protein_g": 3}\n]\n```')
+        blocks, curator_text, _warnings = _cf.parse_response(text)
+        assert [b["fdc_id"] for b in blocks] == [1, 2, 3]
+        assert curator_text is None
+
+        _blocks, curator_text, _warnings = _cf.parse_response("Real note.\n" + text)
+        assert curator_text == "Real note."
+
     def test_bare_json_fallback_when_no_fenced_blocks(self):
         """Claude sometimes replies without ```json fences — the brace-matching
         fallback must still find well-formed objects that include fdc_id."""

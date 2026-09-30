@@ -35,10 +35,13 @@ parent. Each ingredient entry is [name, amount, unit, kind] where kind is
 it needs can't be exported at all (its recipe row is gone, or the references
 form a cycle).
 
-Each exported recipe carries a "source_recipe_id" field — the live recipes.id
-it was pulled from. demo_data.py ignores it (recipes are recreated fresh on
-load, getting new ids), but scripts/refresh_starter_data.py uses it to
-re-locate the same recipe later even if its name has since changed.
+Each exported recipe carries a "uid": its permanent starter identity, stamped
+into recipes.starter_uid in this database the first time it is exported
+(demo_data.ensure_recipe_uid()). demo_data.py stores it on the user's copy,
+so a user recipe that merely shares the name is never mistaken for it, and
+scripts/refresh_starter_data.py uses it to re-locate the same recipe here even
+if its name has since changed. (Older exports carried "source_recipe_id",
+this database's own recipes.id, instead; that no longer ships.)
 
 Run from the repo root:
     python scripts/export_starter_data.py
@@ -51,6 +54,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 import db as _db
+from numa_app.services import demo_data as _demo_data
 
 OUTPUT = REPO_ROOT / "numa_app" / "services" / "starter_data.json"
 _PREFIX = "* "
@@ -66,17 +70,25 @@ def _canonical_name(name: str) -> str:
     return _PREFIX + name[1:].lstrip()
 
 
-def _food_dict(row, *, name: str | None = None) -> dict:
-    return {
+def _food_dict(row, *, name: str | None = None, conn=None) -> dict:
+    food = {
         "fdc_id": row["fdc_id"],
         "name": name if name is not None else row["name"],
         "data_type": row["data_type"],
         "nutrients": json.loads(row["nutrients_json"]),
         "portions": json.loads(row["portions_json"] or "[]"),
     }
+    # The food's GI annotation, but only if it may be redistributed — see
+    # demo_data.shippable_gi() (never a value from the Atkinson 2021 tables).
+    if conn is not None:
+        gi = _demo_data.shippable_gi(_db.get_food_annotation(conn, row["fdc_id"]))
+        if gi:
+            food["gi"] = gi
+    return food
 
 
 def main() -> int:
+    _db.init_db()  # the same migrations the app runs (recipes.starter_uid etc.)
     with _db.get_db() as conn:
         food_rows = conn.execute(
             "SELECT fdc_id, name, data_type, nutrients_json, portions_json "
@@ -86,7 +98,7 @@ def main() -> int:
         # below are looked up by fdc_id, and that's also the identity
         # load_demo_data() ultimately writes into the foods table.
         foods_by_fdc_id = {
-            row["fdc_id"]: _food_dict(row, name=_canonical_name(row["name"]))
+            row["fdc_id"]: _food_dict(row, name=_canonical_name(row["name"]), conn=conn)
             for row in food_rows
         }
         starred_food_names = {f["name"] for f in foods_by_fdc_id.values()}
@@ -149,7 +161,7 @@ def main() -> int:
                         food_row = _db.get_cached_food(conn, ing["fdc_id"])
                         export_name = _canonical_name(food_row["name"]) if _is_starred(food_row["name"]) \
                             else _PREFIX + food_row["name"]
-                        foods_by_fdc_id[ing["fdc_id"]] = _food_dict(food_row, name=export_name)
+                        foods_by_fdc_id[ing["fdc_id"]] = _food_dict(food_row, name=export_name, conn=conn)
                         starred_food_names.add(export_name)
                         print(f"NOTE: auto-including {food_row['name']!r} as "
                               f"{export_name!r} — used as an ingredient in "
@@ -164,7 +176,7 @@ def main() -> int:
 
             exported_recipe_names[recipe_id] = recipe_name
             recipes_by_id[recipe_id] = {
-                "source_recipe_id": full["id"],
+                "uid": _demo_data.ensure_recipe_uid(conn, full["id"]),
                 "name": recipe_name,
                 "description": full["description"] or "",
                 "servings": full["servings"],

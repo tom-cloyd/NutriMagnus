@@ -104,7 +104,14 @@ vm-setup:
 # ── Windows: automated build (headless VM, SSH, PyInstaller) ─────────────────
 # Requires vm-setup to have been run once.
 # Override VM name: NUMA_VM_NAME="My VM" make build-windows
+#
+# Builds the manual first, exactly as the `build` target does. user-manual.html
+# is generated and gitignored, but nutrimagnus.spec bundles it -- and unlike the
+# Linux path, build-windows.sh just tars up the working tree, so a missing
+# user-manual.html fails the PyInstaller run inside the VM. From a fresh clone
+# that file does not exist yet, so this cannot be left implicit.
 build-windows:
+	.venv/bin/python3 scripts/build_manual.py
 	./scripts/build-windows.sh
 
 # ── Windows: upload dist-windows/nutrimagnus.exe to latest GitHub release ────

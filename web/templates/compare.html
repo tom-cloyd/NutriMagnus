@@ -128,7 +128,7 @@
         <td class="muted"><small>{{ food_id_short(r.fdc_id) }}</small></td>
         <td><a href="/food/{{ r.fdc_id }}"><strong>{{ r.name }}</strong></a></td>
         <td class="muted">{{ r.brand or "—" }}</td>
-        <td class="muted">{{ r.data_type }}</td>
+        <td class="muted">{{ food_type(r) }}</td>
         <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>
         {% endif %}
       </tr>
@@ -160,7 +160,7 @@
         {% endif %}
       </td>
       <td class="{% if e.has_aa %}text-success{% else %}text-danger{% endif %}" title="{% if e.has_aa %}Amino acid data available{% else %}No amino acid data{% endif %}">{{ "✓" if e.has_aa else "✗" }}</td>
-      <td class="muted">{{ "Recipe" if e.kind == "recipe" else e.data_type }}</td>
+      <td class="muted">{{ "Recipe" if e.kind == "recipe" else food_type(e) }}</td>
       <td>
         <form method="post" action="/compare/remove" style="display:inline">
           <input type="hidden" name="remove_kind" value="{{ e.kind }}">

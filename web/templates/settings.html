@@ -465,7 +465,7 @@
 {# ── 9. Starter data ─────────────────────────────────────────────────── #}
 <details id="starter-data" {% if starter_changes.improved_foods or starter_changes.improved_recipes or starter_changes.new_foods or starter_changes.new_recipes %}open{% endif %}>
   <summary data-ak="9"><u class="ak">9</u>. <strong>Starter Data</strong>
-    <span class="muted"> — populate the app with curated foods, pantry items, and recipes to explore or build on</span>
+    <span class="muted"> — curated foods and recipes to explore or build on</span>
   </summary>
 
   {% if saved == 'starter_data_loaded' %}
@@ -473,6 +473,14 @@
   {% endif %}
   {% if saved == 'starter_data_cleared' %}
   <p class="status-met mt-2"><strong>&#10003; Starter data cleared.</strong>
+    {% if starter_edited_kept %}
+    {% set _one = starter_edited_kept == 1 %}
+    <br><span class="muted"><small>{{ starter_edited_kept }} starter item{{ '' if _one else 's' }} {{ 'was' if _one else 'were' }} kept, because you had changed {{ 'it' if _one else 'them' }} since {{ 'it was' if _one else 'they were' }} loaded — renamed, edited, or given a GI or DIAAS value — which makes {{ 'it' if _one else 'them' }} yours.</small></span>
+    {% endif %}
+    {% if starter_recipes_kept %}
+    {% set _one = starter_recipes_kept == 1 %}
+    <br><span class="muted"><small>{{ starter_recipes_kept }} starter recipe{{ '' if _one else 's' }} {{ 'was' if _one else 'were' }} kept, because you logged {{ 'it' if _one else 'them' }} in a meal or used {{ 'it' if _one else 'them' }} in a recipe of your own.</small></span>
+    {% endif %}
     {% if starter_foods_kept %}
     {% set _one = starter_foods_kept == 1 %}
     <br><span class="muted"><small>{{ starter_foods_kept }} starter food{{ '' if _one else 's' }} {{ 'was' if _one else 'were' }} kept, because you are still using {{ 'it' if _one else 'them' }} in a meal, a recipe of your own, or your pantry. Deleting {{ 'it' if _one else 'them' }} would leave those entries pointing at a food that no longer exists.</small></span>
@@ -515,8 +523,8 @@
 
   {% if not starter_data_loaded %}
   <p class="mt-2 muted"><small>
-    Adds {{ starter_food_count }} real, USDA-sourced foods with full amino-acid data{% if starter_pantry_count %}, {{ starter_pantry_count }}
-    of them to your pantry,{% endif %} and {{ starter_recipe_count }} recipes chosen to show protein complementarity working —
+    Adds {{ starter_food_count }} starter foods — many with amino acid data{% if starter_gi_count %}, {{ starter_gi_count }} with a glycemic index value{% endif %}{% if starter_pantry_count %}, {{ starter_pantry_count }}
+    of them to your pantry,{% endif %} — and {{ starter_recipe_count }} recipes made from them, several showing protein complementing at work,
     without touching anything already in your cache, pantry, or recipes.
   </small></p>
   <form method="post" action="/settings/starter-data/load"
@@ -526,13 +534,14 @@
   {% else %}
   <p class="mt-2 muted"><small>Starter data is currently loaded.</small></p>
   <form method="post" action="/settings/starter-data/clear"
-        onsubmit="return confirm('Remove all starter foods, pantry items, and recipes? This cannot be undone.')">
+        onsubmit="return confirm('Remove the starter foods and recipes you have not changed? Anything you have edited, renamed or annotated, or are still using, is kept. This cannot be undone.')">
     <button type="submit" class="btn btn-outline-danger btn-sm">Clear starter data</button>
     <p class="mt-2 muted"><small>
       Removes the {{ starter_food_count }} starter foods from your Food Cache{% if starter_pantry_count %}, the {{ starter_pantry_count }}
       starter items from your Pantry,{% endif %} and the {{ starter_recipe_count }} starter recipes from your Recipes list —
-      exactly what "Load starter data" added. Nothing else in your Food Cache, Pantry, or Recipes list is touched,
-      even if you renamed or edited a starter item afterward.
+      exactly what "Load starter data" added, and nothing else. <strong>Anything you have made your own is kept:</strong>
+      a starter food or recipe you renamed, edited or re-portioned, a food you gave a GI or DIAAS value, and anything
+      you are still using in a meal, in one of your own recipes, or in your pantry.
     </small></p>
   </form>
   {% endif %}
@@ -582,9 +591,11 @@
   <details class="mt-2" id="starter-data-list">
     <summary><small>View all starter data ({{ starter_status.foods|length }} foods, {{ starter_status.recipes|length }} recipes — fdc_id and name)</small></summary>
     <p class="mt-2 mb-1"><small><strong>Foods</strong></small></p>
+    <p class="mt-0 mb-1 muted"><small>Some of these foods are here only because a starter recipe uses them as an ingredient —
+      a recipe can't be loaded without its foods. Each food shows which starter recipes use it.</small></p>
     <ul class="mt-0 muted" style="max-height:16rem; overflow-y:auto; list-style:none; padding-left:0;">
       {% for food in starter_status.foods %}
-      <li><small>{{ food.fdc_id }} — {{ food.name }}</small></li>
+      <li><small>{{ food.fdc_id }} — {{ food.name }}{% if food.used_in %} <span class="text-secondary">(ingredient of: {{ food.used_in | join(", ") }})</span>{% endif %}</small></li>
       {% endfor %}
     </ul>
     <p class="mt-2 mb-1"><small><strong>Recipes</strong></small></p>
@@ -632,9 +643,11 @@
    disappearance are otherwise invisible. Deliberately opens itself when the
    bundled 2008 fallback is what is in use, since that is the state a user is
    most likely not to have noticed. #}
-<details id="gi-table" {% if gi_table.edition != 2021 or gi_build.running or gi_build.result or gi_build.error or gi_build_error %}open{% endif %}>
+<details id="gi-table" {% if (gi_table.edition != 2021 and not gi_opt_out) or gi_build.running or gi_build.result or gi_build.error or gi_build_error %}open{% endif %}>
   <summary>11. <strong>Glycemic Index Reference Table</strong>
-    {% if gi_table.edition == 2021 %}
+    {% if gi_opt_out %}
+    <span class="muted"> — not in use{% if gi_table.edition == 2021 %} (2021 edition present){% elif gi_table.edition == 2008 %} (2008 edition bundled){% endif %}</span>
+    {% elif gi_table.edition == 2021 %}
     <span class="status-met"> — 2021 edition, {{ "{:,}".format(gi_table.rows) }} foods</span>
     {% elif gi_table.edition == 2008 %}
     <span class="muted"> — 2008 edition (bundled), {{ "{:,}".format(gi_table.rows) }} foods</span>
@@ -727,6 +740,33 @@
   for your use alone at <code>{{ gi_table_candidates[0] }}</code>. If the files turn out to be wrong,
   NuMa says so and changes nothing.</small></p>
   {% endif %}
+
+  {# Opt-out for anyone not recording GI data at all. Distinct from the home
+     banner's own "do not remind me again", which silences one message that has
+     been read; this turns the whole subject off, and stays off. #}
+  <hr class="mt-3">
+  {% if saved == 'gi_notices' %}
+  <p class="status-met mt-2"><strong>&#10003; Glycemic index setting saved.</strong></p>
+  {% endif %}
+  <form method="post" action="/settings/gi-notices" class="mt-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="gi_opt_out" value="1"
+             id="gi-notices-off" {{ 'checked' if gi_opt_out }}>
+      <label class="form-check-label" for="gi-notices-off">
+        <strong>I do not record glycemic index data.</strong> Stop asking me for GI values,
+        and stop telling me which GI reference table is in use.
+      </label>
+    </div>
+    <p class="muted mb-2"><small>Tick this and adding a food never detours to the Annotate page
+    just to ask for a GI value, the per-food "don't prompt me for a GI estimate" tick-box goes
+    away as redundant, and the home-page notices about this table stop — including the warning
+    that a 2021 table you built has gone missing. Nothing already recorded is hidden or deleted:
+    a saved GI value is still shown and still used to work out glycemic load, this section still
+    reports the state of the table, and the GI field is still there on the Annotate page if you
+    want it. Un-ticking this puts everything back, including any per-food prompt choices you had
+    made.</small></p>
+    <button type="submit" class="btn btn-primary btn-sm">Save glycemic index setting</button>
+  </form>
 </details>
 
 {# ── 12. System issues (no shortcut key — digits run out at 10) ─────────── #}

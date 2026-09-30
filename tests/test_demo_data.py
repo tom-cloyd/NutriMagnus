@@ -65,6 +65,8 @@ def test_clear_removes_exactly_what_was_loaded(db_conn: sqlite3.Connection) -> N
         "pantry": len(demo_data.DEMO_PANTRY),
         "recipes": len(demo_data.DEMO_RECIPES),
         "foods_kept": 0,
+        "recipes_kept": 0,
+        "edited_kept": 0,
     }
     assert db_conn.execute("SELECT COUNT(*) FROM foods").fetchone()[0] == 0
     assert db_conn.execute("SELECT COUNT(*) FROM pantry").fetchone()[0] == 0
@@ -75,7 +77,7 @@ def test_clear_removes_exactly_what_was_loaded(db_conn: sqlite3.Connection) -> N
 
 def test_clear_without_load_is_noop(db_conn: sqlite3.Connection) -> None:
     result = demo_data.clear_demo_data(db_conn)
-    assert result == {"foods": 0, "pantry": 0, "recipes": 0, "foods_kept": 0}
+    assert result == {"foods": 0, "pantry": 0, "recipes": 0, "foods_kept": 0, "recipes_kept": 0, "edited_kept": 0}
 
 
 def test_real_data_untouched_by_load_and_clear(db_conn: sqlite3.Connection) -> None:
@@ -550,3 +552,236 @@ def test_item_new_then_improved_is_offered_as_improved_once_added(
     changes = demo_data.pending_changes(db_conn)
     assert changes["new_foods"] == []
     assert [f["fdc_id"] for f in changes["improved_foods"]] == [5]
+
+
+def test_shipped_starter_data_carries_no_2021_gi_values() -> None:
+    """Licence guard on the file that actually ships."""
+    for food in demo_data.DEMO_FOODS:
+        gi = food.get("gi")
+        if gi and gi.get("source"):
+            assert gi["source"].startswith(demo_data._SHIPPABLE_GI_SOURCES), food["name"]
+
+
+def test_starter_gi_is_loaded_with_its_source(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    import db as _db
+
+    typed = dict(_food(1, "* A"), gi={"estimate": 55.0, "source": None})
+    picked = dict(_food(2, "* B"), gi={"estimate": 70.0, "source": "Atkinson 2008 international GI tables: x"})
+    _starter_set(monkeypatch, [typed, picked, _food(3, "* C")], [])
+    demo_data.load_demo_data(db_conn)
+
+    a = _db.get_food_annotation(db_conn, 1)
+    assert (a["gi_estimate"], a["gi_source"]) == (55.0, demo_data._CURATOR_GI_SOURCE)
+    assert _db.get_food_annotation(db_conn, 2)["gi_source"].startswith("Atkinson 2008")
+    assert _db.get_food_annotation(db_conn, 3) is None
+    # A curator estimate that arrived this way still ships if exported again.
+    assert demo_data.shippable_gi(a) == {"estimate": 55.0, "source": demo_data._CURATOR_GI_SOURCE}
+
+
+def test_restoring_starter_items_leaves_the_users_own_food_and_gi_alone(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import db as _db
+
+    _starter_set(monkeypatch, [dict(_food(2, "* B"), gi={"estimate": 70.0, "source": None})], [])
+    _db.cache_food(db_conn, 2, "My B", "SR Legacy", None, None, None, {"protein_g": 1.0})
+    _db.upsert_food_annotation(db_conn, 2, gi_estimate=66.0, gi_source=None)
+    demo_data.restore_selected(db_conn, [2], [], [])
+    assert _db.get_food_annotation(db_conn, 2)["gi_estimate"] == 66.0
+    assert _db.get_cached_food(db_conn, 2)["name"] == "My B"
+
+
+def test_improving_a_food_updates_its_gi(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    import db as _db
+
+    _starter_set(monkeypatch, [_food(1, "* A")], [])
+    demo_data.load_demo_data(db_conn)
+    demo_data.record_version_changes()
+    _starter_set(monkeypatch, [dict(_food(1, "* A"), gi={"estimate": 48.0, "source": None})], [])
+    assert [f["fdc_id"] for f in demo_data.pending_changes(db_conn)["improved_foods"]] == [1]
+    demo_data.apply_improvements(db_conn, [1], [])
+    assert _db.get_food_annotation(db_conn, 1)["gi_estimate"] == 48.0
+
+
+# ── Starter identity: never overwrite, fresh local ids, recipe uids ───────
+
+def test_load_never_overwrites_a_food_the_user_already_has(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import db as _db
+
+    _starter_set(monkeypatch, [dict(_food(2, "* B"), gi={"estimate": 70.0, "source": None})], [])
+    _db.cache_food(db_conn, 2, "My B", "SR Legacy", None, None, None, {"protein_g": 1.0})
+    _db.upsert_food_annotation(db_conn, 2, gi_estimate=66.0, gi_source=None, diaas_estimate=0.8)
+
+    assert demo_data.load_demo_data(db_conn)["foods"] == 0
+    row = _db.get_cached_food(db_conn, 2)
+    assert row["name"] == "My B"
+    ann = _db.get_food_annotation(db_conn, 2)
+    assert (ann["gi_estimate"], ann["diaas_estimate"]) == (66.0, 0.8)
+    # Not recorded as starter content, so clearing never deletes it.
+    demo_data.clear_demo_data(db_conn)
+    assert _db.get_cached_food(db_conn, 2) is not None
+
+
+def test_custom_starter_food_gets_a_fresh_local_id(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    import db as _db
+
+    # The user's own custom food already sits at -3, the curator's id.
+    _db.cache_food(db_conn, -3, "My oatmeal", "User Drafted", None, None, None, {"protein_g": 5.0},
+                   user_drafted=True)
+    starter = dict(_food(-3, "* Crackers"), data_type="User Drafted")
+    _starter_set(monkeypatch, [starter], [_recipe("* Snack", [["* Crackers", 30, "g", "food"]])])
+
+    demo_data.load_demo_data(db_conn)
+    assert _db.get_cached_food(db_conn, -3)["name"] == "My oatmeal"  # untouched
+    copy = db_conn.execute("SELECT fdc_id FROM foods WHERE starter_key = '-3'").fetchone()
+    assert copy is not None and copy["fdc_id"] not in (-3,) and copy["fdc_id"] < 0
+    rid = db_conn.execute("SELECT id FROM recipes WHERE name = '* Snack'").fetchone()["id"]
+    ing = db_conn.execute("SELECT fdc_id FROM recipe_ingredients WHERE recipe_id = ?", (rid,)).fetchone()
+    assert ing["fdc_id"] == copy["fdc_id"]  # the recipe uses the copy, not the user's oatmeal
+    assert all(f["present"] for f in demo_data.starter_status(db_conn)["foods"])
+
+    demo_data.clear_demo_data(db_conn)
+    assert _db.get_cached_food(db_conn, -3)["name"] == "My oatmeal"
+    assert db_conn.execute("SELECT COUNT(*) FROM foods WHERE starter_key = '-3'").fetchone()[0] == 0
+
+
+def test_same_name_user_recipe_is_not_mistaken_for_a_starter_recipe(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import db as _db
+
+    _db.recipe_create(db_conn, name="* Bowl", description="mine", servings=1, instructions="")
+    # Two recipes of the user's named "* Bowl" means none can be adopted by name.
+    _db.recipe_create(db_conn, name="* Bowl", description="mine too", servings=1, instructions="")
+    _starter_set(monkeypatch, [_food(1, "* A")],
+                 [dict(_recipe("* Bowl", [["* A", 100, "g", "food"]]), uid="u-bowl")])
+
+    assert demo_data.load_demo_data(db_conn)["recipes"] == 1
+    rows = db_conn.execute("SELECT description, starter_uid FROM recipes WHERE name = '* Bowl' "
+                           "ORDER BY id").fetchall()
+    assert [(r["description"] or "", r["starter_uid"]) for r in rows] == [
+        ("mine", None), ("mine too", None), ("", "u-bowl")]
+
+
+def test_starter_recipe_loaded_before_uids_is_adopted(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    _starter_set(monkeypatch, [_food(1, "* A")], [_recipe("* Bowl", [["* A", 100, "g", "food"]])])
+    demo_data.load_demo_data(db_conn)  # an older starter file: no uid
+    monkeypatch.setattr(demo_data, "DEMO_RECIPES",
+                        [dict(_recipe("* Bowl", [["* A", 100, "g", "food"]]), uid="u-bowl")])
+    assert all(r["present"] for r in demo_data.starter_status(db_conn)["recipes"])
+    assert db_conn.execute("SELECT starter_uid FROM recipes WHERE name = '* Bowl'").fetchone()[0] == "u-bowl"
+
+
+def test_manifest_switch_from_names_to_uids_reports_nothing_new() -> None:
+    old = demo_data.starter_manifest([], [_recipe("* Bowl", [])])
+    old["recipes"] = {k: {"hash": v["hash"]} for k, v in old["recipes"].items()}  # old format: no name field
+    new = demo_data.starter_manifest([], [dict(_recipe("* Bowl", []), uid="u-bowl")])
+    assert demo_data.diff_manifests(old, new) == demo_data._empty_changes()
+
+
+def test_recipe_updated_at_tracks_content_edits_only(db_conn: sqlite3.Connection) -> None:
+    import db as _db
+
+    rid = _db.recipe_create(db_conn, name="R", description="", servings=1, instructions="")
+    stamp = lambda: db_conn.execute("SELECT updated_at FROM recipes WHERE id = ?", (rid,)).fetchone()[0]
+    reset = lambda: db_conn.execute("UPDATE recipes SET updated_at = '2000-01-01' WHERE id = ?", (rid,))
+    assert stamp() is not None
+
+    for not_an_edit in ("UPDATE recipes SET last_accessed_at = datetime('now') WHERE id = ?",
+                        "UPDATE recipes SET dcp_g = 5 WHERE id = ?",
+                        "UPDATE recipes SET archived = 1 WHERE id = ?"):
+        reset()
+        db_conn.execute(not_an_edit, (rid,))
+        assert stamp() == "2000-01-01", not_an_edit
+
+    for edit in (lambda: db_conn.execute("UPDATE recipes SET name = 'R2' WHERE id = ?", (rid,)),
+                 lambda: _db.recipe_add_ingredient(db_conn, rid, 1, "x", 10, "g"),
+                 lambda: db_conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (rid,))):
+        reset()
+        edit()
+        assert stamp() != "2000-01-01"
+
+
+
+# ── Clear keeps what the user has made their own ─────────────────────────
+
+def _loaded_small_set(db_conn, monkeypatch) -> int:
+    _starter_set(monkeypatch, [_food(1, "* A"), _food(2, "* B")],
+                 [_recipe("* R", [["* A", 100, "g", "food"]])])
+    demo_data.load_demo_data(db_conn)
+    return db_conn.execute("SELECT id FROM recipes WHERE name = '* R'").fetchone()["id"]
+
+
+@pytest.mark.parametrize("edit", [
+    "UPDATE foods SET name = 'B, mine' WHERE fdc_id = 2",                       # renamed ("*" removed)
+    "UPDATE foods SET nutrients_json = '{\"protein_g\": 1.0}' WHERE fdc_id = 2",  # nutrients edited
+    "UPDATE foods SET portions_json = '[{\"label\": \"1 cup\", \"grams\": 200}]' WHERE fdc_id = 2",
+    "INSERT INTO food_annotations (fdc_id, gi_estimate) VALUES (2, 50)",       # annotated: counts as an edit
+    "INSERT INTO food_annotations (fdc_id, diaas_estimate) VALUES (2, 0.7)",
+])
+def test_clear_keeps_an_edited_starter_food(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch, edit) -> None:
+    _loaded_small_set(db_conn, monkeypatch)
+    db_conn.execute(edit)
+    result = demo_data.clear_demo_data(db_conn)
+    assert result["edited_kept"] == 1
+    assert db_conn.execute("SELECT COUNT(*) FROM foods WHERE fdc_id = 2").fetchone()[0] == 1
+    assert db_conn.execute("SELECT COUNT(*) FROM foods WHERE fdc_id = 1").fetchone()[0] == 0  # unedited: removed
+
+
+def test_clear_keeps_an_edited_starter_recipe_and_its_foods(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import db as _db
+
+    rid = _loaded_small_set(db_conn, monkeypatch)
+    _db.recipe_add_ingredient(db_conn, rid, 2, "* B", 20, "g")
+    result = demo_data.clear_demo_data(db_conn)
+    assert result["edited_kept"] == 1
+    assert _db.recipe_get(db_conn, rid) is not None
+    # Its foods stay too: the kept recipe still uses them.
+    assert result["foods_kept"] == 2
+
+
+def test_clear_keeps_a_starter_recipe_logged_in_a_meal(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    import db as _db
+
+    rid = _loaded_small_set(db_conn, monkeypatch)
+    mid = _db.meal_create(db_conn, "Lunch", "2026-09-29")
+    _db.meal_add_recipe(db_conn, mid, rid, "* R", 1)
+    result = demo_data.clear_demo_data(db_conn)
+    assert result["recipes_kept"] == 1
+    assert _db.recipe_get(db_conn, rid) is not None
+
+
+def test_clear_with_an_old_marker_compares_against_the_bundled_set(
+    db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _loaded_small_set(db_conn, monkeypatch)
+    marker = json.loads(demo_data._MARKER_FILE.read_text())
+    del marker["fingerprints"]  # as written before fingerprints existed
+    demo_data._MARKER_FILE.write_text(json.dumps(marker))
+    db_conn.execute("UPDATE foods SET name = 'B, mine' WHERE fdc_id = 2")
+    result = demo_data.clear_demo_data(db_conn)
+    assert result["edited_kept"] == 1
+    assert result["foods"] == 1 and result["recipes"] == 1
+
+
+def test_an_improvement_numa_applied_is_not_an_edit(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    _loaded_small_set(db_conn, monkeypatch)
+    demo_data.record_version_changes()
+    _starter_set(monkeypatch, [_food(1, "* A"), _food(2, "* B", protein=20.0)],
+                 [_recipe("* R", [["* A", 100, "g", "food"]])])
+    demo_data.apply_improvements(db_conn, [2], [])
+    result = demo_data.clear_demo_data(db_conn)
+    assert result["edited_kept"] == 0
+    assert db_conn.execute("SELECT COUNT(*) FROM foods").fetchone()[0] == 0
+
+
+def test_starter_status_says_which_recipes_use_each_food(monkeypatch: pytest.MonkeyPatch, db_conn) -> None:
+    _starter_set(monkeypatch, [_food(1, "* Beans"), _food(2, "* Salt"), _food(3, "* Walnuts")],
+                 [_recipe("* Bowl", [["* Beans", 100, "g", "food"], ["* Salt", 1, "g", "food"]]),
+                  _recipe("* Soup", [["* Beans", 50, "g", "food"]])])
+    used = {f["name"]: f["used_in"] for f in demo_data.starter_status(db_conn)["foods"]}
+    assert used == {"* Beans": ["* Bowl", "* Soup"], "* Salt": ["* Bowl"], "* Walnuts": []}

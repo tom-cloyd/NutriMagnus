@@ -157,7 +157,12 @@ def parse_response(text: str) -> tuple[list[dict], str | None, list[str]]:
         remaining = text
         for start, end in sorted(spans, reverse=True):
             remaining = remaining[:start] + remaining[end:]
-        lines = [ln for ln in remaining.split("\n") if ln.strip()]
+        # Keep only lines with words in them. What's left between JSON objects
+        # is often bare punctuation: the commas and brackets of a JSON array,
+        # or a code fence. Kept, those became every imported food's "curator
+        # notes" (",\n  ,\n  ," and so on).
+        lines = [ln for ln in remaining.split("\n")
+                 if re.search(r"[A-Za-z0-9]", ln) and not ln.strip().startswith("```")]
         curator_text = "\n".join(lines).strip() or None
 
     return blocks, curator_text, warnings
@@ -265,7 +270,7 @@ def import_foods(conn, valid: list[dict], curator_text: str | None) -> None:
     Claude AI fetch/import workflow."""
     import db as _db
     for f in valid:
-        _db.cache_food(
+        _db.cache_user_supplied_food(
             conn,
             fdc_id=f["fdc_id"],
             name=f["name"],

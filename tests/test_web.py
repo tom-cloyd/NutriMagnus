@@ -494,7 +494,8 @@ def test_food_detail_offers_copy_as_draft_and_starter_toggle_for_real_food(
     resp = client.get(f"/food/{cached_food['fdcId']}")
     assert resp.status_code == 200
     assert "Copy as custom-food draft" in resp.text
-    assert "Mark as starter food" in resp.text
+    # The starter toggle moved to the Food Cache list (owner's request,
+    # 2026-09-30); see test_starter_food_toggle_is_on_food_cache_...
     assert "Edit nutrients" not in resp.text  # that's only for already-drafted foods
 
 
@@ -4230,6 +4231,37 @@ def test_oxalate_qualitative_list_deduplicates_repeated_food(monkeypatch) -> Non
     assert [row["name"] for row in result["qualitative"]] == ["Rhubarb", "Spinach"]
 
 
+def test_oxalate_quantitative_rows_sum_repeated_food(monkeypatch) -> None:
+    """Two servings of the same recipe (or a food logged twice) must produce
+    one summed quantitative row per food, not one row per occurrence — and
+    the no-data list must not repeat a name either."""
+    import oxalate as _ox
+
+    monkeypatch.setattr(_ox, "is_available", lambda: True)
+    monkeypatch.setattr(
+        backend, "_oxalate_info",
+        lambda fdc_id, name: None if name == "Water" else {
+            "mg_per_100g": 10.0, "mg_per_serving": None, "serving_size": None,
+            "category": "moderate", "confirmed": True,
+        },
+    )
+
+    items = [
+        {"fdc_id": 42, "food_name": "Spinach", "amount_g": 100},
+        {"fdc_id": 42, "food_name": "Spinach", "amount_g": 50},
+        {"fdc_id": 7, "food_name": "Water", "amount_g": 100},
+        {"fdc_id": 7, "food_name": "Water", "amount_g": 100},
+    ]
+    result = backend._oxalate_for_items(items)
+
+    assert result["rows"] == [{
+        "name": "Spinach", "amount_g": 150.0, "mg": 15.0,
+        "category": "moderate", "confirmed": True,
+    }]
+    assert result["total_mg"] == 15.0
+    assert result["missing"] == ["Water"]
+
+
 def test_recent_days_protein_leads_and_calories_now_optional(client: TestClient, cached_food) -> None:
     """Protein is Recent Days' one truly mandatory column and comes first,
     ahead of Day DCP — Calories/Carbs/Fiber used to be mandatory too but are
@@ -5320,3 +5352,219 @@ def test_settings_shows_gi_build_progress_then_outcome_once(client: TestClient, 
     assert "Both files are Supplemental Table 2." not in client.get("/settings").text
     assert "Build my 2021 GI table" in client.get("/settings").text or \
         "Rebuild my 2021 GI table" in client.get("/settings").text
+
+
+# --- Home-page glycemic index table notice -------------------------------
+#
+# A user-built 2021 table supersedes the bundled 2008 one silently, and losing
+# it falls back just as silently — so the home page says so. The Annotate page
+# and Settings report the same thing, but only if you go looking.
+#
+# These tests switch editions through a mutable dict rather than re-patching:
+# monkeypatch.undo() would also revert use_test_web_prefs' _PREFS_FILE patch
+# (same monkeypatch instance), sending the notice's own prefs writes to the
+# real prefs.json.
+
+def _gi_banner(client: TestClient) -> str:
+    """The home page's GI-table banner headline, or "" if there is none."""
+    m = re.search(r"<strong>((?:NO GLYCEMIC|YOUR 2021|GLYCEMIC INDEX LOOKUPS)[^<]*)",
+                  client.get("/").text)
+    return m.group(1) if m else ""
+
+
+def _gi_edition(monkeypatch: pytest.MonkeyPatch, edition: int | None) -> dict:
+    """Pin the active GI table's reported edition; mutate ["edition"] to change it."""
+    import gi_lookup
+    state = {"edition": edition, "rows": 4386 if edition == 2021 else 2487,
+             "path": "/somewhere/gi_data.json"}
+    monkeypatch.setattr(gi_lookup, "active_table_info", lambda: dict(state))
+    return state
+
+
+def test_home_says_nothing_when_the_2021_gi_table_is_in_use(client: TestClient,
+                                                            monkeypatch: pytest.MonkeyPatch) -> None:
+    """The banner is self-clearing: it exists only to report the fallback."""
+    _gi_edition(monkeypatch, 2021)
+    assert _gi_banner(client) == ""
+
+
+def test_home_reports_the_2008_fallback_on_a_fresh_install(client: TestClient,
+                                                           monkeypatch: pytest.MonkeyPatch) -> None:
+    """Never having built a 2021 table is worth mentioning, not warning about."""
+    _gi_edition(monkeypatch, 2008)
+    assert _gi_banner(client).startswith("GLYCEMIC INDEX LOOKUPS ARE USING THE 2008 TABLE")
+
+
+def test_home_warns_loudly_and_persistently_when_a_2021_table_goes_missing(
+        client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The case the banner exists for. It must keep saying so on every later
+    load, not soften to the generic message once the transition has passed."""
+    state = _gi_edition(monkeypatch, 2021)
+    assert _gi_banner(client) == ""                      # 2021 recorded as seen
+    state["edition"] = 2008
+    for _ in range(3):
+        assert _gi_banner(client).startswith("YOUR 2021 GLYCEMIC INDEX TABLE IS NO LONGER")
+
+
+def test_home_gi_notice_dismissal_re_arms_if_a_2021_table_returns(
+        client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dismissing silences the notice you have read, not the next disappearance."""
+    state = _gi_edition(monkeypatch, 2008)
+    assert _gi_banner(client)
+    client.post("/gi-table-notice/ack-banner", follow_redirects=False)
+    assert _gi_banner(client) == ""
+
+    state["edition"] = 2021
+    assert _gi_banner(client) == ""                      # in use: nothing to say
+    state["edition"] = 2008
+    assert _gi_banner(client).startswith("YOUR 2021 GLYCEMIC INDEX TABLE IS NO LONGER")
+
+
+def test_home_gi_notice_for_no_table_at_all_cannot_be_dismissed(
+        client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """No lookup can return anything in this state, so it is not silenceable."""
+    _gi_edition(monkeypatch, None)
+    client.post("/gi-table-notice/ack-banner", follow_redirects=False)
+    r = client.get("/")
+    assert "NO GLYCEMIC INDEX TABLE FOUND" in r.text
+    assert "gi-table-notice-dismiss-checkbox" not in r.text
+
+
+def test_home_gi_notice_can_be_opted_out_of_entirely(client: TestClient,
+                                                     monkeypatch: pytest.MonkeyPatch) -> None:
+    """For anyone not recording GI data at all: no notice in any state, including
+    the missing-table one the per-notice dismissal deliberately cannot silence."""
+    state = _gi_edition(monkeypatch, 2008)
+    assert _gi_banner(client)
+    client.post("/settings/gi-notices", data={"gi_opt_out": "1"}, follow_redirects=False)
+    for edition in (2008, None, 2021):
+        state["edition"] = edition
+        assert _gi_banner(client) == "", f"notice shown despite opt-out (edition {edition})"
+
+    # And it is reversible: the loud case comes back on un-ticking it.
+    state["edition"] = 2021
+    client.get("/")
+    client.post("/settings/gi-notices", data={}, follow_redirects=False)
+    state["edition"] = 2008
+    assert _gi_banner(client).startswith("YOUR 2021 GLYCEMIC INDEX TABLE IS NO LONGER")
+
+
+def test_settings_shows_the_gi_notice_opt_out_state(client: TestClient) -> None:
+    r = client.get("/settings")
+    assert 'id="gi-notices-off"' in r.text
+    assert "checked" not in r.text.split('id="gi-notices-off"')[1][:40]
+    client.post("/settings/gi-notices", data={"gi_opt_out": "1"}, follow_redirects=False)
+    r = client.get("/settings")
+    assert "checked" in r.text.split('id="gi-notices-off"')[1][:40]
+    assert "not in use" in r.text
+
+
+def test_gi_opt_out_stops_the_add_a_food_detour_for_a_missing_gi(
+        client: TestClient, cached_food, db_conn) -> None:
+    """The point of the opt-out: having said no to GI data, adding a food must
+    not divert to the Annotate page to ask for a GI value. A food still missing
+    a DIAAS estimate must keep diverting, since that was not opted out of."""
+    fdc_id = cached_food["fdcId"]
+    resp = client.post("/meals/create", data={"name": "Lunch",
+                                              "meal_date": datetime.date.today().isoformat()},
+                       follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+
+    def add() -> str:
+        r = client.post(f"/meal/{meal_id}/add",
+                        data={"fdc_id": fdc_id, "food_name": cached_food["name"],
+                              "portion_str": "100 g"}, follow_redirects=False)
+        return r.headers["location"]
+
+    assert "/food/annotate/" in add()          # baseline: asks about GI and DIAAS
+
+    client.post("/settings/gi-notices", data={"gi_opt_out": "1"}, follow_redirects=False)
+    # Still diverts, but now only on DIAAS's account — and the page says so.
+    location = add()
+    assert "/food/annotate/" in location
+    page = client.get(f"/food/annotate/{fdc_id}?next=/meal/{meal_id}").text
+    assert "Asking for this one" in page                       # DIAAS
+    assert page.count("Asking for this one") == 1
+    assert "turned off</strong> in" in page                   # the folded-away GI block
+
+    # With DIAAS settled, nothing is left to ask about: no detour at all.
+    _db.set_food_annotation(db_conn, fdc_id, gi_estimate=None, gi_source=None,
+                            gi_no_prompt=False, diaas_estimate=1.0,
+                            diaas_no_prompt=False, prep_context=None)
+    db_conn.commit()
+    assert "/food/annotate/" not in add()
+
+
+def test_gi_opt_out_preserves_a_foods_own_gi_prompt_choice(client: TestClient,
+                                                           cached_food, db_conn) -> None:
+    """Saving the Annotate form while opted out must not clear a per-food
+    'never ask about this one' flag — it matters again if the opt-out is
+    switched back off, and set_food_annotation() overwrites the column."""
+    fdc_id = cached_food["fdcId"]
+    _db.set_food_annotation(db_conn, fdc_id, gi_estimate=None, gi_source=None,
+                            gi_no_prompt=True, diaas_estimate=None,
+                            diaas_no_prompt=False, prep_context=None)
+    db_conn.commit()
+
+    client.post("/settings/gi-notices", data={"gi_opt_out": "1"}, follow_redirects=False)
+    client.post(f"/food/annotate/{fdc_id}", data={"diaas_estimate": "1.0"},
+                follow_redirects=False)
+    assert _db.get_food_annotation(db_conn, fdc_id)["gi_no_prompt"] == 1
+
+
+def test_user_edited_usda_food_shows_origin_and_mark(client: TestClient, cached_food) -> None:
+    fdc_id = cached_food["fdcId"]
+    with _db.get_db() as conn:
+        origin = _db.get_cached_food(conn, fdc_id)["data_type"]
+        assert "user-edited" not in client.get(f"/food/{fdc_id}").text
+        _db.mark_user_edited(conn, fdc_id)
+    assert f"{origin} · user-edited" in client.get(f"/food/{fdc_id}").text
+    assert f"{origin} · user-edited" in client.get("/food/cache").text
+
+
+def test_annotating_a_food_marks_it_user_edited(client: TestClient, cached_food) -> None:
+    fdc_id = cached_food["fdcId"]
+    client.post(f"/food/annotate/{fdc_id}", data={"gi_estimate": "45", "diaas_estimate": "", "prep_context": ""})
+    with _db.get_db() as conn:
+        assert fdc_id in _db.user_edited_ids(conn)
+
+
+def test_starter_food_toggle_is_on_food_cache_and_only_when_running_from_source(
+    client: TestClient, cached_food, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Curating the starter set is the project owner's job; the packaged
+    program (sys.frozen) neither shows the button nor accepts the request.
+    The button lives on the Food Cache list and returns to the same row."""
+    import web.backend as _backend
+    fdc_id = cached_food["fdcId"]
+    assert f'action="/food/{fdc_id}/toggle-starter"' in client.get("/food/cache").text
+    assert "toggle-starter" not in client.get(f"/food/{fdc_id}").text  # moved off the food page
+
+    resp = client.post(f"/food/{fdc_id}/toggle-starter",
+                       data={"next": "/food/cache?q=&sort=name"}, follow_redirects=False)
+    assert resp.headers["location"] == "/food/cache?q=&sort=name"
+    with _db.get_db() as conn:
+        assert _db.get_cached_food(conn, fdc_id)["name"].startswith("* ")
+    assert "Unmark as<br>starter food" in client.get("/food/cache").text
+
+    monkeypatch.setattr(_backend, "_is_curator", lambda: False)
+    assert "toggle-starter" not in client.get("/food/cache").text
+    resp = client.post(f"/food/{fdc_id}/toggle-starter", follow_redirects=False)
+    assert resp.status_code == 404
+    with _db.get_db() as conn:
+        assert _db.get_cached_food(conn, fdc_id)["name"].startswith("* ")  # unchanged
+
+
+def test_recipe_details_save_button_is_not_cancelled(client: TestClient, db_conn) -> None:
+    """The "Save recipe details" button and "View recipe" link sit inside the
+    Recipe details <summary>. A click handler there called preventDefault()
+    to stop the section collapsing, which also cancelled the button's submit
+    and the link's navigation: from 2026-09-24 the button saved nothing and
+    the page then warned about unsaved changes. Browsers don't toggle a
+    <details> when a button or link inside its summary is clicked, so no
+    handler is needed (checked in Chromium and Firefox, 2026-09-30)."""
+    rid = _db.recipe_create(db_conn, name="R", description="", servings=1, instructions="")
+    db_conn.commit()
+    html = client.get(f"/recipe/{rid}/edit").text
+    assert 'id="save-recipe-details"' in html
+    assert "summary.addEventListener('click'" not in html

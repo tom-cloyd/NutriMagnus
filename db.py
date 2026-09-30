@@ -190,6 +190,13 @@ def init_db() -> None:
             conn.execute("ALTER TABLE foods ADD COLUMN curator_notes TEXT")
         except sqlite3.OperationalError:
             pass
+        # Migrate: clear curator notes holding no words at all. The Claude
+        # fetch import used to save the commas left between foods, when a reply
+        # listed them as a bare JSON array, as every imported food's "curator
+        # notes" (e.g. ",\n  ,\n  ,"). claude_fetch.parse_response() no longer
+        # keeps such lines; this removes the ones already saved. Idempotent.
+        conn.execute("UPDATE foods SET curator_notes = NULL "
+                     "WHERE curator_notes IS NOT NULL AND curator_notes NOT GLOB '*[A-Za-z0-9]*'")
 
         try:
             conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN notes TEXT")
@@ -406,6 +413,77 @@ def init_db() -> None:
             END
         """)
 
+        # Starter-data identity (see numa_app/services/demo_data.py).
+        # foods.starter_key: which starter food a row was loaded from, when it
+        # was given a fresh local id on load (custom foods only; a USDA or Open
+        # Food Facts id means the same food everywhere and is kept as is).
+        # recipes.starter_uid: a starter recipe's permanent identity, stamped
+        # by scripts/export_starter_data.py — so a recipe of the user's own with
+        # the same name is never mistaken for it.
+        for _table, _col in (("foods", "starter_key TEXT"), ("recipes", "starter_uid TEXT"),
+                             ("recipes", "updated_at TEXT")):
+            try:
+                conn.execute(f"ALTER TABLE {_table} ADD COLUMN {_col}")
+            except sqlite3.OperationalError:
+                pass
+        conn.execute("UPDATE recipes SET updated_at = created_at WHERE updated_at IS NULL")
+
+        # foods.user_edited: the user has changed this USDA / Open Food Facts
+        # food's data — nutrients, portions, or its annotations (owner's
+        # decision: an annotation is an edit). Kept apart from data_type, which
+        # says only where the food came from, so a food can be "SR Legacy" AND
+        # user-edited; shown as "SR Legacy · user-edited". Never set on a
+        # custom food, whose origin already says the user made it.
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN user_edited INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        else:
+            # One-time backfill, only when the column is new. Before it
+            # existed, user_drafted = 1 on a USDA/OFF food was the only sign of
+            # an edit, except on starter foods, which load with user_drafted = 1
+            # unedited. A starter GI value alone isn't the user's edit either.
+            conn.execute(f"""
+                UPDATE foods SET user_edited = 1
+                WHERE NOT ({_LOCAL_ID_SQL}) AND (
+                    (user_drafted = 1 AND COALESCE(notes, '') <> 'Starter data')
+                    OR fdc_id IN (SELECT fdc_id FROM food_annotations
+                                  WHERE diaas_estimate IS NOT NULL OR COALESCE(prep_context, '') <> ''
+                                     OR (gi_estimate IS NOT NULL
+                                         AND COALESCE(gi_source, '') <> 'Starter data (curator''s estimate)'))
+                )
+            """)
+        # recipes.updated_at: when the recipe's content last changed — its own
+        # fields or its ingredient list. Kept by triggers so no code path can
+        # forget it. Deliberately NOT bumped by viewing (last_accessed_at), by
+        # archiving, or by the automatic DCP/nutrient recalculation, none of
+        # which is an edit.
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_recipes_set_updated_at_on_insert
+            AFTER INSERT ON recipes FOR EACH ROW WHEN NEW.updated_at IS NULL
+            BEGIN
+                UPDATE recipes SET updated_at = datetime('now') WHERE id = NEW.id;
+            END
+        """)
+        conn.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_recipes_updated_at
+            AFTER UPDATE OF name, description, servings, serving_size, complete,
+                            instructions, introduction, notes, total_weight,
+                            total_weight_unit, total_volume, total_volume_unit
+            ON recipes FOR EACH ROW
+            BEGIN
+                UPDATE recipes SET updated_at = datetime('now') WHERE id = NEW.id;
+            END
+        """)
+        for _event, _row in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+            conn.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS trg_recipe_ingredients_{_event.lower()}_touches_recipe
+                AFTER {_event} ON recipe_ingredients FOR EACH ROW
+                BEGIN
+                    UPDATE recipes SET updated_at = datetime('now') WHERE id = {_row}.recipe_id;
+                END
+            """)
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
@@ -415,11 +493,24 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
                nutrients: dict[str, float], portions: list[dict] | None = None,
                *, user_drafted: bool = False, notes: str | None = None,
                curator_notes: str | None = None) -> None:
+    """Store a food, or overwrite the data columns of one already cached.
+
+    An upsert, not INSERT OR REPLACE. REPLACE deletes the existing row and
+    inserts a new one, and that delete sets off food_annotations' ON DELETE
+    CASCADE: re-caching a food silently erased its GI / DIAAS / prep-note
+    annotations, and reset its archived flag and every column not listed
+    here (user_edited, starter_key). Updating in place keeps all of them."""
     conn.execute("""
-        INSERT OR REPLACE INTO foods
+        INSERT INTO foods
             (fdc_id, name, data_type, brand, serving_size, serving_unit,
              nutrients_json, portions_json, user_drafted, notes, curator_notes)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(fdc_id) DO UPDATE SET
+            name = excluded.name, data_type = excluded.data_type, brand = excluded.brand,
+            serving_size = excluded.serving_size, serving_unit = excluded.serving_unit,
+            nutrients_json = excluded.nutrients_json, portions_json = excluded.portions_json,
+            user_drafted = excluded.user_drafted, notes = excluded.notes,
+            curator_notes = excluded.curator_notes, cached_at = datetime('now')
     """, (
         fdc_id, name, data_type, brand, serving_size, serving_unit,
         json.dumps(nutrients), json.dumps(portions or []),
@@ -1953,6 +2044,43 @@ def pantry_get(conn: sqlite3.Connection, pantry_id: int) -> sqlite3.Row | None:
 # User-drafted foods
 # ---------------------------------------------------------------------------
 
+# A custom food's id: a purely local counter (see next_user_drafted_fdc_id()).
+# Anything else is a USDA id (positive) or a deterministic Open Food Facts id
+# (-1,000,000,000 or below), which names the same food in every database.
+_LOCAL_ID_SQL = "fdc_id < 0 AND fdc_id > -1000000000"
+
+
+def is_custom_food_id(fdc_id: int) -> bool:
+    return -1_000_000_000 < fdc_id < 0
+
+
+def mark_user_edited(conn: sqlite3.Connection, fdc_id: int) -> None:
+    """Record that the user changed this food's data (see foods.user_edited).
+    A no-op on a custom food."""
+    if not is_custom_food_id(fdc_id):
+        conn.execute("UPDATE foods SET user_edited = 1 WHERE fdc_id = ?", (fdc_id,))
+
+
+def cache_user_supplied_food(conn: sqlite3.Connection, *, fdc_id: int, data_type: str, **kwargs) -> None:
+    """cache_food() for data the user brought in themselves (the Claude
+    fetch/import workflows, import_foods.py, import_json_folder.py).
+
+    For a USDA or Open Food Facts food this is the user's edit of that food:
+    it is marked user-edited, and its origin is kept. Those imports label
+    everything "User Drafted", which used to overwrite a USDA food's real
+    type ("SR Legacy", "Branded", ...) for good."""
+    prior = get_cached_food(conn, fdc_id)
+    if (not is_custom_food_id(fdc_id) and data_type == "User Drafted" and prior is not None
+            and prior["data_type"] and prior["data_type"] != "User Drafted"):
+        data_type = prior["data_type"]
+    cache_food(conn, fdc_id=fdc_id, data_type=data_type, **kwargs)
+    mark_user_edited(conn, fdc_id)
+
+
+def user_edited_ids(conn: sqlite3.Connection) -> set[int]:
+    return {r[0] for r in conn.execute("SELECT fdc_id FROM foods WHERE user_edited = 1").fetchall()}
+
+
 def next_user_drafted_fdc_id(conn: sqlite3.Connection) -> int:
     # Scoped to (-1_000_000_000, 0) so this never wanders into a reserved
     # external-source range (see food_ids._SYNTHETIC_ID_RANGES /
@@ -2024,11 +2152,13 @@ def saved_mixed_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool
 
 
 def update_food_portions(conn: sqlite3.Connection, fdc_id: int, portions: list[dict]) -> None:
-    """Patch only the portions_json column for a cached food."""
+    """Patch only the portions_json column for a cached food. Only the
+    Portions editor calls this, so it is always the user's edit."""
     conn.execute(
         "UPDATE foods SET portions_json=? WHERE fdc_id=?",
         (json.dumps(portions), fdc_id),
     )
+    mark_user_edited(conn, fdc_id)
 
 
 def update_cached_food_profile(
@@ -2047,12 +2177,16 @@ def update_cached_food_profile(
 ) -> None:
     conn.execute(
         "UPDATE foods SET name=?, data_type=?, brand=?, serving_size=?, serving_unit=?, "
-        "nutrients_json=?, portions_json=?, user_drafted=?, notes=?, cached_at=(datetime('now')) "
-        "WHERE fdc_id=?",
+        "nutrients_json=?, portions_json=?, user_drafted=?, notes=?, cached_at=(datetime('now')), "
+        "user_edited=? WHERE fdc_id=?",
         (
             name, data_type, brand, serving_size, serving_unit,
             json.dumps(nutrients), json.dumps(portions or []),
-            1 if user_drafted else 0, notes or None, fdc_id,
+            1 if user_drafted else 0, notes or None,
+            # user_drafted=True is a user's edit; False is a fresh copy of the
+            # source's data (the USDA refresh), which is no longer edited.
+            1 if user_drafted and not is_custom_food_id(fdc_id) else 0,
+            fdc_id,
         ),
     )
 

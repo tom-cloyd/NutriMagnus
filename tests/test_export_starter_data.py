@@ -158,3 +158,55 @@ def test_recipe_is_skipped_when_its_subrecipe_was_deleted(
 
     assert [r["name"] for r in data["recipes"]] == []
     assert "has been deleted" in capsys.readouterr().err
+
+
+def test_only_redistributable_gi_values_are_exported(
+    db_conn: sqlite3.Connection, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GI from the 2008 tables or typed in by hand ships; GI from the
+    Atkinson 2021 tables never does (their licence forbids redistribution),
+    nor does a source label NuMa doesn't recognise."""
+    with _db.get_db() as conn:
+        for fdc_id, source in [
+            (1, "Atkinson 2008 international GI tables (carried forward; year of test not recorded): “X”"),
+            (2, "Foster-Powell 2008 reference table, Table A1 (normal): X"),
+            (3, None),  # typed in by hand
+            (4, "Atkinson 2021 international GI tables, Supplemental Table 1 (ISO 26642:2010 method): “X”"),
+            (5, "Some web page"),
+        ]:
+            _add_food(conn, fdc_id, f"* Food {fdc_id}")
+            _db.upsert_food_annotation(conn, fdc_id, gi_estimate=40.0 + fdc_id, gi_source=source)
+        _add_food(conn, 6, "* No GI")
+
+    output = tmp_path / "starter_data.json"
+    monkeypatch.setattr(export_starter_data, "OUTPUT", output)
+    assert export_starter_data.main() == 0
+    gi = {f["fdc_id"]: f.get("gi") for f in json.loads(output.read_text())["foods"]}
+
+    assert gi[1]["estimate"] == 41.0 and gi[1]["source"].startswith("Atkinson 2008")
+    assert gi[2]["source"].startswith("Foster-Powell 2008")
+    assert gi[3] == {"estimate": 43.0, "source": None}
+    assert gi[4] is None
+    assert gi[5] is None
+    assert gi[6] is None
+
+
+def test_recipes_ship_a_permanent_uid_not_the_curators_recipe_id(
+    db_conn: sqlite3.Connection, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _db.get_db() as conn:
+        _add_food(conn, 1, "* Beans")
+        rid = _db.recipe_create(conn, name="* Bean Bowl", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(conn, rid, 1, "* Beans", 100, "g")
+
+    output = tmp_path / "starter_data.json"
+    monkeypatch.setattr(export_starter_data, "OUTPUT", output)
+    assert export_starter_data.main() == 0
+    first = json.loads(output.read_text())["recipes"][0]
+    assert "source_recipe_id" not in first
+    with _db.get_db() as conn:
+        stamped = conn.execute("SELECT starter_uid FROM recipes WHERE id = ?", (rid,)).fetchone()[0]
+    assert first["uid"] == stamped
+
+    assert export_starter_data.main() == 0  # exporting again keeps the same uid
+    assert json.loads(output.read_text())["recipes"][0]["uid"] == stamped

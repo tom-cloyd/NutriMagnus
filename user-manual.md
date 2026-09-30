@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-09-29:1636* / Reading time: 6 hours, 29 minutes
+*Updated 2026-09-30:0615* / Reading time: 6 hours, 34 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -335,7 +335,7 @@ In addition, the following internal data sources are used:
 
 #### Extensive code testing
 
-**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-29), there are 1,268 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
+**[NuMa](#gloss-numa) has an extensive, fully automated test process.** As of this writing (2026-09-30), there are 1,311 automated checks the program must pass after every single change before it ships — everything from "does this page load" to "does this specific nutrition calculation come out to exactly the right number." Some of these don't just check a handful of hand-picked examples: they generate hundreds of realistic, random inputs and confirm a mathematical rule holds true for every one of them, and a newer, smaller set actually drives the app in a real browser window, end to end, rather than only checking the code in theory.
 
 **NuMa is also periodically checked with a technique called mutation testing** — a way of testing the tests themselves. It works by deliberately planting a small, wrong change somewhere in the code (say, swapping a plus for a minus) and rerunning the test suite to see whether anything notices. If nothing does, that's a real, measurable blind spot — a piece of logic nothing is actually watching, something an ordinary "all tests passed" report can't reveal on its own. This has already found and closed several genuine gaps in NuMa's most complex code, the protein-quality math in particular, including places where a test was checking the right general idea but not the exact number, and places where one path through the code was covered while a nearby one wasn't covered at all.
 
@@ -543,7 +543,7 @@ A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](
 
 A food's page shows, in order: **Protein Summary** ([DCP](#gloss-dcp)), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos — each can be [ignored and recalculated](#ignore-complement)), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or [SR](#gloss-sr) Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
 
-Right below the title, every food's page also has a **Copy as custom-food draft** button — no detour through Food Search or Custom Food Profiles needed to start editing a copy of what you're already looking at. See [Entering custom foods and dietary supplements](#custom-foods) for what to do with the copy. A **Mark as starter food** button sits next to it — not something you need day to day; it's the tool the app's author uses to curate the small set of [starter foods and recipes](#starter-data) new installs come with.
+Right below the title, every food's page also has a **Copy as custom-food draft** button — no detour through Food Search or Custom Food Profiles needed to start editing a copy of what you're already looking at. See [Entering custom foods and dietary supplements](#custom-foods) for what to do with the copy.
 
 ### F. Using the Recipes menu {: #recipes-menu-web}
 The **Recipes** page lists every recipe, with filter/sort options and a **Show archived** checkbox. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute [DCP](#gloss-dcp) for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 6. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 5 — for jumping straight into [Comparison](#comparison) with the checked recipes.
@@ -584,9 +584,11 @@ Starting NuMa opens a browser tab automatically. If you have more than one brows
 
 #### Starter Data {: #starter-data}
 
-This is a small set of curated content — real [USDA](#gloss-usda) foods (with full amino-acid data) and two recipes picked to show protein complementarity actually working — "* Black Beans & Rice" and "* Lentils & Oats Bowl," each combining a legume and a grain so the amino acids each is short on are covered by the other. Their names all start with `* ` so you can always tell them apart from anything you've added yourself. A brand-new install loads this automatically the first time you launch it, so your Food Cache and Recipes aren't empty on day one — this section is for anyone who cleared it and wants it back, or an existing install that never had it. Your pantry starts empty: it's the list of foods *you* keep at home, so only you can fill it (see [Set up your pantry](#first-setup)).
+This is a small set of curated content: foods, and recipes made from them. The foods come from [USDA](#gloss-usda) and NuMa's other sources, and a few are custom foods; many carry full amino acid data, and a food may come with a glycemic index value already filled in (only ever one NuMa is permitted to share). Several of the recipes show protein complementing at work, pairing foods so that the amino acids each is short on are covered by the other. Many of the starter foods are there only because a starter recipe uses them: a recipe can't be loaded without its ingredients, which is why everyday items like salt, vanilla and cinnamon are in the set. **Settings → 9. Starter Data → View all starter data** shows, beside each food, which starter recipes use it. Their names all start with `* ` so you can always tell them apart from anything you've added yourself. A brand-new install loads this automatically the first time you launch it, so your Food Cache and Recipes aren't empty on day one — this section is for anyone who cleared it and wants it back, or an existing install that never had it. Your pantry starts empty: it's the list of foods *you* keep at home, so only you can fill it (see [Set up your pantry](#first-setup)).
 
-Loading starter data never touches anything already in your cache, pantry, or recipes — it's tracked separately so **Clear starter data** (which appears once it's loaded) removes exactly what was added, nothing else. Loading again while it's already loaded is a no-op.
+Loading starter data never touches anything already in your cache, pantry, or recipes: a starter food you already have is simply skipped. It's tracked separately, so **Clear starter data** (which appears once it's loaded) removes only what was added, and nothing else. Loading again while it's already loaded does nothing.
+
+**Clear keeps whatever you've made your own.** A starter food or recipe you've renamed (including taking the `*` off its name), edited, re-portioned, or given a glycemic index or [DIAAS](#gloss-diaas) value is yours from then on, and Clear leaves it alone. So does anything you're still using: a starter recipe you've logged in a meal or used inside one of your own recipes, and a starter food that a meal, one of your recipes, or your pantry still uses. After clearing, Settings says how many items were kept, and why.
 
 **When a new version changes the starter set.** NuMa remembers which starter foods and recipes the version you ran before came with, so after an update it can tell you exactly what's different:
 
@@ -1719,7 +1721,10 @@ The Food Cache list shows every food you have stored locally, sortable by Name, 
                CoFID          — UK Composition of Foods Integrated Dataset.
                AFCD           — Australian Food Composition Database (FSANZ).
                CIQUAL         — French CIQUAL database (ANSES).
-               User Drafted   — Created or edited by hand in NuMa.
+               User Drafted   — A custom food: one you created in NuMa.
+             A food you have changed yourself — its nutrients, its portions,
+             or by giving it a GI or DIAAS value — keeps its origin and adds
+             "· user-edited", e.g. "SR Legacy · user-edited".
 
     AA       Amino acid data status.
                ✓  Amino acid data is present in your cache for this food.
@@ -2423,6 +2428,8 @@ What you can set:
 
 **The two "don't prompt me again" checkboxes** are only for deliberately leaving a value blank. Saving a GI or DIAAS estimate already stops NuMa asking about that one, so you do not need to tick anything to make the prompt stop.
 
+**If you don't record GI values at all**, say so once instead of per food: tick **I do not record glycemic index data** at the foot of **Settings** then **Glycemic Index Reference Table**. NuMa then never asks you for a GI value when you add a food, the per-food GI checkbox disappears as redundant, the GI field itself folds away on this page (still there if you want it), and the notices about which GI reference table is in use stop. Nothing already recorded is deleted or hidden — a GI value you have saved is still shown and still used to work out [glycemic load](#gl) — and un-ticking it puts everything back, including any per-food choices you had made. A food still missing a DIAAS estimate goes on prompting for that, since it is a separate question.
+
 **Saving settles the food.** Whatever you fill in, clicking **Save annotation** means you have dealt with this food: it stops interrupting you when you add it to a meal or the pantry, even if you deliberately left one of the two estimates blank. Come back any time through Annotate a Food to fill in the rest. **Skip for now** is the opposite — it saves nothing, so NuMa asks again the next time you add that food.
 
 **When only one estimate is outstanding**, the prompt says so, and says which. The form always shows both the GI and the DIAAS field, so a prompt that is really about DIAAS would otherwise look identical to the GI prompt you just dealt with. A line above the form names whichever one is already settled, and the two fields are badged **Asking for this one** and **Settled — not being asked about** so there is no guessing.
@@ -2646,7 +2653,7 @@ Every food in these online tables has a unique [ID](#gloss-id) number — think 
 
 **Your [Food Cache](#gloss-food-cache)**{: #FoodCache} is a table stored on your own computer. When you search for a food, NuMa checks your [Food Cache](#gloss-food-cache) first and shows any matches in a fast **[Food cache](#gloss-food-cache)** table before going online. Any food you have looked up before will be there and can be selected instantly, without a network call. If the food is not yet in your cache, the program searches both online tables and shows you a combined list of matches. When you select a food from that list, NuMa saves a copy of its nutrient data in your [Food Cache](#gloss-food-cache) automatically. Over time, most of the foods you normally eat will be in your [Food Cache](#gloss-food-cache) for quick retrieval.
 
-**Edit protection.** Any food you edit manually — through Foods → 5. [Food Cache](#gloss-food-cache) — is marked as user-modified. NuMa will never silently overwrite a user-modified food with a fresh copy from [USDA](#gloss-usda), even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself.
+**Edit protection.** Any food you edit manually — through Foods → 5. [Food Cache](#gloss-food-cache) — is marked as user-modified, and its type then reads, for example, "[SR](#gloss-sr) Legacy · user-edited": where it came from, and that you've changed it. NuMa will never silently overwrite a user-modified food with a fresh copy from [USDA](#gloss-usda), even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself.
 
 **Omega fatty acid tracking.** NuMa tracks four individual omega fatty acids — [ALA](#gloss-ala) (plant-based omega-3, found in flaxseed, walnuts, chia), [EPA](#gloss-epa) and [DHA](#gloss-dha) (marine omega-3, found in fish and seafood), and linoleic acid (the main omega-6, found in vegetable oils and nuts). These appear in the nutrient table whenever [USDA](#gloss-usda) data is available. Foods already in your cache that predate this feature are updated automatically the first time you access them — no action needed on your part.
 
@@ -3166,6 +3173,15 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- **Save recipe details** on the Edit Recipe page works again. Since September 24 it had silently saved nothing — if you edited a recipe's name, servings or instructions since then, check that the change is there.
+- A food's page no longer shows the starter-data curation button, which was only ever meant for the program's maintainer.
+- A food you've edited now shows where it came from and that you changed it ("SR Legacy · user-edited"), and fetching a food again no longer erases its GI and DIAAS values.
+- Clearing starter data now keeps every starter food or recipe you've renamed, edited or annotated, and any starter recipe you still use.
+- Loading starter data no longer replaces a food you already have, or deletes the GI and DIAAS values you gave it, and never confuses a recipe of yours with a starter recipe of the same name.
+- Starter foods can now come with a glycemic index value already filled in, and "curator notes" that held nothing but commas are gone.
+- A food that turns up more than once in a meal — two servings of the same recipe, say — now gets one oxalate row with its amounts added together, instead of one row per serving.
+- If you do not record glycemic index data, one tick-box in Settings now stops NuMa asking for GI values altogether, rather than having to say so food by food.
+- The home page now tells you when glycemic index lookups are not using your own 2021 table — including when a table you built has gone missing — and Settings has a tick-box to turn those notices off for good if you do not record GI data.
 - The manual's search box has two new checkboxes, **Match case** and **Whole words only**, so short terms like "AI" or "GI" can be found without matching every word that contains those letters.
 - NuMa now tells you which starter foods and recipes an update adds or improves, both before you install it and the first time it runs, and lets you choose which to take; new installs start with an empty pantry.
 - A new setup checklist, linked from the home page and Settings, walks you through first-time setup, or setting up again after losing your data; the manual also now explains how to back up your data.
@@ -3200,7 +3216,191 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - A GI value picked from the reference table now remembers which row it came from, shown under the GI field and on the food's own page, so you can always see what a saved figure is based on.
 - The GI lookup on a food's Annotate page now explains its own results right beside the form — what "Impaired" means, what "ref Bread, 2h 76" is telling you, and what NuMa actually saves when you pick a row — with the full account in the manual.
 
+#### Sep 30 updates
+
+**PROGRAM: "SAVE RECIPE DETAILS" SAVES AGAIN**
+
+On the Edit Recipe page, the **Save recipe details** button saves your changes again, and the **View recipe** link beside it works. Since September 24 both silently did nothing: clicking Save left your edits unsaved, which is why leaving the page then warned about unsaved changes. If you changed a recipe's name, description, servings, instructions or notes since then, please check that the change is actually there. (Edits were saved if you added an ingredient straight afterwards, since that saves the details first.)
+
+<!--
+```
+Scope: web/templates/recipe_edit.html. The Save button and View recipe
+link sit inside the Recipe details <summary>; a click handler there called
+e.preventDefault() to stop the <details> collapsing, which also cancelled
+the button's form submission and the link's navigation. Browsers don't
+toggle a <details> for a click on a button or link inside its summary, so
+the handler was simply removed. Reproduced and verified in Chromium and
+Firefox via Playwright against an isolated NUMA_DATA_DIR sandbox: no POST
+before, POST and navigation after, <details> stays open. Introduced in
+cc3ba18 (2026-09-24), shipped in release v2026-09-24-0941. Regression test
+checks the handler is gone (the suite has no browser).
+```
+-->
+
 #### Sep 29 updates
+
+**PROGRAM: THE STARTER-FOOD CURATION BUTTON IS GONE FROM FOOD PAGES**
+
+A food's page used to show a **Mark as starter food** / **Unmark as starter food** button. It was a tool for choosing NuMa's own starter foods and did nothing useful for anyone else, so the downloadable program no longer shows it.
+
+<!--
+```
+Scope: web/backend.py (_is_curator(): true only when not sys.frozen;
+is_curator() Jinja global; POST /food/{fdc_id}/toggle-starter now 404s in
+the packaged program), food_detail.html. Owner's decision 2026-09-29: only
+the owner runs from source, so "running from source" is the curator test;
+the trade-off is that any other developer running from source sees it too.
+```
+-->
+
+**PROGRAM: A FOOD SHOWS WHERE IT CAME FROM, AND WHETHER YOU'VE EDITED IT**
+
+A food's type now always says where it came from, and a USDA or Open Food Facts food you've changed says so too: for example "SR Legacy · user-edited". Changing its nutrients or portions, or giving it a glycemic index or DIAAS value, counts as an edit. Before, editing or importing data for a USDA food could replace its type with "User Drafted", losing its origin. Also fixed: fetching a food you already had, for instance by picking it again from USDA search results, could silently erase the GI and DIAAS values you'd given it, and un-archive it. [learn more...](#cached)
+
+<!--
+```
+Scope: db.py (foods.user_edited + one-time backfill; cache_food() now an
+upsert; mark_user_edited, cache_user_supplied_food, user_edited_ids,
+is_custom_food_id; update_cached_food_profile / update_food_portions set
+the mark), web/backend.py (food_type() Jinja global; annotate save marks),
+13 templates (every type display), claude_fetch.py, import_foods.py,
+import_json_folder.py, numa_import_claude.py (cache_user_supplied_food),
+demo_data.apply_improvements (clears the mark), new
+scripts/restore_food_origins.py. Root cause of the annotation loss:
+cache_food() used INSERT OR REPLACE, whose delete cascaded to
+food_annotations. In the owner's DB, 5 of 9 USDA foods relabelled "User
+Drafted" can be recovered from USDA; the other 4 ids (6991, 26126, 192572,
+640661) are not USDA records.
+```
+-->
+
+**PROGRAM: CLEARING STARTER DATA KEEPS WHAT YOU'VE MADE YOUR OWN**
+
+**Clear starter data** now removes only starter items that are still exactly as they were loaded. A starter food or recipe you've renamed (taking the `*` off counts), edited, re-portioned, or given a glycemic index or DIAAS value is kept, and so is a starter recipe you've logged in a meal or used in a recipe of your own. Afterwards, Settings tells you how many items were kept, and why. [learn more...](#starter-data)
+
+<!--
+```
+Scope: numa_app/services/demo_data.py (clear_demo_data, _food_state /
+_recipe_state fingerprints stored in the marker at load, fallback to the
+bundled set for older markers, refresh_fingerprints() after
+apply_improvements), web/backend.py (clear route passes kept_recipes /
+kept_edited), settings.html (result lines, Clear text and confirm dialog),
+user-manual.md #starter-data. Previously Clear deleted every starter recipe
+and every unreferenced starter food, edited or not, so an edited starter
+item was lost; the old Settings text even said edited items would go.
+```
+-->
+
+**PROGRAM: LOADING STARTER DATA NEVER TOUCHES WHAT YOU ALREADY HAVE**
+
+Loading starter data used to replace any food you already had that was also a starter food, and delete the glycemic index and DIAAS values you'd given it. Now a food you already have is left exactly as it is, and clearing starter data later never removes it. Starter recipes are recognised by a permanent identity rather than by name, so a recipe of your own that happens to share a starter recipe's name is never confused with it, and a starter custom food can no longer land on top of one of your own custom foods. [learn more...](#starter-data)
+
+<!--
+```
+Scope: numa_app/services/demo_data.py (_food_locations/_recipe_locations,
+_insert_food/_create_recipe, _adopt_legacy_copies, ensure_recipe_uid; load,
+restore, status, manifest and apply_improvements now all map starter ids to
+the user's copies), db.py init_db (foods.starter_key, recipes.starter_uid,
+recipes.updated_at + triggers), export_starter_data.py and
+refresh_starter_data.py (ship "uid" not source_recipe_id; call init_db).
+Root cause: load_demo_data called cache_food() on every starter food, and
+its INSERT OR REPLACE deletes and reinserts the row; food_annotations'
+ON DELETE CASCADE then dropped the user's annotations. Custom-food ids are a
+local counter, so the curator's -3 could overwrite the user's own -3.
+Manifest recipes are now keyed by uid; an older name-keyed manifest is
+matched by name so the switch reports nothing spurious.
+```
+-->
+
+**PROGRAM: STARTER FOODS CAN COME WITH GLYCEMIC INDEX VALUES, AND JUNK CURATOR NOTES ARE GONE**
+
+A starter food can now arrive with its glycemic index value already filled in — but only a value NuMa is allowed to share: one from the 2008 international GI tables, or the curator's own estimate. Values from the 2021 tables never ship, because their licence forbids passing them on. Separately, some foods fetched through the Claude AI workflow showed "curator notes" containing nothing but commas; those are cleared the next time NuMa starts, and new imports no longer create them. [learn more...](#starter-data)
+
+<!--
+```
+Scope: demo_data.py (shippable_gi() allowlist, _write_gi() on load /
+restore / apply_improvements; a load or restore never replaces an existing
+GI annotation), export_starter_data.py and refresh_starter_data.py (export
+the "gi" entry; refresh also now forces pantry []), claude_fetch.py
+parse_response() (curator text keeps only lines with letters or digits,
+never fence lines), db.py init_db() migration clearing word-less
+curator_notes. Root cause of the junk: a reply listing foods as a JSON
+array falls to the bare-object fallback, and the separators left behind
+(",\n  ,") were saved as curator notes on every food in the batch. The
+owner's DB had 14 such foods from two batches (8 and 9 foods); all 14 of
+its curator notes were junk. Settings and manual Starter Data text no
+longer name specific recipes or claim every food is USDA with full AA data.
+```
+-->
+
+**PROGRAM: OXALATE TABLE NOW ADDS UP A FOOD THAT APPEARS MORE THAN ONCE**
+
+The Anti-nutrients section's oxalate table now shows each food once, with its grams and milligrams added together across every place it turns up in the meal — two servings of the same recipe, or a food eaten on its own and inside a recipe. The "No oxalate data for" list no longer repeats names either. [learn more...](#antinutrients)
+
+<!--
+```
+Scope: Meal page / meal print / recipe page Anti-nutrients section;
+web/backend.py _oxalate_for_items(), tests/test_web.py.
+Quantitative rows were appended per occurrence; they are now merged by
+fdc_id (or lowercased name when no id) with amount_g and mg summed, rounded
+once at the end. Qualitative list was already deduped; missing list now is.
+```
+-->
+
+**PROGRAM: YOU CAN NOW TELL NUMA YOU DO NOT RECORD GI DATA, AND IT STOPS ASKING**
+
+Tick **I do not record glycemic index data** at the foot of **Settings** then **Glycemic Index Reference Table** and NuMa stops asking for glycemic index values altogether: adding a food no longer detours to the Annotate page for a GI value, the per-food "don't prompt me for a GI estimate" tick-box disappears as redundant, the GI field folds away on the Annotate page -- still there if you want it -- and the notices about which reference table is in use stop as well. Nothing already recorded is deleted or hidden, a saved GI value is still used to work out glycemic load, and un-ticking it puts everything back, including per-food prompt choices you had made. A food still missing a DIAAS estimate goes on prompting for that, since it is a separate question. [learn more...](#annotate)
+
+<!--
+```
+Scope: Settings > Glycemic Index Reference Table; Foods > Annotate a Food; the
+add-food detour from a meal or the pantry.
+
+The opt-out (prefs gi_opt_out, formerly the notices-only gi_notices_off, read
+with a fallback) now gates _missing_annotations(), which is the single choke
+point for "what are we still asking about" -- _annotation_prompt_needed() is
+built on it, so dropping GI from that list is what turns the setting from
+"stop warning me" into "stop asking me". It is the global form of the existing
+per-food gi_no_prompt column.
+
+food_annotate_edit_post() carries the stored gi_no_prompt forward while the
+opt-out is on, rather than reading it from the form: the tick-box is not
+rendered then, and set_food_annotation() overwrites that column on every save,
+so an absent checkbox would quietly clear a per-food choice that matters again
+the moment the opt-out is switched back off. Enforced in the handler rather
+than with a hidden field so a bare POST cannot clear it either.
+```
+-->
+
+**PROGRAM: THE HOME PAGE NOW TELLS YOU WHEN GI LOOKUPS ARE NOT USING YOUR OWN 2021 TABLE**
+
+If the glycemic index lookup is falling back to the 2008 edition that ships with NuMa, the home page now says so as soon as you start up, with a link straight to the section of Settings that builds the 2021 one. If you had built a 2021 table and NuMa can no longer find it -- moved, renamed or deleted -- that gets a warning of its own, which keeps appearing until the table is back or you dismiss it, because nothing else would have told you. Not interested in GI data at all? A new tick-box at the foot of **Settings then Glycemic Index Reference Table** turns every one of these notices off permanently. [learn more...](#gi-editions)
+
+<!--
+```
+Scope: Home page; Settings > Glycemic Index Reference Table.
+backend.py gains _gi_table_home_notice(), called from index(). Three states:
+never built one (informational), built one and lost it (warning), and no
+readable table at all (error, not silenceable -- no lookup can return
+anything). The lost state is derived from a prefs-recorded
+gi_table_last_seen_edition and made sticky via gi_table_lost, since the
+2021 -> 2008 transition is otherwise visible for exactly one page load and
+would silently soften to the generic message on the next one.
+
+Two independent silencing mechanisms, deliberately: gi_table_notice_dismissed
+is "I have read this one" and is cleared automatically whenever a 2021 table
+is seen again, so a later disappearance re-arms it; gi_notices_off is the
+opt-out for anyone not recording GI data, set from Settings, and suppresses
+every state including the unreadable-table one. The opt-out is checked AFTER
+the last-seen state is recorded, never instead of it -- a table lost during
+an opt-out must still report as lost if notices are turned back on.
+
+Tests drive edition changes through a mutable dict rather than re-patching:
+monkeypatch.undo() would also revert use_test_web_prefs' _PREFS_FILE patch
+(same monkeypatch instance per test), sending the notice's own prefs writes
+to the real prefs.json.
+```
+-->
 
 **PROGRAM: MATCH CASE AND WHOLE WORDS IN THE MANUAL'S SEARCH**
 
@@ -3614,101 +3814,6 @@ Year of test is displayed but NOT stored as its own column -- it goes into the
 free-text gi_source citation. gi_source strings already saved are never
 rewritten: they record where a number came from, and "2008" in them means the
 edition, not a measurement date, which for those rows is unrecoverable.
-```
--->
-
-**PROGRAM: BUNDLED REFERENCE TABLES NOW REACH THE DOWNLOADABLE PROGRAM**
-
-Searching the UK ([CoFID](#gloss-cofid)), Australian ([AFCD](#gloss-afcd)), French ([CIQUAL](#gloss-ciqual)) and glycemic index reference tables now works in the packaged, downloadable version of NuMa. Previously all four came back empty there — they only ever worked when NuMa was run from its source code — so if you have been wondering why a food search never found anything in those databases, that was why, and it is fixed.
-
-<!--
-```
-Scope: nutrimagnus.spec (PyInstaller datas), tests/test_packaging_spec.py.
-
-gi_data.json, cofid_data.json, afcd_data.json and ciqual_data.json were all
-absent from the spec's datas allowlist, so they were never copied into the
-bundle. Each is loaded by its module as Path(__file__).parent / "<name>.json",
-which resolves into sys._MEIPASS in a packaged build -- an absent file means
-json loading is skipped and the lookup returns an empty pool, with no error.
-Invisible in a dev checkout and to the whole test suite, because there
-Path(__file__).parent is the repo root where all four exist. Same failure class
-as the DISCLAIMER.md omission caught by manual Windows testing 2026-09-13,
-which is what that test file was written for; it only covered _PROJECT_ROOT
-literals in backend.py, so it could not see this. Extended with
-test_every_bundled_reference_dataset_is_in_the_spec, which scans root modules
-for that load pattern and requires each file in datas; verified to fail when an
-entry is removed.
-```
--->
-
-**MANUAL: STANDARD ERROR EXPLAINED IN THE GLOSSARY**
-
-The "±3" shown beside a glycemic index value from the reference table now has a Glossary entry explaining what it tells you — roughly, how much the people in that study disagreed with each other, and therefore how much weight the average deserves. [learn more...](#gloss-standard-error)
-
-<!--
-```
-Scope: user-manual.md Glossary (#gloss-standard-error), with incoming links from
-the GI lookup result walkthrough (#gi-result-row) and the method-quality section
-(#gi-method-quality). Notes that the published tables write it as SEM.
-```
--->
-
-**PROGRAM: GLYCEMIC INDEX TABLE UPDATED TO THE 2021 EDITION, WITH DATES**
-
-The GI lookup on a food's Annotate page now searches the 2021 edition of the international glycemic index tables — over 4,000 foods, up from about 2,500 — and every result tells you the year that study was actually run, so you can see at a glance when a value is old enough that the product has probably been reformulated since. Results also show the study's standard error, how many people it tested, and a **non-ISO method** flag when the study departed from the international measurement standard. A few hundred foods that only the older 2008 edition covers are kept alongside, marked **2008 edition**. [learn more...](#gi-source-para)
-
-<!--
-```
-Scope: Foods → Food Cache → Annotate (GI lookup); scripts/build_gi_data.py
-(rewritten), scripts/build_gi_data_2008.py (renamed from build_gi_data.py,
-superseded), gi_data.json (rebuilt), gi_lookup.py, web/templates/food_annotate.html,
-tests/test_build_gi_data.py (new), tests/test_gi_lookup.py.
-
-Source is Atkinson, Brand-Miller, Foster-Powell, Buyken & Goletzke 2021 (AJCN
-114:1625-1632, doi:10.1093/ajcn/nqab233), two online supplemental-table PDFs.
-4,017 entries parsed (4,018 printed food numbers; 4012 labels the "Tamales"
-category heading, not a food), plus 395 rows carried forward from the 2008
-edition. The 2002 Foster-Powell AJCN table was evaluated and rejected: 2008
-superseded it, so it would contribute duplicate names carrying older values for
-the same studies.
-
-The trap in this edition: its two tables are split by ISO 26642:2010 method
-compliance, NOT by subject population the way 2008's A1/A2 appendices were.
-~1,250 rows in the non-compliant table were measured in normal-tolerance
-subjects, so population is now read from each row's own "Subjects (type &
-number)" cell and ISO compliance is a separate `iso` field. Rows whose subject
-group the source leaves unstated form a third pool returned for either
-requested population rather than withheld from both.
-
-Parser rewritten from `pdftotext -layout` to `-bbox-layout`: a food's name wraps
-onto lines both above and below the line carrying its food number (the number is
-vertically centred), so no line-ordering rule recovers names from fixed-width
-text. Rows are now bounded by the midpoints between consecutive food numbers,
-and each cell is read from its own column window located per page from that
-page's header block. This removes the 2008 parser's "short, no digits or commas
-=> header" category heuristic, which its own docstring admitted got some
-category tags wrong. Two rows carry misprinted numbers in the published PDF
-(2211 as "2111", 3536 as "2536"), so printed numbers are not treated as a key.
-
-Merge rule is deliberate over-inclusion: a 2008 row is dropped only when its
-name matches a 2021 name exactly, by containment, or at >=0.85 similarity, since
-2021 reworded most descriptions and no shared identifier can join the editions.
-Exact matching alone left 1,402 legacy rows of which ~76% were rewordings;
-the current rule leaves 395. Fragmentary 2008 names whose category prefix was
-lost by that edition's parser ("Type NS (India)" under "Millet") are repaired
-from the stored category.
-
-Year of test is displayed but NOT stored as its own column — it goes into the
-free-text gi_source citation, per the decision that nothing reads that string
-programmatically today. gi_source strings already saved are never rewritten:
-they record where a number came from, and "2008" in them means the edition, not
-a measurement date, which for those rows is unrecoverable.
-
-Licensing note: the 2008 table was explicitly Creative Commons licensed and the
-manual said so as the basis for bundling it. The 2021 supplement carries no
-licence text in the PDFs themselves and the publisher's page is bot-gated, so
-its reuse terms are UNVERIFIED and must be confirmed before a public release.
-The manual no longer asserts a licence for the 2021 edition.
 ```
 -->
 

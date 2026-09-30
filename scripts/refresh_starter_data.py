@@ -11,20 +11,19 @@ live, matched by stable ID rather than name (a starter item's name may have
 been edited live since it was exported):
 
   - Foods: matched by fdc_id, which never changes even if the food is
-    renamed. If still cached, name (re-prefixed), data_type, nutrients, and
-    portions are refreshed from the live row — picking up e.g. a corrected
+    renamed. If still cached, name (re-prefixed), data_type, nutrients,
+    portions and any redistributable GI value are refreshed from the live row — picking up e.g. a corrected
     portion or a re-pulled USDA value. If the fdc_id is no longer cached at
     all, the entry is left untouched.
-  - Pantry: pantry entries are bare names tied 1:1 to a food entry. If that
-    food's name changed above, the pantry name is updated to match so the
-    by_name lookup in demo_data.py still resolves. Otherwise left as-is.
-  - Recipes: matched by the "source_recipe_id" field export_starter_data.py
-    stamps on each exported recipe (the live recipes.id at export time),
-    not by name — a recipe survives being renamed live. Entries exported
-    before this field existed have no source_recipe_id yet; those fall
-    back to a one-time name match, and the discovered id is written back so
-    every later refresh is ID-based. If a recipe's id no longer exists live
-    (deleted), the entry is left untouched. An ingredient whose food isn't
+  - Pantry: always written out empty — the pantry ships empty (owner's
+    decision, 2026-09-29; see export_starter_data.py).
+  - Recipes: matched by their "uid" (recipes.starter_uid here), not by
+    name — a recipe survives being renamed live. Older entries carrying
+    "source_recipe_id" (this database's recipes.id) instead are matched by
+    that, and entries with neither once by name; either way the uid is
+    stamped and written back, and source_recipe_id is dropped. If a
+    recipe's id no longer exists live (deleted), the entry is left
+    untouched. An ingredient whose food isn't
     yet in starter_data.json's foods list (e.g. a new ingredient added live
     since the last export) is auto-included, the same way
     export_starter_data.py does it. A sub-recipe ingredient is refreshed in
@@ -50,6 +49,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 import db as _db
+from numa_app.services import demo_data as _demo_data
 
 STARTER_DATA_FILE = REPO_ROOT / "numa_app" / "services" / "starter_data.json"
 _PREFIX = "* "
@@ -69,24 +69,33 @@ def _canonical_name(name: str) -> str:
     return _PREFIX + name
 
 
-def _food_dict(row, *, name: str | None = None) -> dict:
-    return {
+def _food_dict(row, *, name: str | None = None, conn=None) -> dict:
+    food = {
         "fdc_id": row["fdc_id"],
         "name": name if name is not None else row["name"],
         "data_type": row["data_type"],
         "nutrients": json.loads(row["nutrients_json"]),
         "portions": json.loads(row["portions_json"] or "[]"),
     }
+    # The food's GI annotation, but only if it may be redistributed — see
+    # demo_data.shippable_gi() (never a value from the Atkinson 2021 tables).
+    if conn is not None:
+        gi = _demo_data.shippable_gi(_db.get_food_annotation(conn, row["fdc_id"]))
+        if gi:
+            food["gi"] = gi
+    return food
 
 
 def main() -> int:
+    _db.init_db()  # the same migrations the app runs (recipes.starter_uid etc.)
     data = json.loads(STARTER_DATA_FILE.read_text())
     foods: list[dict] = data["foods"]
-    pantry: list[str] = data["pantry"]
+    # The pantry always ships empty (see export_starter_data.py), so any
+    # pantry list left in an older starter_data.json is dropped here.
+    data["pantry"] = []
     recipes: list[dict] = data["recipes"]
 
     foods_by_fdc_id = {f["fdc_id"]: f for f in foods}
-    name_changes: dict[str, str] = {}  # old starter name -> new starter name
 
     updated_foods = 0
     skipped_foods = 0
@@ -100,30 +109,34 @@ def main() -> int:
             if row is None:
                 skipped_foods += 1
                 continue
-            new_food = _food_dict(row, name=_canonical_name(row["name"]))
+            new_food = _food_dict(row, name=_canonical_name(row["name"]), conn=conn)
             if new_food != food:
-                if new_food["name"] != food["name"]:
-                    name_changes[food["name"]] = new_food["name"]
                 food.clear()
                 food.update(new_food)
                 updated_foods += 1
 
-        for i, name in enumerate(pantry):
-            if name in name_changes:
-                pantry[i] = name_changes[name]
+        # Each starter recipe's live id in this database: by uid, else (older
+        # starter data) by the source_recipe_id it was exported with, else once
+        # by name. Resolved up front so sub-recipes can be matched by live id.
+        all_live = _db.recipe_list(conn, include_archived=True)
+        live_id_by_uid = {r["starter_uid"]: r["id"] for r in conn.execute(
+            "SELECT id, starter_uid FROM recipes WHERE starter_uid IS NOT NULL").fetchall()}
 
-        for recipe in recipes:
-            source_id = recipe.get("source_recipe_id")
-            if source_id is None:
-                # Legacy entry, exported before source_recipe_id existed:
-                # match once by name, then self-heal the id for next time.
-                legacy_match = next(
-                    (r for r in _db.recipe_list(conn, include_archived=True)
-                     if r["name"] == recipe["name"]),
-                    None,
-                )
-                source_id = legacy_match["id"] if legacy_match else None
+        def _live_id(recipe: dict) -> int | None:
+            if recipe.get("uid"):
+                return live_id_by_uid.get(recipe["uid"])
+            if recipe.get("source_recipe_id") is not None:
+                row = _db.recipe_get(conn, recipe["source_recipe_id"])
+                return row["id"] if row else None
+            match = next((r for r in all_live if r["name"] == recipe["name"]), None)
+            return match["id"] if match else None
 
+        live_ids = [_live_id(r) for r in recipes]
+
+        for recipe, source_id in zip(recipes, live_ids):
+            # Rebuilt each time: a sub-recipe refreshed earlier in this loop
+            # may have been renamed, and its users must pick up the new name.
+            starter_name_by_live_id = {lid: r["name"] for r, lid in zip(recipes, live_ids) if lid is not None}
             full = _db.recipe_get(conn, source_id) if source_id is not None else None
             if full is None:
                 skipped_recipes += 1
@@ -132,18 +145,11 @@ def main() -> int:
             ingredient_rows = _db.recipe_get_ingredients(conn, full["id"])
             recipe_name = _canonical_name(full["name"])
 
-            # Sub-recipes are matched by the live id they were exported from,
-            # so a sub-recipe renamed live still resolves to its entry.
-            starter_name_by_source_id = {
-                r["source_recipe_id"]: r["name"] for r in recipes
-                if r.get("source_recipe_id") is not None
-            }
-
             skip_recipe = False
             new_ingredients = []
             for ing in ingredient_rows:
                 if ing["ref_recipe_id"]:
-                    sub_name = starter_name_by_source_id.get(ing["ref_recipe_id"])
+                    sub_name = starter_name_by_live_id.get(ing["ref_recipe_id"])
                     if sub_name is None:
                         print(f"WARNING: leaving recipe {recipe['name']!r} untouched — "
                               f"its sub-recipe {ing['food_name']!r} is not starter data "
@@ -155,7 +161,7 @@ def main() -> int:
                 if ing["fdc_id"] not in foods_by_fdc_id:
                     food_row = _db.get_cached_food(conn, ing["fdc_id"])
                     new_name = _canonical_name(food_row["name"])
-                    new_food = _food_dict(food_row, name=new_name)
+                    new_food = _food_dict(food_row, name=new_name, conn=conn)
                     foods.append(new_food)
                     foods_by_fdc_id[ing["fdc_id"]] = new_food
                     added_foods += 1
@@ -170,7 +176,7 @@ def main() -> int:
                 continue
 
             new_recipe = {
-                "source_recipe_id": full["id"],
+                "uid": _demo_data.ensure_recipe_uid(conn, full["id"]),
                 "name": recipe_name,
                 "description": full["description"] or "",
                 "servings": full["servings"],

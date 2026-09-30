@@ -18,7 +18,7 @@
     {% endif %}
   </td>
   <td class="muted">{{ food.brand or "—" }}</td>
-  <td class="muted">{{ food.data_type }}</td>
+  <td class="muted">{{ food_type(food) }}</td>
   <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
 </tr>
 {% endmacro %}

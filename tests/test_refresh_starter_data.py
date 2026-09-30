@@ -56,7 +56,7 @@ def test_food_refreshed_from_cache_by_fdc_id(
 
     assert data["foods"][0]["name"] == "* Renamed Beans"
     assert data["foods"][0]["nutrients"]["protein_g"] == 9.5
-    assert data["pantry"] == ["* Renamed Beans"]  # tracked the rename
+    assert data["pantry"] == []  # an old pantry list is dropped: the pantry ships empty
 
 
 def test_food_not_in_cache_is_left_untouched(
@@ -127,7 +127,11 @@ def test_legacy_recipe_without_source_id_matched_by_name_and_backfilled(
     data = json.loads(path.read_text())
 
     recipe = data["recipes"][0]
-    assert recipe["source_recipe_id"] == rid  # backfilled for next time
+    # A permanent uid is stamped on the live recipe and written back.
+    assert "source_recipe_id" not in recipe
+    with _db.get_db() as conn:
+        live_uid = conn.execute("SELECT starter_uid FROM recipes WHERE id = ?", (rid,)).fetchone()[0]
+    assert live_uid and recipe["uid"] == live_uid
     assert recipe["description"] == "live desc"
 
 

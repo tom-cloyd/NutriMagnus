@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-09-29:1112
+UPDATED: 2026-09-30:0534
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -1484,7 +1484,9 @@ Covered in full in the Maintenance section below ("Quarterly mutation-testing ro
 
 The starter foods/pantry/recipes a fresh install seeds itself with (see `demo_data.py` above) come from one static file, `numa_app/services/starter_data.json` — not from any live database. Marking something in your own working database does nothing on its own; it only takes effect once you regenerate that file.
 
-**In the app itself:** mark a food, pantry entry, or recipe you want included by giving it a name starting with `*` — `*Tofu` or `* Tofu` both work, always normalized to `* ` on export. For a real (non-drafted) food specifically, its own detail page has a one-click **Mark as starter food** button (`POST /food/{fdc_id}/toggle-starter`) instead of hand-editing the name — deliberately a plain rename (`db.rename_cached_food()`), not a full profile edit, so it never sets `user_drafted` and never blocks that food from refreshing from USDA later. Recipes and pantry entries have no equivalent button yet — rename by hand for those.
+**In the app itself:** mark a food, pantry entry, or recipe you want included by giving it a name starting with `*` — `*Tofu` or `* Tofu` both work, always normalized to `* ` on export. For a real (non-drafted) food specifically, its row on the Food Cache list has a one-click two-line **Mark as / starter food** button (moved there from the food's detail page 2026-09-30; `POST /food/{fdc_id}/toggle-starter`, which reloads the list with the same filter and sort via its `next` field and restores the scroll position saved at submit (`js-keep-scroll`, sessionStorage), rather than jumping to the renamed food's new place in the list; curator-only since 2026-09-29: shown and accepted only when NuMa runs from a source checkout, never in the packaged program, see `backend._is_curator()`) instead of hand-editing the name — deliberately a plain rename (`db.rename_cached_food()`), not a full profile edit, so it never sets `user_drafted` and never blocks that food from refreshing from USDA later. Recipes and pantry entries have no equivalent button yet — rename by hand for those.
+
+**GI values ship only when NuMa may share them.** A starred food's GI annotation is exported as an optional `"gi": {"estimate", "source"}` entry only if `demo_data.shippable_gi()` allows it: a value picked from the 2008 tables (source starting `Atkinson 2008 international GI tables` or the pre-upgrade `Foster-Powell 2008 reference table`), or one typed in by hand (no source; it loads labelled `Starter data (curator's estimate)`, which is also allowed so it survives re-export). Anything else, above all an `Atkinson 2021` value, is left out: an allowlist, not a blocklist. On load or restore, a starter GI value never replaces a GI value the user already has for that food; "update to the new version" does replace it. `tests/test_demo_data.py` checks the shipped file for 2021 values.
 
 **The pantry always ships empty** (owner's decision, 2026-09-29): `export_starter_data.py` writes `"pantry": []` whatever your own pantry holds, since a pantry is one person's kitchen. A starred food that's in your pantry is exported as a food only. `tests/test_demo_data.py` asserts the shipped list is empty.
 
@@ -1492,6 +1494,28 @@ The starter foods/pantry/recipes a fresh install seeds itself with (see `demo_da
 
 A starred recipe's own ingredients don't need to be starred themselves — they're auto-included by `fdc_id` regardless of name. The same goes for a recipe used as a sub-recipe ingredient: it's exported too, and the exported `recipes` list is ordered so a sub-recipe always precedes any recipe that uses it, which is what lets `demo_data.load_demo_data()` link the parent to an id it has already created. Ingredient entries are `[name, amount, unit, kind]` with `kind` either `"food"` or `"recipe"`; a three-element entry is a pre-nesting export and is read as a food. Full mechanism, edge cases, and the companion `scripts/refresh_starter_data.py` (re-syncs existing starter entries by their original ID rather than by name) are documented in `export_starter_data.py`'s own module docstring — read that before changing the export logic, rather than duplicating it here.
 
+
+#### Starter identity: which of the user's rows is which starter item
+
+Settled 2026-09-29 (the "IDs" item of the starter-data fixes). Loading or restoring starter data never replaces anything the user already has; `demo_data._food_locations()` / `_recipe_locations()` map each starter item to the user's copy, and everything (load, restore, Settings status, improvements, version notices) goes through them.
+
+- **Foods with a USDA or Open Food Facts id** keep it: that id names the same food in every database, so if it is already cached, from starter data or the user's own search, the user "has" it and it is left untouched, annotations included. (Load used to `cache_food()` every starter food, whose `INSERT OR REPLACE` replaced the user's row and, through `ON DELETE CASCADE`, deleted their GI/DIAAS annotations on it.)
+- **Custom foods** (ids in `db.next_user_drafted_fdc_id()`'s local range, -1 to -999,999,999) get a fresh local id on load; `foods.starter_key` records the starter id, and recipe ingredients are pointed at the copy. The curator's `-3` can therefore never collide with the user's own custom food `-3`.
+- **Recipes** carry a permanent `uid` in `starter_data.json`, stamped into the curator's `recipes.starter_uid` by `demo_data.ensure_recipe_uid()` on first export; the user's copy stores it in the same column. A user recipe that merely shares the name is never mistaken for a starter recipe. `source_recipe_id` (the curator's own `recipes.id`) no longer ships; `refresh_starter_data.py` still reads it from an older file, then writes the uid instead.
+- **Installs from before this** are linked up by `_adopt_legacy_copies()`: a custom starter food still at its starter id with its starter name gets its `starter_key`, and a recipe with no uid and exactly the starter recipe's name (one match only) gets its `starter_uid`.
+- **`recipes.updated_at`** records when a recipe's content last changed. Triggers keep it: on insert, on updating any content column, and on any change to its `recipe_ingredients`. Deliberately not bumped by viewing (`last_accessed_at`), archiving, or the automatic DCP/nutrient recalculation.
+
+Both scripts call `db.init_db()` first so these columns exist in the curator's database even if the app hasn't been restarted since upgrading.
+
+#### Origin and user edits are separate
+
+`foods.data_type` records only where a food came from ("SR Legacy", "Branded", "Foundation", "OFF", ... or "User Drafted" for a custom food made in NuMa). `foods.user_edited` (added 2026-09-29) records that the user changed a USDA or Open Food Facts food's data: set by `update_cached_food_profile(user_drafted=True)` (the edit form, copy-AA, copy-nutrients), `update_food_portions()` (the Portions editor), saving an annotation with a value (owner's decision: an annotation is an edit), and `cache_user_supplied_food()` (the Claude fetch/import workflows, `import_foods.py`, `import_json_folder.py`), which also keeps an existing USDA type instead of letting the import's "User Drafted" label overwrite it. A USDA refresh (`user_drafted=False`) and a starter "update to the new version" clear it. It is never set on a custom food. Templates show a type only through the `food_type(row, empty)` Jinja global, which appends " · user-edited" (one query per request, cached in a contextvar). `user_drafted` keeps its existing job as the edit-protection flag. When the column is first added, it is backfilled from `user_drafted` on USDA/OFF foods (excluding unedited starter foods) and from existing annotations. `scripts/restore_food_origins.py` recovers the real type of USDA foods whose type had been overwritten with "User Drafted", by asking USDA (report-only unless `--apply`, which backs up the DB first).
+
+**`cache_food()` is an upsert** (`INSERT ... ON CONFLICT(fdc_id) DO UPDATE`), not `INSERT OR REPLACE`. REPLACE deletes the old row, and that delete fired `food_annotations`' `ON DELETE CASCADE`: re-caching any food erased its GI/DIAAS/prep annotations and reset its archived flag and every column not in the insert list. Updating in place keeps them.
+
+#### Clear keeps what the user has made their own
+
+`clear_demo_data()` removes a starter item only if it is still exactly as loaded. `load_demo_data()` stores a fingerprint of each inserted food and recipe in the marker file (`_food_state()`: name, type, nutrients, portions, and the food's annotation, since an annotation counts as an edit, owner's decision; `_recipe_state()`: its fields and ingredient list). At clear time a changed item is kept (`edited_kept`); a marker from before fingerprints existed falls back to comparing against the bundled set. An unedited starter recipe still logged in a meal or used inside another recipe is kept too (`recipes_kept`), alongside the existing rule for foods still referenced (`foods_kept`). `apply_improvements()` re-records the fingerprints of what it replaced, so a NuMa-applied update never counts as a user edit.
 
 #### Starter-set changes between versions
 

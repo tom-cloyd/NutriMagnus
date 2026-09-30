@@ -871,3 +871,63 @@ class TestFoodDeleteGuard:
         assert [row["fdc_id"] for row in deleted] == [SAMPLE_FDC_ID + 1]
         with _db.get_db() as conn:
             assert _db.get_cached_food(conn, SAMPLE_FDC_ID) is not None
+
+
+def test_init_db_clears_punctuation_only_curator_notes() -> None:
+    """Startup migration: curator notes holding no words (the commas an old
+    Claude-fetch import saved) are cleared; real notes are kept."""
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 1, "Junk", "SR Legacy", None, None, None, {"protein_g": 1.0},
+                       curator_notes=",\n  ,\n  ,")
+        _db.cache_food(conn, 2, "Real", "SR Legacy", None, None, None, {"protein_g": 1.0},
+                       curator_notes="Used SR Legacy data.")
+    _db.init_db()
+    with _db.get_db() as conn:
+        assert _db.get_cached_food(conn, 1)["curator_notes"] is None
+        assert _db.get_cached_food(conn, 2)["curator_notes"] == "Used SR Legacy data."
+
+
+# ── Origin vs user edits; cache_food() never destroys a row ───────────────
+
+def test_recaching_a_food_keeps_its_annotations_archived_flag_and_marks() -> None:
+    """cache_food() used INSERT OR REPLACE, whose delete cascaded to
+    food_annotations: re-caching a food silently erased its GI/DIAAS values."""
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 5, "Beans", "SR Legacy", None, None, None, {"protein_g": 1.0})
+        _db.upsert_food_annotation(conn, 5, gi_estimate=40.0, diaas_estimate=0.7)
+        conn.execute("UPDATE foods SET archived = 1 WHERE fdc_id = 5")
+        _db.mark_user_edited(conn, 5)
+        _db.cache_food(conn, 5, "Beans", "SR Legacy", None, None, None, {"protein_g": 2.0})
+        ann = _db.get_food_annotation(conn, 5)
+        row = _db.get_cached_food(conn, 5)
+    assert (ann["gi_estimate"], ann["diaas_estimate"]) == (40.0, 0.7)
+    assert row["archived"] == 1 and row["user_edited"] == 1
+    assert json.loads(row["nutrients_json"])["protein_g"] == 2.0
+
+
+def test_user_edits_mark_a_usda_food_but_never_a_custom_one() -> None:
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 6, "Oats", "SR Legacy", None, None, None, {"protein_g": 1.0})
+        _db.cache_food(conn, -7, "My mix", "User Drafted", None, None, None, {"protein_g": 1.0},
+                       user_drafted=True)
+        _db.update_food_portions(conn, 6, [{"label": "1 cup", "grams": 80}])
+        _db.update_food_portions(conn, -7, [{"label": "1 cup", "grams": 80}])
+        assert _db.user_edited_ids(conn) == {6}
+        # A refresh from USDA (user_drafted=False) is the source's data again.
+        _db.update_cached_food_profile(conn, 6, "Oats", {"protein_g": 1.0}, data_type="SR Legacy",
+                                       user_drafted=False)
+        assert _db.user_edited_ids(conn) == set()
+        _db.update_cached_food_profile(conn, 6, "Oats", {"protein_g": 3.0}, data_type="SR Legacy")
+        assert _db.user_edited_ids(conn) == {6}
+
+
+def test_user_supplied_import_keeps_a_usda_foods_origin() -> None:
+    """The import workflows label everything "User Drafted"; for a food
+    already cached with a real USDA type, that type must survive."""
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 8, "Rice", "Foundation", None, None, None, {"protein_g": 1.0})
+        _db.cache_user_supplied_food(conn, fdc_id=8, name="Rice", data_type="User Drafted", brand=None,
+                                     serving_size=None, serving_unit=None, nutrients={"protein_g": 2.5},
+                                     user_drafted=True)
+        row = _db.get_cached_food(conn, 8)
+    assert (row["data_type"], row["user_edited"]) == ("Foundation", 1)

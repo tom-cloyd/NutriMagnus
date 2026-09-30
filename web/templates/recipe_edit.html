@@ -310,7 +310,7 @@
               {% if food._type == "recipe" %}<a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
               {% else %}<a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>{% endif %}
               {% if food.data_type or food.brand %}
-              <br><small class="muted">{{ food.data_type }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
+              <br><small class="muted">{{ food_type(food) }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
               {% endif %}
             </td>
             <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none) if food._type == "recipe" else none) }}</small></td>
@@ -578,17 +578,6 @@
 // form opts into with data-leave-guard — this script only adds the case
 // base.html can't know about: another form on this same page being
 // submitted while Recipe details has unsaved edits.
-(function () {
-  var summary = document.querySelector('summary.d-flex');
-  if (summary) {
-    summary.addEventListener('click', function (e) {
-      // The Save button and View recipe link live on the summary row for
-      // layout; clicking either must do its own job only, not collapse
-      // Recipe details underneath the user.
-      if (e.target.closest('button, a')) e.preventDefault();
-    });
-  }
-})();
 (function () {
   var detailsForm = document.getElementById('recipe-details-form');
   if (!detailsForm || !window.numaLeaveGuard) return;

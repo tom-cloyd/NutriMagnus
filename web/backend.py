@@ -2,6 +2,7 @@
 backend.py — FastAPI web interface for numa nutritional analysis.
 Docs: README-numa-documentation.md, Architecture: "web/ — Local web app"
 """
+import contextvars
 import datetime
 import io
 import json
@@ -849,6 +850,50 @@ def _manual_link(anchor: str, text: str = "Learn more") -> str:
 
 templates.env.globals["manual_link"] = _manual_link
 
+# The set of user-edited food ids, loaded at most once per request (each
+# request runs in its own context, so this never leaks between requests).
+_user_edited_ids: contextvars.ContextVar[set[int] | None] = contextvars.ContextVar(
+    "_user_edited_ids", default=None)
+
+
+def _food_type(food, empty: str = "") -> str:
+    """A food's type for display: its origin ("SR Legacy", "Branded", ...)
+    plus " · user-edited" when the user has changed its data (see
+    db.foods.user_edited). Every page that shows a food's type uses this.
+    `food` is whatever row the page has (dict, sqlite3.Row or object) with
+    a data_type and, ideally, an fdc_id."""
+    def _field(key):
+        try:
+            return food[key]
+        except (KeyError, IndexError, TypeError):
+            return getattr(food, key, None)
+
+    label = _field("data_type") or empty
+    try:
+        fid = int(_field("fdc_id"))
+    except (TypeError, ValueError):
+        return label
+    ids = _user_edited_ids.get()
+    if ids is None:
+        with _db.get_db() as conn:
+            ids = _db.user_edited_ids(conn)
+        _user_edited_ids.set(ids)
+    return f"{label} · user-edited" if fid in ids and label else label
+
+templates.env.globals["food_type"] = _food_type
+
+
+def _is_curator() -> bool:
+    """True when NuMa runs from a source checkout rather than the packaged
+    program every ordinary user downloads. Starter-data curation tools (the
+    "Mark / Unmark as starter food" button) exist only then: the starter set
+    is the project owner's to curate, and only the owner runs from source
+    (owner's decision, 2026-09-29). A function, not a constant, so tests
+    can switch it."""
+    return not getattr(sys, "frozen", False)
+
+templates.env.globals["is_curator"] = lambda: _is_curator()
+
 _RELEASE_ANCHOR_RE = re.compile(r'<h4 id="(release-[^"]+-summary[^"]*)"')
 _CHANGELOG_ANCHOR = "a-recent-program-updates-log"
 _release_anchor_cache: dict[str, tuple[float, str]] = {}
@@ -1430,6 +1475,21 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
     qualitative: list[dict] = []
     qualitative_seen: set = set()
     missing: list[str] = []
+    # The same food can arrive more than once (e.g. two servings of one
+    # recipe, or a food both logged directly and inside a recipe) — sum it
+    # into one row rather than listing it per occurrence.
+    row_by_key: dict = {}
+
+    def _add_row(fdc_id, name, amount_g, mg, info):
+        key = fdc_id if fdc_id else name.lower()
+        row = row_by_key.get(key)
+        if row is None:
+            row = {"name": name, "amount_g": 0.0, "mg": 0.0,
+                   "category": info["category"], "confirmed": info["confirmed"]}
+            row_by_key[key] = row
+            rows.append(row)
+        row["amount_g"] += amount_g
+        row["mg"] += mg
 
     for item in items:
         fdc_id   = item.get("fdc_id")
@@ -1445,13 +1505,7 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
         if info["mg_per_100g"] is not None:
             mg = info["mg_per_100g"] * amount_g / 100.0
             total_mg += mg
-            rows.append({
-                "name":      name,
-                "amount_g":  round(amount_g, 1),
-                "mg":        round(mg, 1),
-                "category":  info["category"],
-                "confirmed": info["confirmed"],
-            })
+            _add_row(fdc_id, name, amount_g, mg, info)
         elif info["mg_per_serving"] is not None:
             serving_g = _serving_str_to_grams(info["serving_size"] or "")
             if serving_g and serving_g > 0 and _serving_is_weight(info["serving_size"] or ""):
@@ -1459,13 +1513,7 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
                 mg_per_100g = info["mg_per_serving"] / serving_g * 100.0
                 mg = mg_per_100g * amount_g / 100.0
                 total_mg += mg
-                rows.append({
-                    "name":      name,
-                    "amount_g":  round(amount_g, 1),
-                    "mg":        round(mg, 1),
-                    "category":  info["category"],
-                    "confirmed": info["confirmed"],
-                })
+                _add_row(fdc_id, name, amount_g, mg, info)
             else:
                 # Volume-based serving — density unknown, category only.
                 # It's a category, not a quantity, so the same food showing
@@ -1483,6 +1531,10 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
 
     if not rows and not qualitative:
         return None
+    for row in rows:
+        row["amount_g"] = round(row["amount_g"], 1)
+        row["mg"] = round(row["mg"], 1)
+    missing = list(dict.fromkeys(missing))
     cat_rank = {cat: i for i, cat in enumerate(_ox.CATEGORY_ORDER)}
     qualitative.sort(key=lambda r: (cat_rank.get(r["category"], len(cat_rank)), r["name"].lower()))
     return {
@@ -1588,6 +1640,67 @@ def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set
     )
 
 
+def _gi_opt_out() -> bool:
+    """True when the user has said they do not record glycemic index data.
+
+    It means numa stops ASKING: no GI in _missing_annotations(), so adding a
+    food never detours to the Annotate page for a GI value alone, and no notice
+    about which GI reference table is in use. It is the global form of the
+    per-food gi_no_prompt flag, and it hides nothing that is already recorded —
+    a GI value already saved is still shown and still used for glycemic load.
+    """
+    prefs = _load_prefs_file()
+    # gi_notices_off was this setting's first, notices-only name.
+    return bool(prefs.get("gi_opt_out", prefs.get("gi_notices_off")))
+
+
+def _gi_table_home_notice() -> dict | None:
+    """Home-page notice when GI lookups are NOT being answered by a locally-built
+    2021 table. Returns None when they are, so the banner is self-clearing.
+
+    The Annotate page and Settings both report the active table, but only when
+    you go looking. The state worth interrupting for is the one you would not go
+    looking for: a gi_data_local.json that has been moved, renamed or lost, after
+    which every lookup silently falls back to the bundled 2008 edition. So the
+    last edition seen is remembered in prefs, and losing a 2021 table is reported
+    differently from never having built one.
+
+    A dismissal is cleared again the moment a 2021 table is seen, so it silences
+    the notice you have read rather than the next disappearance.
+    """
+    prefs = _load_prefs_file()
+    info = _gi_lookup.active_table_info()
+    last_seen = prefs.get("gi_table_last_seen_edition")
+    edition = info["edition"]
+    # "Lost" is sticky, not a one-load event: the transition is only visible on
+    # the first page load after it happens, and softening the wording on the
+    # second load would bury the very thing worth reporting.
+    lost = bool(prefs.get("gi_table_lost")) or last_seen == 2021
+    if edition != last_seen:
+        updates = {"gi_table_last_seen_edition": edition}
+        if edition == 2021:
+            updates["gi_table_lost"] = False
+            updates["gi_table_notice_dismissed"] = False
+        elif last_seen == 2021:
+            updates["gi_table_lost"] = True
+        _save_prefs_file(updates)
+    # Opted out of glycemic index data altogether: which table would answer a
+    # lookup is then of no interest, including the case where none would. Note
+    # this is checked AFTER the state above is recorded, not instead of it — a
+    # table that goes missing during an opt-out must still be reported as
+    # missing if the notices are ever turned back on.
+    if _gi_opt_out():
+        return None
+    if edition == 2021:
+        return None
+    # A table that cannot be read at all is never silenced: nothing in the
+    # program works around it, and no lookup will return anything.
+    if edition is not None and prefs.get("gi_table_notice_dismissed"):
+        return None
+    return {"edition": edition, "rows": info["rows"], "lost": lost,
+            "dismissible": edition is not None}
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -1672,6 +1785,7 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
             "manual_update_available": manual_update_available,
             "manual_updated": manual_updated,
             "manual_update_error": manual_update_error,
+            "gi_table_notice": _gi_table_home_notice(),
         }
     )
 
@@ -1686,6 +1800,25 @@ async def manual_update_now():
     if result["ok"]:
         return RedirectResponse("/?manual_updated=1", status_code=303)
     return RedirectResponse(f"/?{urlencode({'manual_update_error': result['error']})}", status_code=303)
+
+
+@app.post("/settings/gi-notices", response_class=RedirectResponse)
+async def settings_gi_notices_post(gi_opt_out: str = Form("")):
+    """Opt out of (or back into) glycemic index data entirely: numa stops asking
+    for GI values when a food is added, and stops reporting which GI reference
+    table is in use. Separate from the home notice's own 'do not remind me
+    again', which silences one message that has been read."""
+    _save_prefs_file({"gi_opt_out": bool(gi_opt_out)})
+    return RedirectResponse("/settings?saved=gi_notices#gi-table", status_code=303)
+
+
+@app.post("/gi-table-notice/ack-banner", response_class=RedirectResponse)
+async def gi_table_notice_ack_banner():
+    """'Do not remind me again' on the home-page GI-table banner. Cleared
+    automatically if a locally-built 2021 table is ever seen again, so a later
+    disappearance of it is still reported."""
+    _save_prefs_file({"gi_table_notice_dismissed": True})
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/manual-notice/ack-banner", response_class=RedirectResponse)
@@ -3631,11 +3764,17 @@ async def food_custom_profiles_copy_from_search(fdc_id: int = Form(...), off_cod
 def _missing_annotations(ann) -> list[str]:
     """Which of GI / DIAAS this food still has no estimate for and hasn't been
     told to stop asking about. Drives both whether to detour to the Annotate
-    page after adding a food and what that page says is missing."""
+    page after adding a food and what that page says is missing.
+
+    A global GI opt-out removes GI from this list for every food, which is what
+    makes the opt-out mean "stop asking me" rather than only "stop warning me
+    about the reference table": _annotation_prompt_needed() is built on this, so
+    a food lacking nothing but a GI value no longer interrupts an add."""
+    ask_gi = not _gi_opt_out()
     if ann is None:
-        return ["GI", "DIAAS"]
+        return ["GI", "DIAAS"] if ask_gi else ["DIAAS"]
     missing = []
-    if ann["gi_estimate"] is None and not ann["gi_no_prompt"]:
+    if ask_gi and ann["gi_estimate"] is None and not ann["gi_no_prompt"]:
         missing.append("GI")
     if ann["diaas_estimate"] is None and not ann["diaas_no_prompt"]:
         missing.append("DIAAS")
@@ -3710,6 +3849,7 @@ async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "",
         "next":      next,
         "gi_default_population": gi_default_population,
         "gi_table":  _gi_lookup.active_table_info(),
+        "gi_opt_out": _gi_opt_out(),
     })
 
 
@@ -3739,7 +3879,17 @@ async def food_annotate_edit_post(
     # cleared by it if the GI box is then hand-edited), so it arrives as
     # ordinary form text -- trimmed to a sane length before it is stored.
     src  = " ".join(gi_source.split())[:300] or None
+    keep_gi_no_prompt = _gi_opt_out()
     with _db.get_db() as conn:
+        if keep_gi_no_prompt:
+            # The per-food "don't prompt me for a GI estimate" tick-box is not
+            # rendered while the global opt-out is on, so the form cannot carry
+            # its value -- and set_food_annotation() overwrites that column on
+            # every save. Carry the stored value forward instead of letting an
+            # absent checkbox clear a choice that matters again the moment the
+            # opt-out is switched back off.
+            existing = _db.get_food_annotation(conn, fdc_id)
+            gi_no_prompt = bool(existing["gi_no_prompt"]) if existing else False
         _db.set_food_annotation(
             conn, fdc_id,
             gi_estimate=gi,
@@ -3749,6 +3899,9 @@ async def food_annotate_edit_post(
             diaas_no_prompt=bool(diaas_no_prompt),
             prep_context=prep,
         )
+        # An annotation is an edit (owner's decision) — see foods.user_edited.
+        if gi is not None or dias is not None or prep:
+            _db.mark_user_edited(conn, fdc_id)
     if next:
         return RedirectResponse(next, status_code=303)
     return RedirectResponse(f"/food/annotate/{fdc_id}?saved=1", status_code=303)
@@ -3971,18 +4124,24 @@ async def food_detail(
 
 
 @app.post("/food/{fdc_id}/toggle-starter", response_class=RedirectResponse)
-async def food_toggle_starter(fdc_id: int):
+async def food_toggle_starter(fdc_id: int, next: str = Form("")):
     """Add or remove the "* " starter-data name prefix (see
     scripts/export_starter_data.py) on a food -- deliberately a plain rename
     (db.rename_cached_food), NOT a full update_cached_food_profile() edit,
     so marking a real USDA/OFF food as starter content doesn't also mark it
-    user_drafted and block it from ever refreshing from USDA again."""
+    user_drafted and block it from ever refreshing from USDA again.
+    Curator-only: refused in the packaged program (see _is_curator())."""
+    if not _is_curator():
+        raise HTTPException(status_code=404, detail="Not found")
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         if cached is not None:
             name = cached["name"]
             new_name = name[1:].lstrip() if name.startswith("*") else f"* {name}"
             _db.rename_cached_food(conn, fdc_id, new_name)
+    # The button lives on the Food Cache list; go back to the same row there.
+    if next.startswith("/food/cache"):
+        return RedirectResponse(next, status_code=303)
     return RedirectResponse(f"/food/{fdc_id}", status_code=303)
 
 
@@ -5744,7 +5903,7 @@ async def meal_day_profile_override(meal_id: int, profile_name: str = Form(...))
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_get(request: Request, saved: str = "", recompute_retry: str = "", kept: int = 0,
-                       gi_build_error: str = ""):
+                       gi_build_error: str = "", kept_recipes: int = 0, kept_edited: int = 0):
     profile = _profile.load_profile()
     diet_pref = _current_diet_pref()
     rda = _profile.compute_rda(profile, diet_pref=diet_pref) if profile else None
@@ -5805,6 +5964,8 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "sex_values":           _profile.SEX_VALUES,
         "saved":                saved,
         "starter_foods_kept":   kept,
+        "starter_recipes_kept": kept_recipes,
+        "starter_edited_kept":  kept_edited,
         "diet_pref":            diet_pref,
         "diet_labels":          _DIET_LABELS,
         "preferred_browser":    _load_prefs_file().get("preferred_browser", ""),
@@ -5821,6 +5982,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "starter_food_count":   len(_demo_data.DEMO_FOODS),
         "starter_pantry_count": len(_demo_data.DEMO_PANTRY),
         "starter_recipe_count": len(_demo_data.DEMO_RECIPES),
+        "starter_gi_count":     sum(1 for f in _demo_data.DEMO_FOODS if f.get("gi")),
         "starter_status":       starter_status,
         "starter_changes":      starter_changes,
         "starter_new_food_ids": {f["fdc_id"] for f in starter_changes["new_foods"]},
@@ -5828,6 +5990,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "recompute_retry":      recompute_retry,
         "gi_table":             _gi_lookup.active_table_info(),
         "gi_table_candidates":  _gi_lookup.local_table_candidates(),
+        "gi_opt_out":           _gi_opt_out(),
         "gi_build":             gi_build,
         "gi_build_error":       gi_build_error,
     })
@@ -6050,6 +6213,10 @@ async def settings_demo_data_clear():
     params = {"saved": "starter_data_cleared"}
     if result.get("foods_kept"):
         params["kept"] = result["foods_kept"]
+    if result.get("recipes_kept"):
+        params["kept_recipes"] = result["recipes_kept"]
+    if result.get("edited_kept"):
+        params["kept_edited"] = result["edited_kept"]
     return RedirectResponse(f"/settings?{urlencode(params)}", status_code=303)
 
 

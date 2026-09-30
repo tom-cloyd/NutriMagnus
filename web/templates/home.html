@@ -21,6 +21,47 @@
   Review and repair them on the <a href="/food/cache/db-check">Database check</a> page.
 </div>
 {% endif %}
+{# GI reference table: shown only when lookups are NOT being answered by a
+   locally-built 2021 table, so it clears itself the moment one is in place.
+   The "lost" wording is the case this banner exists for — a local table that
+   has gone missing otherwise fails silently, since nothing but the Annotate
+   page and Settings would ever mention it. See _gi_table_home_notice(). #}
+{% if gi_table_notice %}
+<div class="alert {% if gi_table_notice.lost %}alert-warning{% elif not gi_table_notice.dismissible %}alert-danger{% else %}alert-info{% endif %} mt-4">
+  {% if not gi_table_notice.dismissible %}
+  <strong>NO GLYCEMIC INDEX TABLE FOUND:</strong> NuMa cannot read a glycemic index
+  reference table at all, so looking up a GI value on a food's Annotate page will find
+  nothing. The table that ships with NuMa, <code>gi_data.json</code>, appears to be missing
+  from this installation — reinstalling NuMa will restore it.
+  See <a href="/settings#gi-table">Settings &gt; Glycemic Index Reference Table</a>.
+  {% elif gi_table_notice.lost %}
+  <strong>YOUR 2021 GLYCEMIC INDEX TABLE IS NO LONGER BEING FOUND:</strong> NuMa was using
+  the 2021 table you built, and it has gone — moved, renamed, or deleted. GI lookups have
+  fallen back to the 2008 edition that ships with NuMa ({{ "{:,}".format(gi_table_notice.rows) }}
+  foods, with no year of test recorded), and will keep using it until the 2021 table is back.
+  If you still have the file, put it back where it was; otherwise rebuild it from the two
+  published PDFs at <a href="/settings#gi-table">Settings &gt; Glycemic Index Reference Table</a>,
+  which also shows every path NuMa looks for it in.
+  {% else %}
+  <strong>GLYCEMIC INDEX LOOKUPS ARE USING THE 2008 TABLE:</strong> that is the edition NuMa
+  ships ({{ "{:,}".format(gi_table_notice.rows) }} foods, with no year of test recorded). The
+  2021 edition has over 4,000 foods and records the year each study was run, but its licence
+  forbids redistribution, so NuMa cannot ship it — you build your own copy from the two
+  published PDFs at <a href="/settings#gi-table">Settings &gt; Glycemic Index Reference Table</a>.
+  {% endif %}
+  {% if gi_table_notice.dismissible %}
+  <form method="post" action="/gi-table-notice/ack-banner" class="mt-2 mb-0">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="gi-table-notice-dismiss-checkbox"
+             onchange="if(this.checked) this.form.requestSubmit();">
+      <label class="form-check-label" for="gi-table-notice-dismiss-checkbox">Do not remind me
+        again. <small class="muted">(This comes back if a 2021 table is in use and then goes
+        missing.)</small></label>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
 {% if updated %}
 <div class="alert alert-success mt-4">
   <strong>UPDATED:</strong> NutriMagnus has been updated. Close this browser tab, then relaunch

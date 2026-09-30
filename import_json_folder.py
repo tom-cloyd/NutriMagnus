@@ -127,7 +127,7 @@ def main() -> None:
     _DONE_DIR.mkdir(exist_ok=True)
     with _db.get_db() as conn:
         for f in foods:
-            _db.cache_food(
+            _db.cache_user_supplied_food(
                 conn,
                 fdc_id=f["fdc_id"],
                 name=f["name"],

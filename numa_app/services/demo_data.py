@@ -23,6 +23,7 @@ import hashlib
 import json
 import pathlib
 import sys
+import uuid
 
 import db as _db
 import platform_utils as _platform_utils
@@ -50,6 +51,172 @@ DEMO_PANTRY: list[str] = _starter["pantry"]
 DEMO_RECIPES: list[dict] = _starter["recipes"]
 
 
+# ── Glycemic index values in starter foods ────────────────────────────────
+# A starter food may carry the curator's GI annotation, as an optional
+# "gi": {"estimate", "source"} entry. Only values NuMa may redistribute are
+# exported: ones picked from the 2008 international GI tables (Creative
+# Commons licensed, and bundled with NuMa anyway), and ones typed in by hand
+# with no source recorded. A value from the Atkinson 2021 tables never ships:
+# their licence permits mining them for your own use but forbids passing the
+# data on (see gi_lookup.py). This is an allowlist, not a blocklist, so a
+# source label NuMa doesn't recognise is kept out too.
+#
+# Both 2008 labels are ones the Annotate page has saved: the first is what it
+# writes now, the second what it wrote before the 2021 upgrade. The last is
+# the label a hand-typed starter value arrives with (see _write_gi()), so it
+# survives being exported again.
+_CURATOR_GI_SOURCE = "Starter data (curator's estimate)"
+_SHIPPABLE_GI_SOURCES = (
+    "Atkinson 2008 international GI tables",
+    "Foster-Powell 2008 reference table",
+    _CURATOR_GI_SOURCE,
+)
+
+
+def shippable_gi(annotation) -> dict | None:
+    """The starter-data "gi" entry for a food_annotations row, or None when
+    there is no GI value or its source may not be redistributed. A hand-typed
+    value (no source) is taken as the curator's own estimate; whoever marks a
+    food as starter content is responsible for not typing in a 2021 figure."""
+    if annotation is None or annotation["gi_estimate"] is None:
+        return None
+    source = (annotation["gi_source"] or "").strip()
+    if source and not source.startswith(_SHIPPABLE_GI_SOURCES):
+        return None
+    return {"estimate": annotation["gi_estimate"], "source": source or None}
+
+
+def _write_gi(conn, food: dict, local_id: int, *, replace: bool) -> None:
+    """Save a starter food's shipped GI value as the annotation of the user's
+    copy (local_id). Without `replace`, a GI value the user already has for
+    that food is left alone."""
+    gi = food.get("gi")
+    if not gi:
+        return
+    if not replace:
+        existing = _db.get_food_annotation(conn, local_id)
+        if existing is not None and existing["gi_estimate"] is not None:
+            return
+    _db.upsert_food_annotation(conn, local_id, gi_estimate=gi["estimate"],
+                               gi_source=gi.get("source") or _CURATOR_GI_SOURCE)
+
+
+# ── Which of the user's rows is which starter item ─────────────────────────
+# A USDA or Open Food Facts id names the same food in every database, so a
+# starter food with one keeps it, and the user "has" that starter food if
+# that id is in their cache — whether it came from starter data or from their
+# own search. Nothing already there is ever overwritten.
+#
+# A custom food's id is only a local counter (db.next_user_drafted_fdc_id()),
+# so the curator's -3 may be the user's own oatmeal. Such a starter food gets
+# a fresh local id on load, and foods.starter_key records which starter food
+# it is. A starter recipe is identified by its "uid" (stamped once by
+# scripts/export_starter_data.py, kept in recipes.starter_uid), never by name,
+# so a recipe of the user's own that happens to share the name is left alone.
+
+def _is_local_only(fdc_id: int) -> bool:
+    """True for a custom-food id — see db.next_user_drafted_fdc_id()."""
+    return -1_000_000_000 < fdc_id < 0
+
+
+def ensure_recipe_uid(conn, recipe_id: int) -> str:
+    """This recipe's permanent starter identity, stamping a new one the first
+    time it is exported. Used by the export and refresh scripts on the
+    curator's own database."""
+    row = conn.execute("SELECT starter_uid FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+    if row["starter_uid"]:
+        return row["starter_uid"]
+    uid = uuid.uuid4().hex
+    conn.execute("UPDATE recipes SET starter_uid = ? WHERE id = ?", (uid, recipe_id))
+    return uid
+
+
+def _adopt_legacy_copies(conn) -> None:
+    """Link starter items loaded before identities were recorded. A custom
+    starter food loaded under its own id, with its starter name, is claimed
+    by starter_key; a "* "-named recipe with no uid and exactly the starter
+    recipe's name is claimed by starter_uid. Idempotent."""
+    for food in DEMO_FOODS:
+        if not _is_local_only(food["fdc_id"]):
+            continue
+        conn.execute(
+            "UPDATE foods SET starter_key = ? WHERE fdc_id = ? AND name = ? AND starter_key IS NULL "
+            "AND NOT EXISTS (SELECT 1 FROM foods WHERE starter_key = ?)",
+            (str(food["fdc_id"]), food["fdc_id"], food["name"], str(food["fdc_id"])),
+        )
+    for recipe in DEMO_RECIPES:
+        uid = recipe.get("uid")
+        if not uid or conn.execute("SELECT 1 FROM recipes WHERE starter_uid = ?", (uid,)).fetchone():
+            continue
+        rows = conn.execute("SELECT id FROM recipes WHERE name = ? AND starter_uid IS NULL",
+                            (recipe["name"],)).fetchall()
+        if len(rows) == 1:
+            conn.execute("UPDATE recipes SET starter_uid = ? WHERE id = ?", (uid, rows[0]["id"]))
+
+
+def _food_locations(conn) -> dict[int, int]:
+    """Starter food id -> the id of the user's copy, for each one they have."""
+    _adopt_legacy_copies(conn)
+    cached = {r["fdc_id"] for r in conn.execute("SELECT fdc_id FROM foods").fetchall()}
+    by_key = {r["starter_key"]: r["fdc_id"] for r in conn.execute(
+        "SELECT fdc_id, starter_key FROM foods WHERE starter_key IS NOT NULL").fetchall()}
+    out: dict[int, int] = {}
+    for food in DEMO_FOODS:
+        sid = food["fdc_id"]
+        if _is_local_only(sid):
+            if str(sid) in by_key:
+                out[sid] = by_key[str(sid)]
+        elif sid in cached:
+            out[sid] = sid
+    return out
+
+
+def _recipe_locations(conn) -> dict[str, int]:
+    """Starter recipe name -> the id of the user's copy, for each one they
+    have. A starter recipe without a uid (starter data exported before uids
+    existed) can only be matched by name."""
+    _adopt_legacy_copies(conn)
+    by_uid = {r["starter_uid"]: r["id"] for r in conn.execute(
+        "SELECT id, starter_uid FROM recipes WHERE starter_uid IS NOT NULL").fetchall()}
+    by_name = {r["name"]: r["id"] for r in _db.recipe_list(conn, include_archived=True)}
+    out: dict[str, int] = {}
+    for recipe in DEMO_RECIPES:
+        uid = recipe.get("uid")
+        rid = by_uid.get(uid) if uid else by_name.get(recipe["name"])
+        if rid is not None:
+            out[recipe["name"]] = rid
+    return out
+
+
+def _insert_food(conn, food: dict) -> int:
+    """Add one starter food the user doesn't have; returns its local id."""
+    local_id = _db.next_user_drafted_fdc_id(conn) if _is_local_only(food["fdc_id"]) else food["fdc_id"]
+    _db.cache_food(
+        conn, local_id, food["name"], food["data_type"],
+        None, None, None, food["nutrients"], food["portions"],
+        user_drafted=True, notes="Starter data",
+    )
+    if _is_local_only(food["fdc_id"]):
+        conn.execute("UPDATE foods SET starter_key = ? WHERE fdc_id = ?", (str(food["fdc_id"]), local_id))
+    _write_gi(conn, food, local_id, replace=False)
+    return local_id
+
+
+def _create_recipe(conn, recipe: dict, food_ids: dict[int, int], rid_by_name: dict[str, int]) -> int:
+    """Add one starter recipe the user doesn't have; returns its id."""
+    rid = _db.recipe_create(
+        conn, name=recipe["name"], description=recipe["description"],
+        servings=recipe["servings"], instructions=recipe["instructions"],
+        complete=True,
+    )
+    if recipe.get("uid"):
+        conn.execute("UPDATE recipes SET starter_uid = ? WHERE id = ?", (recipe["uid"], rid))
+    rid_by_name[recipe["name"]] = rid
+    _add_ingredients(conn, rid, recipe, food_ids, rid_by_name)
+    _recipe_dcp.recompute_recipe_dcp(rid, conn)
+    return rid
+
+
 def _ingredient_parts(entry) -> tuple[str, float, str, str]:
     """(name, amount, unit, kind) for one starter-recipe ingredient entry.
 
@@ -59,18 +226,21 @@ def _ingredient_parts(entry) -> tuple[str, float, str, str]:
     return entry[0], entry[1], entry[2], (entry[3] if len(entry) > 3 else "food")
 
 
-def _add_ingredients(conn, recipe_id: int, recipe: dict, by_name: dict, recipe_ids: dict) -> None:
-    """Attach one starter recipe's ingredients, foods and sub-recipes alike.
+def _add_ingredients(conn, recipe_id: int, recipe: dict, food_ids: dict[int, int],
+                     rid_by_name: dict[str, int]) -> None:
+    """Attach one starter recipe's ingredients, foods and sub-recipes alike,
+    pointing each at the user's own copy (food_ids: starter id -> local id).
 
     A sub-recipe row carries fdc_id 0 and a ref_recipe_id, exactly as the app
     writes one. starter_data.json lists every recipe after the ones it uses,
-    so recipe_ids already holds the id a sub-recipe was created with."""
+    so rid_by_name already holds the id of any sub-recipe it needs."""
+    by_name = {f["name"]: f for f in DEMO_FOODS}
     for name, amount, unit, kind in (_ingredient_parts(i) for i in recipe["ingredients"]):
         if kind == "recipe":
             _db.recipe_add_ingredient(conn, recipe_id, 0, name, amount, unit,
-                                      ref_recipe_id=recipe_ids[name])
+                                      ref_recipe_id=rid_by_name[name])
         else:
-            _db.recipe_add_ingredient(conn, recipe_id, by_name[name]["fdc_id"], name, amount, unit)
+            _db.recipe_add_ingredient(conn, recipe_id, food_ids[by_name[name]["fdc_id"]], name, amount, unit)
 
 
 def is_loaded() -> bool:
@@ -103,76 +273,192 @@ def seed_if_fresh_install(conn) -> dict:
 
 
 def load_demo_data(conn) -> dict:
-    """Insert the sample foods/pantry/recipes, tracking exactly what was
-    inserted in a marker file so clear_demo_data() can remove precisely
-    that later. No-op (returns zero counts) if already loaded."""
+    """Insert the sample foods/pantry/recipes the user doesn't already have,
+    tracking exactly what was inserted in a marker file so clear_demo_data()
+    can remove precisely that later. A food or recipe the user already has is
+    left exactly as it is — never replaced, and never recorded for removal.
+    No-op (returns zero counts) if already loaded."""
     if is_loaded():
         return {"foods": 0, "pantry": 0, "recipes": 0, "already_loaded": True}
 
+    food_ids = _food_locations(conn)
     fdc_ids: list[int] = []
     for food in DEMO_FOODS:
-        _db.cache_food(
-            conn, food["fdc_id"], food["name"], food["data_type"],
-            None, None, None, food["nutrients"], food["portions"],
-            user_drafted=True, notes="Starter data",
-        )
-        fdc_ids.append(food["fdc_id"])
+        if food["fdc_id"] in food_ids:
+            continue
+        food_ids[food["fdc_id"]] = _insert_food(conn, food)
+        fdc_ids.append(food_ids[food["fdc_id"]])
 
     by_name = {f["name"]: f for f in DEMO_FOODS}
+    existing_pantry = {row["fdc_id"] for row in _db.pantry_list(conn, include_archived=True)}
     pantry_ids: list[int] = []
     for name in DEMO_PANTRY:
-        pantry_ids.append(_db.pantry_add(conn, name, by_name[name]["fdc_id"], "Starter data"))
+        local = food_ids[by_name[name]["fdc_id"]]
+        if local not in existing_pantry:
+            pantry_ids.append(_db.pantry_add(conn, name, local, "Starter data"))
 
+    rid_by_name = _recipe_locations(conn)
     recipe_ids: list[int] = []
-    rid_by_name: dict[str, int] = {}
     for recipe in DEMO_RECIPES:
-        rid = _db.recipe_create(
-            conn, name=recipe["name"], description=recipe["description"],
-            servings=recipe["servings"], instructions=recipe["instructions"],
-            complete=True,
-        )
-        rid_by_name[recipe["name"]] = rid
-        _add_ingredients(conn, rid, recipe, by_name, rid_by_name)
-        _recipe_dcp.recompute_recipe_dcp(rid, conn)
-        recipe_ids.append(rid)
+        if recipe["name"] in rid_by_name:
+            continue
+        recipe_ids.append(_create_recipe(conn, recipe, food_ids, rid_by_name))
 
     _MARKER_FILE.parent.mkdir(parents=True, exist_ok=True)
     _MARKER_FILE.write_text(json.dumps({
         "fdc_ids": fdc_ids, "pantry_ids": pantry_ids, "recipe_ids": recipe_ids,
+        "fingerprints": _fingerprints(conn, fdc_ids, recipe_ids),
     }))
 
     return {"foods": len(fdc_ids), "pantry": len(pantry_ids), "recipes": len(recipe_ids)}
 
 
-def clear_demo_data(conn) -> dict:
-    """Remove exactly what load_demo_data() inserted, per the marker file.
-    No-op (returns zero counts) if nothing is loaded.
+# ── Has the user changed a starter item since it was loaded? ──────────────
+# "Clear starter data" must remove only what is still exactly as loaded.
+# Anything the user has renamed, edited, re-portioned or annotated (a GI or
+# DIAAS value, a prep note — owner's decision: an annotation is an edit) is
+# theirs now and is kept. Each item's state is fingerprinted when it is
+# loaded; the marker file keeps those fingerprints. A marker written before
+# fingerprints existed falls back to comparing with the bundled starter set.
 
-    A starter food the user has since used somewhere of their own — logged in a
-    meal, added to a recipe, kept in the pantry — is left in place and counted
-    in "foods_kept". Deleting it would strand that reference (and the database
-    now refuses outright, via trg_foods_no_delete_when_referenced), so the
-    choice is between keeping one food and failing the whole clear."""
+def _state_hash(state: dict) -> str:
+    return hashlib.sha256(json.dumps(state, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _food_state(conn, local_id: int) -> dict | None:
+    row = _db.get_cached_food(conn, local_id)
+    if row is None:
+        return None
+    ann = _db.get_food_annotation(conn, local_id)
+    portions = json.loads(row["portions_json"]) if row["portions_json"] else None
+    return {
+        "name": row["name"], "data_type": row["data_type"],
+        "nutrients": json.loads(row["nutrients_json"] or "{}"), "portions": portions or [],
+        "gi": ann["gi_estimate"] if ann else None,
+        "gi_source": (ann["gi_source"] if ann and ann["gi_estimate"] is not None else None),
+        "diaas": ann["diaas_estimate"] if ann else None,
+        "prep": (ann["prep_context"] or None) if ann else None,
+    }
+
+
+def _bundled_food_state(food: dict) -> dict:
+    gi = food.get("gi")
+    return {
+        "name": food["name"], "data_type": food["data_type"],
+        "nutrients": food["nutrients"], "portions": food["portions"] or [],
+        "gi": gi["estimate"] if gi else None,
+        "gi_source": (gi.get("source") or _CURATOR_GI_SOURCE) if gi else None,
+        "diaas": None, "prep": None,
+    }
+
+
+def _recipe_state(conn, rid: int) -> dict | None:
+    row = _db.recipe_get(conn, rid)
+    if row is None:
+        return None
+    return {
+        "name": row["name"], "description": row["description"] or "", "servings": row["servings"],
+        "instructions": row["instructions"] or "", "serving_size": row["serving_size"] or None,
+        "introduction": row["introduction"] or None, "notes": row["notes"] or None,
+        "ingredients": [[i["food_name"], i["amount"], i["unit"], "recipe" if i["ref_recipe_id"] else "food"]
+                        for i in _db.recipe_get_ingredients(conn, rid)],
+    }
+
+
+def _bundled_recipe_state(recipe: dict) -> dict:
+    return {
+        "name": recipe["name"], "description": recipe["description"] or "", "servings": recipe["servings"],
+        "instructions": recipe["instructions"] or "", "serving_size": None, "introduction": None,
+        "notes": None, "ingredients": [list(_ingredient_parts(i)) for i in recipe["ingredients"]],
+    }
+
+
+def _fingerprints(conn, fdc_ids: list[int], recipe_ids: list[int]) -> dict:
+    return {
+        "foods": {str(i): _state_hash(_food_state(conn, i)) for i in fdc_ids},
+        "recipes": {str(i): _state_hash(_recipe_state(conn, i)) for i in recipe_ids},
+    }
+
+
+def _unchanged_since_load(conn, kind: str, local_id: int, fingerprints: dict | None) -> bool:
+    state = _food_state(conn, local_id) if kind == "foods" else _recipe_state(conn, local_id)
+    if state is None:
+        return False
+    saved = (fingerprints or {}).get(kind, {}).get(str(local_id))
+    if saved is not None:
+        return _state_hash(state) == saved
+    # Older marker: unchanged only if it still matches a bundled starter item.
+    bundled = ([_bundled_food_state(f) for f in DEMO_FOODS] if kind == "foods"
+               else [_bundled_recipe_state(r) for r in DEMO_RECIPES])
+    return state in bundled
+
+
+def refresh_fingerprints(conn, fdc_ids: list[int], recipe_ids: list[int]) -> None:
+    """Re-record items NuMa itself just replaced with a newer starter version
+    (apply_improvements()), so they still count as unedited."""
     if not is_loaded():
-        return {"foods": 0, "pantry": 0, "recipes": 0, "foods_kept": 0}
+        return
+    marker = json.loads(_MARKER_FILE.read_text())
+    fps = marker.setdefault("fingerprints", {"foods": {}, "recipes": {}})
+    fresh = _fingerprints(conn, [i for i in fdc_ids if i in marker.get("fdc_ids", [])],
+                          [i for i in recipe_ids if i in marker.get("recipe_ids", [])])
+    for kind in ("foods", "recipes"):
+        fps.setdefault(kind, {}).update(fresh[kind])
+    _MARKER_FILE.write_text(json.dumps(marker))
+
+
+def clear_demo_data(conn) -> dict:
+    """Remove what load_demo_data() inserted, per the marker file, except
+    anything the user has made their own. No-op (returns zero counts) if
+    nothing is loaded.
+
+    Kept, and counted:
+      - "edited_kept": a starter food or recipe changed since it was loaded
+        (renamed, edited, re-portioned, annotated) — see _unchanged_since_load().
+      - "recipes_kept": an unedited starter recipe the user has logged in a
+        meal or used inside a recipe of their own.
+      - "foods_kept": an unedited starter food still used somewhere that
+        stays — a meal, a recipe of the user's (including a kept starter
+        recipe), or the pantry. Deleting it would strand that reference (and
+        the database refuses outright, via trg_foods_no_delete_when_referenced)."""
+    if not is_loaded():
+        return {"foods": 0, "pantry": 0, "recipes": 0, "foods_kept": 0, "recipes_kept": 0, "edited_kept": 0}
 
     marker = json.loads(_MARKER_FILE.read_text())
     fdc_ids = marker.get("fdc_ids", [])
     pantry_ids = marker.get("pantry_ids", [])
     recipe_ids = marker.get("recipe_ids", [])
+    fps = marker.get("fingerprints")
+    edited_kept = 0
 
     # Reverse order: starter recipes are created sub-recipe-first, so a
-    # sub-recipe still has a parent pointing at it until that parent is gone
-    # (recipe_ingredients.ref_recipe_id is a foreign key onto recipes.id).
+    # parent is considered (and removed) before the sub-recipe it uses.
+    deleted_recipes, kept_recipes = 0, 0
     for rid in reversed(recipe_ids):
+        if _db.recipe_get(conn, rid) is None:
+            continue
+        if not _unchanged_since_load(conn, "recipes", rid, fps):
+            edited_kept += 1
+            continue
+        in_meal = conn.execute("SELECT 1 FROM meal_items WHERE item_type = 'recipe' AND recipe_id = ?",
+                               (rid,)).fetchone()
+        if in_meal or _db.recipe_referencing_subrecipe(conn, rid):
+            kept_recipes += 1
+            continue
         conn.execute("DELETE FROM recipes WHERE id = ?", (rid,))  # cascades to recipe_ingredients
+        deleted_recipes += 1
     for pid in pantry_ids:
         conn.execute("DELETE FROM pantry WHERE id = ?", (pid,))
-    # After the starter recipes and pantry entries above are gone, whatever
-    # still references a starter food belongs to the user.
+    # After the removable recipes and pantry entries are gone, whatever still
+    # references a starter food belongs to the user.
     deleted_foods = 0
     kept_foods = 0
     for fdc_id in fdc_ids:
+        if _db.get_cached_food(conn, fdc_id) is None:
+            continue
+        if not _unchanged_since_load(conn, "foods", fdc_id, fps):
+            edited_kept += 1
+            continue
         refs = _db.food_references(conn, fdc_id)
         if refs["pantry"] or refs["recipes"] or refs["meals"]:
             kept_foods += 1
@@ -182,8 +468,22 @@ def clear_demo_data(conn) -> dict:
 
     _MARKER_FILE.unlink()
 
-    return {"foods": deleted_foods, "pantry": len(pantry_ids), "recipes": len(recipe_ids),
-            "foods_kept": kept_foods}
+    return {"foods": deleted_foods, "pantry": len(pantry_ids), "recipes": deleted_recipes,
+            "foods_kept": kept_foods, "recipes_kept": kept_recipes, "edited_kept": edited_kept}
+
+
+def starter_recipes_using() -> dict[str, list[str]]:
+    """Starter food name -> the starter recipes that use it as an ingredient.
+    Many starter foods ship only because a starter recipe needs them (the
+    export pulls in every ingredient of a starred recipe; see
+    scripts/export_starter_data.py), so Settings shows this beside each food
+    to explain why, say, vanilla extract is a starter food."""
+    out: dict[str, list[str]] = {}
+    for recipe in DEMO_RECIPES:
+        for name, _amount, _unit, kind in (_ingredient_parts(i) for i in recipe["ingredients"]):
+            if kind == "food" and recipe["name"] not in out.setdefault(name, []):
+                out[name].append(recipe["name"])
+    return out
 
 
 def starter_status(conn) -> dict:
@@ -191,23 +491,24 @@ def starter_status(conn) -> dict:
     current DB, for the Settings selective-restore checkbox list. Checked
     against the DB directly (not the load/clear marker file) so it stays
     accurate even after a selective restore or a manual edit/delete of a
-    starter item."""
-    cached_ids = {row["fdc_id"] for row in conn.execute("SELECT fdc_id FROM foods").fetchall()}
-    pantry_pairs = {(row["food_name"], row["fdc_id"]) for row in _db.pantry_list(conn, include_archived=True)}
-    recipe_names = {row["name"] for row in _db.recipe_list(conn, include_archived=True)}
-
+    starter item. Foods are listed by their starter id."""
+    food_ids = _food_locations(conn)
+    recipe_ids = _recipe_locations(conn)
+    pantry_fdc_ids = {row["fdc_id"] for row in _db.pantry_list(conn, include_archived=True)}
     by_name = {f["name"]: f for f in DEMO_FOODS}
+    used_in = starter_recipes_using()
     return {
         "foods": [
-            {"fdc_id": f["fdc_id"], "name": f["name"], "present": f["fdc_id"] in cached_ids}
+            {"fdc_id": f["fdc_id"], "name": f["name"], "present": f["fdc_id"] in food_ids,
+             "used_in": used_in.get(f["name"], [])}
             for f in DEMO_FOODS
         ],
         "pantry": [
-            {"name": name, "present": (name, by_name[name]["fdc_id"]) in pantry_pairs}
+            {"name": name, "present": food_ids.get(by_name[name]["fdc_id"]) in pantry_fdc_ids}
             for name in DEMO_PANTRY
         ],
         "recipes": [
-            {"name": r["name"], "present": r["name"] in recipe_names}
+            {"name": r["name"], "present": r["name"] in recipe_ids}
             for r in DEMO_RECIPES
         ],
     }
@@ -216,7 +517,8 @@ def starter_status(conn) -> dict:
 def restore_selected(conn, food_fdc_ids: list[int], pantry_names: list[str], recipe_names: list[str]) -> dict:
     """Add back specific starter foods/pantry items/recipes that aren't
     already present, alongside (not replacing) the all-or-nothing
-    load_demo_data()/clear_demo_data(). Selecting a pantry item or recipe
+    load_demo_data()/clear_demo_data(). food_fdc_ids are starter ids, as
+    starter_status() lists them. Selecting a pantry item or recipe
     auto-includes any starter food it depends on that isn't already cached,
     since a pantry item or recipe ingredient can't exist without its food.
     A selected recipe likewise pulls in any sub-recipe it uses, and their
@@ -226,7 +528,7 @@ def restore_selected(conn, food_fdc_ids: list[int], pantry_names: list[str], rec
     with an overlapping selection."""
     by_name = {f["name"]: f for f in DEMO_FOODS}
     by_fdc_id = {f["fdc_id"]: f for f in DEMO_FOODS}
-    cached_ids = {row["fdc_id"] for row in conn.execute("SELECT fdc_id FROM foods").fetchall()}
+    food_ids = _food_locations(conn)
 
     # Widen the selection to every sub-recipe reachable from it, then keep
     # DEMO_RECIPES order, in which a sub-recipe always precedes its user.
@@ -252,41 +554,28 @@ def restore_selected(conn, food_fdc_ids: list[int], pantry_names: list[str], rec
 
     added_foods = 0
     for fdc_id in needed_fdc_ids:
-        if fdc_id in cached_ids:
+        if fdc_id in food_ids or fdc_id not in by_fdc_id:
             continue
-        food = by_fdc_id[fdc_id]
-        _db.cache_food(
-            conn, food["fdc_id"], food["name"], food["data_type"],
-            None, None, None, food["nutrients"], food["portions"],
-            user_drafted=True, notes="Starter data",
-        )
-        cached_ids.add(fdc_id)
+        food_ids[fdc_id] = _insert_food(conn, by_fdc_id[fdc_id])
         added_foods += 1
 
-    existing_pantry = {(row["food_name"], row["fdc_id"]) for row in _db.pantry_list(conn, include_archived=True)}
+    existing_pantry = {row["fdc_id"] for row in _db.pantry_list(conn, include_archived=True)}
     added_pantry = 0
     for name in pantry_names:
-        fdc_id = by_name[name]["fdc_id"]
-        if (name, fdc_id) in existing_pantry:
+        local = food_ids[by_name[name]["fdc_id"]]
+        if local in existing_pantry:
             continue
-        _db.pantry_add(conn, name, fdc_id, "Starter data")
+        _db.pantry_add(conn, name, local, "Starter data")
         added_pantry += 1
 
-    # Name -> id for every recipe already in the DB, so a parent recipe links
-    # to a sub-recipe that is already there rather than duplicating it.
-    rid_by_name = {row["name"]: row["id"] for row in _db.recipe_list(conn, include_archived=True)}
+    # So a parent recipe links to a sub-recipe the user already has rather
+    # than duplicating it.
+    rid_by_name = _recipe_locations(conn)
     added_recipes = 0
     for recipe in recipe_defs:
         if recipe["name"] in rid_by_name:
             continue
-        rid = _db.recipe_create(
-            conn, name=recipe["name"], description=recipe["description"],
-            servings=recipe["servings"], instructions=recipe["instructions"],
-            complete=True,
-        )
-        rid_by_name[recipe["name"]] = rid
-        _add_ingredients(conn, rid, recipe, by_name, rid_by_name)
-        _recipe_dcp.recompute_recipe_dcp(rid, conn)
+        _create_recipe(conn, recipe, food_ids, rid_by_name)
         added_recipes += 1
 
     return {"foods": added_foods, "pantry": added_pantry, "recipes": added_recipes}
@@ -312,21 +601,27 @@ _CHANGE_KEYS = ("new_foods", "improved_foods", "new_recipes", "improved_recipes"
 
 
 def _item_hash(item: dict) -> str:
-    # source_recipe_id is the curator's own DB id, not content — it can change
-    # without the recipe changing (see export_starter_data.py).
-    content = {k: v for k, v in item.items() if k != "source_recipe_id"}
+    # Identity fields aren't content: source_recipe_id was the curator's own
+    # DB id (older starter data), uid is the recipe's permanent identity.
+    content = {k: v for k, v in item.items() if k not in ("source_recipe_id", "uid")}
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()[:16]
 
 
+def _recipe_key(recipe: dict) -> str:
+    """A starter recipe's manifest key: its uid, or its name if it has none."""
+    return recipe.get("uid") or recipe["name"]
+
+
 def starter_manifest(foods: list[dict] | None = None, recipes: list[dict] | None = None) -> dict:
-    """{'foods': {str(fdc_id): {'name', 'hash'}}, 'recipes': {name: {'hash'}}}
+    """{'foods': {str(fdc_id): {'name', 'hash'}}, 'recipes': {uid: {'name', 'hash'}}}
     for the given starter set, or the bundled one by default. Food keys are
-    strings so the manifest survives a JSON round trip unchanged."""
+    strings so the manifest survives a JSON round trip unchanged; a recipe
+    with no uid is keyed by its name."""
     foods = DEMO_FOODS if foods is None else foods
     recipes = DEMO_RECIPES if recipes is None else recipes
     return {
         "foods": {str(f["fdc_id"]): {"name": f["name"], "hash": _item_hash(f)} for f in foods},
-        "recipes": {r["name"]: {"hash": _item_hash(r)} for r in recipes},
+        "recipes": {_recipe_key(r): {"name": r["name"], "hash": _item_hash(r)} for r in recipes},
     }
 
 
@@ -337,14 +632,19 @@ def _empty_changes() -> dict:
 def diff_manifests(old: dict, new: dict) -> dict:
     """Items in `new` that `old` lacks (new_*) or has with different content
     (improved_*). Items dropped from the set are not reported: removing a
-    starter item never touches anyone's copy of it."""
+    starter item never touches anyone's copy of it. A recipe `old` keyed by
+    name (from before recipes had uids) is matched by name."""
     out = _empty_changes()
     for kind in ("foods", "recipes"):
         before = old.get(kind, {})
+        before_by_name = {v.get("name", k): v for k, v in before.items()}
         for key, item in new.get(kind, {}).items():
-            if key not in before:
+            prev = before.get(key)
+            if prev is None and kind == "recipes":
+                prev = before_by_name.get(item.get("name"))
+            if prev is None:
                 out[f"new_{kind}"].append(key)
-            elif before[key]["hash"] != item["hash"]:
+            elif prev["hash"] != item["hash"]:
                 out[f"improved_{kind}"].append(key)
     return out
 
@@ -407,27 +707,40 @@ def acknowledge_version_changes() -> None:
         _write_versions(state)
 
 
-def _present(conn) -> tuple[set[str], set[str]]:
-    food_keys = {str(r["fdc_id"]) for r in conn.execute("SELECT fdc_id FROM foods").fetchall()}
-    recipe_names = {r["name"] for r in _db.recipe_list(conn, include_archived=True)}
-    return food_keys, recipe_names
+def _present(conn, manifest: dict) -> tuple[set[str], set[str]]:
+    """Manifest keys of the starter foods and recipes the user has, as far as
+    the bundled set can tell (a key the running version doesn't know is
+    treated as absent)."""
+    food_keys = {str(k) for k in _food_locations(conn)}
+    # A food that's not in the running version's set (a preview of a newer
+    # release) counts as present if the same USDA/OFF id is cached.
+    cached = {str(r["fdc_id"]) for r in conn.execute("SELECT fdc_id FROM foods").fetchall()}
+    food_keys |= {k for k in manifest.get("foods", {}) if not _is_local_only(int(k)) and k in cached}
+    have = _recipe_locations(conn)
+    recipe_keys = {_recipe_key(r) for r in DEMO_RECIPES if r["name"] in have}
+    return food_keys, recipe_keys
 
 
 def _relevant(conn, changes: dict, manifest: dict) -> dict:
     """Narrow raw changes to what matters to this user: a new item only if
     they don't already have it, an improved item only if they do. Returned
-    with display names: foods as {'fdc_id', 'name'}, recipes as names."""
-    food_keys, recipe_names = _present(conn)
+    with display names: foods as {'fdc_id', 'name'} (starter ids), recipes as
+    names."""
+    food_keys, recipe_keys = _present(conn, manifest)
     foods = manifest.get("foods", {})
+    recipes = manifest.get("recipes", {})
 
     def _food(k: str) -> dict:
         return {"fdc_id": int(k), "name": foods.get(k, {}).get("name", k)}
 
+    def _recipe(k: str) -> str:
+        return recipes.get(k, {}).get("name", k)
+
     return {
         "new_foods": [_food(k) for k in changes.get("new_foods", []) if k not in food_keys],
         "improved_foods": [_food(k) for k in changes.get("improved_foods", []) if k in food_keys],
-        "new_recipes": [n for n in changes.get("new_recipes", []) if n not in recipe_names],
-        "improved_recipes": [n for n in changes.get("improved_recipes", []) if n in recipe_names],
+        "new_recipes": [_recipe(k) for k in changes.get("new_recipes", []) if k not in recipe_keys],
+        "improved_recipes": [_recipe(k) for k in changes.get("improved_recipes", []) if k in recipe_keys],
     }
 
 
@@ -460,59 +773,66 @@ def _forget_improvements(food_fdc_ids: list[int], recipe_names: list[str]) -> No
         return
     changes = state.setdefault("changes", _empty_changes())
     done_foods = {str(i) for i in food_fdc_ids}
+    done_recipes = {_recipe_key(r) for r in DEMO_RECIPES if r["name"] in set(recipe_names)}
     changes["improved_foods"] = [k for k in changes.get("improved_foods", []) if k not in done_foods]
-    changes["improved_recipes"] = [n for n in changes.get("improved_recipes", []) if n not in set(recipe_names)]
+    changes["improved_recipes"] = [k for k in changes.get("improved_recipes", []) if k not in done_recipes]
     _write_versions(state)
 
 
 def apply_improvements(conn, food_fdc_ids: list[int], recipe_names: list[str]) -> dict:
     """Replace the user's copies of the chosen starter items with this
-    version's improved ones, in place.
+    version's improved ones, in place. food_fdc_ids are starter ids.
 
     Foods are updated with UPDATE, never INSERT OR REPLACE: the row keeps its
-    fdc_id, archived flag and annotations, and every meal, recipe and pantry
+    id, archived flag and annotations, and every meal, recipe and pantry
     entry pointing at it keeps working. Recipes keep their id too (meals log
     recipes by id); their fields and ingredient list are rewritten, and any
     starter food or sub-recipe the new version needs is added first if
     missing. DCP is recomputed afterwards, up through anything that uses the
     changed item."""
-    by_name = {f["name"]: f for f in DEMO_FOODS}
     by_fdc_id = {f["fdc_id"]: f for f in DEMO_FOODS}
     recipes_by_name = {r["name"]: r for r in DEMO_RECIPES}
+    food_ids = _food_locations(conn)
 
     updated_foods = 0
     for fdc_id in food_fdc_ids:
-        food = by_fdc_id.get(fdc_id)
-        if food is None or _db.get_cached_food(conn, fdc_id) is None:
+        food, local = by_fdc_id.get(fdc_id), food_ids.get(fdc_id)
+        if food is None or local is None:
             continue
         conn.execute(
-            "UPDATE foods SET name = ?, data_type = ?, nutrients_json = ?, portions_json = ? WHERE fdc_id = ?",
+            # The copy is the starter version again, so no longer the user's edit.
+            "UPDATE foods SET name = ?, data_type = ?, nutrients_json = ?, portions_json = ?, user_edited = 0 "
+            "WHERE fdc_id = ?",
             (food["name"], food["data_type"], json.dumps(food["nutrients"]),
-             json.dumps(food["portions"] or []), fdc_id),
+             json.dumps(food["portions"] or []), local),
         )
-        _recipe_dcp.cascade_food_change(fdc_id, conn)
+        _write_gi(conn, food, local, replace=True)
+        _recipe_dcp.cascade_food_change(local, conn)
         updated_foods += 1
 
     wanted = [n for n in recipe_names if n in recipes_by_name]
     # Adds whatever the new versions need that isn't there yet (skipping the
     # recipes themselves, which are present); see restore_selected().
     restore_selected(conn, [], [], wanted)
-    rid_by_name = {row["name"]: row["id"] for row in _db.recipe_list(conn, include_archived=True)}
+    food_ids = _food_locations(conn)
+    rid_by_name = _recipe_locations(conn)
     updated_recipes = 0
     for recipe in DEMO_RECIPES:  # set order: a sub-recipe before its users
         if recipe["name"] not in wanted or recipe["name"] not in rid_by_name:
             continue
         rid = rid_by_name[recipe["name"]]
         conn.execute(
-            "UPDATE recipes SET description = ?, servings = ?, instructions = ? WHERE id = ?",
-            (recipe["description"], recipe["servings"], recipe["instructions"], rid),
+            "UPDATE recipes SET name = ?, description = ?, servings = ?, instructions = ? WHERE id = ?",
+            (recipe["name"], recipe["description"], recipe["servings"], recipe["instructions"], rid),
         )
         conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (rid,))
-        _add_ingredients(conn, rid, recipe, by_name, rid_by_name)
+        _add_ingredients(conn, rid, recipe, food_ids, rid_by_name)
         _recipe_dcp.recompute_recipe_dcp(rid, conn)
         updated_recipes += 1
 
     _forget_improvements(food_fdc_ids, recipe_names)
+    refresh_fingerprints(conn, [food_ids[i] for i in food_fdc_ids if i in food_ids],
+                         [rid_by_name[n] for n in wanted if n in rid_by_name])
     return {"foods": updated_foods, "recipes": updated_recipes}
 
 

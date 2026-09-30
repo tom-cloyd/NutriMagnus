@@ -1,4 +1,4 @@
-VERSION = "2026-09-29:1644"
+VERSION = "2026-09-30:0615"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.23"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "NuMa now tells you which starter foods and recipes an update adds or improves, and lets you choose which to take; the starter pantry now ships empty"
+NEW_VERSION_NOTE = "the Save recipe details button works again; since September 24 it had silently saved nothing"
