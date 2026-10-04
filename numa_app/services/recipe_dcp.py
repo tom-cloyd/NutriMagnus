@@ -41,7 +41,11 @@ def recompute_recipe_dcp(recipe_id: int, conn) -> float | None:
     ingredients, or missing amino acid data on a significant protein source).
     """
     own_result = _recompute_single_recipe_dcp(recipe_id, conn)
-    _cascade_to_ancestors(recipe_id, conn, seen={recipe_id})
+    seen = {recipe_id}
+    _cascade_to_ancestors(recipe_id, conn, seen=seen)
+    # Every meal logging this recipe or one built on it now holds a stale
+    # stored DCP/nutrient snapshot; flag it for _refresh_stale_meals().
+    _db.mark_meals_stale_for_recipes(conn, seen)
     return own_result
 
 
@@ -71,11 +75,18 @@ def cascade_food_change(fdc_id: int, conn) -> None:
     any write to foods.nutrients_json), recompute DCP for every recipe that
     uses it as a direct ingredient, cascading up to their ancestors the same
     way an in-recipe edit does. Call this after every food-nutrient write so
-    no recipe is left holding a stale DIAAS-based dcp_g.
+    no recipe is left holding a stale DIAAS-based dcp_g. Meals logging the
+    food directly, or through any of those recipes, are flagged in
+    stale_meals so their stored DCP/nutrient snapshot gets recomputed too.
 
     Each affected recipe is recomputed independently — one failure is logged
     to recompute_errors rather than raised, so a single bad recipe can't
     block the food save that triggered this or hide from the user."""
+    _db.mark_meals_stale_for_food(conn, fdc_id)
+    food = _db.get_cached_food(conn, fdc_id)
+    if food is not None:
+        _db.log_meal_recalc(conn, _db.meals_using_food(conn, fdc_id),
+                            f"{food['name']}: its data changed")
     for row in _db.recipes_containing_food(conn, fdc_id):
         recipe_id = row["id"]
         try:

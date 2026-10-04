@@ -356,3 +356,72 @@ class TestRecomputeErrorRetryRoute:
         resp = client.post("/settings/recompute-error/999/resolve", follow_redirects=False)
         assert resp.status_code == 303
         assert "recompute_retry=not_found" in resp.headers["location"]
+
+
+class TestMealsRefreshAfterChange:
+    """A food or recipe change flags every meal using it (directly, through a
+    recipe, or through a sub-recipe) in stale_meals; the next page load
+    recomputes those meals' stored calories/DCP/nutrient snapshot, so Meals &
+    Log and Daily Summary don't keep showing numbers from before the edit."""
+
+    @pytest.fixture()
+    def setup(self, db_conn):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (1, "Mystery Blend", "Branded", json.dumps({"calories": 100.0}), "[]"),
+        )
+        base = _db.recipe_create(db_conn, name="Base", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, base, 1, "Mystery Blend", 100.0, "g")
+        outer = _db.recipe_create(db_conn, name="Outer", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, outer, 0, "Base", 1.0, "serving", ref_recipe_id=base)
+        meal_food = _db.meal_create(db_conn, "Food meal", "2026-09-01")
+        _db.meal_add_food(db_conn, meal_food, 1, "Mystery Blend", 200.0, "g")
+        meal_base = _db.meal_create(db_conn, "Base meal", "2026-09-02")
+        _db.meal_add_recipe(db_conn, meal_base, base, "Base", 1.0)
+        meal_outer = _db.meal_create(db_conn, "Outer meal", "2026-09-03")
+        _db.meal_add_recipe(db_conn, meal_outer, outer, "Outer", 1.0)
+        meal_other = _db.meal_create(db_conn, "Unrelated meal", "2026-09-04")
+        db_conn.commit()
+        return {"base": base, "outer": outer, "food": meal_food, "base_meal": meal_base,
+                "outer_meal": meal_outer, "other": meal_other}
+
+    def _calories(self, db_conn, meal_id):
+        return db_conn.execute("SELECT calories FROM meals WHERE id = ?", (meal_id,)).fetchone()["calories"]
+
+    def test_food_change_flags_direct_recipe_and_subrecipe_meals(self, db_conn, setup):
+        _recipe_dcp.cascade_food_change(1, db_conn)
+        db_conn.commit()
+        assert set(_db.stale_meal_ids(db_conn)) == {setup["food"], setup["base_meal"], setup["outer_meal"]}
+
+    def test_recipe_recompute_flags_its_meals_and_ancestors_meals(self, db_conn, setup):
+        _recipe_dcp.recompute_recipe_dcp(setup["base"], db_conn)
+        db_conn.commit()
+        assert set(_db.stale_meal_ids(db_conn)) == {setup["base_meal"], setup["outer_meal"]}
+
+    def test_page_load_recomputes_stale_meals(self, client: TestClient, db_conn, setup):
+        db_conn.execute("UPDATE foods SET nutrients_json = ? WHERE fdc_id = 1",
+                        (json.dumps({"calories": 300.0}),))
+        _recipe_dcp.cascade_food_change(1, db_conn)
+        db_conn.commit()
+
+        assert client.get("/meals").status_code == 200
+
+        assert self._calories(db_conn, setup["food"]) == pytest.approx(600.0)
+        assert self._calories(db_conn, setup["base_meal"]) == pytest.approx(300.0)
+        assert self._calories(db_conn, setup["outer_meal"]) == pytest.approx(300.0)
+        assert self._calories(db_conn, setup["other"]) is None
+        assert _db.stale_meal_ids(db_conn) == []
+
+    def test_failed_meal_recompute_is_logged_and_unflagged(self, client: TestClient, db_conn, setup, monkeypatch):
+        def _boom(meal_id):
+            raise RuntimeError("meal blew up")
+        monkeypatch.setattr(backend, "_compute_and_store_meal_bcp", _boom)
+        _recipe_dcp.cascade_food_change(1, db_conn)
+        db_conn.commit()
+
+        assert client.get("/meals").status_code == 200
+
+        assert _db.stale_meal_ids(db_conn) == []
+        errors = _db.list_unresolved_recompute_errors(db_conn)
+        assert {e["entity_id"] for e in errors if e["entity_type"] == "meal"} == {
+            setup["food"], setup["base_meal"], setup["outer_meal"]}

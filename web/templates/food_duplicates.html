@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Duplicate Foods{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache/db-check">Database check</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Duplicate Foods</li>
+  </ol>
+</nav>
+
+<h2>Duplicate Foods {{ manual_link("duplicate-foods") }}</h2>
+<p class="muted" style="max-width:52rem">Foods in your Food Cache with the same name, once capitals, punctuation, a
+&ldquo;*&nbsp;&rdquo; starter prefix, &ldquo;Copy of&rdquo; and &ldquo;(FDC&nbsp;&hellip;)&rdquo; are ignored. Two copies of one food
+split your data: a fix to one doesn&rsquo;t reach recipes and meals using the other.</p>
+<p style="max-width:52rem"><strong>For each group:</strong> compare the copies (<strong>Compare nutrition</strong>), then
+<strong>Keep</strong> the better one &mdash; usually the one with more nutrient values, or the one you&rsquo;ve corrected. Every
+recipe, logged meal and pantry entry using the others is switched to it, and the others are deleted; each recipe or meal line keeps
+its own name and amount. If they really are different foods (one raw, one cooked, say), click <strong>Not duplicates</strong> and
+NuMa won&rsquo;t list them together again.</p>
+
+{% if merged %}
+<div class="alert alert-success">Merged {{ merged }} duplicate{{ "s" if merged != 1 }} into the food you kept.</div>
+{% endif %}
+{% if dismissed %}
+<div class="alert alert-success">Noted &mdash; that group won&rsquo;t be listed again.</div>
+{% endif %}
+{% include "_impact_note.html" %}
+
+<p><a href="/food/cache/duplicates?show_dismissed={{ 0 if show_dismissed else 1 }}" class="btn btn-sm {{ 'btn-secondary' if show_dismissed else 'btn-outline-secondary' }}">{{ "Hide" if show_dismissed else "Show" }} groups marked &ldquo;not duplicates&rdquo;</a></p>
+
+{% if not groups %}
+<p class="muted">No duplicate foods found.</p>
+{% else %}
+<p><strong>{{ groups|length }}</strong> group{{ "s" if groups|length != 1 }} found.</p>
+{% for g in groups %}
+<div class="card mb-3" style="max-width:60rem">
+  <div class="card-body py-2">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+      <strong>{{ g.name }}</strong>
+      {% if g.dismissed %}<span class="badge bg-secondary">marked not duplicates</span>{% endif %}
+      <a href="/compare?items={% for f in g.foods %}f{{ f.fdc_id }}{% if not loop.last %},{% endif %}{% endfor %}&return_to={{ '/food/cache/duplicates' | urlencode }}" class="btn btn-sm btn-outline-secondary">Compare nutrition</a>
+      {% if not g.dismissed %}
+      <form method="post" action="/food/cache/duplicates/dismiss" class="d-inline">
+        <input type="hidden" name="group_key" value="{{ g.key }}">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Not duplicates</button>
+      </form>
+      {% endif %}
+    </div>
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light"><tr><th>Food</th><th>Type</th><th class="text-end">Nutrient values</th><th>Used in</th><th></th></tr></thead>
+      <tbody>
+        {% set pron = "it" if g.foods|length == 2 else "them" %}
+        {% for f in g.foods %}
+        <tr>
+          <td><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a> <small class="muted">({{ food_id_short(f.fdc_id) }})</small>{% if f.archived %} <span class="badge bg-secondary">Archived</span>{% endif %}</td>
+          <td><small>{{ food_type(f) }}</small></td>
+          <td class="text-end">{{ f.nutrient_count }}</td>
+          <td><small>{% if f.use.total %}{{ f.use.recipes }} recipe{{ "s" if f.use.recipes != 1 }}, {{ f.use.meals }} meal{{ "s" if f.use.meals != 1 }}{% if f.use.pantry %}, pantry{% endif %}{% else %}<span class="muted">not used</span>{% endif %}</small></td>
+          <td>
+            <form method="post" action="/food/cache/duplicates/keep" class="d-inline"
+                  onsubmit="return confirm('Keep this one, switch everything using the other {{ g.foods|length - 1 }} to it, and delete {{ pron }}? This cannot be undone.')">
+              <input type="hidden" name="group_key" value="{{ g.key }}">
+              <input type="hidden" name="keep" value="{{ f.fdc_id }}">
+              <button type="submit" class="btn btn-sm btn-outline-primary">Keep this one</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<div><a href="/food/cache/db-check" class="btn btn-outline-secondary btn-sm mt-2">Back to the database check</a></div>
+{% endblock %}

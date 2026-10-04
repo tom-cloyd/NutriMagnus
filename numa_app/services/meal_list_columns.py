@@ -13,6 +13,12 @@ import usda as _usda
 
 MAX_MEAL_LIST_NUTRIENTS = 6
 
+# Columns used until the user saves their own choice in Settings → 8 (and
+# what its "Restore defaults" button puts back). Protein here is raw protein;
+# DCP is never a picker choice, since both lists already show it as fixed
+# columns of their own.
+DEFAULT_MEAL_LIST_NUTRIENTS: list[str] = ["protein_g", "calories", "carbs_g", "fiber_g", "sugar_g"]
+
 # Ordered choices for the picker — every NUTRIENT_MAP key. Each consuming
 # list (Meals & Log, Recent Days) drops whichever keys it already shows via
 # its own fixed column, so the same picker/positions can be shared between
@@ -62,6 +68,15 @@ def sanitize(keys: list[str]) -> list[str]:
     from what sanitize() returns here, rather than losing it from the
     shared picker entirely (the other list may still want to show it)."""
     return [k for k in keys if k in _AVAILABLE_KEYS][:MAX_MEAL_LIST_NUTRIENTS]
+
+
+def saved_or_default(prefs: dict) -> list[str]:
+    """The user's saved column choice from prefs.json, or the defaults if
+    they have never saved one. An explicitly saved empty list (every
+    position cleared) stays empty — that's a choice, not a missing pref."""
+    if "meal_list_nutrients" not in prefs:
+        return list(DEFAULT_MEAL_LIST_NUTRIENTS)
+    return sanitize(prefs.get("meal_list_nutrients") or [])
 
 
 def format_value(key: str, value: float) -> str:

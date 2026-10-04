@@ -45,7 +45,7 @@ def rank_contributors(ingredients: list[dict], nutrient_key: str) -> dict:
         total += amount
     contributions.sort(key=lambda c: c["amount"], reverse=True)
     for c in contributions:
-        c["pct"] = round(c["amount"] / total * 100, 1) if total else 0.0
+        c["pct"] = round(c["amount"] / total * 100, 4) if total else 0.0
     return {"items": contributions, "total": total}
 
 
@@ -80,5 +80,5 @@ def rank_contributors_by_dcp(ingredients: list[dict], conn: sqlite3.Connection |
         total += dcp
     contributions.sort(key=lambda c: c["amount"], reverse=True)
     for c in contributions:
-        c["pct"] = round(c["amount"] / total * 100, 1) if total else 0.0
+        c["pct"] = round(c["amount"] / total * 100, 4) if total else 0.0
     return {"items": contributions, "total": total}

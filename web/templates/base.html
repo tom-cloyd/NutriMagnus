@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}NutriMagnus{% endblock %}</title>
   <link rel="stylesheet" href="/static/vendor/bootstrap/css/bootstrap.min.css">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="{{ static_url('style.css') }}">
   <script>
     if (localStorage.getItem('numa_accesskeys') !== 'false') {
       document.documentElement.classList.add('shortcuts-on');
@@ -82,8 +82,8 @@
               </li>
               <li>
                 <a class="dropdown-item" href="/food/cache/db-check">
-                  9. <strong>Check database integrity</strong>
-                  <span class="dd-hint">(find &amp; fix broken references)</span>
+                  9. <strong>Check database</strong> integrity &amp; completeness
+                  <span class="dd-hint">(fix broken references, fill missing nutrients)</span>
                 </a>
               </li>
             </ul>
@@ -228,6 +228,16 @@
   //   data-leave-guard-ignore                — on any element INSIDE the form
   //     whose fields actually submit to a different form (via the HTML
   //     form="" attribute), so edits there don't count as this form's.
+  //   data-leave-guard-autosave              — submitting one of the page's
+  //     GET forms (a search box) saves this form's edits first instead of
+  //     tripping the browser's "Leave site?" dialog, and the reloaded page
+  //     offers an Undo that re-posts the page-load values. ONLY for forms
+  //     whose POST rewrites every field from what is submitted (Edit Custom
+  //     Profile etc.) — re-posting the old values is then an exact revert; a
+  //     partial-update POST would make Undo lie. Checked and opted in:
+  //     Edit Custom Profile, Recipe details, a meal's Rename / change date.
+  //     Auto-submitting selects on those pages must call requestSubmit(),
+  //     not submit(), or they skip this handler and hit "Leave site?".
   //
   // Page scripts that need the same dirty state (e.g. recipe_edit.html, where
   // submitting the ingredient form has to save pending details first) use
@@ -237,12 +247,20 @@
     var guards = [];
 
     document.querySelectorAll('form[data-leave-guard]').forEach(function (form) {
-      var guard = {form: form, label: form.getAttribute('data-leave-guard'), dirty: false};
+      var guard = {form: form, label: form.getAttribute('data-leave-guard'), dirty: false,
+                   autosave: form.hasAttribute('data-leave-guard-autosave'),
+                   baseline: new URLSearchParams(new FormData(form)).toString()};
       var alertId = form.getAttribute('data-leave-guard-alert');
       var savedAlert = alertId ? document.getElementById(alertId) : null;
 
       function markDirty(e) {
         if (e && e.target && e.target.closest && e.target.closest('[data-leave-guard-ignore]')) return;
+        // A field with no name is never submitted, so it holds nothing to
+        // save — e.g. Annotate's GI lookup search box and population menu,
+        // which sit inside the guarded form. Without this, merely searching
+        // there made "Skip for now" ask to save changes that don't exist.
+        if (e && e.target && e.target.matches &&
+            e.target.matches('input, select, textarea') && !e.target.name) return;
         guard.dirty = true;
         if (savedAlert) {
           savedAlert.remove();
@@ -256,6 +274,84 @@
     });
 
     if (!guards.length) return;
+
+    // Undo banner for an autosave made just before this page loaded.
+    var stashKey = 'numaAutosave:' + window.location.pathname;
+    var stash = null;
+    try {
+      stash = JSON.parse(sessionStorage.getItem(stashKey) || 'null');
+      sessionStorage.removeItem(stashKey);
+    } catch (err) { stash = null; }
+    if (stash && stash.action && typeof stash.baseline === 'string') {
+      var main = document.getElementById('analysis-content');
+      var banner = document.createElement('div');
+      banner.className = 'alert alert-info d-flex flex-wrap align-items-center gap-2';
+      banner.id = 'autosave-undo-banner';
+      banner.setAttribute('role', 'status');
+      var msg = document.createElement('span');
+      msg.textContent = 'Before running your search, NuMa saved the changes you had made to ' +
+                        stash.label + '.';
+      var undoBtn = document.createElement('button');
+      undoBtn.type = 'button';
+      undoBtn.className = 'btn btn-sm btn-outline-secondary';
+      undoBtn.textContent = 'Undo that save (restore the earlier values)';
+      undoBtn.addEventListener('click', function () {
+        undoBtn.disabled = true;
+        fetch(stash.action, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: stash.baseline,
+        }).then(function (res) {
+          if (!res.ok) throw new Error(res.status);
+          window.location.reload();
+        }).catch(function () {
+          undoBtn.disabled = false;
+          alert('Could not restore the earlier values. Please try again.');
+        });
+      });
+      var keepBtn = document.createElement('button');
+      keepBtn.type = 'button';
+      keepBtn.className = 'btn btn-sm btn-outline-secondary';
+      keepBtn.textContent = 'Keep the saved changes';
+      keepBtn.addEventListener('click', function () { banner.remove(); });
+      banner.append(msg, undoBtn, keepBtn);
+      if (main) main.prepend(banner);
+    }
+
+    // A GET form (search box) submitted while an autosave guard is dirty:
+    // save first, then run the search, leaving an Undo stash for the next page.
+    document.addEventListener('submit', function (e) {
+      var getForm = e.target;
+      if (!getForm || (getForm.method || '').toLowerCase() !== 'get') return;
+      var guard = null;
+      for (var i = 0; i < guards.length; i++) {
+        if (guards[i].dirty && guards[i].autosave) { guard = guards[i]; break; }
+      }
+      if (!guard) return;
+      e.preventDefault();
+      if (!guard.form.checkValidity()) {
+        guard.form.reportValidity();
+        alert('NuMa could not save your changes to ' + guard.label + ' before searching: ' +
+              'a field needs fixing first (it is now highlighted).');
+        return;
+      }
+      fetch(guard.form.action, {method: 'POST', body: new FormData(guard.form)})
+        .then(function (res) {
+          if (!res.ok) throw new Error(res.status);
+          guard.dirty = false;
+          if (window.numaDirtyGuard) window.numaDirtyGuard.markClean(guard.form);
+          try {
+            sessionStorage.setItem(stashKey, JSON.stringify({
+              label: guard.label, action: guard.form.action, baseline: guard.baseline,
+            }));
+          } catch (err) { /* no storage: the save still happened, just no Undo */ }
+          HTMLFormElement.prototype.submit.call(getForm);
+        })
+        .catch(function () {
+          alert('Could not save your changes to ' + guard.label +
+                ', so the search did not run. Please try again.');
+        });
+    });
 
     function dirtyGuard() {
       for (var i = 0; i < guards.length; i++) {
@@ -596,6 +692,12 @@
     document.querySelectorAll('nav.navbar [data-section]').forEach(function (a) {
       a.addEventListener('click', function (e) {
         var key = a.getAttribute('data-section');
+        // Memory is for coming back from somewhere else. Clicking (or
+        // Alt+Shift-pressing) the nav link of the section you're already in
+        // — Meals & Log while on a meal — means "take me to its list", so
+        // let the plain href through; otherwise memory just reloaded the
+        // page you were on, leaving no keyboard way back to the list.
+        if (key === here) return;
         var last = sessionStorage.getItem('numa_last:' + key);
         if (last && last !== a.getAttribute('href')) {
           e.preventDefault();
@@ -888,7 +990,8 @@
         // just clicked into a spurious "leave site?" warning.
         dirtyForms.clear();
       });
-      tracked.push({form: form, check: check});
+      tracked.push({form: form, check: check,
+                    reset: function () { baseline = serialize(form); check(); }});
     }
 
     // Forms removed from the document (a replaced results table) must stop
@@ -916,7 +1019,27 @@
 
     trackAll(document);
 
-    window.numaDirtyGuard = {track: trackAll, recheck: recheck, prune: prune};
+    // Re-baseline a form whose current values were just saved by script
+    // (the leave guard's autosave), so beforeunload stops counting it.
+    function markClean(form) {
+      tracked.forEach(function (t) { if (t.form === form) t.reset(); });
+    }
+
+    window.numaDirtyGuard = {track: trackAll, recheck: recheck, prune: prune, markClean: markClean};
+
+    // The same goes for submitting an UNtracked form (a Delete/Copy button
+    // form with no editable fields): stray text left in some other small form
+    // — e.g. Custom Profiles' "Create a new profile" name box — shouldn't turn
+    // that deliberate click into "Leave site?". Window-level bubble listener so
+    // it runs after page handlers and can skip a submit they cancelled (AJAX
+    // row actions, the leave guard's autosave). data-leave-guard forms are
+    // substantial edits and keep their warning.
+    window.addEventListener('submit', function (e) {
+      if (e.defaultPrevented) return;
+      dirtyForms.forEach(function (form) {
+        if (!form.hasAttribute('data-leave-guard')) dirtyForms.delete(form);
+      });
+    });
 
     window.addEventListener('beforeunload', function (e) {
       prune();
@@ -947,6 +1070,15 @@
       if (!fragTarget) return;
       if (document.activeElement && document.activeElement !== document.body) {
         document.activeElement.blur();
+      }
+      // A fragment naming a collapsible section (Settings' numbered panels,
+      // after a Save/Load button there redirects back) opens it and puts
+      // keyboard focus on its heading, so you carry on where you were
+      // instead of landing on a collapsed panel with focus back at the top.
+      if (fragTarget.tagName === 'DETAILS') {
+        fragTarget.open = true;
+        var fragSummary = fragTarget.querySelector(':scope > summary');
+        if (fragSummary) fragSummary.focus({ preventScroll: true });
       }
       fragTarget.scrollIntoView({ block: 'start' });
     });

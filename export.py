@@ -32,7 +32,8 @@ from numa_app.services.food_ids import classify_food_id
 
 def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None, fmt: str = "txt",
                   *, inline: bool = False) -> str:
-    """Return the '(#id, SOURCE)' annotation identifying a displayed food/recipe name.
+    """Return the '(CODE)' annotation identifying a displayed food/recipe name
+    (U171477, UD4, R21, OFF3 ... — see food_ids.classify_food_id).
 
     md and html render it on its own line under the name (via <br> / a block
     <span> respectively) without breaking their surrounding markup, so no
@@ -45,8 +46,7 @@ def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None, fmt: str = "t
     classified = classify_food_id(fdc_id, recipe_id)
     if classified is None:
         return ""
-    id_str, source = classified
-    text = f"(#{id_str}, {source})"
+    text = f"({classified[0]})"
     if fmt == "html":
         return f' <span style="font-size:0.75em;line-height:1.15;color:#333;display:block">{text}</span>'
     if fmt == "md":
@@ -56,8 +56,10 @@ def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None, fmt: str = "t
 # Nutrient groups — mirrors _print_nutrient_table in numa.py
 _GROUPS: list[tuple[str, list[str]]] = [
     ("Macronutrients", [
-        "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
-        "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+        # Fiber/Sugar right after Carbohydrate, the fat types after Total Fat —
+        # same order as the web tables (_NUTRIENT_GROUPS in web/backend.py).
+        "calories", "protein_g", "carbs_g", "fiber_g", "sugar_g",
+        "fat_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g",
     ]),
     ("Minerals", [
         "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
@@ -713,8 +715,8 @@ def _render_recipe_card_html(title: str, description: str, servings: int,
 # ---------------------------------------------------------------------------
 
 _MACRO_KEYS = [
-    "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
-    "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+    "calories", "protein_g", "carbs_g", "fiber_g", "sugar_g",
+    "fat_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g",
 ]
 
 

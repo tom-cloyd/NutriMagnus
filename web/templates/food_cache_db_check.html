@@ -1,16 +1,22 @@
 {% extends "base.html" %}
-{% block title %}NutriMagnus — Database Integrity Check{% endblock %}
+{% block title %}NutriMagnus — Database Integrity and Data Completeness Check{% endblock %}
 
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
     <li class="breadcrumb-item"><a href="/food/cache">Food Cache</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Database Integrity Check</li>
+    <li class="breadcrumb-item active" aria-current="page">Database Integrity and Data Completeness Check</li>
   </ol>
 </nav>
 
-<h2>Database Integrity Check {{ manual_link("db-check") }}</h2>
+<h2>Database Integrity and Data Completeness Check</h2>
+<p class="muted">Checks: <a href="#integrity">broken references</a>, <a href="#completeness">foods missing whole groups of nutrient data</a>,
+<a href="#calories">food data problems</a> (calories missing or not adding up, impossible values), foods you use with
+<a href="#missing-aa">no amino acid data</a> or <a href="#missing-portions">no portion weights</a>, <a href="#stale-amounts">amounts that no longer match</a>,
+and <a href="#old-copies">USDA copies over a year old</a>. <a href="/food/cache/duplicates" class="btn btn-sm btn-outline-secondary ms-1">Find duplicate foods</a> {{ manual_link("checking-your-data", "All of NuMa&rsquo;s data checks") }}</p>
+
+<h3 id="integrity" class="mt-4">Broken references {{ manual_link("db-check") }}</h3>
 <p class="muted">Looks for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the database — a food page for one of these will fail to open. This can't happen through normal use anymore (deleting a still-used food is now refused), but can be left over from before that fix, or from a manually edited database file.</p>
 
 {% if repaired %}
@@ -19,7 +25,6 @@
 
 {% if total == 0 %}
 <p class="muted">No problems found — every pantry entry, recipe ingredient, and meal item points at a food or recipe that still exists.</p>
-<a href="/food/cache" class="btn btn-outline-secondary btn-sm">Back to Food Cache</a>
 {% else %}
 <p><strong>{{ total }}</strong> problem{% if total != 1 %}s{% endif %} found. Each kind below is fixed separately, since each has a different real effect on your data — read the note before clicking.</p>
 
@@ -28,10 +33,10 @@
 <p class="muted mb-1"><small>Low impact: these are just entries in My Pantry. Removing them only takes the food off your pantry list — nothing else references pantry entries.</small></p>
 <div class="table-responsive mb-2">
   <table class="table table-sm" style="max-width:44rem">
-    <thead class="table-light"><tr><th>Pantry entry</th><th>Missing FDC ID</th></tr></thead>
+    <thead class="table-light"><tr><th>Pantry entry</th><th>Missing food (code)</th></tr></thead>
     <tbody>
       {% for r in issues.orphaned_pantry %}
-      <tr><td>{{ r.food_name }}</td><td class="muted">{{ r.fdc_id }}</td></tr>
+      <tr><td>{{ r.food_name }}</td><td class="muted">{{ food_id_short(r.fdc_id) }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -50,10 +55,10 @@
 <p class="muted mb-1"><small><strong>Changes recipes:</strong> removing one of these deletes that ingredient line from its recipe. The recipe's protein and other nutrient totals will be recalculated without it — check the recipe afterward if that matters to you. (If the food still exists, re-fetch it instead — see Food Cache — rather than removing the ingredient.)</small></p>
 <div class="table-responsive mb-2">
   <table class="table table-sm" style="max-width:44rem">
-    <thead class="table-light"><tr><th>Recipe</th><th>Ingredient</th><th>Missing FDC ID</th></tr></thead>
+    <thead class="table-light"><tr><th>Recipe</th><th>Ingredient</th><th>Missing food (code)</th></tr></thead>
     <tbody>
       {% for r in issues.orphaned_recipe_ingredients %}
-      <tr><td><a href="/recipe/{{ r.recipe_id }}">{{ r.recipe_name or ("Recipe #" ~ r.recipe_id) }}</a></td><td>{{ r.food_name }}</td><td class="muted">{{ r.fdc_id }}</td></tr>
+      <tr><td><a href="/recipe/{{ r.recipe_id }}">{{ r.recipe_name or ("Recipe " ~ food_id_short(none, r.recipe_id)) }}</a></td><td>{{ r.food_name }}</td><td class="muted">{{ food_id_short(r.fdc_id) }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -97,7 +102,7 @@
     <thead class="table-light"><tr><th>In recipe</th><th>Ingredient</th></tr></thead>
     <tbody>
       {% for r in issues.orphaned_recipe_refs %}
-      <tr><td><a href="/recipe/{{ r.recipe_id }}">Recipe #{{ r.recipe_id }}</a></td><td>{{ r.food_name }}</td></tr>
+      <tr><td><a href="/recipe/{{ r.recipe_id }}">Recipe {{ food_id_short(none, r.recipe_id) }}</a></td><td>{{ r.food_name }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -116,12 +121,12 @@
 <p class="muted mb-1"><small><strong>Needs your judgment — not auto-fixed.</strong> For each food below: <strong>Refresh</strong> re-fetches its data from USDA and replaces the unreadable field (only works for USDA foods, not Open Food Facts). <strong>Delete</strong> removes the food entirely — refused if it's still used in a pantry entry, recipe, or meal.</small></p>
 <div class="table-responsive mb-2">
   <table class="table table-sm" style="max-width:44rem">
-    <thead class="table-light"><tr><th>Food</th><th>FDC ID</th><th>Field</th><th></th></tr></thead>
+    <thead class="table-light"><tr><th>Food</th><th>Code</th><th>Field</th><th></th></tr></thead>
     <tbody>
       {% for r in issues.bad_json %}
       <tr>
         <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a></td>
-        <td class="muted">{{ r.fdc_id }}</td>
+        <td class="muted">{{ food_id_short(r.fdc_id) }}</td>
         <td class="muted">{{ r.field }}</td>
         <td style="white-space:nowrap">
           {% if r.fdc_id > 0 %}
@@ -147,6 +152,231 @@
 </div>
 {% endif %}
 
-<a href="/food/cache" class="btn btn-outline-secondary btn-sm mt-2">Back to Food Cache</a>
 {% endif %}
+
+<hr class="mt-5">
+<h3 id="completeness" class="mt-4">Missing nutrient data {{ manual_link("data-completeness") }}</h3>
+<p class="muted" style="max-width:48rem">Cached foods with no values at all for a nutrient group (the same groups as a
+Nutritional Analysis table, plus the amino acids under Protein Quality). Macronutrients count as missing if any of
+calories, protein, carbohydrate, or fat is absent; amino acids only for a food that has protein. A group with
+<em>some</em> values is normal for real data and isn&rsquo;t listed.</p>
+<p class="muted" style="max-width:48rem">Not every gap matters &mdash; macronutrients for a spice, say, since too little is used to count.
+Check <strong>not needed</strong> for any gap like that and click <strong>Save &ldquo;not needed&rdquo; choices</strong>: NuMa stops
+listing it for that food, and leaves it out of any Claude AI prompt.</p>
+
+{% if saved %}
+<div class="alert alert-success" id="saved-note">&ldquo;Not needed&rdquo; choices saved.</div>
+{% endif %}
+
+<form method="get" action="/food/cache/db-check#completeness" class="mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    <span><strong>Groups to check:</strong></span>
+    {% for g, label, _ in groups %}
+    <div class="form-check form-check-inline m-0">
+      <input class="form-check-input" type="checkbox" name="check" value="{{ g }}" id="chk-{{ g }}" {% if g in checked %}checked{% endif %}>
+      <label class="form-check-label" for="chk-{{ g }}">{{ label }}</label>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="form-check mt-1">
+    <input type="hidden" name="show_ignored" value="false">
+    <input class="form-check-input" type="checkbox" name="show_ignored" value="true" id="show-ignored" {% if show_ignored %}checked{% endif %}>
+    <label class="form-check-label" for="show-ignored">Also list foods whose only gaps are marked &ldquo;not needed&rdquo; (to undo one)</label>
+  </div>
+  <button type="submit" class="btn btn-sm btn-outline-secondary mt-1">Update list</button>
+</form>
+
+{% if not checked %}
+<p class="muted">No groups selected above &mdash; nothing to check.</p>
+{% elif not gap_rows %}
+<p class="muted">No gaps found in the checked groups{% if not show_ignored %} (other than ones marked &ldquo;not needed&rdquo;){% endif %}.</p>
+{% else %}
+<p><strong>{{ active_gap_count }}</strong> food{% if active_gap_count != 1 %}s{% endif %} with missing data still to deal with.</p>
+{# Two forms share this table's checkboxes (nested forms aren't allowed), so
+   both are declared empty here and each checkbox names its own via form=. #}
+<form method="post" action="/food/cache/db-check/completeness" id="ignore-form"></form>
+<form method="post" action="/food/cache/claude-fetch" id="gap-fetch-form"></form>
+<div class="d-flex flex-wrap gap-2 mb-2">
+  <button type="submit" form="ignore-form" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
+  <button type="submit" form="gap-fetch-form" class="btn btn-sm btn-outline-primary">Build a Claude AI prompt for the gaps checked &ldquo;ask AI&rdquo;</button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAskAI(null, false)">Clear all &ldquo;ask AI&rdquo; checks</button>
+</div>
+<p class="muted mb-1"><small>Check <strong>ask AI</strong> under each gap you want help with &mdash; one food, a few, or a whole column with the
+&ldquo;all&rdquo; link under its heading. The prompt asks for just those gaps&rsquo; missing values, and importing the reply only fills in
+what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not needed&rdquo; changes first.</small></p>
+<div class="table-responsive mb-2">
+  <table class="table table-sm align-middle" style="max-width:60rem">
+    <thead class="table-light">
+      <tr>
+        <th>Food</th>
+        {% for g, label, _ in groups if g in checked %}<th class="text-center">{{ label }}<br>
+          <small class="fw-normal">ask AI: <a href="#" onclick="setAskAI('{{ g }}', true); return false">all</a> &middot; <a href="#" onclick="setAskAI('{{ g }}', false); return false">none</a></small></th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in gap_rows %}
+      <tr>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a></td>
+        {% for g, label, _ in groups if g in checked %}
+        <td class="text-center" style="white-space:nowrap">
+          {% if g in r.missing %}
+          <input type="hidden" form="ignore-form" name="shown" value="{{ r.fdc_id }}:{{ g }}">
+          <span class="{{ 'muted' if g in r.ignored else 'text-warning-emphasis' }}">{{ 'ignored' if g in r.ignored else 'missing' }}</span><br>
+          {% if g not in r.ignored %}<label style="font-size:0.8rem"><input type="checkbox" class="form-check-input gap-fetch-cb" form="gap-fetch-form" name="want" value="{{ r.fdc_id }}:{{ g }}" data-group="{{ g }}"> ask AI</label><br>{% endif %}
+          <label class="muted" style="font-size:0.8rem"><input type="checkbox" class="form-check-input" form="ignore-form" name="ignore" value="{{ r.fdc_id }}:{{ g }}" {% if g in r.ignored %}checked{% endif %}> not needed</label>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="d-flex flex-wrap gap-2">
+  <button type="submit" form="ignore-form" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
+  <button type="submit" form="gap-fetch-form" class="btn btn-sm btn-outline-primary">Build a Claude AI prompt for the gaps checked &ldquo;ask AI&rdquo;</button>
+</div>
+<script>
+function setAskAI(group, on) {
+  document.querySelectorAll('.gap-fetch-cb').forEach(function (cb) {
+    if (group === null || cb.dataset.group === group) { cb.checked = on; }
+  });
+}
+</script>
+{% endif %}
+
+<hr class="mt-5">
+<h3 id="calories" class="mt-4">Food data problems {{ manual_link("calorie-checks") }}</h3>
+<p class="muted" style="max-width:48rem">Each food&rsquo;s calories are checked against its own protein, carbohydrate and fat
+(4, 4 and 9 kcal per gram), and every food is checked for values that can&rsquo;t be right: anything negative, more than
+100&thinsp;g of one nutrient per 100&thinsp;g, more sugars than carbohydrate, or more of the three fat types than total fat.
+A food that arrived with protein, carbs and fat but no calories got an <strong>estimated</strong> figure automatically &mdash;
+listed here for information, not as a problem. A food whose macronutrients you&rsquo;ve marked &ldquo;not needed&rdquo; above
+(a supplement, a spice) isn&rsquo;t checked for calories.</p>
+{% if not food_issue_rows %}
+<p class="muted">Every food&rsquo;s data checks out.</p>
+{% else %}
+<p><strong>{{ food_problem_count }}</strong> food{% if food_problem_count != 1 %}s{% endif %} with a problem to look at.</p>
+<div class="table-responsive mb-2">
+  <table class="table table-sm align-middle" style="max-width:60rem">
+    <thead class="table-light"><tr><th>Food</th><th>What&rsquo;s wrong</th></tr></thead>
+    <tbody>
+      {% for r in food_issue_rows %}
+      <tr>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a></td>
+        <td>{% for i in r.issues %}<div class="{{ 'text-danger' if i.kind == 'impossible' else ('text-warning-emphasis' if i.severity == 'problem' else 'muted') }}">{{ i.text }}</div>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted"><small>To fix one: open the food and use <strong>Refresh from USDA</strong> (for a USDA food), <strong>Fill in nutrients
+from another food</strong>, or edit its values directly. Alcohol, sugar alcohols or very high fiber can make calories legitimately
+differ from protein, carbs and fat. For a food that doesn&rsquo;t need calories at all, mark its macronutrients &ldquo;not needed&rdquo;
+in the section above.</small></p>
+{% endif %}
+
+{% macro _uses(u) %}{% set parts = [] %}{% if u.recipes %}{% set _ = parts.append(u.recipes ~ " recipe" ~ ("s" if u.recipes != 1 else "")) %}{% endif %}{% if u.meals %}{% set _ = parts.append(u.meals ~ " meal" ~ ("s" if u.meals != 1 else "")) %}{% endif %}{% if u.pantry %}{% set _ = parts.append("pantry") %}{% endif %}{{ parts | join(", ") }}{% endmacro %}
+{% for sec in [
+     {"id": "missing-aa", "rows": missing_aa, "key": "aa", "title": "Foods you use with no amino acid data",
+      "manual": "missing-aa",
+      "intro": "Foods with real protein (1 g or more per 100 g) but no amino acid figures, so they are left out of protein quality (DCP, DIAAS) wherever they appear. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, open it: look for a Foundation or SR Legacy version, use Refresh from USDA, or estimate its amino acids from a similar food. If it doesn&rsquo;t matter (a little cheese on a salad, say), tick not needed."},
+     {"id": "missing-portions", "rows": missing_portions, "key": "portions", "title": "Foods you use with no portion weights",
+      "manual": "ts-no-volume-portion",
+      "intro": "Foods with no cup, spoon, piece or other portion weight, so an amount for them can only be typed as a weight. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, add a weight once on its Portions page. If you always weigh it anyway, tick not needed."}] %}
+{% set open_rows = sec.rows | rejectattr("ignored") | list %}
+<hr class="mt-5">
+<details id="{{ sec.id }}" class="mt-4">
+  <summary><strong>{{ sec.title }}</strong> &mdash; {{ open_rows|length }} food{{ "s" if open_rows|length != 1 }}{% if sec.rows|length != open_rows|length %} <span class="muted">({{ sec.rows|length - open_rows|length }} marked not needed)</span>{% endif %}</summary>
+  <p class="muted mt-2" style="max-width:48rem">{{ sec.intro | safe }} {{ manual_link(sec.manual) }}</p>
+  {% set rows = sec.rows if show_ignored_lists else open_rows %}
+  {% if not rows %}
+  <p class="muted">None.</p>
+  {% else %}
+  <form method="post" action="/food/cache/db-check/completeness">
+    <input type="hidden" name="back" value="{{ sec.id }}">
+    <div class="table-responsive mb-2">
+      <table class="table table-sm align-middle" style="max-width:52rem">
+        <thead class="table-light"><tr><th>Food</th><th>Used in</th>{% if sec.key == "aa" %}<th class="text-end">Protein / 100&thinsp;g</th>{% endif %}<th>Not needed</th></tr></thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% endif %}</td>
+            <td>{{ _uses(r.use) }}</td>
+            {% if sec.key == "aa" %}<td class="text-end">{{ "%.1f"|format(r.protein) }}&thinsp;g</td>{% endif %}
+            <td><input type="hidden" name="shown" value="{{ r.fdc_id }}:{{ sec.key }}">
+                <input type="checkbox" class="form-check-input" name="ignore" value="{{ r.fdc_id }}:{{ sec.key }}" {{ "checked" if r.ignored }} aria-label="{{ r.name }} not needed"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="submit" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
+    <small class="muted ms-2">The &ldquo;Also list foods whose only gaps are marked not needed&rdquo; option above shows ticked ones here too.</small>
+  </form>
+  {% endif %}
+</details>
+{% endfor %}
+
+<hr class="mt-5">
+<h3 id="stale-amounts" class="mt-4">Amounts that no longer match {{ manual_link("stale-amounts") }}</h3>
+<p class="muted" style="max-width:48rem">When you enter an amount as a volume or portion (&ldquo;1/3 c&rdquo;, &ldquo;2 T&rdquo;, &ldquo;p1&rdquo;),
+NuMa works out its grams once, then and there. If the food&rsquo;s portions change later, or NuMa&rsquo;s way of converting
+does, the stored grams stay as they were. These recipe ingredients and logged foods would come out different if entered
+today. Amounts entered with their own weight (&ldquo;2 T (15 g)&rdquo;) are never listed.</p>
+{% if amounts_fixed %}
+<div class="alert alert-success">Updated {{ amounts_fixed }} amount{% if amounts_fixed != 1 %}s{% endif %}.</div>
+{% endif %}
+{% include "_impact_note.html" %}
+{% if not stale_amounts %}
+<p class="muted">Every volume or portion amount matches what it works out to now.</p>
+{% else %}
+<form method="post" action="/food/cache/db-check/stale-amounts">
+<div class="table-responsive mb-2">
+  <table class="table table-sm align-middle" style="max-width:60rem">
+    <thead class="table-light"><tr>
+      <th><input type="checkbox" class="form-check-input" title="Select all" onclick="document.querySelectorAll('.stale-cb').forEach(function (cb) { cb.checked = this.checked; }, this)"></th>
+      <th>In</th><th>Food</th><th>You entered</th><th class="text-end">Stored</th><th class="text-end">Now</th></tr></thead>
+    <tbody>
+      {% for a in stale_amounts %}
+      <tr>
+        <td><input type="checkbox" class="form-check-input stale-cb" name="item" value="{{ a.where }}:{{ a.item_id }}"></td>
+        <td>{% if a.where == "recipe" %}<a href="/recipe/{{ a.owner_id }}/edit">{{ a.owner_label }}</a>{% else %}<a href="/meal/{{ a.owner_id }}">{{ a.owner_label }}</a> <small class="muted">(logged meal)</small>{% endif %}</td>
+        <td><a href="/food/{{ a.fdc_id }}">{{ a.food_name }}</a></td>
+        <td>{{ a.typed }}</td>
+        <td class="text-end">{{ "%.1f"|format(a.stored_g) }}&thinsp;g</td>
+        <td class="text-end">{{ "%.1f"|format(a.now_g) }}&thinsp;g</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<button type="submit" class="btn btn-sm btn-primary">Update the selected amounts to their &ldquo;Now&rdquo; grams</button>
+<p class="muted mt-1"><small>Check the food&rsquo;s portions first: if a portion weight is wrong (say, a &ldquo;tsp&rdquo; that is really
+a half teaspoon), fix it on the food&rsquo;s Portions page and the &ldquo;Now&rdquo; figure here follows. Updating a logged meal&rsquo;s amount
+changes that past day&rsquo;s totals.</small></p>
+</form>
+{% endif %}
+
+<hr class="mt-5">
+<h3 id="old-copies" class="mt-4">USDA copies over a year old {{ manual_link("old-copies") }}</h3>
+<p class="muted" style="max-width:48rem">USDA revises its records now and then. These foods haven&rsquo;t been fetched or refreshed
+from USDA in over {{ old_copy_days }} days. Not a problem as such; <strong>Refresh from USDA</strong> on the food&rsquo;s page shows
+whether anything changed and lets you choose what to take.</p>
+{% if not old_copies %}
+<p class="muted">None.</p>
+{% else %}
+<ul>
+  {% for f in old_copies %}<li><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a> <small class="muted">(last fetched {{ f.cached_at[:10] }})</small></li>{% endfor %}
+</ul>
+{% endif %}
+
+<div><a href="/food/cache" class="btn btn-outline-secondary btn-sm mt-4">Back to Food Cache</a></div>
+<script>
+// Saving "not needed" on a collapsed list returns to its #anchor — open it.
+(function () {
+  var el = window.location.hash && document.getElementById(window.location.hash.slice(1));
+  if (el && el.tagName === 'DETAILS') { el.open = true; el.scrollIntoView({block: 'start'}); }
+})();
+</script>
 {% endblock %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archived_toggle.html" import archived_toggle %}
 {% block title %}NutriMagnus — Food Cache{% endblock %}
 
 {% block content %}
@@ -30,16 +31,11 @@
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
             onchange="this.form.submit()">
       <option value="name"  {% if sort == "name"  %}selected{% endif %}>Name</option>
-      <option value="id"    {% if sort == "id"    %}selected{% endif %}>ID</option>
+      <option value="id"    {% if sort == "id"    %}selected{% endif %}>Code</option>
       <option value="type"  {% if sort == "type"  %}selected{% endif %}>Type</option>
       <option value="diaas" {% if sort == "diaas" %}selected{% endif %}>DIAAS</option>
       <option value="gi"    {% if sort == "gi"    %}selected{% endif %}>GI estimate</option>
     </select>
-    <div class="form-check form-check-inline ms-2">
-      <input type="checkbox" class="form-check-input" id="show_archived" name="show_archived"
-             value="1" {% if show_archived %}checked{% endif %} onchange="this.form.submit()">
-      <label class="form-check-label muted" for="show_archived"><small>Show archived</small></label>
-    </div>
   </form>
 </div>
 
@@ -55,6 +51,7 @@
      title="Import foods from a CSV file exported from this or another NuMa install">Import CSV</a>
   <a href="/food/cache/db-check" class="btn btn-sm btn-outline-secondary"
      title="Check for pantry/recipe/meal entries pointing at a food that's no longer in the cache">Check database integrity</a>
+  {{ archived_toggle("/food/cache", show_archived, "foods", {"q": q, "sort": sort}) }}
 </p>
 
 {% if pruned %}
@@ -63,6 +60,7 @@
 {% if imported %}
 <div class="alert alert-success">Imported {{ imported }} food{% if imported != 1 %}s{% endif %} from Claude's response.</div>
 {% endif %}
+{% include "_impact_note.html" %}
 
 {% if archived %}
 <div class="alert alert-success">
@@ -145,7 +143,7 @@
     <tr>
       <th title="Select for Fetch missing data from Claude AI">Fetch</th>
       <th title="Select to add to Compare">Compare</th>
-      <th>ID</th>
+      <th>Code</th>
       <th>Name</th>
       <th>Type</th>
       <th class="text-center">AA</th>
@@ -224,13 +222,9 @@
           </button>
         </form>
         {% if food.fdc_id > 0 %}
-        <form method="post" action="/food/cache/{{ food.fdc_id }}/refresh" style="display:inline">
-          <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
-                  title="Re-fetch all nutrients from USDA (keeps your portions and notes)"
-                  onclick="return confirm('Re-fetch nutrients from USDA for {{ food.name | replace("'", "\\'") }}? This will replace all nutrient values (your custom portions and notes are kept).')">
-            Refresh
-          </button>
-        </form>
+        <a href="/food/{{ food.fdc_id }}/review-incoming?source=usda&next={{ ('/food/cache?q=%s&sort=%s#food-%s' % ((q or '') | urlencode, sort, food.fdc_id)) | urlencode }}"
+           class="btn btn-sm btn-outline-secondary me-1"
+           title="Fetch USDA's current copy and choose which changed values to take">Refresh</a>
         {% endif %}
         {% if is_curator() %}
         <form method="post" action="/food/{{ food.fdc_id }}/toggle-starter" style="display:inline" class="js-keep-scroll">

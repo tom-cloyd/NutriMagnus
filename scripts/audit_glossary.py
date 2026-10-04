@@ -72,7 +72,7 @@ _NEXT_HEADING_RE = re.compile(r"^#{1,3}\s+", re.MULTILINE)
 _GLOSSARY_TERM_RE = re.compile(r"^\*\*(.+?)\*\*(?:\{: #gloss-[\w-]+\})?\s+—", re.MULTILINE)
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _CODE_FENCE_RE = re.compile(r"^```.*?\n^```[ \t]*$", re.DOTALL | re.MULTILINE)
-_CHANGELOG_HEADING_RE = re.compile(r"^###\s+.*Recent program updates log", re.MULTILINE)
+_CHANGELOG_HEADING_RE = re.compile(r"^#{2,3}\s+.*Recent program updates log", re.MULTILINE)
 _ACRONYM_RE = re.compile(r"\b[A-Z]{2,6}\b")
 
 

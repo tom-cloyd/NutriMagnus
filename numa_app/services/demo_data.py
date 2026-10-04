@@ -486,12 +486,27 @@ def starter_recipes_using() -> dict[str, list[str]]:
     return out
 
 
+def _starter_food_code(starter_id: int, local_id: int | None) -> str:
+    """See starter_status()'s "code"."""
+    from numa_app.services.food_ids import classify_food_id
+    if local_id is not None:
+        return classify_food_id(local_id)[0]
+    if _is_local_only(starter_id):
+        return "UD"
+    return classify_food_id(starter_id)[0]
+
+
 def starter_status(conn) -> dict:
     """Per-item presence of every starter food/pantry item/recipe in the
     current DB, for the Settings selective-restore checkbox list. Checked
     against the DB directly (not the load/clear marker file) so it stays
     accurate even after a selective restore or a manual edit/delete of a
-    starter item. Foods are listed by their starter id."""
+    starter item. Foods are listed by their starter id; "code" is the display
+    code (U171477, OFF3 ...) of the food as it sits in *this* DB — a custom
+    or outside-source food's code is local, not the starter id's. A missing
+    food shows the code it will get: the same for USDA, the old one for an
+    outside-source food that was here before (food_codes is never pruned),
+    else the bare prefix ("OFF", "UD") until it is restored."""
     food_ids = _food_locations(conn)
     recipe_ids = _recipe_locations(conn)
     pantry_fdc_ids = {row["fdc_id"] for row in _db.pantry_list(conn, include_archived=True)}
@@ -500,6 +515,7 @@ def starter_status(conn) -> dict:
     return {
         "foods": [
             {"fdc_id": f["fdc_id"], "name": f["name"], "present": f["fdc_id"] in food_ids,
+             "code": _starter_food_code(f["fdc_id"], food_ids.get(f["fdc_id"])),
              "used_in": used_in.get(f["name"], [])}
             for f in DEMO_FOODS
         ],
@@ -799,14 +815,17 @@ def apply_improvements(conn, food_fdc_ids: list[int], recipe_names: list[str]) -
         food, local = by_fdc_id.get(fdc_id), food_ids.get(fdc_id)
         if food is None or local is None:
             continue
+        nutrients, calorie_mark = _db._calorie_check(conn, local, food["nutrients"])
         conn.execute(
             # The copy is the starter version again, so no longer the user's edit.
             "UPDATE foods SET name = ?, data_type = ?, nutrients_json = ?, portions_json = ?, user_edited = 0 "
             "WHERE fdc_id = ?",
-            (food["name"], food["data_type"], json.dumps(food["nutrients"]),
+            (food["name"], food["data_type"], json.dumps(nutrients),
              json.dumps(food["portions"] or []), local),
         )
+        _db._apply_calorie_mark(conn, local, calorie_mark)
         _write_gi(conn, food, local, replace=True)
+        _db.snapshot_food_source(conn, local)
         _recipe_dcp.cascade_food_change(local, conn)
         updated_foods += 1
 

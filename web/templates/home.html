@@ -13,6 +13,22 @@
   <br><small class="muted">This message goes away once your profile is saved in <a href="/settings">Settings</a>.</small>
 </div>
 {% endif %}
+{% if data_check_reminder %}
+<div class="alert alert-warning mt-4">
+  <strong>DATA CHECK:</strong>
+  {% if data_check_reminder.overdue %}
+  it&rsquo;s been a while since your last data check{% if data_check_reminder.last_seen %} ({{ data_check_reminder.last_seen }}){% endif %},
+  and <strong>{{ data_check_reminder.total }}</strong> data problem{{ 's' if data_check_reminder.total != 1 }} are still open.
+  {% elif data_check_reminder.last_seen %}
+  <strong>{{ data_check_reminder.new }}</strong> new data problem{{ 's have' if data_check_reminder.new != 1 else ' has' }} turned up since your last check ({{ data_check_reminder.last_seen }}).
+  {% else %}
+  NuMa found <strong>{{ data_check_reminder.new }}</strong> data problem{{ 's' if data_check_reminder.new != 1 }} you haven&rsquo;t reviewed yet
+  &mdash; foods with no calories or impossible values, missing nutrient data, amounts that no longer match.
+  {% endif %}
+  <a href="/food/cache/db-check">Review them</a>. {{ manual_link("checking-your-data", "About data checks") }}
+  <br><small class="muted">Opening the check clears this note. Turn it off or set a routine reminder in <a href="/settings#data-check-reminder">Settings &rarr; 13</a>.</small>
+</div>
+{% endif %}
 {% if db_issue_count %}
 <div class="alert alert-warning mt-4">
   <strong>UPDATE:</strong> the database check found <strong>{{ db_issue_count }}</strong>

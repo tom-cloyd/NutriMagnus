@@ -13,7 +13,7 @@ import sys
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs, quote, urlencode
 
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -37,6 +37,12 @@ import platform_utils as _platform_utils
 import profile as _profile
 import usda as _usda
 from numa_app.services import claude_fetch as _claude_fetch
+from numa_app.services import data_completeness as _data_completeness
+from numa_app.services import energy_check as _energy_check
+from numa_app.services import data_quality as _data_quality
+from numa_app.services.food_ids import classify_food_id as _classify_food_id
+from numa_app.services.food_ids import code_sort_key as _code_sort_key
+from numa_app.services.food_ids import parse_code as _parse_code
 from numa_app.services import complements as _complements
 from numa_app.services import csv_export as _csv_export
 from numa_app.services import csv_import as _csv_import
@@ -45,6 +51,7 @@ from numa_app.services import recipe_translate as _recipe_translate
 from numa_app.services import day_profile as _day_profile
 from numa_app.services import gi_table_build as _gi_table_build
 from numa_app.services import aa_estimate as _aa_estimate
+from numa_app.services import incoming_review as _incoming_review
 from numa_app.services.glycemic_load import (average_day_gl, compute_glycemic_load, day_gl_totals,
                                              gl_band, gl_band_caveat)
 from numa_app.services.meal_bcp import recipe_dcp_fallback
@@ -264,19 +271,22 @@ _VALID_DIET_PREFS = {"all", "vegetarian", "plant_only"}
 
 # Keys must match launcher.py's _BROWSER_PROCESSES (the process names it looks
 # for with pgrep / launches directly) — "" means auto-detect the running browser.
+# Chromium is one choice even though distros install it under either
+# "chromium" or "chromium-browser": the launcher tries both (see its
+# _BROWSER_ALTERNATES), so listing both here only showed Chromium twice.
 _BROWSER_LABELS = {
     "":                 "Ask each time (default)",
     "firefox":          "Firefox",
     "google-chrome":    "Google Chrome",
     "chromium":         "Chromium",
-    "chromium-browser": "Chromium",
     "brave-browser":    "Brave",
     "vivaldi":          "Vivaldi",
     "opera":            "Opera",
     "microsoft-edge":   "Microsoft Edge",
     "epiphany":         "GNOME Web (Epiphany)",
 }
-_VALID_BROWSER_PREFS = set(_BROWSER_LABELS)
+# "chromium-browser" stays valid so a pref saved before the merge still loads.
+_VALID_BROWSER_PREFS = set(_BROWSER_LABELS) | {"chromium-browser"}
 
 
 def _load_prefs_file() -> dict:
@@ -833,6 +843,17 @@ async def _lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="NuMa", lifespan=_lifespan)
+
+
+@app.middleware("http")
+async def _stale_meals_middleware(request: Request, call_next):
+    """Before serving any page, recompute meals flagged stale by a food or
+    recipe change (see _refresh_stale_meals), so Meals & Log, Daily Summary,
+    trends and plots never show a stored DCP/nutrient snapshot computed from
+    data that has since been edited."""
+    if request.method == "GET" and not request.url.path.startswith("/static"):
+        _refresh_stale_meals()
+    return await call_next(request)
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=_WEB_DIR / "templates")
 
@@ -840,6 +861,23 @@ templates = Jinja2Templates(directory=_WEB_DIR / "templates")
 templates.env.filters["ftin_ft"]  = lambda cm: _profile.cm_to_ftin(cm)[0]
 templates.env.filters["ftin_in"]  = lambda cm: round(_profile.cm_to_ftin(cm)[1], 1)
 templates.env.filters["fromjson"] = json.loads
+
+
+def _small_amount(value, places: int = 1) -> str:
+    """Round to `places` decimals, but give a small non-zero value up to two
+    more so it never shows as a bare 0 — a "0.0 g" row that still has a
+    share of the total reads as an error to anyone not thinking about
+    rounding. Anything too small even for that shows as "<0.001"."""
+    if value is None:
+        return ""
+    for p in range(places, places + 3):
+        text = f"{value:.{p}f}"
+        if value == 0 or float(text) != 0:
+            return text
+    return "<" + f"{10 ** -(places + 2):.{places + 2}f}"
+
+
+templates.env.filters["small_amount"] = _small_amount
 
 def _manual_link(anchor: str, text: str = "Learn more") -> str:
     """Render an inline link to a user-manual section, opened in a new tab."""
@@ -873,12 +911,19 @@ def _food_type(food, empty: str = "") -> str:
         fid = int(_field("fdc_id"))
     except (TypeError, ValueError):
         return label
+    return f"{label} · user-edited" if _is_user_edited(fid) and label else label
+
+
+def _is_user_edited(fdc_id: int | None) -> bool:
+    """db.foods.user_edited for one food, via the once-per-request id set."""
+    if fdc_id is None:
+        return False
     ids = _user_edited_ids.get()
     if ids is None:
         with _db.get_db() as conn:
             ids = _db.user_edited_ids(conn)
         _user_edited_ids.set(ids)
-    return f"{label} · user-edited" if fid in ids and label else label
+    return fdc_id in ids
 
 templates.env.globals["food_type"] = _food_type
 
@@ -895,7 +940,7 @@ def _is_curator() -> bool:
 templates.env.globals["is_curator"] = lambda: _is_curator()
 
 _RELEASE_ANCHOR_RE = re.compile(r'<h4 id="(release-[^"]+-summary[^"]*)"')
-_CHANGELOG_ANCHOR = "a-recent-program-updates-log"
+_CHANGELOG_ANCHOR = "updates-log"
 _release_anchor_cache: dict[str, tuple[float, str]] = {}
 
 def _latest_release_anchor() -> str:
@@ -924,27 +969,63 @@ def _latest_release_anchor() -> str:
     return anchor
 templates.env.globals["is_local_source"] = _is_local_source
 
-def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
-    """Render the '(#id, SOURCE)' annotation shown on its own line under a food/recipe name."""
-    from markupsafe import Markup, escape
-    from numa_app.services.food_ids import classify_food_id
+_EDITED_MARK = "\u270e"  # ✎ — beside a code, never part of it
+
+
+def _code_display(fdc_id: int | None, recipe_id: int | None) -> tuple[str, str, bool] | None:
+    """(code, hover title, edited) for a food/recipe, or None. edited = an
+    outside-source food whose data the user has changed (foods.user_edited) —
+    shown as a ✎ beside the code, so the code itself stays the same typed
+    identifier whether or not the food was edited."""
+    from numa_app.services.food_ids import classify_food_id, code_source_name
     classified = classify_food_id(fdc_id, recipe_id)
     if classified is None:
+        return None
+    code = classified[0]
+    edited = recipe_id is None and _is_user_edited(fdc_id)
+    title = code_source_name(code) + (", user-edited" if edited else "")
+    return code, title, edited
+
+
+def _food_id_tag(fdc_id: int | None, recipe_id: int | None = None) -> str:
+    """Render the '(CODE)' annotation shown on its own line under a food/recipe
+    name — the code's prefix already says the source, spelled out on hover;
+    a ✎ follows the code on a user-edited food."""
+    from markupsafe import Markup, escape
+    shown = _code_display(fdc_id, recipe_id)
+    if shown is None:
         return ""
-    id_str, source = classified
-    return Markup(f'<span class="food-id-tag">(#{escape(id_str)}, {escape(source)})</span>')
+    code, title, edited = shown
+    mark = f" {_EDITED_MARK}" if edited else ""
+    return Markup(f'<span class="food-id-tag" title="{escape(title)}">({escape(code)}{mark})</span>')
 
 templates.env.globals["food_id_tag"] = _food_id_tag
 
 def _food_id_short(fdc_id: int | None, recipe_id: int | None = None) -> str:
-    """Just the id_str half of classify_food_id() — for a compact standalone
-    ID column (e.g. Food Cache), where food_id_tag()'s '(#id, SOURCE)' form
-    would be redundant with a separate Type/Source column already in view."""
-    from numa_app.services.food_ids import classify_food_id
-    classified = classify_food_id(fdc_id, recipe_id)
+    """The display code for a compact standalone Code column (e.g. Food
+    Cache), without food_id_tag()'s parentheses — plus the ✎ on a
+    user-edited food. For display only: inside an attribute or form value
+    use food_code(), which never carries the mark."""
+    from markupsafe import Markup, escape
+    shown = _code_display(fdc_id, recipe_id)
+    if shown is None:
+        return ""
+    code, title, edited = shown
+    if not edited:
+        return code
+    return Markup(f'<span title="{escape(title)}">{escape(code)} {_EDITED_MARK}</span>')
+
+
+def _food_code(fdc_id: int | None, recipe_id: int | None = None) -> str:
+    """The bare display code (U171477, R21 ...) — for form values and
+    attributes, where food_id_short()'s ✎ markup doesn't belong."""
+    classified = _classify_food_id(fdc_id, recipe_id)
     return classified[0] if classified else ""
 
 templates.env.globals["food_id_short"] = _food_id_short
+templates.env.globals["food_code"] = _food_code
+from numa_app.services.food_ids import CODE_PREFIXES as _CODE_PREFIXES
+templates.env.globals["code_prefixes"] = _CODE_PREFIXES
 templates.env.globals["diet_labels"] = _DIET_LABELS
 templates.env.globals["current_diet_pref"] = _current_diet_pref
 
@@ -953,9 +1034,13 @@ templates.env.globals["current_diet_pref"] = _current_diet_pref
 # ---------------------------------------------------------------------------
 
 _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
+    # Each subtype row (_SUBTYPE_KEYS) directly follows its parent, so the
+    # indent nests it under the right one: Fiber/Sugar under Carbohydrate,
+    # the three fat types under Total Fat. With fat_g between carbs_g and
+    # fiber_g, the indent read as "Fiber is part of fat".
     ("Macronutrients", [
-        "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
-        "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+        "calories", "protein_g", "carbs_g", "fiber_g", "sugar_g",
+        "fat_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g",
     ]),
     ("Omega Fatty Acids", [
         "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg",
@@ -1027,6 +1112,20 @@ templates.env.globals["rda_type_title"] = _rda_type_title
 # never drift apart again (they had, until 2026-09-27).
 templates.env.globals["gl_band"] = gl_band
 templates.env.globals["gl_band_caveat"] = gl_band_caveat
+
+
+def _static_url(path: str) -> str:
+    """/static/<path>?v=<mtime> — the mtime query string makes browsers fetch
+    a static file afresh whenever it changes, instead of serving a stale cached
+    copy on an ordinary refresh (hit 2026-10-02 with a style.css edit)."""
+    try:
+        mtime = int((_WEB_DIR / "static" / path).stat().st_mtime)
+    except OSError:
+        return f"/static/{path}"
+    return f"/static/{path}?v={mtime}"
+
+
+templates.env.globals["static_url"] = _static_url
 
 
 def _nutrient_sections(nutrients: dict, rda: dict | None = None,
@@ -1773,6 +1872,7 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
             "diet_label": diet_label, "profile_label": profile_label,
             "unacked_errors": unacked_errors,
             "db_issue_count": db_issue_count,
+            "data_check_reminder": _data_check_reminder(),
             "update_available": update_available,
             "self_update_available": _self_update.is_available(),
             "windows_exe_dir": _self_update.windows_exe_dir(),
@@ -2541,7 +2641,7 @@ def _build_compare_groups(entries: list[dict]) -> list[dict]:
 
 _FOOD_CACHE_SORT_KEYS = {
     "name":  lambda f: (f["name"] or "").lower(),
-    "id":    lambda f: f["fdc_id"],
+    "id":    lambda f: _code_sort_key((_classify_food_id(f["fdc_id"]) or ("",))[0]),
     "type":  lambda f: ((f["data_type"] or "").lower(), (f["name"] or "").lower()),
     "diaas": lambda f: (f["diaas"] is None, -(f["diaas"] or 0), (f["name"] or "").lower()),
     "gi":    lambda f: (f["gi"] is None, -(f["gi"] or 0), (f["name"] or "").lower()),
@@ -2553,7 +2653,8 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
                           show_archived: bool | None = None, archived: int = 0, restored: int = 0,
                           still_used: int = 0, imported: int = 0, delete_blocked: int = 0,
                           blocked_fdc_id: int | None = None,
-                          blocked_pantry: str = "", blocked_recipes: str = "", blocked_meals: str = ""):
+                          blocked_pantry: str = "", blocked_recipes: str = "", blocked_meals: str = "",
+                          impact: str = ""):
     sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
@@ -2600,6 +2701,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
         "restored":      restored,
         "still_used":    still_used,
         "imported":      imported,
+        "impact":        _impact_pop(impact),
         "delete_blocked": delete_blocked,
         "blocked_fdc_id":  blocked_fdc_id,
         "blocked_pantry":  [int(i) for i in blocked_pantry.split(",") if i],
@@ -2664,17 +2766,47 @@ async def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = 
 # ---------------------------------------------------------------------------
 
 @app.post("/food/cache/claude-fetch", response_class=HTMLResponse)
-async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[])):
+async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[]),
+                                  group: list[str] = Form(default=[]),
+                                  want: list[str] = Form(default=[])):
+    """Build a prompt asking only for each selected food's missing nutrient
+    groups (data_completeness.py), less any the user marked not needed for
+    that food. `group` limits it to those groups; `want` ("fdc_id:group",
+    the Data Completeness page's per-gap checkboxes) picks exact food/group
+    pairs instead. A food with nothing missing is left out."""
+    checked = set(group) or None
+    wanted: dict[int, set[str]] = {}
+    for cell in want:
+        fid, _, g = cell.partition(":")
+        if g in _data_completeness.GROUP_LABELS and fid.lstrip("-").isdigit():
+            wanted.setdefault(int(fid), set()).add(g)
+    fdc_id = list(dict.fromkeys(fdc_id + list(wanted)))
+    selected, requests, nothing_missing = [], {}, []
     with _db.get_db() as conn:
-        selected = []
+        ignores = _db.food_data_ignores(conn)
         for fid in fdc_id:
             cached = _db.get_cached_food(conn, fid)
-            if cached:
-                selected.append((fid, cached["name"]))
-    prompt = _claude_fetch.build_prompt(selected) if selected else ""
+            if not cached:
+                continue
+            nutrients = json.loads(cached["nutrients_json"] or "{}")
+            ignored = ignores.get(fid, set())
+            gaps = _data_completeness.active_gaps(nutrients, ignored, wanted.get(fid, checked))
+            keys = _data_completeness.requested_keys(nutrients, gaps)
+            if not keys:
+                nothing_missing.append(cached["name"])
+                continue
+            selected.append((fid, cached["name"]))
+            requests[fid] = (keys, [_data_completeness.GROUP_LABELS[g]
+                                    for g in _data_completeness.missing_groups(nutrients)
+                                    if g in ignored])
+    prompt = _claude_fetch.build_prompt(selected, requests) if selected else ""
     return templates.TemplateResponse(request, "claude_fetch.html", {
-        "prompt":   prompt,
-        "selected": selected,
+        "prompt":          prompt,
+        "selected":        selected,
+        "nothing_missing": nothing_missing,
+        "group_labels":    {fid: [_data_completeness.GROUP_LABELS[g] for g in
+                                  _data_completeness.groups_for_keys(keys)]
+                            for fid, (keys, _) in requests.items()},
     })
 
 
@@ -2689,35 +2821,46 @@ async def food_cache_claude_import_get(request: Request):
 @app.post("/food/cache/claude-import", response_class=HTMLResponse)
 async def food_cache_claude_import_post(request: Request,
                                          response_text: str = Form(...),
-                                         action: str = Form("preview")):
+                                         action: str = Form("preview"),
+                                         overwrite: int = Form(0)):
     raw_blocks, curator_text, parse_warnings = _claude_fetch.parse_response(response_text)
     valid, validate_warnings = _claude_fetch.validate_all(raw_blocks)
     warnings = parse_warnings + validate_warnings
 
     if action == "confirm" and valid:
+        targets = _impact_targets([f["fdc_id"] for f in valid])
+        before = _impact_snapshot(*targets)
         with _db.get_db() as conn:
-            _claude_fetch.import_foods(conn, valid, curator_text)
-            # An import overwrites an existing food's nutrients in place, so
+            _claude_fetch.import_foods(conn, valid, curator_text, overwrite=bool(overwrite))
+            # An import changes an existing food's nutrients in place, so
             # every recipe using it needs its DCP recomputed — a food that
             # just gained amino acid data can turn an NC recipe computable.
             for _f in valid:
                 _recipe_dcp.cascade_food_change(_f["fdc_id"], conn)
-        return RedirectResponse("/food/cache?imported=" + str(len(valid)), status_code=303)
+        token = _impact_store("Importing Claude AI's data",
+                              before, _impact_snapshot(*targets))
+        return RedirectResponse("/food/cache?imported=" + str(len(valid)) + (f"&impact={token}" if token else ""),
+                                status_code=303)
 
+    with _db.get_db() as conn:
+        plans = _claude_fetch.plan_import(conn, valid)
     review_rows = []
-    for f in valid:
+    for f, plan in zip(valid, plans):
         n = f["nutrients"]
-        aa_n = sum(1 for k in _claude_fetch.AA_KEYS if k in n)
         review_rows.append({
             "name":      f["name"],
             "fdc_id":    f["fdc_id"],
-            "calories":  int(n.get("calories", 0)),
-            "protein_g": round(n.get("protein_g", 0), 1),
-            "aa_count":  aa_n,
+            "calories":  int(n["calories"]) if "calories" in n else None,
+            "protein_g": round(n["protein_g"], 1) if "protein_g" in n else None,
+            "aa_count":  sum(1 for k in _claude_fetch.AA_KEYS if k in n),
+            "existing":  plan["existing"],
+            "add_n":     len(plan["add"]),
+            "keep":      plan["keep"],
         })
     return templates.TemplateResponse(request, "claude_import.html", {
         "response_text": response_text,
         "review":        review_rows,
+        "any_keep":      any(r["keep"] for r in review_rows),
         "warnings":      warnings,
         "curator_text":  curator_text,
         "no_blocks":     not raw_blocks,
@@ -2823,17 +2966,192 @@ async def food_cache_prune_post(request: Request):
 
 
 @app.get("/food/cache/db-check", response_class=HTMLResponse)
-async def food_cache_db_check_get(request: Request, repaired: int = 0):
-    """Scan for referential-integrity problems (see db.check_db_integrity)."""
+async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0, amounts_fixed: int = 0,
+                                  impact: str = "",
+                                  check: list[str] | None = Query(default=None),
+                                  show_ignored: bool | None = None):
+    """Scan for referential-integrity problems (see db.check_db_integrity),
+    then for cached foods missing whole nutrient groups (see
+    numa_app/services/data_completeness.py). `check` picks which groups the
+    completeness scan looks at; remembered like other list-view toggles."""
+    show_ignored = _resolve_bool_pref(show_ignored, "data_check_show_ignored")
+    if check is None:
+        check = _load_prefs_file().get("data_check_groups", _data_completeness.DEFAULT_CHECKED)
+    else:
+        _save_prefs_file({"data_check_groups": check})
+    checked = [g for g in _data_completeness.GROUP_KEYS if g in check]
     with _db.get_db() as conn:
         issues = _db.check_db_integrity(conn)
+        ignores = _db.food_data_ignores(conn)
+        foods = _db.list_cached_foods(conn)
+    gap_rows = []
+    for row in foods:
+        try:
+            nutrients = json.loads(row["nutrients_json"] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            continue  # unreadable data is already reported in the bad_json list above
+        if not isinstance(nutrients, dict):
+            continue
+        ignored = ignores.get(row["fdc_id"], set())
+        missing = [g for g in _data_completeness.missing_groups(nutrients) if g in checked]
+        active = [g for g in missing if g not in ignored]
+        if active or (show_ignored and missing):
+            gap_rows.append({"fdc_id": row["fdc_id"], "name": row["name"],
+                             "missing": set(missing), "ignored": ignored & set(missing),
+                             "active": bool(active)})
+    gap_rows.sort(key=lambda r: r["name"].lower())
+    with _db.get_db() as conn:
+        quality = _data_quality.scan(conn)
+        old_copies = _data_quality.old_usda_copies(conn)
+        missing_aa = _data_quality.missing_aa_in_use(conn)
+        missing_portions = _data_quality.missing_portions_in_use(conn)
+    # Opening this page counts as reviewing every current problem: the Home
+    # page reminder only raises ones that appear after this (_data_check_reminder()).
+    _save_prefs_file({"data_check_seen": sorted(quality["keys"]),
+                      "data_check_last_seen": datetime.date.today().isoformat()})
     total = sum(len(v) for v in issues.values())
     return templates.TemplateResponse(request, "food_cache_db_check.html", {
         "issues": issues,
         "total": total,
         "repairable": total - len(issues["bad_json"]),
         "repaired": repaired,
+        "saved": saved,
+        "groups": _data_completeness.GROUPS,
+        "checked": checked,
+        "show_ignored": show_ignored,
+        "gap_rows": gap_rows,
+        "active_gap_count": sum(1 for r in gap_rows if r["active"]),
+        "food_issue_rows": quality["food_issues"],
+        "food_problem_count": sum(1 for r in quality["food_issues"]
+                                  if any(i["severity"] == "problem" for i in r["issues"])),
+        "stale_amounts": quality["stale_amounts"],
+        "old_copies": old_copies,
+        "missing_aa": missing_aa,
+        "missing_portions": missing_portions,
+        "show_ignored_lists": show_ignored,
+        "old_copy_days": _data_quality.OLD_COPY_DAYS,
+        "amounts_fixed": amounts_fixed,
+        "impact": _impact_pop(impact),
     })
+
+
+
+@app.post("/food/cache/db-check/completeness", response_class=RedirectResponse)
+async def food_cache_completeness_save(shown: list[str] = Form(default=[]),
+                                       ignore: list[str] = Form(default=[]),
+                                       back: str = Form("completeness")):
+    """Save the Data Completeness table's "not needed" checkboxes. `shown`
+    is every "fdc_id:group" cell the page displayed, so unchecking one
+    removes its ignore; cells not on the page are left alone."""
+    wanted = set(ignore)
+    with _db.get_db() as conn:
+        for cell in shown:
+            fid, _, group = cell.partition(":")
+            if ((group in _data_completeness.GROUP_LABELS or group == _data_quality.PORTIONS_IGNORE_KEY)
+                    and fid.lstrip("-").isdigit()):
+                _db.set_food_data_ignore(conn, int(fid), group, cell in wanted)
+    anchor = back if back in ("completeness", "missing-aa", "missing-portions") else "completeness"
+    return RedirectResponse(f"/food/cache/db-check?saved=1#{anchor}", status_code=303)
+
+
+@app.post("/food/cache/db-check/stale-amounts", response_class=RedirectResponse)
+async def food_cache_fix_stale_amounts(item: list[str] = Form(default=[])):
+    """Set the ticked recipe ingredients / logged meal foods to the grams
+    their typed volume or portion works out to now (data_quality.stale_amounts()),
+    keeping what was typed. Recipes are recomputed (and their ancestors and
+    meals flagged); meals are flagged stale and the reason logged."""
+    wanted = set(item)
+    with _db.get_db() as conn:
+        stale = [a for a in _data_quality.stale_amounts(conn) if f"{a['where']}:{a['item_id']}" in wanted]
+        recipe_ids, meal_ids = set(), set()
+        for a in stale:
+            if a["where"] == "recipe":
+                recipe_ids.update(_db.recipe_and_ancestors(conn, a["owner_id"]))
+            else:
+                meal_ids.add(a["owner_id"])
+        meal_ids.update(_db.meals_using_recipes(conn, recipe_ids))
+    if not stale:
+        return RedirectResponse("/food/cache/db-check#stale-amounts", status_code=303)
+    before = _impact_snapshot(sorted(recipe_ids), sorted(meal_ids))
+    with _db.get_db() as conn:
+        for a in stale:
+            if a["where"] == "recipe":
+                row = conn.execute("SELECT food_name, unit, notes FROM recipe_ingredients WHERE id = ?",
+                                   (a["item_id"],)).fetchone()
+                if row:
+                    _db.recipe_update_ingredient(conn, a["item_id"], a["now_g"], row["unit"],
+                                                 row["food_name"], row["notes"])
+            else:
+                _db.meal_update_item(conn, a["item_id"], a["owner_id"], a["now_g"], a["typed"])
+                _db.mark_meal_stale(conn, a["owner_id"])
+                _db.log_meal_recalc(conn, [a["owner_id"]], f"{a['food_name']}: amount corrected")
+        for rid in {a["owner_id"] for a in stale if a["where"] == "recipe"}:
+            _recipe_dcp.recompute_recipe_dcp(rid, conn)
+            _db.log_meal_recalc(conn, _db.meals_using_recipes(conn, _db.recipe_and_ancestors(conn, rid)),
+                                "a recipe ingredient amount was corrected")
+    after = _impact_snapshot(sorted(recipe_ids), sorted(meal_ids))
+    token = _impact_store("Correcting " + (f"{len(stale)} amounts" if len(stale) != 1 else "that amount"),
+                          before, after)
+    return RedirectResponse(f"/food/cache/db-check?amounts_fixed={len(stale)}&impact={token}#stale-amounts",
+                            status_code=303)
+
+
+@app.get("/food/cache/duplicates", response_class=HTMLResponse)
+async def food_cache_duplicates(request: Request, show_dismissed: int = 0, merged: int = 0,
+                                dismissed: int = 0, impact: str = ""):
+    """Duplicate foods (data_quality.duplicate_groups), run on request from
+    Foods → 9: for each group keep one (the others are replaced by it
+    everywhere and deleted) or mark the group "not duplicates"."""
+    with _db.get_db() as conn:
+        groups = _data_quality.duplicate_groups(conn, include_dismissed=bool(show_dismissed))
+    return templates.TemplateResponse(request, "food_duplicates.html", {
+        "groups": groups, "show_dismissed": bool(show_dismissed),
+        "merged": merged, "dismissed": dismissed, "impact": _impact_pop(impact),
+    })
+
+
+@app.post("/food/cache/duplicates/keep", response_class=RedirectResponse)
+async def food_cache_duplicates_keep(group_key: str = Form(...), keep: int = Form(...)):
+    """Keep `keep`; every other food in the group is replaced by it in recipes,
+    meals and pantry (db.merge_food_into) and deleted. The group must still
+    match what the page showed, so a stale page can't merge the wrong foods."""
+    with _db.get_db() as conn:
+        group = next((g for g in _data_quality.duplicate_groups(conn, include_dismissed=True)
+                      if g["key"] == group_key), None)
+    ids = [f["fdc_id"] for f in group["foods"]] if group else []
+    if keep not in ids:
+        return RedirectResponse("/food/cache/duplicates", status_code=303)
+    drop = [i for i in ids if i != keep]
+    targets = _impact_targets(ids)
+    before = _impact_snapshot(*targets)
+    with _db.get_db() as conn:
+        kept_name = _db.get_cached_food(conn, keep)["name"]
+        for d in drop:
+            _db.merge_food_into(conn, keep, d)
+        _recipe_dcp.cascade_food_change(keep, conn)
+        _db.log_meal_recalc(conn, _db.meals_using_food(conn, keep),
+                            f"duplicates of {kept_name} merged into it")
+    token = _impact_store(f"Merging duplicates into {kept_name}", before, _impact_snapshot(*targets))
+    return RedirectResponse(f"/food/cache/duplicates?merged={len(drop)}" + (f"&impact={token}" if token else ""),
+                            status_code=303)
+
+
+@app.post("/food/cache/duplicates/dismiss", response_class=RedirectResponse)
+async def food_cache_duplicates_dismiss(group_key: str = Form(...)):
+    with _db.get_db() as conn:
+        _db.dismiss_duplicate_group(conn, group_key)
+    return RedirectResponse("/food/cache/duplicates?dismissed=1", status_code=303)
+
+
+@app.post("/food/{fdc_id}/data-ignore", response_class=RedirectResponse)
+async def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = Form(1)):
+    """Mark (or unmark) one nutrient group not needed for this food, from
+    its own page."""
+    if group in _data_completeness.GROUP_LABELS:
+        with _db.get_db() as conn:
+            if _db.get_cached_food(conn, fdc_id):
+                _db.set_food_data_ignore(conn, fdc_id, group, bool(ignored))
+    return RedirectResponse(f"/food/{fdc_id}", status_code=303)
 
 
 @app.post("/food/cache/db-check/repair", response_class=RedirectResponse)
@@ -3502,6 +3820,8 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
     portions: list[dict] = []
     if portions_json and portions_json != "null":
         portions = json.loads(portions_json)
+    impact_targets = _impact_targets([fdc_id])
+    impact_before = _impact_snapshot(*impact_targets)
     with _db.get_db() as conn:
         _db.update_cached_food_profile(
             conn, fdc_id, name, nutrients,
@@ -3514,6 +3834,7 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
             user_drafted=True,
         )
         _recipe_dcp.cascade_food_change(fdc_id, conn)
+    impact = _impact_pop(_impact_store(f"Saving {name}", impact_before, _impact_snapshot(*impact_targets)))
     with _db.get_db() as conn:
         updated = _db.get_cached_food(conn, fdc_id)
     nutrients_reload = json.loads(updated["nutrients_json"]) if updated["nutrients_json"] else {}
@@ -3531,6 +3852,7 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
         "food": dict(updated),
         "field_groups": field_groups,
         "saved": True,
+        "impact": impact,
         "aa_source_q": "",
         "aa_source_results": [],
         "aa_applied": "",
@@ -3585,6 +3907,43 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
         )
         _recipe_dcp.cascade_food_change(fdc_id, conn)
     return RedirectResponse(f"/food/custom-profiles/{fdc_id}/edit?aa_applied=ok", status_code=303)
+
+
+@app.get("/food/custom-profiles/{fdc_id}/compare", response_class=RedirectResponse)
+async def food_custom_profiles_compare(fdc_id: int, pick: list[str] = Query(default=[]),
+                                       return_to: str = Query(default="")):
+    """The edit page's "Compare checked foods": open Compare with the profile
+    being edited first, then each checked search result, and a button back.
+    Each `pick` is "<fdc_id>|<off_code>". Compare fetches an uncached USDA food
+    live, but has no way to reach the other external sources, so those are
+    cached first, exactly as "Choose fields to copy" does; one that can't be
+    fetched is left out rather than failing the whole comparison."""
+    item_list: list[tuple[str, int]] = [("food", fdc_id)]
+    skipped = 0
+    for raw in pick:
+        id_str, _, off_code = raw.partition("|")
+        try:
+            pick_id = int(id_str)
+        except ValueError:
+            continue
+        if ("food", pick_id) in item_list:
+            continue
+        if len(item_list) >= _MAX_COMPARE_ITEMS:
+            skipped += 1
+            continue
+        if pick_id <= 0:
+            try:
+                _get_or_cache_source_food(pick_id, off_code)
+            except Exception:
+                skipped += 1
+                continue
+        item_list.append(("food", pick_id))
+    url = f"/compare?items={_compare_items_str(item_list)}"
+    if skipped:
+        url += (f"&error={skipped}+checked+food{'s' if skipped != 1 else ''}+left+out"
+                f"+%E2%80%94+could+not+be+fetched%2C+or+over+the+{_MAX_COMPARE_ITEMS}-item+maximum")
+    return RedirectResponse(_with_return(url, return_to or f"/food/custom-profiles/{fdc_id}/edit"),
+                            status_code=303)
 
 
 @app.get("/food/custom-profiles/{fdc_id}/copy-nutrients/select", response_class=HTMLResponse)
@@ -4053,6 +4412,12 @@ def _food_detail_context(
 
     with _db.get_db() as conn:
         ann = _db.get_food_annotation(conn, fdc_id)
+        data_ignored = _db.food_data_ignores(conn).get(fdc_id, set())
+    # Nutrient groups this food has no data for (data_completeness.py), split
+    # into ones still to deal with and ones the user marked not needed.
+    _all_gaps = _data_completeness.missing_groups(nutrients)
+    data_gaps = [g for g in _all_gaps if g not in data_ignored]
+    data_gaps_ignored = [g for g in _all_gaps if g in data_ignored]
     gi_estimate = ann["gi_estimate"] if ann else None
     gi_source   = (ann["gi_source"] if ann and "gi_source" in ann.keys() else None) \
                   if gi_estimate is not None else None
@@ -4088,10 +4453,19 @@ def _food_detail_context(
         "has_ul":             bool(max_limits),
         "suggest_foundation": suggest_foundation,
         "missing_macros":     missing_macros,
+        "data_gaps":          data_gaps,
+        "data_gaps_ignored":  data_gaps_ignored,
+        "gap_labels":         _data_completeness.GROUP_LABELS,
+        "no_nutrients":       not nutrients,
+        "is_usda_food":       (_classify_food_id(fdc_id) or ("", ""))[1] == "USDA",
+        "missing_core_macros": [lbl for k, lbl in (("calories", "calories"), ("protein_g", "protein"),
+                                                   ("carbs_g", "carbohydrate"), ("fat_g", "fat"))
+                                if k not in nutrients],
         "oxalate":            oxalate,
         "oxalate_mg_portion": oxalate_mg_portion,
         "gi_estimate":        gi_estimate,
         "gi_source":          gi_source,
+        "diaas_estimate":     ann["diaas_estimate"] if ann else None,
         "gl_portion":         gl_portion,
     }
 
@@ -4120,7 +4494,307 @@ async def food_detail(
             "results": [], "query": "", "error": ctx["error"],
         })
     ctx["from_context"] = from_context if from_context in ("recipe", "meal") else ""
+    ctx["incoming_applied"] = request.query_params.get("incoming_applied", "")
+    ctx["impact"] = _impact_pop(request.query_params.get("impact", ""))
+    with _db.get_db() as conn:
+        ctx["quality_issues"] = _data_quality.issues_for_food(conn, fdc_id)
+        ctx["your_changes"] = _your_changes(conn, fdc_id)
+        ctx["older_versions"] = _db.food_versions_of(conn, fdc_id)
+        ctx["version_info"] = _db.food_version_info(fdc_id)
+        if ctx["version_info"]:
+            ctx["version_parent"] = _db.get_cached_food(conn, ctx["version_info"]["parent_fdc_id"])
+            ctx["version_meal_items"] = conn.execute(
+                "SELECT COUNT(*) FROM meal_items WHERE item_type = 'food' AND fdc_id = ?", (fdc_id,)).fetchone()[0]
+    try:
+        ctx["version_kept"] = int(request.query_params.get("version_kept", ""))
+        ctx["version_moved"] = int(request.query_params.get("version_moved", "0"))
+    except ValueError:
+        ctx["version_kept"] = None
     return templates.TemplateResponse(request, "food_detail.html", ctx)
+
+
+def _your_changes(conn, fdc_id: int) -> list[dict] | None:
+    """The values the user changed on an outside-source food, each beside the
+    source's own (db.food_edited_keys) — [{label, yours, original}] — or
+    None when that isn't known (a custom food, or one edited before NuMa
+    tracked values one by one)."""
+    keys = _db.food_edited_keys(conn, fdc_id)
+    if keys is None:
+        return None
+    row = _db.get_cached_food(conn, fdc_id)
+    current = _db._food_state(row)
+    source = _db.food_source(conn, fdc_id) or {}
+    src_portions = {str(p.get("description", "")).strip().lower(): p for p in source.get("portions") or []}
+
+    def _num(v, unit=""):
+        if v in (None, ""):
+            return "—"
+        return f"{v:g}{(' ' + unit) if unit else ''}" if isinstance(v, (int, float)) else str(v)
+
+    out = []
+    for k in keys:
+        if k.startswith(_db.PORTION_KEY_PREFIX):
+            desc = k[len(_db.PORTION_KEY_PREFIX):]
+            mine = next((p for p in current["portions"] if str(p.get("description", "")).strip() == desc), {})
+            theirs = src_portions.get(desc.lower(), {})
+            out.append({"label": f"Portion: {desc}", "yours": _num(mine.get("gram_weight"), "g"),
+                        "original": _num(theirs.get("gram_weight"), "g") if theirs else "(not listed)"})
+        elif k in ("serving_size", "serving_unit"):
+            out.append({"label": "Serving size" if k == "serving_size" else "Serving unit",
+                        "yours": _num(current.get(k)), "original": _num(source.get(k))})
+        else:
+            label, unit = _usda.nutrient_label(k)
+            out.append({"label": label, "yours": _num(current["nutrients"].get(k), unit),
+                        "original": _num((source.get("nutrients") or {}).get(k), unit)})
+    return out
+
+
+def _local_next(next_url: str, fallback: str) -> str:
+    """A post-action destination, only ever a path inside numa."""
+    next_url = (next_url or "").strip()
+    if not next_url.startswith("/") or next_url.startswith("//") or "\\" in next_url:
+        return fallback
+    return next_url
+
+
+@app.get("/food/{fdc_id}/review-incoming", response_class=HTMLResponse)
+async def food_review_incoming(request: Request, fdc_id: int, source: str = "usda",
+                               source_fdc_id: int | None = None, off_code: str = "",
+                               next: str = ""):
+    """One review screen for incoming data (incoming_review.py): a fresh USDA
+    copy of this food (source=usda, the Refresh buttons) or another food's
+    values (source=food, Fill in nutrients from another food). Nothing is
+    written here; the incoming values ride along in the form so the apply
+    step writes exactly what was reviewed."""
+    next = _local_next(next, f"/food/{fdc_id}")
+    with _db.get_db() as conn:
+        target = _db.get_cached_food(conn, fdc_id)
+    if not target:
+        return RedirectResponse(next, status_code=303)
+    target_nutrients = json.loads(target["nutrients_json"]) if target["nutrients_json"] else {}
+    target_portions = json.loads(target["portions_json"] or "[]") or []
+    is_custom = _db.is_custom_food_id(fdc_id)
+    edited = bool(target["user_edited"])
+    with _db.get_db() as conn:
+        estimated = _db.estimated_keys(conn, fdc_id)
+    ctx = {"food": dict(target), "source": source, "next": next, "error": None,
+           "source_name": "", "source_fdc_id": source_fdc_id, "off_code": off_code,
+           "aa_note": None, "aa_alt": {}}
+    incoming: dict = {}
+    if source == "food":
+        if source_fdc_id is None or source_fdc_id == fdc_id:
+            return RedirectResponse(next, status_code=303)
+        try:
+            src = _get_or_cache_source_food(source_fdc_id, off_code)
+            incoming = {"nutrients": json.loads(src["nutrients_json"]) if src["nutrients_json"] else {},
+                        "name": src["name"]}
+            ctx["source_name"] = src["name"]
+        except Exception as exc:
+            ctx["error"] = f"Couldn't fetch that food's details: {exc}"
+        prefer_incoming = False
+    else:
+        source = ctx["source"] = "usda"
+        if fdc_id <= 0:
+            ctx["error"] = "Only foods from USDA can be refreshed from USDA."
+        else:
+            try:
+                detail = _usda.get_food_detail(fdc_id)
+                incoming = {"nutrients": detail.get("nutrients", {}) or {},
+                            "name": detail.get("name") or "", "brand": detail.get("brand") or "",
+                            "data_type": detail.get("dataType") or "",
+                            "serving_size": detail.get("servingSize"),
+                            "serving_unit": detail.get("servingUnit") or "",
+                            "portions": detail.get("portions") or []}
+                ctx["source_name"] = "USDA (fresh copy)"
+                ctx["usda_data_type"] = incoming["data_type"]
+                ctx["usda_brand"] = incoming["brand"]
+            except Exception as exc:
+                ctx["error"] = f"Couldn't reach USDA: {exc}"
+        prefer_incoming = not edited and not is_custom
+    # Which values are the user's own (db.food_edited_keys): known for any
+    # food with a source copy. Then default ticks go value by value — USDA's
+    # update to a value you never touched is ticked, your own value isn't.
+    mine: set[str] | None = None
+    if source == "usda" and not ctx["error"] and not is_custom:
+        with _db.get_db() as conn:
+            _keys = _db.food_edited_keys(conn, fdc_id)
+            ctx["edits_left"] = _db.edits_left_after_full_refresh(conn, fdc_id, incoming)
+        mine = set(_keys) if _keys is not None else None
+    ctx["edits_known"] = mine is not None
+    compare_to = incoming.get("nutrients", {}) if not ctx["error"] else {}
+    if source == "food" and not ctx["error"]:
+        # Amino acids from another food are scaled to protein, never raw:
+        # to this food's protein, or the incoming protein if that is ticked
+        # too (aa_alt — the screen swaps to those values live).
+        raw = incoming["nutrients"]
+        aa_keys = [k for k in raw if k.startswith("aa_")]
+        if aa_keys and _usda.has_amino_acid_data(raw):
+            own_scaled, _f = _aa_estimate.scaled_aa(raw, target_nutrients.get("protein_g"))
+            inc_scaled, _f2 = _aa_estimate.scaled_aa(raw, raw.get("protein_g"))
+            compare_to = {k: v for k, v in raw.items() if not k.startswith("aa_")}
+            if own_scaled:
+                compare_to.update(own_scaled)
+                ctx["aa_note"] = (f"Amino acids are scaled to this food's protein "
+                                  f"({target_nutrients.get('protein_g')} g per 100 g), not copied raw.")
+            elif inc_scaled:
+                compare_to.update(inc_scaled)
+                ctx["aa_note"] = ("This food has no protein value yet, so amino acids are scaled to "
+                                  f"{ctx['source_name']}'s protein — tick Protein too, or they can't be written.")
+            else:
+                ctx["aa_note"] = "Amino acids can't be copied: neither food has a protein value to scale by."
+            ctx["aa_alt"] = inc_scaled if own_scaled else {}
+            has_some = any(not _data_completeness.is_blank(k, target_nutrients) for k in aa_keys)
+            missing_some = any(_data_completeness.is_blank(k, target_nutrients) for k in aa_keys)
+            if has_some and missing_some:
+                ctx["aa_note"] += (" This food already has some amino acid values: filling only the"
+                                   " missing ones mixes two sources, which can skew its profile a little.")
+        elif aa_keys:
+            compare_to = {k: v for k, v in raw.items() if not k.startswith("aa_")}
+    if not ctx["error"]:
+        review = _incoming_review.nutrient_review(target_nutrients, compare_to,
+                                                  _EDIT_NUTRIENT_GROUPS, prefer_incoming=prefer_incoming,
+                                                  estimated=estimated if source == "usda" else frozenset(),
+                                                  mine=mine)
+        ctx.update(review)
+        ctx["meta_rows"] = (_incoming_review.meta_review(dict(target), incoming, prefer_incoming=prefer_incoming,
+                                                         mine=mine)
+                            if source == "usda" else [])
+        ctx["portion_rows"] = (_incoming_review.new_portions(target_portions, incoming.get("portions"))
+                               if source == "usda" else [])
+        ctx["incoming_json"] = json.dumps(incoming)
+        if source == "usda":
+            ctx["today"] = datetime.date.today().isoformat()
+            with _db.get_db() as conn:
+                ctx["meal_items_before_today"] = _db.meal_items_before(conn, fdc_id, ctx["today"])
+        ctx["edited"] = edited
+        ctx["prefer_incoming"] = prefer_incoming
+    return templates.TemplateResponse(request, "food_review_incoming.html", ctx)
+
+
+@app.post("/food/{fdc_id}/review-incoming", response_class=RedirectResponse)
+async def food_review_incoming_apply(request: Request, fdc_id: int):
+    """Write the values ticked on the review screen. Nutrients go in through
+    merge_user_supplied_nutrients (only the ticked keys, other values left
+    alone); descriptive fields through update_food_fields; incoming portions
+    are appended, never replacing the food's own. A fill from another food
+    is the user's edit; a USDA refresh makes USDA's fresh copy the food's
+    source copy (db.rebase_food_source), so user-edited then means exactly
+    "some value still differs from USDA's"."""
+    form = await request.form()
+    source = "food" if form.get("source") == "food" else "usda"
+    next_url = _local_next(form.get("next") or "", f"/food/{fdc_id}")
+    try:
+        incoming = json.loads(form.get("incoming_json") or "{}")
+    except ValueError:
+        incoming = {}
+    inc_nutrients = incoming.get("nutrients") or {}
+    chosen: dict[str, float] = {}
+    for key in form.getlist("keys"):
+        if key in _ALL_NUTRIENT_KEYS and key in inc_nutrients:
+            try:
+                chosen[key] = float(inc_nutrients[key])
+            except (TypeError, ValueError):
+                pass
+    fields: dict = {}
+    if source == "usda":
+        for key in form.getlist("meta"):
+            if key in dict(_incoming_review.META_FIELDS) and incoming.get(key) not in (None, ""):
+                fields[key] = incoming[key]
+    impact_targets = _impact_targets([fdc_id]) if chosen else ([], [])
+    impact_before = _impact_snapshot(*impact_targets) if chosen else {}
+    # "Keep the current version for past meals": before anything is written,
+    # the food's values as they are become an older version that meals
+    # dated before keep_before now point at (db.create_food_version).
+    keep_before = (form.get("keep_before") or "").strip() if form.get("keep_version") else ""
+    if keep_before:
+        try:
+            keep_before = datetime.date.fromisoformat(keep_before).isoformat()
+        except ValueError:
+            keep_before = ""
+    kept = None
+    with _db.get_db() as conn:
+        target = _db.get_cached_food(conn, fdc_id)
+        if not target:
+            return RedirectResponse(next_url, status_code=303)
+        if source == "usda" and keep_before and (chosen or form.getlist("meta") or form.getlist("portions")):
+            kept = _db.create_food_version(conn, fdc_id, keep_before)
+        if source == "usda":
+            current_portions = json.loads(target["portions_json"] or "[]") or []
+            offered = _incoming_review.new_portions(current_portions, incoming.get("portions"))
+            picked = {d.strip().lower() for d in form.getlist("portions")}
+            additions = [p for p in offered if str(p.get("description", "")).strip().lower() in picked]
+            if additions:
+                fields["portions"] = current_portions + additions
+        note = None
+        if source == "food" and chosen:
+            # Re-scale ticked amino acids here, never trusting the screen:
+            # to the incoming protein if Protein is ticked, else this food's.
+            current = json.loads(target["nutrients_json"]) if target["nutrients_json"] else {}
+            aa_chosen = [k for k in chosen if k.startswith("aa_")]
+            notes = []
+            if aa_chosen:
+                protein_after = chosen.get("protein_g", current.get("protein_g"))
+                scaled, factor = _aa_estimate.scaled_aa(inc_nutrients, protein_after)
+                for k in aa_chosen:
+                    if k in scaled:
+                        chosen[k] = scaled[k]
+                    else:
+                        del chosen[k]
+                if scaled and any(k in chosen for k in aa_chosen):
+                    notes.append(_aa_estimate.source_note(incoming.get("name") or "another food",
+                                                          form.get("source_fdc_id") or None, factor))
+            labels = [label for _g, fs in _EDIT_NUTRIENT_GROUPS for k, label, _u in fs
+                      if k in chosen and not k.startswith("aa_")]
+            if labels:
+                notes.insert(0, _aa_estimate.copy_nutrients_note(incoming.get("name") or "another food",
+                                                                 form.get("source_fdc_id") or None, labels))
+            note = "  |  ".join(notes) or None
+        if chosen:
+            _db.merge_user_supplied_nutrients(conn, fdc_id, chosen, overwrite=True, notes=note,
+                                              mark_edited=(source == "food"))
+            # Values borrowed from another food are estimates for this one;
+            # USDA's own values are measured, so they clear the mark.
+            if source == "food":
+                _db.update_estimated_keys(conn, fdc_id, add=chosen.keys())
+            else:
+                _db.update_estimated_keys(conn, fdc_id, remove=chosen.keys())
+        if fields:
+            _db.update_food_fields(conn, fdc_id, **fields)
+        if source == "usda":
+            # Whatever was or wasn't taken, USDA's fresh copy is now the
+            # source copy edits are measured against — so taking all of it
+            # ends user-edited status, keeping some of your own doesn't.
+            _db.rebase_food_source(conn, fdc_id, incoming)
+        if chosen or fields:
+            _recipe_dcp.cascade_food_change(fdc_id, conn)
+    count = len(chosen) + len(fields) - ("portions" in fields) + len(additions if source == "usda" else [])
+    impact = ""
+    if chosen:
+        impact = _impact_store(f"Updating {target['name']}", impact_before, _impact_snapshot(*impact_targets))
+    if next_url == f"/food/{fdc_id}":
+        next_url += f"?incoming_applied={count}" + (f"&impact={impact}" if impact else "")
+        if kept:
+            next_url += f"&version_kept={kept['fdc_id']}&version_moved={kept['meal_items']}"
+    return RedirectResponse(next_url, status_code=303)
+
+
+@app.get("/food/{fdc_id}/fill-from", response_class=HTMLResponse)
+async def food_fill_from(request: Request, fdc_id: int, q: str = "",
+                         source: list[str] | None = Query(default=None)):
+    """Fill in nutrients from another food, for a food that isn't a custom
+    profile (those have the same search on Edit Custom Profile). Search,
+    compare checked results with this food, then review values to copy."""
+    source = _resolve_source_filter(source, "sort_nutrient_source_filter", _SOURCE_PICKER_FILTERS)
+    with _db.get_db() as conn:
+        target = _db.get_cached_food(conn, fdc_id)
+        if not target:
+            return RedirectResponse("/food/cache", status_code=303)
+        results = _search_food_sources(conn, q.strip(), fdc_id, source=source) if q.strip() else []
+    return templates.TemplateResponse(request, "food_fill_from.html", {
+        "food": dict(target), "q": q.strip(), "results": results, "source": source,
+        "source_filters": _SOURCE_PICKER_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
+        "omitted_sources": _omitted_source_labels(source, _SOURCE_PICKER_FILTERS),
+    })
 
 
 @app.post("/food/{fdc_id}/toggle-starter", response_class=RedirectResponse)
@@ -4630,6 +5304,150 @@ def _meal_aa_nutrients(meal_id: int) -> dict:
     return result
 
 
+# ── Change impact ("what this change did") ───────────────────────────────
+# After a food's data or an amount is corrected, the page shows which
+# recipes and logged meals moved and by how much — the payoff of fixing data,
+# made visible. Before/after totals are computed live; the summary rides to
+# the next page under a one-time token (single-user app, so an in-process
+# dict is enough; a stale token just shows nothing).
+_IMPACT_KEYS = (("calories", "kcal", 0.5), ("protein_g", "g protein", 0.05),
+                ("carbs_g", "g carbs", 0.05), ("fat_g", "g fat", 0.05))
+_IMPACTS: dict[str, dict] = {}
+
+
+def _impact_targets(fdc_ids) -> tuple[list[int], list[int]]:
+    recipe_ids, meal_ids = set(), set()
+    with _db.get_db() as conn:
+        for fid in fdc_ids:
+            recipe_ids.update(_db.recipes_using_food(conn, fid))
+            meal_ids.update(_db.meals_using_food(conn, fid))
+    return sorted(recipe_ids), sorted(meal_ids)
+
+
+def _impact_snapshot(recipe_ids, meal_ids) -> dict:
+    snap = {}
+    with _db.get_db() as conn:
+        for rid in recipe_ids:
+            r = _db.recipe_get(conn, rid)
+            if r:
+                snap[("recipe", rid)] = {"label": r["name"],
+                                         "values": _recipe_nutrients_per_serving(rid, conn)}
+        meals = {mid: _db.meal_get(conn, mid) for mid in meal_ids}
+    for mid, m in meals.items():
+        if m:
+            _items, totals, _d, _i = _meal_totals(mid)
+            snap[("meal", mid)] = {"label": f"{m['meal_date']} {m['name']}", "values": totals}
+    return snap
+
+
+def _impact_store(title: str, before: dict, after: dict) -> str:
+    """Diff two _impact_snapshot()s; keep the summary and return its token
+    ("" when nothing moved)."""
+    rows = {"recipe": [], "meal": []}
+    for key, b in before.items():
+        a = after.get(key)
+        if not a:
+            continue
+        changes = []
+        for nk, unit, eps in _IMPACT_KEYS:
+            old, new = float(b["values"].get(nk) or 0), float(a["values"].get(nk) or 0)
+            if abs(new - old) >= eps:
+                changes.append({"unit": unit, "old": old, "new": new})
+        if changes:
+            kcal = next((c for c in changes if c["unit"] == "kcal"), None)
+            rows[key[0]].append({"id": key[1], "label": b["label"], "changes": changes,
+                                 "weight": abs(kcal["new"] - kcal["old"]) if kcal else 0})
+    if not rows["recipe"] and not rows["meal"]:
+        return ""
+    for k in rows:
+        rows[k].sort(key=lambda r: -r["weight"])
+    import secrets
+    token = secrets.token_urlsafe(8)
+    if len(_IMPACTS) > 50:
+        _IMPACTS.clear()
+    _IMPACTS[token] = {"title": title, "recipes": rows["recipe"], "meals": rows["meal"]}
+    return token
+
+
+def _impact_pop(token: str) -> dict | None:
+    return _IMPACTS.pop(token, None) if token else None
+
+
+def _recalc_notes(meal_ids) -> list[dict]:
+    """Why these meals' totals were last recalculated without the meal
+    itself being edited (db.meal_recalc_log), newest first, for the small
+    note on meal and Daily Summary pages."""
+    with _db.get_db() as conn:
+        rows = _db.meal_recalc_notes(conn, meal_ids)
+    return [{"reason": r["reason"], "date": (r["logged_at"] or "")[:10]} for r in rows]
+
+
+def _added_food_check(conn, fdc_id: int) -> str:
+    """The `added_check` value to put on the redirect after adding a food to
+    a meal or recipe: its id when the food has a data problem worth saying
+    so right then (data_quality.food_issues — not mere estimates), else ""."""
+    issues = _data_quality.issues_for_food(conn, fdc_id)
+    return str(fdc_id) if any(i["severity"] == "problem" for i in issues) else ""
+
+
+def _added_food_note(added_check: str) -> dict:
+    """Template context for _food_quality_note.html after an add."""
+    if not added_check.lstrip("-").isdigit():
+        return {}
+    fid = int(added_check)
+    with _db.get_db() as conn:
+        food = _db.get_cached_food(conn, fid)
+        issues = _data_quality.issues_for_food(conn, fid) if food else []
+    if not issues:
+        return {}
+    return {"quality_issues": issues, "quality_food": {"fdc_id": fid, "name": food["name"]}}
+
+
+def _calorie_warnings(ingredients: list[dict]) -> dict | None:
+    """The calorie-quality note above a meal's/recipe's/day's Nutritional
+    Analysis table (_calorie_note.html), or None when every food's calories
+    are sound. "items": foods whose calories are "missing" (no value — those
+    grams add 0 kcal), "estimated" (filled from protein/carbs/fat, see
+    energy_check.py) or "mismatch" (far from what the macros imply);
+    "estimated_pct": share of the calorie total that is estimated — the
+    trust figure the note leads with. `ingredients` are leaf foods as
+    _meal_expand_for_diaas / expand_recipe_ingredients build them; repeats
+    are merged first."""
+    leaves = [i for i in _group_ingredients_by_food(ingredients) if i.get("fdc_id")]
+    if not leaves:
+        return None
+    with _db.get_db() as conn:
+        estimated = {i["fdc_id"]: _db.estimated_keys(conn, i["fdc_id"]) for i in leaves}
+        ignores = _db.food_data_ignores(conn)
+    out, total_kcal, est_kcal = [], 0.0, 0.0
+    for ing in leaves:
+        n = ing.get("nutrients_100g") or {}
+        grams = float(ing.get("grams") or 0)
+        kcal = float(n.get("calories") or 0) * grams / 100
+        total_kcal += kcal
+        if "macros" in ignores.get(ing["fdc_id"], set()):
+            continue
+        expected = _energy_check.atwater_estimate(n)
+        kind = None
+        if _energy_check.calories_missing(n):
+            kind = "missing"
+        elif "calories" in estimated.get(ing["fdc_id"], set()):
+            kind = "estimated"
+            est_kcal += kcal
+        elif (_energy_check.calorie_mismatch(n) and expected is not None
+              and abs(kcal - expected * grams / 100) >= _energy_check.NOTE_MIN_KCAL):
+            kind = "mismatch"
+        if kind:
+            out.append({"fdc_id": ing["fdc_id"], "name": ing["food_name"], "kind": kind,
+                        "grams": grams, "kcal": kcal,
+                        "expected_kcal": expected * grams / 100 if expected is not None else None})
+    if not out:
+        return None
+    out.sort(key=lambda w: ("missing", "mismatch", "estimated").index(w["kind"]))
+    return {"items": out, "total_kcal": total_kcal,
+            "estimated_pct": est_kcal / total_kcal * 100 if total_kcal else 0.0}
+
+
 def _group_ingredients_by_food(ingredients: list[dict]) -> list[dict]:
     """Merge ingredient dicts that refer to the same food (same fdc_id, or
     same food_name when fdc_id is absent), summing their grams.
@@ -4648,6 +5466,52 @@ def _group_ingredients_by_food(ingredients: list[dict]) -> list[dict]:
         else:
             grouped[key]["grams"] += ing["grams"]
     return [grouped[k] for k in order]
+
+
+def _serving_weight_changed(logged: float | None, now: float | None) -> bool:
+    """True when a logged recipe serving's gram weight and the recipe's
+    current one are both known and differ by more than rounding noise."""
+    if logged is None or now is None:
+        return False
+    return abs(now - logged) > max(0.5, 0.01 * logged)
+
+
+def _annotate_recipe_amounts(items: list[dict], conn, *, id_key: str = "id") -> bool:
+    """Give each recipe item in `items` what the shared recipe_amount() macro
+    (templates/_recipe_amount.html) needs to show servings AND grams:
+    serving_g (one serving's weight now, or None if it can't be worked out —
+    see recipe_serving_grams()), grams (the logged amount's total weight, or
+    None), and serving_changed ({"logged", "now"} when the serving weight has
+    changed since the item was logged, else None).
+
+    A meal stores recipe amounts in servings, so a later change to the
+    recipe's servings count or total weight silently changes how much food a
+    logged serving means. meal_items.serving_grams records the weight at log
+    time; when it's missing (logged before this existed, or added by any path
+    that doesn't set it) the current weight is recorded here, lazily, which
+    is why this takes a writable connection. Returns True if any item is a
+    recipe, so pages know to show the recipe-weight footnote."""
+    any_recipe = False
+    cache: dict[int, float | None] = {}
+    for it in items:
+        if it.get("item_type", "recipe" if it.get("recipe_id") else "food") != "recipe" or not it.get("recipe_id"):
+            continue
+        any_recipe = True
+        rid = it["recipe_id"]
+        if rid not in cache:
+            cache[rid] = recipe_serving_grams(rid, conn) if _db.recipe_get(conn, rid) else None
+        now = cache[rid]
+        logged = it.get("serving_grams")
+        if logged is None and now is not None and it.get(id_key):
+            _db.meal_item_set_serving_grams(conn, it[id_key], now)
+            logged = now
+        amount = float(it.get("amount") or 0)
+        it["serving_g"] = now
+        it["grams"] = now * amount if now is not None else None
+        it["serving_changed"] = (
+            {"logged": logged, "now": now} if _serving_weight_changed(logged, now) else None
+        )
+    return any_recipe
 
 
 def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
@@ -4701,9 +5565,6 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 total_nutrients[k] = total_nutrients.get(k, 0.0) + v
             # Expand recipe ingredients into DIAAS ingredient list (handles sub-recipes)
             ingredients.extend(_expand_recipe_ingredients(row["recipe_id"], portion_factor, conn))
-            # "2 servings" says nothing about how much food that actually is;
-            # stays None when the recipe's serving weight can't be worked out.
-            serving_g = recipe_serving_grams(row["recipe_id"], conn) if recipe else None
             items.append({
                 "id":             row["id"],
                 "food_name":      row["food_name"],
@@ -4711,12 +5572,16 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 "recipe_id":      row["recipe_id"],
                 "amount":         servings_consumed,
                 "unit":           "serving" + ("s" if servings_consumed != 1 else ""),
-                "grams":          serving_g * servings_consumed if serving_g else None,
+                # "grams"/"serving_g"/"serving_changed" are filled in by
+                # _annotate_recipe_amounts() below.
                 "notes":          row["notes"] or "",
                 "has_nuts":       bool(per_serving),
                 "recipe_deleted": recipe is None,
+                "item_type":      "recipe",
+                "serving_grams":  row["serving_grams"],
             })
 
+    _annotate_recipe_amounts(items, conn)
     return items, total_nutrients, _group_ingredients_by_food(ingredients)
 
 
@@ -4754,6 +5619,35 @@ def _compute_and_store_meal_bcp(meal_id: int) -> float | None:
     return bcp_g
 
 
+def _refresh_stale_meals() -> None:
+    """Recompute and persist DCP/calories/nutrient snapshot for every meal in
+    stale_meals — flagged when a food it logs (directly or inside a recipe)
+    or a recipe it logs (directly or as a sub-recipe) changed — then refresh
+    % goal for each affected date. Each meal's flag is cleared before it's
+    recomputed, and a failure is logged to recompute_errors rather than
+    raised, so one bad meal can't block every page load forever."""
+    with _db.get_db() as conn:
+        stale_ids = _db.stale_meal_ids(conn)
+    if not stale_ids:
+        return
+    dates = set()
+    for meal_id in stale_ids:
+        with _db.get_db() as conn:
+            _db.clear_stale_meal(conn, meal_id)
+            meal = _db.meal_get(conn, meal_id)
+        if meal is None:
+            continue
+        try:
+            _compute_and_store_meal_bcp(meal_id)
+        except Exception as exc:
+            with _db.get_db() as conn:
+                _db.log_recompute_error(conn, "meal", meal_id, f"Meal recompute after a food/recipe change failed: {exc}")
+            continue
+        dates.add(meal["meal_date"])
+    for meal_date in dates:
+        _refresh_day_pct_goal(meal_date)
+
+
 def _refresh_day_pct_goal(meal_date: str) -> None:
     """Recompute day_pct_goal for every meal on meal_date from stored bcp_g,
     against the profile pinned to that date (not whatever is active now).
@@ -4786,10 +5680,10 @@ def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None,
     # so picking it here too would just duplicate it (Recent Days, sharing
     # this same picker, still shows it if chosen — see MEALS_LIST_FIXED_KEYS).
     from numa_app.services.meal_list_columns import (
-        sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, format_value as _meal_format_value,
+        saved_or_default as _saved_or_default_meal_nutrients, label_for as _meal_label_for, format_value as _meal_format_value,
         MEALS_LIST_FIXED_KEYS,
     )
-    nutrient_keys = [k for k in _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
+    nutrient_keys = [k for k in _saved_or_default_meal_nutrients(_load_prefs_file())
                       if k not in MEALS_LIST_FIXED_KEYS]
     # "Raw protein" here (not just "Protein"), to distinguish it from the
     # digestibility-adjusted Meal/Day DCP columns shown alongside it — the
@@ -4928,9 +5822,12 @@ async def meal_create(
 
 @app.post("/meal/{meal_id}/refresh-aa", response_class=RedirectResponse)
 async def meal_refresh_aa(meal_id: int):
-    """Fetch AA nutrient data from USDA for all foods in this meal that lack it."""
+    """Fetch AA nutrient data from USDA for all foods in this meal that lack
+    it — or whose amino acids are only estimates (db.estimated_keys), which
+    USDA's measured values replace. Otherwise fills blanks only."""
     with _db.get_db() as conn:
         items = _db.meal_get_items(conn, meal_id)
+    filled, differs = 0, []
     for item in items:
         if item["item_type"] != "food" or not item["fdc_id"]:
             continue
@@ -4943,21 +5840,39 @@ async def meal_refresh_aa(meal_id: int):
         if data_type == "Branded":
             continue
         nutrients = json.loads(cached["nutrients_json"])
-        if _usda.has_confirmed_aa_data(nutrients):
+        with _db.get_db() as conn:
+            estimated = _db.estimated_keys(conn, fdc_id)
+        estimated_aa = {k for k in estimated if k.startswith("aa_")}
+        if _usda.has_confirmed_aa_data(nutrients) and not estimated_aa:
             continue
         try:
             detail = _usda.get_food_detail(fdc_id)
         except Exception:
             continue
-        if not _usda.has_amino_acid_data(detail.get("nutrients", {})):
+        incoming = detail.get("nutrients", {}) or {}
+        if not _usda.has_amino_acid_data(incoming):
             continue
-        with _db.get_db() as conn:
-            _db.cache_food(conn, detail["fdcId"], detail["name"], detail["dataType"],
-                           detail.get("brand"), detail.get("servingSize"),
-                           detail.get("servingUnit"), detail.get("nutrients", {}),
-                           detail.get("portions"))
-            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
-    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+        # Fill blanks only — never overwrite a value the food already has
+        # (it may be the user's own edit). Foods where USDA's copy also
+        # differs on existing values are listed for a per-value review.
+        review = _incoming_review.nutrient_review(nutrients, incoming, _EDIT_NUTRIENT_GROUPS,
+                                                  prefer_incoming=False, estimated=estimated_aa)
+        rows = [f for g in review["groups"] for f in g["fields"]]
+        # Measured amino acids replace estimated ones too (the review ticks them).
+        fills = {f["key"]: f["incoming"] for f in rows
+                 if f["status"] == "fill" or (f["status"] == "differs" and f["key"] in estimated_aa)}
+        if any(f["status"] == "differs" and f["key"] not in estimated_aa for f in rows):
+            differs.append(fdc_id)
+        if fills:
+            with _db.get_db() as conn:
+                _db.merge_user_supplied_nutrients(conn, fdc_id, fills, overwrite=True, mark_edited=False)
+                _db.update_estimated_keys(conn, fdc_id, remove=fills.keys())
+                _recipe_dcp.cascade_food_change(fdc_id, conn)
+            filled += 1
+    url = f"/meal/{meal_id}?aa_refreshed={filled}"
+    if differs:
+        url += "&aa_differs=" + ",".join(str(i) for i in differs)
+    return RedirectResponse(url + "#sec-protein-quality", status_code=303)
 
 
 def _meal_add_food_local_results(q: str) -> list[dict]:
@@ -5073,9 +5988,22 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                      comp_sort: str | None = None, diaas_sort: str | None = None,
                      anchor_name: list[str] = Query(default=[]),
                      anchor_grams: list[str] = Query(default=[]),
-                     rank: str | None = None, top_n: str | None = None):
+                     rank: str | None = None, top_n: str | None = None,
+                     aa_refreshed: int | None = None, aa_differs: str = "", added_check: str = ""):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
+    # "Refresh from USDA" result: foods it filled, and foods whose USDA copy
+    # also differs on values they already have (left alone; review offered).
+    aa_differ_foods: list[dict] = []
+    for tok in aa_differs.split(","):
+        try:
+            did = int(tok)
+        except ValueError:
+            continue
+        with _db.get_db() as conn:
+            row = _db.get_cached_food(conn, did)
+        if row:
+            aa_differ_foods.append({"fdc_id": did, "name": row["name"]})
     source = _resolve_source_filter(source, "sort_food_search_source")
     limit = _resolve_result_limit(limit)
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
@@ -5185,6 +6113,11 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     oxalate = _oxalate_for_items(ox_items)
 
     return templates.TemplateResponse(request, "meal.html", {
+        **_added_food_note(added_check),
+        "recalc_notes": _recalc_notes([meal_id]),
+        "calorie_warnings": _calorie_warnings(meal_ingredients),
+        "aa_refreshed":    aa_refreshed,
+        "aa_differ_foods": aa_differ_foods,
         "meal":                dict(meal),
         "items":               items,
         "item_sort":           item_sort,
@@ -5459,7 +6392,7 @@ async def meal_add_food(
 ):
     from urllib.parse import quote, urlencode
 
-    def _redirect(error: str | None = None) -> RedirectResponse:
+    def _redirect(error: str | None = None, check: str = "") -> RedirectResponse:
         if error:
             params = {"add_error": error}
             if q:
@@ -5470,6 +6403,8 @@ async def meal_add_food(
             # it from sessionStorage — otherwise the search panel would
             # reappear right after a successful add.
             params = {"q": ""}
+            if check:
+                params["added_check"] = check
         qs = f"?{urlencode(params)}"
         return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
 
@@ -5501,15 +6436,15 @@ async def meal_add_food(
         return _redirect(error=error_msg)
     with _db.get_db() as conn:
         _db.meal_add_food(conn, meal_id, fdc_id, name, grams, "g")
+        check = _added_food_check(conn, fdc_id)
     if _annotation_prompt_needed(fdc_id):
         # next= carries an explicit empty q= (not simply omitted) so that,
         # once the annotate flow redirects back to the meal page, the
         # persist-search JS in base.html forgets the saved query instead of
         # restoring the stale search-results panel.
-        return RedirectResponse(
-            f"/food/annotate/{fdc_id}?next={quote(f'/meal/{meal_id}?q=')}", status_code=303
-        )
-    return _redirect()
+        back = f"/meal/{meal_id}?q=" + (f"&added_check={check}" if check else "")
+        return RedirectResponse(f"/food/annotate/{fdc_id}?next={quote(back)}", status_code=303)
+    return _redirect(check=check)
 
 
 @app.post("/meal/{meal_id}/add-recipe", response_class=RedirectResponse)
@@ -5648,6 +6583,9 @@ async def meal_update_item_post(
             unit = f"{srv:g} serving" + ("s" if srv != 1 else "")
             with _db.get_db() as conn:
                 _db.meal_update_item(conn, item_id, meal_id, srv, unit)
+                # The amount was just typed against the recipe's serving as
+                # it is now, so that's the serving weight to remember.
+                _db.meal_item_set_serving_grams(conn, item_id, recipe_serving_grams(item["recipe_id"], conn))
     else:
         with _db.get_db() as conn:
             cached = _db.get_cached_food(conn, item["fdc_id"]) if item["fdc_id"] else None
@@ -5660,6 +6598,29 @@ async def meal_update_item_post(
         else:
             return _redirect(error=error_msg)
     return _redirect()
+
+
+@app.post("/meal/{meal_id}/item/{item_id}/serving-weight", response_class=RedirectResponse)
+async def meal_item_serving_weight_post(meal_id: int, item_id: int, choice: str = Form(...)):
+    """Resolve a logged recipe whose serving weight changed since it was
+    logged. choice="keep": keep the grams originally eaten, by rescaling the
+    servings count to the recipe's new serving. choice="accept": keep the
+    servings count, i.e. accept the new, different amount of food."""
+    with _db.get_db() as conn:
+        item = next((it for it in _db.meal_get_items(conn, meal_id) if it["id"] == item_id), None)
+        meal = _db.meal_get(conn, meal_id)
+        if item is None or meal is None or item["item_type"] != "recipe":
+            return RedirectResponse(f"/meal/{meal_id}?q=", status_code=303)
+        now = recipe_serving_grams(item["recipe_id"], conn)
+        logged = item["serving_grams"]
+        if choice == "keep" and _serving_weight_changed(logged, now):
+            srv = round(float(item["amount"]) * logged / now, 3)
+            unit = f"{srv:g} serving" + ("s" if srv != 1 else "")
+            _db.meal_update_item(conn, item_id, meal_id, srv, unit)
+        _db.meal_item_set_serving_grams(conn, item_id, now)
+    _compute_and_store_meal_bcp(meal_id)
+    _refresh_day_pct_goal(meal["meal_date"])
+    return RedirectResponse(f"/meal/{meal_id}?q=", status_code=303)
 
 
 @app.post("/meal/{meal_id}/merge", response_class=RedirectResponse)
@@ -5711,6 +6672,8 @@ async def meals_search(request: Request, q: str = ""):
         for r in rows:
             if r["item_type"] == "recipe":
                 r["recipe_deleted"] = r["recipe_id"] in deleted_recipe_ids
+        with _db.get_db() as conn:
+            _annotate_recipe_amounts(rows, conn, id_key="item_id")
         n_items = len(rows)
         n_meals = len({r["meal_id"] for r in rows})
         n_dates = len({r["meal_date"] for r in rows})
@@ -5767,6 +6730,7 @@ def _meal_day_context(meal_id: int) -> dict | None:
             for it in m_items:
                 if it["item_type"] == "recipe":
                     it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
+            _annotate_recipe_amounts(m_items, conn)
             m["meal_items"] = _sort_meal_items_display(m_items)
 
     diaas_display = _build_diaas_display(diaas_result)
@@ -5941,11 +6905,15 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
                     "limit":   profile.max_limits.get(key),
                 })
 
-    from numa_app.services.meal_list_columns import AVAILABLE_NUTRIENTS, MAX_MEAL_LIST_NUTRIENTS
-    saved_meal_nutrients = _load_prefs_file().get("meal_list_nutrients", [])
+    from numa_app.services.meal_list_columns import (
+        AVAILABLE_NUTRIENTS, MAX_MEAL_LIST_NUTRIENTS, saved_or_default as _saved_or_default_meal_nutrients,
+    )
+    saved_meal_nutrients = _saved_or_default_meal_nutrients(_load_prefs_file())
+    # Protein here is raw protein — DCP is never a picker choice, since both
+    # lists already show it as fixed columns — so say so on the row itself.
     meal_list_nutrient_rows = [
         {
-            "key": key, "label": label, "unit": unit,
+            "key": key, "label": "Protein (raw, not DCP)" if key == "protein_g" else label, "unit": unit,
             "position": (saved_meal_nutrients.index(key) + 1) if key in saved_meal_nutrients else None,
         }
         for key, label, unit in AVAILABLE_NUTRIENTS
@@ -5958,6 +6926,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         _gi_table_build.clear_status()
 
     return templates.TemplateResponse(request, "settings.html", {
+        "data_check_reminder":  _data_check_reminder_prefs(),
         "profile":              profile,
         "rda_rows":             rda_rows,
         "activity_labels":      _profile.ACTIVITY_LABELS,
@@ -5968,7 +6937,8 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "starter_edited_kept":  kept_edited,
         "diet_pref":            diet_pref,
         "diet_labels":          _DIET_LABELS,
-        "preferred_browser":    _load_prefs_file().get("preferred_browser", ""),
+        # An older saved "chromium-browser" shows as the one Chromium choice.
+        "preferred_browser":    (_load_prefs_file().get("preferred_browser", "") or "").replace("chromium-browser", "chromium"),
         "browser_labels":       _BROWSER_LABELS,
         "api_key":              api_key,
         "search_boost_page_size": search_boost_page_size,
@@ -6064,6 +7034,54 @@ async def check_for_updates_now():
     return RedirectResponse("/", status_code=303)
 
 
+def _data_check_reminder_prefs() -> dict:
+    prefs = _load_prefs_file()
+    try:
+        weeks = max(0, int(prefs.get("data_check_reminder_weeks", 0)))
+    except (TypeError, ValueError):
+        weeks = 0
+    return {"enabled": bool(prefs.get("data_check_reminder", True)), "weeks": weeks}
+
+
+def _data_check_reminder() -> dict | None:
+    """The Home page's data-quality banner, or None. Issue-driven: shows
+    only problems that weren't there when the user last opened Foods → 9
+    (prefs data_check_seen, saved by that page), plus — if they asked for a
+    routine — a nudge once data_check_reminder_weeks have passed with
+    problems still open. Off entirely when the Settings toggle is off."""
+    settings = _data_check_reminder_prefs()
+    if not settings["enabled"]:
+        return None
+    with _db.get_db() as conn:
+        keys = _data_quality.scan(conn)["keys"]
+    if not keys:
+        return None
+    prefs = _load_prefs_file()
+    seen = set(prefs.get("data_check_seen") or [])
+    last = prefs.get("data_check_last_seen")
+    new = keys - seen
+    overdue = False
+    if settings["weeks"] and last:
+        try:
+            age = (datetime.date.today() - datetime.date.fromisoformat(last)).days
+            overdue = age >= settings["weeks"] * 7
+        except ValueError:
+            overdue = True
+    if not new and not overdue:
+        return None
+    return {"new": len(new), "total": len(keys), "last_seen": last, "overdue": overdue and not new}
+
+
+@app.post("/settings/data-check-reminder", response_class=RedirectResponse)
+async def settings_data_check_reminder_post(enabled: list[str] = Form(default=[]), weeks: str = Form("0")):
+    try:
+        w = max(0, min(52, int(weeks or 0)))
+    except ValueError:
+        w = 0
+    _save_prefs_file({"data_check_reminder": "1" in enabled, "data_check_reminder_weeks": w})
+    return RedirectResponse("/settings?saved=data-check-reminder#data-check-reminder", status_code=303)
+
+
 @app.post("/settings/browser", response_class=RedirectResponse)
 async def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(None)):
     if preferred_browser in _VALID_BROWSER_PREFS:
@@ -6142,7 +7160,7 @@ async def settings_nutrient_target_post(
             profile.max_limits.pop(key, None)
 
         _profile.save_profile(profile)
-    return RedirectResponse("/settings?saved=nutrient_target", status_code=303)
+    return RedirectResponse("/settings?saved=nutrient_target#nutrient-targets", status_code=303)
 
 
 @app.post("/settings/nutrient-target/load-defaults", response_class=RedirectResponse)
@@ -6158,7 +7176,7 @@ async def settings_nutrient_target_load_defaults():
         if key not in profile.optimal_targets:
             profile.optimal_targets[key] = val
     _profile.save_profile(profile)
-    return RedirectResponse("/settings?saved=nutrient_target_defaults", status_code=303)
+    return RedirectResponse("/settings?saved=nutrient_target_defaults#nutrient-targets", status_code=303)
 
 
 _GI_PDF_MAX_BYTES = 20 * 1024 * 1024   # each real supplemental table is ~1.6 MB
@@ -6285,6 +7303,14 @@ async def settings_meal_nutrients_post(request: Request):
     return RedirectResponse("/settings?saved=meal_nutrients#meal-list-nutrients", status_code=303)
 
 
+@app.post("/settings/meal-nutrients/restore-defaults", response_class=RedirectResponse)
+async def settings_meal_nutrients_restore_defaults():
+    """Put the Meals & Log / Recent Days columns back to DEFAULT_MEAL_LIST_NUTRIENTS."""
+    from numa_app.services.meal_list_columns import DEFAULT_MEAL_LIST_NUTRIENTS
+    _save_prefs_file({"meal_list_nutrients": list(DEFAULT_MEAL_LIST_NUTRIENTS)})
+    return RedirectResponse("/settings?saved=meal_nutrients_defaults#meal-list-nutrients", status_code=303)
+
+
 @app.post("/settings/recompute-error/{error_id}/resolve", response_class=RedirectResponse)
 async def settings_recompute_error_resolve(error_id: int):
     """Retry the failed recompute right now, and only mark the log entry
@@ -6297,6 +7323,8 @@ async def settings_recompute_error_resolve(error_id: int):
             try:
                 if error["entity_type"] == "recipe" and error["entity_id"] is not None:
                     _recipe_dcp.recompute_recipe_dcp(error["entity_id"], conn)
+                elif error["entity_type"] == "meal" and error["entity_id"] is not None:
+                    _compute_and_store_meal_bcp(error["entity_id"])
                 _db.resolve_recompute_error(conn, error_id)
                 outcome = "resolved"
             except Exception as exc:
@@ -6473,6 +7501,40 @@ def _compare_items_str(items: list[tuple[str, int]]) -> str:
     return ",".join(f"{'r' if kind == 'recipe' else 'f'}{id_}" for kind, id_ in items)
 
 
+def _safe_return_to(return_to: str) -> str:
+    """A Compare "return to" target is only ever a path inside numa —
+    anything else (another site, a protocol-relative //host) is dropped."""
+    return_to = (return_to or "").strip()
+    if not return_to.startswith("/") or return_to.startswith("//") or "\\" in return_to:
+        return ""
+    return return_to
+
+
+def _with_return(url: str, return_to: str) -> str:
+    """Carry Compare's return_to through its own add/remove/save round-trips,
+    so the "Back to ..." button survives every action on the page."""
+    return_to = _safe_return_to(return_to)
+    if not return_to:
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}return_to={quote(return_to, safe='')}"
+
+
+def _compare_return_label(return_to: str) -> str:
+    """Button text for Compare's return button: names the custom profile
+    being edited when that is where the user came from."""
+    path = re.split(r"[?#]", return_to)[0]
+    for pattern, verb in ((r"/food/custom-profiles/(-?\d+)/edit", "editing"),
+                          (r"/food/(-?\d+)/fill-from", "filling in")):
+        m = re.fullmatch(pattern, path)
+        if m:
+            with _db.get_db() as conn:
+                row = _db.get_cached_food(conn, int(m.group(1)))
+            if row:
+                return f"Back to {verb} {row['name']}"
+    return "Back to the page you came from"
+
+
 def _load_compare_entry(conn, kind: str, id_: int) -> dict | None:
     """Load one comparison entry (food or recipe), normalized to a common,
     always-per-100g shape: {kind, id, name, data_type, nutrients,
@@ -6640,9 +7702,11 @@ async def compare_get(
     search: str = "",
     source: list[str] | None = Query(default=None),
     limit: int | None = None,
+    return_to: str = "",
 ):
     source = _resolve_source_filter(source, "sort_food_search_source", _SEARCH_SOURCE_FILTERS)
     limit = _resolve_result_limit(limit)
+    return_to = _safe_return_to(return_to)
     item_list = _parse_compare_items(items)
     entries = _load_compare_entries(item_list) if item_list else []
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
@@ -6696,6 +7760,9 @@ async def compare_get(
         "source_filters":       _SEARCH_SOURCE_FILTERS,
         "source_labels":        _SEARCH_SOURCE_LABELS,
         "max_items":            _MAX_COMPARE_ITEMS,
+        "return_to":            return_to,
+        "return_label":         _compare_return_label(return_to) if return_to else "",
+        "return_qs":            _with_return("", return_to),
     })
 
 
@@ -6717,23 +7784,23 @@ async def compare_export_csv(items: str = ""):
 async def compare_add(
     kind:    str = Form(...),
     item_id: int = Form(...),
-    items:   str = Form(""),
+    items:   str = Form(""),    return_to: str = Form(""),
 ):
     kind = "recipe" if kind == "recipe" else "food"
     item_list = _parse_compare_items(items)
     if len(item_list) >= _MAX_COMPARE_ITEMS:
         return RedirectResponse(
-            f"/compare?items={_compare_items_str(item_list)}"
-            f"&error=Maximum+{_MAX_COMPARE_ITEMS}+items+allowed",
+            _with_return(f"/compare?items={_compare_items_str(item_list)}"
+                         f"&error=Maximum+{_MAX_COMPARE_ITEMS}+items+allowed", return_to),
             status_code=303,
         )
     if (kind, item_id) not in item_list:
         item_list.append((kind, item_id))
-    return RedirectResponse(f"/compare?items={_compare_items_str(item_list)}", status_code=303)
+    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list)}", return_to), status_code=303)
 
 
 @app.post("/compare/add-multiple", response_class=RedirectResponse)
-async def compare_add_multiple(request: Request, items: str = Form("")):
+async def compare_add_multiple(request: Request, items: str = Form(""), return_to: str = Form("")):
     """Bulk-add checked foods/recipes to the comparison — used both by
     Compare's own "add via search" panel and by the compare checkboxes on
     Foods search, Food Cache, My Pantry, and the Recipes list (which post
@@ -6760,24 +7827,24 @@ async def compare_add_multiple(request: Request, items: str = Form("")):
     url = f"/compare?items={_compare_items_str(item_list)}"
     if skipped:
         url += f"&error=Added+{added}%2C+skipped+{skipped}+%E2%80%94+maximum+{_MAX_COMPARE_ITEMS}+items"
-    return RedirectResponse(url, status_code=303)
+    return RedirectResponse(_with_return(url, return_to), status_code=303)
 
 
 @app.post("/compare/remove", response_class=RedirectResponse)
 async def compare_remove(
     remove_kind: str = Form(...),
     remove_id:   int = Form(...),
-    items:       str = Form(""),
+    items:       str = Form(""),    return_to: str = Form(""),
 ):
     remove_kind = "recipe" if remove_kind == "recipe" else "food"
     item_list = [it for it in _parse_compare_items(items) if it != (remove_kind, remove_id)]
-    return RedirectResponse(f"/compare?items={_compare_items_str(item_list)}", status_code=303)
+    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list)}", return_to), status_code=303)
 
 
 @app.post("/compare/cache-food", response_class=RedirectResponse)
 async def compare_cache_food(
     fdc_id: int = Form(...),
-    items:  str = Form(""),
+    items:  str = Form(""),    return_to: str = Form(""),
 ):
     with _db.get_db() as conn:
         already_cached = _db.get_cached_food(conn, fdc_id) is not None
@@ -6795,13 +7862,13 @@ async def compare_cache_food(
                 _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
         except Exception:
             pass
-    return RedirectResponse(f"/compare?items={items}", status_code=303)
+    return RedirectResponse(_with_return(f"/compare?items={items}", return_to), status_code=303)
 
 
 @app.post("/compare/save", response_class=RedirectResponse)
 async def compare_save(
     name:  str = Form(""),
-    items: str = Form(""),
+    items: str = Form(""),    return_to: str = Form(""),
 ):
     item_list = _parse_compare_items(items)
     if len(item_list) >= 2:
@@ -6810,43 +7877,43 @@ async def compare_save(
                 conn, name.strip() or "Untitled",
                 [{"kind": kind, "id": id_} for kind, id_ in item_list],
             )
-    return RedirectResponse(f"/compare?items={_compare_items_str(item_list)}", status_code=303)
+    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list)}", return_to), status_code=303)
 
 
 @app.get("/compare/load/{cmp_id}", response_class=RedirectResponse)
-async def compare_load(cmp_id: int):
+async def compare_load(cmp_id: int, return_to: str = ""):
     with _db.get_db() as conn:
         row = _db.saved_mixed_comparison_get(conn, cmp_id)
     if not row:
-        return RedirectResponse("/compare", status_code=303)
+        return RedirectResponse(_with_return("/compare", return_to), status_code=303)
     stored_items = json.loads(row["items"])
     items_str = ",".join(f"{'r' if it['kind'] == 'recipe' else 'f'}{it['id']}" for it in stored_items)
-    return RedirectResponse(f"/compare?items={items_str}", status_code=303)
+    return RedirectResponse(_with_return(f"/compare?items={items_str}", return_to), status_code=303)
 
 
 @app.post("/compare/saved/rename", response_class=RedirectResponse)
 async def compare_saved_rename(
     cmp_id: int = Form(...),
     name:   str = Form(""),
-    items:  str = Form(""),
+    items:  str = Form(""),    return_to: str = Form(""),
 ):
     new_name = name.strip() or "Untitled"
     with _db.get_db() as conn:
         _db.saved_mixed_comparison_rename(conn, cmp_id, new_name)
     url = f"/compare?items={items}" if items else "/compare"
-    return RedirectResponse(url, status_code=303)
+    return RedirectResponse(_with_return(url, return_to), status_code=303)
 
 
 @app.post("/compare/saved/delete", response_class=RedirectResponse)
 async def compare_saved_delete(
     cmp_id: int = Form(...),
-    items:  str = Form(""),
+    items:  str = Form(""),    return_to: str = Form(""),
 ):
     with _db.get_db() as conn:
         _db.saved_mixed_comparison_delete(conn, cmp_id)
     items_str = items.strip()
     url = f"/compare?items={items_str}" if items_str else "/compare"
-    return RedirectResponse(url, status_code=303)
+    return RedirectResponse(_with_return(url, return_to), status_code=303)
 
 
 def _recipe_detail_context(recipe_id: int, servings: float | None,
@@ -6867,6 +7934,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
                 _ing["volume_display"] = _ingredient_volume_display(conn, _ing)
             if not _ing["ref_recipe_id"]:
                 _ing["amount_display"] = _ingredient_amount_display(conn, _ing)
+                _ing["typed_note"] = _typed_amount_note(_ing["amount_display"])
         _attach_ref_serving_sizes(conn, ingredients)
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
@@ -6875,6 +7943,10 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
             servings = 1.0
 
         diaas_ingredients = _flatten_recipe_diaas_ingredients(recipe_id, conn, servings)
+        # Every leaf food, sub-recipes opened up — diaas_ingredients keeps a
+        # sub-recipe atomic, which would hide its foods' calorie problems.
+        calorie_leaves = expand_recipe_ingredients(recipe_id, conn,
+                                                   portion_factor=servings / recipe_servings)
 
         diaas_result = None
         if diaas_ingredients:
@@ -6921,6 +7993,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
 
     return {
         "recipe":                   dict(recipe),
+        "calorie_warnings":         _calorie_warnings(calorie_leaves),
         "ingredients":              ingredients,
         "servings":                 servings,
         "contributor_options":      contributor_options,
@@ -7140,6 +8213,23 @@ def _ingredient_amount_display(conn, ing: dict) -> str:
     return f"{float(ing['amount'] or 0):g} g"
 
 
+_GRAMS_FRAGMENT_RE = re.compile(r"\(?\s*\d[\d.,/]*\s*(?:g|gr|grams?)\b\.?\s*\)?", re.IGNORECASE)
+
+
+def _typed_amount_note(label: str | None) -> str | None:
+    """What the user typed for an ingredient, minus any gram figure in it,
+    for the recipe page's "<grams> g (<this>)" amount column: "14.7 gr (2 T)"
+    -> "2 T", "1/3 c" -> "1/3 c". None when the entry was only grams ("33 g"),
+    so the caller falls back to the portion-derived hint, which then adds
+    something the gram figure doesn't."""
+    if not label:
+        return None
+    rest = _GRAMS_FRAGMENT_RE.sub(" ", label)
+    rest = re.sub(r"\(\s*\)", " ", rest)
+    rest = " ".join(rest.split()).strip(" ,;()")
+    return rest or None
+
+
 def _attach_ingredient_portions(conn, ingredients: list[dict]) -> None:
     """Attach each food ingredient's cached USDA portions (p1, p2, …) so the
     inline amount-edit popup can show them the same way the Add Ingredient
@@ -7337,7 +8427,7 @@ async def recipe_translation_delete(request: Request, recipe_id: int, translatio
 
 @app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
 async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = "",
-                           relinked: str = "", relinked_to: str = "",
+                           relinked: str = "", relinked_to: str = "", added_check: str = "",
                            source: list[str] | None = Query(default=None),
                            limit: int | None = None):
     # Keep the "Add Ingredient" panel open across a reload triggered from
@@ -7460,6 +8550,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         search_results = _cap_results_preserving_local(_filter_search_results_by_source(search_results, source), limit)
 
     return templates.TemplateResponse(request, "recipe_edit.html", {
+        **_added_food_note(added_check),
         "recipe":             dict(recipe),
         "ingredients":        ingredients,
         "q":                  q,
@@ -7684,11 +8775,13 @@ async def recipe_ingredient_add(
         _db.recipe_add_ingredient(conn, recipe_id, fdc_id, name, grams, msg,
                                    notes.strip() or None)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
+        check = _added_food_check(conn, fdc_id)
     # Successful add: explicit empty q= (not simply omitted) tells the
     # persist-search JS in base.html to forget the saved query instead of
     # restoring it from sessionStorage — otherwise the search panel would
     # reappear right after the add.
-    return RedirectResponse(f"/recipe/{recipe_id}/edit?q=", status_code=303)
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?q=" + (f"&added_check={check}" if check else ""),
+                            status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/ingredient/add-recipe", response_class=RedirectResponse)
@@ -8593,7 +9686,7 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
     profile's RDA/target/limit for that nutrient — stored per-row in
     pct_goal_map, keyed by nutrient key."""
     from numa_app.services.meal_list_columns import (
-        sanitize as _sanitize_meal_nutrients, label_for as _meal_label_for, day_nutrient_values,
+        saved_or_default as _saved_or_default_meal_nutrients, label_for as _meal_label_for, day_nutrient_values,
         day_nutrient_raw_totals, MANDATORY_DAY_COLUMNS, MANDATORY_DAY_KEYS,
     )
     show_profile = len(_profile.list_profiles()) > 1
@@ -8602,7 +9695,7 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
     # own fixed column below, so it would otherwise appear twice. Calories/
     # Carbs/Fiber are no longer mandatory here, so they pass through
     # normally if picked (same as any other nutrient).
-    nutrient_keys = [k for k in _sanitize_meal_nutrients(_load_prefs_file().get("meal_list_nutrients", []))
+    nutrient_keys = [k for k in _saved_or_default_meal_nutrients(_load_prefs_file())
                      if k not in MANDATORY_DAY_KEYS]
     all_keys = MANDATORY_DAY_KEYS + nutrient_keys
     diet_pref = _current_diet_pref()
@@ -8680,6 +9773,7 @@ async def summary_date(request: Request, meal_date: str):
             for it in m_items:
                 if it["item_type"] == "recipe":
                     it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
+            _annotate_recipe_amounts(m_items, conn)
             m["meal_items"] = _sort_meal_items_display(m_items)
 
     diaas_display = _build_diaas_display(diaas_result)
@@ -8718,6 +9812,8 @@ async def summary_date(request: Request, meal_date: str):
         day_rows, day_nutrient_cols, mandatory_day_cols = _build_day_rows(rows, conn)
 
     return templates.TemplateResponse(request, "summary.html", {
+        "calorie_warnings":  _calorie_warnings(day_ingredients),
+        "recalc_notes":      _recalc_notes([m["id"] for m in meals]),
         "day_rows":          day_rows,
         "mandatory_day_cols": mandatory_day_cols,
         "day_nutrient_cols": day_nutrient_cols,
@@ -8790,6 +9886,12 @@ def _parse_date_range_lines(raw: str) -> list[tuple[str, str]]:
                 start, end = end, start
             ranges.append((start, end))
     return ranges
+
+
+def _item_code(e: dict) -> str:
+    """A Food Use row's display code (U171477, R21, ...), "" if it has none."""
+    classified = _classify_food_id(e["fdc_id"], e["recipe_id"] if e["kind"] == "recipe" else None)
+    return classified[0] if classified else ""
 
 
 def _resolve_meals_for_food_use(
@@ -8875,12 +9977,13 @@ async def analysis_food_use(
     sort_keys = {
         "frequency": lambda e: (-len(e["days"]), -len(e["meal_ids"]), e["name"].lower()),
         "food":      lambda e: (e["name"].lower(),),
-        "id":        lambda e: (e["fdc_id"] is None, e["fdc_id"] or 0),
+        "id":        lambda e: _code_sort_key(_item_code(e)),
     }
     rows_sorted = sorted(rows_all, key=sort_keys.get(sort, sort_keys["frequency"]))
     total_days = len({m["meal_date"] for m in meals_by_id.values()})
     result_rows = [{
         "fdc_id":    r["fdc_id"],
+        "code":      _item_code(r),
         "name":      r["name"],
         "kind":      r["kind"],
         "deleted":   r["deleted"],
@@ -8917,10 +10020,8 @@ async def analysis_food_use_substitute(
     meal_ids: str = Form(""),
     protein_only: bool = Form(False),
     sort: str = Form("frequency"),
-    old_kind: str = Form(...),
-    old_id: int = Form(...),
-    new_kind: str = Form(...),
-    new_id: int = Form(...),
+    old_code: str = Form(...),
+    new_code: str = Form(...),
 ):
     """Replace every direct occurrence of (old_kind, old_id) with (new_kind,
     new_id) across the meals currently selected on the Food Use in Meals page
@@ -8940,6 +10041,11 @@ async def analysis_food_use_substitute(
             params["substituted"] = n
         return RedirectResponse(f"/analysis/food-use?{urlencode(params)}", status_code=303)
 
+    try:
+        old_kind, old_id = _parse_code(old_code)
+        new_kind, new_id = _parse_code(new_code)
+    except ValueError as exc:
+        return _back(error=str(exc))
     if old_kind == new_kind and old_id == new_id:
         return _back(error="Old and new selections are the same item.")
     try:
@@ -9034,12 +10140,13 @@ async def analysis_food_use_recipes(
     sort_keys = {
         "frequency": lambda e: (-len(e["container_ids"]), e["name"].lower()),
         "food":      lambda e: (e["name"].lower(),),
-        "id":        lambda e: (e["fdc_id"] is None, e["fdc_id"] or 0),
+        "id":        lambda e: _code_sort_key(_item_code(e)),
     }
     rows_sorted = sorted(rows_all, key=sort_keys.get(sort, sort_keys["frequency"]))
     total_recipes = len(recipes_by_id)
     result_rows = [{
         "fdc_id":      r["fdc_id"],
+        "code":        _item_code(r),
         "name":        r["name"],
         "kind":        r["kind"],
         "recipe_id":   r["recipe_id"],
@@ -9073,10 +10180,8 @@ async def analysis_food_use_recipes_substitute(
     recipe_ids: str = Form(""),
     protein_only: bool = Form(False),
     sort: str = Form("frequency"),
-    old_kind: str = Form(...),
-    old_id: int = Form(...),
-    new_kind: str = Form(...),
-    new_id: int = Form(...),
+    old_code: str = Form(...),
+    new_code: str = Form(...),
 ):
     """Replace every ingredient occurrence of (old_kind, old_id) with
     (new_kind, new_id) across the recipes currently selected on the Food Use
@@ -9096,6 +10201,11 @@ async def analysis_food_use_recipes_substitute(
             params["substituted"] = n
         return RedirectResponse(f"/analysis/food-use-recipes?{urlencode(params)}", status_code=303)
 
+    try:
+        old_kind, old_id = _parse_code(old_code)
+        new_kind, new_id = _parse_code(new_code)
+    except ValueError as exc:
+        return _back(error=str(exc))
     if old_kind == new_kind and old_id == new_id:
         return _back(error="Old and new selections are the same item.")
     try:

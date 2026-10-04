@@ -1,0 +1,8 @@
+{# Past-day recalculation note: these totals moved because a food they use
+   had its data changed, or an amount was corrected — not because the meal
+   was edited. `recalc_notes` from web/backend.py's _recalc_notes(). #}
+{% if recalc_notes %}
+<p class="muted mb-2" style="font-size:0.85rem">Totals recalculated:
+  {% for n in recalc_notes %}{{ n.date }} ({{ n.reason }}){% if not loop.last %}; {% endif %}{% endfor %}.
+  {{ manual_link("data-effects", "Why totals change") }}</p>
+{% endif %}

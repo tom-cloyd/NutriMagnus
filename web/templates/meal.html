@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_add_food_row.html" as _sr %}
+{% import "_calorie_note.html" as _cal %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
 {% import "_ul_column.html" as _ul %}
@@ -9,6 +10,7 @@
 {% import "_dcp_footnote.html" as _dcp_note %}
 {% import "_top_contributors.html" as _contrib %}
 {% import "_failsafe_note.html" as _failsafe %}
+{% import "_recipe_amount.html" as _ramt %}
 {% block title %}NutriMagnus — {{ meal.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -125,12 +127,12 @@
   <strong>{{ diaas.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</p>
 {% set unusable_g = (diaas.total_protein_g - diaas.dcp_g) | round(1) %}
 {% if unusable_g > 0 %}
-<p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
+<p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; it will be broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
 {% endif %}
 {% endif %}
 
 {# ── Management actions ───────────────────────────────────────────────── #}
-{{ _failsafe.note('"Rename / change date"', "meal-rename-failsafe-note") }}
+{{ _failsafe.note('"Rename / change date"', "meal-rename-failsafe-note", autosave=True) }}
 {# align-items-start: without it, a flex row's default stretch makes a bare
    <a class="btn"> child fill the row's full height, while a <button> nested
    inside a <form> child absorbs that same stretch invisibly on the form
@@ -142,7 +144,7 @@
     {% if meal.complete %}
     <button type="submit" class="btn btn-sm btn-outline-secondary">Mark incomplete</button>
     {% else %}
-    <button type="submit" class="btn btn-sm btn-outline-success">Mark complete</button>
+    <button type="submit" class="btn btn-sm btn-outline-danger">Mark complete</button>
     {% endif %}
   </form>
 
@@ -158,7 +160,7 @@
     <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Rename / change date</summary>
     <div class="card card-body mt-1 p-2" style="min-width:22rem;position:absolute;z-index:10">
       <form method="post" action="/meal/{{ meal.id }}/rename" id="meal-rename-form"
-            data-leave-guard='"Rename / change date"'>
+            data-leave-guard='"Rename / change date"' data-leave-guard-autosave>
         <p class="muted mb-2" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
         <div class="mb-2">
           <label class="form-label form-label-sm mb-1">Meal name <span class="text-danger">*</span></label>
@@ -186,6 +188,7 @@
 <details open class="mb-3" id="add-food-details" data-remember="add-food">
   <summary><strong>Add Food or Recipe</strong></summary>
   {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
+  {% include "_food_quality_note.html" %}
 
   <form method="get" action="/meal/{{ meal.id }}" data-persist-search>
     <input type="hidden" name="sort" value="{{ sort }}">
@@ -216,7 +219,7 @@
     <input type="hidden" name="limit" value="{{ limit }}">
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
-            onchange="this.form.submit()">
+            onchange="this.form.requestSubmit()">
       <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
@@ -251,7 +254,7 @@
         <th class="col-aa" title="Amino acid data available">AA</th>
         <th class="col-gi" title="Glycemic index (annotated)">GI</th>
         <th class="col-diaas" title="DIAAS score (annotated)">DIAAS</th>
-        <th class="col-id">ID#</th>
+        <th class="col-id">Code</th>
         <th class="col-source">Source</th>
       </tr>
     </thead>
@@ -501,7 +504,7 @@
     <form method="get" action="/meal/{{ meal.id }}" class="d-flex align-items-center gap-1">
       <label class="muted me-1" for="item_sort"><small>Sort by</small></label>
       <select name="item_sort" id="item_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
-              onchange="this.form.submit()">
+              onchange="this.form.requestSubmit()">
         <option value="alpha" {% if item_sort == "alpha" %}selected{% endif %}>Alphabetical</option>
         <option value="entry" {% if item_sort == "entry" %}selected{% endif %}>Entry order</option>
       </select>
@@ -532,7 +535,7 @@
           {% endif %}
         </td>
         <td class="num-col" style="white-space:nowrap">
-          {{ item.amount | round(1) }}&thinsp;{{ item.unit }}{% if item.grams %} <span class="muted">({{ item.grams | round | int }}&thinsp;g)</span>{% endif %}
+          {% if item.recipe_id %}{{ _ramt.amount(item) }}{% else %}{{ item.amount | round(1) }}&thinsp;{{ item.unit }}{% endif %}
         </td>
         <td>
           {% if item.notes %}<small class="muted">{{ item.notes }}</small>{% endif %}
@@ -587,9 +590,34 @@
           </form>
         </td>
       </tr>
+      {% if item.serving_changed %}
+      {% set sc = item.serving_changed %}
+      <tr class="table-warning">
+        <td colspan="4">
+          <small>
+            <strong>This recipe&rsquo;s serving size has changed since you logged it.</strong>
+            One serving weighed {{ sc.logged | round | int }}&thinsp;g then; it weighs {{ sc.now | round | int }}&thinsp;g now,
+            so {{ "%g"|format(item.amount|round(2)) }} serving{{ "" if item.amount == 1 else "s" }} now counts as
+            {{ (sc.now * item.amount) | round | int }}&thinsp;g instead of the {{ (sc.logged * item.amount) | round | int }}&thinsp;g you logged.
+            {{ manual_link("recipe-servings-grams") }}
+          </small>
+          <div class="d-flex flex-wrap gap-2 mt-1">
+            <form method="post" action="/meal/{{ meal.id }}/item/{{ item.id }}/serving-weight" style="margin:0">
+              <input type="hidden" name="choice" value="keep">
+              <button type="submit" class="btn btn-sm btn-outline-secondary">Keep the {{ (sc.logged * item.amount) | round | int }}&thinsp;g I logged (change to {{ "%g"|format((item.amount * sc.logged / sc.now)|round(2)) }} servings)</button>
+            </form>
+            <form method="post" action="/meal/{{ meal.id }}/item/{{ item.id }}/serving-weight" style="margin:0">
+              <input type="hidden" name="choice" value="accept">
+              <button type="submit" class="btn btn-sm btn-outline-secondary">Use the new serving size ({{ (sc.now * item.amount) | round | int }}&thinsp;g)</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
+  {{ _ramt.weight_note(items | selectattr("recipe_id") | list | length > 0) }}
   </div>
 </section>
 {% else %}
@@ -649,6 +677,8 @@
 <section id="sec-nutrients" class="analysis-section">
   <h3 class="section-heading">Nutritional Analysis for <em>{{ meal.name }}, {{ meal.meal_date }}</em> {{ manual_link("nutrients") }}</h3>
 
+  {{ _cal.note(calorie_warnings) }}
+  {% include "_recalc_note.html" %}
   {% if not has_profile %}
   <p class="rda-no-profile">
     No personal profile set up &mdash; RDA % targets are not shown.
@@ -743,6 +773,18 @@
     <small class="muted" style="font-weight:400"> — pooled across foods, digestibility-corrected (DIAAS)</small>
     {{ manual_link("meal-diaas") }}
   </h3>
+  {% if aa_refreshed is not none %}
+  <div class="alert alert-info" style="max-width:52rem" id="aa-refresh-result">
+    {% if aa_refreshed %}Filled in missing values for {{ aa_refreshed }} food{{ "s" if aa_refreshed != 1 }} from USDA.
+    {% else %}USDA had no missing values to fill in for these foods.{% endif %}
+    Values the foods already had were left alone.
+    {% if aa_differ_foods %}
+    <br>USDA's copy also has different values for some existing ones on:
+    {% for f in aa_differ_foods %}<a href="/food/{{ f.fdc_id }}/review-incoming?source=usda&next={{ ('/meal/%s' % meal.id) | urlencode }}">{{ f.name }}</a>{{ ", " if not loop.last }}{% endfor %}
+    — click one to review and choose.
+    {% endif %}
+  </div>
+  {% endif %}
 
   {% if diaas.ing_rows %}
   <h4 class="mt-3" id="pq-digestibility">Meal foods: Digestibility</h4>
@@ -951,7 +993,7 @@
   <p class="mb-1">
     <label class="muted me-1" style="font-size:.8rem"><small>Sort by</small></label>
     <select name="comp_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
-            onchange="this.form.submit()">
+            onchange="this.form.requestSubmit()">
       <option value="dcp" {% if complements.comp_sort == "dcp" %}selected{% endif %}>Greatest DCP achieved</option>
       <option value="digestible_protein" {% if complements.comp_sort == "digestible_protein" %}selected{% endif %}>Most digestible protein added</option>
       <option value="gap_effect" {% if complements.comp_sort == "gap_effect" %}selected{% endif %}>Greatest effect on amino acid gap</option>
@@ -1048,7 +1090,7 @@
   <p class="mb-1">
     <label class="muted me-1" style="font-size:.8rem"><small>Sort by</small></label>
     <select name="diaas_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
-            onchange="this.form.submit()">
+            onchange="this.form.requestSubmit()">
       <option value="effect" {% if complements.diaas_sort != "grams" %}selected{% endif %}>Greatest effect</option>
       <option value="grams" {% if complements.diaas_sort == "grams" %}selected{% endif %}>Smallest addition (grams)</option>
     </select>

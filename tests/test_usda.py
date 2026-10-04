@@ -113,6 +113,33 @@ class TestParseFood:
         assert result["nutrients"]["protein_g"] == pytest.approx(31.0)
         assert result["nutrients"]["fat_g"] == pytest.approx(3.6)
 
+    def test_atwater_energy_used_when_plain_energy_missing(self):
+        # Foundation foods (e.g. 2346393 almonds) often have no 1008 Energy,
+        # only Atwater Specific (2048) / General (2047). Specific wins.
+        response = self._make_usda_response([
+            {"nutrient": {"id": 2047}, "amount": 625.75},
+            {"nutrient": {"id": 2048}, "amount": 583.6},
+            {"nutrient": {"id": 1004}, "amount": 51.1},
+        ])
+        assert _usda._parse_food(response)["nutrients"]["calories"] == pytest.approx(583.6)
+
+    def test_atwater_general_used_when_only_one_present(self):
+        response = self._make_usda_response([{"nutrient": {"id": 2047}, "amount": 40.7}])
+        assert _usda._parse_food(response)["nutrients"]["calories"] == pytest.approx(40.7)
+
+    def test_plain_energy_beats_atwater(self):
+        response = self._make_usda_response([
+            {"nutrientId": 2048, "value": 580.0},
+            {"nutrientId": 1008, "value": 600.0},
+        ])
+        assert _usda._parse_food(response)["nutrients"]["calories"] == pytest.approx(600.0)
+
+    def test_atwater_energy_in_abridged_format(self):
+        response = self._make_usda_response([
+            {"number": "957", "amount": 626}, {"number": "958", "amount": 584},
+        ])
+        assert _usda._parse_food(response)["nutrients"]["calories"] == pytest.approx(584)
+
     def test_ignores_unknown_nutrient_ids(self):
         response = self._make_usda_response([
             {"nutrientId": 1008, "value": 100.0},
@@ -2011,11 +2038,21 @@ class TestGetDensityGPerMl:
     def test_unknown_food_returns_none(self):
         assert _usda.get_density_g_per_ml("mystery unrecognized food xyz", []) is None
 
-    def test_static_table_takes_priority_over_usda_portions(self):
-        # Static table lookup wins even when USDA portion data is provided.
-        # Nutritional yeast table entry is 0.61 g/ml; the USDA cup portion
-        # (90g/cup = 0.380 g/ml) is ignored because the table matched first.
-        portions = [{"description": "1 cup", "gram_weight": 90.0}]
+    def test_food_own_portion_takes_priority_over_static_table(self):
+        # The food's own cup portion wins over the static table: a 99 g cup
+        # saved for an okara flour must not lose to "flour" (0.53 g/ml),
+        # which made "1/3 c" 41.8 g instead of 33 g.
+        portions = [{"description": "1 cup", "gram_weight": 99.0}]
+        density = _usda.get_density_g_per_ml("Pure Okara Flour (dried)", portions)
+        assert density == pytest.approx(99.0 / 236.6, rel=0.01)
+
+    def test_static_table_used_when_no_volume_portion(self):
+        portions = [{"description": "1 serving", "gram_weight": 90.0}]
+        density = _usda.get_density_g_per_ml("Nutritional yeast", portions)
+        assert density == pytest.approx(0.61, rel=0.01)
+
+    def test_static_table_used_when_portion_density_implausible(self):
+        portions = [{"description": "1 tablespoon", "gram_weight": 40.0}]  # 2.7 g/ml
         density = _usda.get_density_g_per_ml("Nutritional yeast", portions)
         assert density == pytest.approx(0.61, rel=0.01)
 

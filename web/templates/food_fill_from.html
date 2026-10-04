@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "_source_filter_select.html" as source_filter %}
+{% block title %}NutriMagnus — Fill in nutrients from another food{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Fill in nutrients from another food</li>
+  </ol>
+</nav>
+
+<h2>Fill in nutrients for {{ food.name }} from another food {{ manual_link("review-incoming") }}</h2>
+<p class="muted" style="max-width:52rem">
+  Search for a similar food, then click <strong>Review values to copy</strong> to see its values beside this
+  food's and tick the ones to take — values that fill a blank are ticked for you. Amino acids are scaled to
+  this food's protein rather than copied raw. This food keeps its own ID,
+  so meals and recipes that use it pick up the new values. It will show as user-edited afterwards.
+</p>
+
+<form method="get" action="/food/{{ food.fdc_id }}/fill-from" class="mb-2">
+  <div class="d-flex gap-2 mb-2 align-items-center">
+    <input type="text" class="form-control form-control-sm" name="q" value="{{ q }}"
+           placeholder="Search for a food to copy from…" style="max-width:22rem" autofocus>
+    <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
+  </div>
+  {{ source_filter.select(source, source_filters, source_labels) }}
+</form>
+{% if omitted_sources %}
+<p class="mb-2"><small class="text-danger">Omitted from search: {{ omitted_sources | join(', ') }}</small></p>
+{% endif %}
+
+{% if q and not results %}
+<p class="muted"><small>No foods match "{{ q }}".</small></p>
+<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>
+{% elif results %}
+<form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/compare" id="fill-compare-picks"
+      class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <input type="hidden" name="return_to" value="/food/{{ food.fdc_id }}/fill-from?q={{ q | urlencode }}">
+  <button type="submit" class="btn btn-sm btn-outline-primary">Compare checked foods with this one &rarr;</button>
+  <small class="muted">Opens Compare with this food first; its <strong>&larr; Back</strong> button returns you here.</small>
+</form>
+<table class="table table-sm table-hover" style="max-width:52rem">
+  <thead class="table-light">
+    <tr><th>Compare</th><th title="Amino acid data">AA</th><th>Food</th><th>Type</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for r in results %}
+    <tr>
+      <td><input type="checkbox" class="form-check-input" form="fill-compare-picks" name="pick"
+                 value="{{ r.fdc_id }}|{{ r.off_code or '' }}" aria-label="Compare {{ r.name }}"></td>
+      <td>{% if r.has_aa %}<span class="status-met" title="Has (or likely has) amino acid data">&#10003;</span>
+          {% else %}<span class="text-danger" title="No amino acid data">&#10007;</span>{% endif %}</td>
+      <td>{{ r.name }} <small class="muted">({{ food_id_short(r.fdc_id) }})</small></td>
+      <td class="muted">{{ food_type(r) }}</td>
+      <td><a class="btn btn-sm btn-primary"
+             href="/food/{{ food.fdc_id }}/review-incoming?source=food&source_fdc_id={{ r.fdc_id }}&off_code={{ (r.off_code or '') | urlencode }}&next={{ ('/food/%s' % food.fdc_id) | urlencode }}">Review values to copy&hellip;</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -10,7 +10,7 @@
 </nav>
 
 <h2>Food Use in Recipes {{ manual_link("fooduse-recipes") }}</h2>
-<p class="muted">Tabulates which foods and sub-recipes appear across a set of recipes you choose, ranked by how many of those recipes use each one.</p>
+<p class="muted">Tabulates which foods and recipes are used as ingredients across a set of recipes you choose, ranked by how many of those recipes use each one. This is a look at your recipe book, not at what you eat — a recipe you log in meals but never use inside another recipe won't appear here. For actual consumption, see <a href="/analysis/food-use">Food Use in Meals</a>.</p>
 
 <p class="muted">Pick one selection method below — they can't be combined in a single search.</p>
 
@@ -57,7 +57,7 @@
         <button type="submit" name="sort" value="food"
                 class="btn {% if sort == 'food' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Food</button>
         <button type="submit" name="sort" value="id"
-                class="btn {% if sort == 'id' %}btn-primary{% else %}btn-outline-secondary{% endif %}">ID</button>
+                class="btn {% if sort == 'id' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Code</button>
       </div>
     </div>
     {% endif %}
@@ -116,10 +116,10 @@
   <p class="muted mb-2">
     <small>The table below (once you've searched) shows what's <em>currently used</em> in this selection —
     it isn't a list of foods you can replace with, and the item you're replacing appears in it too (marked
-    "replacing this"). To find the ID of the food or recipe you want as the <strong>replacement</strong>,
-    look it up first: <a href="/food/search" target="_blank" rel="noopener">Food Search</a> (opens in a new
-    tab — its results table shows each food's ID) or <a href="/recipes" target="_blank" rel="noopener">Recipes</a>
-    for a recipe's ID.</small>
+    "replacing this"), with its code in the Code column. To find the code of the food or recipe you want as the
+    <strong>replacement</strong>, look it up first: <a href="/food/search" target="_blank" rel="noopener">Food Search</a>
+    (opens in a new tab — its results table shows each food's code) or <a href="/recipes" target="_blank" rel="noopener">Recipes</a>
+    for a recipe's code.</small>
   </p>
   {% if error %}
   <p class="text-danger"><small>{{ error }}</small></p>
@@ -135,24 +135,13 @@
     <input type="hidden" name="protein_only" value="{{ 'true' if protein_only else '' }}">
     <input type="hidden" name="sort" value="{{ sort or 'frequency' }}">
     <div>
-      <label class="form-label mb-0" for="old_kind"><small>Replace this</small></label>
-      <div class="d-flex gap-1">
-        <select class="form-select form-select-sm" name="old_kind" id="old_kind" style="max-width:6.5rem">
-          <option value="food" {% if sub_kind != "recipe" %}selected{% endif %}>Food</option>
-          <option value="recipe" {% if sub_kind == "recipe" %}selected{% endif %}>Recipe</option>
-        </select>
-        <input type="number" class="form-control form-control-sm" name="old_id" placeholder="ID #" required style="max-width:7rem" value="{{ sub_id or '' }}">
-      </div>
+      <label class="form-label mb-0" for="old_code"><small>Replace this (code)</small></label>
+      <input type="text" class="form-control form-control-sm" name="old_code" id="old_code" placeholder="e.g. U171477" required style="max-width:9rem"
+             value="{% if sub_id %}{{ food_code(none, sub_id) if sub_kind == 'recipe' else food_code(sub_id) }}{% endif %}">
     </div>
     <div>
-      <label class="form-label mb-0" for="new_kind"><small>With this</small></label>
-      <div class="d-flex gap-1">
-        <select class="form-select form-select-sm" name="new_kind" id="new_kind" style="max-width:6.5rem">
-          <option value="food">Food</option>
-          <option value="recipe">Recipe</option>
-        </select>
-        <input type="number" class="form-control form-control-sm" name="new_id" placeholder="ID #" required style="max-width:7rem">
-      </div>
+      <label class="form-label mb-0" for="new_code"><small>With this (code)</small></label>
+      <input type="text" class="form-control form-control-sm" name="new_code" id="new_code" placeholder="e.g. R21" required style="max-width:9rem">
     </div>
     <button type="submit" class="btn btn-sm btn-warning">Substitute everywhere in this selection</button>
   </form>
@@ -168,9 +157,8 @@
     <table class="table table-sm table-hover" style="max-width:76rem">
       <thead class="table-light">
         <tr>
-          <th>ID</th>
           <th>Food / Recipe</th>
-          <th>Kind</th>
+          <th>Code</th>
           <th class="num-col">Recipes used in</th>
           <th style="min-width:14rem">% of Recipes<br>in Selection</th>
           <th style="min-width:24rem">Recipe IDs</th>
@@ -182,7 +170,6 @@
              (sub_kind == "recipe" and r.kind == "recipe" and r.recipe_id == sub_id) or
              (sub_kind != "recipe" and r.kind != "recipe" and r.fdc_id == sub_id)) %}
         <tr>
-          <td class="muted">{% if r.fdc_id %}{{ r.fdc_id }}{% endif %}</td>
           <td>
             {% if r.kind == "recipe" %}
               {% if r.recipe_id %}<a href="/recipe/{{ r.recipe_id }}"><strong>{{ r.name }}</strong></a>
@@ -191,10 +178,9 @@
               {% if r.fdc_id %}<a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>
               {% else %}{{ r.name }}{% endif %}
             {% endif %}
-            {{ food_id_tag(r.fdc_id, recipe_id=(r.recipe_id if r.kind == "recipe" else None)) }}
             {% if is_replace_target %}<span class="badge text-bg-warning ms-1">replacing this</span>{% endif %}
           </td>
-          <td class="muted">{% if r.kind == "recipe" %}recipe{% endif %}</td>
+          <td class="muted" style="white-space:nowrap">{{ food_id_short(r.fdc_id, r.recipe_id if r.kind == "recipe" else none) }}</td>
           <td class="num-col">{{ r.count }}</td>
           <td>
             <div class="progress" role="progressbar" aria-label="Percent of recipes in this selection using this item" aria-valuenow="{{ r.pct|int }}" aria-valuemin="0" aria-valuemax="100" style="height:1rem">
@@ -214,6 +200,7 @@
     <strong>% of Recipes in Selection</strong> = that count &divide; {{ total_recipes }} total recipe(s) in this selection &middot;
     a sub-recipe used as an ingredient shows up as its own row (in bold) and its own ingredients are also listed individually, the same way a directly-added recipe does on Food Use in Meals.
   </small></p>
+  {% include "_code_key.html" %}
   {% else %}
   <p class="muted mt-2">No recipes matched the selected date range(s) / recipe IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>
   {% endif %}

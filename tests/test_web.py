@@ -372,6 +372,59 @@ def test_data_entry_safety_note_and_guard_on_every_edit_page(
         assert "data-leave-guard=" in page.text, path
 
 
+def test_custom_profile_autosave_undo_restores_exactly(
+    client: TestClient, cached_food, db_conn
+) -> None:
+    """Edit Custom Profile opts into base.html's data-leave-guard-autosave:
+    running a search saves pending edits first, and the Undo re-posts the
+    form's page-load values. That Undo is only honest if re-posting those
+    values is an exact revert — i.e. the POST rewrites every field from
+    what is submitted. Pin that premise."""
+    from html.parser import HTMLParser
+
+    class _PostForm(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.in_form, self.fields, self._ta = False, [], None
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "form" and a.get("method") == "post" and "data-leave-guard" in a:
+                self.in_form = True
+                assert "data-leave-guard-autosave" in a
+            elif self.in_form and tag == "input" and a.get("name") and a.get("type") != "submit":
+                self.fields.append((a["name"], a.get("value") or ""))
+            elif self.in_form and tag == "textarea" and a.get("name"):
+                self._ta = [a["name"], ""]
+        def handle_data(self, data):
+            if self._ta is not None:
+                self._ta[1] += data
+        def handle_endtag(self, tag):
+            if tag == "textarea" and self._ta is not None:
+                self.fields.append(tuple(self._ta)); self._ta = None
+            elif tag == "form":
+                self.in_form = False
+
+    fdc_id = cached_food["fdcId"]
+    url = f"/food/custom-profiles/{fdc_id}/edit"
+    # Make it a user-drafted profile first, so the before-state is one the
+    # edit form itself produced.
+    parser = _PostForm(); parser.feed(client.get(url).text)
+    client.post(url, data=dict(parser.fields))
+    before = dict(_db.get_cached_food(db_conn, fdc_id))
+
+    parser = _PostForm(); parser.feed(client.get(url).text)
+    baseline = dict(parser.fields)
+    assert parser.fields, "no fields parsed from the guarded form"
+    edited = dict(baseline, name=baseline["name"] + " EDITED", protein_g="99")
+    client.post(url, data=edited)
+    assert _db.get_cached_food(db_conn, fdc_id)["name"].endswith(" EDITED")
+
+    client.post(url, data=baseline)  # what the Undo button sends
+    after = dict(_db.get_cached_food(db_conn, fdc_id))
+    for col in ("name", "serving_size", "serving_unit", "notes", "nutrients_json", "portions_json"):
+        assert after[col] == before[col], col
+
+
 def test_recipe_notes_round_trip_and_survive_other_saves(client: TestClient, db_conn) -> None:
     """"Notes and documentation" is a free-text recipe field on the Edit
     Recipe page (below Instructions) for anything the user wants on record
@@ -481,6 +534,38 @@ def test_food_search_by_barcode_not_found(client: TestClient) -> None:
 def test_food_detail_page(client: TestClient, cached_food) -> None:
     resp = client.get(f"/food/{cached_food['fdcId']}")
     assert resp.status_code == 200
+
+
+def test_food_detail_shows_current_gi_diaas_beside_annotate_button(
+    client: TestClient, cached_food, db_conn
+) -> None:
+    """Once a GI or DIAAS value exists, the Annotate button moves to its own
+    row after a "DIAAS set at N" line (GI too, unless the GI / GL paragraph
+    above already shows it), so coming back from the
+    Annotate page shows whether the save took. With neither set, the button
+    stays in the main button row and no status line appears."""
+    url = f"/food/{cached_food['fdcId']}"
+    import re
+    def status(html):
+        m = re.search(r'id="annotation-status">(.*?)</div>', html, re.S)
+        return re.sub(r"<[^>]+>|\s+", " ", m.group(1)) if m else ""
+    page = client.get(url).text
+    assert 'id="annotation-status"' not in page
+    assert "Add or edit GI / DIAAS estimates" in page
+
+    _db.upsert_food_annotation(db_conn, cached_food["fdcId"], gi_estimate=54.6, diaas_estimate=0.873)
+    db_conn.commit()
+    after = status(client.get(url).text)
+    # A set GI is shown in the GI / GL paragraph, so the status line omits it.
+    assert "GI set at" not in after and "GI not set" not in after
+    assert "GI 55" in client.get(url).text
+    assert "DIAAS set at 0.87" in re.sub(r"\s+", " ", after)
+    assert "Add or edit GI / DIAAS estimates" in after
+
+    _db.set_food_annotation(db_conn, cached_food["fdcId"], gi_estimate=None, gi_no_prompt=False,
+                            diaas_estimate=0.873, diaas_no_prompt=False, prep_context=None)
+    db_conn.commit()
+    assert "GI not set" in re.sub(r"\s+", " ", status(client.get(url).text))
 
 
 def test_food_detail_offers_copy_as_draft_and_starter_toggle_for_real_food(
@@ -1350,7 +1435,7 @@ def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/settings?saved=nutrient_target"
+    assert resp.headers["location"] == "/settings?saved=nutrient_target#nutrient-targets"
     profile = _profile.load_profile()
     assert profile.optimal_targets == {"vitamin_d_mcg": 50.0}
 
@@ -1370,7 +1455,7 @@ def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
 def test_settings_nutrient_target_load_defaults(client: TestClient) -> None:
     resp = client.post("/settings/nutrient-target/load-defaults", follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/settings?saved=nutrient_target_defaults"
+    assert resp.headers["location"] == "/settings?saved=nutrient_target_defaults#nutrient-targets"
     profile = _profile.load_profile()
     assert profile.optimal_targets == {
         "vitamin_d_mcg": 50.0,
@@ -1487,6 +1572,64 @@ def test_settings_meal_nutrients_caps_and_orders(client: TestClient) -> None:
     prefs_data = json.loads(backend._PREFS_FILE.read_text())
     assert prefs_data["meal_list_nutrients"] == ["fiber_g", "sodium_mg"]
     assert len(prefs_data["meal_list_nutrients"]) <= MAX_MEAL_LIST_NUTRIENTS
+
+
+def test_meal_nutrients_default_until_saved_and_restore(client: TestClient) -> None:
+    """With no saved choice the defaults apply; a saved empty choice stays
+    empty; Restore default columns puts the defaults back."""
+    from numa_app.services.meal_list_columns import DEFAULT_MEAL_LIST_NUTRIENTS, saved_or_default
+    assert DEFAULT_MEAL_LIST_NUTRIENTS == ["protein_g", "calories", "carbs_g", "fiber_g", "sugar_g"]
+    assert saved_or_default({}) == DEFAULT_MEAL_LIST_NUTRIENTS
+    assert saved_or_default({"meal_list_nutrients": []}) == []
+
+    resp = client.get("/settings")
+    assert 'name="pos_sugar_g"' in resp.text
+    assert "Protein (raw, not DCP)" in resp.text
+    assert 'value="5"' in resp.text  # Sugars sits at position 5 by default
+
+    client.post("/settings/meal-nutrients", data={}, follow_redirects=False)
+    assert json.loads(backend._PREFS_FILE.read_text())["meal_list_nutrients"] == []
+
+    resp = client.post("/settings/meal-nutrients/restore-defaults", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"].endswith("#meal-list-nutrients")
+    assert json.loads(backend._PREFS_FILE.read_text())["meal_list_nutrients"] == DEFAULT_MEAL_LIST_NUTRIENTS
+
+
+def test_nutrient_target_load_defaults_returns_to_section_7(client: TestClient) -> None:
+    """Load recommended targets redirects back to section 7, which renders open."""
+    resp = client.post("/settings/nutrient-target/load-defaults", follow_redirects=False)
+    assert resp.headers["location"].endswith("#nutrient-targets")
+    resp = client.get("/settings?saved=nutrient_target_defaults")
+    assert '<details id="nutrient-targets" open>' in resp.text
+
+
+def test_settings_browser_lists_chromium_once(client: TestClient) -> None:
+    resp = client.get("/settings")
+    assert resp.text.count(">Chromium</label>") == 1
+    # A pref saved under the old second entry still validates.
+    client.post("/settings/browser", data={"preferred_browser": "chromium-browser"}, follow_redirects=False)
+    assert json.loads(backend._PREFS_FILE.read_text())["preferred_browser"] == "chromium-browser"
+    # ...and shows as the single Chromium choice, checked.
+    import re
+    radio = re.search(r'<input[^>]*id="browser-chromium"[^>]*>', client.get("/settings").text).group(0)
+    assert "checked" in radio
+
+
+def test_settings_sections_11_to_13_have_letter_shortcuts(client: TestClient) -> None:
+    text = client.get("/settings").text
+    for key in ("g", "y", "d"):
+        assert f'data-ak="{key}"' in text
+    # None of them may collide with a main-nav shortcut.
+    nav_keys = {"f", "r", "c", "m", "n", "s", "a"}
+    assert not nav_keys & {"g", "y", "d"}
+
+
+def test_nav_memory_skips_own_section() -> None:
+    """Clicking the nav link of the section you're already in goes to its
+    list instead of memory-restoring the page you're on."""
+    base = (pathlib.Path(backend.__file__).parent / "templates" / "base.html").read_text()
+    assert "if (key === here) return;" in base
 
 
 def test_meal_nutrient_column_shows_computed_value(client: TestClient, cached_food, db_conn) -> None:
@@ -1785,7 +1928,7 @@ def test_food_cache_delete_blocked_offers_bulk_replace_link(client: TestClient, 
         f"/analysis/food-use-recipes?mode=ids&recipe_ids={rid}&sub_kind=food&sub_id={cached_food['fdcId']}"
     )
     assert replace_resp.status_code == 200
-    assert f'value="{cached_food["fdcId"]}"' in replace_resp.text
+    assert f'value="U{cached_food["fdcId"]}"' in replace_resp.text
     assert "<details class=\"mb-3\" open>" in replace_resp.text
 
     # Regression test: the usage table below the substitute form lists every
@@ -2142,6 +2285,41 @@ def test_recipe_ingredient_volume_display_never_guesses(
     assert f'href="/food/cache/{second_cached_food["fdcId"]}/portions"' in resp.text
 
 
+def test_recipe_page_amount_shows_what_was_typed(
+    client: TestClient, second_cached_food, db_conn
+) -> None:
+    """The recipe page's Amount column shows the grams NuMa uses plus what the
+    user typed ("2 T"), not a portion-derived hint that ignores the typed
+    amount (or says "No portion/weight data" for a food with no portions)."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Shake", "servings": 1}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(
+        f"/recipe/{recipe_id}/ingredient/add",
+        data={"fdc_id": second_cached_food["fdcId"], "food_name": second_cached_food["name"],
+              "portion_str": "15 g"},
+        follow_redirects=False,
+    )
+    # A stored entry carrying both a spoon measure and its weighed grams, as
+    # recipes built from typed or imported "2 T (15 gr)" amounts have.
+    db_conn.execute("UPDATE recipe_ingredients SET unit = '2 T (15 gr)' WHERE recipe_id = ?", (recipe_id,))
+    db_conn.commit()
+    resp = client.get(f"/recipe/{recipe_id}")
+    assert '15.0&thinsp;g <span class="muted">(2 T)</span>' in resp.text
+    assert "No portion/weight data exists" not in resp.text
+
+
+@pytest.mark.parametrize("typed,expected", [
+    ("14.7 gr (2 T)", "2 T"), ("2 T (15 gr)", "2 T"), ("2 cups (250 g)", "2 cups"),
+    ("1/3 c", "1/3 c"), ("1 large egg", "1 large egg"),
+    ("33 g", None), ("100g", None), ("90 grams", None), ("", None),
+])
+def test_typed_amount_note(typed, expected) -> None:
+    from web.backend import _typed_amount_note
+    assert _typed_amount_note(typed) == expected
+
+
 def test_recipe_delete_and_copy(client: TestClient, cached_food, db_conn) -> None:
     recipe_id = int(
         client.post("/recipe/new", data={"name": "Stew", "servings": 3}, follow_redirects=False)
@@ -2193,6 +2371,24 @@ def test_recipe_archive_hides_and_restore_reveals(client: TestClient, db_conn) -
     assert "restored=1" in resp.headers["location"]
     resp = client.get("/recipes")
     assert "Soup" in resp.text
+
+
+@pytest.mark.parametrize("url,noun", [
+    ("/recipes", "recipes"), ("/food/cache", "foods"), ("/pantry", "pantry items"),
+])
+def test_archived_toggle_button_hides_again_after_showing(client: TestClient, url, noun) -> None:
+    """The show/hide-archived control is a link with an explicit show_archived=0|1.
+    It used to be a checkbox, and an unticked checkbox submits nothing, so the
+    remembered "show" pref won and unticking changed nothing."""
+    resp = client.get(f"{url}?show_archived=1")
+    assert f"Hide archived {noun}" in resp.text
+    assert "show_archived=0" in resp.text
+    resp = client.get(url)  # no param: the remembered pref
+    assert f"Hide archived {noun}" in resp.text
+    resp = client.get(f"{url}?show_archived=0")
+    assert f"Show archived {noun}" in resp.text
+    resp = client.get(url)
+    assert f"Show archived {noun}" in resp.text
 
 
 def test_recipe_archive_and_delete_ajax_row_action_returns_json(client: TestClient, db_conn) -> None:
@@ -2578,7 +2774,7 @@ def test_see_what_changed_links_to_newest_release_summary(tmp_path: pathlib.Path
     manual.write_text("<h4 id=\"next-release-summary-to-this-point\">Next release summary to this point</h4>\n",
                       encoding="utf-8")
     backend._release_anchor_cache.clear()
-    assert backend._latest_release_anchor() == "a-recent-program-updates-log"
+    assert backend._latest_release_anchor() == "updates-log"
 
 
 def test_version_note_sits_inside_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2993,6 +3189,103 @@ def test_food_use_analysis_shows_recipe_current_name_after_rename(client: TestCl
     assert "<strong>Chili</strong>" not in resp.text
 
 
+def test_food_use_analysis_lists_nested_subrecipe_eaten_via_meal(client: TestClient, cached_food: dict) -> None:
+    """A sub-recipe eaten only inside a logged recipe must get its own row on
+    Food Use in Meals (it was once flattened away into its base foods), and
+    its foods must be counted too."""
+    sub_id = int(
+        client.post("/recipe/new", data={"name": "House Dressing", "servings": 4}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(
+        f"/recipe/{sub_id}/ingredient/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+        follow_redirects=False,
+    )
+    outer_id = int(
+        client.post("/recipe/new", data={"name": "Salad", "servings": 2}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(
+        f"/recipe/{outer_id}/ingredient/add-recipe",
+        data={"ref_recipe_id": sub_id, "recipe_name": "House Dressing", "servings": 1},
+        follow_redirects=False,
+    )
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(
+        f"/meal/{meal_id}/add-recipe",
+        data={"recipe_id": outer_id, "recipe_name": "Salad", "servings": 1, "mode": "recipe"},
+        follow_redirects=False,
+    )
+
+    resp = client.get("/analysis/food-use", params={"ranges_raw": "2026-07-01:2026-07-31"})
+    assert "<strong>Salad</strong>" in resp.text
+    assert "<strong>House Dressing</strong>" in resp.text
+    assert cached_food["name"] in resp.text
+
+
+def test_food_use_analysis_shows_codes_and_key(client: TestClient, cached_food: dict) -> None:
+    """Food Use in Meals shows one Code column (U.../R...) in place of the
+    old ID + Kind columns, with a key to the prefixes under the table."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Chili", "servings": 3}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add-recipe",
+                data={"recipe_id": recipe_id, "recipe_name": "Chili", "servings": 1, "mode": "recipe"},
+                follow_redirects=False)
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+                follow_redirects=False)
+
+    html = client.get("/analysis/food-use", params={"ranges_raw": "2026-07-01:2026-07-31"}).text
+    assert "<th>Code</th>" in html
+    assert "<th>Kind</th>" not in html
+    assert f">R{recipe_id}</td>" in html
+    assert f">U{cached_food['fdcId']}</td>" in html
+    assert "<strong>UD</strong> user-drafted food" in html
+
+
+def test_user_edited_food_shows_pencil_beside_code_but_not_in_form_value(
+        client: TestClient, cached_food: dict, db_conn) -> None:
+    """An edited USDA food keeps its code (U...) but gets a ✎ beside it on
+    Food Use in Meals; the Substitute box pre-filled with that food gets the
+    bare code, since a ✎ there would not parse."""
+    _db.mark_user_edited(db_conn, cached_food["fdcId"])
+    db_conn.commit()
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+                follow_redirects=False)
+
+    html = client.get("/analysis/food-use", params={
+        "ranges_raw": "2026-07-01:2026-07-31", "sub_kind": "food", "sub_id": cached_food["fdcId"]}).text
+    code = f"U{cached_food['fdcId']}"
+    assert f"{code} \u270e</span>" in html
+    assert "USDA FoodData Central food, user-edited" in html
+    assert f'value="{code}"' in html
+
+
+def test_duplicate_foods_page_shows_user_edited(client: TestClient, db_conn) -> None:
+    for fid in (999101, 999102):
+        _db.cache_food(db_conn, fdc_id=fid, name="Twin Food", data_type="SR Legacy", brand=None,
+                       serving_size=100.0, serving_unit="g", nutrients={"calories": 100, "protein_g": 5})
+    _db.update_food_portions(db_conn, 999101, [{"description": "1 cup", "gram_weight": 50.0}])
+    db_conn.commit()
+    html = client.get("/food/cache/duplicates").text
+    assert "SR Legacy · user-edited" in html
+
+
 def test_food_use_analysis_links_food_and_recipe_names_to_analysis_pages(client: TestClient, cached_food: dict) -> None:
     """Regression test: Food Use in Meals used to list each food/recipe by
     plain name, with no way to jump to its own analysis page short of
@@ -3091,8 +3384,8 @@ def test_substitute_food_in_meals(client: TestClient, cached_food: dict, db_conn
         "/analysis/food-use/substitute",
         data={
             "mode": "range", "ranges_raw": "2026-07-01:2026-07-31",
-            "old_kind": "food", "old_id": cached_food["fdcId"],
-            "new_kind": "food", "new_id": 999001,
+            "old_code": f"U{cached_food['fdcId']}",
+            "new_code": "U999001",
         },
         follow_redirects=False,
     )
@@ -3131,8 +3424,8 @@ def test_substitute_recipe_ingredient_recomputes_dcp(client: TestClient, cached_
         "/analysis/food-use-recipes/substitute",
         data={
             "mode": "ids", "recipe_ids": str(recipe_id),
-            "old_kind": "food", "old_id": cached_food["fdcId"],
-            "new_kind": "food", "new_id": 999002,
+            "old_code": f"U{cached_food['fdcId']}",
+            "new_code": "U999002",
         },
         follow_redirects=False,
     )
@@ -3161,8 +3454,8 @@ def test_substitute_rejects_unknown_replacement(client: TestClient, cached_food:
         "/analysis/food-use/substitute",
         data={
             "mode": "range", "ranges_raw": "2026-07-01:2026-07-31",
-            "old_kind": "food", "old_id": cached_food["fdcId"],
-            "new_kind": "food", "new_id": 424242,
+            "old_code": f"U{cached_food['fdcId']}",
+            "new_code": "U424242",
         },
         follow_redirects=False,
     )
@@ -3939,6 +4232,12 @@ def test_nutrient_table_indents_carb_and_fat_subtypes(client: TestClient, db_con
     # Carbohydrate and Total Fat themselves are the parent rows, not subtypes.
     carb_row = re.search(r'<tr class="[^"]*">\s*<td>Carbohydrate</td>', html)
     assert carb_row is not None and "subtype-row" not in carb_row.group(0)
+    # Each subtype directly follows its own parent, or the indent nests it
+    # under the wrong one (Fiber used to follow Total Fat).
+    order = [html.index(f"<td>{label}</td>") for label in (
+        "Carbohydrate", "Fiber", "Sugars", "Total Fat",
+        "Saturated Fat", "Monounsaturated Fat", "Polyunsaturated Fat")]
+    assert order == sorted(order)
 
 
 def test_home_page_shows_release_version(client: TestClient) -> None:
@@ -5568,3 +5867,98 @@ def test_recipe_details_save_button_is_not_cancelled(client: TestClient, db_conn
     html = client.get(f"/recipe/{rid}/edit").text
     assert 'id="save-recipe-details"' in html
     assert "summary.addEventListener('click'" not in html
+
+
+def test_custom_profile_compare_checked_foods_puts_profile_first_with_return(
+    client: TestClient, cached_food, db_conn
+) -> None:
+    """Edit Custom Profile's "Compare checked foods" opens Compare with the
+    profile being edited first, then the checked results, plus a "Back to
+    editing" button that survives Compare's own add/remove round-trips and
+    never points outside numa."""
+    fdc_id = cached_food["fdcId"]
+    _db.cache_food(db_conn, fdc_id=-777, name="Other draft", data_type="User Drafted",
+                   brand=None, serving_size=None, serving_unit=None,
+                   nutrients={"protein_g": 5.0}, portions=[])
+    db_conn.commit()
+
+    edit = client.get(f"/food/custom-profiles/{fdc_id}/edit?nutrient_source_q=Other")
+    assert 'name="pick"' in edit.text and "Compare checked foods with this one" in edit.text
+
+    resp = client.get(f"/food/custom-profiles/{fdc_id}/compare",
+                      params={"pick": ["-777|", "-777|", "junk"]}, follow_redirects=False)
+    assert resp.status_code == 303
+    loc = resp.headers["location"]
+    assert loc.startswith(f"/compare?items=f{fdc_id},f-777&return_to=")
+
+    page = client.get(loc)
+    assert 'id="compare-return"' in page.text
+    assert f"Back to editing {cached_food['name']}" in page.text
+    assert 'name="return_to"' in page.text
+
+    removed = client.post("/compare/remove", data={
+        "remove_kind": "food", "remove_id": -777, "items": f"f{fdc_id},f-777",
+        "return_to": f"/food/custom-profiles/{fdc_id}/edit#sec-copy-nutrients",
+    }, follow_redirects=False)
+    assert "return_to=" in removed.headers["location"]
+    # The edit page's own return link carries a #section fragment.
+    assert f"Back to editing {cached_food['name']}" in client.get(removed.headers["location"]).text
+
+    hostile = client.get(f"/compare?items=f{fdc_id}&return_to=//evil.example/x")
+    assert 'id="compare-return"' not in hostile.text
+
+
+def test_calorie_note_on_meal_page_and_db_check(client: TestClient, db_conn) -> None:
+    """A food with macros but no calories gets estimated calories on save, and
+    the meal page + Foods > 9 say so; a food whose calories don't fit its
+    macros is flagged on both too."""
+    import json as _json
+    import db as _dbm
+    with _dbm.get_db() as conn:
+        _dbm.cache_food(conn, 998801, "Almond test", "Foundation", None, 100.0, "g",
+                        {"protein_g": 21.2, "carbs_g": 21.6, "fat_g": 49.9})
+        _dbm.cache_food(conn, 998802, "Broken salt test", "Branded", None, 100.0, "g",
+                        {"calories": 0, "protein_g": 0, "carbs_g": 1000, "fat_g": 150})
+    stored = _json.loads(db_conn.execute(
+        "SELECT nutrients_json FROM foods WHERE fdc_id = 998801").fetchone()[0])
+    assert stored["calories"] == pytest.approx(620.3, abs=0.1)
+
+    meal_id = int(client.post("/meals/create", data={"name": "Snack", "meal_date": "2026-07-11"},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+    for fid, name in ((998801, "Almond test"), (998802, "Broken salt test")):
+        client.post(f"/meal/{meal_id}/add", data={"fdc_id": fid, "food_name": name, "portion_str": "30 g"},
+                    follow_redirects=False)
+    html = client.get(f"/meal/{meal_id}").text
+    assert "% from measured values" in html
+    assert "estimated from its protein, carbs and fat" in html
+    assert "far from what its own protein, carbs and fat imply" in html
+
+    html = client.get("/food/cache/db-check").text
+    assert 'id="calories"' in html
+    assert "Almond test" in html and "Broken salt test" in html
+    assert "1000 g of carbohydrate per 100 g" in html   # impossible value
+    assert "calories estimated from its protein" in html
+
+
+def test_small_amount_never_shows_a_nonzero_value_as_zero() -> None:
+    """Top Contributors' amount/% cells: a tiny non-zero share gets extra
+    decimals instead of reading as 0.0 (confusing next to a non-zero %)."""
+    f = backend._small_amount
+    assert f(12.345) == "12.3"
+    assert f(0) == "0.0"
+    assert f(0.04) == "0.04"
+    assert f(0.004) == "0.004"
+    assert f(0.0004) == "<0.001"
+    assert f(None) == ""
+
+
+def test_rank_contributors_pct_keeps_tiny_shares() -> None:
+    from numa_app.services.top_contributors import rank_contributors
+    items = [
+        {"food_name": "Lentils", "fdc_id": 1, "nutrients_100g": {"protein_g": 25.0}, "grams": 100},
+        {"food_name": "Salt", "fdc_id": 2, "nutrients_100g": {"protein_g": 0.01}, "grams": 100},
+    ]
+    result = rank_contributors(items, "protein_g")
+    salt = next(c for c in result["items"] if c["food_name"] == "Salt")
+    assert 0 < salt["pct"] < 0.05
+    assert backend._small_amount(salt["pct"]) != "0.0"

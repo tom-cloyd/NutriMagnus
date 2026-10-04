@@ -92,6 +92,38 @@ def reading_time_str(word_count: int, wpm: int = WORDS_PER_MINUTE) -> str:
     return ", ".join(parts)
 
 
+# Each "## Part N — ..." heading gets its own reading time on the line below
+# it, regenerated on every build alongside the header's total. The stamp is
+# always written as heading, blank line, stamp, blank line, so stripping it
+# restores the source exactly.
+_PART_STAMP_RE = re.compile(
+    r'^(## Part \d+\b[^\n]*\n)\n\*\(Reading time: [^)\n]*\)\*\n\n',
+    re.MULTILINE,
+)
+_LEVEL2_HEADING_RE = re.compile(r'^## [^\n]*\n', re.MULTILINE)
+
+
+def strip_part_reading_times(markdown_text: str) -> str:
+    return _PART_STAMP_RE.sub(r'\1', markdown_text)
+
+
+def stamp_part_reading_times(markdown_text: str) -> str:
+    """Insert a per-Part reading time under each "## Part N" heading.
+    Expects input already passed through strip_part_reading_times()."""
+    headings = list(_LEVEL2_HEADING_RE.finditer(markdown_text))
+    out, pos = [], 0
+    for i, h in enumerate(headings):
+        if not h.group(0).startswith("## Part "):
+            continue
+        section_end = headings[i + 1].start() if i + 1 < len(headings) else len(markdown_text)
+        words = count_words(markdown_text[h.end():section_end])
+        out.append(markdown_text[pos:h.end()])
+        out.append(f"\n*(Reading time: {reading_time_str(words)})*\n\n")
+        pos = h.end()
+    out.append(markdown_text[pos:])
+    return "".join(out)
+
+
 # ── Styling ──────────────────────────────────────────────────────────────────
 
 CSS = """\
@@ -1060,12 +1092,14 @@ def main() -> None:
             "[^4]<sup>,</sup>[^5]"
         )
 
-    word_count = count_words(raw)
+    unstamped = strip_part_reading_times(raw)
+    word_count = count_words(unstamped)
     reading_time = reading_time_str(word_count)
-    updated_raw, n = _HEADER_LINE_RE.subn(
-        lambda m: f"{m.group(1)} / Reading time: {reading_time}", raw, count=1
+    updated_raw = _HEADER_LINE_RE.sub(
+        lambda m: f"{m.group(1)} / Reading time: {reading_time}", unstamped, count=1
     )
-    if n and updated_raw != raw:
+    updated_raw = stamp_part_reading_times(updated_raw)
+    if updated_raw != raw:
         SOURCE.write_text(updated_raw, encoding="utf-8")
         raw = updated_raw
 

@@ -29,14 +29,21 @@ details {
   margin-bottom: 0.5rem;
 }
 
-details > summary {
+/* Drawn as a bordered bar, not a faint tint: the earlier #e1e9f1 (and
+   .muted's #f7f7f7) still read as plain text, not something to click.
+   The summary.muted selector is needed because .muted's own background
+   otherwise outranks this rule. Button-styled summaries (.btn) keep
+   their own look — .btn outranks details > summary. */
+details > summary,
+details > summary.muted {
   cursor: pointer;
   list-style: none;
   display: block;
-  padding: 0.3rem 0;
-  background: #e1e9f1;  /* tint doubled from #f0f4f8 — it read as plain text, not a control */
-  padding-left: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  background: #cfdcea;
+  border: 1px solid #8aa4c0;
   border-left: 3px solid #0d6efd;
+  border-radius: 4px;
   margin-bottom: 0.4rem;
 }
 
@@ -641,8 +648,12 @@ table {
 .dcp-row td { font-style: italic; color: #444; }
 
 /* ── Subtype rows: Fiber/Sugar under Carbohydrates, the three fat types
-   under Fat — subsets of the row above them, not independent totals. ──── */
-.subtype-row td:first-child { padding-left: 1.5em; }
+   under Fat — subsets of the row above them, not independent totals
+   (_NUTRIENT_GROUPS in web/backend.py keeps each right after its parent).
+   Indented relative to the first column's own 3.6rem: a bare 1.5em put
+   them LEFT of their parent rows once that indent grew. ──── */
+.nutrient-table .subtype-row td:first-child,
+.subtype-row td:first-child { padding-left: calc(3.6rem + 1.5em); white-space: nowrap; }
 
 /* ── Custom max-limit warning (Settings → Nutrient targets) ────────────── */
 /* Applied to a nutrient row's Nutrient/Total cells when the day total is

@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% import "_ul_column.html" as _ul %}
+{% import "_calorie_note.html" as _cal %}
 {% import "_rda_goal_column.html" as _rdagoal %}
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_rda_legend.html" as _rda_legend %}
 {% import "_dcp_footnote.html" as _dcp_note %}
+{% import "_recipe_amount.html" as _ramt %}
 {% block title %}NutriMagnus — {% if date_detail %}Summary — {{ date_detail }}{% else %}Daily Summary{% endif %}{% endblock %}
 
 {% block layout_class %}{% if date_detail %}analysis-page{% else %}container{% endif %}{% endblock %}
@@ -201,6 +203,7 @@
 
 <div id="sec-meals" class="mb-3">
   <strong>{{ meals | length }} meal{{ 's' if meals | length != 1 else '' }}:</strong>
+  {% set _rw = namespace(any=false) %}
   {% for m in meals %}
   <div class="ms-2 mt-2">
     <a href="/meal/{{ m.id }}"><strong>{{ m.name }}</strong></a>
@@ -216,7 +219,9 @@
            its own says nothing about how much was eaten. Every item carries
            a unit ("g" for foods, "servings" for recipes), so the amount was
            previously never shown here at all. #}
-        {% if it.amount is not none %}{{ it.amount | round(1) }}&thinsp;{{ it.unit or "g" }}
+        {% if it.item_type == "recipe" %}{% set _rw.any = true %}{% endif %}
+        {% if it.item_type == "recipe" %}{{ _ramt.amount(it, "/meal/%s" % m.id) }}
+        {% elif it.amount is not none %}{{ it.amount | round(1) }}&thinsp;{{ it.unit or "g" }}
         {% elif it.unit %}{{ it.unit }}
         {% endif %}
         {% if it.item_type == "recipe" and it.recipe_deleted %}<small class="text-danger">(recipe deleted)</small>
@@ -227,6 +232,7 @@
     {% endif %}
   </div>
   {% endfor %}
+  {{ _ramt.weight_note(_rw.any) }}
 </div>
 
 {# DIAAS #}
@@ -470,6 +476,8 @@
 {% if nutrient_sections %}
 <details id="sec-nutrients" open data-remember="nutrients">
   <summary><strong>Total Nutrients — All Meals Combined</strong> {{ manual_link("nutrients") }}</summary>
+  {{ _cal.note(calorie_warnings) }}
+  {% include "_recalc_note.html" %}
 
   {% if not has_profile %}
   <p class="rda-no-profile">

@@ -168,6 +168,33 @@ def test_starter_status_all_present_after_load(db_conn: sqlite3.Connection) -> N
     assert all(r["present"] is True for r in status["recipes"])
 
 
+def test_starter_status_codes_are_this_dbs_not_the_starter_ids(
+        db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Settings lists starter foods by display code. A custom starter food is
+    renumbered on load and an outside-source one gets a local short number,
+    so the code must come from this DB, not from the starter id."""
+    import db as _db
+    nutr = {"calories": 100.0, "protein_g": 9.0, "carbs_g": 20.0, "fat_g": 1.0}
+    _db.cache_food(db_conn, fdc_id=-1, name="Mine", data_type="User", brand=None,
+                   serving_size=None, serving_unit=None, nutrients=nutr, user_drafted=True)
+    db_conn.commit()
+    monkeypatch.setattr(demo_data, "DEMO_FOODS", [
+        {"fdc_id": 901, "name": "* Beans", "data_type": "SR Legacy", "nutrients": nutr, "portions": []},
+        {"fdc_id": -1, "name": "* Custom", "data_type": "User", "nutrients": nutr, "portions": []},
+        {"fdc_id": -2_619_937_325, "name": "* Vitamins", "data_type": "OFF", "nutrients": nutr, "portions": []},
+    ])
+    monkeypatch.setattr(demo_data, "DEMO_PANTRY", [])
+    monkeypatch.setattr(demo_data, "DEMO_RECIPES", [])
+
+    before = {f["name"]: f["code"] for f in demo_data.starter_status(db_conn)["foods"]}
+    assert before == {"* Beans": "U901", "* Custom": "UD", "* Vitamins": "OFF"}
+
+    demo_data.load_demo_data(db_conn)
+    db_conn.commit()
+    after = {f["name"]: f["code"] for f in demo_data.starter_status(db_conn)["foods"]}
+    assert after == {"* Beans": "U901", "* Custom": "UD2", "* Vitamins": "OFF1"}
+
+
 def test_restore_selected_single_food(db_conn: sqlite3.Connection) -> None:
     food = demo_data.DEMO_FOODS[0]
 

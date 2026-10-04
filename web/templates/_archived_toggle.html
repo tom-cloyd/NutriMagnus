@@ -1,0 +1,14 @@
+{# Show/hide-archived toggle button for a list page (Recipes, Food Cache, Pantry).
+   A link carrying an explicit show_archived=0|1, never a checkbox: an unticked
+   checkbox submits nothing, so the route's _resolve_bool_pref() fell back to the
+   remembered "show" pref and unticking changed nothing. Filled while archived
+   items are showing, outline while they're hidden.
+   `params` = the page's other query params to keep (q, sort, ...). #}
+{% macro archived_toggle(url, show_archived, noun, params={}) -%}
+<a href="{{ url }}?{% for k, v in params | dictsort %}{% if v %}{{ k }}={{ v | urlencode }}&amp;{% endif %}{% endfor %}show_archived={{ 0 if show_archived else 1 }}"
+   class="btn btn-sm {{ 'btn-secondary' if show_archived else 'btn-outline-secondary' }}"
+   aria-pressed="{{ 'true' if show_archived else 'false' }}"
+   title="{% if show_archived %}Archived {{ noun }} are showing (greyed, with an Archived badge) — click to hide them{% else %}Archived {{ noun }} are hidden — click to show them too{% endif %}">
+  {%- if show_archived %}Hide archived {{ noun }}{% else %}Show archived {{ noun }}{% endif -%}
+</a>
+{%- endmacro %}

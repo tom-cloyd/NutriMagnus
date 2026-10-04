@@ -1,0 +1,26 @@
+{# How a logged recipe's amount is shown everywhere a meal's items are listed:
+   servings AND grams ("1 serving (295 g)"), or servings plus "weight
+   unknown" when one serving's weight can't be worked out. Items carry
+   serving_g / grams / serving_changed from web/backend.py's
+   _annotate_recipe_amounts(). The "weight unknown" text links to the
+   weight_note() footnote, which every page using amount() also renders. #}
+{% macro amount(it, meal_link=None) -%}
+{%- set srv = it.amount or 0 -%}
+{{ "%g"|format(srv|round(2)) }}&thinsp;serving{{ "" if srv == 1 else "s" }}
+{%- if it.grams %} <span class="muted">({{ it.grams | round | int }}&thinsp;g)</span>
+{%- elif not it.recipe_deleted %} <span class="muted">(<a href="#recipe-weight-note" class="muted">weight unknown</a>)</span>
+{%- endif %}
+{%- if it.serving_changed and meal_link %} <small class="text-warning-emphasis">&mdash; serving size changed since logged; <a href="{{ meal_link }}">review on the meal page</a></small>{% endif %}
+{%- endmacro %}
+
+{# Footnote under any list of meal items that includes a recipe. #}
+{% macro weight_note(show=True) %}
+{% if show %}
+<p class="muted mb-2" id="recipe-weight-note"><small>Recipe amounts: a meal records recipes in
+  servings. Grams appear beside them only when NuMa can work out what one serving weighs &mdash;
+  from the recipe&rsquo;s Total weight (on its Edit Recipe page) or, if that&rsquo;s empty, from its
+  ingredients&rsquo; weights, as long as every ingredient has one. Otherwise it says &ldquo;weight
+  unknown&rdquo;. The nutrient figures are exact either way, since a recipe&rsquo;s nutrients are
+  worked out per serving. {{ manual_link("recipe-servings-grams") }}</small></p>
+{% endif %}
+{% endmacro %}

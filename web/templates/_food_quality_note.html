@@ -1,0 +1,11 @@
+{# One food's data problems (data_quality.food_issues), on its own page and
+   right after it is added to a meal or recipe. Expects `quality_issues`
+   (and, for the post-add form, `quality_food` = {fdc_id, name}). #}
+{% if quality_issues %}
+{% set problems = quality_issues | selectattr("severity", "equalto", "problem") | list %}
+<div class="alert {{ 'alert-warning' if problems else 'alert-light border' }} py-2" role="note" style="max-width:48rem">
+  <strong>{% if quality_food %}Check this food&rsquo;s data &mdash; <a href="/food/{{ quality_food.fdc_id }}">{{ quality_food.name }}</a>:{% else %}{% if problems %}This food&rsquo;s data has a problem:{% else %}About this food&rsquo;s data:{% endif %}{% endif %}</strong>
+  <ul class="mb-1 mt-1">{% for i in quality_issues %}<li>{{ i.text }}</li>{% endfor %}</ul>
+  <small>{{ manual_link("checking-your-data", "What this means and how to fix it") }}</small>
+</div>
+{% endif %}

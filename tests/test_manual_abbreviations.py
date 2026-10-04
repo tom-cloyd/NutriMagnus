@@ -17,7 +17,7 @@ full name somewhere in nearby prose, which leaves the reader to guess that
 the two refer to the same thing (the distinction that prompted this test).
 
 Sections are delimited by any Markdown heading, since any of them can be
-landed on directly. The changelog (Appendix A) is excluded: its entries are
+landed on directly. The changelog (Part 11) is excluded: its entries are
 a dated historical record and are deliberately never rewritten.
 """
 import re
@@ -56,6 +56,8 @@ _ALLOWED = {
     "B1", "B2", "B3", "B6", "B12", "D2", "D3", "K1", "K2",
     # Keyboard key names, always written beside "key" ("press the F5 key").
     "F5",
+    # Product model names ("the Dexcom G7").
+    "G7",
     # Everyday English abbreviations needing no gloss.
     "ASAP", "AKA", "ETC", "IE", "EG", "AM", "PM",
 }
@@ -72,6 +74,9 @@ _NOT_ABBREVIATIONS = {
     "THIS", "YOUR", "OWN", "USE", "SEE", "ADD", "SET", "GET", "NO", "OK",
     "IN", "ON", "AT", "OF", "OR", "BY", "AS", "IT", "BE", "DO", "SO", "UP",
     "ITEMS",  # the home page's NEW STARTER ITEMS banner label
+    # All-caps labels in the appendices (Part 10), checked since 2026-09-30.
+    "BEFORE", "GOING", "DRIVEN", "GAPS", "WHY", "STILL", "WORKS", "VALUES",
+    "WEIGHT", "UNITS", "VOLUME", "PIECE", "COUNT", "SPACE", "BARE", "NUMBER",
 }
 
 
@@ -93,10 +98,12 @@ def _body_sections() -> list[tuple[str, str]]:
     normally -- so list markers and the lines continuing them are kept.
     """
     lines = _MANUAL.read_text(encoding="utf-8").split("\n")
+    # Stop at the changelog (Part 11); everything after it is Notes and the
+    # Disclaimer. The appendices before it are checked too (since 2026-09-30).
     try:
         stop = next(i for i, l in enumerate(lines)
-                    if "Insert new updates below here" in l)
-    except StopIteration:            # marker gone -- check the whole file
+                    if l.startswith("## Part 11"))
+    except StopIteration:            # heading gone -- check the whole file
         stop = len(lines)
 
     sections: list[tuple[str, list[str]]] = [("(front matter)", [])]
@@ -142,7 +149,7 @@ def _body_sections() -> list[tuple[str, str]]:
 # entry maps a token to the contexts in which it is NOT the glossary's term;
 # those occurrences are dropped before the section is checked.
 _OTHER_SENSE = {
-    "AI": re.compile(r"(?:Claude|local|on-board local|generative)\s+AI\b"),
+    "AI": re.compile(r"(?:Claude|January|local|on-board local|generative)\s+AI\b"),
 }
 
 

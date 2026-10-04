@@ -211,6 +211,7 @@
       <ul class="mb-0">
         <li><kbd>F</kbd> — Foods</li>
         <li><kbd>R</kbd> — Recipes</li>
+        <li><kbd>C</kbd> — Compare</li>
         <li><kbd>M</kbd> — Meals &amp; Log</li>
         <li><kbd>N</kbd> — Analysis</li>
         <li><kbd>S</kbd> — Settings</li>
@@ -230,6 +231,9 @@
         <li><kbd>8</kbd> — Meals &amp; Log Columns</li>
         <li><kbd>9</kbd> — Starter Data</li>
         <li><kbd>0</kbd> — Browser to Launch (section 10)</li>
+        <li><kbd>G</kbd> — Glycemic Index Reference Table (11)</li>
+        <li><kbd>Y</kbd> — System Issues (12; <kbd>S</kbd> is taken by Settings)</li>
+        <li><kbd>D</kbd> — Data Quality Reminder (13)</li>
       </ul>
     </div>
   </div>
@@ -355,7 +359,7 @@
 </details>
 
 {# ── 7. Nutrient targets: Revised Optimal + custom max limits ──────────── #}
-<details>
+<details id="nutrient-targets" {% if saved in ('nutrient_target', 'nutrient_target_defaults') %}open{% endif %}>
   <summary data-ak="7"><u class="ak">7</u>. <strong>Nutrient Targets</strong>
     <span class="muted"> — custom Revised Optimal (Recent Research) targets and max limits, on top of your standard RDA</span>
     {{ manual_link("optimal") }}
@@ -423,7 +427,7 @@
 </details>
 
 {# ── 8. Meals & Log columns ──────────────────────────────────────────── #}
-<details id="meal-list-nutrients">
+<details id="meal-list-nutrients" {% if saved in ('meal_nutrients', 'meal_nutrients_defaults') %}open{% endif %}>
   <summary data-ak="8"><u class="ak">8</u>. <strong>Meals &amp; Log columns</strong>
     <span class="muted"> — extra nutrients shown as columns on the Meals &amp; Log list and Recent Days</span>
     {{ manual_link("meal-columns") }}
@@ -432,6 +436,9 @@
   {% if saved == 'meal_nutrients' %}
   <p class="status-met mt-2"><strong>&#10003; Meals &amp; Log columns saved.</strong></p>
   {% endif %}
+  {% if saved == 'meal_nutrients_defaults' %}
+  <p class="status-met mt-2"><strong>&#10003; Meals &amp; Log columns restored to the defaults.</strong></p>
+  {% endif %}
 
   <p class="mt-2 muted"><small>
     Give each nutrient you want shown a position (1 = leftmost, up to {{ meal_list_nutrients_max }}).
@@ -439,6 +446,11 @@
     (Daily Summary) — a nutrient already shown there as its own fixed column (Calories on Meals &amp; Log;
     Protein on Recent Days) is simply skipped on that one list even if given a position, and still shows
     on the other.
+  </small></p>
+  <p class="muted"><small>
+    <strong>Protein (DCP) — Digestible Complete Protein</strong> is not in this list because both lists
+    always show it as fixed columns of their own (Meal DCP and Day DCP). The Protein row below is raw protein.
+    Until you save your own choice, the columns are the defaults: Protein (raw), Calories, Carbohydrate, Fiber, Sugars.
   </small></p>
   <form method="post" action="/settings/meal-nutrients">
     <table class="table table-sm table-hover mt-2" style="max-width:500px">
@@ -458,7 +470,11 @@
         {% endfor %}
       </tbody>
     </table>
-    <button type="submit" class="btn btn-primary btn-sm mt-2">Save</button>
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save Meals &amp; Log columns</button>
+  </form>
+  <form method="post" action="/settings/meal-nutrients/restore-defaults" class="mt-2"
+        onsubmit="return confirm('Replace your Meals & Log columns with the defaults: Protein (raw), Calories, Carbohydrate, Fiber, Sugars?')">
+    <button type="submit" class="btn btn-outline-secondary btn-sm">Restore default columns</button>
   </form>
 </details>
 
@@ -543,6 +559,11 @@
       a starter food or recipe you renamed, edited or re-portioned, a food you gave a GI or DIAAS value, and anything
       you are still using in a meal, in one of your own recipes, or in your pantry.
     </small></p>
+    <p class="mt-1 muted"><small>
+      <strong>Changed your mind later?</strong> Clearing is not permanent loss: this section then offers
+      "Load starter data" again to put it all back, and "Restore individual starter items" below
+      brings back just the ones you pick.
+    </small></p>
   </form>
   {% endif %}
 
@@ -550,7 +571,7 @@
   {% set missing_pantry = starter_status.pantry|selectattr('present', 'equalto', false)|list %}
   {% set missing_recipes = starter_status.recipes|selectattr('present', 'equalto', false)|list %}
   <details class="mt-2" id="starter-data-restore" {% if starter_changes.new_foods or starter_changes.new_recipes %}open{% endif %}>
-    <summary><small>Restore individual starter items ({{ starter_status.foods|length }} foods, fdc_id shown)</small></summary>
+    <summary><small>Restore individual starter items ({{ starter_status.foods|length }} foods, code shown)</small></summary>
     {% if not (missing_foods or missing_pantry or missing_recipes) %}
     <p class="mt-2 muted"><small>Every starter food, pantry item, and recipe is already present — nothing to restore.</small></p>
     {% else %}
@@ -563,7 +584,7 @@
       <p class="mt-2 mb-1"><small><strong>Foods</strong></small></p>
       <ul class="mt-0 muted" style="max-height:12rem; overflow-y:auto; list-style:none; padding-left:0;">
         {% for food in missing_foods %}
-        <li><small><label><input type="checkbox" name="food_fdc_id" value="{{ food.fdc_id }}"> {{ food.fdc_id }} — {{ food.name }}{% if food.fdc_id in starter_new_food_ids %} <strong>(new in this version)</strong>{% endif %}</label></small></li>
+        <li><small><label><input type="checkbox" name="food_fdc_id" value="{{ food.fdc_id }}"> {{ food.code }} — {{ food.name }}{% if food.fdc_id in starter_new_food_ids %} <strong>(new in this version)</strong>{% endif %}</label></small></li>
         {% endfor %}
       </ul>
       {% endif %}
@@ -589,13 +610,13 @@
   </details>
 
   <details class="mt-2" id="starter-data-list">
-    <summary><small>View all starter data ({{ starter_status.foods|length }} foods, {{ starter_status.recipes|length }} recipes — fdc_id and name)</small></summary>
+    <summary><small>View all starter data ({{ starter_status.foods|length }} foods, {{ starter_status.recipes|length }} recipes — code and name)</small></summary>
     <p class="mt-2 mb-1"><small><strong>Foods</strong></small></p>
     <p class="mt-0 mb-1 muted"><small>Some of these foods are here only because a starter recipe uses them as an ingredient —
       a recipe can't be loaded without its foods. Each food shows which starter recipes use it.</small></p>
     <ul class="mt-0 muted" style="max-height:16rem; overflow-y:auto; list-style:none; padding-left:0;">
       {% for food in starter_status.foods %}
-      <li><small>{{ food.fdc_id }} — {{ food.name }}{% if food.used_in %} <span class="text-secondary">(ingredient of: {{ food.used_in | join(", ") }})</span>{% endif %}</small></li>
+      <li><small>{{ food.code }} — {{ food.name }}{% if food.used_in %} <span class="text-secondary">(ingredient of: {{ food.used_in | join(", ") }})</span>{% endif %}</small></li>
       {% endfor %}
     </ul>
     <p class="mt-2 mb-1"><small><strong>Recipes</strong></small></p>
@@ -644,7 +665,7 @@
    bundled 2008 fallback is what is in use, since that is the state a user is
    most likely not to have noticed. #}
 <details id="gi-table" {% if (gi_table.edition != 2021 and not gi_opt_out) or gi_build.running or gi_build.result or gi_build.error or gi_build_error %}open{% endif %}>
-  <summary>11. <strong>Glycemic Index Reference Table</strong>
+  <summary data-ak="g">11. <strong><u class="ak">G</u>lycemic Index Reference Table</strong>
     {% if gi_opt_out %}
     <span class="muted"> — not in use{% if gi_table.edition == 2021 %} (2021 edition present){% elif gi_table.edition == 2008 %} (2008 edition bundled){% endif %}</span>
     {% elif gi_table.edition == 2021 %}
@@ -769,9 +790,9 @@
   </form>
 </details>
 
-{# ── 12. System issues (no shortcut key — digits run out at 10) ─────────── #}
+{# ── 12. System issues (Alt+Shift+Y: S is already the Settings nav link) ── #}
 <details id="system-issues" {% if recompute_errors %}open{% endif %}>
-  <summary>12. <strong>System Issues</strong>
+  <summary data-ak="y">12. <strong>S<u class="ak">y</u>stem Issues</strong>
     {% if recompute_errors %}
     <span class="text-danger"> — {{ recompute_errors|length }} unresolved</span>
     {% else %}
@@ -821,6 +842,33 @@
     </tbody>
   </table>
   {% endif %}
+</details>
+
+{# ── Data quality reminder (Home page banner) ─────────────────────────── #}
+<details id="data-check-reminder" {% if saved == 'data-check-reminder' %}open{% endif %}>
+  <summary data-ak="d">13. <strong><u class="ak">D</u>ata Quality Reminder</strong>
+    <span class="muted"> — a Home page note when your food data has new problems</span>
+  </summary>
+  <p class="mt-2" style="max-width:48rem">With this on, the Home page tells you when new data problems have turned up
+  since you last opened the <a href="/food/cache/db-check">database check</a> (Foods &rarr; 9): a food with no calories, an
+  impossible value, a recipe amount that no longer matches, and so on. If nothing new has appeared, it says nothing. You can
+  also ask for a reminder every so many weeks even when nothing is new, as a routine. {{ manual_link("checking-your-data") }}</p>
+  {% if saved == 'data-check-reminder' %}
+  <p class="status-met mt-2"><strong>&#10003; Reminder settings saved.</strong></p>
+  {% endif %}
+  <form method="post" action="/settings/data-check-reminder" class="mt-2">
+    <div class="form-check">
+      <input type="hidden" name="enabled" value="0">
+      <input class="form-check-input" type="checkbox" name="enabled" value="1" id="dcr-enabled" {{ 'checked' if data_check_reminder.enabled }}>
+      <label class="form-check-label" for="dcr-enabled">Tell me on the Home page when new data problems appear</label>
+    </div>
+    <div class="d-flex align-items-center gap-2 mt-2">
+      <label for="dcr-weeks">Also remind me every</label>
+      <input type="number" min="0" max="52" class="form-control form-control-sm" style="width:5rem" id="dcr-weeks" name="weeks" value="{{ data_check_reminder.weeks }}">
+      <span>weeks, even if nothing is new <span class="muted">(0 = never)</span></span>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save reminder settings</button>
+  </form>
 </details>
 
 <script>

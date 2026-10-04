@@ -26,9 +26,11 @@ MAX_PRACTICAL_GAP_CLOSER_GRAMS = 300
 # kept here as the single source of truth for which nutrients are grouped
 # together.
 COMPARE_GROUPS: list[tuple[str, list[str]]] = [
+    # Fiber/Sugar right after Carbohydrate, the fat types after Total Fat —
+    # same order as the other nutrient tables (_NUTRIENT_GROUPS in web/backend.py).
     ("Macronutrients", [
-        "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
-        "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+        "calories", "protein_g", "carbs_g", "fiber_g", "sugar_g",
+        "fat_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g",
     ]),
     ("Minerals", [
         "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
@@ -1551,19 +1553,16 @@ def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
     """
     Estimate g/ml density for a food.
 
-    1. Static keyword table first — curated values are more reliable than
-       branded USDA serving-size data.
-    2. Falls back to USDA portion data if a cup/tablespoon entry is present
-       and yields a plausible density (0.3–1.6 g/ml).
+    1. The food's own portions first — a cup/tablespoon/teaspoon entry that
+       yields a plausible density (0.15–1.6 g/ml). Those are facts about
+       this particular food (often ones the user set in the Portions
+       editor); the static table used to win, so a 99 g cup the user had
+       just saved for an okara flour lost to the generic "flour" 0.53 g/ml
+       and "1/3 c" came out 41.8 g instead of 33 g.
+    2. Static keyword table when the food has no usable volume portion.
     3. Returns None if density cannot be determined.
     """
-    # Static table first
-    name = food_name.lower()
-    for keywords, density in _DENSITY_TABLE:
-        if any(kw in name for kw in keywords):
-            return density
-
-    # Fall back to USDA portions
+    # The food's own portions first
     _VOL_ANCHORS = [
         ("cup",        236.6),
         ("tablespoon",  14.8),
@@ -1599,5 +1598,12 @@ def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
                 density = gw / (count * ml_val)
                 if 0.15 <= density <= 1.6:
                     return density
+
+
+    # Static table when the food's portions don't settle it
+    name = food_name.lower()
+    for keywords, density in _DENSITY_TABLE:
+        if any(kw in name for kw in keywords):
+            return density
 
     return None

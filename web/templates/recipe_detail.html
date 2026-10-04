@@ -6,6 +6,7 @@
 {% import "_dcp_footnote.html" as _dcp_note %}
 {% import "_top_contributors.html" as _contrib %}
 {% import "_serving_note.html" as _sn %}
+{% import "_calorie_note.html" as _cal %}
 {% block title %}NutriMagnus — {{ recipe.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -131,7 +132,7 @@
   <strong>{{ diaas.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</p>
 {% set unusable_g = (diaas.total_protein_g - diaas.dcp_g) | round(1) %}
 {% if unusable_g > 0 %}
-<p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
+<p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; it will be broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
 {% endif %}
 {% endif %}
 
@@ -292,7 +293,9 @@
           {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
             {{ ing.amount | round(2) | string | replace(".0", "") }} srv{% if ing.ref_grams %} <span class="muted">({{ ing.ref_grams | round | int }}&thinsp;g)</span>{% endif %}{{ _sn.note(ing.ref_serving_size) }}
           {% else %}
-            {{ ing.amount | round(1) }}&thinsp;g{% if ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}
+            {# What you typed ("2 T") beside the grams NuMa calculates with; the
+               portion-derived hint only when the entry was grams alone. #}
+            {{ ing.amount | round(1) }}&thinsp;g{% if ing.typed_note %} <span class="muted">({{ ing.typed_note }})</span>{% elif ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}
           {% endif %}
         </td>
         <td>
@@ -390,6 +393,7 @@
     {{ manual_link("nutrients") }}
   </h3>
 
+  {{ _cal.note(calorie_warnings) }}
   {% if not has_profile %}
   <p class="rda-no-profile mt-2">
     No personal profile set up &mdash; RDA % targets are not shown.

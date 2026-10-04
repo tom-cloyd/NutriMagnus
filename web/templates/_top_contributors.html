@@ -11,7 +11,7 @@
     {{ extra_hidden | safe }}
     <label class="muted mb-0" for="rank_nutrient"><small>Rank by</small></label>
     <select name="rank" id="rank_nutrient" class="form-select form-select-sm d-inline-block" style="width:auto"
-            onchange="this.form.submit()">
+            onchange="this.form.requestSubmit()">
       {% for group_name, opts in contributor_options %}
       <optgroup label="{{ group_name }}">
         {% for key, label in opts %}
@@ -23,7 +23,7 @@
     {% if top_n_options|length > 1 %}
     <label class="muted mb-0" for="contrib_top_n"><small>Show</small></label>
     <select name="top_n" id="contrib_top_n" class="form-select form-select-sm d-inline-block" style="width:auto"
-            onchange="this.form.submit()">
+            onchange="this.form.requestSubmit()">
       {% for opt in top_n_options %}
       <option value="{{ opt }}" {% if opt == top_n %}selected{% endif %}>{{ "All" if opt == "all" else opt }}</option>
       {% endfor %}
@@ -59,8 +59,8 @@
         {{ c.food_name }}
         {% endif %}
       </td>
-      <td class="num-col">{{ c.amount | round(1) }}&thinsp;{{ contributor_unit }}</td>
-      <td class="num-col">{{ c.pct }}%</td>
+      <td class="num-col">{{ c.amount | small_amount }}&thinsp;{{ contributor_unit }}</td>
+      <td class="num-col">{{ c.pct | small_amount }}%</td>
     </tr>
     {% endfor %}
   </tbody>

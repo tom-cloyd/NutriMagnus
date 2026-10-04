@@ -5,12 +5,16 @@
 
    The note describes base.html's leave guard, so a page that shows it must
    also mark its form with data-leave-guard="<what>" — otherwise the note
-   promises a rescue that won't happen. #}
-{% macro note(what, note_id="") %}
+   promises a rescue that won't happen.
+
+   `autosave` is for a form marked data-leave-guard-autosave (searches on the
+   page save pending edits first, with an Undo). #}
+{% macro note(what, note_id="", autosave=False) %}
 <p class="muted mb-2" style="font-size:0.85rem"{% if note_id %} id="{{ note_id }}"{% endif %}>
   <strong>Data-entered safety:</strong> if you edit anything in {{ what }} below and then click a link
   elsewhere in NuMa before saving, NuMa will ask whether to save those changes first — or you can
-  choose to leave without saving them. (BUT: Closing or refreshing the browser tab instead only shows
+  choose to leave without saving them.{% if autosave %} Running a search on this page, or re-sorting its
+  results, saves your edits automatically first, and then offers a button to undo that save.{% endif %} (BUT: Closing or refreshing the browser tab instead only shows
   your browser's own "leave this page?" warning — NuMa can't step in at that point, so save first
   if you're closing the tab.)
 </p>

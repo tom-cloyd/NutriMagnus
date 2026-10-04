@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Review incoming values{% endblock %}
+
+{# One review screen for incoming data (numa_app/services/incoming_review.py):
+   a fresh USDA copy of this food, or another food's values. Default ticks:
+   anything that fills a blank; on a USDA refresh, a differing value unless
+   it's one the user changed (edits_known — db.food_edited_keys), or, for a
+   food edited before NuMa tracked values one by one, only if never edited.
+   A live note says when applying would start or end user-edited status. #}
+{% macro show(v, unit="") -%}
+{% if v is none or v == "" %}<span class="muted">—</span>{% else %}{{ v }}{% if unit %} {{ unit }}{% endif %}{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{% if source == "usda" %}Refresh from USDA{% else %}Copy values from another food{% endif %}</li>
+  </ol>
+</nav>
+
+<h2>{% if source == "usda" %}Refresh {{ food.name }} from USDA{% else %}Copy values into {{ food.name }}{% endif %}
+  {{ manual_link("review-incoming") }}</h2>
+
+{% if error %}
+<div class="alert alert-danger">{{ error }}</div>
+<a href="{{ next }}" class="btn btn-outline-secondary">Back</a>
+{% else %}
+
+<p class="muted" style="max-width:52rem">
+  {% if source == "usda" %}
+  Below is everything in USDA's current copy of this food
+  (<strong>FDC #{{ food.fdc_id }}</strong>{% if usda_data_type %}, {{ usda_data_type }}{% endif %}{% if usda_brand %}, {{ usda_brand }}{% endif %})
+  that differs from what NuMa has.
+  {% if usda_data_type and food.data_type and usda_data_type != food.data_type %}
+  Note: NuMa has this food filed as <strong>{{ food.data_type }}</strong>, but USDA's record under this ID is
+  <strong>{{ usda_data_type }}</strong> — check that the ID is the food you meant before taking anything.
+  {% endif %}
+  {% else %}
+  Values from <strong>{{ source_name }}</strong>{% if source_fdc_id %} ({{ food_id_short(source_fdc_id) }}){% endif %} that differ from this food's own, per 100&thinsp;g, copied raw and unscaled.
+  {% endif %}
+  Only the ticked values are written; everything else stays as it is.
+  Values that fill a blank are ticked for you.
+  {% if source == "usda" %}
+    {% if edits_known %}USDA's newer values are ticked too, except where the value is one you changed
+    (marked <strong>yours</strong>): those are kept unless you tick USDA's — though where yours is an
+    estimate, USDA's measured value is ticked.
+    {% elif prefer_incoming %}You have never edited this food, so USDA's newer values are ticked too.
+    {% else %}You have edited this food, so where a value differs yours is kept unless you tick USDA's —
+    except where yours is an estimate, when USDA's measured value is ticked.
+    (You edited it before NuMa kept track of which values you changed; after this refresh it will know.){% endif %}
+  {% else %}Where this food already has a value, it is kept unless you tick the incoming one.{% endif %}
+</p>
+
+{% set nothing = not groups and not meta_rows and not portion_rows %}
+{% if nothing %}
+<div class="alert alert-success" style="max-width:52rem">
+  Nothing to take: {% if source == "usda" %}USDA's copy{% else %}{{ source_name }}{% endif %} has no values that differ from this food's
+  {% if same_count %}({{ same_count }} value{{ "s" if same_count != 1 }} identical){% endif %}.
+</div>
+<a href="{{ next }}" class="btn btn-outline-secondary">Back</a>
+{% else %}
+
+<form method="post" action="/food/{{ food.fdc_id }}/review-incoming" id="review-incoming-form">
+  <input type="hidden" name="source" value="{{ source }}">
+  <input type="hidden" name="source_fdc_id" value="{{ source_fdc_id or '' }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <input type="hidden" name="incoming_json" value="{{ incoming_json }}">
+
+  <p class="mb-2">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-review-select="fill">Tick only blanks</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-review-select="all">Tick all</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-review-select="none">Tick none</button>
+  </p>
+
+  {% if meta_rows %}
+  <div class="card mb-3" style="max-width:52rem">
+    <div class="card-body">
+      <h5 class="card-title">Name and serving</h5>
+      <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th style="width:2rem"></th><th>Field</th><th>This food now</th><th>Incoming</th></tr></thead>
+        <tbody>
+        {% for r in meta_rows %}
+          <tr class="{{ 'review-fill' if r.status == 'fill' else 'review-differs' }}">
+            <td><input type="checkbox" class="form-check-input review-cb" data-status="{{ r.status }}"{% if r.tracked %} data-tracked="1"{% endif %} name="meta" value="{{ r.key }}" id="meta-{{ r.key }}" {{ 'checked' if r.checked }}></td>
+            <td><label for="meta-{{ r.key }}">{{ r.label }}</label>{% if r.mine %} <small class="text-warning-emphasis">(yours)</small>{% endif %}</td>
+            <td class="muted">{{ show(r.current) }}</td>
+            <td><strong>{{ show(r.incoming) }}</strong></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if aa_note %}
+  <p class="alert alert-info" style="max-width:52rem" id="aa-scale-note">{{ aa_note }}</p>
+  {% endif %}
+  {% for group in groups %}
+  <div class="card mb-3" style="max-width:52rem">
+    <div class="card-body">
+      <h5 class="card-title">{{ group.name }}</h5>
+      <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th style="width:2rem"></th><th>Field</th><th class="text-end">This food now</th><th class="text-end">Incoming</th><th></th></tr></thead>
+        <tbody>
+        {% for f in group.fields %}
+          <tr>
+            <td><input type="checkbox" class="form-check-input review-cb" data-status="{{ f.status }}" data-tracked="1" name="keys" value="{{ f.key }}" id="key-{{ f.key }}" {{ 'checked' if f.checked }}></td>
+            <td><label for="key-{{ f.key }}">{{ f.label }}</label></td>
+            <td class="text-end muted">{{ show(f.current, f.unit) }}</td>
+            <td class="text-end"{% if f.key in aa_alt %} data-aa-own="{{ f.incoming }}" data-aa-alt="{{ aa_alt[f.key] }}" data-unit="{{ f.unit }}"{% endif %}><strong>{{ show(f.incoming, f.unit) }}</strong></td>
+            <td class="muted"><small>{{ "fills a blank" if f.status == "fill" else "differs" }}{% if f.mine %}; <strong>yours</strong>{% endif %}{% if f.estimated %}; yours is an estimate{% endif %}{% if f.key.startswith("aa_") and source == "food" %}; scaled{% endif %}</small></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if portion_rows %}
+  <div class="card mb-3" style="max-width:52rem">
+    <div class="card-body">
+      <h5 class="card-title">Portions USDA has that this food doesn't</h5>
+      <p class="muted mb-2"><small>Your existing portions are never changed (logged amounts such as <code>p1</code> depend on them); ticked ones are added after them.</small></p>
+      <table class="table table-sm mb-0">
+        <tbody>
+        {% for p in portion_rows %}
+          <tr>
+            <td style="width:2rem"><input type="checkbox" class="form-check-input review-cb" data-status="fill" name="portions" value="{{ p.description }}" id="portion-{{ loop.index }}" checked></td>
+            <td><label for="portion-{{ loop.index }}">{{ p.description }}</label></td>
+            <td class="text-end">{{ p.gram_weight }} g</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if dropped and source == "usda" %}
+  <p class="muted" style="max-width:52rem"><small><strong>USDA no longer lists:</strong>
+    {% for f in dropped %}{{ f.label }} ({{ f.current }} {{ f.unit }}){{ ", " if not loop.last }}{% endfor %} — this food's values are kept.</small></p>
+  {% endif %}
+  {% if same_count %}
+  <p class="muted"><small>{{ same_count }} other value{{ "s are" if same_count != 1 else " is" }} identical on both sides and not shown.</small></p>
+  {% endif %}
+
+  {% if source == "usda" %}
+  {# Keep the food's current values as an older version for past meals
+     (db.create_food_version): meals dated before the chosen day keep the
+     values they were logged with; recipes and later meals get the update. #}
+  <div class="card mb-3" style="max-width:52rem" id="keep-version">
+    <div class="card-body py-2">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="keep_version" value="1" id="keep_version">
+        <label class="form-check-label" for="keep_version">
+          <strong>Keep this food's current values for meals logged before</strong>
+        </label>
+        <input type="date" class="form-control form-control-sm d-inline-block ms-1" name="keep_before"
+               value="{{ today }}" style="width:auto" aria-label="Keep current values for meals before this date">
+      </div>
+      <p class="muted mb-0 mt-1"><small>
+        Use this when the food itself has changed — a product reformulated, or USDA revising its figures — and
+        your past meals should go on counting what you actually ate then. Those meals switch to an older
+        version of this food, coded {{ food_code(food.fdc_id) }}.1 (or the next number), and the rest of NuMa
+        — later meals and every recipe — gets the ticked values.
+        {% if meal_items_before_today %}{{ meal_items_before_today }} meal item{{ "s" if meal_items_before_today != 1 }}
+        logged before today use{{ "s" if meal_items_before_today == 1 }} this food.{% else %}No meals logged before today use this food.{% endif %}
+      </small></p>
+    </div>
+  </div>
+  {% endif %}
+  {% if source == "usda" and edits_known %}
+  {# Live: will the food be user-edited once the ticked values are written?
+     Any unticked value stays as this food's own; edits_left covers what no
+     tick can undo (annotations, your own portions, values USDA dropped). #}
+  <p class="alert alert-info py-2" style="max-width:52rem; display:none" id="edited-status-note"
+     data-edited-now="{{ 1 if food.user_edited else 0 }}" data-edits-left="{{ 1 if edits_left else 0 }}"></p>
+  {% endif %}
+  <p>
+    <button type="submit" class="btn btn-primary">Write the ticked values</button>
+    <a href="{{ next }}" class="btn btn-outline-secondary">Cancel — change nothing</a>
+  </p>
+</form>
+
+<script>
+// Amino acids from another food are scaled to protein: to this food's own,
+// or to the incoming protein when Protein is ticked too. Show which.
+(function () {
+  var proteinCb = document.getElementById('key-protein_g');
+  var cells = document.querySelectorAll('[data-aa-alt]');
+  if (!proteinCb || !cells.length) return;
+  function sync() {
+    cells.forEach(function (td) {
+      var v = proteinCb.checked ? td.getAttribute('data-aa-alt') : td.getAttribute('data-aa-own');
+      td.innerHTML = '<strong>' + v + '</strong> ' + td.getAttribute('data-unit');
+    });
+  }
+  proteinCb.addEventListener('change', sync);
+  sync();
+})();
+(function () {
+  var note = document.getElementById('edited-status-note');
+  if (!note) return;
+  var editedNow = note.getAttribute('data-edited-now') === '1';
+  var editsLeft = note.getAttribute('data-edits-left') === '1';
+  function sync() {
+    var unticked = Array.prototype.some.call(
+      document.querySelectorAll('.review-cb[data-tracked]'), function (cb) { return !cb.checked; });
+    var willBe = editsLeft || unticked;
+    if (editedNow && !willBe) {
+      note.textContent = 'Writing these values removes the last of your changes to this food: '
+        + 'it will match USDA again and no longer be marked user-edited.';
+    } else if (!editedNow && willBe) {
+      note.textContent = 'Values left unticked stay as this food\'s own, different from USDA\'s, '
+        + 'so this food will be marked user-edited.';
+    } else {
+      note.textContent = '';
+    }
+    note.style.display = note.textContent ? '' : 'none';
+  }
+  document.addEventListener('change', function (e) { if (e.target.classList.contains('review-cb')) sync(); });
+  document.addEventListener('click', function (e) { if (e.target.closest('[data-review-select]')) setTimeout(sync, 0); });
+  sync();
+})();
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('[data-review-select]');
+  if (!btn) return;
+  var mode = btn.getAttribute('data-review-select');
+  document.querySelectorAll('.review-cb').forEach(function (cb) {
+    cb.checked = mode === 'all' || (mode === 'fill' && cb.getAttribute('data-status') === 'fill');
+  });
+  var proteinCb = document.getElementById('key-protein_g');
+  if (proteinCb) proteinCb.dispatchEvent(new Event('change'));
+});
+</script>
+{% endif %}
+{% endif %}
+{% endblock %}

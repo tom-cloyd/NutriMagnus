@@ -21,6 +21,13 @@
   </ol>
 </nav>
 
+{# Arrived from another page's "Compare checked foods" (e.g. Edit Custom
+   Profile): a way straight back, carried through every action here. #}
+{% if return_to %}
+<p class="mb-2" id="compare-return">
+  <a href="{{ return_to }}" class="btn btn-primary btn-sm">&larr; {{ return_label }}</a>
+</p>
+{% endif %}
 <h2>Compare {{ manual_link("comparison") }}</h2>
 <p class="muted">Add up to {{ max_items }} foods and/or recipes to compare them per 100 g — the one basis that's fair to compare a food's grams against a recipe's servings on.</p>
 
@@ -42,10 +49,10 @@
       {% for s in saved_lists %}
       <tr>
         <td>
-          <a href="/compare/load/{{ s.id }}">{{ s.name }}</a>
+          <a href="/compare/load/{{ s.id }}{{ return_qs }}">{{ s.name }}</a>
           <form method="post" action="/compare/saved/rename" class="d-inline-flex align-items-center gap-1 ms-2">
             <input type="hidden" name="cmp_id" value="{{ s.id }}">
-            <input type="hidden" name="items" value="{{ items_str }}">
+            <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
             <input type="text" name="name" value="{{ s.name }}"
                    class="form-control form-control-sm" style="max-width:14rem">
             <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
@@ -56,7 +63,7 @@
         <td>
           <form method="post" action="/compare/saved/delete" style="display:inline">
             <input type="hidden" name="cmp_id" value="{{ s.id }}">
-            <input type="hidden" name="items" value="{{ items_str }}">
+            <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
             <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
           </form>
         </td>
@@ -69,7 +76,7 @@
 
 {# ── Add food/recipe search ── #}
 <form method="get" action="/compare" class="mb-2">
-  <input type="hidden" name="items" value="{{ items_str }}">
+  <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <div class="input-group" style="max-width:36rem">
@@ -90,7 +97,7 @@
 {% endif %}
 {% if search_results %}
 <form method="post" action="/compare/add-multiple">
-  <input type="hidden" name="items" value="{{ items_str }}">
+  <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
   <p class="result-count">
     {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
     for <strong>{{ search }}</strong> — check up to {{ max_items }} items to add, then click &rArr;
@@ -100,7 +107,7 @@
     <thead class="table-light">
       <tr>
         <th style="width:2rem"></th>
-        <th class="muted" style="width:6rem">ID</th>
+        <th class="muted" style="width:6rem">Code</th>
         <th>Food / Recipe</th>
         <th>Brand</th>
         <th>Type</th>
@@ -165,7 +172,7 @@
         <form method="post" action="/compare/remove" style="display:inline">
           <input type="hidden" name="remove_kind" value="{{ e.kind }}">
           <input type="hidden" name="remove_id" value="{{ e.id }}">
-          <input type="hidden" name="items" value="{{ items_str }}">
+          <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
           <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
         </form>
       </td>
@@ -177,7 +184,7 @@
   {% if entries|length >= 2 %}
   <a href="#comparison" class="btn btn-primary btn-sm">Show comparison &darr;</a>
   {% endif %}
-  <a href="/compare" class="btn btn-outline-danger btn-sm">Clear comparison</a>
+  <a href="/compare?return_to={{ return_to | urlencode }}" class="btn btn-outline-danger btn-sm">Clear comparison</a>
 </div>
 {% endif %}
 </div>
@@ -274,7 +281,7 @@
           {% else %}
           <form method="post" action="/compare/cache-food" style="display:inline">
             <input type="hidden" name="fdc_id" value="{{ e.id }}">
-            <input type="hidden" name="items" value="{{ items_str }}">
+            <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
             <button type="submit" class="btn btn-sm btn-outline-secondary">Add to food cache</button>
           </form>
           {% endif %}
@@ -388,7 +395,7 @@
 <div class="no-print">
 <hr>
 <form method="post" action="/compare/save" class="d-flex align-items-center gap-2" style="max-width:36rem">
-  <input type="hidden" name="items" value="{{ items_str }}">
+  <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
   <label for="save-name" class="text-nowrap mb-0"><strong>Save this list:</strong></label>
   <input type="text" id="save-name" name="name" class="form-control form-control-sm"
          placeholder="Give it a name…" style="max-width:18rem">

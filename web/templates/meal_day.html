@@ -4,6 +4,7 @@
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_rda_legend.html" as _rda_legend %}
 {% import "_dcp_footnote.html" as _dcp_note %}
+{% import "_recipe_amount.html" as _ramt %}
 {% block title %}NutriMagnus — Full Day — {{ meal_date }}{% endblock %}
 
 {% block content %}
@@ -31,7 +32,7 @@
   <strong>{{ diaas.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash; {{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</p>
 {% set unusable_g = (diaas.total_protein_g - diaas.dcp_g) | round(1) %}
 {% if unusable_g > 0 %}
-<p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
+<p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; it will be broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
 {% endif %}
 {% endif %}
 
@@ -59,6 +60,7 @@
 {# ── Meals on this date ───────────────────────────────────────────────── #}
 <div class="mb-3">
   <strong>{{ meals | length }} meal{{ 's' if meals | length != 1 else '' }} on this date:</strong>
+  {% set _rw = namespace(any=false) %}
   {% for m in meals %}
   <div class="ms-2 mt-2">
     <div>
@@ -75,7 +77,9 @@
            its own says nothing about how much was eaten. Every item carries
            a unit ("g" for foods, "servings" for recipes), so the amount was
            previously never shown here at all. #}
-        {% if it.amount is not none %}{{ it.amount | round(1) }}&thinsp;{{ it.unit or "g" }}
+        {% if it.item_type == "recipe" %}{% set _rw.any = true %}{% endif %}
+        {% if it.item_type == "recipe" %}{{ _ramt.amount(it, "/meal/%s" % m.id) }}
+        {% elif it.amount is not none %}{{ it.amount | round(1) }}&thinsp;{{ it.unit or "g" }}
         {% elif it.unit %}{{ it.unit }}
         {% endif %}
         {% if it.item_type == "recipe" and it.recipe_deleted %}<small class="text-danger">(recipe deleted)</small>
@@ -86,6 +90,7 @@
     {% endif %}
   </div>
   {% endfor %}
+  {{ _ramt.weight_note(_rw.any) }}
 </div>
 
 {# ── Day-level DIAAS ──────────────────────────────────────────────────── #}

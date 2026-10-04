@@ -1,0 +1,22 @@
+{# "What this change did" — recipes and logged meals whose totals moved
+   after a food's data or an amount was corrected. `impact` from
+   web/backend.py's _impact_store()/_impact_pop(); renders nothing without it. #}
+{% if impact %}
+{% macro _changes(row) %}{% for c in row.changes %}{{ "%.0f"|format(c.old) if c.unit == "kcal" else "%.1f"|format(c.old) }} &rarr; <strong>{{ "%.0f"|format(c.new) if c.unit == "kcal" else "%.1f"|format(c.new) }}</strong> {{ c.unit }}{% if not loop.last %}, {% endif %}{% endfor %}{% endmacro %}
+<div class="alert alert-info" role="status" style="max-width:60rem">
+  <strong>What this change did:</strong> {{ impact.title }} changed the totals of
+  {% if impact.recipes %}{{ impact.recipes|length }} recipe{{ "s" if impact.recipes|length != 1 }}{% endif %}{% if impact.recipes and impact.meals %} and {% endif %}{% if impact.meals %}{{ impact.meals|length }} logged meal{{ "s" if impact.meals|length != 1 }}{% endif %}.
+  {% if impact.recipes %}
+  <div class="mt-1"><small class="muted">Recipes, per serving:</small>
+    <ul class="mb-1">{% for r in impact.recipes[:8] %}<li><a href="/recipe/{{ r.id }}">{{ r.label }}</a>: {{ _changes(r) }}</li>{% endfor %}
+    {% if impact.recipes|length > 8 %}<li class="muted">and {{ impact.recipes|length - 8 }} more</li>{% endif %}</ul>
+  </div>
+  {% endif %}
+  {% if impact.meals %}
+  <div class="mt-1"><small class="muted">Logged meals (past days&rsquo; totals change too):</small>
+    <ul class="mb-1">{% for m in impact.meals[:8] %}<li><a href="/meal/{{ m.id }}">{{ m.label }}</a>: {{ _changes(m) }}</li>{% endfor %}
+    {% if impact.meals|length > 8 %}<li class="muted">and {{ impact.meals|length - 8 }} more</li>{% endif %}</ul>
+  </div>
+  {% endif %}
+</div>
+{% endif %}

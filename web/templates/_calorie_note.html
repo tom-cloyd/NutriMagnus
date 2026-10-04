@@ -1,0 +1,27 @@
+{# Calorie-quality note above a Nutritional Analysis table (meal, recipe,
+   daily summary). `cw` from web/backend.py's _calorie_warnings():
+   foods whose calories are missing, estimated from protein/carbs/fat, or far
+   from what those imply. Renders nothing when every food's calories are
+   sound. #}
+{% macro note(cw) %}
+{% if cw %}
+{% set missing = cw["items"] | selectattr("kind", "equalto", "missing") | list %}
+{% set mismatch = cw["items"] | selectattr("kind", "equalto", "mismatch") | list %}
+{% set estimated = cw["items"] | selectattr("kind", "equalto", "estimated") | list %}
+<div class="alert {{ 'alert-warning' if missing or mismatch else 'alert-light border' }} py-2 mb-2" role="note" style="max-width:56rem">
+  <strong>Calories: {{ "%.0f"|format(100 - cw.estimated_pct) }}% from measured values{% if estimated %}, {{ "%.0f"|format(cw.estimated_pct) if cw.estimated_pct >= 1 else "under 1" }}% estimated{% endif %}{% if missing %}; {{ missing|length }} food{{ "s" if missing|length != 1 }} with no calorie value, so the total is too low{% endif %}{% if mismatch %}; {{ mismatch|length }} food{{ "s" if mismatch|length != 1 }} with doubtful calories{% endif %}.</strong>
+  <ul class="mb-1 mt-1" style="font-size:0.9rem">
+    {% for w in missing %}
+    <li><a href="/food/{{ w.fdc_id }}">{{ w.name }}</a> ({{ w.grams | round | int }}&thinsp;g) has <strong>no calorie value</strong>{% if w.expected_kcal is none %} and not enough protein/carb/fat data to estimate one{% endif %}, so it adds nothing to the calorie total.</li>
+    {% endfor %}
+    {% for w in mismatch %}
+    <li><a href="/food/{{ w.fdc_id }}">{{ w.name }}</a>: its calories ({{ w.kcal | round | int }}&thinsp;kcal here) are far from what its own protein, carbs and fat imply (about {{ w.expected_kcal | round | int }}&thinsp;kcal). Alcohol, sugar alcohols or very high fiber can explain a gap; otherwise its data is probably wrong.</li>
+    {% endfor %}
+    {% for w in estimated %}
+    <li><a href="/food/{{ w.fdc_id }}">{{ w.name }}</a>: calories ({{ w.kcal | round | int }}&thinsp;kcal here) estimated from its protein, carbs and fat, since its source gave none.</li>
+    {% endfor %}
+  </ul>
+  <small>{{ manual_link("calorie-checks", "How NuMa checks calories, and how to fix a food") }}</small>
+</div>
+{% endif %}
+{% endmacro %}

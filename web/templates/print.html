@@ -2,6 +2,7 @@
 {% import "_rda_goal_column.html" as _rdagoal %}
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_dcp_footnote.html" as _dcp_note %}
+{% import "_recipe_amount.html" as _ramt %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -160,16 +161,18 @@
     {% for it in meal_items %}
     <tr>
       <td>{{ it.food_name }}{{ food_id_tag(it.fdc_id, it.recipe_id) }}</td>
-      <td class="num">{{ it.amount }}&thinsp;{{ it.unit }}</td>
+      <td class="num">{% if it.recipe_id %}{{ _ramt.amount(it) }}{% else %}{{ it.amount }}&thinsp;{{ it.unit }}{% endif %}</td>
       <td class="muted">{{ it.notes or "" }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{{ _ramt.weight_note(meal_items | selectattr("recipe_id") | list | length > 0) }}
 {% endif %}
 
 {% if "meals_list" in enabled and day_meals %}
 <h2>Meals</h2>
+{% set _rwp = namespace(any=false) %}
 {% for m in day_meals %}
 <h3>{{ m.name }}</h3>
 {% if m.meal_items %}
@@ -179,7 +182,7 @@
     {% for it in m.meal_items %}
     <tr>
       <td>{{ it.food_name }}{{ food_id_tag(it.fdc_id, it.recipe_id) }}</td>
-      <td class="num">{{ it.amount }}&thinsp;{{ it.unit }}</td>
+      <td class="num">{% if it.recipe_id %}{% set _rwp.any = true %}{{ _ramt.amount(it) }}{% else %}{{ it.amount }}&thinsp;{{ it.unit }}{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -188,6 +191,7 @@
 <p class="muted">No items.</p>
 {% endif %}
 {% endfor %}
+{{ _ramt.weight_note(_rwp.any) }}
 {% endif %}
 
 {% if "ingredients" in enabled and ingredients %}

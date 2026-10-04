@@ -409,6 +409,15 @@ def _parse_food(data: dict) -> dict:
     # space (NUTRIENT_NUMBER_MAP) — these must not be conflated (see its docstring).
     _OMEGA_IDS = {1404, 1278, 1272, 1269}
     _OMEGA_KEYS = {"omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"}
+    # Many Foundation foods carry no plain "Energy" (1008 / "208") at all —
+    # only the Atwater-factor energies: Specific (2048 / "958") and General
+    # (2047 / "957"). Reading 1008 alone left those foods with no calories
+    # while their protein/carbs/fat came through, silently understating every
+    # meal and recipe that used them (almonds, walnuts, soy milk, ...). Used
+    # only when 1008 is absent; Specific beats General as the more accurate.
+    atwater: dict[str, float] = {}
+    _ATWATER_IDS = {2048: "specific", 2047: "general"}
+    _ATWATER_NUMBERS = {"958": "specific", "957": "general"}
     raw_nutrients = data.get("foodNutrients", [])
     for item in raw_nutrients:
         value = item.get("value") or item.get("amount")
@@ -419,18 +428,27 @@ def _parse_food(data: dict) -> dict:
         key = None
         if "nutrient" in item or "nutrientId" in item:
             nid = item["nutrient"].get("id") if "nutrient" in item else item["nutrientId"]
-            if nid in NUTRIENT_MAP:
+            if nid in _ATWATER_IDS:
+                atwater[_ATWATER_IDS[nid]] = val
+            elif nid in NUTRIENT_MAP:
                 key = NUTRIENT_MAP[nid][0]
                 # USDA reports omega fatty acids in g; store in mg to match display units
                 if nid in _OMEGA_IDS:
                     val *= 1000
         elif "number" in item:
+            if item["number"] in _ATWATER_NUMBERS:
+                atwater[_ATWATER_NUMBERS[item["number"]]] = val
             key = NUTRIENT_NUMBER_MAP.get(item["number"])
             if key in _OMEGA_KEYS:
                 val *= 1000
 
         if key:
             nutrients[key] = val
+
+    if "calories" not in nutrients:
+        energy = atwater.get("specific", atwater.get("general"))
+        if energy is not None:
+            nutrients["calories"] = energy
 
     portions = []
     for p in data.get("foodPortions", []):

@@ -228,6 +228,17 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        # Grams one serving of a logged recipe weighed when it was logged (or
+        # when its servings were last edited/confirmed). A meal stores recipe
+        # amounts in servings, so if the recipe's serving weight later changes
+        # (e.g. its servings count is edited) the meal page can ask whether
+        # the logged amount should keep its grams. NULL = not yet recorded;
+        # filled lazily by web/backend.py's _annotate_recipe_amounts().
+        try:
+            conn.execute("ALTER TABLE meal_items ADD COLUMN serving_grams REAL")
+        except sqlite3.OperationalError:
+            pass
+
         try:
             conn.execute("ALTER TABLE meals ADD COLUMN complete INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
@@ -322,6 +333,17 @@ def init_db() -> None:
             )
         """)
 
+        # Nutrient groups the user marked "not needed" for one food, so the
+        # data-completeness check stops flagging them (e.g. macronutrients for
+        # a spice) — see numa_app/services/data_completeness.py.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS food_data_ignores (
+                fdc_id     INTEGER NOT NULL REFERENCES foods(fdc_id) ON DELETE CASCADE,
+                group_key  TEXT    NOT NULL,
+                PRIMARY KEY (fdc_id, group_key)
+            )
+        """)
+
         try:
             conn.execute("ALTER TABLE recipes ADD COLUMN nutrients_json TEXT")
         except sqlite3.OperationalError:
@@ -378,6 +400,40 @@ def init_db() -> None:
                 message      TEXT    NOT NULL,
                 resolved_at  TEXT,
                 banner_ack_at TEXT
+            )
+        """)
+
+        # Meals whose stored bcp_g/calories/nutrient snapshot went stale
+        # because a food or recipe they use changed — see
+        # mark_meals_stale_for_food()/mark_meals_stale_for_recipes(). Drained
+        # by web/backend.py's _refresh_stale_meals() before the next page load.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS stale_meals (
+                meal_id   INTEGER PRIMARY KEY,
+                marked_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
+        # Why a meal's totals were last recalculated by something other than
+        # editing the meal itself — a food it uses had its data changed, or
+        # one of its amounts was corrected. Past days' totals move when that
+        # happens; the meal and Daily Summary pages say so from this log.
+        # Duplicate-food groups the user said are NOT duplicates (Foods → 9 →
+        # Find duplicate foods). Keyed by the group's sorted fdc_ids, so a new
+        # copy turning up later is reported again.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS food_duplicate_dismissals (
+                group_key    TEXT PRIMARY KEY,
+                dismissed_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS meal_recalc_log (
+                id        INTEGER PRIMARY KEY,
+                meal_id   INTEGER NOT NULL REFERENCES meals(id) ON DELETE CASCADE,
+                reason    TEXT NOT NULL,
+                logged_at TEXT NOT NULL DEFAULT (datetime('now'))
             )
         """)
 
@@ -453,6 +509,31 @@ def init_db() -> None:
                                          AND COALESCE(gi_source, '') <> 'Starter data (curator''s estimate)'))
                 )
             """)
+        # foods.source_json: what the food's own source (USDA, Open Food
+        # Facts, the starter set ...) last supplied for the values NuMa
+        # tracks edits on — nutrients, serving size/unit, portions. Which
+        # values the user edited is then simply where the food now differs
+        # from it (food_edited_keys), so no edit path has to remember to
+        # record anything. NULL on custom foods, and on foods edited before
+        # this existed (their source values are unknown until a refresh).
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN source_json TEXT")
+        except sqlite3.OperationalError:
+            pass
+        else:
+            for _row in conn.execute(f"SELECT * FROM foods WHERE NOT ({_LOCAL_ID_SQL}) "
+                                     "AND user_edited = 0").fetchall():
+                conn.execute("UPDATE foods SET source_json = ? WHERE fdc_id = ?",
+                             (json.dumps(_food_state(_row)), _row["fdc_id"]))
+        # foods.estimated_keys_json: the nutrient keys whose values NuMa
+        # estimated rather than measured — amino acids scaled from another
+        # food to this one's protein (incoming_review.py). A Refresh from
+        # USDA ticks a measured value over one of these by default; writing a
+        # measured value clears the key. NULL = none estimated.
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN estimated_keys_json TEXT")
+        except sqlite3.OperationalError:
+            pass
         # recipes.updated_at: when the recipe's content last changed — its own
         # fields or its ingredient list. Kept by triggers so no code path can
         # forget it. Deliberately NOT bumped by viewing (last_accessed_at), by
@@ -484,22 +565,238 @@ def init_db() -> None:
                 END
             """)
 
+        _init_food_codes(conn)
+        # food_versions: an older version of a food, kept on request at a
+        # Refresh so past meals keep the values they were logged with (see
+        # create_food_version()). The version is a foods row of its own under
+        # an id in VERSION_ID range; this table ties it to its food.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS food_versions (
+                fdc_id        INTEGER PRIMARY KEY,
+                parent_fdc_id INTEGER NOT NULL,
+                num           INTEGER NOT NULL,
+                label_date    TEXT,
+                before_date   TEXT,
+                created_at    TEXT DEFAULT (datetime('now')),
+                UNIQUE (parent_fdc_id, num)
+            )
+        """)
+
+def _init_food_codes(conn: sqlite3.Connection) -> None:
+    """food_codes: the short per-source number behind a food's display code
+    (OFF3, AFCD1, ...) for foods from the outside sources, whose fdc_id is a
+    huge synthetic negative number (see food_ids._SYNTHETIC_ID_RANGES).
+    Numbered 1, 2, 3, ... per source in the order the foods arrived, and
+    never deleted, so a food removed from the cache and later re-added keeps
+    the code it had. A trigger assigns the number, so no insert path can
+    forget to; existing foods are backfilled here, oldest first."""
+    from numa_app.services.food_ids import _SYNTHETIC_ID_RANGES
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS food_codes (
+            fdc_id  INTEGER PRIMARY KEY,
+            prefix  TEXT    NOT NULL,
+            num     INTEGER NOT NULL,
+            UNIQUE (prefix, num)
+        )
+    """)
+    # Same first-match-wins order as classify_food_id(), so a boundary value
+    # shared by two ranges gets the same prefix in both places.
+    case = " ".join(f"WHEN NEW.fdc_id BETWEEN {start} AND {end} THEN '{label}'"
+                    for _k, start, end, label in _SYNTHETIC_ID_RANGES)
+    conn.execute("DROP TRIGGER IF EXISTS trg_foods_assign_code")
+    conn.execute(f"""
+        CREATE TRIGGER trg_foods_assign_code
+        AFTER INSERT ON foods FOR EACH ROW
+        WHEN (CASE {case} END) IS NOT NULL
+        BEGIN
+            INSERT OR IGNORE INTO food_codes (fdc_id, prefix, num)
+            SELECT NEW.fdc_id, p.prefix,
+                   COALESCE((SELECT MAX(num) FROM food_codes WHERE prefix = p.prefix), 0) + 1
+            FROM (SELECT CASE {case} END AS prefix) AS p;
+        END
+    """)
+    for _k, start, end, label in _SYNTHETIC_ID_RANGES:
+        missing = conn.execute(
+            "SELECT fdc_id FROM foods WHERE fdc_id BETWEEN ? AND ? "
+            "AND fdc_id NOT IN (SELECT fdc_id FROM food_codes) ORDER BY cached_at, fdc_id",
+            (start, end)).fetchall()
+        for row in missing:
+            conn.execute(
+                "INSERT INTO food_codes (fdc_id, prefix, num) SELECT ?, ?, "
+                "COALESCE((SELECT MAX(num) FROM food_codes WHERE prefix = ?), 0) + 1",
+                (row["fdc_id"], label, label))
+
+
+# ---------------------------------------------------------------------------
+# Older versions of a food (food_versions)
+# ---------------------------------------------------------------------------
+# A kept version is an ordinary foods row — so every meal, recipe and
+# nutrient calculation that looks a food up by id works on it unchanged —
+# under an id from its own band, below every source's synthetic range (see
+# food_ids._SYNTHETIC_ID_RANGES). It's archived, so it stays out of search
+# and pickers, and its code is its food's plus ".n" (U171477.1).
+
+VERSION_ID_TOP = -8_000_000_000
+VERSION_ID_BOTTOM = -9_000_000_000
+
+
+def is_version_id(fdc_id: int | None) -> bool:
+    return fdc_id is not None and VERSION_ID_BOTTOM < fdc_id <= VERSION_ID_TOP
+
+
+def food_version_info(fdc_id: int) -> dict | None:
+    """{"parent_fdc_id", "num", "label_date", "before_date"} for a version id, else None."""
+    if not is_version_id(fdc_id):
+        return None
+    with get_db() as conn:
+        row = conn.execute("SELECT parent_fdc_id, num, label_date, before_date FROM food_versions "
+                           "WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def food_version_id(parent_fdc_id: int, num: int) -> int | None:
+    with get_db() as conn:
+        row = conn.execute("SELECT fdc_id FROM food_versions WHERE parent_fdc_id = ? AND num = ?",
+                           (parent_fdc_id, num)).fetchone()
+    return row["fdc_id"] if row else None
+
+
+def food_versions_of(conn: sqlite3.Connection, parent_fdc_id: int) -> list[dict]:
+    """A food's kept older versions, newest first, each with how many meal
+    items use it."""
+    return [dict(r) for r in conn.execute("""
+        SELECT v.fdc_id, v.num, v.label_date, v.before_date,
+               (SELECT COUNT(*) FROM meal_items mi WHERE mi.item_type = 'food' AND mi.fdc_id = v.fdc_id) AS meal_items
+        FROM food_versions v WHERE v.parent_fdc_id = ? ORDER BY v.num DESC
+    """, (parent_fdc_id,)).fetchall()]
+
+
+def meal_items_before(conn: sqlite3.Connection, fdc_id: int, before_date: str) -> int:
+    """How many meal items use this food in meals dated before before_date."""
+    return conn.execute("""
+        SELECT COUNT(*) FROM meal_items WHERE item_type = 'food' AND fdc_id = ?
+          AND meal_id IN (SELECT id FROM meals WHERE meal_date < ?)
+    """, (fdc_id, before_date)).fetchone()[0]
+
+
+def _copy_row(conn: sqlite3.Connection, table: str, fdc_id: int, new_id: int, **overrides) -> None:
+    cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    row = conn.execute(f"SELECT * FROM {table} WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if row is None:
+        return
+    values = [new_id if c == "fdc_id" else overrides.get(c, row[c]) for c in cols]
+    conn.execute(f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", values)
+
+
+def create_food_version(conn: sqlite3.Connection, fdc_id: int, before_date: str) -> dict | None:
+    """Keep the food's current values as an older version, and point every
+    meal dated before before_date at it, so those meals keep the values they
+    were logged with when the food itself is then updated. Recipes keep
+    using the food (a recipe has no date). Its origin label gets the date
+    the kept values were last written ("Branded · 2025-07-13"); its GI /
+    DIAAS / prep notes and source copy go with it. Returns {"fdc_id", "num",
+    "meal_items"} or None if the food isn't cached."""
+    row = get_cached_food(conn, fdc_id)
+    if row is None or is_version_id(fdc_id):
+        return None
+    num = conn.execute("SELECT COALESCE(MAX(num), 0) + 1 FROM food_versions WHERE parent_fdc_id = ?",
+                       (fdc_id,)).fetchone()[0]
+    lowest = conn.execute("SELECT MIN(fdc_id) FROM food_versions").fetchone()[0]
+    new_id = VERSION_ID_TOP if lowest is None else lowest - 1
+    label_date = (row["cached_at"] or "")[:10] or None
+    data_type = f"{row['data_type']} · {label_date}" if row["data_type"] and label_date else row["data_type"]
+    _copy_row(conn, "foods", fdc_id, new_id, data_type=data_type, archived=1)
+    _copy_row(conn, "food_annotations", fdc_id, new_id)
+    conn.execute("INSERT INTO food_versions (fdc_id, parent_fdc_id, num, label_date, before_date) "
+                 "VALUES (?, ?, ?, ?, ?)", (new_id, fdc_id, num, label_date, before_date))
+    moved = conn.execute("""
+        UPDATE meal_items SET fdc_id = ? WHERE item_type = 'food' AND fdc_id = ?
+          AND meal_id IN (SELECT id FROM meals WHERE meal_date < ?)
+    """, (new_id, fdc_id, before_date)).rowcount
+    return {"fdc_id": new_id, "num": num, "meal_items": moved}
+
+
+def food_code_fdc_id(prefix: str, num: int) -> int | None:
+    """Reverse of food_code_num(): the fdc_id behind an outside-source code
+    such as OFF3, or None if no food has that code."""
+    with get_db() as conn:
+        row = conn.execute("SELECT fdc_id FROM food_codes WHERE prefix = ? AND num = ?",
+                           (prefix, num)).fetchone()
+    return row["fdc_id"] if row else None
+
+
+def food_code_num(fdc_id: int) -> int | None:
+    """The short per-source number for an outside-source food (see
+    _init_food_codes), or None if it has none — e.g. a search result that
+    was never added to the cache."""
+    with get_db() as conn:
+        row = conn.execute("SELECT num FROM food_codes WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    return row["num"] if row else None
+
+
 # ---------------------------------------------------------------------------
 # Food cache
 # ---------------------------------------------------------------------------
+
+def _calorie_check(conn: sqlite3.Connection, fdc_id: int,
+                   nutrients: dict[str, float]) -> tuple[dict[str, float], str | None]:
+    """The save-time calorie check every write to foods.nutrients_json goes
+    through (cache_food, merge_user_supplied_nutrients,
+    update_food_nutrients_partial, update_cached_food_profile, and
+    demo_data.apply_improvements' starter refresh), so no route can leave a food with
+    protein/carbs/fat but no calories (energy_check.py has the why).
+
+    Returns (nutrients to store, "add" | "remove" | None for the calories
+    estimated mark — applied by _apply_calorie_mark() once the row exists):
+    - no calories, all three macros present: fill the 4/4/9 estimate, "add".
+    - calories already an estimate and carried over unchanged (a save that
+      didn't touch them): re-estimate from the macros as they are now, so
+      editing fat updates the estimate too.
+    - calories already an estimate, now a different value: someone supplied
+      a real figure, "remove"."""
+    from numa_app.services import energy_check as _energy
+    nutrients = dict(nutrients)
+    row = conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    prior = json.loads(row[0]) if row and row[0] else {}
+    is_estimate = "calories" in estimated_keys(conn, fdc_id) if row else False
+    cal = nutrients.get("calories")
+    if cal is None:
+        return (nutrients, "add") if _energy.fill_missing_calories(nutrients) else (nutrients, None)
+    if is_estimate:
+        if prior.get("calories") is not None and float(cal) == float(prior["calories"]):
+            est = _energy.atwater_estimate(nutrients)
+            if est is not None and est > 0:
+                nutrients["calories"] = round(est, 1)
+            return nutrients, None
+        return nutrients, "remove"
+    return nutrients, None
+
+
+def _apply_calorie_mark(conn: sqlite3.Connection, fdc_id: int, mark: str | None) -> None:
+    if mark == "add":
+        update_estimated_keys(conn, fdc_id, add={"calories"})
+    elif mark == "remove":
+        update_estimated_keys(conn, fdc_id, remove={"calories"})
+
 
 def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
                brand: str | None, serving_size: float | None, serving_unit: str | None,
                nutrients: dict[str, float], portions: list[dict] | None = None,
                *, user_drafted: bool = False, notes: str | None = None,
-               curator_notes: str | None = None) -> None:
+               curator_notes: str | None = None, from_source: bool = True) -> None:
     """Store a food, or overwrite the data columns of one already cached.
+
+    from_source (the default): the data is the food's own source's — a USDA
+    or Open Food Facts fetch, a bundled dataset, the starter set — so it
+    also becomes the food's source copy (foods.source_json). Pass False for
+    data the user brought in (imports), which is an edit of the food.
 
     An upsert, not INSERT OR REPLACE. REPLACE deletes the existing row and
     inserts a new one, and that delete sets off food_annotations' ON DELETE
     CASCADE: re-caching a food silently erased its GI / DIAAS / prep-note
     annotations, and reset its archived flag and every column not listed
     here (user_edited, starter_key). Updating in place keeps all of them."""
+    nutrients, calorie_mark = _calorie_check(conn, fdc_id, nutrients)
     conn.execute("""
         INSERT INTO foods
             (fdc_id, name, data_type, brand, serving_size, serving_unit,
@@ -516,6 +813,9 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
         json.dumps(nutrients), json.dumps(portions or []),
         1 if user_drafted else 0, notes or None, curator_notes or None
     ))
+    _apply_calorie_mark(conn, fdc_id, calorie_mark)
+    if from_source and not is_custom_food_id(fdc_id):
+        snapshot_food_source(conn, fdc_id)
 
 
 def get_cached_food(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None:
@@ -905,10 +1205,13 @@ def set_food_annotation(
     """, (fdc_id, gi_estimate, gi_source, 1 if gi_no_prompt else 0,
           diaas_estimate, 1 if diaas_no_prompt else 0, prep_context,
           1 if reviewed else 0))
+    # Clearing the last annotation can end a food's user-edited status.
+    refresh_user_edited(conn, fdc_id)
 
 
 def delete_food_annotation(conn: sqlite3.Connection, fdc_id: int) -> None:
     conn.execute("DELETE FROM food_annotations WHERE fdc_id = ?", (fdc_id,))
+    refresh_user_edited(conn, fdc_id)
 
 
 def annotations_for_fdcids(
@@ -1680,8 +1983,10 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
     """Flatten a meal's items into (fdc_id, name, kind, has_protein, deleted, recipe_id) tuples.
 
     Plain food items yield one ("food") tuple. Recipe items yield one ("recipe")
-    tuple for the recipe itself, plus one ("food") tuple per base ingredient
-    (recursively expanded through nested sub-recipes via ref_recipe_id).
+    tuple for the recipe itself, plus one ("food") tuple per base ingredient,
+    recursively expanded through nested sub-recipes via ref_recipe_id — each
+    nested sub-recipe also gets its own ("recipe") tuple, so a sub-recipe that
+    is eaten only inside other recipes still shows up as consumed.
 
     has_protein reflects the food's cached protein_g > 0 (False if the food
     isn't cached). A recipe row's has_protein is True if any of its
@@ -1694,8 +1999,8 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
 
     recipe_id is the stable identifier for a "recipe" row — always meal_items'
     recipe_id for a directly-added recipe (even after deletion, since that
-    column is never cleared), or None for "food" rows and for a nested
-    sub-recipe that was itself deleted (ref_recipe_id is cleared on delete, so
+    column is never cleared), the ref_recipe_id for a live nested sub-recipe,
+    or None for "food" rows and for a nested sub-recipe that was itself deleted (ref_recipe_id is cleared on delete, so
     no id survives — see recipe_delete()). Callers should key/group recipe
     rows by recipe_id when present rather than by name, since a recipe's name
     can change after a meal references it while its id stays fixed.
@@ -1712,7 +2017,11 @@ def meal_expand_food_items(conn: sqlite3.Connection, meal_id: int) -> list[tuple
             if ing["ref_recipe_deleted"]:
                 out.append((None, ing["food_name"], "recipe", False, True, None))
             elif ing["ref_recipe_id"]:
-                out.extend(_expand_recipe(ing["ref_recipe_id"]))
+                sub = recipe_get(conn, ing["ref_recipe_id"])
+                sub_rows = _expand_recipe(ing["ref_recipe_id"]) if sub else []
+                name = sub["name"] if sub else ing["food_name"]
+                out.append((None, name, "recipe", any(r[3] for r in sub_rows), False, ing["ref_recipe_id"]))
+                out.extend(sub_rows)
             else:
                 out.append((ing["fdc_id"], _current_food_name(conn, ing["fdc_id"], ing["food_name"]),
                             "food", _food_has_protein(conn, ing["fdc_id"]), False, None))
@@ -1748,12 +2057,10 @@ def _current_food_name(conn: sqlite3.Connection, fdc_id: int, fallback: str) -> 
 
 def recipe_expand_ingredient_use(conn: sqlite3.Connection, recipe_id: int) -> list[tuple[int | None, str, str, bool, int | None]]:
     """Flatten a recipe's ingredient tree into (fdc_id, name, kind, has_protein, ref_recipe_id)
-    rows, for the "Food Use in Recipes" analysis — unlike meal_expand_food_items's
-    _expand_recipe (which flattens nested sub-recipes away transparently, since a
-    meal only cares about the base foods it ate), a sub-recipe ingredient here gets
-    its own "recipe" row *and* its ingredients are also recursed into, so a
-    frequently-reused sub-recipe (e.g. a house dressing) is visible as its own line,
-    the same way a meal's directly-added recipe gets its own row.
+    rows, for the "Food Use in Recipes" analysis — like meal_expand_food_items's
+    _expand_recipe, a sub-recipe ingredient gets its own "recipe" row *and* its
+    ingredients are also recursed into, so a frequently-reused sub-recipe (e.g. a
+    house dressing) is visible as its own line.
 
     A "food" row's name is the food's current cached name (see
     meal_expand_food_items's docstring for why); a "recipe" row's name is the
@@ -1890,6 +2197,11 @@ def meal_update_item(conn: sqlite3.Connection, item_id: int, meal_id: int,
     )
 
 
+def meal_item_set_serving_grams(conn: sqlite3.Connection, item_id: int,
+                                serving_grams: float | None) -> None:
+    conn.execute("UPDATE meal_items SET serving_grams=? WHERE id=?", (serving_grams, item_id))
+
+
 def meal_replace_food(conn: sqlite3.Connection, item_id: int, meal_id: int,
                       fdc_id: int, food_name: str, amount: float, unit: str,
                       notes: str | None = None) -> None:
@@ -1916,7 +2228,7 @@ def search_meal_history(
         """
         SELECT m.meal_date, m.name AS meal_name, m.id AS meal_id,
                mi.id AS item_id, mi.item_type, mi.food_name, mi.fdc_id,
-               mi.recipe_id, mi.amount, mi.unit, mi.notes
+               mi.recipe_id, mi.amount, mi.unit, mi.notes, mi.serving_grams
         FROM meal_items mi
         JOIN meals m ON mi.meal_id = m.id
         WHERE (
@@ -1975,6 +2287,130 @@ def meal_set_bcp(conn: sqlite3.Connection, meal_id: int, bcp_g: float | None,
         "(SELECT meal_date FROM meals WHERE id = ?)",
         (meal_id,),
     )
+
+
+def mark_meals_stale_for_food(conn: sqlite3.Connection, fdc_id: int) -> None:
+    """Flag every meal that logs `fdc_id` directly as a food item, so its
+    stored DCP/calories/nutrient snapshot is recomputed (meals using the food
+    through a recipe are flagged via mark_meals_stale_for_recipes())."""
+    conn.execute(
+        "INSERT OR IGNORE INTO stale_meals (meal_id) "
+        "SELECT DISTINCT meal_id FROM meal_items WHERE item_type = 'food' AND fdc_id = ?",
+        (fdc_id,),
+    )
+
+
+def mark_meals_stale_for_recipes(conn: sqlite3.Connection, recipe_ids) -> None:
+    """Flag every meal that logs any of `recipe_ids` as a recipe item."""
+    ids = list(recipe_ids)
+    if not ids:
+        return
+    placeholders = ",".join("?" * len(ids))
+    conn.execute(
+        "INSERT OR IGNORE INTO stale_meals (meal_id) "
+        f"SELECT DISTINCT meal_id FROM meal_items WHERE item_type = 'recipe' AND recipe_id IN ({placeholders})",
+        ids,
+    )
+
+
+def recipes_using_food(conn: sqlite3.Connection, fdc_id: int) -> list[int]:
+    """Every recipe that uses `fdc_id`, directly or inside a sub-recipe at
+    any depth."""
+    return [r[0] for r in conn.execute("""
+        WITH RECURSIVE r(id) AS (
+            SELECT recipe_id FROM recipe_ingredients WHERE fdc_id = ?
+            UNION
+            SELECT ri.recipe_id FROM recipe_ingredients ri JOIN r ON ri.ref_recipe_id = r.id
+        )
+        SELECT id FROM r ORDER BY id
+    """, (fdc_id,))]
+
+
+def meals_using_food(conn: sqlite3.Connection, fdc_id: int) -> list[int]:
+    """Every logged meal that includes `fdc_id`, directly or through a recipe."""
+    recipe_ids = recipes_using_food(conn, fdc_id)
+    placeholders = ",".join("?" * len(recipe_ids)) or "NULL"
+    return [r[0] for r in conn.execute(
+        "SELECT DISTINCT meal_id FROM meal_items WHERE (item_type = 'food' AND fdc_id = ?) "
+        f"OR (item_type = 'recipe' AND recipe_id IN ({placeholders})) ORDER BY meal_id",
+        (fdc_id, *recipe_ids))]
+
+
+def recipe_and_ancestors(conn: sqlite3.Connection, recipe_id: int) -> list[int]:
+    """`recipe_id` plus every recipe that uses it as a sub-recipe, at any depth."""
+    return [r[0] for r in conn.execute("""
+        WITH RECURSIVE r(id) AS (
+            SELECT ?
+            UNION
+            SELECT ri.recipe_id FROM recipe_ingredients ri JOIN r ON ri.ref_recipe_id = r.id
+        )
+        SELECT id FROM r ORDER BY id
+    """, (recipe_id,))]
+
+
+def meals_using_recipes(conn: sqlite3.Connection, recipe_ids) -> list[int]:
+    ids = list(recipe_ids)
+    if not ids:
+        return []
+    placeholders = ",".join("?" * len(ids))
+    return [r[0] for r in conn.execute(
+        f"SELECT DISTINCT meal_id FROM meal_items WHERE item_type = 'recipe' AND recipe_id IN ({placeholders})",
+        ids)]
+
+
+def duplicate_dismissals(conn: sqlite3.Connection) -> set[str]:
+    return {r[0] for r in conn.execute("SELECT group_key FROM food_duplicate_dismissals")}
+
+
+def dismiss_duplicate_group(conn: sqlite3.Connection, group_key: str) -> None:
+    conn.execute("INSERT OR IGNORE INTO food_duplicate_dismissals (group_key) VALUES (?)", (group_key,))
+
+
+def merge_food_into(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dict[str, int]:
+    """Replace food `drop_id` with `keep_id` everywhere — recipe ingredients,
+    logged meal items, pantry entries — then delete `drop_id`. Each line keeps
+    its own name and grams (same as a rename: the line's label is a record).
+    GI/DIAAS annotations and the oxalate link move over only where the kept
+    food has none. Returns how many rows were re-pointed, per table. The
+    caller recomputes (recipe_dcp.cascade_food_change(keep_id))."""
+    counts = {}
+    for table, extra in (("recipe_ingredients", ""), ("meal_items", " AND item_type = 'food'"), ("pantry", "")):
+        cur = conn.execute(f"UPDATE {table} SET fdc_id = ? WHERE fdc_id = ?{extra}", (keep_id, drop_id))
+        counts[table] = cur.rowcount
+    for table in ("food_annotations", "oxalate_links"):
+        if not conn.execute(f"SELECT 1 FROM {table} WHERE fdc_id = ?", (keep_id,)).fetchone():
+            conn.execute(f"UPDATE {table} SET fdc_id = ? WHERE fdc_id = ?", (keep_id, drop_id))
+    delete_cached_food(conn, drop_id)
+    return counts
+
+
+def mark_meal_stale(conn: sqlite3.Connection, meal_id: int) -> None:
+    conn.execute("INSERT OR IGNORE INTO stale_meals (meal_id) VALUES (?)", (meal_id,))
+
+
+def log_meal_recalc(conn: sqlite3.Connection, meal_ids, reason: str) -> None:
+    conn.executemany("INSERT INTO meal_recalc_log (meal_id, reason) VALUES (?, ?)",
+                     [(m, reason) for m in meal_ids])
+
+
+def meal_recalc_notes(conn: sqlite3.Connection, meal_ids, limit: int = 3) -> list[sqlite3.Row]:
+    """The latest distinct recalculation reasons for these meals, newest first."""
+    ids = list(meal_ids)
+    if not ids:
+        return []
+    placeholders = ",".join("?" * len(ids))
+    return conn.execute(
+        "SELECT reason, MAX(logged_at) AS logged_at FROM meal_recalc_log "
+        f"WHERE meal_id IN ({placeholders}) GROUP BY reason ORDER BY logged_at DESC LIMIT ?",
+        (*ids, limit)).fetchall()
+
+
+def stale_meal_ids(conn: sqlite3.Connection) -> list[int]:
+    return [r["meal_id"] for r in conn.execute("SELECT meal_id FROM stale_meals ORDER BY meal_id")]
+
+
+def clear_stale_meal(conn: sqlite3.Connection, meal_id: int) -> None:
+    conn.execute("DELETE FROM stale_meals WHERE meal_id = ?", (meal_id,))
 
 
 def meal_set_day_pct_goal(conn: sqlite3.Connection, meal_id: int, pct: float | None) -> None:
@@ -2055,10 +2491,276 @@ def is_custom_food_id(fdc_id: int) -> bool:
 
 
 def mark_user_edited(conn: sqlite3.Connection, fdc_id: int) -> None:
-    """Record that the user changed this food's data (see foods.user_edited).
-    A no-op on a custom food."""
-    if not is_custom_food_id(fdc_id):
+    """Record that the user may have changed this food's data (see
+    foods.user_edited). With a source copy the flag is worked out from it
+    (refresh_user_edited) — so an "edit" that leaves every value as the
+    source has it isn't one. Without one (an edit from before source copies
+    existed, or user data for a food never fetched from its source) there's
+    nothing to compare against, so the flag is simply set. A no-op on a
+    custom food."""
+    if is_custom_food_id(fdc_id):
+        return
+    row = conn.execute("SELECT source_json FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if row is None:
+        return
+    if row["source_json"] is None:
         conn.execute("UPDATE foods SET user_edited = 1 WHERE fdc_id = ?", (fdc_id,))
+    else:
+        refresh_user_edited(conn, fdc_id)
+
+
+# ---------------------------------------------------------------------------
+# Source copy — value-level edit tracking (foods.source_json)
+# ---------------------------------------------------------------------------
+# Tracked: every nutrient, serving size and unit, and portions. Not tracked:
+# name, brand and type — renaming a food was never an edit of its data.
+
+_TRACKED_SCALARS = ("serving_size", "serving_unit")
+PORTION_KEY_PREFIX = "portion:"
+
+
+def _food_state(row) -> dict:
+    """The tracked values of a foods row, in source_json's shape."""
+    return {
+        "nutrients": json.loads(row["nutrients_json"]) if row["nutrients_json"] else {},
+        "portions": (json.loads(row["portions_json"]) if row["portions_json"] else None) or [],
+        "serving_size": row["serving_size"],
+        "serving_unit": row["serving_unit"],
+    }
+
+
+def _same_value(a, b) -> bool:
+    if a in (None, "") and b in (None, ""):
+        return True
+    if a in (None, "") or b in (None, ""):
+        return False
+    try:
+        return abs(float(a) - float(b)) <= max(1e-9, 1e-6 * max(abs(float(a)), abs(float(b))))
+    except (TypeError, ValueError):
+        return str(a).strip() == str(b).strip()
+
+
+def _portion_desc(p: dict) -> str:
+    """A portion's name — "description" in the app's own shape; anything
+    else falls back to the whole entry, so an unexpected shape still
+    compares rather than being silently skipped."""
+    desc = str(p.get("description") or p.get("label") or "").strip()
+    return desc or json.dumps(p, sort_keys=True)
+
+
+def _portion_grams(p: dict):
+    return p.get("gram_weight", p.get("grams"))
+
+
+def _portions_by_desc(portions) -> dict[str, dict]:
+    return {_portion_desc(p).lower(): p for p in portions or [] if isinstance(p, dict)}
+
+
+def diff_from_source(current: dict, source: dict, *, estimated: "set[str] | frozenset[str]" = frozenset()) -> list[str]:
+    """The tracked values where `current` differs from `source` (both in
+    _food_state's shape): nutrient keys, "serving_size"/"serving_unit", and
+    "portion:<description>" for a portion the source doesn't have or has
+    with a different weight. Portions are one-way — a source portion the
+    food lacks (an offered addition left unticked) isn't the user's value.
+    A calorie figure NuMa estimated isn't either."""
+    from numa_app.services.data_completeness import is_blank
+    cur_n, src_n = current.get("nutrients") or {}, source.get("nutrients") or {}
+    keys = []
+    for k in sorted(set(cur_n) | set(src_n)):
+        cur_blank, src_blank = is_blank(k, cur_n), is_blank(k, src_n)
+        if cur_blank and src_blank:
+            continue
+        # A calorie figure NuMa estimated from the macros is never the
+        # user's value (one they type stops being an estimate), and it
+        # follows the macros, so it's judged through them instead.
+        if k == "calories" and "calories" in estimated:
+            continue
+        if cur_blank != src_blank or not _same_value(cur_n[k], src_n[k]):
+            keys.append(k)
+    for f in _TRACKED_SCALARS:
+        if not _same_value(current.get(f), source.get(f)):
+            keys.append(f)
+    src_p = _portions_by_desc(source.get("portions"))
+    for desc, p in _portions_by_desc(current.get("portions")).items():
+        if desc not in src_p or not _same_value(_portion_grams(p), _portion_grams(src_p[desc])):
+            keys.append(PORTION_KEY_PREFIX + _portion_desc(p))
+    return keys
+
+
+def food_source(conn: sqlite3.Connection, fdc_id: int) -> dict | None:
+    """The food's source copy, or None (custom food, or source unknown)."""
+    row = conn.execute("SELECT source_json FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if not row or not row["source_json"]:
+        return None
+    try:
+        return json.loads(row["source_json"])
+    except ValueError:
+        return None
+
+
+def food_edited_keys(conn: sqlite3.Connection, fdc_id: int) -> list[str] | None:
+    """Which tracked values the user has changed from the source's (see
+    diff_from_source), or None when that can't be known: a custom food (all
+    its values are the user's), or a food edited before source copies
+    existed and not refreshed since."""
+    if is_custom_food_id(fdc_id):
+        return None
+    row = get_cached_food(conn, fdc_id)
+    source = food_source(conn, fdc_id)
+    if row is None or source is None:
+        return None
+    return diff_from_source(_food_state(row), source, estimated=estimated_keys(conn, fdc_id))
+
+
+def has_user_annotation(conn: sqlite3.Connection, fdc_id: int) -> bool:
+    """A GI / DIAAS / prep note the user added — an edit (owner's decision).
+    A starter GI value isn't the user's."""
+    return conn.execute("""
+        SELECT 1 FROM food_annotations WHERE fdc_id = ? AND (
+            diaas_estimate IS NOT NULL OR COALESCE(prep_context, '') <> ''
+            OR (gi_estimate IS NOT NULL
+                AND COALESCE(gi_source, '') <> 'Starter data (curator''s estimate)'))
+    """, (fdc_id,)).fetchone() is not None
+
+
+def refresh_user_edited(conn: sqlite3.Connection, fdc_id: int) -> None:
+    """Re-derive foods.user_edited from the source copy and annotations. Left
+    alone when there's no source copy (see mark_user_edited)."""
+    if is_custom_food_id(fdc_id) or food_source(conn, fdc_id) is None:
+        return
+    edited = bool(food_edited_keys(conn, fdc_id)) or has_user_annotation(conn, fdc_id)
+    conn.execute("UPDATE foods SET user_edited = ? WHERE fdc_id = ?", (1 if edited else 0, fdc_id))
+
+
+def set_food_source(conn: sqlite3.Connection, fdc_id: int, source: dict) -> None:
+    if is_custom_food_id(fdc_id):
+        return
+    conn.execute("UPDATE foods SET source_json = ? WHERE fdc_id = ?", (json.dumps(source), fdc_id))
+    refresh_user_edited(conn, fdc_id)
+
+
+def snapshot_food_source(conn: sqlite3.Connection, fdc_id: int) -> None:
+    """The food's values as they are now ARE its source's (just fetched, or
+    reset to the starter version): make them its source copy."""
+    row = get_cached_food(conn, fdc_id)
+    if row is not None:
+        set_food_source(conn, fdc_id, _food_state(row))
+
+
+def rebase_food_source(conn: sqlite3.Connection, fdc_id: int, incoming: dict) -> None:
+    """A fresh copy from the source has been reviewed (whatever was or wasn't
+    taken from it): it becomes the source copy — see rebased_source(). A
+    food with no source copy (edited before they existed) gets its first
+    one here."""
+    row = get_cached_food(conn, fdc_id)
+    if row is not None:
+        set_food_source(conn, fdc_id, rebased_source(food_source(conn, fdc_id), _food_state(row), incoming))
+
+
+def rebased_source(old: dict | None, current: dict, incoming: dict) -> dict:
+    """The source copy after a fresh copy `incoming` arrives. What the fresh
+    copy lacks, the old copy still vouches for — a value the source dropped,
+    or an old portion the refresh doesn't replace — so a value the user
+    never touched doesn't start counting as their edit."""
+    from numa_app.services.data_completeness import is_blank
+    old = old or {}
+    inc_n = incoming.get("nutrients") or {}
+    nutrients = {k: v for k, v in inc_n.items() if not is_blank(k, inc_n)}
+    for k, v in (old.get("nutrients") or {}).items():
+        if k not in nutrients:
+            nutrients[k] = v
+    new = {"nutrients": nutrients}
+    for f in _TRACKED_SCALARS:
+        # USDA leaves serving size out for most non-branded foods; with no
+        # earlier copy to say otherwise, the food's own is taken as the
+        # source's rather than counted as the user's.
+        fallback = old.get(f) if old else current.get(f)
+        new[f] = incoming.get(f) if incoming.get(f) not in (None, "") else fallback
+    cur_p = _portions_by_desc(current.get("portions"))
+    old_p = _portions_by_desc(old.get("portions"))
+    portions, seen = [], set()
+    for p in incoming.get("portions") or []:
+        if not isinstance(p, dict):
+            continue
+        desc = _portion_desc(p).lower()
+        if desc in seen:
+            continue
+        seen.add(desc)
+        # Refresh never replaces a portion the food has; if the food still has
+        # the old source weight, that's the source's too, not the user's.
+        mine = cur_p.get(desc)
+        if (mine is not None and desc in old_p
+                and _same_value(_portion_grams(mine), _portion_grams(old_p[desc]))):
+            portions.append(old_p[desc])
+        else:
+            portions.append(p)
+    portions += [p for d, p in old_p.items() if d not in seen]
+    new["portions"] = portions
+    return new
+
+
+def edits_left_after_full_refresh(conn: sqlite3.Connection, fdc_id: int, incoming: dict) -> bool:
+    """Would this food still be user-edited after taking EVERY value a fresh
+    copy offers? True when something no tick can undo remains: a GI / DIAAS /
+    prep note, a portion of the user's own, or a value of the user's that
+    the source no longer lists. The review screen adds any unticked value."""
+    row = get_cached_food(conn, fdc_id)
+    if row is None or is_custom_food_id(fdc_id):
+        return False
+    if has_user_annotation(conn, fdc_id):
+        return True
+    current = _food_state(row)
+    new_base = rebased_source(food_source(conn, fdc_id), current, incoming)
+    taken = dict(current)
+    taken["nutrients"] = {**current["nutrients"],
+                          **{k: v for k, v in (incoming.get("nutrients") or {}).items() if v is not None}}
+    for f in _TRACKED_SCALARS:
+        if incoming.get(f) not in (None, ""):
+            taken[f] = incoming[f]
+    return bool(diff_from_source(taken, new_base, estimated=estimated_keys(conn, fdc_id)))
+
+
+_FOOD_FIELD_COLUMNS = ("name", "brand", "data_type", "serving_size", "serving_unit", "portions")
+
+
+def update_food_fields(conn: sqlite3.Connection, fdc_id: int, **fields) -> None:
+    """Change only the named descriptive columns of a cached food (name,
+    brand, data_type, serving_size, serving_unit, portions — the last as a
+    list, stored as JSON), leaving nutrients, flags and notes alone. Used by
+    the incoming-data review (numa_app/services/incoming_review.py)."""
+    sets, values = [], []
+    for key, value in fields.items():
+        if key not in _FOOD_FIELD_COLUMNS:
+            raise ValueError(f"not an updatable food field: {key}")
+        if key == "portions":
+            sets.append("portions_json = ?")
+            values.append(json.dumps(value or []))
+        else:
+            sets.append(f"{key} = ?")
+            values.append(value)
+    if sets:
+        conn.execute(f"UPDATE foods SET {', '.join(sets)} WHERE fdc_id = ?", (*values, fdc_id))
+        refresh_user_edited(conn, fdc_id)
+
+
+def estimated_keys(conn: sqlite3.Connection, fdc_id: int) -> set[str]:
+    """Nutrient keys on this food whose values are estimates (see
+    foods.estimated_keys_json)."""
+    row = conn.execute("SELECT estimated_keys_json FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if not row or not row[0]:
+        return set()
+    try:
+        return set(json.loads(row[0]))
+    except ValueError:
+        return set()
+
+
+def update_estimated_keys(conn: sqlite3.Connection, fdc_id: int, *,
+                          add: "set[str] | list[str]" = (), remove: "set[str] | list[str]" = ()) -> None:
+    """Mark keys as estimated (add) or measured again (remove)."""
+    keys = (estimated_keys(conn, fdc_id) | set(add)) - set(remove)
+    conn.execute("UPDATE foods SET estimated_keys_json = ? WHERE fdc_id = ?",
+                 (json.dumps(sorted(keys)) if keys else None, fdc_id))
 
 
 def cache_user_supplied_food(conn: sqlite3.Connection, *, fdc_id: int, data_type: str, **kwargs) -> None:
@@ -2073,8 +2775,72 @@ def cache_user_supplied_food(conn: sqlite3.Connection, *, fdc_id: int, data_type
     if (not is_custom_food_id(fdc_id) and data_type == "User Drafted" and prior is not None
             and prior["data_type"] and prior["data_type"] != "User Drafted"):
         data_type = prior["data_type"]
-    cache_food(conn, fdc_id=fdc_id, data_type=data_type, **kwargs)
+    cache_food(conn, fdc_id=fdc_id, data_type=data_type, from_source=False, **kwargs)
     mark_user_edited(conn, fdc_id)
+
+
+def merge_user_supplied_nutrients(conn: sqlite3.Connection, fdc_id: int, new: dict[str, float],
+                                  *, overwrite: bool = False, notes: str | None = None,
+                                  curator_notes: str | None = None,
+                                  mark_edited: bool = True) -> tuple[list[str], list[str]]:
+    """Add imported nutrient values to a food already in the cache, leaving
+    every other column (name, type, portions, brand, ...) as it is.
+
+    Only blank values are filled (data_completeness.is_blank) unless
+    overwrite=True. Returns (keys written, keys left alone because the food
+    already had a value). Notes are appended, not replaced."""
+    from numa_app.services.data_completeness import is_blank
+    row = get_cached_food(conn, fdc_id)
+    existing = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+    written, kept = [], []
+    for k, v in new.items():
+        if overwrite or is_blank(k, existing):
+            written.append(k)
+        else:
+            kept.append(k)
+    existing.update({k: new[k] for k in written})
+    existing, calorie_mark = _calorie_check(conn, fdc_id, existing)
+
+    def _append(old, extra):
+        if not extra or (old and extra in old):
+            return old
+        return f"{old}  |  {extra}" if old else extra
+
+    conn.execute(
+        "UPDATE foods SET nutrients_json = ?, notes = ?, curator_notes = ?, "
+        "cached_at = datetime('now') WHERE fdc_id = ?",
+        (json.dumps(existing), _append(row["notes"], notes),
+         _append(row["curator_notes"], curator_notes), fdc_id),
+    )
+    _apply_calorie_mark(conn, fdc_id, calorie_mark)
+    # mark_edited=False: the values are the food's own source's (a USDA
+    # refresh), so they go into its source copy too rather than counting as
+    # the user's edit.
+    if written and mark_edited:
+        mark_user_edited(conn, fdc_id)
+    elif written:
+        source = food_source(conn, fdc_id)
+        if source is not None:
+            source.setdefault("nutrients", {}).update({k: existing[k] for k in written})
+            set_food_source(conn, fdc_id, source)
+    return written, kept
+
+
+def food_data_ignores(conn: sqlite3.Connection) -> dict[int, set[str]]:
+    """fdc_id -> nutrient groups the user marked not needed for that food."""
+    out: dict[int, set[str]] = {}
+    for r in conn.execute("SELECT fdc_id, group_key FROM food_data_ignores"):
+        out.setdefault(r["fdc_id"], set()).add(r["group_key"])
+    return out
+
+
+def set_food_data_ignore(conn: sqlite3.Connection, fdc_id: int, group_key: str, ignored: bool) -> None:
+    if ignored:
+        conn.execute("INSERT OR IGNORE INTO food_data_ignores (fdc_id, group_key) VALUES (?, ?)",
+                     (fdc_id, group_key))
+    else:
+        conn.execute("DELETE FROM food_data_ignores WHERE fdc_id = ? AND group_key = ?",
+                     (fdc_id, group_key))
 
 
 def user_edited_ids(conn: sqlite3.Connection) -> set[int]:
@@ -2106,10 +2872,13 @@ def update_food_nutrients_partial(conn: sqlite3.Connection, fdc_id: int, new_nut
         return
     existing = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
     existing.update(new_nutrients)
+    existing, calorie_mark = _calorie_check(conn, fdc_id, existing)
     conn.execute(
         "UPDATE foods SET nutrients_json = ?, cached_at = datetime('now') WHERE fdc_id = ?",
         (json.dumps(existing), fdc_id),
     )
+    _apply_calorie_mark(conn, fdc_id, calorie_mark)
+    refresh_user_edited(conn, fdc_id)
 
 
 # ---------------------------------------------------------------------------
@@ -2175,20 +2944,25 @@ def update_cached_food_profile(
     notes: str | None = None,
     user_drafted: bool = True,
 ) -> None:
+    nutrients, calorie_mark = _calorie_check(conn, fdc_id, nutrients)
     conn.execute(
         "UPDATE foods SET name=?, data_type=?, brand=?, serving_size=?, serving_unit=?, "
-        "nutrients_json=?, portions_json=?, user_drafted=?, notes=?, cached_at=(datetime('now')), "
-        "user_edited=? WHERE fdc_id=?",
+        "nutrients_json=?, portions_json=?, user_drafted=?, notes=?, cached_at=(datetime('now')) "
+        "WHERE fdc_id=?",
         (
             name, data_type, brand, serving_size, serving_unit,
             json.dumps(nutrients), json.dumps(portions or []),
             1 if user_drafted else 0, notes or None,
-            # user_drafted=True is a user's edit; False is a fresh copy of the
-            # source's data (the USDA refresh), which is no longer edited.
-            1 if user_drafted and not is_custom_food_id(fdc_id) else 0,
             fdc_id,
         ),
     )
+    # user_drafted=True is a user's edit; False is a fresh copy of the
+    # source's data (the full USDA refresh), which becomes the source copy.
+    _apply_calorie_mark(conn, fdc_id, calorie_mark)
+    if user_drafted:
+        mark_user_edited(conn, fdc_id)
+    else:
+        snapshot_food_source(conn, fdc_id)
 
 
 def rename_cached_food(conn: sqlite3.Connection, fdc_id: int, new_name: str) -> None:

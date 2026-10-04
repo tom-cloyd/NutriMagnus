@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archived_toggle.html" import archived_toggle %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
 {% block title %}NutriMagnus — My Pantry{% endblock %}
@@ -27,13 +28,7 @@
 <div class="alert alert-success">Restored.</div>
 {% endif %}
 
-<form method="get" action="/pantry" class="mb-2">
-  <div class="form-check">
-    <input type="checkbox" class="form-check-input" id="show_archived" name="show_archived"
-           value="1" {% if show_archived %}checked{% endif %} onchange="this.form.submit()">
-    <label class="form-check-label muted" for="show_archived"><small>Show archived</small></label>
-  </div>
-</form>
+<p class="mb-2">{{ archived_toggle("/pantry", show_archived, "pantry items") }}</p>
 
 {% if link_id and link_name %}
 <div class="alert alert-info">
@@ -98,7 +93,7 @@
 <table class="table table-sm table-hover mb-4" style="max-width:56rem">
   <thead class="table-light">
     <tr>
-      <th class="muted" style="width:6rem">ID</th>
+      <th class="muted" style="width:6rem">Code</th>
       <th>Food</th>
       <th>Brand</th>
       <th>Type</th>
@@ -210,7 +205,7 @@
       </td>
       <td>
         {% if item.fdc_id %}
-        <a href="/food/{{ item.fdc_id }}" class="muted">{{ item.fdc_id }}</a>
+        <a href="/food/{{ item.fdc_id }}" class="muted">{{ food_id_short(item.fdc_id) }}</a>
         {% else %}
         <span class="muted">—</span>
         {% endif %}

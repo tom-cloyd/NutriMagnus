@@ -36,11 +36,14 @@ jobs:
         run: |
           pip install --no-cache-dir -r requirements.txt pyinstaller==6.21.0
 
-      - name: Run tests
-        run: pytest -q
-
+      # The manual is built BEFORE the tests: tests/test_link_integrity.py
+      # checks every manual link against the built user-manual.html (not in
+      # git), so a broken link stops the release here.
       - name: Regenerate user-manual.html
         run: python3 scripts/build_manual.py
+
+      - name: Run tests
+        run: pytest -q
 
       - name: Build Linux binary
         run: pyinstaller nutrimagnus.spec

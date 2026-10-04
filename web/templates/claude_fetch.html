@@ -12,11 +12,24 @@
 
 <h2>Fetch nutrient data from Claude AI {{ manual_link("fetch") }}</h2>
 
+{% if nothing_missing %}
+<div class="alert alert-info" style="max-width:44rem">
+  <strong>Left out — nothing missing to ask for:</strong> {{ nothing_missing|join("; ") }}.
+  <br><small>Every nutrient group for {{ "this food" if nothing_missing|length == 1 else "these foods" }} already has values, or is missing only
+  groups you marked &ldquo;not needed&rdquo; (undo that on the <a href="/food/cache/db-check#completeness">data completeness check</a>).</small>
+</div>
+{% endif %}
 {% if not prompt %}
+{% if not nothing_missing %}
 <p class="text-warning">None of the foods you selected could be found — go back to the
 <a href="/food/cache">Food Cache</a> and try again.</p>
+{% endif %}
 {% else %}
-<p class="muted">A prompt for {{ selected|length }} food{% if selected|length != 1 %}s{% endif %} is ready below.</p>
+<p class="muted">A prompt for {{ selected|length }} food{% if selected|length != 1 %}s{% endif %} is ready below. It asks only
+for the values each food is missing, so importing the reply fills gaps without touching values you already have:</p>
+<ul class="muted" style="font-size:0.9rem">
+  {% for fid, name in selected %}<li>{{ name }} &mdash; {{ group_labels[fid]|join(", ") }}</li>{% endfor %}
+</ul>
 
 <ol>
   <li class="mb-1">Copy the prompt below (button provided).</li>

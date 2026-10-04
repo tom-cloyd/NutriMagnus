@@ -41,6 +41,20 @@ def estimate_aa(target_nutrients: dict, source_nutrients: dict) -> tuple[dict | 
     return updated, factor, None
 
 
+def scaled_aa(source_nutrients: dict, target_protein: float | None) -> tuple[dict, float | None]:
+    """The source's amino acid values scaled to target_protein grams of
+    protein per 100 g — the per-value form estimate_aa() applies wholesale,
+    for the value-by-value review screen (incoming_review.py). Returns
+    ({key: value}, factor), or ({}, None) when there is no protein on either
+    side to scale by."""
+    source_protein = source_nutrients.get("protein_g") or 0.0
+    if not target_protein or target_protein <= 0 or source_protein <= 0:
+        return {}, None
+    factor = target_protein / source_protein
+    return ({k: round(source_nutrients[k] * factor, 4)
+             for k in _usda.ALL_AMINO_ACIDS if k in source_nutrients}, factor)
+
+
 def source_note(source_name: str, source_fdc_id: "int | None", factor: float) -> str:
     """Free-text note documenting where an AA estimate came from, matching
     the manual "Source: ... scaled from ..." convention used elsewhere."""

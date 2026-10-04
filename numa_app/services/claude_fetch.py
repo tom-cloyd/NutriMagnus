@@ -25,9 +25,9 @@ VALID_FDC_TYPES = {
 }
 
 PROMPT_TEMPLATE = """\
-I need complete nutritional data for {n} food(s), formatted as JSON for direct import into a Python nutrition app.
+{intro}
 
-Output ALL foods in a SINGLE reply — one fenced ```json ... ``` block per food, all in the same response. Do not split your answer across multiple messages. Each block must follow this exact structure — metadata keys first, then all available nutrient keys:
+Output ALL foods in a SINGLE reply — one fenced ```json ... ``` block per food, all in the same response. Do not split your answer across multiple messages. Each block must follow this exact structure — metadata keys first, then {which_keys}:
 
 ```json
 {{
@@ -66,23 +66,53 @@ Critical rules:
 6. Source hierarchy: prefer USDA FoodData Central (cite FDC ID), then USDA SR Legacy (cite FDC ID), then peer-reviewed literature (cite paper), then estimate (flag clearly in confidence_note). Note: direct access to the USDA database is not possible — use your training data, which mirrors these sources.
 7. fdc_type must be exactly one of: "Foundation", "SR Legacy", "Branded", "Survey (FNDDS)", "User Drafted".
 8. If scaling from a non-100 g reference portion, show the calculation in confidence_note — UNLESS rule 9 applies.
-9. For a packaged/branded product where you have the manufacturer's Nutrition Facts label (per-serving values), do NOT do the per-100g arithmetic yourself. Instead replace the flat nutrient keys with:
+{targeted_rule}9. For a packaged/branded product where you have the manufacturer's Nutrition Facts label (per-serving values), do NOT do the per-100g arithmetic yourself. Instead replace the flat nutrient keys with:
      "serving_size_g": 28,
      "nutrition_per_serving": {{ "calories": 120, "protein_g": 3, ... }}
    NuMa converts this to per-100g automatically, which is more reliable than an LLM doing the scaling in prose. Use the same key names as above inside nutrition_per_serving.
 
-Foods ({n} total — USDA FDC IDs provided where known):
+Foods ({n} total — USDA FDC IDs provided where known{list_note}):
 {food_list}"""
 
+_INTRO_FULL = "I need complete nutritional data for {n} food(s), formatted as JSON for direct import into a Python nutrition app."
+_INTRO_TARGETED = ("I need specific missing nutrient values for {n} food(s), formatted as JSON for "
+                   "direct import into a Python nutrition app. The app already has the other values "
+                   "for these foods, so only the keys listed for each food are wanted.")
+_TARGETED_RULE = ("8b. For each food, include ONLY the nutrient keys listed under it in the Foods list "
+                  "below (plus the metadata keys). Do not send any other nutrient keys — the app "
+                  "already has those values. Groups marked \"not needed\" have been deliberately "
+                  "skipped by the user; do not supply them.\n")
 
-def build_prompt(selected: list[tuple[int | None, str]]) -> str:
-    """Build the Claude prompt text for a list of (fdc_id, name) foods."""
-    lines = "\n".join(
-        f"    {fdc_id}  {_strip_starter_marker(name)}" if fdc_id
-        else f"    (no FDC ID)  {_strip_starter_marker(name)}"
-        for fdc_id, name in selected
+
+def build_prompt(selected: list[tuple[int | None, str]],
+                 requests: dict[int, tuple[list[str], list[str]]] | None = None) -> str:
+    """Build the Claude prompt text for a list of (fdc_id, name) foods.
+
+    With `requests` (fdc_id -> (nutrient keys wanted, labels of groups the
+    user marked not needed)), the prompt asks for only those keys per food
+    instead of a complete profile — see data_completeness.py."""
+    def _line(fdc_id, name):
+        head = (f"    {fdc_id}  {_strip_starter_marker(name)}" if fdc_id
+                else f"    (no FDC ID)  {_strip_starter_marker(name)}")
+        if requests is None or fdc_id not in requests:
+            return head
+        keys, skipped = requests[fdc_id]
+        lines = [head, f"        provide only: {', '.join(keys)}"]
+        if skipped:
+            lines.append(f"        not needed (user's choice, do not supply): {', '.join(skipped)}")
+        return "\n".join(lines)
+
+    lines = "\n".join(_line(fdc_id, name) for fdc_id, name in selected)
+    n = len(selected)
+    targeted = requests is not None
+    return PROMPT_TEMPLATE.format(
+        n=n, food_list=lines,
+        intro=(_INTRO_TARGETED if targeted else _INTRO_FULL).format(n=n),
+        which_keys=("only the nutrient keys listed for that food" if targeted
+                    else "all available nutrient keys"),
+        targeted_rule=_TARGETED_RULE if targeted else "",
+        list_note="; each lists the only nutrient keys wanted" if targeted else "",
     )
-    return PROMPT_TEMPLATE.format(n=len(selected), food_list=lines)
 
 
 def _strip_starter_marker(name: str) -> str:
@@ -265,11 +295,43 @@ def build_notes(food: dict) -> str | None:
     return "  |  ".join(parts) if parts else None
 
 
-def import_foods(conn, valid: list[dict], curator_text: str | None) -> None:
+def plan_import(conn, valid: list[dict], overwrite: bool = False) -> list[dict]:
+    """What import_foods() would do with each food, without writing anything:
+    {"existing": bool, "add": [keys], "keep": [keys]} per food, in order.
+    "keep" is the values the food already has that the reply would have
+    changed — left alone unless overwrite=True."""
+    import db as _db
+    from .data_completeness import is_blank
+    plans = []
+    for f in valid:
+        row = _db.get_cached_food(conn, f["fdc_id"])
+        if row is None:
+            plans.append({"existing": False, "add": list(f["nutrients"]), "keep": []})
+            continue
+        have = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+        add  = [k for k in f["nutrients"] if overwrite or is_blank(k, have)]
+        keep = [k for k in f["nutrients"] if k not in add and have.get(k) != f["nutrients"][k]]
+        plans.append({"existing": True, "add": add, "keep": keep})
+    return plans
+
+
+def import_foods(conn, valid: list[dict], curator_text: str | None,
+                 overwrite: bool = False) -> None:
     """Write validated food blocks to the cache. Final step of the web app's
-    Claude AI fetch/import workflow."""
+    Claude AI fetch/import workflow.
+
+    A food not yet cached is stored whole. A food already cached only gains
+    the values it was missing (overwrite=True replaces existing values too);
+    its name, type, portions, and everything else stay as they are — a reply
+    is a fill-in, not a replacement record."""
     import db as _db
     for f in valid:
+        if _db.get_cached_food(conn, f["fdc_id"]) is not None:
+            _db.merge_user_supplied_nutrients(
+                conn, f["fdc_id"], f["nutrients"], overwrite=overwrite,
+                notes=build_notes(f), curator_notes=curator_text,
+            )
+            continue
         _db.cache_user_supplied_food(
             conn,
             fdc_id=f["fdc_id"],

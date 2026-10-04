@@ -50,6 +50,13 @@ _BROWSER_DISPLAY_NAMES = {
     "opera": "Opera", "microsoft-edge": "Microsoft Edge", "epiphany": "GNOME Web",
 }
 
+# A Settings choice that distros install under more than one binary name —
+# tried in order, so the single "Chromium" choice works whichever one exists.
+_BROWSER_ALTERNATES = {
+    "chromium": ("chromium", "chromium-browser"),
+    "chromium-browser": ("chromium-browser", "chromium"),
+}
+
 # A desktop-entry / application-launcher shortcut typically runs with a
 # minimal $PATH that omits directories a browser can actually live in —
 # notably /snap/bin (e.g. Brave on Ubuntu) and the Flatpak export dirs.
@@ -186,7 +193,11 @@ def _pick_and_open_browser(url: str) -> None:
         elif running:
             binary = running[0]
     if binary:
-        target = _resolve_executable(binary) or binary
+        target = next(
+            (path for name in _BROWSER_ALTERNATES.get(binary, (binary,))
+             if (path := _resolve_executable(name))),
+            binary,
+        )
         try:
             subprocess.Popen(
                 [target, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
@@ -200,6 +211,101 @@ def _pick_and_open_browser(url: str) -> None:
 def _open_after(url: str, delay: float = 1.2) -> None:
     time.sleep(delay)
     _pick_and_open_browser(url)
+
+
+# Served on the real port while the app itself is still importing and
+# starting, so the browser tab can open at once and say so, instead of the
+# user staring at nothing for the seconds a cold start takes (longer on a
+# slow machine). It reloads itself every second; the first reload after the
+# real server takes over the socket gets the real page, at the same URL.
+_LOADING_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="1">
+<title>Loading NutriMagnus…</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #fff; color: #222;
+         display: flex; align-items: center; justify-content: center;
+         height: 90vh; margin: 0; }
+  @media (prefers-color-scheme: dark) { body { background: #1e1e1e; color: #ddd; } }
+  p { font-size: 1.5rem; }
+</style></head>
+<body><p>Loading NutriMagnus…</p></body></html>
+""".encode("utf-8")
+
+# Swapped in if the app fails to start, so the tab says so instead of
+# reloading into the browser's own "unable to connect" page.
+_FAILED_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>NutriMagnus did not start</title>
+<style>body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; }</style>
+</head><body><h1>NutriMagnus did not start</h1>
+<p>Something went wrong while NutriMagnus was starting. Close this tab and try
+starting it again. If it happens again, the error message from the window or
+log file NutriMagnus was started from shows what went wrong.</p></body></html>
+""".encode("utf-8")
+
+
+class _LoadingServer:
+    """Answer every request on `sock` with _LOADING_PAGE until stop().
+
+    The listening socket itself is NOT closed on stop: it is handed to
+    uvicorn, so no connection made in between is refused — it just waits in
+    the listen backlog until the real server accepts it.
+    """
+
+    def __init__(self, sock: socket.socket) -> None:
+        self._sock = sock
+        self.page = _LOADING_PAGE
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+
+    def start(self) -> None:
+        self._sock.settimeout(0.1)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join()
+        self._sock.settimeout(None)
+
+    def _serve(self) -> None:
+        while not self._stop.is_set():
+            try:
+                conn, _addr = self._sock.accept()
+            except (socket.timeout, OSError):
+                continue
+            try:
+                conn.settimeout(2)
+                data = b""
+                while b"\r\n\r\n" not in data and len(data) < 65536:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                conn.sendall(
+                    b"HTTP/1.1 200 OK\r\n"
+                    b"Content-Type: text/html; charset=utf-8\r\n"
+                    b"Cache-Control: no-store\r\n"
+                    b"Connection: close\r\n"
+                    b"Content-Length: " + str(len(self.page)).encode() + b"\r\n\r\n"
+                    + self.page
+                )
+            except OSError:
+                pass
+            finally:
+                conn.close()
+
+
+def _bind_socket(host: str, port: int) -> socket.socket:
+    """A listening socket on host:port, set up the way uvicorn binds its own."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if sys.platform != "win32":
+        # Same as uvicorn: on Windows SO_REUSEADDR would let a second
+        # process bind a port that's already in use.
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((host, port))
+    sock.listen(2048)
+    sock.set_inheritable(True)
+    return sock
 
 
 def main() -> None:
@@ -252,17 +358,36 @@ def main() -> None:
 
     print(f"Starting numa at {url}")
 
-    if not args.no_browser:
-        t = threading.Thread(target=_open_after, args=(url,), daemon=True)
-        t.start()
+    if args.reload:
+        # Dev mode: uvicorn's reloader runs the app in a child process and
+        # can't take over a socket bound here, so no loading page.
+        if not args.no_browser:
+            threading.Thread(target=_open_after, args=(url,), daemon=True).start()
+        uvicorn.run("backend:app", host=args.host, port=args.port, reload=True, app_dir=str(_WEB_DIR))
+        return
 
-    uvicorn.run(
-        "backend:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload,
-        app_dir=str(_WEB_DIR),
-    )
+    # Bind the port and show the loading page first, then do the slow part
+    # (importing the app) while the browser tab is already open. Also means
+    # launch-web.sh's wait-for-the-port loop opens the browser at once.
+    sock = _bind_socket(args.host, args.port)
+    loading = _LoadingServer(sock)
+    loading.start()
+    if not args.no_browser:
+        threading.Thread(target=_open_after, args=(url, 0), daemon=True).start()
+
+    if str(_WEB_DIR) not in sys.path:
+        sys.path.insert(0, str(_WEB_DIR))
+    try:
+        import backend
+    except Exception:
+        # Leave the failure page up long enough for the tab's next reload
+        # to show it, then exit with the real traceback.
+        loading.page = _FAILED_PAGE
+        time.sleep(5)
+        raise
+    server = uvicorn.Server(uvicorn.Config(backend.app, host=args.host, port=args.port))
+    loading.stop()
+    server.run(sockets=[sock])
 
 
 if __name__ == "__main__":

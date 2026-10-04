@@ -13,7 +13,7 @@
 
 <h2>Choose fields to copy into {{ food.name }}</h2>
 <p class="muted">
-  From <strong>{{ source_name }}</strong> (#{{ source_fdc_id }}) — values are per 100&thinsp;g, copied raw
+  From <strong>{{ source_name }}</strong> ({{ food_id_short(source_fdc_id) }}) — values are per 100&thinsp;g, copied raw
   and unscaled. Only fields checked below are changed; everything else on this profile stays as it is.
   Where {{ food.name }} already has a value, it's shown so you can see what would be overwritten.
 </p>

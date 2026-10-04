@@ -11,7 +11,7 @@ install-linux.sh fetches its assets from releases/latest/download/<name>, so
 the exact names below (nutrimagnus, nutrimagnus.png) must stay in sync with
 that script.
 
-Release notes are pulled from user-manual.md's Appendix A ("Recent program
+Release notes are pulled from user-manual.md's Part 11 ("Recent program
 updates log") section: everything between the "<!-- Insert new updates below
 here -->" marker and the next "#### Release ... summary" heading (or the end
 of the appendix, if no release has ever been cut) — falling back to a generic
@@ -58,7 +58,7 @@ BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
 STARTER_MANIFEST_PATH = REPO_ROOT / "dist" / "starter_manifest.json"
 VERSION_FILE = REPO_ROOT / "version.py"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
-CHANGELOG_HEADING = "### A. Recent program updates log"
+CHANGELOG_HEADING = "## Part 11 — Recent program updates log {: #updates-log}"
 INSERT_MARKER = "<!-- Insert new updates below here -->"
 _SUMMARY_RE = re.compile(r'^#### Release .+ summary\b.*$')
 # The heading in the manual reads "#### Next release summary to this point
@@ -105,7 +105,7 @@ def _tag_for(version_str: str) -> str:
 def _pending_range(lines: list[str]) -> tuple[int | None, int | None]:
     """Find the marker line and the end of the "pending" (not yet in a
     release) stretch right after it: the index of the next release-summary
-    heading, or the next "### " appendix heading if no release summary exists
+    heading, or the next "## "/"### " heading if no release summary exists
     yet (e.g. before the first-ever release cut), or end-of-file otherwise."""
     marker_idx = None
     in_appendix = False
@@ -120,7 +120,7 @@ def _pending_range(lines: list[str]) -> tuple[int | None, int | None]:
             if stripped == INSERT_MARKER:
                 marker_idx = i
             continue
-        if _SUMMARY_RE.match(stripped) or stripped.startswith("### "):
+        if _SUMMARY_RE.match(stripped) or stripped.startswith(("## ", "### ")):
             return marker_idx, i
     if marker_idx is None:
         return None, None
@@ -201,11 +201,36 @@ def _api_request(url: str, token: str, *, method: str = "GET",
         return json.loads(resp.read().decode())
 
 
+def _manual_links_ok() -> bool:
+    """Rebuild user-manual.html and run the link-integrity tests against it.
+
+    A release ships the manual, so a broken #anchor link (or a template link
+    to a route that doesn't exist) stops the release instead of shipping. The
+    release workflow also runs the full suite first; this covers a manual
+    run of this script.
+    """
+    import subprocess
+    root = pathlib.Path(__file__).resolve().parent.parent
+    build = subprocess.run([sys.executable, str(root / "scripts" / "build_manual.py")], cwd=root)
+    if build.returncode != 0:
+        print("ERROR: scripts/build_manual.py failed — fix the manual, then try again.", file=sys.stderr)
+        return False
+    tests = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "tests/test_link_integrity.py"], cwd=root)
+    if tests.returncode != 0:
+        print("ERROR: the manual has broken links (see the test output above) — "
+              "fix them, then run this script again. Nothing was released.", file=sys.stderr)
+        return False
+    return True
+
+
 def main() -> int:
     import os
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         print("ERROR: GITHUB_TOKEN is not set.", file=sys.stderr)
+        return 1
+    if not _manual_links_ok():
         return 1
     _write_starter_manifest()
     for name, path, _ in _ASSETS:

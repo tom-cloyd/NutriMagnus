@@ -1,4 +1,4 @@
-VERSION = "2026-09-30:0615"
+VERSION = "2026-10-04:0657"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -15,13 +15,13 @@ RELEASE_VERSION = "0.1.0-rc.23"
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see
 # numa_app/services/update_check.py). Hand-updated at the same time as
-# VERSION, alongside the Appendix A changelog entry it summarizes — pick
+# VERSION, alongside the Part 11 changelog entry it summarizes — pick
 # whichever of these best matches that entry's size, or write a short one
 # of your own in the same spirit. Don't point readers at "the manual" or
 # "the top of the manual" here — home.html already appends its own link to
-# Appendix A (the changelog) right after this note, so the note itself only
+# Part 11 (the changelog) right after this note, so the note itself only
 # needs to describe the change, not say where to read more:
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "the Save recipe details button works again; since September 24 it had silently saved nothing"
+NEW_VERSION_NOTE = "Refresh can keep a food old version for past meals (U171477.1); NuMa knows which food values you changed; one short code per food and recipe"

@@ -30,9 +30,11 @@ claude_response.txt
 numa_gen_prompt.py
 numa_import_claude.py
 food_imports/
+AI_help.md
 
 # --- Generated / cached output ---
 user-manual.html
+ai-edition/
 web/home_body.cache
 
 # --- PyInstaller build artifacts ---

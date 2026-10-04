@@ -46,7 +46,7 @@
 <table class="table table-sm table-hover mb-4">
   <thead class="table-light">
     <tr>
-      <th>ID</th>
+      <th>Code</th>
       <th>Recipe name</th>
       <th>Description</th>
       <th>Servings</th>
@@ -55,7 +55,7 @@
   <tbody>
     {% for r in recipes %}
     <tr>
-      <td class="muted">{{ r.id }}</td>
+      <td class="muted">{{ food_id_short(none, r.id) }}</td>
       <td>{{ r.name }}</td>
       <td class="muted">{{ r.description or "—" }}</td>
       <td class="muted">{{ r.servings }}{% if r.serving_size %} <small>({{ r.serving_size }})</small>{% endif %}</td>

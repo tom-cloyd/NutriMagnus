@@ -90,7 +90,7 @@
     <strong>{{ protein.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash; {{ (100 * protein.dcp_g / protein.protein_raw) | round | int }}% of {{ protein.protein_raw }}&thinsp;g raw protein</p>
   {% set unusable_g = (protein.protein_raw - protein.dcp_g) | round(1) %}
   {% if unusable_g > 0 %}
-  <p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / protein.protein_raw) | round | int }}%) of that protein cannot be built into tissue &mdash; broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
+  <p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / protein.protein_raw) | round | int }}%) of that protein cannot be built into tissue &mdash; it will be broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
   {% endif %}
   {% endif %}
   <p class="muted">
@@ -99,21 +99,75 @@
     {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
     &middot; <a href="/food/{{ food.fdc_id }}/print?amount={{ amount }}&portion_str={{ portion_str | urlencode }}">Print / Save as PDF</a>
   </p>
+  {% if version_info %}
+  <div class="alert alert-secondary py-2" style="max-width:52rem" id="older-version-note">
+    This is an <strong>older version</strong> of
+    {% if version_parent %}<a href="/food/{{ version_parent.fdc_id }}">{{ version_parent.name }}</a> ({{ food_code(version_parent.fdc_id) }}){% else %}a food no longer in your cache{% endif %},
+    kept at a Refresh so meals logged before {{ version_info.before_date }} keep the values they were logged with.
+    {{ version_meal_items }} meal item{{ "s" if version_meal_items != 1 }} use{{ "s" if version_meal_items == 1 }} it.
+  </div>
+  {% endif %}
+  {% if version_kept %}
+  <div class="alert alert-success py-2" style="max-width:52rem">
+    The previous values are kept as <a href="/food/{{ version_kept }}">{{ food_code(version_kept) }}</a>;
+    {{ version_moved }} meal item{{ "s" if version_moved != 1 }} logged before then now use{{ "s" if version_moved == 1 }} it.
+  </div>
+  {% endif %}
+  {% if older_versions %}
+  <p class="muted mb-2"><small>Older versions kept for past meals:
+    {% for v in older_versions %}<a href="/food/{{ v.fdc_id }}">{{ food_code(v.fdc_id) }}</a>
+      ({% if v.label_date %}values of {{ v.label_date }}, {% endif %}meals before {{ v.before_date }}: {{ v.meal_items }} item{{ "s" if v.meal_items != 1 }}){% if not loop.last %} &middot; {% endif %}{% endfor %}
+  </small></p>
+  {% endif %}
+  {# Which values the user changed from the food's source (db.food_edited_keys).
+     Annotations also make a food user-edited, but are shown on their own below. #}
+  {% if your_changes %}
+  <details class="mb-2" id="your-changes" style="max-width:40rem">
+    <summary class="muted"><small>Your changes to this food's original values ({{ your_changes|length }})</small></summary>
+    <table class="table table-sm mt-1 mb-0"><thead class="table-light">
+      <tr><th>Value</th><th class="text-end">Yours</th><th class="text-end">Original (from its source)</th></tr></thead>
+      <tbody>{% for c in your_changes %}<tr><td>{{ c.label }}</td><td class="text-end">{{ c.yours }}</td><td class="text-end muted">{{ c.original }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+  {% elif your_changes is none and food.user_edited and food.fdc_id > 0 %}
+  <p class="muted mb-2"><small>You edited this food before NuMa kept track of which values you changed.
+    <a href="/food/{{ food.fdc_id }}/review-incoming?source=usda">Refresh from USDA</a> once and it will know.</small></p>
+  {% endif %}
   {# An annotated GI, with the reference-table row it was taken from when there is
      one — the value is only as good as its source, so they are shown together. #}
   {% if gi_estimate is not none %}
-  <p class="muted mb-2" style="font-size:0.85rem; max-width:42rem">
+  <p class="muted mb-2" style="font-size:0.85rem">
     <strong>GI {{ gi_estimate | round | int }}</strong> (glycemic index, annotated){% if gl_portion is not none %} &middot;
     <strong>GL {{ gl_portion }}</strong> ({{ gl_band(gl_portion, "serving") }}) for this {% if portion_label %}{{ portion_label }}{% else %}{{ amount }}&thinsp;g{% endif %}{% endif %} {{ manual_link("gi") }}
     {% if gl_portion is not none %}<br><span class="ms-0">GL = GI &times; the portion&rsquo;s carbohydrate grams &divide; 100, so halving the portion halves the GL while the GI stays put.</span>{% endif %}
     {% if gi_source %}<br><span class="ms-0">Value taken from: {{ gi_source }}</span>{% endif %}
   </p>
   {% endif %}
+  {% if incoming_applied %}
+  <div class="alert alert-success" style="max-width:42rem">
+    {% if incoming_applied == "0" %}Nothing was ticked, so nothing changed.{% else %}{{ incoming_applied }} value{{ "s" if incoming_applied != "1" }} written to this food.{% endif %}
+  </div>
+  {% endif %}
+  {% include "_impact_note.html" %}
+  {% include "_food_quality_note.html" %}
+  {% set has_annotation = gi_estimate is not none or diaas_estimate is not none %}
   <div class="d-flex flex-wrap gap-2 mb-2">
-    <a href="/food/cache/{{ food.fdc_id }}/portions" class="btn btn-sm btn-outline-secondary">Manage portions for this food &rarr;</a>
-    <a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}" class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
     {% if food.user_drafted %}
     <a href="/food/custom-profiles/{{ food.fdc_id }}/edit" class="btn btn-sm btn-outline-secondary">Edit nutrients</a>
+    {% endif %}
+    <a href="/food/cache/{{ food.fdc_id }}/portions" class="btn btn-sm btn-outline-secondary">Manage portions for this food &rarr;</a>
+    {% if not food.user_drafted or food.fdc_id > 0 %}
+    <a href="/food/{{ food.fdc_id }}/fill-from" class="btn btn-sm btn-outline-secondary"
+       title="Search for a similar food and pick which of its values to copy into this one">Fill in nutrients from another food &rarr;</a>
+    {% endif %}
+    {% if is_usda_food %}
+    <a href="/food/{{ food.fdc_id }}/review-incoming?source=usda" class="btn btn-sm btn-outline-secondary"
+       title="Fetch USDA's current copy and choose which changed values to take">Refresh from USDA &rarr;</a>
+    {% endif %}
+    {% if not has_annotation %}
+    <a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}" class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
+    {% endif %}
+    {% if food.user_drafted %}
     <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Copy as new draft</button>
     </form>
@@ -123,20 +177,59 @@
     </form>
     {% endif %}
   </div>
-  {% if missing_macros %}
-  <div class="alert alert-warning" style="max-width:42rem">
-    <strong>&#9888; No nutrient data available for this food.</strong>
-    USDA didn't return calories, protein, carbs, or fat for this record, even on retry &mdash;
-    a data gap in this particular FDC record, not a NuMa bug.
-    <form method="post" action="/food/cache/{{ food.fdc_id }}/refresh" style="display:inline">
-      <button type="submit" class="btn btn-sm btn-outline-secondary">Try refreshing from USDA again</button>
-    </form>
-    or
-    <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
-      <button type="submit" class="btn btn-sm btn-outline-secondary">Copy as a custom-food draft</button>
-    </form>
-    to fill in the nutrients by hand from a similar food.
+  {# Once a GI or DIAAS value exists, the Annotate button moves to its own
+     row beside the current values, so returning here after the Annotate
+     page shows at a glance whether the save took effect. #}
+  {% if has_annotation %}
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="annotation-status">
+    {# A set GI is already shown in full in the GI / GL paragraph above. #}
+    <span>{% if gi_estimate is none %}GI not set / {% endif %}DIAAS {% if diaas_estimate is not none %}set at <strong>{{ "%.2f" | format(diaas_estimate) }}</strong>{% else %}not set{% endif %}</span>
+    <a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}" class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
   </div>
+  {% endif %}
+  {% if 'macros' in data_gaps %}
+  <div class="alert alert-warning" style="max-width:42rem">
+    {% if no_nutrients %}
+    <strong>&#9888; No nutrient data available for this food.</strong>
+    {% else %}
+    <strong>&#9888; Some core macronutrients are missing for this food.</strong>
+    The record has no value for {{ missing_core_macros|join(", ") }}.
+    {% endif %}
+    {% if is_usda_food and missing_macros %}USDA didn't return them for this record, even on retry &mdash;
+    a data gap in this particular FDC record, not a NuMa bug.{% endif %}
+    <div class="d-flex flex-wrap gap-2 mt-2">
+      <form method="post" action="/food/cache/claude-fetch" style="display:inline">
+        <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+        <button type="submit" class="btn btn-sm btn-outline-primary" title="Builds a prompt asking only for this food's missing values — nothing it already has is touched">Ask Claude AI for the missing data</button>
+      </form>
+      {% if is_usda_food %}
+      <a href="/food/{{ food.fdc_id }}/review-incoming?source=usda" class="btn btn-sm btn-outline-secondary">Try refreshing from USDA again</a>
+      {% endif %}
+      <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Copy as a custom-food draft to fill in by hand</button>
+      </form>
+      <form method="post" action="/food/{{ food.fdc_id }}/data-ignore" style="display:inline">
+        <input type="hidden" name="group" value="macros">
+        <button type="submit" class="btn btn-sm btn-outline-secondary" title="For a food used in amounts too small to matter, such as a herb or spice">Macronutrients not needed for this food &mdash; stop flagging</button>
+      </form>
+    </div>
+    <small class="d-block mt-2">{{ manual_link("data-completeness") }}</small>
+  </div>
+  {% endif %}
+  {% set other_gaps = data_gaps | reject("equalto", "macros") | list %}
+  {% if other_gaps or data_gaps_ignored %}
+  <p class="muted mb-2" style="font-size:0.85rem; max-width:42rem">
+    {% if other_gaps %}No data for this food's {% for g in other_gaps %}<strong>{{ gap_labels[g] }}</strong>{{ ", " if not loop.last }}{% endfor %}.
+    {% if 'macros' not in data_gaps %}
+    <form method="post" action="/food/cache/claude-fetch" style="display:inline">
+      <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+      <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Ask Claude AI for it</button>
+    </form>
+    {% endif %}
+    {% endif %}
+    {% if data_gaps_ignored %}Marked not needed: {% for g in data_gaps_ignored %}{{ gap_labels[g] }}{{ ", " if not loop.last }}{% endfor %}.{% endif %}
+    <a href="/food/cache/db-check#completeness">Review or undo</a>
+  </p>
   {% endif %}
 </div>
 

@@ -3,7 +3,7 @@
 <form method="post" action="/settings/diet" class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <input type="hidden" name="next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
   <label class="muted mb-0" for="diet-pref-quick"><small>Dietary preference:</small></label>
-  <select class="form-select form-select-sm" style="width:auto" name="diet_pref" id="diet-pref-quick" onchange="this.form.submit()">
+  <select class="form-select form-select-sm" style="width:auto" name="diet_pref" id="diet-pref-quick" onchange="this.form.requestSubmit()">
     {% for key, label in diet_labels.items() %}
     <option value="{{ key }}" {{ 'selected' if current_diet_pref() == key }}>{{ label }}</option>
     {% endfor %}

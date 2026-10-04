@@ -376,6 +376,11 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
   function usePick(row) {
     giInput.value = row.getAttribute('data-gi');
     setSource(row.getAttribute('data-source'));
+    // A value set by script fires no event, so tell the leave guard and the
+    // unsaved-changes badge: this pick is a real, not-yet-saved edit. A
+    // 'change' (not 'input') event, so the input listener above doesn't wipe
+    // the source just set.
+    giInput.dispatchEvent(new Event('change', {bubbles: true}));
     resultsBox.innerHTML = '';
     if (detailsBox) detailsBox.open = false;
     giInput.classList.remove('field-just-set');

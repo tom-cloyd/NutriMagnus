@@ -91,6 +91,16 @@ numa_app/
                          AA values to its own protein content: estimate_aa(), source_note()
     claude_fetch.py     — prompt-building and response-parsing for the Claude AI
                          amino-acid/nutrient fetch workflow behind Food Cache pages
+    data_completeness.py — which nutrient groups a cached food is missing
+                         (missing_groups(), active_gaps(), requested_keys());
+                         per-food "not needed" choices in db.food_data_ignores.
+                         Feeds Foods → 9's completeness section and the
+                         targeted Claude prompt; Claude imports into an
+                         existing food fill blanks only (db.merge_user_supplied_nutrients)
+    incoming_review.py  — compare a cached food with incoming data (fresh USDA
+                         copy, or another food) value by value for the review
+                         screen behind Refresh / Fill in nutrients from another
+                         food: nutrient_review(), meta_review(), new_portions()
     complements.py     — shared complement-suggestion math: aa_effects(),
                          two_step_combo(), build_complement_display()
     csv_export.py       — Food Cache CSV export: foods_to_csv()
@@ -111,7 +121,7 @@ numa_app/
                          manifest (starter_manifest(), apply_improvements())
     diet_aware.py       — diet-preference-aware analysis notes (iron/zinc RDA bump etc.)
                          for the daily summary / RDA comparison views
-    food_ids.py        — classify_food_id() — food/recipe ID → (id_str, source_label)
+    food_ids.py        — display codes: classify_food_id() (U171477 / UD4 / R21 / OFF3 …), parse_code(), CODE_PREFIXES; outside-source numbers live in db.food_codes
     food_import.py      — shared nutrient-key validation and per-serving conversion
                          for manually-compiled food imports; used by claude_fetch.py,
                          import_foods.py, and import_json_folder.py
@@ -199,7 +209,8 @@ with _db.get_db() as conn:
 `id, recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id`
 
 `meal_get_items()` rows:
-`id, meal_id, item_type ('food'|'recipe'), fdc_id, recipe_id, food_name, amount, unit, notes`
+`id, meal_id, item_type ('food'|'recipe'), fdc_id, recipe_id, food_name, amount, unit, notes, serving_grams`
+(`serving_grams` = grams per recipe serving when logged; see `_annotate_recipe_amounts()` in web/backend.py)
 
 `pantry_list()` rows:
 `id, food_name, fdc_id, notes`
@@ -256,18 +267,18 @@ Essential AAs: all `aa_` keys except `aa_cystine_g` and `aa_tyrosine_g`.
 
 ---
 
-## Changelog (user-manual.md, Appendix A)
+## Changelog (user-manual.md, Part 11)
 
 Any turn that changes numa's user-facing behavior (new feature, bug fix, threshold change —
 not pure layout/wording tweaks, since the owner is currently numa's only user and already
 knows about those) ends with a new entry under today's `#### Month Day updates`
 heading in
-**Appendix A, "Recent program updates log"** (near the top of Part 9 — moved here from
-Appendix K on 2026-08-05 since it's checked far more often than the other appendices),
+**Part 11, "Recent program updates log"** (its own Part at the end of the manual since
+2026-09-30; earlier Appendix A, and before 2026-08-05 Appendix K),
 plus the `version.py`/manual timestamp bump above.
 
 **Where entries go** (decided 2026-09-21): insert each new entry after the line
-`<!-- Insert new updates below here -->` in Appendix A, newest on top, under today's
+`<!-- Insert new updates below here -->` in Part 11, newest on top, under today's
 `#### Month Day updates` heading (new form only; older `... program updates` headings stay
 as they are). Every entry title starts with `MANUAL: ` or `PROGRAM: ` (e.g.
 `**PROGRAM: ALL-CAPS TITLE**`).

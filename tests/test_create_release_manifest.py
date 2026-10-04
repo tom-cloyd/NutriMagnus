@@ -22,3 +22,16 @@ def test_written_manifest_matches_the_bundled_starter_set(tmp_path, monkeypatch)
     monkeypatch.setattr(create_release, "STARTER_MANIFEST_PATH", out)
     create_release._write_starter_manifest()
     assert json.loads(out.read_text()) == demo_data.starter_manifest()
+
+
+def test_broken_manual_links_stop_the_release_before_github(monkeypatch) -> None:
+    """A failing link check returns 1 before anything is sent to GitHub."""
+    monkeypatch.setenv("GITHUB_TOKEN", "x")
+    monkeypatch.setattr(create_release, "_manual_links_ok", lambda: False)
+
+    def _no_api(*a, **kw):
+        raise AssertionError("GitHub API called despite broken links")
+
+    monkeypatch.setattr(create_release, "_api_request", _no_api)
+    monkeypatch.setattr(create_release, "_write_starter_manifest", _no_api)
+    assert create_release.main() == 1
