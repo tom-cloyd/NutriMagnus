@@ -611,7 +611,10 @@
         "aa_valine_g": 0.564,
         "aa_histidine_g": 0.357
       },
-      "portions": null
+      "portions": null,
+      "ignores": [
+        "portions"
+      ]
     },
     {
       "fdc_id": 1865558,
@@ -719,7 +722,10 @@
         "aa_histidine_g": 0.548,
         "calories": 583.6
       },
-      "portions": null
+      "portions": null,
+      "ignores": [
+        "portions"
+      ]
     },
     {
       "fdc_id": 2346394,
@@ -1059,6 +1065,7 @@
       },
       "portions": null,
       "ignores": [
+        "portions",
         "vitamins"
       ]
     },
@@ -1077,7 +1084,8 @@
       "portions": null,
       "ignores": [
         "aa",
-        "minerals"
+        "minerals",
+        "portions"
       ]
     },
     {
@@ -1532,6 +1540,7 @@
       "portions": null,
       "ignores": [
         "aa",
+        "portions",
         "vitamins"
       ]
     },
@@ -1958,6 +1967,7 @@
       },
       "portions": null,
       "ignores": [
+        "portions",
         "vitamins"
       ]
     },
@@ -1974,6 +1984,7 @@
       },
       "portions": null,
       "ignores": [
+        "portions",
         "vitamins"
       ]
     },
