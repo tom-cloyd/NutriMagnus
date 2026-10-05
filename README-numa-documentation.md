@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-04:2141
+UPDATED: 2026-10-05:0704
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -793,7 +793,7 @@ OFF nutrient keys (`energy-kcal_100g`, `proteins_100g`, etc.) are mapped to the 
 
 ### `numa_app/services/portions.py` — portion parsing
 
-**Generic-density amounts** (added 2026-10-04). `generic_density_kind(unit, portions, food_name)` says whether an amount's grams came from `usda_nutrients`'s generic density table rather than the food's own volume portion (`usda.density_with_source()` returns `(density, "portion" | "table")`; `get_density_g_per_ml()` is now a thin wrapper over it, and also accepts millilitre portions). It returns `"typed"` for a volume with no weight of its own ("2 T"), `"bracketed"` for a volume with a bracketed gram figure ("2 T (14.7 gr)", the form older versions stored their own conversion in), else `None`: a typed weight is presumed right. Worked out on every page view, never stored, so it clears itself once the food gets a real cup/spoon portion (the amount then shows up in `data_quality.stale_amounts()` for correction). `backend._mark_generic_density()` sets `ing["generic_density"]` on the recipe page and Edit Recipe; `_generic_density.html` renders the "≈ generic*" mark (linking to the food's Portions page) and the footnote. `data_quality.generic_density_in_use()` feeds the folded "Amounts converted with a generic density" list on Foods → 9 (no reminder keys). Meals added through the app store unit "g" and lose the typed volume, so only older meal entries can show up there.
+**Generic-density amounts** (added 2026-10-04). `generic_density_kind(unit, portions, food_name)` says whether an amount's grams came from `usda_nutrients`'s generic density table rather than the food's own volume portion (`usda.density_with_source()` returns `(density, "portion" | "table")`; `get_density_g_per_ml()` is now a thin wrapper over it, and also accepts millilitre portions). It returns `"typed"` for a volume with no weight of its own ("2 T"), `"bracketed"` for a volume with a bracketed gram figure ("2 T (14.7 gr)", the form older versions stored their own conversion in), else `None`: a typed weight is presumed right. Worked out on every page view, never stored, so it clears itself once the food gets a real cup/spoon portion (the amount then shows up in `data_quality.stale_amounts()` for correction). `backend._mark_generic_density()` sets `ing["generic_density"]` on the recipe page and Edit Recipe; `_generic_density.html` renders the "≈ generic*" mark (linking to the food's Portions page) and the footnote. `data_quality.generic_density_in_use()` feeds the folded "Amounts converted with a generic density" list on Foods → 9 (no reminder keys). Since 2026-10-05 a food added to a meal stores the typed label in `meal_items.unit` the same way a recipe ingredient does (`backend._annotate_food_amounts()` gives meal pages the typed note, Edit-box text and mark); meal items entered before that stored unit "g" and carry no typed volume.
 
 `_parse_portion_input(raw, portions, food_name)` parses a portion string and returns `(grams, label)`. Accepted formats:
 

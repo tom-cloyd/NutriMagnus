@@ -6093,3 +6093,23 @@ def test_rank_contributors_pct_keeps_tiny_shares() -> None:
     salt = next(c for c in result["items"] if c["food_name"] == "Salt")
     assert 0 < salt["pct"] < 0.05
     assert backend._small_amount(salt["pct"]) != "0.0"
+
+
+def test_portion_amount_resaves_unchanged(client: TestClient, db_conn) -> None:
+    """An ingredient entered as "2 p1" is stored as "2 × <portion>"; the Edit
+    box offers that text back, and saving it unchanged must work."""
+    _db.cache_food(db_conn, 997101, "Egg resave test", "SR Legacy", None, 100.0, "g",
+                   {"calories": 143.0, "protein_g": 12.6}, [{"description": "1 large egg", "gram_weight": 50.0}])
+    db_conn.commit()
+    resp = client.post("/recipe/new", data={"name": "Eggs", "servings": 1}, follow_redirects=False)
+    rid = int(resp.headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(f"/recipe/{rid}/ingredient/add",
+                data={"fdc_id": 997101, "food_name": "Egg resave test", "portion_str": "2 p1"},
+                follow_redirects=False)
+    ing = _db.recipe_get_ingredients(db_conn, rid)[0]
+    assert (ing["amount"], ing["unit"]) == (100.0, "2 × 1 large egg")
+    r = client.post(f"/recipe/{rid}/ingredient/{ing['id']}/edit",
+                    data={"portion_str": ing["unit"], "food_name": "Egg resave test"}, follow_redirects=False)
+    assert "error=" not in r.headers["location"]
+    ing = _db.recipe_get_ingredients(db_conn, rid)[0]
+    assert (ing["amount"], ing["unit"]) == (100.0, "2 × 1 large egg")

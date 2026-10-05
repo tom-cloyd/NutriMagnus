@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — Meal History Search{% endblock %}
 
+{% import "_food_amount.html" as _famt %}
 {% import "_recipe_amount.html" as _ramt %}
 {% block content %}
 <nav aria-label="breadcrumb">
@@ -60,8 +61,8 @@
       </td>
       <td class="num-col">
         {% if r.item_type == "recipe" %}{{ _ramt.amount(r, "/meal/%s" % r.meal_id) }}
+        {% elif r.amount %}{{ _famt.amount(r) }}
         {% elif r.unit %}{{ r.unit }}
-        {% elif r.amount %}{{ "%.0f"|format(r.amount) }} g
         {% else %}&mdash;{% endif %}
       </td>
       <td><small class="muted">{{ r.notes or "" }}</small></td>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_food_amount.html" as _famt %}
 {% import "_ul_column.html" as _ul %}
 {% import "_rda_goal_column.html" as _rdagoal %}
 {% import "_rda_definition_footer.html" as _rda_note %}
@@ -79,7 +80,7 @@
            previously never shown here at all. #}
         {% if it.item_type == "recipe" %}{% set _rw.any = true %}{% endif %}
         {% if it.item_type == "recipe" %}{{ _ramt.amount(it, "/meal/%s" % m.id) }}
-        {% elif it.amount is not none %}{{ it.amount | round(1) }}&thinsp;{{ it.unit or "g" }}
+        {% elif it.amount is not none %}{{ _famt.amount(it) }}
         {% elif it.unit %}{{ it.unit }}
         {% endif %}
         {% if it.item_type == "recipe" and it.recipe_deleted %}<small class="text-danger">(recipe deleted)</small>

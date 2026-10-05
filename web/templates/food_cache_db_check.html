@@ -1,6 +1,27 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — Database Integrity and Data Completeness Check{% endblock %}
 
+{% block layout_class %}analysis-page{% endblock %}
+{% block main_class %}analysis-content{% endblock %}
+
+{# ── Sidebar: stays in view while scrolling, highlights the section in view ── #}
+{% block sidebar_nav %}
+<aside class="analysis-sidebar">
+  <a class="sb-page-title" href="#analysis-content">Database check</a>
+  <div class="sb-title">Contents</div>
+  <ul class="sb-list">
+    <li class="sb-item"><a class="sb-toggle" href="#integrity">Broken references</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#completeness">Missing nutrient data</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#calories">Food data problems</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#missing-aa">Foods you use with no amino acid data</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#missing-portions">Foods you use with no portion weights</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#generic-density">Amounts converted with a generic density</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#stale-amounts">Amounts that no longer match</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#old-copies">USDA copies over a year old</a></li>
+  </ul>
+</aside>
+{% endblock %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -11,10 +32,7 @@
 </nav>
 
 <h2>Database Integrity and Data Completeness Check</h2>
-<p class="muted">Checks: <a href="#integrity">broken references</a>, <a href="#completeness">foods missing whole groups of nutrient data</a>,
-<a href="#calories">food data problems</a> (calories missing or not adding up, impossible values), foods you use with
-<a href="#missing-aa">no amino acid data</a> or <a href="#missing-portions">no portion weights</a>, <a href="#stale-amounts">amounts that no longer match</a>, <a href="#generic-density">amounts converted with a generic density</a>,
-and <a href="#old-copies">USDA copies over a year old</a>. <a href="/food/cache/duplicates" class="btn btn-sm btn-outline-secondary ms-1">Find duplicate foods</a> {{ manual_link("checking-your-data", "All of NuMa&rsquo;s data checks") }}</p>
+<p><a href="/food/cache/duplicates" class="btn btn-sm btn-outline-secondary">Find duplicate foods</a> {{ manual_link("checking-your-data", "All of NuMa’s data checks") }}</p>
 
 <h3 id="integrity" class="mt-4">Broken references {{ manual_link("db-check") }}</h3>
 <p class="muted">Looks for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the database — a food page for one of these will fail to open. This can't happen through normal use anymore (deleting a still-used food is now refused), but can be left over from before that fix, or from a manually edited database file.</p>
@@ -24,7 +42,7 @@ and <a href="#old-copies">USDA copies over a year old</a>. <a href="/food/cache/
 {% endif %}
 
 {% if total == 0 %}
-<p class="muted">No problems found — every pantry entry, recipe ingredient, and meal item points at a food or recipe that still exists.</p>
+<p class="muted"><strong>No problems found</strong> — every pantry entry, recipe ingredient, and meal item points at a food or recipe that still exists.</p>
 {% else %}
 <p><strong>{{ total }}</strong> problem{% if total != 1 %}s{% endif %} found. Each kind below is fixed separately, since each has a different real effect on your data — read the note before clicking.</p>
 
@@ -156,7 +174,7 @@ and <a href="#old-copies">USDA copies over a year old</a>. <a href="/food/cache/
 
 <hr class="mt-5">
 <h3 id="completeness" class="mt-4">Missing nutrient data {{ manual_link("data-completeness") }}</h3>
-<p class="muted" style="max-width:48rem">Cached foods with no values at all for a nutrient group (the same groups as a
+<p class="muted" style="max-width:48rem">Looks for cached foods with no values at all for a nutrient group (the same groups as a
 Nutritional Analysis table, plus the amino acids under Protein Quality). Macronutrients count as missing if any of
 calories, protein, carbohydrate, or fat is absent; amino acids only for a food that has protein. A group with
 <em>some</em> values is normal for real data and isn&rsquo;t listed.</p>
@@ -189,7 +207,7 @@ listing it for that food, and leaves it out of any Claude AI prompt.</p>
 {% if not checked %}
 <p class="muted">No groups selected above &mdash; nothing to check.</p>
 {% elif not gap_rows %}
-<p class="muted">No gaps found in the checked groups{% if not show_ignored %} (other than ones marked &ldquo;not needed&rdquo;){% endif %}.</p>
+<p class="muted"><strong>No gaps found</strong> in the checked groups{% if not show_ignored %} (other than ones marked &ldquo;not needed&rdquo;){% endif %}.</p>
 {% else %}
 <p><strong>{{ active_gap_count }}</strong> food{% if active_gap_count != 1 %}s{% endif %} with missing data still to deal with.</p>
 {# Two forms share this table's checkboxes (nested forms aren't allowed), so
@@ -254,7 +272,7 @@ A food that arrived with protein, carbs and fat but no calories got an <strong>e
 listed here for information, not as a problem. A food whose macronutrients you&rsquo;ve marked &ldquo;not needed&rdquo; above
 (a supplement, a spice) isn&rsquo;t checked for calories.</p>
 {% if not food_issue_rows %}
-<p class="muted">Every food&rsquo;s data checks out.</p>
+<p class="muted"><strong>Every food&rsquo;s data checks out.</strong></p>
 {% else %}
 <p><strong>{{ food_problem_count }}</strong> food{% if food_problem_count != 1 %}s{% endif %} with a problem to look at.</p>
 <div class="table-responsive mb-2">
@@ -311,6 +329,7 @@ in the section above.</small></p>
         </tbody>
       </table>
     </div>
+    {% if sec.key == "portions" %}<button type="button" class="btn btn-sm btn-outline-secondary me-1 js-check-all-not-needed">Check all as not needed</button>{% endif %}
     <button type="submit" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
     <small class="muted ms-2">The &ldquo;Also list foods whose only gaps are marked not needed&rdquo; option above shows ticked ones here too.</small>
   </form>
@@ -383,19 +402,72 @@ logged meal&rsquo;s amount changes that past day&rsquo;s totals.</small></p>
 from USDA in over {{ old_copy_days }} days. Not a problem as such; <strong>Refresh from USDA</strong> on the food&rsquo;s page shows
 whether anything changed and lets you choose what to take.</p>
 {% if not old_copies %}
-<p class="muted">None.</p>
+<p class="muted"><strong>None</strong> were found.</p>
 {% else %}
 <ul>
   {% for f in old_copies %}<li><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a> <small class="muted">(last fetched {{ f.cached_at[:10] }})</small></li>{% endfor %}
 </ul>
 {% endif %}
 
-<div><a href="/food/cache" class="btn btn-outline-secondary btn-sm mt-4">Back to Food Cache</a></div>
+<div id="back-to-cache" hidden><a href="/food/cache" class="btn btn-outline-secondary btn-sm mt-4">Back to Food Cache</a></div>
+<script>
+// "Back to Food Cache" only when this visit began on the Food Cache page.
+// The flag survives this page's own saves and the duplicate-foods page
+// (both come back here with this page as the referrer); arriving from
+// anywhere else clears it.
+(function () {
+  var path = '';
+  try { path = document.referrer ? new URL(document.referrer).pathname : ''; } catch (e) {}
+  var key = 'numa_dbcheck_from_cache';
+  try {
+    if (path === '/food/cache') sessionStorage.setItem(key, '1');
+    else if (path.indexOf('/food/cache/db-check') !== 0 && path !== '/food/cache/duplicates') sessionStorage.removeItem(key);
+    if (sessionStorage.getItem(key)) document.getElementById('back-to-cache').hidden = false;
+  } catch (e) {}
+})();
+</script>
+<script>
+// "Check all as not needed" ticks every box in its list (nothing is saved
+// until Save); once all are ticked it reads "Uncheck all" and does the reverse.
+document.querySelectorAll('.js-check-all-not-needed').forEach(function (btn) {
+  var boxes = btn.form.querySelectorAll('input[type=checkbox][name=ignore]');
+  function allTicked() { return Array.prototype.every.call(boxes, function (b) { return b.checked; }); }
+  function label() { btn.textContent = allTicked() ? 'Uncheck all' : 'Check all as not needed'; }
+  btn.addEventListener('click', function () {
+    var tick = !allTicked();
+    boxes.forEach(function (b) { b.checked = tick; });
+    label();
+  });
+  boxes.forEach(function (b) { b.addEventListener('change', label); });
+  label();
+});
+</script>
 <script>
 // Saving "not needed" on a collapsed list returns to its #anchor — open it.
+// The same when a sidebar link jumps to a collapsed list.
 (function () {
-  var el = window.location.hash && document.getElementById(window.location.hash.slice(1));
-  if (el && el.tagName === 'DETAILS') { el.open = true; el.scrollIntoView({block: 'start'}); }
+  function openTarget() {
+    var el = window.location.hash && document.getElementById(window.location.hash.slice(1));
+    if (el && el.tagName === 'DETAILS') { el.open = true; el.scrollIntoView({block: 'start'}); }
+  }
+  openTarget();
+  window.addEventListener('hashchange', openTarget);
+})();
+// Highlight the sidebar entry for the section in view.
+(function () {
+  var links = Array.from(document.querySelectorAll('.analysis-sidebar .sb-toggle'));
+  var sections = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); })
+                      .filter(Boolean);
+  function update() {
+    var mid = window.scrollY + window.innerHeight / 3;
+    var active = sections[0];
+    sections.forEach(function (sec) { if (sec.getBoundingClientRect().top + window.scrollY <= mid) active = sec; });
+    links.forEach(function (a) {
+      a.parentElement.classList.toggle('sb-active', !!active && a.getAttribute('href') === '#' + active.id);
+    });
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
 })();
 </script>
 {% endblock %}

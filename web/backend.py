@@ -58,6 +58,7 @@ from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, _parse_portion_input, portion_amount_note
 from numa_app.services.portions import generic_density_kind as _generic_density_kind
+from numa_app.services.portions import match_portion_label as _match_portion_label
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
 from version import VERSION, NEW_VERSION_NOTE, RELEASE_VERSION
 from numa_app.services import update_check as _update_check
@@ -156,6 +157,25 @@ def _render_home_md_short() -> str:
 
 
 def _parse_portion_str(
+    raw: str,
+    portions: list[dict],
+    food_name: str = "",
+) -> tuple[float, str] | tuple[None, str]:
+    """_parse_portion_str_raw(), plus reading back the label a "pN" amount is
+    stored as ("2 × 1 large egg", "1 large egg"), so an Edit box showing it
+    can be saved unchanged — see portions.match_portion_label()."""
+    hit = _match_portion_label(raw, portions, allow_bare=False)
+    if hit:
+        return hit
+    grams, msg = _parse_portion_str_raw(raw, portions, food_name)
+    if grams is None:
+        hit = _match_portion_label(raw, portions)
+        if hit:
+            return hit
+    return grams, msg
+
+
+def _parse_portion_str_raw(
     raw: str,
     portions: list[dict],
     food_name: str = "",
@@ -5596,6 +5616,32 @@ def _annotate_recipe_amounts(items: list[dict], conn, *, id_key: str = "id") -> 
     return any_recipe
 
 
+def _annotate_food_amounts(items: list[dict], conn, *, unit_key: str = "unit") -> None:
+    """Give each logged food in `items` (meal_items rows, which store the
+    grams in amount and what was typed in unit — "1/3 c", "2 × large egg",
+    or just "g" for entries made before meals kept it) what the shared
+    _food_amount.html macro needs: typed_note (the typed amount when it was
+    more than grams, else None), amount_display (re-parseable text for the
+    Edit box) and generic_density (the "≈ generic" mark, see
+    _mark_generic_density())."""
+    for it in items:
+        if it.get("recipe_id") or not it.get("fdc_id"):
+            continue
+        typed = it.get(unit_key)
+        label = _ingredient_amount_display(conn, {"unit": typed, "amount": it.get("amount"),
+                                                  "food_name": it.get("food_name") or "",
+                                                  "fdc_id": it["fdc_id"]})
+        it["typed_note"] = _typed_amount_note(label)
+        cached = _db.get_cached_food(conn, it["fdc_id"])
+        portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
+        # A portion label ("2 × 1 large egg") doesn't parse back, so the Edit
+        # box falls back to grams rather than offer text it would reject.
+        reparses = _parse_portion_str(label, portions, it.get("food_name") or "")[0] is not None
+        it["amount_display"] = label if reparses else f"{float(it.get('amount') or 0):.4g} g"
+        it["generic_density"] = (_generic_density_kind(typed, portions, cached["name"])
+                                 if cached and typed else None)
+
+
 def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
     """Return (items_for_display, total_nutrients, diaas_ingredients) for one meal.
 
@@ -5624,6 +5670,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 "recipe_id": None,
                 "amount":    grams,
                 "unit":      "g",
+                "typed_unit": row["unit"],
                 "notes":     row["notes"] or "",
                 "has_nuts":  bool(nuts_100g),
                 "portions":  portions,
@@ -5664,6 +5711,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
             })
 
     _annotate_recipe_amounts(items, conn)
+    _annotate_food_amounts(items, conn, unit_key="typed_unit")
     return items, total_nutrients, _group_ingredients_by_food(ingredients)
 
 
@@ -6513,11 +6561,13 @@ async def meal_add_food(
     name = food_name or (cached["name"] if cached else "Unknown food")
     portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
     raw = portion_str.strip() or "100 g"
-    grams, error_msg = _parse_portion_str(raw, portions, name)
+    grams, label = _parse_portion_str(raw, portions, name)
     if not grams:
-        return _redirect(error=error_msg)
+        return _redirect(error=label)
+    # Store what was typed ("1/3 c", "2 × large egg") as the unit, the way a
+    # recipe ingredient does, so a later portion correction can find it.
     with _db.get_db() as conn:
-        _db.meal_add_food(conn, meal_id, fdc_id, name, grams, "g")
+        _db.meal_add_food(conn, meal_id, fdc_id, name, grams, label)
         check = _added_food_check(conn, fdc_id)
     if _annotation_prompt_needed(fdc_id):
         # next= carries an explicit empty q= (not simply omitted) so that,
@@ -6672,13 +6722,13 @@ async def meal_update_item_post(
         with _db.get_db() as conn:
             cached = _db.get_cached_food(conn, item["fdc_id"]) if item["fdc_id"] else None
         portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
-        grams, error_msg = _parse_portion_str(amount.strip(), portions, item["food_name"])
+        grams, label = _parse_portion_str(amount.strip(), portions, item["food_name"])
         if grams is not None:
             with _db.get_db() as conn:
                 _db.meal_replace_food(conn, item_id, meal_id, item["fdc_id"],
-                                      item["food_name"], grams, "g", notes_val)
+                                      item["food_name"], grams, label, notes_val)
         else:
-            return _redirect(error=error_msg)
+            return _redirect(error=label)
     return _redirect()
 
 
@@ -6756,6 +6806,7 @@ async def meals_search(request: Request, q: str = ""):
                 r["recipe_deleted"] = r["recipe_id"] in deleted_recipe_ids
         with _db.get_db() as conn:
             _annotate_recipe_amounts(rows, conn, id_key="item_id")
+            _annotate_food_amounts(rows, conn)
         n_items = len(rows)
         n_meals = len({r["meal_id"] for r in rows})
         n_dates = len({r["meal_date"] for r in rows})
@@ -6813,6 +6864,7 @@ def _meal_day_context(meal_id: int) -> dict | None:
                 if it["item_type"] == "recipe":
                     it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
             _annotate_recipe_amounts(m_items, conn)
+            _annotate_food_amounts(m_items, conn)
             m["meal_items"] = _sort_meal_items_display(m_items)
 
     diaas_display = _build_diaas_display(diaas_result)
@@ -9977,6 +10029,7 @@ async def summary_date(request: Request, meal_date: str):
                 if it["item_type"] == "recipe":
                     it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
             _annotate_recipe_amounts(m_items, conn)
+            _annotate_food_amounts(m_items, conn)
             m["meal_items"] = _sort_meal_items_display(m_items)
 
     diaas_display = _build_diaas_display(diaas_result)

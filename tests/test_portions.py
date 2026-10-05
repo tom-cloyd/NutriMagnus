@@ -37,3 +37,18 @@ def test_ing_amount_display_legacy_bare_unit_falls_back_to_grams() -> None:
 def test_ing_amount_display_no_grams_returns_label_unchanged() -> None:
     result = _ing_amount_display("2 tbsp", None, "Oil")
     assert result == "2 tbsp"
+
+
+def test_stored_portion_label_reads_back() -> None:
+    """"2 p1" is stored as "2 × 1 large egg" and "p1" as "1 large egg"; both
+    must read back, at the portion's weight now, or re-saving an unchanged
+    amount fails with 'Unit "×" not recognised'."""
+    from numa_app.services.portions import _parse_portion_input
+
+    portions = [{"description": "1 large egg", "gram_weight": 50.0}]
+    assert _parse_portion_input("2 × 1 large egg", portions) == (100.0, "2 × 1 large egg")
+    assert _parse_portion_input("1.5 x 1 Large  Egg", portions) == (75.0, "1.5 × 1 large egg")
+    assert _parse_portion_input("1 large egg", portions) == (50.0, "1 large egg")
+    assert _parse_portion_input("2 × 1 small egg", portions) is None        # portion gone
+    # Ordinary input is untouched by the portion-label reading.
+    assert _parse_portion_input("150 g", portions)[0] == 150.0

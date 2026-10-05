@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-04:2141* / Reading time: 7 hours, 16 minutes
+*Updated 2026-10-05:0704* / Reading time: 7 hours, 17 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -2689,7 +2689,7 @@ The day pages and Meal History Search flag the same item with a "review on the m
 
 **Editing a food's portions changes nothing you've already entered.** Every amount you type for a food, in a recipe or a meal, is turned into a weight in grams the moment you enter it, and the grams are what NuMa saves. Changing what `p1` means later doesn't touch any amount already entered. How each kind of entry becomes grams:
 
-- **`p1`, `1.5 p1`** — NuMa takes that portion's gram weight *as it is right now* and multiplies it out. A recipe saves the portion's description too (e.g. "1 cup, chopped"), not the code `p1`.
+- **`p1`, `1.5 p1`** — NuMa takes that portion's gram weight *as it is right now* and multiplies it out. A recipe ingredient or meal item saves the portion's description too (e.g. "1 cup, chopped"), not the code `p1`.
 - **A volume, like `1/4 cup`** — converted to grams using the food's density, with the volume kept as a label ("52.3 gr (1/4 cup)"). If NuMa doesn't know the food's density, it asks you for a weight instead of guessing.
 - **A weight, like `3 oz`** — converted straight to grams.
 
@@ -2697,7 +2697,7 @@ What that means when you edit a portion afterwards:
 
 - **Nutrient totals don't change.** Past recipe ingredients and logged meal items keep the grams they were entered with.
 - **A recipe's ingredient label is a record, not a link.** It shows how you typed the amount at the time. If you change `p1` from "1 cup" to "1 large", an older ingredient line still says "1 cup".
-- **A logged meal item keeps only its grams.** What you typed isn't saved, so meal pages show the amount in grams.
+- **A logged meal item keeps what you typed, too.** Meal pages show the grams, with what you typed after them ("41.8 g (1/3 c)"). Meal items entered before October 5, 2026 kept only their grams.
 - **Editing an amount re-reads it against today's portions.** Retyping `p1` on an existing line uses whatever `p1` means now, not what it meant when you first entered it.
 
 If a portion's gram weight turns out to have been wrong, fix the portion; Foods → 9 then lists every recipe amount that used it under [Amounts that no longer match](#stale-amounts), ready to update in one click.
@@ -2793,7 +2793,7 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 | [Calories missing or not adding up](#calorie-checks) | No calorie value; calories far from what the food's protein, carbs and fat imply; calories estimated | Foods → 9; the food's page; a **Calories** note on meal, recipe and summary pages | Refresh from [USDA](#gloss-usda), fill in from another food, or edit the value; alcohol, sugar alcohols and very high fiber can explain a real gap |
 | Impossible values | Negative values; more than 100 g of one nutrient per 100 g; protein, carbs and fat adding up to more than 100 g; more sugars than carbohydrate; more of the three fat types than total fat | Foods → 9; the food's page; right after adding it | Correct the value on the food; such data usually came wrong from its source |
 | [Amounts that no longer match](#stale-amounts) | A recipe amount typed as a volume or portion ("1/3 c", "p1") whose stored grams differ from what it works out to today | Foods → 9 | Check the food's portions, then update the amounts there in one click |
-| [Amounts converted with a generic density](#generic-density) | A volume amount ("2 T") for a food with no cup or spoon weight of its own, converted with a generic density for that kind of food | Recipe pages ("≈ generic" mark), Foods → 9 | Measure the food's cup or spoon weight and add it on its Portions page, then correct the amounts |
+| [Amounts converted with a generic density](#generic-density) | A volume amount ("2 T") for a food with no cup or spoon weight of its own, converted with a generic density for that kind of food | Recipe and meal pages ("≈ generic" mark), Foods → 9 | Measure the food's cup or spoon weight and add it on its Portions page, then correct the amounts |
 | [Old USDA copies](#old-copies) | USDA foods not refreshed in over a year | Foods → 9 | **Refresh from USDA** shows what changed and lets you choose |
 | [Missing amino acid data](#missing-aa) | Foods with protein but no amino acid figures, left out of protein quality ([DCP](#gloss-dcp), [DIAAS](#gloss-diaas)) | Foods → 9 (foods you use, most-used first); meal, recipe and food pages; the [AA](#gloss-aa) column in search results, Food Cache and Pantry | Find a Foundation or [SR](#gloss-sr) Legacy version, refresh from USDA, or estimate from a similar food; or tick "not needed" |
 | [Missing portion weights](#ts-no-volume-portion) | A food with no cup, spoon or piece weight, so a volume or count can't become grams | Foods → 9 (foods you use, most-used first); recipe pages ("No portion/weight data exists"); when you type an amount | Add the weight once on the food's Portions page; or tick "not needed" if you always weigh it |
@@ -2824,7 +2824,7 @@ Amounts typed with their own weight ("42 g", "2 T 15 g") are never listed. A vol
 
 The food's own **Portions page** shows the same list for that one food, right after you add, change or remove a portion (and whenever any of its amounts still don't match). There, recipe amounts start ticked; logged meals and bracketed-weight amounts start unticked, for you to decide. If you've just reordered portions, amounts entered as `p1`, `p2`… now point at a different portion, so re-enter those rather than updating them.
 
-**Amounts converted with a generic density.**{: #generic-density} When you enter a volume ("1/3 c", "2 T") for a food that has no cup or spoon weight of its own, NuMa converts it with a generic density for that kind of food: protein powders, flours, seeds and so on. That's a reasonable guess, but it is a guess, so recipe pages and Edit Recipe mark every such amount **≈ generic\***, with a footnote. Click the mark to go to the food's Portions page, measure the food's actual cup or spoon weight (fill a measuring cup, level it, weigh it), and add it there. The mark then disappears, and the amounts it affects show up under [Amounts that no longer match](#stale-amounts), ready to correct. Foods → 9 lists every food with such amounts, most-used first, under **Amounts converted with a generic density**. An amount with a weight in brackets ("2 T (14.7 gr)") counts too: older versions of NuMa wrote their own conversion that way, so it's most likely the same generic figure, unless you weighed it. A weight you typed yourself ("15 g") is never marked.
+**Amounts converted with a generic density.**{: #generic-density} When you enter a volume ("1/3 c", "2 T") for a food that has no cup or spoon weight of its own, NuMa converts it with a generic density for that kind of food: protein powders, flours, seeds and so on. That's a reasonable guess, but it is a guess, so recipe pages, Edit Recipe and meal pages mark every such amount **≈ generic\***, with a footnote. Click the mark to go to the food's Portions page, measure the food's actual cup or spoon weight (fill a measuring cup, level it, weigh it), and add it there. The mark then disappears, and the amounts it affects show up under [Amounts that no longer match](#stale-amounts), ready to correct. Foods → 9 lists every food with such amounts, most-used first, under **Amounts converted with a generic density**. An amount with a weight in brackets ("2 T (14.7 gr)") counts too: older versions of NuMa wrote their own conversion that way, so it's most likely the same generic figure, unless you weighed it. A weight you typed yourself ("15 g") is never marked.
 
 **Foods you use with no amino acid data, or no portion weights.** These two lists on Foods → 9 could be long — dozens of foods for a well-used install — so each starts folded up, showing only its count, and lists only foods you actually use in a recipe, a meal or your pantry (an unused food affects no result), most-used first. Open one when you want to work through it. Tick **not needed** for a food that doesn't matter — a sprinkle of cheese with no amino acid data, a food you always weigh — and it stops being counted. Neither list raises the Home page reminder: they're improvements to make when you have time, not errors.
 
@@ -4363,7 +4363,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 26 minutes)*
+*(Reading time: 1 hour, 27 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4379,6 +4379,8 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- An amount entered as a portion ("2 p1"), shown as "2 × 1 large egg", can now be saved again from Edit Recipe without changing it; before, NuMa rejected its own wording.
+- A food added to a meal now keeps the amount you typed ("1/3 c") as well as its grams, so meal pages show both, the Edit box offers what you typed, and a later portion correction or "≈ generic" mark reaches meal amounts too.
 - A new install no longer opens with a warning about data problems in the starter foods and recipes; the Home page now warns only about problems in your own data.
 - A food whose calories are flagged but are actually right (vanilla extract, whose calories come from alcohol) now has a **These calories are right** button.
 - Open Food Facts foods saved before September 11 now show their carbohydrate; meals that include them are recalculated.
@@ -4472,6 +4474,49 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - The oxalate reference-match page now explains its entries the same way, and every entry — there and on a food's page — says whether its value was measured in that food or estimated from a similar one.
 - A GI value picked from the reference table now remembers which row it came from, shown under the GI field and on the food's own page, so you can always see what a saved figure is based on.
 - The GI lookup on a food's Annotate page now explains its own results right beside the form — what "Impaired" means, what "ref Bread, 2h 76" is telling you, and what NuMa actually saves when you pick a row — with the full account in the manual.
+
+#### Oct 5 updates
+
+**PROGRAM: PORTION AMOUNTS CAN BE RE-SAVED AS SHOWN**
+
+An amount you entered as a portion, like "2 p1", is shown as "2 × 1 large egg", and you can now save it again from Edit Recipe (or a meal's Edit box) exactly as shown. NuMa reads it at that portion's weight today. Before, saving it unchanged failed with "Unit "×" not recognised", so fixing just a note meant retyping the amount. Such amounts are now also checked under Amounts that no longer match. [learn more...](#stale-amounts)
+
+<!--
+
+```
+Scope: Recipes -> Edit Recipe (ingredient Edit), Meals -> meal Edit, Foods -> 9 stale amounts.
+Files: numa_app/services/portions.py (new match_portion_label(); _parse_portion_input() now wraps
+_parse_portion_input_raw()), web/backend.py (_parse_portion_str() wraps _parse_portion_str_raw()
+the same way), tests/test_portions.py, tests/test_web.py.
+"N × description" is matched first (nothing else reads it); a bare description ("1 large egg",
+stored from "p1") only when the normal parse fails. Matches the food's portion by description,
+case/spacing ignored; a renamed or removed portion still fails, as before. Side effect:
+data_quality.stale_amounts() now checks these labels too (previously unparseable, so skipped);
+the owner's DB had 14 such amounts, none stale at the time.
+```
+
+-->
+
+**PROGRAM: MEALS KEEP THE AMOUNT YOU TYPED**
+
+When you add a food to a meal as "1/3 c" or "2 p1", NuMa now saves that along with the grams, the way a recipe ingredient always has. Meal pages show it after the grams ("41.8 g (1/3 c)"), the Edit box offers it back, and amounts converted with a generic density are marked "≈ generic". If you later correct the food's cup or portion weight, the meal amount is listed with the recipe amounts it affects, ready to update. Meal items entered before today kept only their grams, so they can't be checked this way. [learn more...](#stale-amounts)
+
+<!--
+
+```
+Scope: Meals & Log -> meal page (add food, Edit), Daily Summary, day view, meal history search,
+printable meal/day. Files: web/backend.py (meal_add_food and meal_update_item_post store
+_parse_portion_str()'s label as meal_items.unit instead of "g"; new _annotate_food_amounts() sets
+typed_note / amount_display / generic_density, called from _meal_expand_for_diaas(),
+_meal_day_context(), summary, meals_search), web/templates/_food_amount.html (new macro),
+meal.html (Edit prefill, "≈ generic" mark + footnote), meal_day.html, summary.html, print.html,
+meals_search.html, tests/test_data_quality.py. Same label form as recipes ("0.333333 c",
+"2 × large egg"), displayed via _ingredient_amount_display()/_typed_amount_note(); legacy "g"
+rows show grams only. data_quality.stale_amounts() and generic_density_in_use() already read
+meal_items.unit, so no change there. "Add individual ingredients" of a recipe still stores grams.
+```
+
+-->
 
 #### Oct 4 updates
 
@@ -4665,8 +4710,8 @@ so adding a real portion clears it and moves the amounts into stale_amounts(). "
 "2 T (14.7 gr)" stored by older versions (14.7 g = the table's 0.5 g/ml). A typed weight never
 counts. The owner's DB at the time: 16 foods, 31 amounts (protein isolates and peanut butter powder
 5 each). Olive oil's Foundation "100 milliliter" portion was ignored for density before the ml anchor.
-Meals added in the app store unit "g" (the typed volume is not kept), so only older meal entries
-can be listed.
+Meals added in the app stored unit "g" (the typed volume was not kept) until Oct 5, when meals
+began keeping it.
 ```
 
 -->

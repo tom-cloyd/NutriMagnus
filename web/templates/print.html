@@ -1,3 +1,4 @@
+{% import "_food_amount.html" as _famt %}
 {% import "_ul_column.html" as _ul %}
 {% import "_rda_goal_column.html" as _rdagoal %}
 {% import "_rda_definition_footer.html" as _rda_note %}
@@ -161,7 +162,7 @@
     {% for it in meal_items %}
     <tr>
       <td>{{ it.food_name }}{{ food_id_tag(it.fdc_id, it.recipe_id) }}</td>
-      <td class="num">{% if it.recipe_id %}{{ _ramt.amount(it) }}{% else %}{{ it.amount }}&thinsp;{{ it.unit }}{% endif %}</td>
+      <td class="num">{% if it.recipe_id %}{{ _ramt.amount(it) }}{% else %}{{ _famt.amount(it) }}{% endif %}</td>
       <td class="muted">{{ it.notes or "" }}</td>
     </tr>
     {% endfor %}
@@ -182,7 +183,7 @@
     {% for it in m.meal_items %}
     <tr>
       <td>{{ it.food_name }}{{ food_id_tag(it.fdc_id, it.recipe_id) }}</td>
-      <td class="num">{% if it.recipe_id %}{% set _rwp.any = true %}{{ _ramt.amount(it) }}{% else %}{{ it.amount }}&thinsp;{{ it.unit }}{% endif %}</td>
+      <td class="num">{% if it.recipe_id %}{% set _rwp.any = true %}{{ _ramt.amount(it) }}{% else %}{{ _famt.amount(it) }}{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>

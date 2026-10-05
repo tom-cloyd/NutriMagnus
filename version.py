@@ -1,4 +1,4 @@
-VERSION = "2026-10-04:2141"
+VERSION = "2026-10-05:0748"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.23"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "New installs no longer open with a warning about starter data problems; a food whose calories are right can be marked so; Revised Optimal columns explained under each table; Enter or a same-page button keeps your place"
+NEW_VERSION_NOTE = "A food added to a meal now keeps the amount you typed, such as 1/3 c, alongside its grams; an amount entered as a portion can be saved again unchanged"

@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% import "_food_amount.html" as _famt %}
+{% import "_generic_density.html" as _gd with context %}
 {% import "_add_food_row.html" as _sr %}
 {% import "_calorie_note.html" as _cal %}
 {% import "_source_filter_select.html" as _srcf %}
@@ -535,7 +537,7 @@
           {% endif %}
         </td>
         <td class="num-col" style="white-space:nowrap">
-          {% if item.recipe_id %}{{ _ramt.amount(item) }}{% else %}{{ item.amount | round(1) }}&thinsp;{{ item.unit }}{% endif %}
+          {% if item.recipe_id %}{{ _ramt.amount(item) }}{% else %}{{ _famt.amount(item) }}{{ _gd.mark(item) }}{% endif %}
         </td>
         <td>
           {% if item.notes %}<small class="muted">{{ item.notes }}</small>{% endif %}
@@ -550,7 +552,7 @@
                 <div class="d-flex gap-2 align-items-center">
                   {% if item.fdc_id %}
                   <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
-                  <input type="text" name="amount" value="{{ item.amount | round(1) }}g"
+                  <input type="text" name="amount" value="{{ item.amount_display or ((item.amount | round(1)) ~ ' g') }}"
                          class="form-control form-control-sm" placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1"
                          style="width:12rem" required>
                   {% else %}
@@ -618,6 +620,7 @@
     </tbody>
   </table>
   {{ _ramt.weight_note(items | selectattr("recipe_id") | list | length > 0) }}
+  {{ _gd.footnote(items) }}
   </div>
 </section>
 {% else %}
@@ -655,8 +658,13 @@
                name="delete_originals" value="1" checked>
         <label class="form-check-label" for="delete-originals">Delete original meals after merging</label>
       </div>
+      {# The confirmation names the deletion when "Delete original meals" is
+         ticked, since the separate meals can't be restored afterwards. #}
       <button type="submit" class="btn btn-warning"
-              onclick="return confirm('Merge selected meals into one?')">Merge meals</button>
+              onclick="var f = this.form, n = f.querySelectorAll('input[name=merge_ids]:checked').length;
+                       return confirm(f.elements['delete_originals'].checked
+                         ? 'Merge ' + n + ' meals into one and delete the ' + n + ' originals? This cannot be undone.'
+                         : 'Merge ' + n + ' meals into one? The originals are kept.');">Merge meals</button>
     </form>
   </div>
 </details>

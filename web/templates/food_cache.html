@@ -133,7 +133,7 @@
 <p class="muted mb-1"><small>Check the box next to any food below (or click "Select all missing AA data"), then click "Fetch missing data from Claude AI" to build a ready-to-paste prompt asking Claude AI to fill in that food's missing amino acid or nutrient data. {{ manual_link("fetch") }}</small></p>
 {% set fetchable_foods = foods | rejectattr('has_aa') | list %}
 <p class="mb-2">
-  <button type="submit" form="claude-fetch-form" class="btn btn-sm {{ 'btn-primary' if fetchable_foods else 'btn-outline-secondary' }}">Fetch missing data from Claude AI</button>
+  <button type="submit" form="claude-fetch-form" class="btn btn-sm {{ 'btn-primary' if fetchable_foods else 'btn-outline-secondary' }}" title="Builds a prompt you copy and paste into Claude AI (claude.ai), asking it for the amino acid and nutrient values the ticked foods are missing. You then paste Claude's reply back into NuMa to fill those gaps. Nothing is sent anywhere automatically.">Fetch missing data from Claude AI</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectMissingAA()">Select all missing AA data</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectNone()">Clear selection</button>
   <button type="submit" form="compare-form" id="compare-btn" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 8)</button>

@@ -315,7 +315,55 @@ def generic_density_kind(unit: str | None, portions: list[dict], food_name: str)
     return kind if _usda.density_with_source(food_name, portions)[1] == "table" else None
 
 
+_PORTION_LABEL_RE = re.compile(r"^\s*(\d+(?:\.\d+)?|\d+/\d+)\s*[×x]\s*(.+?)\s*$")
+
+
+def match_portion_label(raw: str, portions: list[dict], *,
+                        allow_bare: bool = True) -> tuple[float, str] | None:
+    """Read back the label a "pN" entry is stored as: "2 × 1 large egg" (from
+    "2 p1") or, with allow_bare, just "1 large egg" (from "p1"), by finding the
+    food's portion with that description (case and spacing ignored). Returns
+    (grams at the portion's weight now, label) or None — None too when that
+    portion has since been renamed or removed. Without this, re-saving an
+    amount that was entered as a portion failed: "Unit "×" not recognised"."""
+    def _key(text: str) -> str:
+        return " ".join(str(text).split()).lower()
+
+    by_desc = {_key(p.get("description", "")): p for p in portions if p.get("gram_weight")}
+    m = _PORTION_LABEL_RE.match(raw)
+    if m:
+        num = m.group(1)
+        number = float(num.split("/")[0]) / float(num.split("/")[1]) if "/" in num else float(num)
+        p = by_desc.get(_key(m.group(2)))
+        if p is not None and number > 0:
+            return round(number * float(p["gram_weight"]), 2), f"{number:g} × {p['description']}"
+        return None
+    if allow_bare:
+        p = by_desc.get(_key(raw))
+        if p is not None:
+            return float(p["gram_weight"]), p["description"]
+    return None
+
+
 def _parse_portion_input(
+    raw: str,
+    portions: list[dict],
+    food_name: str = "",
+) -> tuple[float | None, str] | None:
+    """_parse_portion_input_raw(), plus reading back a stored portion label
+    ("2 × 1 large egg", "1 large egg") — see match_portion_label(). The
+    "N × description" form is matched first, since nothing else reads it; a
+    bare description only when the input reads as nothing else."""
+    hit = match_portion_label(raw, portions, allow_bare=False)
+    if hit:
+        return hit
+    result = _parse_portion_input_raw(raw, portions, food_name)
+    if result is None:
+        result = match_portion_label(raw, portions)
+    return result
+
+
+def _parse_portion_input_raw(
     raw: str,
     portions: list[dict],
     food_name: str = "",

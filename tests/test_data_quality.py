@@ -373,3 +373,26 @@ def test_misspelled_carb_key_is_renamed_on_startup():
         assert json.loads(row[0])["carbs_g"] == 5.0 and "carb_g" not in json.loads(row[0])
         assert json.loads(row[1])["nutrients"] == {"carbs_g": 5.0}
         assert conn.execute("SELECT 1 FROM stale_meals WHERE meal_id = ?", (meal_id,)).fetchone()
+
+
+def test_meal_add_keeps_typed_amount_so_portion_fixes_reach_it(client):
+    """Adding a food to a meal stores what was typed ("1/3 c"), like a recipe
+    ingredient, so a later portion correction finds the meal entry too."""
+    with _db.get_db() as conn:
+        _food(conn, 997031, "Okara meal test", {**GOOD}, [{"description": "1 cup", "gram_weight": 125.4}])
+        mid = _db.meal_create(conn, "Typed lunch test", "2026-10-01")
+    client.post(f"/meal/{mid}/add", data={"fdc_id": 997031, "portion_str": "1/3 c"},
+                follow_redirects=False)
+    with _db.get_db() as conn:
+        row = conn.execute("SELECT id, amount, unit FROM meal_items WHERE meal_id = ?", (mid,)).fetchone()
+    assert (row["amount"], row["unit"]) == (pytest.approx(41.8), "0.333333 c")   # as recipes store it
+    page = client.get(f"/meal/{mid}").text
+    assert "41.8&thinsp;g" in page and "(1/3 c)" in page
+    assert 'value="1/3 c"' in page                       # Edit box offers what was typed
+
+    client.post(f"/meal/{mid}/update/{row['id']}", data={"amount": "1/2 c"}, follow_redirects=False)
+    with _db.get_db() as conn:
+        assert conn.execute("SELECT unit FROM meal_items WHERE id = ?", (row["id"],)).fetchone()[0] == "0.5 c"
+        _food(conn, 997031, "Okara meal test", {**GOOD}, [{"description": "1 cup", "gram_weight": 99.0}])
+        stale = dq.stale_amounts(conn, fdc_id=997031)
+    assert [(s["where"], s["typed"], round(s["now_g"], 1)) for s in stale] == [("meal", "0.5 c", 49.5)]
