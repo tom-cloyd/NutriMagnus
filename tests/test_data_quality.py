@@ -323,3 +323,53 @@ def test_claude_import_shows_impact(client):
                     follow_redirects=False)
     assert "impact=" in r.headers["location"]
     assert "What this change did" in client.get(r.headers["location"]).text
+
+
+# ── Starter data never greets a new user with data problems (2026-10-04) ──
+
+def test_starter_problems_are_seen_but_users_own_are_not(client, tmp_path, monkeypatch):
+    from numa_app.services import demo_data
+    monkeypatch.setattr(demo_data, "_MARKER_FILE", tmp_path / "demo_data.json")
+    monkeypatch.setattr(demo_data, "_SEED_ATTEMPTED_MARKER", tmp_path / "seeded")
+    bad = {"fdc_id": 997101, "name": "* Bad starter salt", "data_type": "SR Legacy",
+           "nutrients": {"calories": 0, "protein_g": 0, "carbs_g": 1333, "fat_g": 0}, "portions": []}
+    monkeypatch.setattr(demo_data, "DEMO_FOODS", [bad])
+    monkeypatch.setattr(demo_data, "DEMO_PANTRY", [])
+    monkeypatch.setattr(demo_data, "DEMO_RECIPES", [])
+    with client:                                   # startup: fresh install, seeded
+        assert "DATA CHECK:" not in client.get("/").text
+        assert "1333 g of carbohydrate" in client.get("/food/cache/db-check").text  # still listed
+        with _db.get_db() as conn:
+            _food(conn, 997102, "My own bad food", {"calories": 0, "protein_g": 0, "carbs_g": 500, "fat_g": 0})
+        assert "DATA CHECK:" in client.get("/").text
+
+
+def test_calories_confirmed_right_stops_the_mismatch_check(client):
+    vanilla = {"calories": 288.0, "protein_g": 0.06, "carbs_g": 12.65, "fat_g": 0.06}
+    with _db.get_db() as conn:
+        _food(conn, 997103, "Vanilla test", vanilla)
+    page = client.get("/food/997103").text
+    assert "far from what its" in page and "These calories are right" in page
+    client.post("/food/997103/data-ignore", data={"group": dq.CALORIES_OK_KEY})
+    page = client.get("/food/997103").text
+    assert "far from what its" not in page and "Check them again" in page
+    with _db.get_db() as conn:
+        assert not {k for k in dq.scan(conn)["keys"] if k.startswith("food:997103:")}
+    client.post("/food/997103/data-ignore", data={"group": dq.CALORIES_OK_KEY, "ignored": "0"})
+    assert "far from what its" in client.get("/food/997103").text
+
+
+def test_misspelled_carb_key_is_renamed_on_startup():
+    with _db.get_db() as conn:
+        _food(conn, 997104, "Old OFF tomatoes", {"calories": 21, "protein_g": 0.8, "carb_g": 5.0, "fat_g": 0})
+        conn.execute("UPDATE foods SET source_json = ? WHERE fdc_id = 997104",
+                     (json.dumps({"nutrients": {"carb_g": 5.0}, "portions": []}),))
+        meal_id = _db.meal_create(conn, "Lunch", "2026-07-11")
+        conn.execute("INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit) "
+                     "VALUES (?, 'food', 997104, 'Old OFF tomatoes', 100, 'g')", (meal_id,))
+    _db.init_db()
+    with _db.get_db() as conn:
+        row = conn.execute("SELECT nutrients_json, source_json FROM foods WHERE fdc_id = 997104").fetchone()
+        assert json.loads(row[0])["carbs_g"] == 5.0 and "carb_g" not in json.loads(row[0])
+        assert json.loads(row[1])["nutrients"] == {"carbs_g": 5.0}
+        assert conn.execute("SELECT 1 FROM stale_meals WHERE meal_id = ?", (meal_id,)).fetchone()

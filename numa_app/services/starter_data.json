@@ -664,7 +664,18 @@
         "iron_mg": 14.62,
         "fat_g": 50.0,
         "calories": 584.0,
-        "calcium_mg": 969.0
+        "calcium_mg": 969.0,
+        "aa_tryptophan_g": 0.5474,
+        "aa_threonine_g": 1.0373,
+        "aa_isoleucine_g": 1.0752,
+        "aa_leucine_g": 1.9147,
+        "aa_lysine_g": 0.8015,
+        "aa_methionine_g": 0.8254,
+        "aa_phenylalanine_g": 1.3251,
+        "aa_valine_g": 1.3967,
+        "aa_histidine_g": 0.7355,
+        "aa_cystine_g": 0.5053,
+        "aa_tyrosine_g": 1.0472
       },
       "portions": [
         {
@@ -848,7 +859,29 @@
         "poly_fat_g": 9.07,
         "omega3_ala_mg": 651.0,
         "beta_sitosterol_mg": 1.02,
-        "omega6_la_mg": 8400.0
+        "omega6_la_mg": 8400.0,
+        "protein_g": 0.0,
+        "carbs_g": 0.0,
+        "fat_g": 100.0,
+        "calories": 884.0,
+        "calcium_mg": 1.0,
+        "iron_mg": 0.56,
+        "magnesium_mg": 0.0,
+        "phosphorus_mg": 0.0,
+        "potassium_mg": 1.0,
+        "sodium_mg": 2.0,
+        "zinc_mg": 0.0,
+        "selenium_mcg": 0.0,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.0,
+        "riboflavin_mg": 0.0,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.0,
+        "folate_mcg": 0.0,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "vitamin_e_mg": 14.35,
+        "vitamin_d_mcg": 0.0
       },
       "portions": [
         {
@@ -960,6 +993,9 @@
           "description": "cup, sliced",
           "gram_weight": 90.0
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
@@ -983,6 +1019,9 @@
           "description": "0.5 cup",
           "gram_weight": 130.0
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
@@ -994,13 +1033,16 @@
         "protein_g": 0.0,
         "fat_g": 0.0,
         "sodium_mg": 39333.0,
-        "carbs_g": 1333.33
+        "carbs_g": 0.0
       },
       "portions": [
         {
           "description": "1/4 tsp",
           "gram_weight": 1.5
         }
+      ],
+      "ignores": [
+        "vitamins"
       ]
     },
     {
@@ -1015,7 +1057,10 @@
         "carbs_g": 0.0,
         "calories": 0.0
       },
-      "portions": null
+      "portions": null,
+      "ignores": [
+        "vitamins"
+      ]
     },
     {
       "fdc_id": 1104647,
@@ -1029,7 +1074,11 @@
         "fiber_g": 2.7,
         "vitamin_c_mg": 10.0
       },
-      "portions": null
+      "portions": null,
+      "ignores": [
+        "aa",
+        "minerals"
+      ]
     },
     {
       "fdc_id": 169997,
@@ -1077,6 +1126,9 @@
           "description": "0.25 cup",
           "gram_weight": 4.0
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
@@ -1178,6 +1230,9 @@
           "description": "tsp",
           "gram_weight": 4.6
         }
+      ],
+      "ignores": [
+        "calories_ok"
       ]
     },
     {
@@ -1289,7 +1344,10 @@
         "aa_phenylalanine_g": 0.025,
         "aa_tyrosine_g": 0.017,
         "aa_valine_g": 0.03,
-        "aa_histidine_g": 0.012
+        "aa_histidine_g": 0.012,
+        "protein_g": 0.85,
+        "carbs_g": 0.58,
+        "calories": 717.0
       },
       "portions": [
         {
@@ -1342,6 +1400,10 @@
           "description": "1 T",
           "gram_weight": 15.0
         }
+      ],
+      "ignores": [
+        "aa",
+        "calories_ok"
       ]
     },
     {
@@ -1420,6 +1482,9 @@
           "description": "0.25 cup",
           "gram_weight": 60.0
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
@@ -1443,6 +1508,9 @@
           "description": "2 Tbsp",
           "gram_weight": 33.0
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
@@ -1453,15 +1521,19 @@
         "calories": 20.8333333333333,
         "protein_g": 0.833333333333333,
         "fat_g": 0.0,
-        "carb_g": 5.0,
         "fiber_g": 0.833333333333333,
         "sugar_g": 2.5,
         "sodium_mg": 116.666666666667,
         "calcium_mg": 56.6666666666667,
         "iron_mg": 0.7936507936507939,
-        "potassium_mg": 217.5
+        "potassium_mg": 217.5,
+        "carbs_g": 5.0
       },
-      "portions": null
+      "portions": null,
+      "ignores": [
+        "aa",
+        "vitamins"
+      ]
     },
     {
       "fdc_id": 170148,
@@ -1618,6 +1690,9 @@
           "description": "tsp",
           "gram_weight": 5.0
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
@@ -1724,11 +1799,14 @@
           "description": "bar",
           "gram_weight": 112.0
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
       "fdc_id": 746784,
-      "name": "* Sugars, granulated",
+      "name": "* Sugars, granulated (Foundation)",
       "data_type": "Foundation",
       "nutrients": {
         "calories": 385.0,
@@ -1753,6 +1831,9 @@
           "description": "1 cup",
           "gram_weight": 188.0
         }
+      ],
+      "ignores": [
+        "vitamins"
       ]
     },
     {
@@ -1858,6 +1939,9 @@
           "description": "tsp",
           "gram_weight": 2.2
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
@@ -1872,7 +1956,10 @@
         "calories": 0.0,
         "saturated_fat_g": 0.0
       },
-      "portions": null
+      "portions": null,
+      "ignores": [
+        "vitamins"
+      ]
     },
     {
       "fdc_id": 1868726,
@@ -1885,7 +1972,10 @@
         "carbs_g": 0.0,
         "calories": 0.0
       },
-      "portions": null
+      "portions": null,
+      "ignores": [
+        "vitamins"
+      ]
     },
     {
       "fdc_id": 168596,
@@ -2015,6 +2105,11 @@
           "1.5 c (weight not known)",
           "food"
         ]
+      ],
+      "kept": [
+        1,
+        2,
+        4
       ]
     },
     {
@@ -2050,7 +2145,7 @@
         ],
         [
           "* Butter, stick, salted",
-          107.65,
+          113.0,
           "0.5 c",
           "food"
         ],
@@ -2062,7 +2157,7 @@
         ],
         [
           "* Vanilla extract",
-          4.2,
+          4.9,
           "1 t",
           "food"
         ],
@@ -2140,7 +2235,7 @@
         ],
         [
           "* Seeds, hemp seed, hulled",
-          16.87,
+          16.01352493660186,
           "2 T",
           "food"
         ],
@@ -2241,7 +2336,7 @@
           "food"
         ],
         [
-          "* Sugars, granulated",
+          "* Sugars, granulated (Foundation)",
           134.07333333333332,
           "2/3 c (134 gr)",
           "food"
@@ -2276,6 +2371,9 @@
           "0.75 t",
           "food"
         ]
+      ],
+      "kept": [
+        3
       ]
     },
     {

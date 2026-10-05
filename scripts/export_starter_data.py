@@ -84,6 +84,11 @@ def _food_dict(row, *, name: str | None = None, conn=None) -> dict:
         gi = _demo_data.shippable_gi(_db.get_food_annotation(conn, row["fdc_id"]))
         if gi:
             food["gi"] = gi
+        # The curator's "not needed" / "calories are right" choices, so a
+        # new user's data checks don't flag salt for having no vitamins.
+        ignores = _demo_data.exportable_ignores(conn, row["fdc_id"])
+        if ignores:
+            food["ignores"] = ignores
     return food
 
 
@@ -183,6 +188,9 @@ def main() -> int:
                 "instructions": full["instructions"] or "",
                 "ingredients": ingredients,
             }
+            kept = _demo_data.kept_positions(conn, full["id"])
+            if kept:
+                recipes_by_id[recipe_id]["kept"] = kept
             return recipe_name
 
         for summary in _db.recipe_list(conn):
@@ -191,6 +199,16 @@ def main() -> int:
         recipes = list(recipes_by_id.values())
 
     foods = list(foods_by_fdc_id.values())
+    # demo_data resolves each recipe ingredient to its food by name, so two
+    # starter foods with one name would silently link a recipe to the wrong one.
+    seen_names: dict[str, int] = {}
+    for food in foods:
+        if food["name"] in seen_names:
+            print(f"ERROR: two starter foods are both named {food['name']!r} "
+                  f"(ids {seen_names[food['name']]} and {food['fdc_id']}) — rename one "
+                  "in the app, then export again. Nothing written.", file=sys.stderr)
+            return 1
+        seen_names[food["name"]] = food["fdc_id"]
 
     OUTPUT.write_text(json.dumps(
         {"foods": foods, "pantry": pantry, "recipes": recipes}, indent=2,

@@ -8,6 +8,10 @@ The release checklist's fresh-install smoke test never exercises this: a fresh
 install has no old schema to migrate. Scenarios run, each in its own throwaway
 HOME / data / config dirs (nothing real is ever opened for writing):
 
+  fresh-install     no database at all: the binary creates one and loads the
+                    starter data, as for a new user. Also fails if the Home
+                    page then shows the DATA CHECK banner — starter data must
+                    never greet a new user with "data problems".
   previous-release  a numa.db created and starter-seeded by the source of the
                     newest v* git tag (the release users are on now)
   --db PATH ...     a COPY of each given database (default: your live
@@ -61,6 +65,8 @@ def _copy_db(src: pathlib.Path, dst: pathlib.Path) -> None:
 
 
 def _row_counts(db: pathlib.Path) -> dict[str, int]:
+    if not db.exists():
+        return {}
     with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
         present = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         return {t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in TABLES if t in present}
@@ -69,6 +75,8 @@ def _row_counts(db: pathlib.Path) -> dict[str, int]:
 def _first_ids(db: pathlib.Path) -> list[str]:
     """One food, recipe and meal detail page to fetch, if the DB has any."""
     paths = []
+    if not db.exists():
+        return paths
     with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as conn:
         for sql, fmt in (
             ("SELECT fdc_id FROM foods ORDER BY fdc_id DESC LIMIT 1", "/food/{}"),
@@ -132,8 +140,9 @@ def _get(url: str) -> tuple[int, str]:
         return e.code, e.read().decode("utf-8", "replace")
 
 
-def run_scenario(name: str, root: pathlib.Path, db: pathlib.Path) -> list[str]:
-    """Start the binary on root's data dir (db already in place); return failures."""
+def run_scenario(name: str, root: pathlib.Path, db: pathlib.Path, *, fresh: bool = False) -> list[str]:
+    """Start the binary on root's data dir (db already in place, unless
+    fresh); return failures."""
     failures: list[str] = []
     before = _row_counts(db)
     detail_pages = _first_ids(db)
@@ -164,6 +173,9 @@ def run_scenario(name: str, root: pathlib.Path, db: pathlib.Path) -> list[str]:
             bad = next((t for t in BAD_TEXT if t in body), None)
             if status != 200 or bad:
                 failures.append(f"GET {path} -> {status}" + (f" ({bad!r} in page)" if bad else ""))
+            if fresh and path == "/" and "DATA CHECK:" in body:
+                failures.append("Home page shows the DATA CHECK banner on a fresh install — "
+                                "the starter data has problems (see Foods → 9 in a fresh install)")
     finally:
         proc.terminate()
         try:
@@ -172,6 +184,8 @@ def run_scenario(name: str, root: pathlib.Path, db: pathlib.Path) -> list[str]:
             proc.kill()
         log.close()
     after = _row_counts(db)
+    if fresh and not after.get("foods"):
+        failures.append("fresh install: no starter foods were loaded")
     for table, n in before.items():
         if after.get(table, 0) < n:
             failures.append(f"{table}: {n} rows before, {after.get(table, 0)} after")
@@ -202,6 +216,10 @@ def main() -> int:
     any_failed = False
     scenarios: list[tuple[str, pathlib.Path, pathlib.Path]] = []
 
+    fresh_root = tmp / "fresh-install"
+    _isolated_env(fresh_root)
+    scenarios.append(("fresh-install", fresh_root, fresh_root / "data" / "numa.db"))
+
     prev_root = tmp / "previous-release"
     prev_db, tag = _make_previous_release_db(prev_root)
     scenarios.append((f"previous-release ({tag})", prev_root, prev_db))
@@ -219,7 +237,7 @@ def main() -> int:
 
     for name, root, db in scenarios:
         print(f"== {name}")
-        failures = run_scenario(name, root, db)
+        failures = run_scenario(name, root, db, fresh=(name == "fresh-install"))
         if failures:
             any_failed = True
             for f in failures:

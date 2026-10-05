@@ -760,7 +760,7 @@
     <strong>meal %</strong> = this meal &divide; daily goal &nbsp;&middot;&nbsp;
     <strong>day total %</strong> = all meals logged today &divide; daily goal
   </small></p>
-  {{ _rda_note.note() }}
+  {{ _rda_note.note(has_optimal) }}
   {% endif %}
   {% if has_ul %}{{ _ul.note() }}{% endif %}
 </section>

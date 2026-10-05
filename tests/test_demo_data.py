@@ -833,3 +833,50 @@ def test_recipe_differences_ignore_starter_prefix_on_ingredient_names(db_conn):
                "ingredients": [["* SALT", 6, "1 t (6 gr)", "food"], ["* Garlic", 3, "g", "food"]]}
     d = demo_data._recipe_differences(db_conn, bundled, rid)
     assert d == {"fields": [], "added": ["* Garlic: 3 g"], "removed": [], "changed": []}
+
+
+# ── Starter data ships clean (2026-10-04) ─────────────────────────────────
+# A new user's first Home page showed "38 data problems you haven't reviewed
+# yet", every one of them in the starter data. These fail the moment an
+# export brings a problem in, long before a release.
+
+def test_shipped_starter_data_has_no_data_problems(db_conn: sqlite3.Connection) -> None:
+    from numa_app.services import data_quality
+    demo_data.load_demo_data(db_conn)
+    db_conn.commit()
+    keys = data_quality.scan(db_conn)["keys"]
+    assert keys == set(), (
+        "starter_data.json brings data problems into a fresh install — fix them in the "
+        "curator's database (Foods → 9) and export again: " + ", ".join(sorted(keys)))
+
+
+def test_starter_food_names_are_unique() -> None:
+    """Recipes find their foods by name; a duplicate links the wrong one."""
+    names = [f["name"] for f in demo_data.DEMO_FOODS]
+    assert len(names) == len(set(names))
+
+
+def test_shipped_ignores_and_kept_amounts_are_loaded(db_conn: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch) -> None:
+    import db as _db
+    food = {"fdc_id": 999001, "name": "* Test salt", "data_type": "SR Legacy",
+            "nutrients": {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0, "sodium_mg": 38000},
+            "portions": [{"description": "1 cup", "gram_weight": 100.0}],
+            "ignores": ["vitamins", "not-a-key"]}
+    recipe = {"name": "* Test recipe", "description": "", "servings": 1, "instructions": "",
+              "ingredients": [["* Test salt", 5.0, "1 cup", "food"], ["* Test salt", 150.0, "1 cup (150 gr)", "food"]],
+              "kept": [1]}
+    monkeypatch.setattr(demo_data, "DEMO_FOODS", [food])
+    monkeypatch.setattr(demo_data, "DEMO_PANTRY", [])
+    monkeypatch.setattr(demo_data, "DEMO_RECIPES", [recipe])
+    demo_data.load_demo_data(db_conn)
+    db_conn.commit()
+    assert _db.food_data_ignores(db_conn) == {999001: {"vitamins", "not-a-key"}}
+    rows = db_conn.execute("SELECT id FROM recipe_ingredients ORDER BY id").fetchall()
+    assert _db.amount_keeps(db_conn) == {("recipe", rows[1]["id"]): 150.0}
+    assert demo_data.kept_positions(db_conn, db_conn.execute("SELECT id FROM recipes").fetchone()[0]) == [1]
+    assert demo_data.exportable_ignores(db_conn, 999001) == ["vitamins"]
+
+
+def test_ignores_and_kept_are_not_an_improvement() -> None:
+    base = {"fdc_id": 1, "name": "* A", "data_type": "x", "nutrients": {}, "portions": []}
+    assert demo_data._item_hash(base) == demo_data._item_hash({**base, "ignores": ["aa"], "kept": [0]})

@@ -809,7 +809,8 @@ async def _lifespan(app: FastAPI):
     _db.init_db()
     with _db.get_db() as conn:
         from numa_app.services import demo_data as _demo_data
-        _demo_data.seed_if_fresh_install(conn)
+        if not _demo_data.seed_if_fresh_install(conn).get("skipped"):
+            _mark_starter_problems_seen(conn)
         _day_profile.backfill_missing_day_profiles(conn)
         missing_snapshot_meals = _db.meals_missing_nutrient_snapshot(conn)
     # One-time backfill: meals whose bcp_g/calories predate the per-meal
@@ -1255,7 +1256,7 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                         dcp_pct = round(dcp_g / p_val * 100, 0)
                         dcp_css = _rda_css(dcp_pct, dcp_type)
                 rows.append({
-                    "label":        "(Digestible Complete Protein)" + (" *" if dcp_missing else ""),
+                    "label":        "(Digestible Complete Protein)" + ("\u00a0*" if dcp_missing else ""),
                     "value":        dcp_g,
                     "unit":         unit,
                     "pct": dcp_pct, "rda_type": dcp_type, "rda_css": dcp_css,
@@ -3195,8 +3196,9 @@ async def food_cache_duplicates_dismiss(group_key: str = Form(...)):
 @app.post("/food/{fdc_id}/data-ignore", response_class=RedirectResponse)
 async def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = Form(1)):
     """Mark (or unmark) one nutrient group not needed for this food, from
-    its own page."""
-    if group in _data_completeness.GROUP_LABELS:
+    its own page. Also takes data_quality.CALORIES_OK_KEY, "these calories
+    are right", from the food's data-problem note."""
+    if group in _data_completeness.GROUP_LABELS or group == _data_quality.CALORIES_OK_KEY:
         with _db.get_db() as conn:
             if _db.get_cached_food(conn, fdc_id):
                 _db.set_food_data_ignore(conn, fdc_id, group, bool(ignored))
@@ -4577,6 +4579,7 @@ async def food_detail(
     ctx["impact"] = _impact_pop(request.query_params.get("impact", ""))
     with _db.get_db() as conn:
         ctx["quality_issues"] = _data_quality.issues_for_food(conn, fdc_id)
+        ctx["calories_ok"] = _data_quality.CALORIES_OK_KEY in _db.food_data_ignores(conn).get(fdc_id, set())
         ctx["your_changes"] = _your_changes(conn, fdc_id)
         ctx["older_versions"] = _db.food_versions_of(conn, fdc_id)
         ctx["version_info"] = _db.food_version_info(fdc_id)
@@ -7124,6 +7127,24 @@ def _data_check_reminder_prefs() -> dict:
     return {"enabled": bool(prefs.get("data_check_reminder", True)), "weeks": weeks}
 
 
+def _mark_starter_problems_seen(conn) -> None:
+    """Record whatever the data checks find in starter foods and recipes as
+    already seen, after starter data is loaded, restored or updated. Those
+    come with the program (a spice with no amino-acid figures, a USDA record
+    with no calories), not from anything the user did, so the Home page
+    banner shouldn't greet a new user with them; Foods → 9 still lists them."""
+    from numa_app.services import demo_data as _demo_data
+    foods, recipes = _demo_data.starter_copies(conn)
+    quality = _data_quality.scan(conn)
+    keys = {k for k in quality["keys"]
+            if k.split(":")[0] in ("food", "gap") and int(k.split(":")[1]) in foods}
+    keys |= {f"stale:{s['where']}:{s['item_id']}" for s in quality["stale_amounts"]
+             if s["where"] == "recipe" and s["owner_id"] in recipes}
+    if keys:
+        seen = set(_load_prefs_file().get("data_check_seen") or [])
+        _save_prefs_file({"data_check_seen": sorted(seen | keys)})
+
+
 def _data_check_reminder() -> dict | None:
     """The Home page's data-quality banner, or None. Issue-driven: shows
     only problems that weren't there when the user last opened Foods → 9
@@ -7296,6 +7317,7 @@ async def settings_demo_data_load():
     from numa_app.services import demo_data as _demo_data
     with _db.get_db() as conn:
         _demo_data.load_demo_data(conn)
+        _mark_starter_problems_seen(conn)
     return RedirectResponse("/settings?saved=starter_data_loaded", status_code=303)
 
 
@@ -7332,6 +7354,7 @@ async def settings_demo_data_restore(request: Request):
     recipe_names = form.getlist("recipe_name")
     with _db.get_db() as conn:
         _demo_data.restore_selected(conn, food_fdc_ids, pantry_names, recipe_names)
+        _mark_starter_problems_seen(conn)
     return RedirectResponse("/settings?saved=starter_data_restored#starter-data", status_code=303)
 
 
@@ -7345,6 +7368,7 @@ async def settings_starter_data_improve(request: Request):
     recipe_names = form.getlist("improve_recipe_name")
     with _db.get_db() as conn:
         _demo_data.apply_improvements(conn, food_fdc_ids, recipe_names)
+        _mark_starter_problems_seen(conn)
     return RedirectResponse("/settings?saved=starter_data_improved#starter-data", status_code=303)
 
 

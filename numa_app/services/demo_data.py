@@ -189,6 +189,48 @@ def _recipe_locations(conn) -> dict[str, int]:
     return out
 
 
+def exportable_ignores(conn, fdc_id: int) -> list[str]:
+    """The food's data-check choices (food_data_ignores) worth shipping with
+    it: nutrient groups marked not needed, no portions needed, calories
+    confirmed right."""
+    from numa_app.services import data_completeness as _completeness
+    from numa_app.services import data_quality as _quality
+    known = set(_completeness.GROUP_KEYS) | {_quality.PORTIONS_IGNORE_KEY, _quality.CALORIES_OK_KEY}
+    return sorted(_db.food_data_ignores(conn).get(fdc_id, set()) & known)
+
+
+def _write_ignores(conn, food: dict, local_id: int) -> None:
+    """Add a starter food's shipped ignores to the user's copy (never
+    removes one the user set themselves)."""
+    for key in food.get("ignores") or []:
+        _db.set_food_data_ignore(conn, local_id, key, True)
+
+
+def kept_positions(conn, recipe_id: int) -> list[int]:
+    """Positions, in ingredient order, of the recipe's amounts marked "Keep
+    as entered" (db.amount_keeps) — exported as a starter recipe's "kept",
+    so a weighed "8 c (2309 gr)" isn't flagged on a new user's data check."""
+    keeps = _db.amount_keeps(conn)
+    out = []
+    for i, ing in enumerate(_db.recipe_get_ingredients(conn, recipe_id)):
+        kept_g = keeps.get(("recipe", ing["id"]))
+        if kept_g is not None and ing["amount"] is not None and abs(kept_g - float(ing["amount"])) < 0.005:
+            out.append(i)
+    return out
+
+
+def _write_kept(conn, recipe_id: int, recipe: dict) -> None:
+    rows = _db.recipe_get_ingredients(conn, recipe_id)
+    for i in recipe.get("kept") or []:
+        if 0 <= i < len(rows) and rows[i]["amount"] is not None:
+            _db.amount_keep(conn, "recipe", rows[i]["id"], float(rows[i]["amount"]))
+
+
+def starter_copies(conn) -> tuple[set[int], set[int]]:
+    """(local food ids, recipe ids) of the user's copies of starter items."""
+    return set(_food_locations(conn).values()), set(_recipe_locations(conn).values())
+
+
 def _insert_food(conn, food: dict) -> int:
     """Add one starter food the user doesn't have; returns its local id."""
     local_id = _db.next_user_drafted_fdc_id(conn) if _is_local_only(food["fdc_id"]) else food["fdc_id"]
@@ -200,6 +242,7 @@ def _insert_food(conn, food: dict) -> int:
     if _is_local_only(food["fdc_id"]):
         conn.execute("UPDATE foods SET starter_key = ? WHERE fdc_id = ?", (str(food["fdc_id"]), local_id))
     _write_gi(conn, food, local_id, replace=False)
+    _write_ignores(conn, food, local_id)
     return local_id
 
 
@@ -214,6 +257,7 @@ def _create_recipe(conn, recipe: dict, food_ids: dict[int, int], rid_by_name: di
         conn.execute("UPDATE recipes SET starter_uid = ? WHERE id = ?", (recipe["uid"], rid))
     rid_by_name[recipe["name"]] = rid
     _add_ingredients(conn, rid, recipe, food_ids, rid_by_name)
+    _write_kept(conn, rid, recipe)
     _recipe_dcp.recompute_recipe_dcp(rid, conn)
     return rid
 
@@ -620,7 +664,9 @@ _CHANGE_KEYS = ("new_foods", "improved_foods", "new_recipes", "improved_recipes"
 def _item_hash(item: dict) -> str:
     # Identity fields aren't content: source_recipe_id was the curator's own
     # DB id (older starter data), uid is the recipe's permanent identity.
-    content = {k: v for k, v in item.items() if k not in ("source_recipe_id", "uid")}
+    # Ignores and kept amounts (data-check choices) aren't content either: a
+    # change to them alone isn't worth an "improved starter item" notice.
+    content = {k: v for k, v in item.items() if k not in ("source_recipe_id", "uid", "ignores", "kept")}
     return hashlib.sha256(json.dumps(content, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -971,6 +1017,7 @@ def apply_improvements(conn, food_fdc_ids: list[int], recipe_names: list[str]) -
         )
         _db._apply_calorie_mark(conn, local, calorie_mark)
         _write_gi(conn, food, local, replace=True)
+        _write_ignores(conn, food, local)
         _db.snapshot_food_source(conn, local)
         _recipe_dcp.cascade_food_change(local, conn)
         updated_foods += 1
@@ -992,6 +1039,7 @@ def apply_improvements(conn, food_fdc_ids: list[int], recipe_names: list[str]) -
         )
         conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (rid,))
         _add_ingredients(conn, rid, recipe, food_ids, rid_by_name)
+        _write_kept(conn, rid, recipe)
         _recipe_dcp.recompute_recipe_dcp(rid, conn)
         updated_recipes += 1
 

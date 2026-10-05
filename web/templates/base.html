@@ -729,6 +729,32 @@
   })();
   </script>
   <script>
+  // Fit wide nutrient tables to the page: tighten spacing (style.css's
+  // .nt-fit, then .nt-fit-tight) only on a table wider than its container,
+  // so a many-column Nutritional Analysis stops running off the right edge
+  // while narrower tables keep their default look. Re-checked on resize.
+  // Runs before the scroll restore below, which measures page height.
+  (function () {
+    var SEL = '.nutrient-table:not(.compact-table):not(.list-table):not(.add-food-table)';
+    function over(t) { return t.offsetWidth > t.parentElement.clientWidth + 1; }
+    function fitWideTables() {
+      document.querySelectorAll(SEL).forEach(function (t) {
+        if (!t.parentElement || t.offsetParent === null) return;  // hidden
+        t.classList.remove('nt-fit', 'nt-fit-tight');
+        if (!over(t)) return;
+        t.classList.add('nt-fit');
+        if (over(t)) t.classList.add('nt-fit-tight');
+      });
+    }
+    fitWideTables();
+    var pending = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(pending);
+      pending = setTimeout(fitWideTables, 150);
+    });
+  })();
+  </script>
+  <script>
   // Page-state memory: coming back to a page you were just on — by a plain
   // link, a section nav link, or a quick-return chip — restores what it
   // looked like when you left, instead of handing you a collapsed page
@@ -777,10 +803,38 @@
     // Back/Forward move, so only a fresh navigation is ours to handle —
     // otherwise the two restores fight each other. A #anchor in the URL
     // always wins over a remembered offset.
+    //
+    // Form submits that come back to this same page (a GET form that just
+    // re-runs it with new query values — Enter in a "Base the scale on"
+    // box, a sort/filter change — or a POST that redirects back here) are a
+    // fresh navigation to a URL whose own remembered offset is either
+    // missing or stale, so they'd land at the top. Stash the offset at
+    // submit time, keyed on pathname, and let it win over SCROLL_KEY once.
+    // Expires after a minute so an abandoned stash can't fire later. A form
+    // can opt out with data-scroll-top.
+    var SUBMIT_KEY = 'numa_ui_submit_scroll';
+    var submitY = null;
+    try {
+      var st = JSON.parse(sessionStorage.getItem(SUBMIT_KEY) || 'null');
+      sessionStorage.removeItem(SUBMIT_KEY);
+      if (st && st.path === window.location.pathname && Date.now() - st.t < 60000) submitY = st.y;
+    } catch (err) {}
+    document.addEventListener('submit', function (e) {
+      var f = e.target;
+      // Bubble phase: an AJAX handler that called preventDefault has
+      // already run, and that page never reloads.
+      if (e.defaultPrevented || f.hasAttribute('data-scroll-top')) return;
+      if ((f.getAttribute('target') || '_self') !== '_self') return;
+      try {
+        sessionStorage.setItem(SUBMIT_KEY, JSON.stringify({
+          path: window.location.pathname, y: window.scrollY, t: Date.now()}));
+      } catch (err) {}
+    });
     var navEntry = (window.performance && performance.getEntriesByType
                     ? performance.getEntriesByType('navigation')[0] : null);
     if (!window.location.hash && navEntry && navEntry.type === 'navigate') {
-      var y = parseInt(sessionStorage.getItem(SCROLL_KEY) || '0', 10);
+      var y = submitY !== null ? submitY
+              : parseInt(sessionStorage.getItem(SCROLL_KEY) || '0', 10);
       if (y > 0) {
         // Two frames: let tables, images and the panel restores above settle
         // first, and don't jump past the end of a page that came back

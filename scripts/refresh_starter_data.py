@@ -83,6 +83,11 @@ def _food_dict(row, *, name: str | None = None, conn=None) -> dict:
         gi = _demo_data.shippable_gi(_db.get_food_annotation(conn, row["fdc_id"]))
         if gi:
             food["gi"] = gi
+        # The curator's "not needed" / "calories are right" choices, so a
+        # new user's data checks don't flag salt for having no vitamins.
+        ignores = _demo_data.exportable_ignores(conn, row["fdc_id"])
+        if ignores:
+            food["ignores"] = ignores
     return food
 
 
@@ -183,6 +188,9 @@ def main() -> int:
                 "instructions": full["instructions"] or "",
                 "ingredients": new_ingredients,
             }
+            kept = _demo_data.kept_positions(conn, full["id"])
+            if kept:
+                new_recipe["kept"] = kept
             if new_recipe != recipe:
                 recipe.clear()
                 recipe.update(new_recipe)

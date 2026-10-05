@@ -655,6 +655,23 @@ table {
 .nutrient-table .subtype-row td:first-child,
 .subtype-row td:first-child { padding-left: calc(3.6rem + 1.5em); white-space: nowrap; }
 
+/* ── Fit-to-width: a many-column nutrient-table (a meal's or day's
+   Nutritional Analysis with goal, %, Revised Optimal and UL columns) is far
+   wider than the page at the default 2rem/3.6rem padding and 350px first
+   column. base.html's fitWideTables() adds .nt-fit only to a table that
+   overflows its container (then .nt-fit-tight if it still does), so tables
+   that already fit keep their roomier look. After the subtype rule above,
+   which these must override on source order. ──── */
+.nutrient-table.nt-fit thead th,
+.nutrient-table.nt-fit td { padding-left: 0.5rem; padding-right: 0.5rem; }
+.nutrient-table.nt-fit td:first-child,
+.nutrient-table.nt-fit th:first-child { width: auto; padding-left: 0.75rem; }
+.nutrient-table.nt-fit .subtype-row td:first-child { padding-left: calc(0.75rem + 1.5em); }
+.nutrient-table.nt-fit-tight { font-size: 0.85rem; }
+.nutrient-table.nt-fit-tight thead th { font-size: 0.75rem; letter-spacing: 0.02em; }
+.nutrient-table.nt-fit-tight thead th,
+.nutrient-table.nt-fit-tight td { padding-left: 0.3rem; padding-right: 0.3rem; }
+
 /* ── Custom max-limit warning (Settings → Nutrient targets) ────────────── */
 /* Applied to a nutrient row's Nutrient/Total cells when the day total is
    within 10% of (or over) the user's configured max limit. */

@@ -1,11 +1,26 @@
 {# One food's data problems (data_quality.food_issues), on its own page and
    right after it is added to a meal or recipe. Expects `quality_issues`
-   (and, for the post-add form, `quality_food` = {fdc_id, name}). #}
+   (and, for the post-add form, `quality_food` = {fdc_id, name}). On the
+   food's own page (`food`, no `quality_food`) a calorie mismatch gets a
+   "these calories are right" button; `calories_ok` shows the undo. #}
 {% if quality_issues %}
 {% set problems = quality_issues | selectattr("severity", "equalto", "problem") | list %}
 <div class="alert {{ 'alert-warning' if problems else 'alert-light border' }} py-2" role="note" style="max-width:48rem">
   <strong>{% if quality_food %}Check this food&rsquo;s data &mdash; <a href="/food/{{ quality_food.fdc_id }}">{{ quality_food.name }}</a>:{% else %}{% if problems %}This food&rsquo;s data has a problem:{% else %}About this food&rsquo;s data:{% endif %}{% endif %}</strong>
   <ul class="mb-1 mt-1">{% for i in quality_issues %}<li>{{ i.text }}</li>{% endfor %}</ul>
+  {% if not quality_food and quality_issues | selectattr("kind", "equalto", "calories_mismatch") | list %}
+  <form method="post" action="/food/{{ food.fdc_id }}/data-ignore" class="mb-1">
+    <input type="hidden" name="group" value="calories_ok">
+    <button type="submit" class="btn btn-sm btn-outline-secondary" title="For calories that come from something protein, carbs and fat don't cover, such as the alcohol in vanilla extract">These calories are right &mdash; stop flagging them</button>
+  </form>
+  {% endif %}
   <small>{{ manual_link("checking-your-data", "What this means and how to fix it") }}</small>
 </div>
+{% endif %}
+{% if not quality_food and calories_ok %}
+<form method="post" action="/food/{{ food.fdc_id }}/data-ignore" class="mb-2">
+  <input type="hidden" name="group" value="calories_ok"><input type="hidden" name="ignored" value="0">
+  <small class="muted">You confirmed this food&rsquo;s calories are right, so they aren&rsquo;t checked against its protein, carbs and fat.</small>
+  <button type="submit" class="btn btn-sm btn-link p-0 align-baseline">Check them again</button>
+</form>
 {% endif %}

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-04:1704* / Reading time: 7 hours, 13 minutes
+*Updated 2026-10-04:2141* / Reading time: 7 hours, 16 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -544,7 +544,7 @@ To fill real gaps, check **ask AI** under each gap you want help with — one fo
 **Calorie checks.**{: #calorie-checks} Calories are the one figure NuMa can check against the rest of a food's data: protein and carbohydrate supply about 4 kcal per gram and fat about 9, so a food's protein, carbs and fat imply roughly what its calories should be. NuMa uses that in two ways.
 
 - **Missing calories are filled in.** When a food arrives — from USDA, Open Food Facts, a [CSV](#gloss-csv) file, Claude AI, or typed in by you — with protein, carbs and fat but no calories, NuMa works the calories out from those three and marks the figure as an *estimate*. If the food's source later supplies a real figure (a Refresh from USDA, say), that replaces it. If you change the food's protein, carbs or fat, the estimate follows. A food missing even one of the three can't be estimated; it stays missing.
-- **Calories that don't add up are flagged.** A stored figure far from what the food's own protein, carbs and fat imply (more than about a quarter off) is flagged, never changed. Sometimes the gap is real: alcohol, sugar alcohols and very high fiber all carry energy that the 4-4-9 rule doesn't model. Otherwise it usually means the food's data is wrong.
+- **Calories that don't add up are flagged.** A stored figure far from what the food's own protein, carbs and fat imply (more than about a quarter off) is flagged, never changed. Sometimes the gap is real: alcohol, sugar alcohols and very high fiber all carry energy that the 4-4-9 rule doesn't model. Otherwise it usually means the food's data is wrong. When you know a food's calories are right, the **These calories are right — stop flagging them** button on its page turns this check off for that food (**Check them again** turns it back on).
 
 The same page (Foods → 9) has a section, **Food data problems**, listing every food in either situation (along with any food holding an [impossible value](#data-checks-list)), plus every food whose calories are estimated, for information. Foods whose macronutrients you've marked "not needed" (a supplement, a spice) aren't checked for calories. A meal, recipe or daily summary that includes such a food shows a short **Calories** note above its Nutritional Analysis table: it leads with how much of the calorie total comes from measured values, then names each food, so you know when the total is approximate or too low. See [Checking your data](#checking-your-data) for every other check. To fix a food, open it and use **Refresh from USDA** (for a USDA food), **Fill in nutrients from another food**, or edit its values directly.
 
@@ -679,7 +679,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ## Part 4 — Core nutrition concepts {: #coreNutrition}
 
-*(Reading time: 1 hour, 20 minutes)*
+*(Reading time: 1 hour, 21 minutes)*
 
 ### A. Essential Amino Acids {: #aa}
 Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day:
@@ -1303,10 +1303,15 @@ Columns:
                            close you are to (or over) it — shown only when
                            you've set up a user profile.
     Revised Optimal goal,
-    % of Revised Optimal  Same idea against your own custom Revised Optimal
-                           target instead of the standard RDA — shown only for
-                           nutrients where you've set one (see <a href="#optimal">Profile Optimal
-                           Targets</a>).
+    % of Revised Optimal  A higher daily goal you set yourself, for a
+    (Rev. Opt. meal %,     nutrient where more recent research recommends
+     Rev. Opt. day %)      more than the RDA (Vitamin D is the usual
+                           example). The % columns measure the same total
+                           against that goal instead of the Minimum. These
+                           columns appear only once you've set at least one
+                           such goal in Settings → 7. Nutrient Targets; a dash
+                           means none is set for that row (see <a href="#optimal">Revised
+                           Optimal Targets</a>).
     UL                    Shown only where you're near or over a max limit —
                            see <a href="#maxlimits">Maximum Nutrient Limits</a>.
 </pre>
@@ -1410,13 +1415,13 @@ All minerals and vitamins use age- and sex-specific values from the Dietary Refe
 
 Nutrients without established [DRIs](#gloss-dri) ([phytonutrients](#gloss-phytonutrients), amino acids) have no goal shown. The "% today" column and "Daily goal" column are blank for those rows.
 
-See [RDA](#rda) for a general overview of where these values come from. If the standard [RDA](#gloss-rda) isn't the number you actually want to hit for a given nutrient, see [Profile Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits). A single day's numbers are only a snapshot -- see [Nutrient Averages Across Days](#trend) for how to spot a shortfall that persists across many days. For a plain-language description, deeper reading, and outside sources on any individual nutrient by name, see the [Full Nutrient Key](#nutrient-key) (Appendix G).
+See [RDA](#rda) for a general overview of where these values come from. If the standard [RDA](#gloss-rda) isn't the number you actually want to hit for a given nutrient, see [Revised Optimal Targets](#optimal). If you want to be warned as you approach a personal daily cap, see [Maximum Nutrient Limits](#maxlimits). A single day's numbers are only a snapshot -- see [Nutrient Averages Across Days](#trend) for how to spot a shortfall that persists across many days. For a plain-language description, deeper reading, and outside sources on any individual nutrient by name, see the [Full Nutrient Key](#nutrient-key) (Appendix G).
 
 
 ### R. Nutrient Averages Across Days {: #trend}
 Every other [RDA](#gloss-rda) comparison in NuMa -- food, recipe, meal, daily summary -- looks at a single day. That's the right window for "did today's meals cover me," but it's the wrong window for a nutrient that's chronically a little short: one low day is unremarkable, but the same shortfall repeated for two weeks straight is exactly the kind of pattern a single-day view can never show you, because you'd have to remember and compare each day yourself.
 
-**Access it via the "Nutrient averages across days" button on the Daily Summary page.** Choose a window -- last 7, 14, or 30 days -- and NuMa averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Profile Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
+**Access it via the "Nutrient averages across days" button on the Daily Summary page.** Choose a window -- last 7, 14, or 30 days -- and NuMa averages your total intake for every tracked nutrient across the days in that window that actually had a meal logged, then compares that average against your RDA (and Revised Optimal / max limits, if configured) using the exact same table, color coding, and diet-aware notes as the daily comparison.
 
 **Only logged days count.** If you ask for a 30-day average but only logged meals on 12 of those days, the average is computed over those 12 days -- unlogged days are treated as "no data," not as a zero-intake day. Diluting the average with days you simply didn't track would understate your real intake and could hide the exact shortfall this view exists to surface. The screen tells you how many logged days went into the average (e.g. "Averaging over 12 logged day(s) out of the last 30").
 
@@ -1502,7 +1507,7 @@ NuMa tracks four omega fatty acids: [ALA](#gloss-ala), EPA, and DHA (all omega-3
 
 **Why this matters especially for plant-based eaters.** Direct dietary EPA and [DHA](#gloss-dha) come almost entirely from fish, algae, and other seafood. If ALA (from flax, chia, walnuts, hemp, canola and soy oils) is your only omega-3 source, meeting the ALA goal is necessary but may not be sufficient -- your actual EPA/DHA status depends on that inefficient conversion step. Common ways to address this without animal fish: algae-oil supplements (a direct EPA/DHA source independent of the ALA conversion pathway), or simply logging ALA-rich foods generously since the target itself already assumes real-world conversion losses are ahead of it.
 
-**Setting your own EPA+DHA target.** Because there's no official [DRI](#gloss-dri) to compute automatically, NuMa can't put a Daily Goal on the EPA or DHA rows the way it does for ALA. If you want to track against a target anyway -- clinical guidance in the 250-500 mg/day combined EPA+DHA range is common -- set one yourself as a [Profile Optimal target](#optimal) for the EPA and/or DHA rows in Settings → Nutrient targets.
+**Setting your own EPA+DHA target.** Because there's no official [DRI](#gloss-dri) to compute automatically, NuMa can't put a Daily Goal on the EPA or DHA rows the way it does for ALA. If you want to track against a target anyway -- clinical guidance in the 250-500 mg/day combined EPA+DHA range is common -- set one yourself as a [Revised Optimal target](#optimal) for the EPA and/or DHA rows in Settings → Nutrient targets.
 
 Linoleic acid (omega-6) is tracked for completeness but has no established goal or known deficiency risk in a typical diet -- most diets, plant-based or not, comfortably exceed the [AI](#gloss-ai) for it.
 
@@ -1679,7 +1684,7 @@ When you analyze a meal for the first time, you may see a "Fetching amino acid d
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 47 minutes)*
+*(Reading time: 48 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -1734,7 +1739,7 @@ The sections linked from analysis output are:
 - [Oxalate data](#oxalate) — [oxalate](#gloss-oxalate) data source, enabling, matching, and limitations
 - [Per-day profile tracking](#day-profile) — how a logged day stays pinned to the profile active when it was saved, and how to change it
 - [Plot File Formats](#plot-file-formats) — [PNG](#gloss-png) vs. [SVG](#gloss-svg), and which to pick when downloading a plot
-- [Profile Optimal targets](#optimal) — custom per-nutrient targets above the standard [RDA](#gloss-rda)
+- [Revised Optimal targets](#optimal) — custom per-nutrient targets above the standard [RDA](#gloss-rda)
 - [Protein completeness](#complete) — what makes a protein "complete"
 - [Protein quality](#protein-quality) — single-food amino acid ratios table columns
 - [RDA](#rda) — daily intake vs. recommended values table
@@ -1856,7 +1861,7 @@ When analyzing a meal within a full-day context, three additional columns appear
 
 A short Legend line showing all four colors appears right below any table that uses them.
 
-If you have configured a Profile Optimal target for any nutrient (Settings → Nutrient targets), the table gains a second set of the same columns under a "Profile Optimal" heading, alongside the standard "Profile [RDA](#gloss-rda)" columns. Nutrients you have not customized show a dash ("–") in the Optimal columns. See [Profile Optimal Targets](#optimal) for details.
+If you have set a Revised Optimal target for any nutrient (Settings → 7. Nutrient Targets) — a higher daily goal of your own, for a nutrient where more recent research recommends more than the standard [RDA](#gloss-rda) — the table gains extra columns for it: **Revised Optimal goal**, plus the matching percentage columns (**% of Revised Optimal**, or **Rev. Opt. meal %** and **Rev. Opt. day %** on a meal). Nutrients you have not set one for show a dash ("–") in those columns. A note under the table explains them too. See [Revised Optimal Targets](#optimal) for details.
 
 If you have configured a custom max limit for a nutrient, its row is highlighted (orange, then red) once today's total is within 10% of that limit. See [Maximum Nutrient Limits](#maxlimits) for details.
 
@@ -2604,7 +2609,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 30 minutes)*
+*(Reading time: 31 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -2801,7 +2806,7 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 
 **Right after you add a food.** If a food you've just added to a meal or recipe has a problem from the table above (not merely an estimate), the page you're returned to says so straight away, with a link to the food. That is the cheapest moment to fix it: one food, while you remember what it is.
 
-**The Home page reminder.**{: #data-check-reminder} When new problems appear since you last opened Foods → 9, the Home page says how many, with a link. Opening the check counts as reviewing them, and the note goes away; it comes back only for problems that are new after that. In **Settings → 13 (Data Quality Reminder)** you can turn it off, or ask for a reminder every so many weeks even when nothing is new, as a routine. A monthly look is a sensible habit if you log most days.
+**The Home page reminder.**{: #data-check-reminder} When new problems appear since you last opened Foods → 9, the Home page says how many, with a link. Opening the check counts as reviewing them, and the note goes away; it comes back only for problems that are new after that. Problems in the starter foods and recipes NuMa comes with never set it off (they're listed on Foods → 9 all the same), so a new install doesn't open with a warning about data you haven't touched. In **Settings → 13 (Data Quality Reminder)** you can turn it off, or ask for a reminder every so many weeks even when nothing is new, as a routine. A monthly look is a sensible habit if you log most days.
 
 #### Seeing what a fix changed {: #data-effects}
 Fixing data changes results, sometimes a lot. A missing calorie value on almonds took one day's total from 1,527 to 1,955 kcal. NuMa shows you the effect three ways:
@@ -4260,8 +4265,8 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 ##### Omega-3
 
 - **[ALA](#gloss-ala)**{: #key-ala} — *omega3_ala_mg* — Alpha-linolenic acid, the plant-based omega-3 (flaxseed, walnuts, chia, canola and soy oils). The only omega-3 with an official Adequate Intake, so it's the only one of the three with a Daily Goal.
-- **[EPA](#gloss-epa)**{: #key-epa} — *omega3_epa_mg* — Eicosapentaenoic acid. No U.S. [DRI](#gloss-dri) exists for EPA on its own; the body makes some from ALA, inefficiently, or gets it directly from fish, algae, and other seafood. Set your own [Profile Optimal target](#optimal) if you want to track it against a number.
-- **[DHA](#gloss-dha)**{: #key-dha} — *omega3_dha_mg* — Docosahexaenoic acid, the omega-3 most concentrated in the brain and retina. Like EPA, it has no official DRI and can be tracked against a self-set [Profile Optimal target](#optimal) instead.
+- **[EPA](#gloss-epa)**{: #key-epa} — *omega3_epa_mg* — Eicosapentaenoic acid. No U.S. [DRI](#gloss-dri) exists for EPA on its own; the body makes some from ALA, inefficiently, or gets it directly from fish, algae, and other seafood. Set your own [Revised Optimal target](#optimal) if you want to track it against a number.
+- **[DHA](#gloss-dha)**{: #key-dha} — *omega3_dha_mg* — Docosahexaenoic acid, the omega-3 most concentrated in the brain and retina. Like EPA, it has no official DRI and can be tracked against a self-set [Revised Optimal target](#optimal) instead.
 
 ##### Omega-6
 
@@ -4358,7 +4363,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 24 minutes)*
+*(Reading time: 1 hour, 26 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4374,6 +4379,11 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- A new install no longer opens with a warning about data problems in the starter foods and recipes; the Home page now warns only about problems in your own data.
+- A food whose calories are flagged but are actually right (vanilla extract, whose calories come from alcohol) now has a **These calories are right** button.
+- Open Food Facts foods saved before September 11 now show their carbohydrate; meals that include them are recalculated.
+- Nutrient analysis tables now explain their Revised Optimal columns in a note under the table, with a link to the manual.
+- Pressing Enter in a box that reloads the page (such as "Base the scale above on" under a complement suggestion), or any button that brings you back to the same page, now leaves you where you were on the page instead of at the top.
 - MANUAL: Part 1 now starts with "Download and install the program" (section A); the sections that were A to E are now B to F.
 - Nutrient plots now show a break in the line for a day with no data, and pick up again at the next one; with "Always end on last complete day", an earlier day with an incomplete meal is left out the same way instead of dragging the line down. Smoothing uses only the days that have data.
 - Nutrient plot smoothing now uses the logged days before the plot's start, so the first points are smoothed like the rest; a note under the plot says how it was smoothed, and when too few earlier days exist, how many points at the start are less smoothed.
@@ -4464,6 +4474,108 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - The GI lookup on a food's Annotate page now explains its own results right beside the form — what "Impaired" means, what "ref Bread, 2h 76" is telling you, and what NuMa actually saves when you pick a row — with the full account in the manual.
 
 #### Oct 4 updates
+
+**PROGRAM: NO "DATA PROBLEMS" GREETING ON A NEW INSTALL**
+
+A new install no longer opens with a Home page warning about data problems you've never seen. The starter foods and recipes now come with their own data checks already settled, and anything the checks do find in them is treated as already seen. The Home page warns only about problems in your own foods, recipes and meals. Foods → 9 still lists everything. [learn more...](#checking-your-data)
+
+<!--
+
+```
+Scope: Home page DATA CHECK banner; Settings → 9 starter data; starter_data.json;
+numa_app/services/demo_data.py, web/backend.py (_mark_starter_problems_seen),
+scripts/export_starter_data.py, scripts/refresh_starter_data.py,
+scripts/smoke_test_upgrade.py.
+
+Found on the first fresh-install test of the release build: "NuMa found 38
+data problems you haven't reviewed yet" -- 24 missing-group gaps (salt has no
+vitamins, spices no amino acids), 6 food problems and 8 stale recipe amounts,
+all in the starter set. The banner counts anything not in prefs
+data_check_seen as new, and a new install's list is empty.
+
+- After seeding, Load starter data, restore and Apply improvements, the scan
+  keys belonging to the user's starter copies (food/gap keys by local food
+  id, stale keys by owning recipe) are added to data_check_seen.
+- Starter foods now ship the curator's food_data_ignores ("ignores") and
+  starter recipes the positions of "Keep as entered" amounts ("kept");
+  both are loaded with the item. Neither counts towards the "improved
+  starter item" hash.
+- Curator's data fixed: SALT carbohydrate (1333 g label error) set to 0;
+  Foundation butter/olive oil given protein, carbs, calories (and the oil
+  its minerals/vitamins) from SR Legacy 173430/171413; tahini's amino acids
+  scaled from USDA tahini 169410; four weighed amounts kept; three updated;
+  "not needed" set on spice/condiment gaps; two foods both exported as
+  "* Sugars, granulated" (169655, 746784) -- recipes resolve ingredients
+  by name, so a fresh install linked the cookies to the wrong sugar. The
+  export now refuses duplicate names.
+- Release guard: tests/test_demo_data.py fails if the shipped starter data
+  produces any data-check key in a fresh DB; smoke_test_upgrade.py gains a
+  fresh-install scenario that fails if the built binary's Home page shows
+  the banner.
+```
+
+-->
+
+**PROGRAM: "THESE CALORIES ARE RIGHT" FOR A FOOD WRONGLY FLAGGED**
+
+When a food's calories are flagged as not adding up, but are actually right, its page now has a **These calories are right — stop flagging them** button. Vanilla extract is an example: its calories come mostly from alcohol, which the check can't see. **Check them again** undoes it. [learn more...](#calorie-checks)
+
+<!--
+
+```
+Scope: food page data-problem note (_food_quality_note.html), POST
+/food/{id}/data-ignore with group=calories_ok; data_quality.CALORIES_OK_KEY
+skips calorie_mismatch only (missing calories and impossible values are
+still checked). Stored in food_data_ignores alongside "not needed" groups.
+```
+
+-->
+
+**PROGRAM: OPEN FOOD FACTS CARBOHYDRATE RESTORED ON OLDER FOODS**
+
+Open Food Facts foods saved before September 11 now show their carbohydrate. Until then it was stored under a misspelled name, so NuMa read those foods as having none. Meals that include them are recalculated.
+
+<!--
+
+```
+Scope: db.init_db() migration. nutrients_json (and source_json's nutrients,
+so the fix isn't read as a user edit) "carb_g" -> "carbs_g"; the parser was
+fixed 2026-09-11 but cached foods never were. Meals using each food,
+directly or via a recipe, are flagged stale with a recalc-log reason.
+```
+
+-->
+
+**PROGRAM: REVISED OPTIMAL COLUMNS NOW EXPLAINED UNDER THE TABLE**
+
+Once you've set a Revised Optimal goal, every nutrient analysis table (meal, day, recipe, food, averages, printout) now explains its Revised Optimal columns in a note underneath, between the Maximum and UL notes: what the goal is, what the percentages measure, and where to set it. [learn more...](#optimal)
+
+<!--
+```
+Scope: web/templates/_rda_definition_footer.html: note() now takes
+has_optimal and adds a "Revised Optimal goal" paragraph in column order,
+between Maximum and UL; every caller (meal, meal_day, summary, recipe_detail,
+food_detail, food_analyze_recipe_portion, trend, print) passes has_optimal.
+Manual Part 5 table-column key and the "second set of columns" paragraph
+rewritten to say what Revised Optimal means and to use its current name.
+```
+-->
+
+**PROGRAM: PAGE STAYS WHERE YOU WERE AFTER ENTER OR A BUTTON**
+
+Pressing Enter in a box that reloads the page, such as "Base the scale above on" under a complement suggestion, or clicking a button that brings you back to the same page, now leaves you at the same spot on the page instead of jumping to the top.
+
+<!--
+```
+Scope: web/templates/base.html (page-state memory script). Sitewide: any
+same-tab form submit stashes {path, scrollY, time} in sessionStorage; on the
+next fresh navigation to the same pathname (within 60 s, no #hash in the URL)
+that offset wins over the per-URL remembered offset. Fixes GET forms that
+re-run the page with a new query string (complements anchor_grams Enter on
+/meal/N), whose new URL had no remembered offset. Skips preventDefault'd
+(AJAX) submits and target != _self; forms opt out with data-scroll-top.
+```
+-->
 
 **MANUAL: PART 1 STARTS WITH INSTALLING NUMA**
 

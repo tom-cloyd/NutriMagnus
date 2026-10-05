@@ -151,7 +151,7 @@
 </details>
 {% endfor %}
 {% if nutrient_sections %}{{ _dcp_note.note(dcp_missing_names) }}{% endif %}
-{% if nutrient_sections and has_profile %}{{ _rda_note.note() }}{% endif %}
+{% if nutrient_sections and has_profile %}{{ _rda_note.note(has_optimal) }}{% endif %}
 {% if nutrient_sections and has_ul %}{{ _ul.note() }}{% endif %}
 
 {# ── 3. Meal-Level Complete Protein Analysis ──────────────────────────────── #}

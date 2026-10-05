@@ -58,6 +58,10 @@ _LABELS = {"protein_g": "protein", "carbs_g": "carbohydrate", "fat_g": "fat",
            "mono_fat_g": "monounsaturated fat", "poly_fat_g": "polyunsaturated fat"}
 
 OLD_COPY_DAYS = 365
+# food_data_ignores key for "these calories are right": stops the mismatch
+# check for one food whose calories come from something the 4/4/9 estimate
+# can't see (alcohol in vanilla extract, a source's own odd but real figure).
+CALORIES_OK_KEY = "calories_ok"
 # A stored amount within this of what its entry works out to now is fine.
 _STALE_FRACTION = 0.02
 _STALE_MIN_G = 0.5
@@ -97,7 +101,8 @@ def food_issues(nutrients: dict, *, estimated: set[str] = frozenset(),
     first. kind: impossible | calories_missing | calories_mismatch |
     calories_estimated. severity "problem" or "note" (an estimate is
     information, not something wrong). Calorie checks are skipped for a food
-    whose macronutrients the user marked "not needed"."""
+    whose macronutrients the user marked "not needed"; the mismatch check
+    alone is skipped for one whose calories they confirmed (CALORIES_OK_KEY)."""
     out = [{"kind": "impossible", "severity": "problem", "text": t}
            for t in impossible_values(nutrients)]
     if "macros" not in ignored:
@@ -107,7 +112,7 @@ def food_issues(nutrients: dict, *, estimated: set[str] = frozenset(),
         elif "calories" in estimated:
             out.append({"kind": "calories_estimated", "severity": "note",
                         "text": "calories estimated from its protein, carbs and fat (its source gave none)"})
-        else:
+        elif CALORIES_OK_KEY not in ignored:
             mm = _energy.calorie_mismatch(nutrients)
             if mm:
                 out.append({"kind": "calories_mismatch", "severity": "problem",

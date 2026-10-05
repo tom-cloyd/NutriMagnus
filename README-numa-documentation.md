@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-04:1701
+UPDATED: 2026-10-04:2141
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -1617,6 +1617,8 @@ The starter foods/pantry/recipes a fresh install seeds itself with (see `demo_da
 
 A starred recipe's own ingredients don't need to be starred themselves — they're auto-included by `fdc_id` regardless of name. The same goes for a recipe used as a sub-recipe ingredient: it's exported too, and the exported `recipes` list is ordered so a sub-recipe always precedes any recipe that uses it, which is what lets `demo_data.load_demo_data()` link the parent to an id it has already created. Ingredient entries are `[name, amount, unit, kind]` with `kind` either `"food"` or `"recipe"`; a three-element entry is a pre-nesting export and is read as a food. Full mechanism, edge cases, and the companion `scripts/refresh_starter_data.py` (re-syncs existing starter entries by their original ID rather than by name) are documented in `export_starter_data.py`'s own module docstring — read that before changing the export logic, rather than duplicating it here.
 
+**Starter data must pass the data checks.** A new user's Home page warns about data problems, so the starter set has to arrive clean. Starter foods carry the curator's data-check choices as `"ignores"` (nutrient groups marked "not needed", "no portions needed", "calories are right"), and starter recipes the positions of their "Keep as entered" amounts as `"kept"`; both are loaded with the item and neither counts as an "improved starter item". Before exporting, open Foods → 9 in your own database and settle every problem in a starred food or recipe (or an ingredient of one): fix it, mark it not needed, or keep the amount. Anything the checks still find in starter data is recorded as already seen on load (`_mark_starter_problems_seen()` in `web/backend.py`), so it never raises the banner, but it would still show on Foods → 9. The export refuses two starter foods with the same name, since recipes find their foods by name.
+
 
 #### Starter identity: which of the user's rows is which starter item
 
@@ -1657,6 +1659,7 @@ Tests redirect `starter_versions.json` via the autouse `use_test_starter_version
 
 Added 2026-10-04. The fresh-install smoke test can't catch a startup migration that breaks an existing user's `numa.db`, since a fresh install has no old schema to migrate. `scripts/smoke_test_upgrade.py` (`make smoke-upgrade`, run automatically by `make push-release` after `starter-data` and before anything is pushed) starts the freshly built `dist/nutrimagnus` on:
 
+- **fresh-install**: no database at all, so the binary creates one and loads the starter data as for a new user. Also fails if the Home page then shows the **DATA CHECK** banner (added 2026-10-04, after the first fresh-install test of a release build opened with "38 data problems" — all in the starter data). `tests/test_demo_data.py::test_shipped_starter_data_has_no_data_problems` catches the same thing earlier, in pytest and CI, as soon as `starter_data.json` changes;
 - **previous-release**: a `numa.db` created and starter-seeded by the source of the newest `v*` tag (via `git archive`), i.e. what users are on now;
 - **a copy of each `--db PATH`**: default your live `~/.local/share/numa/numa.db`. Your own live DB is already migrated whenever you run from source, so pass an older `numa.db.before-*` backup too for real data at an older schema.
 

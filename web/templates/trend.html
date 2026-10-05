@@ -138,7 +138,7 @@
 </table>
 {% endfor %}
 {{ _dcp_note.note(dcp_missing_names) }}
-{% if has_profile %}{{ _rda_note.note() }}{% endif %}
+{% if has_profile %}{{ _rda_note.note(has_optimal) }}{% endif %}
 {% if has_ul %}{{ _ul.note() }}{% endif %}
 
 {% endif %}

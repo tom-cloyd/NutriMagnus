@@ -582,6 +582,26 @@ def init_db() -> None:
             """)
 
         _init_food_codes(conn)
+        # Open Food Facts carbohydrate was stored as "carb_g", not "carbs_g",
+        # until 2026-09-11 (openfoodfacts.py), so foods cached before then
+        # count as having no carbohydrate. Rename it in the values and in the
+        # source copy alike, so the fix isn't mistaken for a user edit.
+        for _row in conn.execute("SELECT fdc_id, nutrients_json, source_json FROM foods "
+                                 "WHERE nutrients_json LIKE '%\"carb_g\"%'").fetchall():
+            _n = json.loads(_row["nutrients_json"])
+            _carb = _n.pop("carb_g", None)
+            if _carb is not None:
+                _n.setdefault("carbs_g", _carb)
+            _src = json.loads(_row["source_json"]) if _row["source_json"] else None
+            if _src and "carb_g" in (_src.get("nutrients") or {}):
+                _sc = _src["nutrients"].pop("carb_g")
+                _src["nutrients"].setdefault("carbs_g", _sc)
+            conn.execute("UPDATE foods SET nutrients_json = ?, source_json = ? WHERE fdc_id = ?",
+                         (json.dumps(_n), json.dumps(_src) if _src is not None else None, _row["fdc_id"]))
+            _meals = meals_using_food(conn, _row["fdc_id"])
+            for _m in _meals:
+                mark_meal_stale(conn, _m)
+            log_meal_recalc(conn, _meals, "carbohydrate from Open Food Facts was stored under a misspelled name")
         # food_versions: an older version of a food, kept on request at a
         # Refresh so past meals keep the values they were logged with (see
         # create_food_version()). The version is a foods row of its own under
