@@ -522,10 +522,49 @@
     <form method="post" action="/settings/starter-data/improve" class="mb-1">
       <ul class="mt-0 mb-1" style="list-style:none; padding-left:0;">
         {% for food in starter_changes.improved_foods %}
-        <li><small><label><input type="checkbox" name="improve_fdc_id" value="{{ food.fdc_id }}"> Food: {{ food.name }}</label></small></li>
+        {% set d = starter_change_details.foods.get(food.fdc_id) %}
+        <li class="mb-2"><small><label><input type="checkbox" name="improve_fdc_id" value="{{ food.fdc_id }}"> Food: <strong>{{ food.name }}</strong></label></small>
+          {% if d %}
+          <div class="ms-4 small">
+            {% if not (d.rows or d.portions_added or d.portions_removed) %}
+            <span class="muted">No difference from your copy in anything updating would change.</span>
+            {% else %}
+            <span class="muted">Updating would change your copy like this:</span>
+            <table class="table table-sm mb-1" style="max-width:40rem">
+              <thead class="table-light"><tr><th></th><th>Yours now</th><th>New version</th></tr></thead>
+              <tbody>
+                {% for r in d.rows %}
+                <tr><td>{{ r.what }}</td><td>{{ r.yours }}{% if r.mine %} <span class="badge text-bg-warning fw-normal">your edit</span>{% endif %}</td><td>{{ r.new }}</td></tr>
+                {% endfor %}
+                {% for ptxt in d.portions_added %}<tr><td>Portion</td><td class="muted">none</td><td>{{ ptxt }} <span class="muted">(added)</span></td></tr>{% endfor %}
+                {% for ptxt in d.portions_removed %}<tr><td>Portion</td><td>{{ ptxt }}</td><td class="text-danger">removed</td></tr>{% endfor %}
+              </tbody>
+            </table>
+            {% if d.user_edited %}<span class="text-danger">You have edited this food; updating replaces your changes{% if d.rows|selectattr("mine")|list %} (marked &ldquo;your edit&rdquo;){% endif %}.</span>{% endif %}
+            {% endif %}
+          </div>
+          {% endif %}
+        </li>
         {% endfor %}
         {% for name in starter_changes.improved_recipes %}
-        <li><small><label><input type="checkbox" name="improve_recipe_name" value="{{ name }}"> Recipe: {{ name }}</label></small></li>
+        {% set d = starter_change_details.recipes.get(name) %}
+        <li class="mb-2"><small><label><input type="checkbox" name="improve_recipe_name" value="{{ name }}"> Recipe: <strong>{{ name }}</strong></label></small>
+          {% if d %}
+          <div class="ms-4 small">
+            {% if not (d.fields or d.added or d.removed or d.changed) %}
+            <span class="muted">No difference from your copy in anything updating would change.</span>
+            {% else %}
+            <span class="muted">Updating would change your copy like this:</span>
+            <ul class="mb-1">
+              {% for f in d.fields %}<li>{{ f }}</li>{% endfor %}
+              {% for x in d.added %}<li>Ingredient added: {{ x }}</li>{% endfor %}
+              {% for x in d.removed %}<li class="text-danger">Ingredient removed: {{ x }}</li>{% endfor %}
+              {% for x in d.changed %}<li>Ingredient amount: {{ x }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+          </div>
+          {% endif %}
+        </li>
         {% endfor %}
       </ul>
       <button type="submit" class="btn btn-outline-secondary btn-sm">Update the checked items to the new version</button>
@@ -584,7 +623,7 @@
       <p class="mt-2 mb-1"><small><strong>Foods</strong></small></p>
       <ul class="mt-0 muted" style="max-height:12rem; overflow-y:auto; list-style:none; padding-left:0;">
         {% for food in missing_foods %}
-        <li><small><label><input type="checkbox" name="food_fdc_id" value="{{ food.fdc_id }}"> {{ food.code }} — {{ food.name }}{% if food.fdc_id in starter_new_food_ids %} <strong>(new in this version)</strong>{% endif %}</label></small></li>
+        <li><small><label><input type="checkbox" name="food_fdc_id" value="{{ food.fdc_id }}"> {{ food.code }} — {{ food.name }}{% if food.fdc_id in starter_new_food_ids %} <strong>(new in this version)</strong>{% set d = starter_change_details.foods.get(food.fdc_id) %}{% if d and d.summary %} <span class="muted">· {{ d.summary }}</span>{% endif %}{% endif %}</label></small></li>
         {% endfor %}
       </ul>
       {% endif %}
@@ -600,7 +639,9 @@
       <p class="mt-2 mb-1"><small><strong>Recipes</strong></small></p>
       <ul class="mt-0 muted" style="list-style:none; padding-left:0;">
         {% for recipe in missing_recipes %}
-        <li><small><label><input type="checkbox" name="recipe_name" value="{{ recipe.name }}"> {{ recipe.name }}{% if recipe.name in starter_changes.new_recipes %} <strong>(new in this version)</strong>{% endif %}</label></small></li>
+        <li><small><label><input type="checkbox" name="recipe_name" value="{{ recipe.name }}"> {{ recipe.name }}{% if recipe.name in starter_changes.new_recipes %} <strong>(new in this version)</strong>{% endif %}</label>
+          {% set d = starter_change_details.recipes.get(recipe.name) %}{% if recipe.name in starter_changes.new_recipes and d and d.ingredients %}
+          <br><span class="muted ms-4">Ingredients: {{ d.ingredients|join("; ") }}</span>{% endif %}</small></li>
         {% endfor %}
       </ul>
       {% endif %}

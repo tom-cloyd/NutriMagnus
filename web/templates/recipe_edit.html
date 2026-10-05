@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_generic_density.html" as _gd with context %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
 {% import "_serving_note.html" as _sn %}
@@ -434,7 +435,7 @@
           {% if ing.ref_recipe_id or ing.ref_recipe_deleted %}
             {{ ing.amount | round(2) | string | replace(".0", "") }} srv{% if ing.ref_grams %} <span class="muted">({{ ing.ref_grams | round | int }}&thinsp;g)</span>{% endif %}
           {% else %}
-            {{ ing.amount_display }}
+            {{ ing.amount_display }}{{ _gd.mark(ing) }}
           {% endif %}
         </td>
         <td>{{ ing.food_name }}
@@ -513,6 +514,7 @@
       {% endfor %}
     </tbody>
   </table>
+  {{ _gd.footnote(ingredients) }}
   {% else %}
   <p class="muted mt-2">No ingredients yet. Use the search below to add them.</p>
   {% endif %}

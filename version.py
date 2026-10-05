@@ -1,4 +1,4 @@
-VERSION = "2026-10-04:0657"
+VERSION = "2026-10-04:1701"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.23"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "Refresh can keep a food old version for past meals (U171477.1); NuMa knows which food values you changed; one short code per food and recipe"
+NEW_VERSION_NOTE = "Plot lines break at missing days; smoothing covers the first days plotted; starter updates show what they would change; generic-density amounts marked; USDA portions fixed"

@@ -1,4 +1,4 @@
-.PHONY: help devserver build push push-release release-linux upload-manual vm-setup build-windows upload-windows release-windows clean starter-data
+.PHONY: help devserver build push push-release release-linux upload-manual vm-setup build-windows upload-windows release-windows clean starter-data smoke-upgrade
 
 # Prints a usage summary of the available commands.
 help:
@@ -9,7 +9,8 @@ help:
 	@echo '   make build          regenerate user-manual.html, then build the Linux binary'
 	@echo '   make push           git push origin main (source only, never publishes a release)'
 	@echo '   make starter-data   regenerate starter_data.json from "*"-marked DB content'
-	@echo '   make push-release   starter-data + push + release-linux, in that order'
+	@echo '   make smoke-upgrade  build, then start it on old-schema DB copies (see scripts/smoke_test_upgrade.py)'
+	@echo '   make push-release   starter-data + smoke-upgrade + push + release-linux, in that order'
 	@echo '   make release-linux  build, then create a GitHub release and upload the binary'
 	@echo '   make upload-manual  rebuild the User Manual, sign it, and publish it on its own (no program release)'
 	@echo '   make vm-setup       one-time: start the Windows build VM, serve setup files for it'
@@ -68,8 +69,17 @@ starter-data:
 
 # ── Push + publish: push source, then build and publish a public release ─────
 # Deliberate, explicit step — only run this when you actually want a
-# downloadable release live on GitHub.
-push-release: starter-data push release-linux
+# downloadable release live on GitHub. smoke-upgrade runs before push, so a
+# broken DB migration stops the release before anything leaves this machine.
+push-release: starter-data smoke-upgrade push release-linux
+
+# ── Database-upgrade smoke test ───────────────────────────────────────────────
+# Builds, then starts dist/nutrimagnus on a DB made by the previous release's
+# source and on a copy of your live DB, in throwaway dirs. Stops push-release
+# before anything is pushed if a migration crashes or loses rows. Add older
+# backups with: .venv/bin/python3 scripts/smoke_test_upgrade.py --db PATH ...
+smoke-upgrade: build
+	.venv/bin/python3 scripts/smoke_test_upgrade.py
 
 # ── Windows: first-time VM setup (run once after importing the dev VM) ────────
 # Starts an HTTP server so the Windows VM can download the SSH key and setup script,

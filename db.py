@@ -403,6 +403,22 @@ def init_db() -> None:
             )
         """)
 
+        # Recipe ingredients / logged meal foods the user chose to keep at
+        # their stored grams although their typed volume or portion now works
+        # out differently ("Keep as entered" on a food's Portions page or
+        # Foods -> 9). `kind` is "recipe" (recipe_ingredients.id) or "meal"
+        # (meal_items.id); the keep holds only while the item's grams are
+        # still `stored_g`, so editing the amount ends it. See amount_keeps().
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS amount_keeps (
+                kind      TEXT    NOT NULL,
+                item_id   INTEGER NOT NULL,
+                stored_g  REAL    NOT NULL,
+                kept_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (kind, item_id)
+            )
+        """)
+
         # Meals whose stored bcp_g/calories/nutrient snapshot went stale
         # because a food or recipe they use changed — see
         # mark_meals_stale_for_food()/mark_meals_stale_for_recipes(). Drained
@@ -1820,6 +1836,14 @@ def last_complete_meal_date(conn: sqlite3.Connection) -> str | None:
     return row["meal_date"] if row else None
 
 
+def meal_dates_with_incomplete(conn: sqlite3.Connection) -> set[str]:
+    """Every meal_date with at least one meal not marked complete — days the
+    Nutrient Plot's "always end on the last complete day" mode leaves out (as
+    a break in the line), since a partly logged day's totals would drag the
+    line down."""
+    return {r[0] for r in conn.execute("SELECT DISTINCT meal_date FROM meals WHERE complete = 0")}
+
+
 def day_profile_get(conn: sqlite3.Connection, meal_date: str) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM day_profile WHERE meal_date = ?", (meal_date,)
@@ -2382,6 +2406,21 @@ def merge_food_into(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dic
             conn.execute(f"UPDATE {table} SET fdc_id = ? WHERE fdc_id = ?", (keep_id, drop_id))
     delete_cached_food(conn, drop_id)
     return counts
+
+
+def amount_keeps(conn: sqlite3.Connection) -> dict[tuple[str, int], float]:
+    """{(kind, item_id): stored_g} for every "Keep as entered" choice — see
+    the amount_keeps table and data_quality.stale_amounts()."""
+    return {(r[0], r[1]): r[2] for r in conn.execute("SELECT kind, item_id, stored_g FROM amount_keeps")}
+
+
+def amount_keep(conn: sqlite3.Connection, kind: str, item_id: int, stored_g: float) -> None:
+    conn.execute("INSERT OR REPLACE INTO amount_keeps (kind, item_id, stored_g) VALUES (?, ?, ?)",
+                 (kind, item_id, stored_g))
+
+
+def amount_unkeep(conn: sqlite3.Connection, kind: str, item_id: int) -> None:
+    conn.execute("DELETE FROM amount_keeps WHERE kind = ? AND item_id = ?", (kind, item_id))
 
 
 def mark_meal_stale(conn: sqlite3.Connection, meal_id: int) -> None:

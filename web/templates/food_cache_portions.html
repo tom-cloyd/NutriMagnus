@@ -76,6 +76,40 @@
 <p class="muted">No custom portions defined yet.</p>
 {% endif %}
 
+{% set _flash = amounts_fixed or amounts_kept or amounts_unkept %}
+{% if _flash %}
+<div class="alert alert-success" id="stale-amounts">
+  {% if amounts_fixed %}Updated {{ amounts_fixed }} amount{% if amounts_fixed != 1 %}s{% endif %}.{% endif %}
+  {% if amounts_kept %}Kept {{ amounts_kept }} amount{% if amounts_kept != 1 %}s{% endif %} as entered.{% endif %}
+  {% if amounts_unkept %}{{ amounts_unkept }} amount{% if amounts_unkept != 1 %}s are{% else %} is{% endif %} listed for review again.{% endif %}
+</div>
+{% endif %}
+{% include "_impact_note.html" %}
+{% if stale_amounts or kept_amounts %}
+<div class="card mt-4 {% if stale_amounts %}border-warning{% endif %}" {% if not _flash %}id="stale-amounts"{% endif %}>
+<div class="card-body">
+{% if stale_amounts %}
+<h4 class="card-title">Amounts of this food that no longer match {{ manual_link("stale-amounts") }}</h4>
+<p class="muted" style="max-width:48rem">These recipe ingredients and logged meal foods were entered as a volume or
+portion, and their grams were worked out when they were entered. With this food&rsquo;s portions as they are now, they
+come out differently. Tick the ones to update to the &ldquo;Now&rdquo; grams, or to keep as entered.</p>
+<ul class="muted small" style="max-width:48rem">
+  <li><strong>Recipes</strong> start ticked.</li>
+  <li><strong>Logged meals</strong> start unticked: updating one changes that past day&rsquo;s totals. Tick it if what you
+      actually ate was the volume you entered.</li>
+  <li><strong>&ldquo;With a weight in brackets&rdquo;</strong> rows, like &ldquo;1/3 c (42 gr)&rdquo;, start unticked. Older
+      versions of NuMa added that weight themselves, but it may be one you weighed. Updating drops the bracketed figure.</li>
+  <li>If you just <strong>reordered</strong> portions, rows entered as <code>p1</code>, <code>p2</code>&hellip; now point at a
+      different portion. Leave those unticked and re-enter them instead.</li>
+</ul>
+{% else %}
+<h4 class="card-title">Amounts of this food kept as entered {{ manual_link("stale-amounts") }}</h4>
+{% endif %}
+{% with portions_fdc_id = food.fdc_id, show_food = False %}{% include "_stale_amounts_form.html" %}{% endwith %}
+</div>
+</div>
+{% endif %}
+
 <h4 class="mt-4">Add a portion</h4>
 <form method="post" action="/food/cache/{{ food.fdc_id }}/portions/add" style="max-width:28rem">
   <p class="muted mb-2" style="font-size:0.85rem"><span class="text-danger">*</span> required field</p>

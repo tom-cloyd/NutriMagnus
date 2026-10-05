@@ -57,6 +57,7 @@ from numa_app.services.glycemic_load import (average_day_gl, compute_glycemic_lo
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, _parse_portion_input, portion_amount_note
+from numa_app.services.portions import generic_density_kind as _generic_density_kind
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
 from version import VERSION, NEW_VERSION_NOTE, RELEASE_VERSION
 from numa_app.services import update_check as _update_check
@@ -1825,7 +1826,7 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
         # Starter foods/recipes this version added or improved since the
         # last version this install ran (see demo_data.record_version_changes).
         from numa_app.services import demo_data as _demo_data
-        starter_changes = _demo_data.pending_changes(conn)
+        starter_changes = _demo_data.pending_changes(conn, silent=_is_curator())
     db_issue_count = sum(len(v) for v in db_issues.values())
     if starter_changes["acknowledged"] or not any(
             starter_changes[k] for k in ("new_foods", "improved_foods", "new_recipes", "improved_recipes")):
@@ -1861,11 +1862,25 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
     # indication this is happening, so the Home page caption below it needs
     # to say so explicitly when this plot has that toggle on.
     plot_rolls_to_complete = bool(home_plot_qs) and parse_qs(home_plot_qs).get("rolling", ["0"])[0] == "1"
+    home_plot_smoothing = None
+    if home_plot_qs:
+        _hq = parse_qs(home_plot_qs)
+        _window = _parse_smoothing_window(_hq.get("smoothing", [None])[0])
+        with _db.get_db() as conn:
+            _chosen, _dates, _a = _nutrient_plot_params(
+                conn, _hq.get("nutrients", []), _hq.get("days_back", [None])[0],
+                _hq.get("anchor_date", [None])[0], rolling=_hq.get("rolling", ["0"])[0] == "1")
+            _rolling = _hq.get("rolling", ["0"])[0] == "1"
+            _data, _axis, _skipped = _plot_days(conn, _dates, _rolling)
+            _skip = _db.meal_dates_with_incomplete(conn) if _rolling else set()
+            _lead = _smoothing_lead_dates(conn, _data[0], _window, _skip) if _data else []
+            home_plot_smoothing = _smoothing_info(_window, _lead, _data, _axis, _skipped)
     return templates.TemplateResponse(
         request, "home.html", {
             "home_body": _render_home_md_short() if home_plot_qs else _render_home_md(),
             "home_plot_qs": home_plot_qs,
             "plot_rolls_to_complete": plot_rolls_to_complete,
+            "home_plot_smoothing": home_plot_smoothing,
             "show_plot_notice": has_any_meals and not home_plot_qs,
             "version": VERSION, "version_note": NEW_VERSION_NOTE,
             "version_date": VERSION, "release_version": RELEASE_VERSION,
@@ -2967,6 +2982,7 @@ async def food_cache_prune_post(request: Request):
 
 @app.get("/food/cache/db-check", response_class=HTMLResponse)
 async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0, amounts_fixed: int = 0,
+                                  amounts_kept: int = 0, amounts_unkept: int = 0,
                                   impact: str = "",
                                   check: list[str] | None = Query(default=None),
                                   show_ignored: bool | None = None):
@@ -3005,6 +3021,9 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         old_copies = _data_quality.old_usda_copies(conn)
         missing_aa = _data_quality.missing_aa_in_use(conn)
         missing_portions = _data_quality.missing_portions_in_use(conn)
+        kept_amounts = [a for a in _data_quality.stale_amounts(conn, include_bracketed=True, include_kept=True)
+                        if a["kept"]]
+        generic_density = _data_quality.generic_density_in_use(conn)
     # Opening this page counts as reviewing every current problem: the Home
     # page reminder only raises ones that appear after this (_data_check_reminder()).
     _save_prefs_file({"data_check_seen": sorted(quality["keys"]),
@@ -3031,6 +3050,10 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         "show_ignored_lists": show_ignored,
         "old_copy_days": _data_quality.OLD_COPY_DAYS,
         "amounts_fixed": amounts_fixed,
+        "amounts_kept": amounts_kept,
+        "amounts_unkept": amounts_unkept,
+        "kept_amounts": kept_amounts,
+        "generic_density": generic_density,
         "impact": _impact_pop(impact),
     })
 
@@ -3055,14 +3078,40 @@ async def food_cache_completeness_save(shown: list[str] = Form(default=[]),
 
 
 @app.post("/food/cache/db-check/stale-amounts", response_class=RedirectResponse)
-async def food_cache_fix_stale_amounts(item: list[str] = Form(default=[])):
+async def food_cache_fix_stale_amounts(item: list[str] = Form(default=[]),
+                                       portions_fdc_id: int | None = Form(default=None),
+                                       action: str = Form(default="update")):
     """Set the ticked recipe ingredients / logged meal foods to the grams
     their typed volume or portion works out to now (data_quality.stale_amounts()),
-    keeping what was typed. Recipes are recomputed (and their ancestors and
-    meals flagged); meals are flagged stale and the reason logged."""
+    keeping what was typed — minus a bracketed gram figure ("1/3 c (42 gr)"),
+    which would no longer be right. Recipes are recomputed (and their
+    ancestors and meals flagged); meals are flagged stale and the reason
+    logged. portions_fdc_id: sent from that food's Portions page, which this
+    returns to instead of the Database check page.
+
+    action="keep" instead records the ticked amounts as "Keep as entered"
+    (db.amount_keep), so they stop being listed while their grams stay as
+    they are; action="unkeep" removes that choice for the ticked ones."""
     wanted = set(item)
+    if portions_fdc_id is not None:
+        back = f"/food/cache/{portions_fdc_id}/portions"
+    else:
+        back = "/food/cache/db-check"
+    if action in ("keep", "unkeep"):
+        with _db.get_db() as conn:
+            rows = [a for a in _data_quality.stale_amounts(conn, fdc_id=portions_fdc_id, include_bracketed=True,
+                                                           include_kept=True)
+                    if f"{a['where']}:{a['item_id']}" in wanted and a["kept"] == (action == "unkeep")]
+            for a in rows:
+                if action == "keep":
+                    _db.amount_keep(conn, a["where"], a["item_id"], a["stored_g"])
+                else:
+                    _db.amount_unkeep(conn, a["where"], a["item_id"])
+        param = "amounts_kept" if action == "keep" else "amounts_unkept"
+        return RedirectResponse(f"{back}?{param}={len(rows)}#stale-amounts", status_code=303)
     with _db.get_db() as conn:
-        stale = [a for a in _data_quality.stale_amounts(conn) if f"{a['where']}:{a['item_id']}" in wanted]
+        stale = [a for a in _data_quality.stale_amounts(conn, fdc_id=portions_fdc_id, include_bracketed=True)
+                 if f"{a['where']}:{a['item_id']}" in wanted]
         recipe_ids, meal_ids = set(), set()
         for a in stale:
             if a["where"] == "recipe":
@@ -3071,18 +3120,18 @@ async def food_cache_fix_stale_amounts(item: list[str] = Form(default=[])):
                 meal_ids.add(a["owner_id"])
         meal_ids.update(_db.meals_using_recipes(conn, recipe_ids))
     if not stale:
-        return RedirectResponse("/food/cache/db-check#stale-amounts", status_code=303)
+        return RedirectResponse(f"{back}#stale-amounts", status_code=303)
     before = _impact_snapshot(sorted(recipe_ids), sorted(meal_ids))
     with _db.get_db() as conn:
         for a in stale:
             if a["where"] == "recipe":
-                row = conn.execute("SELECT food_name, unit, notes FROM recipe_ingredients WHERE id = ?",
+                row = conn.execute("SELECT food_name, notes FROM recipe_ingredients WHERE id = ?",
                                    (a["item_id"],)).fetchone()
                 if row:
-                    _db.recipe_update_ingredient(conn, a["item_id"], a["now_g"], row["unit"],
+                    _db.recipe_update_ingredient(conn, a["item_id"], a["now_g"], a["unit_after"],
                                                  row["food_name"], row["notes"])
             else:
-                _db.meal_update_item(conn, a["item_id"], a["owner_id"], a["now_g"], a["typed"])
+                _db.meal_update_item(conn, a["item_id"], a["owner_id"], a["now_g"], a["unit_after"])
                 _db.mark_meal_stale(conn, a["owner_id"])
                 _db.log_meal_recalc(conn, [a["owner_id"]], f"{a['food_name']}: amount corrected")
         for rid in {a["owner_id"] for a in stale if a["where"] == "recipe"}:
@@ -3092,7 +3141,7 @@ async def food_cache_fix_stale_amounts(item: list[str] = Form(default=[])):
     after = _impact_snapshot(sorted(recipe_ids), sorted(meal_ids))
     token = _impact_store("Correcting " + (f"{len(stale)} amounts" if len(stale) != 1 else "that amount"),
                           before, after)
-    return RedirectResponse(f"/food/cache/db-check?amounts_fixed={len(stale)}&impact={token}#stale-amounts",
+    return RedirectResponse(f"{back}?amounts_fixed={len(stale)}&impact={token}#stale-amounts",
                             status_code=303)
 
 
@@ -3165,8 +3214,29 @@ async def food_cache_db_check_repair(category: str = Form(default="")):
     return RedirectResponse(f"/food/cache/db-check?repaired={sum(counts.values())}", status_code=303)
 
 
+def _portion_amounts_review(fdc_id: int) -> dict:
+    """Template context for the Portions page's "Amounts that no longer
+    match" panel: this food's recipe and meal amounts entered as a volume or
+    portion whose stored grams differ from what they work out to with the
+    portions as they are now. Shown after every portion change (and on a plain
+    visit while any remain), so a corrected cup weight leads straight to the
+    amounts it affects. Recipe rows start ticked; logged meals (a past
+    record) and bracketed-weight rows (the figure may be one the user
+    weighed) start unticked. Amounts the user kept as entered are listed
+    separately, marked as such."""
+    with _db.get_db() as conn:
+        rows = _data_quality.stale_amounts(conn, fdc_id=fdc_id, include_bracketed=True, include_kept=True)
+    for a in rows:
+        a["ticked"] = a["where"] == "recipe" and not a["bracketed"]
+    rows.sort(key=lambda a: (a["where"] != "recipe", a["bracketed"], a["owner_label"].lower()))
+    return {"stale_amounts": [a for a in rows if not a["kept"]],
+            "kept_amounts": [a for a in rows if a["kept"]]}
+
+
 @app.get("/food/cache/{fdc_id}/portions", response_class=HTMLResponse)
-async def food_cache_portions_get(request: Request, fdc_id: int):
+async def food_cache_portions_get(request: Request, fdc_id: int, amounts_fixed: int = 0,
+                                  amounts_kept: int = 0, amounts_unkept: int = 0,
+                                  impact: str = ""):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
@@ -3177,6 +3247,11 @@ async def food_cache_portions_get(request: Request, fdc_id: int):
         "portions": portions,
         "saved":    False,
         "error":    None,
+        "amounts_fixed": amounts_fixed,
+        "amounts_kept": amounts_kept,
+        "amounts_unkept": amounts_unkept,
+        "impact":   _impact_pop(impact),
+        **_portion_amounts_review(fdc_id),
     })
 
 
@@ -3214,6 +3289,7 @@ async def food_cache_portions_add(
         "portions": portions,
         "saved":    not error,
         "error":    error,
+        **_portion_amounts_review(fdc_id),
     })
 
 
@@ -3254,6 +3330,7 @@ async def food_cache_portions_edit(
         "saved":         not error,
         "flash_message": "Portion updated.",
         "error":         error,
+        **_portion_amounts_review(fdc_id),
     })
 
 
@@ -3277,6 +3354,7 @@ async def food_cache_portions_delete(
         "portions": portions,
         "saved":    False,
         "error":    None,
+        **_portion_amounts_review(fdc_id),
     })
 
 
@@ -3304,6 +3382,7 @@ async def food_cache_portions_move(
         "saved":         moved,
         "flash_message": "Portion order updated.",
         "error":         None,
+        **_portion_amounts_review(fdc_id),
     })
 
 
@@ -6887,7 +6966,8 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         diaas_overrides = [dict(r) for r in _diaas.diaas_override_list(conn)]
         recompute_errors = [dict(r) for r in _db.list_unresolved_recompute_errors(conn)]
         starter_status = _demo_data.starter_status(conn)
-        starter_changes = _demo_data.pending_changes(conn)
+        starter_changes = _demo_data.pending_changes(conn, silent=_is_curator())
+        starter_change_details = _demo_data.change_details(conn, starter_changes)
 
     nutrient_target_rows = []
     if profile:
@@ -6955,6 +7035,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         "starter_gi_count":     sum(1 for f in _demo_data.DEMO_FOODS if f.get("gi")),
         "starter_status":       starter_status,
         "starter_changes":      starter_changes,
+        "starter_change_details": starter_change_details,
         "starter_new_food_ids": {f["fdc_id"] for f in starter_changes["new_foods"]},
         "recompute_errors":     recompute_errors,
         "recompute_retry":      recompute_retry,
@@ -7936,6 +8017,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
                 _ing["amount_display"] = _ingredient_amount_display(conn, _ing)
                 _ing["typed_note"] = _typed_amount_note(_ing["amount_display"])
         _attach_ref_serving_sizes(conn, ingredients)
+        _mark_generic_density(conn, ingredients)
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
         recipe_servings = float(recipe["servings"] or 1)
@@ -8230,6 +8312,21 @@ def _typed_amount_note(label: str | None) -> str | None:
     return rest or None
 
 
+def _mark_generic_density(conn, ingredients: list[dict]) -> None:
+    """Set ing["generic_density"] ("typed" / "bracketed" / None) on each food
+    ingredient whose grams came from the generic density table, for the
+    "≈ generic" mark and footnote (_generic_density.html) — see
+    portions.generic_density_kind()."""
+    for ing in ingredients:
+        if ing.get("ref_recipe_id") or not ing.get("fdc_id"):
+            continue
+        cached = _db.get_cached_food(conn, ing["fdc_id"])
+        if cached is None:
+            continue
+        portions = json.loads(cached["portions_json"] or "[]") or []
+        ing["generic_density"] = _generic_density_kind(ing.get("unit"), portions, cached["name"])
+
+
 def _attach_ingredient_portions(conn, ingredients: list[dict]) -> None:
     """Attach each food ingredient's cached USDA portions (p1, p2, …) so the
     inline amount-edit popup can show them the same way the Add Ingredient
@@ -8459,6 +8556,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 _ing["amount_display"] = _ing_amount_display(_ing["unit"], _ing["amount"], _ing["food_name"])
         _attach_ref_serving_sizes(conn, ingredients)
         _attach_ingredient_portions(conn, ingredients)
+        _mark_generic_density(conn, ingredients)
 
         # Running nutrition totals for edit-page live feedback — reuse the
         # same shared recipe-nutrient helpers the recipe detail page uses
@@ -9287,20 +9385,26 @@ def _parse_smoothing_window(raw: str | None) -> int:
 
 
 def _apply_smoothing(series: list[dict], window: int) -> list[dict]:
-    """Trailing moving average: each point becomes the average of itself
-    and up to (window - 1) preceding points, using fewer at the very start
-    of the series and skipping gap days (nan) rather than treating them as
-    zero. window <= 1 returns the series unchanged. Runs before the scale
-    factor steps, so scaling is calibrated to what's actually displayed."""
+    """Trailing moving average over the points that HAVE data: each point
+    becomes the average of itself and the (window - 1) data points before
+    it, however far back they are, as if the missing days (nan) weren't
+    there (owner's choice, 2026-10-04: a gap shouldn't shrink the average).
+    Fewer at the very start of the series. A missing point stays missing.
+    window <= 1 returns the series unchanged. Runs before the scale factor
+    steps, so scaling is calibrated to what's actually displayed."""
     if window <= 1:
         return series
     smoothed = []
     for s in series:
         y = s["y"]
-        new_y = []
-        for i in range(len(y)):
-            chunk = [v for v in y[max(0, i - window + 1):i + 1] if not math.isnan(v)]
-            new_y.append(sum(chunk) / len(chunk) if chunk else float("nan"))
+        new_y, seen = [], []
+        for v in y:
+            if math.isnan(v):
+                new_y.append(float("nan"))
+                continue
+            seen.append(v)
+            chunk = seen[-window:]
+            new_y.append(sum(chunk) / len(chunk))
         smoothed.append({**s, "y": new_y})
     return smoothed
 
@@ -9343,6 +9447,70 @@ def _user_plot_title(title: str | None) -> str | None:
     if not stripped or _AUTO_PLOT_TITLE_RE.match(stripped):
         return None
     return stripped
+
+
+def _smoothing_lead_dates(conn, first_date: str, window: int, skip: set[str]) -> list[str]:
+    """Up to (window - 1) logged dates before the plot's first date (minus
+    `skip`): read for the trailing average of the first points plotted,
+    never drawn."""
+    if window <= 1 or not first_date:
+        return []
+    earlier = sorted(r["meal_date"] for r in _db.meal_dates_with_bcp(conn, limit=1_000_000)
+                     if r["meal_date"] < first_date and r["meal_date"] not in skip)
+    return earlier[-(window - 1):]
+
+
+def _plot_days(conn, dates: list[str], rolling: bool) -> tuple[list[str], list[str], int]:
+    """(data_dates, axis_dates, skipped_incomplete) for a plot of the logged
+    `dates`. In "always end on the last complete day" mode, a day with a meal
+    not marked complete is left out like a day with nothing logged, so a
+    partly logged day can't drag the line down; otherwise incomplete days
+    are plotted at what's logged (owner's choice, 2026-10-04, "for now").
+    The axis runs over every calendar day from the first data day to the
+    last, so each missing day shows as a break in the line."""
+    skip = _db.meal_dates_with_incomplete(conn) if rolling else set()
+    data_dates = [d for d in dates if d not in skip]
+    if not data_dates:
+        return [], [], len(dates)
+    first = datetime.date.fromisoformat(data_dates[0])
+    last = datetime.date.fromisoformat(data_dates[-1])
+    axis = [(first + datetime.timedelta(days=i)).isoformat() for i in range((last - first).days + 1)]
+    return data_dates, axis, len(dates) - len(data_dates)
+
+
+def _smoothing_info(window: int, lead: list[str], data_dates: list[str], axis: list[str],
+                    skipped_incomplete: int = 0) -> dict:
+    """What the notes under a plot say (_smoothing_note.html): the window,
+    how many earlier logged days were borrowed (lead_days, from lead_from),
+    how many of the first plotted points still average over fewer days
+    because that many earlier days don't exist (short), how many calendar
+    days in the plotted span have no data (gap_days, breaks in the line)
+    and how many logged days were left out for a meal not marked complete
+    (skipped_incomplete)."""
+    short = max(0, window - 1 - len(lead)) if window > 1 else 0
+    return {"window": window, "lead_days": len(lead), "lead_from": lead[0] if lead else None,
+            "short": min(short, len(data_dates)), "plotted_days": len(data_dates),
+            "gap_days": len(axis) - len(data_dates), "skipped_incomplete": skipped_incomplete}
+
+
+def _smoothed_plot_series(conn, chosen: list[str], dates: list[str], highlight_key: str | None,
+                          window: int, rolling: bool = False) -> tuple[list[dict], dict]:
+    """The plot's series over a calendar-day axis, missing days as nan (a
+    break in the line), smoothed with a trailing average over the days that
+    have data (_apply_smoothing), reaching back into the logged days BEFORE
+    the plot's first date so the first points are averaged over as many
+    days as the rest (when that many exist). Returns (series, _smoothing_info)."""
+    data_dates, axis, skipped = _plot_days(conn, dates, rolling)
+    if not data_dates:
+        return [], _smoothing_info(window, [], [], [], skipped)
+    skip = _db.meal_dates_with_incomplete(conn) if rolling else set()
+    lead = _smoothing_lead_dates(conn, data_dates[0], window, skip)
+    series = _apply_smoothing(_nutrient_plot_raw_series(conn, chosen, lead + data_dates, highlight_key), window)
+    out = []
+    for s in series:
+        by_date = dict(zip(lead + data_dates, s["y"]))
+        out.append({**s, "x": axis, "y": [by_date.get(d, float("nan")) for d in axis]})
+    return out, _smoothing_info(window, lead, data_dates, axis, skipped)
 
 
 def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | None,
@@ -9422,9 +9590,14 @@ async def nutrient_plot_page(
         chosen, dates, anchor = _nutrient_plot_params(conn, nutrients, days_back, anchor_date, rolling=rolling)
         has_plot = bool(chosen) and bool(dates)
         highlight_key = _resolve_highlight(chosen, highlight) if has_plot else None
-        raw_series = _nutrient_plot_raw_series(conn, chosen, dates, highlight_key) if has_plot else []
-
-    raw_series = _apply_smoothing(raw_series, smoothing_n)
+        raw_series, smoothing_info = (_smoothed_plot_series(conn, chosen, dates, highlight_key, smoothing_n,
+                                                            rolling=rolling)
+                                      if has_plot else ([], _smoothing_info(smoothing_n, [], [], [])))
+        # Every day in range left out (all have an incomplete meal, in
+        # "always end on the last complete day" mode): keep the page's plot
+        # controls, so that mode can be switched off, and say why instead of
+        # drawing an empty plot.
+        plot_empty = has_plot and not raw_series
 
     # scale_factor (step 1) is a "blank means auto" field, same convention
     # as Days back above it: the input's own value stays empty unless the
@@ -9507,7 +9680,10 @@ async def nutrient_plot_page(
         "days_back":  days_back or "",
         "anchor_date": anchor,
         "dates":      dates,
+        "plot_first": raw_series[0]["x"][0] if raw_series else "",
+        "plot_last":  raw_series[0]["x"][-1] if raw_series else "",
         "has_plot":   has_plot,
+        "plot_empty": plot_empty,
         "qs":         qs,
         "is_home_plot": is_home_plot,
         "max_nutrients": MAX_PLOT_NUTRIENTS,
@@ -9520,6 +9696,7 @@ async def nutrient_plot_page(
         "grayscale":  grayscale,
         "legend_pos": legend_pos,
         "smoothing":  smoothing_n,
+        "smoothing_info": smoothing_info,
         "rolling":    rolling,
         "home_plot_enabled_elsewhere": home_plot_enabled_elsewhere,
     })
@@ -9592,12 +9769,14 @@ async def nutrient_plot_image(
         if not chosen or not dates:
             raise HTTPException(status_code=404, detail="No nutrients or days selected")
         highlight_key = _resolve_highlight(chosen, highlight)
-        raw_series = _nutrient_plot_raw_series(conn, chosen, dates, highlight_key)
+        raw_series, _info = _smoothed_plot_series(conn, chosen, dates, highlight_key,
+                                                  _parse_smoothing_window(smoothing), rolling=rolling)
+        if not raw_series:
+            raise HTTPException(status_code=404, detail="No days with data in range")
 
     profile = _profile.load_profile()
     raw_series = _nutrient_plot_add_goals(raw_series, profile, _current_diet_pref())
     raw_series = _nutrient_plot_add_limits(raw_series, profile)
-    raw_series = _apply_smoothing(raw_series, _parse_smoothing_window(smoothing))
 
     factor = _parse_plot_factor(scale_factor) or _default_plot_scale_factor(raw_series)
     step1_series = _apply_plot_scale_factor(raw_series, factor)

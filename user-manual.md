@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-04:0657* / Reading time: 7 hours, 5 minutes
+*Updated 2026-10-04:1704* / Reading time: 7 hours, 13 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -49,45 +49,11 @@ NuMa runs as a web app, opened in your ordinary browser — there is nothing to 
 - Parts 7 to 10 apply to everyone.
 - Trying to find something in this document itself, not in the app? See [Using this manual's search](#search-howto) — it works differently from a plain text search.
 
-## Part 1 — To get a quick start <!-- t:26-10-03 -->
+## Part 1 — To get a quick start <!-- t:26-10-04 -->
 
 *(Reading time: 16 minutes)*
 
-### A. Start with what's easiest <!-- t:26-10-03 -->
-
-This is a complex and powerful analytical program. A careful Internet search reveals that it is unique in its power and depth. It can be successfully approached by moving slowly and thoughtfully, with real benefit obtained early from using some of its easiest and simplest features. 
-
-Start with what is easiest to understand: analysis of single foods and simple recipes. Use the manual to learn more. Do not expect to learn it all in a few sessions. [Contact us](#feedback) quickly rather than slowly if you start to get overwhelmed — one of our goals is to minimize the risk of that happening!
-
-### B. Simple tips for new learners <!-- t:26-10-03 -->
-
-**Slow down and look carefully at what you see on your screen.** What you see is the interface between you and the program. By design, it is rich in information. You don't need to understand or use all of it immediately, but notice that there are often links such as "Learn more ==>" or "Why?" encouraging you to link to a section of the manual that will tell you much more about something. We've worked very hard on the Manual, with the hope that it will both help you and educate you.
-
-**Plan frequent program usage in the beginning.** Learning a powerful tool requires time and frequent contact. You have two critical things to learn: basic concepts (covered in [Part 4](#coreNutrition)) and the interface itself, including the functions listed on the main menu items' drop-down menus (see [Finding your way around](#web-shortcuts) in Part 3, and [Using the Foods menu](#foods-menu-web) and the sections after it for each menu in turn). **If you don't commit to daily use of the program, for about a week, you will not get past the slow-fumbling stage.** What you are dealing with is a Boeing 727, not a Piper Cub. Learn the cockpit and you can be a world traveler! (And that learning can come gradually, but daily exposure is the key.)
-
-### C. NuMa often learns from YOU as you use it <!-- t:26-10-03 -->
-
-While we don't yet have on-board local [AI](#gloss-ai) to help you with NuMa and your food questions, we do have NuMa remembering recent entries you've made to text input boxes, and a number of different options you've selected. Rather quickly, this will make use of the program easier and quicker.
-
-One huge asset is the [Food cache](#FoodCache) [database](#gloss-database) you'll set up. This serves as a memory of every food you've looked up or put into your Pantry. Saved is the food name, [ID](#gloss-id) number, and nutrition data. Data retrievals from the online [databases](#gloss-database) take time; retrievals from you personal Food cache are essentially instant.
-
-### D. Stuck? You have help nearby, and an on-call expert to assist you. <!-- t:26-10-03 -->
-
-It happens to us all! You can first look in this manual's [Part 8 — Troubleshooting and feedback — reporting problems and offering ideas](#feedback) to see if your problem has an identified fix.
-
-If you're wondering how to do something, search the Manual for one or two key words. For an especially efficient search, click the "Only show things you can do" checkbox that is right below the Manual's search text input box.
-
-Still stuck? You need help...and it's readily available. Learn more...[here](#quickhelp).
-
-### E. You can start food inputs with estimates, in many cases, but... <!-- t:26-10-03 -->
-
-Use a kitchen scale to determine food quantities, if at all possible. It's easier than you may think, and much more accurate.
-
-Regardless of how you eat, you will have to tell the program WHAT you are eating and HOW MUCH. The absolute best way to do this is to give it a weight. Sometimes you can just give it a "portion" or a volume measure instead, and the program will figure out the weight for you from that so it can keep going. However, remember that approximations are better than nothing, so if you can do nothing else, try to give NuMa an approximate amount.
-
-Without the program you're flying blind. With it, even if you only use volume measures, there will be some errors of measurement, but you're still much better informed about what's happening than before. In some cases, though, a volume measure just doesn't work well. If that happens to you, [get in touch](#feedback) and we'll figure it out together. All in all, it's by far best to have and use a kitchen scale. I have had a small Oxo scale for years. It's excellent. There are others you can consider as well, but I do suggest that you get one.
-
-### F. Download and install the program <!-- t:26-10-03 -->
+### A. Download and install the program <!-- t:26-10-03 -->
 
 NuMa runs on Windows and on Linux. Find your own system below and ignore the other — the two are installed quite differently. Whichever you're on, read [What kind of program this is](#install-webapp-note) at the end; it explains something about NuMa that surprises nearly everyone at first.
 
@@ -160,6 +126,40 @@ Everything you put into NuMa lives in two folders on your computer, kept apart f
 **To restore** — on a new computer, or after your system was wiped — install NuMa as described above, but don't start it yet. Copy both backed-up `numa` folders into place, replacing any that exist, and then start NuMa. Everything comes back as it was.
 
 A [CSV](#gloss-csv) export from the Food Cache or Recipes pages is *not* a full backup. It's for moving selected foods or recipes around, and leaves out your meals, pantry, profile and settings.
+
+### B. Start with what's easiest <!-- t:26-10-03 -->
+
+This is a complex and powerful analytical program. A careful Internet search reveals that it is unique in its power and depth. It can be successfully approached by moving slowly and thoughtfully, with real benefit obtained early from using some of its easiest and simplest features. 
+
+Start with what is easiest to understand: analysis of single foods and simple recipes. Use the manual to learn more. Do not expect to learn it all in a few sessions. [Contact us](#feedback) quickly rather than slowly if you start to get overwhelmed — one of our goals is to minimize the risk of that happening!
+
+### C. Simple tips for new learners <!-- t:26-10-03 -->
+
+**Slow down and look carefully at what you see on your screen.** What you see is the interface between you and the program. By design, it is rich in information. You don't need to understand or use all of it immediately, but notice that there are often links such as "Learn more ==>" or "Why?" encouraging you to link to a section of the manual that will tell you much more about something. We've worked very hard on the Manual, with the hope that it will both help you and educate you.
+
+**Plan frequent program usage in the beginning.** Learning a powerful tool requires time and frequent contact. You have two critical things to learn: basic concepts (covered in [Part 4](#coreNutrition)) and the interface itself, including the functions listed on the main menu items' drop-down menus (see [Finding your way around](#web-shortcuts) in Part 3, and [Using the Foods menu](#foods-menu-web) and the sections after it for each menu in turn). **If you don't commit to daily use of the program, for about a week, you will not get past the slow-fumbling stage.** What you are dealing with is a Boeing 727, not a Piper Cub. Learn the cockpit and you can be a world traveler! (And that learning can come gradually, but daily exposure is the key.)
+
+### D. NuMa often learns from YOU as you use it <!-- t:26-10-03 -->
+
+While we don't yet have on-board local [AI](#gloss-ai) to help you with NuMa and your food questions, we do have NuMa remembering recent entries you've made to text input boxes, and a number of different options you've selected. Rather quickly, this will make use of the program easier and quicker.
+
+One huge asset is the [Food cache](#FoodCache) [database](#gloss-database) you'll set up. This serves as a memory of every food you've looked up or put into your Pantry. Saved is the food name, [ID](#gloss-id) number, and nutrition data. Data retrievals from the online [databases](#gloss-database) take time; retrievals from you personal Food cache are essentially instant.
+
+### E. Stuck? You have help nearby, and an on-call expert to assist you. <!-- t:26-10-03 -->
+
+It happens to us all! You can first look in this manual's [Part 8 — Troubleshooting and feedback — reporting problems and offering ideas](#feedback) to see if your problem has an identified fix.
+
+If you're wondering how to do something, search the Manual for one or two key words. For an especially efficient search, click the "Only show things you can do" checkbox that is right below the Manual's search text input box.
+
+Still stuck? You need help...and it's readily available. Learn more...[here](#quickhelp).
+
+### F. You can start food inputs with estimates, in many cases, but... <!-- t:26-10-03 -->
+
+Use a kitchen scale to determine food quantities, if at all possible. It's easier than you may think, and much more accurate.
+
+Regardless of how you eat, you will have to tell the program WHAT you are eating and HOW MUCH. The absolute best way to do this is to give it a weight. Sometimes you can just give it a "portion" or a volume measure instead, and the program will figure out the weight for you from that so it can keep going. However, remember that approximations are better than nothing, so if you can do nothing else, try to give NuMa an approximate amount.
+
+Without the program you're flying blind. With it, even if you only use volume measures, there will be some errors of measurement, but you're still much better informed about what's happening than before. In some cases, though, a volume measure just doesn't work well. If that happens to you, [get in touch](#feedback) and we'll figure it out together. All in all, it's by far best to have and use a kitchen scale. I have had a small Oxo scale for years. It's excellent. There are others you can consider as well, but I do suggest that you get one.
 
 ### G. Setting NuMa up: first time, or after losing your data <!-- t:26-10-03 --> {: #first-setup}
 
@@ -638,8 +638,8 @@ Loading starter data never touches anything already in your cache, pantry, or re
 
 **When a new version changes the starter set.** NuMa remembers which starter foods and recipes the version you ran before came with, so after an update it can tell you exactly what's different:
 
-   - **New items** are marked **(new in this version)** in the **Restore individual starter items** list, which opens by itself when there are any. Check the ones you want and click **Restore selected**. Something you deleted on purpose is never presented as new; only items the new version actually added are.
-   - **Improved items** — starter foods or recipes you already have, which the new version has corrected or improved — are listed under **Improved in this version of NuMa**. Check the ones you want and click **Update the checked items to the new version**. Updating replaces your copy with the new one, *including any changes you made to it yourself*, so leave unchecked anything you've edited and want to keep. Meals, recipes and pantry entries that use an updated item keep working, and their figures are recalculated. **Keep all my copies as they are** stops NuMa offering the improved versions.
+   - **New items** are marked **(new in this version)** in the **Restore individual starter items** list, which opens by itself when there are any, with a short description: a food's type, calories and protein per 100 g, and whether it has amino acid figures; a recipe's ingredients. Check the ones you want and click **Restore selected**. Something you deleted on purpose is never presented as new; only items the new version actually added are.
+   - **Improved items** — starter foods or recipes you already have, which the new version has corrected or improved — are listed under **Improved in this version of NuMa**. Under each one, NuMa shows exactly what updating would change in *your* copy: for a food, each value side by side (yours now, the new version), with any value you edited yourself marked **your edit**, and portions that would be added or removed; for a recipe, changed servings, name, description or instructions, and ingredients added, removed or with a new amount. Check the ones you want and click **Update the checked items to the new version**. Updating replaces your copy with the new one, *including any changes you made to it yourself*, so leave unchecked anything you've edited and want to keep. Meals, recipes and pantry entries that use an updated item keep working, and their figures are recalculated. **Keep all my copies as they are** stops NuMa offering the improved versions.
 
 These lists stay until you act on them, even after you dismiss the home-page message about them. If you skip a version, nothing is lost: the next version's lists include the skipped one's changes.
 
@@ -679,7 +679,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ## Part 4 — Core nutrition concepts {: #coreNutrition}
 
-*(Reading time: 1 hour, 19 minutes)*
+*(Reading time: 1 hour, 20 minutes)*
 
 ### A. Essential Amino Acids {: #aa}
 Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day:
@@ -1434,11 +1434,11 @@ A line plot of one or more nutrients across your logged days, day on the x-axis 
     Days back + Ending on     The N days ending on the date you pick
                               (defaults to your most recent logged day).
 
-**Every logged day appears, whether or not its meals are marked complete.** Only a day with no logged meal at all is left out — that shows as a gap in the line, not a false drop to zero. Whether a day's meals are marked complete has no bearing on whether it appears; an incomplete day still counts as logged. Completeness only comes into play through "Always end on last complete day" below, which controls just where the plot currently ends, not which days in between it shows.
+**Every logged day appears, whether or not its meals are marked complete.** A day with no logged meal at all shows as a **break in the line**, not a false drop to zero, and the line picks up again at the next day with data; a note under the plot says how many such days its span has. Completeness only comes into play through "Always end on last complete day" below.
 
 **Goal and limit reference lines.** Any chosen nutrient with a profile target automatically gets one or two flat horizontal lines drawn across the plot, in that nutrient's own color, so you can see at a glance whether your actual day-to-day intake is tracking toward — or drifting past — where you want it: a **dashed** line for its goal (your [Revised Optimal](#optimal) target if you've set one, otherwise its [RDA](#gloss-rda)/[AI](#gloss-ai)) and a **dotted** line for its maximum limit (a built-in [Tolerable Upper Intake Level](#maxlimits), or your own configured cap if you've set one). Nothing to turn on — just pick a nutrient that has a goal and/or limit set and the line(s) appear; a nutrient with neither configured plots with no reference line at all. A small note under the plot's title spells out which dashed/dotted lines are present.
 
-**Always end on the last complete day.** Checking this box next to the home-page toggle stops "Ending on" from freezing at whatever date was current when you last saved the plot — instead the end date always slides forward to the most recent day whose meals are all marked complete, automatically, which can be today once you've marked today's meals complete. Useful for a Home page plot in particular, since without it the plot would otherwise stay stuck on its original end date until you revisited this page and re-saved it.
+**Always end on the last complete day.** Checking this box next to the home-page toggle stops "Ending on" from freezing at whatever date was current when you last saved the plot — instead the end date always slides forward to the most recent day whose meals are all marked complete, automatically, which can be today once you've marked today's meals complete. Useful for a Home page plot in particular, since without it the plot would otherwise stay stuck on its original end date until you revisited this page and re-saved it. With this box checked, an earlier day with an incomplete meal is **left out** too, as a break in the line, so a partly logged day can't drag the line down; the note under the Home page plot says how many days that is. If every day in the plot's range has an incomplete meal, there's nothing to draw, and the page says so instead.
 
 **Date labels thin out automatically on a long plot.** Every plotted day still gets a data point, but once there are more than 18 of them, showing every single date's label would crowd them into an unreadable jumble, so only every 2nd, 3rd, etc. date is labeled (always skipping at least one), spaced out enough to stay legible.
 
@@ -1454,7 +1454,7 @@ If you pick nutrients with different units (e.g. Protein in g alongside Sodium i
 
 **Black & white (printer-friendly).** Check this to preview the plot the way it'll look on a printer that can't print color: every line drawn in black, with the highlighted nutrient solid and every other nutrient in its own dash pattern (dashed, dotted, dash-dot, etc.) instead of a color, so lines stay distinguishable without color at all. The on-screen plot updates the instant you check or uncheck the box — no need to click Plot — so you can compare both looks side by side before deciding.
 
-**Smoothing.** Day-to-day values can be noisy enough to obscure the underlying trend. The **Smoothing (days)** field averages each point with its preceding days — a trailing moving average — to smooth that out; it defaults to 3 days. Set it to 0 to turn smoothing off and see the original, unsmoothed data. A smoothed nutrient's own scaling (steps 1 and 2 above) is calculated from the smoothed data, since that's what's actually on the plot.
+**Smoothing.** Day-to-day values can be noisy enough to obscure the underlying trend. The **Smoothing (days)** field averages each point with its preceding days — a trailing moving average — to smooth that out; it defaults to 3 days. Set it to 0 to turn smoothing off and see the original, unsmoothed data. A smoothed nutrient's own scaling (steps 1 and 2 above) is calculated from the smoothed data, since that's what's actually on the plot. **Missing days don't shrink the average.** Smoothing uses the days that have data, as if the missing ones weren't there: with 3-day smoothing, a point just after a break averages itself with the two days with data before it, however far back they are. **The first days plotted are smoothed like the rest.** Each point averages its own day with the logged days *before* it, and for the first few days plotted, some of those come from before the plot's start date: NuMa reads them for the averaging but doesn't draw them, so every point, the first included, is averaged over the same number of days. A note under the plot (here and on the Home page) says so, and from which date. If you haven't logged that many days before the plot starts (say, the plot begins with your very first logged day), the first few points are averaged over fewer days and can swing more than the rest of the line; the note then says how many points that affects, so you can read the start of the plot with that in mind.
 
 **Plot title.** Defaults to "Key nutrients, {start date} to {end date}" for whatever range is currently plotted, shown right on the plot itself. Edit the **Plot title** field and click Plot to use your own instead.
 
@@ -2604,7 +2604,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 28 minutes)*
+*(Reading time: 30 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -2788,6 +2788,7 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 | [Calories missing or not adding up](#calorie-checks) | No calorie value; calories far from what the food's protein, carbs and fat imply; calories estimated | Foods → 9; the food's page; a **Calories** note on meal, recipe and summary pages | Refresh from [USDA](#gloss-usda), fill in from another food, or edit the value; alcohol, sugar alcohols and very high fiber can explain a real gap |
 | Impossible values | Negative values; more than 100 g of one nutrient per 100 g; protein, carbs and fat adding up to more than 100 g; more sugars than carbohydrate; more of the three fat types than total fat | Foods → 9; the food's page; right after adding it | Correct the value on the food; such data usually came wrong from its source |
 | [Amounts that no longer match](#stale-amounts) | A recipe amount typed as a volume or portion ("1/3 c", "p1") whose stored grams differ from what it works out to today | Foods → 9 | Check the food's portions, then update the amounts there in one click |
+| [Amounts converted with a generic density](#generic-density) | A volume amount ("2 T") for a food with no cup or spoon weight of its own, converted with a generic density for that kind of food | Recipe pages ("≈ generic" mark), Foods → 9 | Measure the food's cup or spoon weight and add it on its Portions page, then correct the amounts |
 | [Old USDA copies](#old-copies) | USDA foods not refreshed in over a year | Foods → 9 | **Refresh from USDA** shows what changed and lets you choose |
 | [Missing amino acid data](#missing-aa) | Foods with protein but no amino acid figures, left out of protein quality ([DCP](#gloss-dcp), [DIAAS](#gloss-diaas)) | Foods → 9 (foods you use, most-used first); meal, recipe and food pages; the [AA](#gloss-aa) column in search results, Food Cache and Pantry | Find a Foundation or [SR](#gloss-sr) Legacy version, refresh from USDA, or estimate from a similar food; or tick "not needed" |
 | [Missing portion weights](#ts-no-volume-portion) | A food with no cup, spoon or piece weight, so a volume or count can't become grams | Foods → 9 (foods you use, most-used first); recipe pages ("No portion/weight data exists"); when you type an amount | Add the weight once on the food's Portions page; or tick "not needed" if you always weigh it |
@@ -2809,7 +2810,16 @@ Fixing data changes results, sometimes a lot. A missing calorie value on almonds
 - **How much of a calorie total is measured.** The **Calories** note on a meal, recipe or daily summary leads with the share of its calories that comes from measured values rather than estimates, and names any food with no calorie value at all (whose grams count as zero).
 - **Past days change too, and say so.** A logged meal's totals are worked out from its foods' data, so correcting a food rewrites every past day that used it. That's usually what you want, since it makes your history more accurate, but it means a past day's numbers can differ from what you saw then. Meal and Daily Summary pages note when and why their totals were recalculated ("Totals recalculated: 2026-10-03 (Nuts, almonds: its data changed)").
 
-**Amounts that no longer match.**{: #stale-amounts} An amount you type as a volume or portion is turned into grams once, when you enter it (see [Editing or changing a food](#food-edit-consequences)). If the food's portions change later, or NuMa's way of converting does, those grams stay as they were. Foods → 9 lists every recipe amount that would come out differently if typed today, with the grams stored and the grams it works out to now. Tick the ones to correct and click **Update the selected amounts**. Check the food's portions first: if a portion weight is itself wrong (a "tsp" that's really a half teaspoon, say), fix it on the food's Portions page, and the "Now" figure follows. Amounts typed with their own weight ("2 T (15 g)") are never listed.
+**Amounts that no longer match.**{: #stale-amounts} An amount you type as a volume or portion is turned into grams once, when you enter it (see [Editing or changing a food](#food-edit-consequences)). If the food's portions change later, or NuMa's way of converting does, those grams stay as they were. Foods → 9 lists every recipe and logged meal amount that would come out differently if typed today, with the grams stored and the grams it works out to now (each food has a **portions** link beside it). Check the food's portions first: if a portion weight is itself wrong (a "tsp" that's really a half teaspoon, say), fix it on the food's Portions page, and the "Now" figure follows. Then, for the amounts you tick, choose one of two buttons:
+
+- **Update the ticked amounts to their "Now" grams** — the amount you entered stays; its grams change. Updating a logged meal changes that past day's totals.
+- **Keep the ticked amounts as entered** — the stored grams are right (you weighed it, say). NuMa stops listing the amount and shows it under **Kept as entered**, marked with a badge, on Foods → 9 and on the food's Portions page. Tick it there and click **Stop keeping** to review it again. Changing the amount itself also ends the keep.
+
+Amounts typed with their own weight ("42 g", "2 T 15 g") are never listed. A volume with a weight in brackets after it, like "1/3 c (42 gr)", is: older versions of NuMa added that weight themselves, but it may be one you weighed, so check before updating. Updating one drops the bracketed figure.
+
+The food's own **Portions page** shows the same list for that one food, right after you add, change or remove a portion (and whenever any of its amounts still don't match). There, recipe amounts start ticked; logged meals and bracketed-weight amounts start unticked, for you to decide. If you've just reordered portions, amounts entered as `p1`, `p2`… now point at a different portion, so re-enter those rather than updating them.
+
+**Amounts converted with a generic density.**{: #generic-density} When you enter a volume ("1/3 c", "2 T") for a food that has no cup or spoon weight of its own, NuMa converts it with a generic density for that kind of food: protein powders, flours, seeds and so on. That's a reasonable guess, but it is a guess, so recipe pages and Edit Recipe mark every such amount **≈ generic\***, with a footnote. Click the mark to go to the food's Portions page, measure the food's actual cup or spoon weight (fill a measuring cup, level it, weigh it), and add it there. The mark then disappears, and the amounts it affects show up under [Amounts that no longer match](#stale-amounts), ready to correct. Foods → 9 lists every food with such amounts, most-used first, under **Amounts converted with a generic density**. An amount with a weight in brackets ("2 T (14.7 gr)") counts too: older versions of NuMa wrote their own conversion that way, so it's most likely the same generic figure, unless you weighed it. A weight you typed yourself ("15 g") is never marked.
 
 **Foods you use with no amino acid data, or no portion weights.** These two lists on Foods → 9 could be long — dozens of foods for a well-used install — so each starts folded up, showing only its count, and lists only foods you actually use in a recipe, a meal or your pantry (an unused food affects no result), most-used first. Open one when you want to work through it. Tick **not needed** for a food that doesn't matter — a sprinkle of cheese with no amino acid data, a food you always weigh — and it stops being counted. Neither list raises the Home page reminder: they're improvements to make when you have time, not errors.
 
@@ -4348,7 +4358,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 20 minutes)*
+*(Reading time: 1 hour, 24 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4364,6 +4374,15 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- MANUAL: Part 1 now starts with "Download and install the program" (section A); the sections that were A to E are now B to F.
+- Nutrient plots now show a break in the line for a day with no data, and pick up again at the next one; with "Always end on last complete day", an earlier day with an incomplete meal is left out the same way instead of dragging the line down. Smoothing uses only the days that have data.
+- Nutrient plot smoothing now uses the logged days before the plot's start, so the first points are smoothed like the rest; a note under the plot says how it was smoothed, and when too few earlier days exist, how many points at the start are less smoothed.
+- Settings → 9 now shows, under each improved starter food or recipe, exactly what updating would change in your copy (values side by side, your own edits marked), and describes each new one.
+- Recipe amounts converted with a generic density (a volume for a food with no cup or spoon weight of its own) are now marked "≈ generic" with a footnote, and Foods → 9 lists those foods so you can measure and add their real weights. Millilitre portions now count as volume portions.
+- "Amounts that no longer match" now has a **Keep as entered** button for amounts whose stored grams are right; kept amounts are marked as such on Foods → 9 and the food's Portions page, and can be un-kept. Foods → 9 now also lists volumes with a bracketed weight ("1/3 c (42 gr)").
+- Cup, tablespoon and teaspoon amounts now use a food's plain portion rather than a whipped or packed one, so 3/4 c of heavy cream is 179 g, not 90 g.
+- USDA portions are now read correctly: a half-cup portion is no longer stored as a whole cup, and USDA "Foundation" foods now come with their portions.
+- Changing a food's portion weight now lists, on its Portions page, the recipe and meal amounts entered by volume that the change affects, ready to update in one click; recipes start ticked, past meals unticked.
 - Refresh from USDA can keep a food's current values as an older version (U171477.1) for meals logged before a date you choose, so past meals keep what you actually ate then.
 - NuMa now knows which of a food's values you changed: the food's page lists them beside the originals, Refresh keeps only those unticked (USDA's updates to the rest are ticked), and a food stops being "user-edited" once none of your changes remain, with a note telling you before you apply.
 - A ✎ after a food's code now marks a food you've edited, on every page that shows codes, including the Food Use pages; Find duplicate foods now says "user-edited" too.
@@ -4445,6 +4464,185 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - The GI lookup on a food's Annotate page now explains its own results right beside the form — what "Impaired" means, what "ref Bread, 2h 76" is telling you, and what NuMa actually saves when you pick a row — with the full account in the manual.
 
 #### Oct 4 updates
+
+**MANUAL: PART 1 STARTS WITH INSTALLING NUMA**
+
+Part 1's "Download and install the program" section has moved to the top, as section A, since it's the first thing anyone needs. The sections that followed it are unchanged, but now lettered B to F; G, H and I keep their letters. [learn more...](#install-windows)
+
+**PROGRAM: NUTRIENT PLOT LINES BREAK AT MISSING DAYS**
+
+The plot now runs over every calendar day in its span: a day with nothing logged shows as a break in the line, which picks up again at the next day with data. With **Always end on last complete day**, an earlier day with an incomplete meal is left out the same way, so a partly logged day no longer drags the line down. Smoothing averages over the days that have data, as if the missing ones weren't there. Notes under the plot say how many days are missing and why. [learn more...](#nutrient-plot)
+
+<!--
+
+```
+Scope: Summary -> Nutrient Plot; the Home page plot.
+Files: db.py (meal_dates_with_incomplete()), web/backend.py (_plot_days(), _apply_smoothing() now
+over available points, _smoothed_plot_series() maps onto a calendar axis, _smoothing_info()
+gap_days/skipped_incomplete/plotted_days, plot_empty), web/templates/_smoothing_note.html,
+nutrient_plot.html, home.html, tests/test_web.py.
+Before: the x axis held logged dates only (categorical), so a day with nothing logged vanished and
+the line ran straight across it, although the page and manual said it left a gap. Rolling mode
+ended on the last complete day but still plotted earlier incomplete days at their partial totals;
+the Home caption claimed every day after an incomplete one was left off, which was never so.
+Smoothing used an index window that counted nan slots, so a gap would have shrunk the average.
+All-incomplete rolling plots keep the page controls (so the mode can be unticked) and say why.
+Without rolling, incomplete days are still plotted at what's logged (owner's choice, "for now").
+```
+
+-->
+
+**PROGRAM: PLOT SMOOTHING NOW COVERS THE FIRST DAYS PLOTTED**
+
+The Nutrient Plot's smoothing now borrows the logged days just before the plot's start date (used for the averaging, not drawn), so the first points are smoothed like all the others instead of swinging more. A note under the plot, on the Nutrient Plot page and the Home page, says how the plot was smoothed, and, if there aren't enough earlier logged days, how many points at the start are less smoothed. [learn more...](#nutrient-plot)
+
+<!--
+
+```
+Scope: Summary -> Nutrient Plot; the Home page plot.
+Files: web/backend.py (_smoothing_lead_dates(), _smoothing_info(), _smoothed_plot_series(); page,
+image endpoint and index() use them), web/templates/_smoothing_note.html (new), nutrient_plot.html,
+home.html, tests/test_web.py.
+Before: a trailing average over the plotted dates only, so with n-day smoothing the first n-1
+points averaged 1..n-1 days and the start of every line was distorted (worse the longer the
+window). The window counts logged days (plot dates are logged days only). Same day, the Home
+page's "only extends through the most recent day..." note was widened to the plot's 88% width.
+```
+
+-->
+
+**PROGRAM: SEE WHAT A STARTER-DATA UPDATE WOULD CHANGE BEFORE TAKING IT**
+
+In Settings → 9, each improved starter food now shows its values side by side (yours now, the new version), with anything you edited yourself marked **your edit** and any portions that would be added or removed; each improved recipe lists changed fields and ingredients. New starter items get a short description. [learn more...](#starter-data)
+
+<!--
+
+```
+Scope: Settings -> 9. Starter Data (Improved in this version; Restore individual starter items);
+Home page NEW STARTER ITEMS notice.
+Files: numa_app/services/demo_data.py (change_details(), _food_differences(), _recipe_differences(),
+_amount_text(), _unstarred(); record_version_changes/pending_changes silent=), web/backend.py
+(home + Settings pass silent=_is_curator(); starter_change_details), web/templates/settings.html,
+tests/test_web.py, tests/test_demo_data.py.
+Details compare the user's current copy with the bundled item over exactly what apply_improvements()
+rewrites (food: name, type, GI, nutrients, portions; recipe: name, description, servings,
+instructions, ingredients matched without the "* " prefix). "your edit" = db.food_edited_keys().
+Curator: running from source (backend._is_curator), changes are recorded silently and pending ones
+dropped. The owner got the notice after the 2026-10-04 export; the offered "improvements" were only
+the export's "* " name prefix, and olive oil would have lost the 100 milliliter portion the portion
+repair had just added (the export predated it).
+```
+
+-->
+
+**PROGRAM: AMOUNTS CONVERTED WITH A GENERIC DENSITY ARE MARKED, AND LISTED ON FOODS → 9**
+
+A volume amount for a food with no cup or spoon weight of its own is converted with a generic density for that kind of food. Recipe pages and Edit Recipe now mark each such amount **≈ generic**, with a footnote suggesting you measure the food's real cup or spoon weight and add it on its Portions page; Foods → 9 lists those foods, most-used first. Millilitre portions ("100 ml") now count for volume amounts too. [learn more...](#generic-density)
+
+<!--
+
+```
+Scope: Recipes -> recipe page / Edit Recipe; Foods -> 9 (Amounts converted with a generic density).
+Files: usda_nutrients.py (density_with_source(); get_density_g_per_ml() now wraps it; milliliter/ml
+anchors), usda.py, numa_app/services/portions.py (generic_density_kind()),
+numa_app/services/data_quality.py (generic_density_in_use()), web/backend.py (_mark_generic_density()),
+web/templates/_generic_density.html (new), recipe_detail.html, recipe_edit.html,
+food_cache_db_check.html, tests/test_usda.py, tests/test_data_quality.py.
+Derived on each page view from the stored unit text and the food's current portions, never stored,
+so adding a real portion clears it and moves the amounts into stale_amounts(). "bracketed" kind:
+"2 T (14.7 gr)" stored by older versions (14.7 g = the table's 0.5 g/ml). A typed weight never
+counts. The owner's DB at the time: 16 foods, 31 amounts (protein isolates and peanut butter powder
+5 each). Olive oil's Foundation "100 milliliter" portion was ignored for density before the ml anchor.
+Meals added in the app store unit "g" (the typed volume is not kept), so only older meal entries
+can be listed.
+```
+
+-->
+
+**PROGRAM: KEEP AN AMOUNT AS ENTERED; BRACKETED WEIGHTS LISTED ON FOODS → 9**
+
+When an amount entered by volume no longer matches its food's portions but the stored grams are right (you weighed it), tick it and click **Keep as entered**: NuMa stops listing it and shows it under **Kept as entered**, with a badge, on Foods → 9 and on the food's Portions page, where **Stop keeping** brings it back. Foods → 9 now also lists volumes stored with a weight in brackets ("1/3 c (42 gr)"), unticked. [learn more...](#stale-amounts)
+
+<!--
+
+```
+Scope: Foods -> 9 (Amounts that no longer match); Foods -> food -> Manage Portions.
+Files: db.py (amount_keeps table; amount_keep/amount_unkeep/amount_keeps), numa_app/services/data_quality.py
+(stale_amounts include_kept=, rows carry "kept"; scan() now include_bracketed=True), web/backend.py
+(POST /food/cache/db-check/stale-amounts action=update|keep|unkeep; Foods -> 9 kept list),
+web/templates/_stale_amounts_form.html (new, shared by both pages), food_cache_db_check.html,
+food_cache_portions.html, tests/test_data_quality.py.
+A keep is (kind, item_id, stored_g) and holds only while the item's grams still equal stored_g, so
+editing the amount ends it. Bracketed rows now raise the Home DATA CHECK reminder once, like any new
+problem.
+```
+
+-->
+
+**PROGRAM: VOLUME AMOUNTS USE A FOOD'S PLAIN CUP, NOT A WHIPPED OR PACKED ONE**
+
+When a food has several cup or spoon portions, NuMa now works out volume amounts from the plain one, using a "whipped", "packed", "heaping" or "sifted" one only if there's nothing else. [learn more...](#stale-amounts)
+
+<!--
+
+```
+Scope: every volume amount entered for a food (recipes, meals, food page).
+Files: usda_nutrients.py (get_density_g_per_ml, _QUALIFIED_VOLUME_RE), tests/test_usda.py.
+Heavy cream (SR Legacy) lists "cup, whipped" 120 g before "cup, fluid (yields 2 cups whipped)" 238 g;
+the first plausible volume portion won, so "3/4 c" came out 90 g instead of 179 g. Qualified
+portions are now tried after plain ones; bracketed asides are ignored when classifying, and the
+match is word-bounded ("unsifted" / "unpacked" count as plain).
+```
+
+-->
+
+**PROGRAM: USDA PORTIONS NOW READ CORRECTLY**
+
+A USDA portion such as "0.5 cup, chopped = 78 g" now keeps its "0.5", so a cup of that food weighs what it should, and USDA "Foundation" foods (granulated sugar, canned diced tomatoes and others) now arrive with their cup and spoon portions. Foods already in your cache were corrected the same day. [learn more...](#stale-amounts)
+
+<!--
+
+```
+Scope: every USDA food fetched or refreshed; scripts/repair_usda_portions.py for cached ones.
+Files: usda_api.py (usda_portion_description(), get_food_portions_raw()), usda.py,
+scripts/repair_usda_portions.py (new), tests/test_usda.py, tests/test_repair_usda_portions.py (new).
+Cause: _parse_food read portionDescription or modifier only. SR Legacy puts the amount in its own
+field (broccoli, cooked, 168510: amount 0.5, modifier "cup, chopped", 78 g), stored as
+"cup, chopped" = 78 g, so "5 c" came out 390 g instead of 780 g. Foundation entries have only
+amount + measureUnit ("cup"), so they had no description and were dropped. RACC (reference
+serving) entries are skipped. The repair re-fetched the owner's USDA foods: 34 corrected (renamed
+only where description and grams matched the old reading exactly; dropped portions appended so
+p1/p2... keep their meaning; source copies corrected too, so no food became user-edited — 30
+user-edited before and after). 5 ids USDA no longer serves / timed out were left as is.
+Backup: numa.db.before-portions-20261004-135318.
+```
+
+-->
+
+**PROGRAM: CHANGING A PORTION WEIGHT NOW OFFERS TO UPDATE THE AMOUNTS IT AFFECTS**
+
+When you add, change or remove a portion on a food's Portions page, the page now lists every recipe ingredient and logged meal amount of that food that was entered as a volume or portion and no longer matches, with the grams stored and the grams it works out to now. Recipes start ticked; past meals and amounts with a weight in brackets ("1/3 c (42 gr)") start unticked, for you to decide. [learn more...](#stale-amounts)
+
+<!--
+
+```
+Scope: Foods -> food -> Manage Portions; Foods -> 9 (Amounts that no longer match).
+Files: numa_app/services/data_quality.py, web/backend.py, web/templates/food_cache_portions.html,
+tests/test_data_quality.py.
+Cause: recipe/meal grams are fixed at entry. Okara flour's cup was later corrected to 99 g, but
+seven recipe lines kept 41.8 g for "1/3 c" (33 g now). The Foods -> 9 check found the two typed
+"0.333333 c" but skipped five stored as "1/3 c (42 gr)" (an April-era format that wrote the
+computed grams in brackets), treating the bracketed figure as a weight the user typed.
+stale_amounts() gains fdc_id= and include_bracketed= (rows carry bracketed/unit_after;
+_bracketed_volume() strips a "(N g)" figure when what remains is a volume or portion). Foods -> 9
+lists them too (see KEEP AN AMOUNT AS ENTERED above). The Portions page gets
+the panel via _portion_amounts_review() on every render; the existing POST
+/food/cache/db-check/stale-amounts takes portions_fdc_id to return there, and now writes
+unit_after (bracketed figure dropped). The owner's seven okara rows were corrected by hand the
+same day (backup numa.db.before-okara-fix-20261004-131411).
+```
+
+-->
 
 **PROGRAM: KEEP A FOOD'S OLD VERSION FOR PAST MEALS**
 

@@ -1,0 +1,26 @@
+{# Note under a nutrient plot saying how its smoothing was done. `info` is
+   web/backend.py's _smoothing_info(): window (days), lead_days / lead_from
+   (logged days before the plot's first date, read for the average but not
+   drawn — see _smoothed_plot_series()), short (first plotted points still
+   averaged over fewer days, because that many earlier days don't exist).
+   gap_days: calendar days in the plotted span with no data (breaks in the
+   line); skipped_incomplete: how many logged days were left out for a meal
+   not marked complete ("always end on the last complete day" mode only).
+   The smoothing part is shown only with smoothing on (window > 1). #}
+{% macro note(info, style="") %}{% if info and info.gap_days %}
+<p class="muted mt-1"{% if style %} style="{{ style }}"{% endif %}><small><strong>Breaks in the line</strong> are days with no data:
+{{ info.gap_days }} day{{ "s" if info.gap_days != 1 }} in this plot&rsquo;s span{% if info.skipped_incomplete %}, {{ info.skipped_incomplete }} of {{ "them" if info.gap_days != 1 else "it" }} with a meal not yet marked complete and the rest with nothing logged{% else %} had nothing logged{% endif %}.
+The line picks up again at the next day with data{% if info.window > 1 %}, and smoothing simply uses the days that have data, as if the missing ones weren&rsquo;t there{% endif %}.</small></p>
+{% endif %}{% if info and info.window > 1 %}{% set n = info.window %}{% set k = n - 1 %}
+<p class="muted mt-1"{% if style %} style="{{ style }}"{% endif %}><small><strong>How this plot is smoothed:</strong>
+each point is the average of its day and the {{ k }} logged day{{ "s" if k != 1 }} before it ({{ n }}-day smoothing).
+{% if info.lead_days %}For the first days plotted, that includes {{ info.lead_days }} logged day{{ "s" if info.lead_days != 1 }} from before the plot starts
+(from {{ info.lead_from }}), which {{ "is" if info.lead_days == 1 else "are" }} used for the averaging but not drawn{% if not info.short %}, so every point,
+the first included, is averaged over the same number of days{% endif %}.{% endif %}
+{% if info.short %}{% set s = info.short %}<strong>The start of the line is less smoothed:</strong>
+{% if info.lead_days %}only {{ info.lead_days }} logged day{{ "s" if info.lead_days != 1 }} come{{ "s" if info.lead_days == 1 }} before the plot&rsquo;s first day,
+{% else %}no meals are logged before the plot&rsquo;s first day,{% endif %}
+so the first {% if s == 1 %}day plotted is{% else %}{{ s }} days plotted are{% endif %} averaged over fewer days{% if not info.lead_days %} (the very first not at all){% endif %}
+and can swing more than the rest of the line. Read the beginning of the plot with that in mind.{% endif %}
+{{ manual_link("nutrient-plot") }}</small></p>
+{% endif %}{% endmacro %}

@@ -274,6 +274,47 @@ def _tokenize_portion(raw: str) -> list[str]:
     return result
 
 
+_TYPED_WEIGHT_RE = re.compile(r"\d\s*(?:g|gr|grams?|oz|ounces?|lbs?|pounds?|kg)\b", re.IGNORECASE)
+_BRACKETED_GRAMS_RE = re.compile(r"\(\s*[≈~]?\s*\d[\d.,/]*\s*(?:g|gr|grams?)\.?\s*\)", re.IGNORECASE)
+
+
+def generic_density_kind(unit: str | None, portions: list[dict], food_name: str) -> str | None:
+    """Whether an amount's grams came from the generic density table for
+    that kind of food (usda.density_with_source() -> "table"), because it
+    was entered as a volume and the food has no cup/spoon/ml portion:
+
+      "typed"      a volume with no weight of its own ("1/3 c", "2 T")
+      "bracketed"  a volume with a gram figure in brackets ("2 T (14.7 gr)"),
+                   the form older NuMa versions stored their own conversion
+                   in — most likely the same generic figure, unless the user
+                   weighed it
+      None         anything else; a typed weight ("42 g", "2 T 15 g") is
+                   presumed right and never counts
+
+    Pages mark such amounts "≈ generic" with a footnote suggesting the
+    food's real portion weight be measured and saved; Foods -> 9 lists them
+    (data_quality.generic_density_in_use())."""
+    unit = (unit or "").strip()
+    kind = "typed"
+    if _TYPED_WEIGHT_RE.search(unit):
+        if not _BRACKETED_GRAMS_RE.search(unit):
+            return None
+        unit = " ".join(_BRACKETED_GRAMS_RE.sub(" ", unit).split())
+        if _TYPED_WEIGHT_RE.search(unit):
+            return None
+        kind = "bracketed"
+    if not unit:
+        return None
+    tokens = _tokenize_portion(unit)
+    parsed = _parse_number_tokens(tokens)
+    if parsed is None or len(tokens) <= parsed[1]:
+        return None
+    vol = tokens[parsed[1]]
+    if vol not in _VOLUME_TO_ML and vol.lower() not in _VOLUME_TO_ML:
+        return None
+    return kind if _usda.density_with_source(food_name, portions)[1] == "table" else None
+
+
 def _parse_portion_input(
     raw: str,
     portions: list[dict],

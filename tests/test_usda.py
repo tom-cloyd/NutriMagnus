@@ -173,6 +173,42 @@ class TestParseFood:
         assert result["portions"][1] == {"description": "1 tbsp", "gram_weight": 15.0}
         assert result["portions"][2] == {"description": "1 oz",   "gram_weight": 28.0}
 
+    def test_sr_legacy_portion_keeps_its_amount(self):
+        # Real SR Legacy shape (broccoli, cooked, FDC 168510): the amount lives in
+        # its own field. Dropping it stored the half cup as "cup, chopped" = 78 g.
+        response = self._make_usda_response([])
+        response["foodPortions"] = [
+            {"amount": 1.0, "modifier": "spear (about 5\" long)", "portionDescription": None,
+             "gramWeight": 37.0, "measureUnit": {"name": "undetermined"}},
+            {"amount": 0.5, "modifier": "cup, chopped", "portionDescription": None,
+             "gramWeight": 78.0, "measureUnit": {"name": "undetermined"}},
+        ]
+        result = _usda._parse_food(response)
+        assert result["portions"] == [
+            {"description": "spear (about 5\" long)", "gram_weight": 37.0},
+            {"description": "0.5 cup, chopped", "gram_weight": 78.0},
+        ]
+        density = _usda.get_density_g_per_ml("Broccoli, cooked", result["portions"])
+        assert 5 * 236.6 * density == pytest.approx(780.0, rel=0.01)
+
+    def test_foundation_portion_built_from_measure_unit(self):
+        # Real Foundation shape (sugars, granulated, FDC 746784): no description or
+        # modifier at all, only amount + measureUnit. These used to be dropped.
+        response = self._make_usda_response([])
+        response["foodPortions"] = [
+            {"amount": 1.0, "modifier": None, "portionDescription": None,
+             "gramWeight": 4.0, "measureUnit": {"name": "teaspoon"}},
+            {"amount": 1.0, "modifier": None, "portionDescription": None,
+             "gramWeight": 188.0, "measureUnit": {"name": "cup"}},
+            {"amount": 1.0, "modifier": None, "portionDescription": None,
+             "gramWeight": 8.0, "measureUnit": {"name": "RACC"}},     # reference serving: skipped
+        ]
+        result = _usda._parse_food(response)
+        assert result["portions"] == [
+            {"description": "1 teaspoon", "gram_weight": 4.0},
+            {"description": "1 cup", "gram_weight": 188.0},
+        ]
+
     def test_parses_food_portions_empty_when_absent(self):
         response = self._make_usda_response([])
         # Remove household serving so the synthesis fallback doesn't fire
@@ -2045,6 +2081,29 @@ class TestGetDensityGPerMl:
         portions = [{"description": "1 cup", "gram_weight": 99.0}]
         density = _usda.get_density_g_per_ml("Pure Okara Flour (dried)", portions)
         assert density == pytest.approx(99.0 / 236.6, rel=0.01)
+
+    def test_plain_volume_portion_preferred_over_qualified_one(self):
+        # Heavy cream lists "cup, whipped" first; the liquid's cup is the right one.
+        portions = [{"description": "cup, whipped", "gram_weight": 120.0},
+                    {"description": "cup, fluid (yields 2 cups whipped)", "gram_weight": 238.0}]
+        density = _usda.get_density_g_per_ml("Cream, fluid, heavy whipping", portions)
+        assert density == pytest.approx(238.0 / 236.6, rel=0.01)
+
+    def test_qualified_volume_portion_used_when_only_one(self):
+        portions = [{"description": "cup, packed", "gram_weight": 200.0}]
+        assert _usda.get_density_g_per_ml("Sugars, brown", portions) == pytest.approx(200.0 / 236.6, rel=0.01)
+
+    def test_density_source_reported(self):
+        assert _usda.density_with_source("Okara", [{"description": "1 cup", "gram_weight": 99.0}])[1] == "portion"
+        assert _usda.density_with_source("Soy protein isolate", []) == (pytest.approx(0.5), "table")
+        assert _usda.density_with_source("mystery unrecognized food xyz", []) == (None, None)
+
+    def test_millilitre_portion_used(self):
+        # Olive oil's Foundation portion is "100 milliliter" = 90.7 g.
+        for desc in ("100 milliliter", "100 ml"):
+            density, source = _usda.density_with_source("Oil, olive", [{"description": desc, "gram_weight": 90.7}])
+            assert (density, source) == (pytest.approx(0.907), "portion")
+        assert _usda.density_with_source("Oil, olive", [{"description": "1 small", "gram_weight": 90.7}])[1] == "table"
 
     def test_static_table_used_when_no_volume_portion(self):
         portions = [{"description": "1 serving", "gram_weight": 90.0}]

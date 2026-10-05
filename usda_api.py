@@ -338,6 +338,51 @@ def search_foods(query: str, page_size: int = 15,
     return result if uncapped else result[:page_size]
 
 
+def usda_portion_description(p: dict) -> str | None:
+    """A household description for one USDA foodPortions entry, or None if
+    it has none worth offering.
+
+    The three USDA data types fill different fields:
+      - Survey (FNDDS): portionDescription ("1 cup, chopped") — used as is.
+      - SR Legacy: amount + modifier (0.5, "cup, chopped"), measureUnit
+        "undetermined". The amount must be kept: dropping it stored broccoli's
+        half cup (78 g) as "cup, chopped", so every cup counted half its weight.
+      - Foundation: amount + measureUnit ("cup") with an empty modifier. These
+        used to be dropped altogether (no description at all).
+    measureUnit "RACC" (the FDA's reference serving, not a household measure)
+    is skipped.
+    """
+    desc = (p.get("portionDescription") or "").strip()
+    if desc:
+        # USDA sometimes prepends a redundant count: "1 1 cookie" → "1 cookie"
+        # Only strip the leading number when what follows also starts with a digit
+        # (so "1 cup" is preserved but "1 1 cookie" becomes "1 cookie")
+        return re.sub(r'^\d+\s+(?=\d)', '', desc, count=1)
+    unit = ((p.get("measureUnit") or {}).get("name") or "").strip()
+    if unit.upper() == "RACC":
+        return None
+    if unit.lower() == "undetermined":
+        unit = ""
+    modifier = (p.get("modifier") or "").strip()
+    words = ", ".join(w for w in (unit, modifier) if w)
+    if not words:
+        return None
+    try:
+        amount = float(p.get("amount") or 1)
+    except (TypeError, ValueError):
+        amount = 1.0
+    if amount != 1 or unit:
+        return f"{amount:g} {words}"
+    return words
+
+
+def get_food_portions_raw(fdc_id: int) -> list[dict]:
+    """USDA's own foodPortions entries for one food, unparsed — for
+    scripts/repair_usda_portions.py, which needs to see each entry as both the
+    old and the current parsing read it."""
+    return (_get(f"food/{fdc_id}", {}) or {}).get("foodPortions") or []
+
+
 def get_food_detail(fdc_id: int) -> dict:
     """
     Fetch full nutrient detail for one food. Returns a normalized dict with:
@@ -452,14 +497,9 @@ def _parse_food(data: dict) -> dict:
 
     portions = []
     for p in data.get("foodPortions", []):
-        desc = p.get("portionDescription") or p.get("modifier", "")
+        desc = usda_portion_description(p)
         gw = p.get("gramWeight")
         if desc and gw:
-            # USDA sometimes prepends a redundant count: "1 1 cookie" → "1 cookie"
-            # Only strip the leading number when what follows also starts with a digit
-            # (so "1 cup" is preserved but "1 1 cookie" becomes "1 cookie")
-            import re as _re
-            desc = _re.sub(r'^\d+\s+(?=\d)', '', desc.strip(), count=1)
             portions.append({"description": desc, "gram_weight": float(gw)})
 
     # If USDA has no explicit portions but the food has a household serving description

@@ -812,3 +812,24 @@ def test_starter_status_says_which_recipes_use_each_food(monkeypatch: pytest.Mon
                   _recipe("* Soup", [["* Beans", 50, "g", "food"]])])
     used = {f["name"]: f["used_in"] for f in demo_data.starter_status(db_conn)["foods"]}
     assert used == {"* Beans": ["* Bowl", "* Soup"], "* Salt": ["* Bowl"], "* Walnuts": []}
+
+
+@pytest.mark.parametrize("amount,unit,expect", [
+    (100, "g", "100 g"),
+    (14.7, "2 T (14.7 gr)", "2 T (14.7 gr)"),
+    (0, "—", "—"),
+    (0, "", "no amount"),
+])
+def test_change_detail_amount_text(amount, unit, expect):
+    assert demo_data._amount_text(amount, unit) == expect
+
+
+def test_recipe_differences_ignore_starter_prefix_on_ingredient_names(db_conn):
+    rid = db_conn.execute("INSERT INTO recipes (name, description, servings, instructions) "
+                          "VALUES ('* R', '', 1, '')").lastrowid
+    db_conn.execute("INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit) "
+                    "VALUES (?, 0, 'SALT', 6, '1 t (6 gr)')", (rid,))
+    bundled = {"name": "* R", "description": "", "servings": 1, "instructions": "",
+               "ingredients": [["* SALT", 6, "1 t (6 gr)", "food"], ["* Garlic", 3, "g", "food"]]}
+    d = demo_data._recipe_differences(db_conn, bundled, rid)
+    assert d == {"fields": [], "added": ["* Garlic: 3 g"], "removed": [], "changed": []}

@@ -22,6 +22,7 @@ it back.
 import hashlib
 import json
 import pathlib
+import re
 import sys
 import uuid
 
@@ -677,7 +678,7 @@ def _write_versions(state: dict) -> None:
     _VERSIONS_FILE.write_text(json.dumps(state, indent=2))
 
 
-def record_version_changes() -> dict:
+def record_version_changes(*, silent: bool = False) -> dict:
     """Compare the bundled starter set with the one this install last ran
     with, and remember any differences. Safe to call on every page load: it
     writes only when the bundled set has actually changed.
@@ -686,9 +687,20 @@ def record_version_changes() -> dict:
     feature — records the current set and reports nothing, since there is no
     earlier set to compare with. Changes not yet acknowledged when another
     version arrives are merged with that version's, so skipping a version
-    loses nothing."""
+    loses nothing.
+
+    silent=True (the curator, running from source — see backend._is_curator)
+    records the bundled set as seen and drops any pending changes: the
+    curator's starter set is exported from their own database, so its
+    "improved" items are copies of their own data, and applying one would
+    put an older export over the live original."""
     current = starter_manifest()
     state = _read_versions()
+    if silent:
+        clean = {"manifest": current, "changes": _empty_changes(), "acknowledged": True}
+        if state != clean:
+            _write_versions(clean)
+        return clean
     if state is None:
         state = {"manifest": current, "changes": _empty_changes(), "acknowledged": True}
         _write_versions(state)
@@ -760,13 +772,147 @@ def _relevant(conn, changes: dict, manifest: dict) -> dict:
     }
 
 
-def pending_changes(conn) -> dict:
+def pending_changes(conn, *, silent: bool = False) -> dict:
     """This version's starter changes that still apply to this user, plus
-    'acknowledged' (whether the home-page notice has been dismissed)."""
-    state = record_version_changes()
+    'acknowledged' (whether the home-page notice has been dismissed).
+    silent: see record_version_changes()."""
+    state = record_version_changes(silent=silent)
     result = _relevant(conn, state.get("changes") or _empty_changes(), state["manifest"])
     result["acknowledged"] = bool(state.get("acknowledged"))
     return result
+
+
+def _fmt(v) -> str:
+    if isinstance(v, float):
+        return f"{v:.4g}"
+    return "" if v is None else str(v)
+
+
+def _nutrient_labels() -> dict[str, tuple[str, str]]:
+    import usda as _usda
+    return {key: (label, unit) for key, label, unit in _usda.NUTRIENT_MAP.values()}
+
+
+def _amount_text(amount, unit) -> str:
+    """An ingredient line's amount as entered: the unit text when it carries
+    its own number ("2 T (15 gr)"), else the number plus the unit ("100 g")."""
+    unit = (unit or "").strip()
+    if re.search(r"\d", unit):
+        return unit
+    if not amount:
+        return unit or "no amount"
+    return f"{_fmt(float(amount))} {unit}".strip()
+
+
+def _portion_text(p: dict) -> str:
+    return f"{p.get('description', '')} = {_fmt(float(p.get('gram_weight') or 0))} g"
+
+
+def _food_differences(conn, food: dict, local_id: int, labels: dict) -> dict:
+    """What apply_improvements() would change in the user's copy of `food`."""
+    mine_now = _food_state(conn, local_id) or {}
+    new = _bundled_food_state(food)
+    edited = set(_db.food_edited_keys(conn, local_id) or [])
+    rows = []
+    for field, label in (("name", "Name"), ("data_type", "Type"), ("gi", "Glycemic index")):
+        if mine_now.get(field) != new.get(field):
+            rows.append({"what": label, "yours": _fmt(mine_now.get(field)) or "none",
+                         "new": _fmt(new.get(field)) or "none", "mine": False})
+    yours_n, new_n = mine_now.get("nutrients") or {}, new.get("nutrients") or {}
+    order = list(labels)
+    for key in sorted(set(yours_n) | set(new_n), key=lambda k: order.index(k) if k in order else len(order)):
+        a, b = yours_n.get(key), new_n.get(key)
+        if a is not None and b is not None and abs(float(a) - float(b)) <= 1e-6 * max(1.0, abs(float(a))):
+            continue
+        if a is None and b is None:
+            continue
+        label, unit = labels.get(key, (key, ""))
+        unit_txt = f" {unit}" if unit else ""
+        rows.append({"what": f"{label} per 100 g", "yours": f"{_fmt(a)}{unit_txt}" if a is not None else "none",
+                     "new": f"{_fmt(b)}{unit_txt}" if b is not None else "none", "mine": key in edited})
+    yours_p = {_portion_text(p) for p in mine_now.get("portions") or []}
+    new_p = {_portion_text(p) for p in new.get("portions") or []}
+    return {"rows": rows,
+            "portions_added": sorted(new_p - yours_p), "portions_removed": sorted(yours_p - new_p),
+            "user_edited": bool(_db.get_cached_food(conn, local_id)["user_edited"])
+                           if _db.get_cached_food(conn, local_id) else False}
+
+
+def _unstarred(name: str) -> str:
+    return re.sub(r"^\*\s*", "", name or "")
+
+
+def _recipe_differences(conn, recipe: dict, rid: int) -> dict:
+    """What apply_improvements() would change in the user's copy of `recipe`
+    (it rewrites name, description, servings, instructions and ingredients)."""
+    mine_now = _recipe_state(conn, rid) or {}
+    new = _bundled_recipe_state(recipe)
+    fields = []
+    for field, label in (("name", "Name"), ("servings", "Servings")):
+        if _fmt(mine_now.get(field)) != _fmt(new.get(field)):
+            fields.append(f"{label}: {_fmt(mine_now.get(field))} → {_fmt(new.get(field))}")
+    for field, label in (("description", "Description"), ("instructions", "Instructions")):
+        if (mine_now.get(field) or "").strip() != (new.get(field) or "").strip():
+            fields.append(f"{label} rewritten")
+
+    # Matched on the name without the "* " starter prefix, which the export
+    # adds to every starter item: "* SALT" in the set is the user's "SALT".
+    def _by_name(ings):
+        return {_unstarred(i[0]).lower(): (i[0], float(i[1] or 0), i[2]) for i in ings}
+    yours_i, new_i = _by_name(mine_now.get("ingredients") or []), _by_name(new.get("ingredients") or [])
+    added = [f"{new_i[k][0]}: {_amount_text(*new_i[k][1:])}" for k in new_i if k not in yours_i]
+    removed = [f"{yours_i[k][0]}: {_amount_text(*yours_i[k][1:])}" for k in yours_i if k not in new_i]
+    changed = [f"{new_i[k][0]}: {_amount_text(*yours_i[k][1:])} → {_amount_text(*new_i[k][1:])}"
+               for k in new_i if k in yours_i and (abs(yours_i[k][1] - new_i[k][1]) > 1e-6
+                                                   or (yours_i[k][2] or "") != (new_i[k][2] or ""))]
+    return {"fields": fields, "added": added, "removed": removed, "changed": changed}
+
+
+def change_details(conn, changes: dict) -> dict:
+    """For each item pending_changes() lists, what taking it would mean —
+    so Settings can show why an item is offered, not just that it is.
+    {"foods": {starter_id: {...}}, "recipes": {name: {...}}}:
+      improved food   {"rows": [{"what", "yours", "new", "mine"}], "portions_added",
+                       "portions_removed", "user_edited"} — `mine` marks a value the
+                       user edited, which updating would replace
+      improved recipe {"fields", "added", "removed", "changed"} (ingredient lines)
+      new food        {"summary": "SR Legacy · 340 kcal, 24 g protein per 100 g · amino acids"}
+      new recipe      {"ingredients": ["name: amount", ...]}
+    An improved item showing no differences differs from the user's copy only
+    in ways updating doesn't touch."""
+    labels = _nutrient_labels()
+    by_id = {f["fdc_id"]: f for f in DEMO_FOODS}
+    by_name = {r["name"]: r for r in DEMO_RECIPES}
+    food_ids, rid_by_name = _food_locations(conn), _recipe_locations(conn)
+    out: dict = {"foods": {}, "recipes": {}}
+    for f in changes.get("improved_foods", []):
+        food, local = by_id.get(f["fdc_id"]), food_ids.get(f["fdc_id"])
+        if food is not None and local is not None:
+            out["foods"][f["fdc_id"]] = _food_differences(conn, food, local, labels)
+    for f in changes.get("new_foods", []):
+        food = by_id.get(f["fdc_id"])
+        if food is None:
+            continue
+        n = food.get("nutrients") or {}
+        bits = [food.get("data_type") or ""]
+        macro = ", ".join(x for x in (
+            f"{_fmt(float(n['calories']))} kcal" if n.get("calories") is not None else "",
+            f"{_fmt(float(n['protein_g']))} g protein" if n.get("protein_g") is not None else "") if x)
+        if macro:
+            bits.append(f"{macro} per 100 g")
+        if sum(1 for k, v in n.items() if k.startswith("aa_") and v) >= 5:
+            bits.append("amino acids")
+        out["foods"][f["fdc_id"]] = {"summary": " · ".join(b for b in bits if b)}
+    for name in changes.get("improved_recipes", []):
+        recipe, rid = by_name.get(name), rid_by_name.get(name)
+        if recipe is not None and rid is not None:
+            out["recipes"][name] = _recipe_differences(conn, recipe, rid)
+    for name in changes.get("new_recipes", []):
+        recipe = by_name.get(name)
+        if recipe is not None:
+            out["recipes"][name] = {"ingredients": [
+                f"{n}: {_amount_text(a, u)}" for n, a, u, _k in (_ingredient_parts(i) for i in recipe["ingredients"])]}
+    return out
 
 
 def preview_changes(conn, release_manifest: dict | None) -> dict | None:

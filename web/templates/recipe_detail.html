@@ -6,6 +6,7 @@
 {% import "_dcp_footnote.html" as _dcp_note %}
 {% import "_top_contributors.html" as _contrib %}
 {% import "_serving_note.html" as _sn %}
+{% import "_generic_density.html" as _gd with context %}
 {% import "_calorie_note.html" as _cal %}
 {% block title %}NutriMagnus — {{ recipe.name }}{% endblock %}
 
@@ -295,7 +296,7 @@
           {% else %}
             {# What you typed ("2 T") beside the grams NuMa calculates with; the
                portion-derived hint only when the entry was grams alone. #}
-            {{ ing.amount | round(1) }}&thinsp;g{% if ing.typed_note %} <span class="muted">({{ ing.typed_note }})</span>{% elif ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}
+            {{ ing.amount | round(1) }}&thinsp;g{% if ing.typed_note %} <span class="muted">({{ ing.typed_note }})</span>{% elif ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}{{ _gd.mark(ing) }}
           {% endif %}
         </td>
         <td>
@@ -330,6 +331,7 @@
       {% endfor %}
     </tbody>
   </table>
+  {{ _gd.footnote(ingredients) }}
 </section>
 {% else %}
 <p class="muted">No ingredients yet. <a href="/recipe/{{ recipe.id }}/edit">Add ingredients.</a></p>

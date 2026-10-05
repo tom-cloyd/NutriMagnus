@@ -512,19 +512,6 @@
       ]
     },
     {
-      "fdc_id": 748608,
-      "name": "* Oil, olive, extra virgin",
-      "data_type": "Foundation",
-      "nutrients": {
-        "saturated_fat_g": 15.4,
-        "mono_fat_g": 69.2,
-        "poly_fat_g": 9.07,
-        "omega3_ala_mg": 651.0,
-        "beta_sitosterol_mg": 1.02
-      },
-      "portions": null
-    },
-    {
       "fdc_id": 748967,
       "name": "* Eggs, Grade A, Large, egg whole",
       "data_type": "Foundation",
@@ -718,7 +705,8 @@
         "aa_phenylalanine_g": 1.198,
         "aa_tyrosine_g": 0.63,
         "aa_valine_g": 0.916,
-        "aa_histidine_g": 0.548
+        "aa_histidine_g": 0.548,
+        "calories": 583.6
       },
       "portions": null
     },
@@ -754,7 +742,8 @@
         "aa_phenylalanine_g": 0.6067,
         "aa_tyrosine_g": 0.43,
         "aa_valine_g": 0.5967,
-        "aa_histidine_g": 0.3433
+        "aa_histidine_g": 0.3433,
+        "calories": 678.7
       },
       "portions": [
         {
@@ -848,6 +837,20 @@
           "gram_weight": 32.0
         }
       ]
+    },
+    {
+      "fdc_id": 748608,
+      "name": "* Oil, olive, extra virgin",
+      "data_type": "Foundation",
+      "nutrients": {
+        "saturated_fat_g": 15.4,
+        "mono_fat_g": 69.2,
+        "poly_fat_g": 9.07,
+        "omega3_ala_mg": 651.0,
+        "beta_sitosterol_mg": 1.02,
+        "omega6_la_mg": 8400.0
+      },
+      "portions": null
     },
     {
       "fdc_id": 170411,
@@ -1114,7 +1117,12 @@
         "phosphorus_mg": 481.0,
         "iron_mg": 3.7
       },
-      "portions": null
+      "portions": [
+        {
+          "description": "1 cup",
+          "gram_weight": 120.0
+        }
+      ]
     },
     {
       "fdc_id": 172803,
@@ -1940,9 +1948,9 @@
       "instructions": "1. Chop and saute onions in oil, in 12\" skillet; set aside.2. Place half of bean in food processor, with jalopeno peppers, and all other ingredients except the salsa and the garlic. You may optionally hold out the chopped cilantro. Add enough of the bean cooking water to be able to process the mix until fairly smooth. Pour into skillet.3. Process the rest of the beans and half the salsa until no more than coarsely chopped. Place into skillet with rest of salsa.4. Bring quickly to a simmer. Simmer, occasional stirring for 10-15 minutes.5. Approximately 10 cups will result. Freeze some, refrigerate the rest.",
       "ingredients": [
         [
-          "* Beans, pinto, mature seeds, cooked, boiled, with salt",
-          72.163,
-          "1/4 c (72 gr)",
+          "* Oil, olive, extra virgin",
+          54.46,
+          "4 T",
           "food"
         ],
         [

@@ -1,0 +1,15 @@
+{# "≈ generic" mark and footnote for amounts whose grams came from NuMa's
+   generic density table (portions.generic_density_kind(): entered as a
+   volume, and the food has no cup/spoon/ml portion of its own). `ing` needs
+   fdc_id and generic_density ("typed" / "bracketed" / None), set by
+   web/backend.py's _mark_generic_density(). #}
+{% macro mark(ing) %}{% if ing.generic_density %} <a href="/food/cache/{{ ing.fdc_id }}/portions" class="badge text-bg-light border text-decoration-none fw-normal" title="Converted with a generic density for this kind of food{% if ing.generic_density == 'bracketed' %} (most likely, unless you weighed it){% endif %}. Click to add this food's real cup or spoon weight.">&asymp; generic*</a>{% endif %}{% endmacro %}
+
+{% macro footnote(ingredients) %}{% set marked = ingredients|selectattr("generic_density")|list %}{% if marked %}
+<p class="muted small mt-1" style="max-width:48rem">* <strong>&asymp; generic</strong>: entered as a volume, and this food has no cup or
+spoon weight of its own, so NuMa converted it with a generic density for this kind of food. For an accurate figure, measure the
+food&rsquo;s actual cup or spoon weight and add it on its Portions page (click the mark); NuMa then offers to correct these amounts.
+{% if marked|selectattr("generic_density", "equalto", "bracketed")|list %}An amount with a weight in brackets (&ldquo;2 T (14.7 gr)&rdquo;) was most likely
+converted the same way by an older NuMa, unless you weighed it.{% endif %}
+{{ manual_link("generic-density") }}</p>
+{% endif %}{% endmacro %}

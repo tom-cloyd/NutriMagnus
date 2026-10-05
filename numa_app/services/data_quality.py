@@ -12,7 +12,15 @@ read from here, so they can't drift apart. The checks themselves:
   volume or portion ("1/3 c", "2 T", "p1") whose stored grams no longer match
   what that entry works out to now — the food's portions changed, or NuMa's
   conversion did, after the amount was entered. Grams are fixed when an
-  amount is entered, so nothing else ever notices.
+  amount is entered, so nothing else ever notices. With include_bracketed,
+  also volume amounts carrying a gram figure in brackets ("1/3 c (42 gr)"),
+  which older versions wrote themselves (offered unticked, since the figure
+  may equally be one the user weighed). An amount the user chose to "Keep as
+  entered" (db.amount_keeps) is left out while its grams stay as kept.
+- generic_density_in_use(): foods whose volume amounts (in recipes or meals)
+  were converted with the generic density table, because the food has no
+  cup/spoon portion of its own — measuring one makes those amounts exact.
+  An improvement, not an error: no reminder keys.
 - old_usda_copies(): USDA foods not refreshed in over a year (USDA revises
   records; a Refresh shows what changed).
 - missing_aa_in_use() / missing_portions_in_use(): foods you actually use
@@ -37,7 +45,7 @@ from datetime import datetime, timedelta, timezone
 import db as _db
 from numa_app.services import data_completeness as _completeness
 from numa_app.services import energy_check as _energy
-from numa_app.services.portions import _parse_portion_input
+from numa_app.services.portions import _parse_portion_input, generic_density_kind
 
 # Per 100 g, protein + carbs + fat can't exceed 100 g; a little slack for
 # rounding in published figures (pure oils list 100 g fat, sugar 100 g carbs).
@@ -124,11 +132,33 @@ def _has_explicit_weight(unit: str) -> bool:
     return bool(re.search(r"\d\s*(?:g|gr|grams?|oz|ounces?|lbs?|pounds?|kg)\b", unit, re.IGNORECASE))
 
 
-def stale_amounts(conn) -> list[dict]:
+_BRACKETED_GRAMS_RE = re.compile(r"\(\s*[≈~]?\s*\d[\d.,/]*\s*(?:g|gr|grams?)\.?\s*\)", re.IGNORECASE)
+
+
+def _bracketed_volume(unit: str) -> str | None:
+    """"1/3 c (42 gr)" -> "1/3 c": a volume or portion with a gram figure in
+    brackets after it, the form older versions of NuMa stored. None for
+    anything else, including a weight typed on its own ("42 g") or inline
+    ("2 T 15 g")."""
+    if not _BRACKETED_GRAMS_RE.search(unit):
+        return None
+    rest = " ".join(_BRACKETED_GRAMS_RE.sub(" ", unit).split())
+    return rest if rest and not _has_explicit_weight(rest) else None
+
+
+def stale_amounts(conn, *, fdc_id: int | None = None, include_bracketed: bool = False,
+                  include_kept: bool = False) -> list[dict]:
     """Recipe ingredients and logged meal foods whose stored grams no longer
-    match what their typed volume/portion works out to now.
+    match what their typed volume/portion works out to now — for one food
+    only if `fdc_id` is given.
     [{"where": "recipe"|"meal", "item_id", "owner_id", "owner_label",
-      "fdc_id", "food_name", "typed", "stored_g", "now_g"}]"""
+      "fdc_id", "food_name", "typed", "stored_g", "now_g", "bracketed", "unit_after"}]
+    "bracketed" rows (only with include_bracketed) are volumes stored with a
+    gram figure in brackets; "unit_after" is the unit text to store on update
+    (the bracketed figure dropped, since it would no longer be right).
+    "kept" rows — the user chose "Keep as entered" and the grams haven't
+    changed since (db.amount_keeps()) — are left out unless include_kept."""
+    keeps = _db.amount_keeps(conn)
     foods = {r["fdc_id"]: r for r in conn.execute(
         "SELECT fdc_id, name, portions_json FROM foods")}
     rows = []
@@ -136,33 +166,84 @@ def stale_amounts(conn) -> list[dict]:
         ("recipe", conn.execute(
             "SELECT ri.id AS item_id, ri.recipe_id AS owner_id, r.name AS owner_label, ri.fdc_id, "
             "ri.food_name, ri.amount, ri.unit FROM recipe_ingredients ri JOIN recipes r ON r.id = ri.recipe_id "
-            "WHERE ri.ref_recipe_id IS NULL AND ri.fdc_id IS NOT NULL").fetchall()),
+            "WHERE ri.ref_recipe_id IS NULL AND ri.fdc_id IS NOT NULL" + (" AND ri.fdc_id = ?" if fdc_id is not None else ""),
+            (fdc_id,) if fdc_id is not None else ()).fetchall()),
         ("meal", conn.execute(
             "SELECT mi.id AS item_id, mi.meal_id AS owner_id, m.meal_date || ' ' || m.name AS owner_label, "
             "mi.fdc_id, mi.food_name, mi.amount, mi.unit FROM meal_items mi JOIN meals m ON m.id = mi.meal_id "
-            "WHERE mi.item_type = 'food' AND mi.fdc_id IS NOT NULL").fetchall()),
+            "WHERE mi.item_type = 'food' AND mi.fdc_id IS NOT NULL" + (" AND mi.fdc_id = ?" if fdc_id is not None else ""),
+            (fdc_id,) if fdc_id is not None else ()).fetchall()),
     ]
     for where, items in sources:
         for it in items:
             food = foods.get(it["fdc_id"])
             unit = (it["unit"] or "").strip()
-            if not food or not unit or not it["amount"] or _has_explicit_weight(unit):
+            if not food or not unit or not it["amount"]:
                 continue
+            unit_after = unit
+            bracketed = False
+            if _has_explicit_weight(unit):
+                volume = _bracketed_volume(unit) if include_bracketed else None
+                if volume is None:
+                    continue
+                unit_after, bracketed = volume, True
             try:
                 portions = json.loads(food["portions_json"] or "[]") or []
             except (ValueError, TypeError):
                 portions = []
-            parsed = _parse_portion_input(unit, portions, food["name"])
+            parsed = _parse_portion_input(unit_after, portions, food["name"])
             if not parsed or not parsed[0]:
                 continue
             stored, now = float(it["amount"]), float(parsed[0])
             if abs(now - stored) >= max(_STALE_MIN_G, stored * _STALE_FRACTION):
+                kept_g = keeps.get((where, it["item_id"]))
+                kept = kept_g is not None and abs(kept_g - stored) < 0.005
+                if kept and not include_kept:
+                    continue
                 rows.append({"where": where, "item_id": it["item_id"], "owner_id": it["owner_id"],
                              "owner_label": it["owner_label"], "fdc_id": it["fdc_id"],
                              "food_name": it["food_name"], "typed": unit,
-                             "stored_g": stored, "now_g": now})
+                             "stored_g": stored, "now_g": now,
+                             "bracketed": bracketed, "unit_after": unit_after, "kept": kept})
     rows.sort(key=lambda r: (r["where"], r["owner_label"].lower(), r["food_name"].lower()))
     return rows
+
+
+def generic_density_in_use(conn) -> list[dict]:
+    """Foods with volume amounts converted by the generic density table
+    (portions.generic_density_kind()), most-used first:
+    [{"fdc_id", "name", "uses_count", "uses": [{"where", "owner_id", "owner_label", "typed", "grams", "bracketed"}]}]"""
+    foods = {r["fdc_id"]: r for r in conn.execute("SELECT fdc_id, name, portions_json FROM foods")}
+    by_food: dict[int, dict] = {}
+    sources = [
+        ("recipe", "SELECT ri.recipe_id AS owner_id, r.name AS owner_label, ri.fdc_id, ri.unit, ri.amount "
+                   "FROM recipe_ingredients ri JOIN recipes r ON r.id = ri.recipe_id "
+                   "WHERE ri.ref_recipe_id IS NULL AND ri.fdc_id IS NOT NULL"),
+        ("meal", "SELECT mi.meal_id AS owner_id, m.meal_date || ' ' || m.name AS owner_label, mi.fdc_id, mi.unit, "
+                 "mi.amount FROM meal_items mi JOIN meals m ON m.id = mi.meal_id "
+                 "WHERE mi.item_type = 'food' AND mi.fdc_id IS NOT NULL"),
+    ]
+    portions_cache: dict[int, list] = {}
+    for where, sql in sources:
+        for it in conn.execute(sql):
+            food = foods.get(it["fdc_id"])
+            if food is None:
+                continue
+            if it["fdc_id"] not in portions_cache:
+                try:
+                    portions_cache[it["fdc_id"]] = json.loads(food["portions_json"] or "[]") or []
+                except (ValueError, TypeError):
+                    portions_cache[it["fdc_id"]] = []
+            kind = generic_density_kind(it["unit"], portions_cache[it["fdc_id"]], food["name"])
+            if kind is None:
+                continue
+            entry = by_food.setdefault(it["fdc_id"], {"fdc_id": it["fdc_id"], "name": food["name"], "uses": []})
+            entry["uses"].append({"where": where, "owner_id": it["owner_id"], "owner_label": it["owner_label"],
+                                  "typed": it["unit"], "grams": it["amount"],
+                                  "bracketed": kind == "bracketed"})
+    for entry in by_food.values():
+        entry["uses_count"] = len(entry["uses"])
+    return sorted(by_food.values(), key=lambda f: (-f["uses_count"], f["name"].lower()))
 
 
 def _is_usda_food(row) -> bool:
@@ -212,7 +293,7 @@ def scan(conn) -> dict:
         if active:
             gaps.append({"fdc_id": row["fdc_id"], "name": row["name"], "groups": active})
             keys |= {f"gap:{row['fdc_id']}:{g}" for g in active}
-    stale = stale_amounts(conn)
+    stale = stale_amounts(conn, include_bracketed=True)
     keys |= {f"stale:{s['where']}:{s['item_id']}" for s in stale}
     integrity = _db.check_db_integrity(conn)
     for cat, items in integrity.items():

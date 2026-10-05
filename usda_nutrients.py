@@ -1549,9 +1549,23 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
 ]
 
 
+# Volume portions measured in a state other than the plain food: get_density_g_per_ml()
+# falls back to these only. Word-bounded, so "unsifted" / "unpacked" count as plain.
+_QUALIFIED_VOLUME_RE = re.compile(r"\b(?:whipped|packed|heaping|sifted)\b")
+
+
 def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
+    """Estimate g/ml density for a food — see density_with_source()."""
+    return density_with_source(food_name, portions)[0]
+
+
+def density_with_source(food_name: str, portions: list[dict]) -> tuple[float | None, str | None]:
     """
-    Estimate g/ml density for a food.
+    Estimate g/ml density for a food, and say where it came from:
+    (density, "portion") from one of the food's own volume portions,
+    (density, "table") from the generic keyword table, or (None, None).
+    A "table" density is a guess for that kind of food, which pages mark on
+    every amount converted with it (portions.uses_generic_density()).
 
     1. The food's own portions first — a cup/tablespoon/teaspoon entry that
        yields a plausible density (0.15–1.6 g/ml). Those are facts about
@@ -1559,8 +1573,15 @@ def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
        editor); the static table used to win, so a 99 g cup the user had
        just saved for an okara flour lost to the generic "flour" 0.53 g/ml
        and "1/3 c" came out 41.8 g instead of 33 g.
+       A portion qualified as whipped, packed, heaping or sifted ("cup,
+       whipped") is used only when no plain one gives a density: heavy
+       cream's first cup portion is "cup, whipped" (120 g), so "3/4 c" of
+       the liquid came out 90 g instead of 179 g from "cup, fluid".
+       Bracketed asides are ignored for this ("cup, fluid (yields 2 cups
+       whipped)" is plain).
+       Millilitre portions count too ("100 milliliter" = 90.7 g, olive oil).
     2. Static keyword table when the food has no usable volume portion.
-    3. Returns None if density cannot be determined.
+    3. (None, None) if density cannot be determined.
     """
     # The food's own portions first
     _VOL_ANCHORS = [
@@ -1571,6 +1592,8 @@ def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
         ("teaspoon",     4.9),
         ("tsp",          4.9),
         ("fl oz",       29.6),
+        ("milliliter",   1.0),
+        ("millilitre",   1.0),
     ]
     # Case-sensitive abbreviations expanded before lowercasing (T=tablespoon, t=teaspoon, c=cup)
     _ABBREV = [
@@ -1578,7 +1601,13 @@ def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
         (r"\bt\b", "teaspoon"),
         (r"\bc\b", "cup"),
     ]
-    for p in (portions or []):
+    def _qualified(p: dict) -> bool:
+        plain = re.sub(r"\([^)]*\)", " ", p.get("description") or "").lower()
+        return bool(_QUALIFIED_VOLUME_RE.search(plain))
+
+    ordered = [p for p in (portions or []) if not _qualified(p)]
+    ordered += [p for p in (portions or []) if _qualified(p)]
+    for p in ordered:
         raw = p["description"]
         for pat, word in _ABBREV:
             raw = re.sub(pat, word, raw)
@@ -1593,17 +1622,20 @@ def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
         else:
             m2 = re.match(r'^(\d+(?:\.\d+)?)', desc.strip())
             count = float(m2.group(1)) if m2 else 1.0
-        for vol_word, ml_val in _VOL_ANCHORS:
+        anchors = list(_VOL_ANCHORS)
+        if re.search(r"\bml\b", desc):
+            anchors.append(("ml", 1.0))
+        for vol_word, ml_val in anchors:
             if vol_word in desc:
                 density = gw / (count * ml_val)
                 if 0.15 <= density <= 1.6:
-                    return density
+                    return density, "portion"
 
 
     # Static table when the food's portions don't settle it
     name = food_name.lower()
     for keywords, density in _DENSITY_TABLE:
         if any(kw in name for kw in keywords):
-            return density
+            return density, "table"
 
-    return None
+    return None, None

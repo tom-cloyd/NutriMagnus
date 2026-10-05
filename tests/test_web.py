@@ -2959,6 +2959,10 @@ def _starter_v1_then_v2(monkeypatch: pytest.MonkeyPatch, db_conn) -> None:
     """Simulate running one version, then updating to a newer one whose
     starter set improves food 1 and adds food 2 and a recipe."""
     from numa_app.services import demo_data as _dd
+    import web.backend as _backend_mod
+    # The notice is for users of the packaged program; from source (the
+    # curator) it's recorded silently — see backend._is_curator().
+    monkeypatch.setattr(_backend_mod, "_is_curator", lambda: False)
 
     def _f(fdc_id, name, protein=9.0):
         return {"fdc_id": fdc_id, "name": name, "data_type": "SR Legacy", "portions": [],
@@ -2992,6 +2996,31 @@ def test_home_notice_for_new_starter_items_until_acknowledged(
     settings = client.get("/settings").text
     assert "Improved in this version of NuMa" in settings
     assert "(new in this version)" in settings
+
+
+def test_settings_shows_what_each_starter_change_would_do(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, db_conn,
+) -> None:
+    _starter_v1_then_v2(monkeypatch, db_conn)
+    settings = client.get("/settings").text
+    box = settings.split('id="starter-data-improved"')[1].split("</form>")[0]
+    assert "Updating would change your copy like this" in box
+    assert "Protein per 100 g</td><td>9 g</td><td>14 g</td>" in box
+    assert "SR Legacy · 100 kcal, 9 g protein per 100 g" in settings          # the new food
+    assert "Ingredients: * New Lentils: 100 g" in settings
+
+
+def test_curator_gets_no_starter_notice_and_pending_changes_are_dropped(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, db_conn,
+) -> None:
+    import web.backend as _backend_mod
+    from numa_app.services import demo_data as _dd
+    _starter_v1_then_v2(monkeypatch, db_conn)
+    monkeypatch.setattr(_backend_mod, "_is_curator", lambda: True)
+    assert "NEW STARTER ITEMS:" not in client.get("/").text
+    assert "Improved in this version of NuMa" not in client.get("/settings").text
+    state = _dd.record_version_changes()
+    assert state["acknowledged"] and not any(state["changes"].values())
 
 
 def test_settings_updates_an_improved_starter_food(
@@ -4725,7 +4754,7 @@ def test_nutrient_plot_clear_nutrients_button_and_gap_note(client: TestClient) -
     text = r.text
     assert 'id="clear-nutrient-checkmarks"' in text
     assert "Clear all nutrient checkmarks" in text
-    assert "a day with no meal logged at all is simply skipped" in text
+    assert "A day with no meal logged at all shows as a break in the line" in text
 
 
 def test_nutrient_plot_scale_factor_auto_link(client: TestClient, cached_food) -> None:
@@ -4811,14 +4840,92 @@ def test_home_page_plot_notes_rolling_to_complete_day(client: TestClient, cached
     # Without rolling -> no caveat note.
     client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
     r_no_rolling = client.get("/")
-    assert "only extends through the most recent day" not in r_no_rolling.text
+    assert "ends on the most recent day whose meals" not in r_no_rolling.text
 
     # With rolling -> caveat note appears, linking to Meals & Log.
     client.post("/summary/nutrient-plot/home-pref",
                 data={"qs": qs, "enabled": "1", "rolling": "1"}, follow_redirects=False)
     r_rolling = client.get("/")
-    assert "only extends through the most recent day" in r_rolling.text
+    assert "ends on the most recent day whose meals" in r_rolling.text
     assert 'href="/meals"' in r_rolling.text
+    # Full page width, like the plot above it.
+    assert 'style="width:88%;max-width:88%"><small>This plot ends on' in r_rolling.text
+
+
+def test_smoothing_note_under_home_and_plot_page(client: TestClient, cached_food) -> None:
+    """Both pages that show the plot say how it was smoothed. With no meals
+    logged before the plot's first day there's nothing to borrow, so the note
+    says the start is less smoothed; nothing at all with smoothing off."""
+    import html
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    client.post(f"/meal/{meal_id}/complete")   # only complete days are plotted
+
+    page = client.get("/summary/nutrient-plot?nutrients=protein_g&smoothing=7").text
+    assert "How this plot is smoothed" in page and "the 6 logged days before it" in page
+    assert "no meals are logged before the plot&rsquo;s first day" in page and "first day plotted is" in page
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', page).group(1))
+    client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
+    home = client.get("/").text
+    assert "How this plot is smoothed" in home and "(7-day smoothing)" in home
+
+    page = client.get("/summary/nutrient-plot?nutrients=protein_g&smoothing=0").text
+    assert "How this plot is smoothed" not in page
+
+
+def test_smoothing_borrows_logged_days_before_the_plot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The first plotted points are averaged with logged days from before the
+    plot's start (read, not drawn), so they're smoothed like the rest; when
+    too few earlier days exist, `short` says how many points fall short."""
+    logged = ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05"]
+    values = {d: float(i + 1) for i, d in enumerate(logged)}       # 1, 2, 3, 4, 5
+    monkeypatch.setattr(backend._db, "meal_dates_with_bcp",
+                        lambda conn, limit=0: [{"meal_date": d, "day_bcp": None} for d in logged])
+    monkeypatch.setattr(backend._db, "meal_dates_with_incomplete", lambda conn: set())
+    monkeypatch.setattr(backend, "_nutrient_plot_raw_series",
+                        lambda conn, chosen, dates, hk: [{"key": "protein_g", "x": dates,
+                                                          "y": [values[d] for d in dates]}])
+    series, info = backend._smoothed_plot_series(None, ["protein_g"], logged[3:], None, 3)
+    assert series[0]["x"] == logged[3:]
+    assert series[0]["y"] == [pytest.approx(3.0), pytest.approx(4.0)]   # (2+3+4)/3, (3+4+5)/3
+    assert {k: info[k] for k in ("window", "lead_days", "lead_from", "short")} == \
+        {"window": 3, "lead_days": 2, "lead_from": "2026-09-02", "short": 0}
+
+    series, info = backend._smoothed_plot_series(None, ["protein_g"], logged[1:], None, 4)
+    assert series[0]["y"][0] == pytest.approx(1.5)                       # only one earlier day: (1+2)/2
+    assert {k: info[k] for k in ("window", "lead_days", "lead_from", "short")} == \
+        {"window": 4, "lead_days": 1, "lead_from": "2026-09-01", "short": 2}
+
+
+def test_plot_breaks_at_missing_days_and_smooths_over_available_ones(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every calendar day in the span is on the axis; a day with nothing
+    logged, or (rolling mode) one with an incomplete meal, is nan — a break
+    in the line — and the trailing average uses the days that have data as
+    if the missing ones weren't there."""
+    import math
+    logged = ["2026-09-01", "2026-09-02", "2026-09-04", "2026-09-05"]   # 09-03: nothing logged
+    values = {"2026-09-01": 1.0, "2026-09-02": 2.0, "2026-09-04": 4.0, "2026-09-05": 99.0}
+    monkeypatch.setattr(backend._db, "meal_dates_with_bcp",
+                        lambda conn, limit=0: [{"meal_date": d, "day_bcp": None} for d in logged])
+    monkeypatch.setattr(backend._db, "meal_dates_with_incomplete", lambda conn: {"2026-09-05"})
+    monkeypatch.setattr(backend, "_nutrient_plot_raw_series",
+                        lambda conn, chosen, dates, hk: [{"key": "protein_g", "x": dates,
+                                                          "y": [values[d] for d in dates]}])
+    series, info = backend._smoothed_plot_series(None, ["protein_g"], logged, None, 2, rolling=True)
+    assert series[0]["x"] == ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04"]
+    y = series[0]["y"]
+    assert y[0] == pytest.approx(1.0) and y[1] == pytest.approx(1.5)
+    assert math.isnan(y[2])                                   # the break
+    assert y[3] == pytest.approx(3.0)                         # (2 + 4) / 2: the gap isn't counted
+    assert info["gap_days"] == 1 and info["skipped_incomplete"] == 1 and info["plotted_days"] == 3
+
+    # Without "always end on the last complete day", incomplete days are plotted.
+    series, info = backend._smoothed_plot_series(None, ["protein_g"], logged, None, 2, rolling=False)
+    assert series[0]["x"][-1] == "2026-09-05" and series[0]["y"][-1] == pytest.approx(51.5)   # (4 + 99) / 2
 
 
 def test_nutrient_plot_rolling_end_date(client: TestClient, cached_food) -> None:
@@ -4890,6 +4997,7 @@ def test_nutrient_plot_image_renders_goal_lines(client: TestClient, cached_food)
     client.post(f"/meal/{meal_id}/add",
                 data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
                 follow_redirects=False)
+    client.post(f"/meal/{meal_id}/complete")   # only complete days are plotted
 
     img = client.get("/summary/nutrient-plot/image?nutrients=dcp&nutrients=calories")
     assert img.status_code == 200
@@ -4911,10 +5019,32 @@ def test_nutrient_plot_image_renders_limit_lines(client: TestClient, cached_food
     client.post(f"/meal/{meal_id}/add",
                 data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
                 follow_redirects=False)
+    client.post(f"/meal/{meal_id}/complete")   # only complete days are plotted
 
     img = client.get("/summary/nutrient-plot/image?nutrients=vitamin_c_mg&nutrients=sodium_mg")
     assert img.status_code == 200
     assert img.headers["content-type"] == "image/png"
+
+
+def test_rolling_plot_with_only_incomplete_days_keeps_controls(client: TestClient, cached_food) -> None:
+    """Rolling mode leaves out days with an incomplete meal; when that's every
+    day, the page says so instead of drawing an empty plot, and keeps the
+    controls (so the mode can be switched off); the Home page explains too."""
+    import html
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": yesterday}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    r = client.get("/summary/nutrient-plot?nutrients=protein_g&days_back=30")
+    qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r.text).group(1))
+    r2 = client.post("/summary/nutrient-plot/home-pref",
+                     data={"qs": qs, "enabled": "1", "rolling": "1"}, follow_redirects=True)
+    assert "Nothing to plot yet" in r2.text and 'id="plot-img"' not in r2.text
+    assert 'id="home-plot-rolling"' in r2.text
+    home = client.get("/").text
+    assert "has nothing to show yet" in home and "/summary/nutrient-plot/image?" not in home
 
 
 def test_nutrient_plot_home_pref_rolling_with_trailing_params_stays_checked(client: TestClient, cached_food) -> None:
@@ -5433,6 +5563,7 @@ def test_nutrient_plot_legend_placement_round_trips(client: TestClient, cached_f
     client.post(f"/meal/{meal_id}/add",
                 data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
                 follow_redirects=False)
+    client.post(f"/meal/{meal_id}/complete")   # only complete days are plotted
 
     page = client.get("/summary/nutrient-plot?submitted=1&nutrients=calories")
     assert page.status_code == 200
