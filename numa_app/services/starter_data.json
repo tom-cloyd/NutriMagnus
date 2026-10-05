@@ -178,7 +178,7 @@
           "gram_weight": 150.0
         },
         {
-          "description": "rings",
+          "description": "10 rings",
           "gram_weight": 60.0
         },
         {
@@ -791,7 +791,7 @@
       "portions": [
         {
           "description": "1 cup",
-          "gram_weight": 42.0
+          "gram_weight": 56.0
         }
       ]
     },
@@ -850,7 +850,12 @@
         "beta_sitosterol_mg": 1.02,
         "omega6_la_mg": 8400.0
       },
-      "portions": null
+      "portions": [
+        {
+          "description": "100 milliliter",
+          "gram_weight": 90.7
+        }
+      ]
     },
     {
       "fdc_id": 170411,
@@ -901,7 +906,7 @@
       },
       "portions": [
         {
-          "description": "cup, chopped or diced",
+          "description": "0.5 cup, chopped or diced",
           "gram_weight": 105.0
         },
         {
@@ -948,7 +953,7 @@
       },
       "portions": [
         {
-          "description": "pepper",
+          "description": "1 pepper",
           "gram_weight": 14.0
         },
         {
@@ -1065,11 +1070,11 @@
       },
       "portions": [
         {
-          "description": "sprigs",
+          "description": "9 sprigs",
           "gram_weight": 20.0
         },
         {
-          "description": "cup",
+          "description": "0.25 cup",
           "gram_weight": 4.0
         }
       ]
@@ -1166,7 +1171,7 @@
       },
       "portions": [
         {
-          "description": "tsp",
+          "description": "0.5 tsp",
           "gram_weight": 2.3
         },
         {
@@ -1739,7 +1744,16 @@
         "sodium_mg": 1.0,
         "zinc_mg": 0.01
       },
-      "portions": null
+      "portions": [
+        {
+          "description": "1 teaspoon",
+          "gram_weight": 4.0
+        },
+        {
+          "description": "1 cup",
+          "gram_weight": 188.0
+        }
+      ]
     },
     {
       "fdc_id": 171320,
@@ -1943,7 +1957,7 @@
     {
       "uid": "04b6df71ff0e4304a9151c24b774ef68",
       "name": "* Refried beans, Tom's",
-      "description": "Far better than any that comes in a can! One serving = 295 g.",
+      "description": "Far better than any that come in a can! One serving = 295 g.",
       "servings": 8.25,
       "instructions": "1. Chop and saute onions in oil, in 12\" skillet; set aside.2. Place half of bean in food processor, with jalopeno peppers, and all other ingredients except the salsa and the garlic. You may optionally hold out the chopped cilantro. Add enough of the bean cooking water to be able to process the mix until fairly smooth. Pour into skillet.3. Process the rest of the beans and half the salsa until no more than coarsely chopped. Place into skillet with rest of salsa.4. Bring quickly to a simmer. Simmer, occasional stirring for 10-15 minutes.5. Approximately 10 cups will result. Freeze some, refrigerate the rest.",
       "ingredients": [
@@ -1967,8 +1981,8 @@
         ],
         [
           "* Peppers, jalapeno, raw",
-          0.0,
-          "\u2014",
+          28.0,
+          "2 \u00d7 1 pepper",
           "food"
         ],
         [
