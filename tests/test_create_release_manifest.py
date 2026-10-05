@@ -35,3 +35,21 @@ def test_broken_manual_links_stop_the_release_before_github(monkeypatch) -> None
     monkeypatch.setattr(create_release, "_api_request", _no_api)
     monkeypatch.setattr(create_release, "_write_starter_manifest", _no_api)
     assert create_release.main() == 1
+
+
+def test_release_notes_drop_html_comments_and_fit_github_limit() -> None:
+    """Scope blocks are hidden comments that still count toward GitHub's
+    125,000-character body limit; the 2026-10-05 release hit it."""
+    body = create_release._release_notes()
+    assert "<!--" not in body
+    assert len(body) <= create_release._BODY_LIMIT
+
+
+def test_oversized_notes_drop_oldest_dated_sections(monkeypatch) -> None:
+    monkeypatch.setattr(create_release, "_BODY_LIMIT", 400)
+    body = "#### Summary\n\n- a\n\n#### Oct 5 updates\n\n" + "x" * 50 \
+        + "\n\n#### Oct 4 updates\n\n" + "y" * 300
+    fitted = create_release._fit_body(body)
+    assert len(fitted) <= 400
+    assert "Oct 5 updates" in fitted and "Oct 4 updates" not in fitted
+    assert fitted.endswith(create_release._TRIMMED_NOTE)

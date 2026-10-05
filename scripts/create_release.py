@@ -70,6 +70,11 @@ _NEXT_SUMMARY_RE = re.compile(r'^#### Next release summary\b.*$')
 # Dated entry sections: "#### Sep 22 updates", "##### September 21 program updates".
 _DATED_SECTION_RE = re.compile(r'^#{4,5} .+ updates\s*$')
 _DETAILS_SUFFIX = " (dated details below)"
+# GitHub rejects a release body over 125,000 characters; leave some margin.
+_BODY_LIMIT = 120_000
+_TRIMMED_NOTE = ("*Older details were left out to fit GitHub's size limit. "
+                 "The full list is in the User Manual, Part 11, "
+                 "\"Recent program updates log\".*")
 _RELEASE_VERSION_RE = re.compile(r'^(RELEASE_VERSION = ")(.*?)(-(?:rc|beta|alpha)\.)(\d+)("\s*)$', re.M)
 
 # (asset name, file path, content type) — every release asset besides the notes.
@@ -141,7 +146,27 @@ def _release_notes() -> str:
         "#### Summary" if _NEXT_SUMMARY_RE.match(l.strip()) else l
         for l in lines[marker_idx + 1:end_idx]
     ]
-    return "\n".join(pending).strip() or "Automated build from main."
+    body = "\n".join(pending)
+    # Scope blocks are HTML comments: invisible on the release page, but
+    # GitHub counts them toward its body limit (they were over half of the
+    # 2026-10-05 notes, which GitHub rejected at 145k characters).
+    body = re.sub(r"<!--.*?-->\n?", "", body, flags=re.S)
+    body = re.sub(r"\n{3,}", "\n\n", body).strip()
+    return _fit_body(body) or "Automated build from main."
+
+
+def _fit_body(body: str) -> str:
+    """Keep the notes under GitHub's body limit by dropping the oldest dated
+    sections (they're newest-first, so the summary and recent details stay),
+    with a pointer to the full log in the manual."""
+    if len(body) <= _BODY_LIMIT:
+        return body
+    note = f"\n\n{_TRIMMED_NOTE}"
+    starts = [m.start() for m in re.finditer(r"^#{4,5} .+ updates\s*$", body, re.M)]
+    for cut in reversed(starts):
+        if cut + len(note) <= _BODY_LIMIT:
+            return body[:cut].rstrip() + note
+    return body[:_BODY_LIMIT - len(note)].rstrip() + note
 
 
 def _roll_release_summary(tag: str) -> bool:
