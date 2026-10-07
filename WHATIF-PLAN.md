@@ -118,6 +118,13 @@ change, the rest listed by name; DCP row under protein via the new pure
 `recipe_dcp.recipe_dcp_per_serving()`; parents listed with a "Show them too"
 link; cells show after + change, with a tick-box to show before. Change-row
 editor shared in `_whatif_changes.html`.
+Added later 2026-10-06 after review: Add per serving or per whole recipe
+(`Edit.per`); Average change column (mean of per-recipe % change over all
+reached recipes, recipes with a zero "before" left out); full-width layout.
+Both pages: Replace basis "factor" (a multiple of the old weight, 1.1 or
+110%); arrow keys in the name lists; clearer action labels.
+
+**Next session (2026-10-07):** user to finish checking Phases 1-3, then Phase 4.
 
 - Selection like Food use in recipes (all / created-date range / IDs); same edit list.
 - Output: the after (Δ) grid, cap 8; option to also list parent recipes the
