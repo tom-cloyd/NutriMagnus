@@ -1,0 +1,139 @@
+{# Shared "Replace" picker for the two Food Use pages' Substitute panels:
+   a tick-box column in the results table, a name search for the
+   replacement, and the script that ties them to the old_code/new_code boxes.
+   Docs: user-manual.md #fooduse-substitute #}
+
+{% macro fields(sub_id, sub_kind) %}
+<div>
+  <label class="form-label mb-0" for="old_code"><small>Replace this (code)</small></label>
+  <input type="text" class="form-control form-control-sm" name="old_code" id="old_code" placeholder="tick a row below" required style="max-width:9rem"
+         value="{% if sub_id %}{{ food_code(none, sub_id) if sub_kind == 'recipe' else food_code(sub_id) }}{% endif %}">
+</div>
+<div style="position:relative">
+  <label class="form-label mb-0" for="replacement-search"><small>Replace it with (type part of its name)</small></label>
+  <input type="search" class="form-control form-control-sm" id="replacement-search" autocomplete="off"
+         placeholder="e.g. lentils" style="width:22rem;max-width:100%">
+  <div id="replacement-results" class="list-group shadow-sm" role="listbox"
+       style="position:absolute;z-index:1000;width:30rem;max-width:90vw;max-height:20rem;overflow-y:auto"></div>
+</div>
+<div>
+  <label class="form-label mb-0" for="new_code"><small>Replacement (code)</small></label>
+  <input type="text" class="form-control form-control-sm" name="new_code" id="new_code" placeholder="e.g. R21" required style="max-width:9rem">
+</div>
+{% endmacro %}
+
+{# One table cell. direct_n: how many selected meals/recipes list this item
+   directly (the only places substitution reaches); where: "meal(s) it was
+   logged in directly" or similar; dash_title: why there's no tick-box. #}
+{% macro cell(r, checked, direct_n, where, dash_title) %}
+  <td class="text-center">
+    {% if direct_n and r.code and not r.deleted %}
+    <input class="form-check-input js-replace-pick" type="checkbox" value="{{ r.code }}" data-name="{{ r.name }}"
+           aria-label="Replace {{ r.name }}" {% if checked %}checked{% endif %}
+           title="Replace {{ r.name }} with another food or recipe, in the {{ direct_n }} {{ where }}">
+    {% else %}
+    <span class="muted" title="{% if r.deleted %}This recipe was deleted, so it can't be replaced here.{% else %}{{ dash_title }}{% endif %}">&ndash;</span>
+    {% endif %}
+  </td>
+{% endmacro %}
+
+{% macro script() %}
+<script>
+(function () {
+  var panel = document.getElementById('substitute-panel');
+  var oldCode = document.getElementById('old_code');
+  var newCode = document.getElementById('new_code');
+  var search = document.getElementById('replacement-search');
+  var results = document.getElementById('replacement-results');
+  var summary = document.querySelector('#replace-summary small');
+  var picks = Array.prototype.slice.call(document.querySelectorAll('.js-replace-pick'));
+  var oldName = '', newName = '';
+  if (!oldCode || !search) return;
+
+  function showSummary() {
+    if (oldName && newName) summary.textContent = 'Will replace “' + oldName + '” with “' + newName + '”.';
+    else if (oldName) summary.textContent = 'Replacing “' + oldName + '” — now choose its replacement.';
+    else summary.textContent = '';
+  }
+
+  picks.forEach(function (box) {
+    if (box.checked) oldName = box.dataset.name;
+    box.addEventListener('change', function () {
+      picks.forEach(function (other) { if (other !== box) other.checked = false; });
+      oldCode.value = box.checked ? box.value : '';
+      oldName = box.checked ? box.dataset.name : '';
+      showSummary();
+      if (box.checked) {
+        panel.open = true;
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        search.focus({ preventScroll: true });
+      }
+    });
+  });
+  oldCode.addEventListener('input', function () {
+    picks.forEach(function (b) { b.checked = b.value === oldCode.value.trim(); if (b.checked) oldName = b.dataset.name; });
+    if (!picks.some(function (b) { return b.checked; })) oldName = '';
+    showSummary();
+  });
+  newCode.addEventListener('input', function () { newName = ''; showSummary(); });
+
+  function choose(item) {
+    newCode.value = item.code;
+    newName = item.name;
+    search.value = item.name;
+    results.innerHTML = '';
+    showSummary();
+  }
+
+  var timer = null, seq = 0;
+  search.addEventListener('input', function () {
+    clearTimeout(timer);
+    var q = search.value.trim();
+    if (q.length < 2) { results.innerHTML = ''; return; }
+    timer = setTimeout(function () {
+      var mine = ++seq;
+      fetch('/analysis/food-use/replacement-search?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (mine !== seq) return;
+          results.innerHTML = '';
+          if (!data.results.length) {
+            var none = document.createElement('div');
+            none.className = 'list-group-item small muted';
+            none.textContent = 'Nothing in your Food Cache or Recipes matches. Try fewer letters, or add the food via Food Search first.';
+            results.appendChild(none);
+            return;
+          }
+          data.results.forEach(function (item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'list-group-item list-group-item-action small py-1';
+            btn.setAttribute('role', 'option');
+            var code = document.createElement('span');
+            code.className = 'muted me-2';
+            code.textContent = item.code;
+            btn.appendChild(code);
+            btn.appendChild(document.createTextNode(item.name));
+            if (item.detail) {
+              var det = document.createElement('span');
+              det.className = 'muted ms-2';
+              det.textContent = '(' + item.detail + ')';
+              btn.appendChild(det);
+            }
+            btn.addEventListener('click', function () { choose(item); });
+            results.appendChild(btn);
+          });
+        });
+    }, 200);
+  });
+  search.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') results.innerHTML = '';
+    if (e.key === 'Enter') { e.preventDefault(); var first = results.querySelector('button'); if (first) first.click(); }
+  });
+  document.addEventListener('click', function (e) {
+    if (!results.contains(e.target) && e.target !== search) results.innerHTML = '';
+  });
+  showSummary();
+})();
+</script>
+{% endmacro %}

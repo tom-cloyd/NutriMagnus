@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-05:0704* / Reading time: 7 hours, 17 minutes
+*Updated 2026-10-05:2206* / Reading time: 7 hours, 20 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -1684,7 +1684,7 @@ When you analyze a meal for the first time, you may see a "Fetching amino acid d
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 48 minutes)*
+*(Reading time: 49 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -1717,7 +1717,7 @@ The sections linked from analysis output are:
 - [Food search](#food-search) — [USDA](#gloss-usda) food search results columns
 - [Food use in meals](#fooduse) — food use in meals analysis table and histogram columns
 - [Food use in recipes](#fooduse-recipes) — food use in recipes analysis table
-- [Substituting a food or recipe](#fooduse-substitute) — bulk-replace one food/recipe with another
+- [Replace a food or recipe everywhere (substitute)](#fooduse-substitute) — bulk-replace one food/recipe with another
 - [Glossary](#glossary) — abbreviations and key terms
 - [Glycemic index](#gi) — glycemic index background
 - [Glycemic load](#gl) — glycemic load concept and formula
@@ -2192,8 +2192,8 @@ Meals, scoped to ingredients of the recipes currently selected — see
 [Substituting a Food or Recipe](#fooduse-substitute).
 
 
-#### Substituting (Replacing) a Food or Recipe {: #fooduse-substitute}
-Both Food Use in Meals and Food Use in Recipes have a **Substitute a food or
+#### Replace a Food or Recipe Everywhere (Substitute) {: #fooduse-substitute}
+To replace one food with another in your meals or recipes — everywhere it was used, in one step — both Food Use in Meals and Food Use in Recipes have a **Substitute a food or
 recipe** panel that bulk-replaces every occurrence of one food or recipe
 with another, restricted to whatever's currently selected on that page (the
 same date range(s) or [ID](#gloss-id) list you searched with).
@@ -2203,23 +2203,43 @@ if Food Cache or Custom Food Profiles refuses to delete a food because it's
 still used in a recipe or a meal, the "swap it for a different food" link in
 that message brings you here with those exact recipes/meals already
 selected and the food already filled in as the one to replace — you only
-need to supply the replacement's code.
+need to pick the replacement.
 
 This is the tool for the common situation where a rename — or re-adding a
 food from a search instead of reusing what was already in your cache — has
 left what looks like two different foods, when really it's one food you
-just want to consolidate under a single, newer entry. Fill in:
+just want to consolidate under a single, newer entry.
 
-    Replace this   The old item's code (U171477, UD4, R21, OFF3 ...).
-    With this      The replacement's code.
+On either Food Use page, after you've searched:
 
-The results table below the form shows what's *currently used* in this
-selection, not a list of foods you could replace with — it's there so you
-can confirm what you're about to change (the item you're replacing, if any,
-is marked "replacing this" in that table, with its code beside it). To find
-the code of the **replacement** item, look it up on [Food Search](#food-search)
-or the Recipes list (both open in a new tab from links right above the
-form) — each shows the code in its results.
+1. In the results table, tick the **Replace** box beside the food or recipe
+   you want to get rid of. Only one can be ticked at a time — ticking another
+   moves the tick. The Substitute panel opens and its "Replace this" box is
+   filled in for you.
+2. In **Replace it with**, type part of the replacement's name, then click it
+   in the list that drops down (or press **Enter** for the top one). The list
+   covers your Food Cache and your recipes. A line under the button reads
+   back what will be replaced with what.
+3. Click **Substitute everywhere in this selection** and confirm.
+
+A dash instead of a tick-box means the item can't be reached from this
+selection: on Food Use in Meals it was only eaten *inside* a recipe; on Food
+Use in Recipes it's only used inside a sub-recipe that isn't itself selected
+(add that sub-recipe to the selection, or use the "All recipes" choice). See
+below for why. A food you've never added to NuMa won't be in the list; add it
+through [Food Search](#food-search) first.
+
+If you'd rather type, the two code boxes take codes directly:
+
+    Replace this         The old item's code (U171477, UD4, R21, OFF3 ...).
+    With this /
+    Replacement (code)   The replacement's code.
+
+The results table shows what's *currently used* in the selection — the item
+you're replacing is marked "replacing this" when you arrive from a blocked
+deletion. To find a replacement's code by hand, look it up on
+[Food Search](#food-search) or the Recipes list (both open in a new tab from
+links right above the form) — each shows the code in its results.
 
 You can mix kinds — replace a food with a recipe or vice versa — since both
 meal items and recipe ingredients can point at either one. The amount and
@@ -2365,6 +2385,8 @@ Columns:
 Nested recipes ([ID](#gloss-id) = recipe) have their nutrients scaled automatically from their recorded serving count and total weight. Note that a nested recipe's Amount here is always a plain serving count, never a `pN` shortcut — see [Recipes: servings instead of `pN`](#portions-vs-servings) for why recipes and foods work differently here.
 
 **Unsaved recipe-details edits and adding an ingredient.** The Recipe details fields (name, servings, instructions, etc.) at the top of the Edit Recipe page save separately from the ingredient list — clicking "Add to recipe" doesn't normally touch them. If you've changed one of those fields without clicking "Save recipe details" yet and then add an ingredient, a warning appears: adding the ingredient will save those pending changes for you rather than silently discard them. Choose Cancel to go back and finish editing those fields first, or Continue to save them and add the ingredient in one step.
+
+**Adding a recipe as an ingredient, by servings or grams.**{: #subrecipe-amount} A recipe that turns up in the ingredient search can be added to the one you're editing like any food. Type how much in servings, or switch the box beside the amount to **grams**; NuMa turns grams into servings using that recipe's serving weight, shown in the row ("1 serving = 1 cup, 240 g"). The grams choice appears only for a recipe whose serving weight NuMa knows: it has a total weight entered, or every one of its ingredients has a weight. The ingredient is always saved as a number of servings, so that's what the ingredient list shows afterward.
 
 
 #### USDA Food Search Results {: #food-search}
@@ -2836,7 +2858,7 @@ The food's own **Portions page** shows the same list for that one food, right af
 
 ## Part 7 — Essential resources
 
-*(Reading time: 26 minutes)*
+*(Reading time: 27 minutes)*
 
 ---
 
@@ -3107,6 +3129,8 @@ University of Sydney. (n.d.). Glycemic Index Database. Retrieved August 2, 2026,
 Use the sidebar search box near the top of the table of contents.
 
 **By default it searches whole words, not phrases, and requires all of them for something to be considered a "hit".** Type `portion size` and NuMa looks for sections that contain *both* words somewhere — not necessarily next to each other, not in the order you typed them. This is different from typing a whole phrase and expecting an exact match: `edit portion` (as a phrase) will find nothing, because that exact wording never appears anywhere in the manual, even though the idea is covered extensively. If a search comes up empty, the fix is usually to drop a word, not add one — start with just the noun you care about (`portion`), see what comes back, then add a second word only if the list is too long to skim.
+
+**The best match is listed first.** A section ranks higher when your words appear in its heading, when they make up more of a short section than of a long one, and when the word is a rarer one — so in `replace food`, "replace" counts for more than "food", which appears almost everywhere.
 
 **Wrap your search in double quotes for an exact phrase instead.** Typing `"iron and zinc targets"` (quotes included) looks for that literal run of text instead of AND-ing separate words — useful when you're trying to relocate a specific sentence you remember reading, rather than explore a topic. Since it has to match verbatim, an exact-phrase search is more likely to come up empty than the default word search; if it does, drop the quotes and search the same words the normal way.
 
@@ -4363,7 +4387,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 27 minutes)*
+*(Reading time: 1 hour, 28 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4378,6 +4402,74 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Insert new updates below here -->
 
 #### Next release summary to this point (dated details below)
+
+- Food Use in Meals and in Recipes: replace a food by ticking its Replace box and searching for the replacement by name — no codes needed.
+- The manual's search now lists the best-matching section first, instead of the longest; "replace food" now finds how to replace a food everywhere.
+- A recipe added as an ingredient of another recipe can now be entered in grams as well as servings.
+
+#### October 5 updates
+
+**PROGRAM: REPLACE A FOOD BY TICKING IT AND SEARCHING FOR THE REPLACEMENT**
+
+On Food Use in Meals and Food Use in Recipes you can now replace a food or recipe without looking up any codes: tick the **Replace** box beside it in the table, then type part of the replacement's name and pick it from the list. [learn more...](#fooduse-substitute)
+
+<!--
+
+```
+Scope: Analysis -> Food Use in Meals / in Recipes (shared macros in
+web/templates/_replace_picker.html; analysis_food_use(_recipes).html; web/backend.py
+both GET routes + new GET /analysis/food-use/replacement-search, used by both).
+Replace column: one tick-box per row, single-select in JS, offered only where the
+row was logged directly on at least one selected meal (direct_meals, from
+meal_get_items) -- substitute_item_in_meals never reaches recipe ingredients, so
+ingredient-only rows get a dash with a tooltip instead. Ticking fills old_code,
+opens the panel and focuses the search. Type-ahead searches the Food Cache
+(search_cached_foods) plus recipe names, ranked by search_ranking.relevance_key,
+top 20; picking fills new_code. Code boxes still work for typing. On Recipes the
+tick-box needs direct_recipes > 0 (listed straight in a selected recipe's
+recipe_get_ingredients), since substitute_item_in_recipes only touches the
+selected recipes' own ingredient rows.
+```
+
+-->
+
+**PROGRAM: MANUAL SEARCH PUTS THE BEST MATCH FIRST**
+
+The manual's search box now lists the section that best matches your words at the top, rather than whichever long section happens to repeat them most often. A search for `replace food`, for example, now leads with how to replace a food everywhere it was used. [learn more...](#search-howto)
+
+<!--
+
+```
+Scope: user-manual.html sidebar search (scripts/build_manual.py JS scoreOf/idfWeights);
+user-manual.md #fooduse-substitute heading retitled "Replace a Food or Recipe Everywhere
+(Substitute)", index entry and #search-howto updated.
+Root cause: scoreOf summed raw occurrence counts plus a flat +5 per title hit, so the
+big updates-log sections (Release ... summary, Oct 4 updates) outranked everything on
+any common word; "replace food" put #fooduse-substitute 11th of 33. Now BM25-style:
+saturating term frequency normalised by section word count (avgdl ~400), per-word
+idf from section document frequency, title hit worth 3x idf. Same query ranks it 1st.
+```
+
+-->
+
+**PROGRAM: ADD A SUB-RECIPE BY GRAMS**
+
+When you add a recipe as an ingredient on the Edit Recipe page, you can now type the amount in grams instead of servings; NuMa works out the servings from that recipe's serving weight. [learn more...](#subrecipe-amount)
+
+<!--
+
+```
+Scope: Recipes -> Edit Recipe -> ingredient search, recipe rows. web/backend.py
+(recipe_edit search results now carry serving_grams; recipe_ingredient_add_recipe
+takes amount_unit="servings"|"g"), web/templates/recipe_edit.html (unit select,
+shown only when recipe_serving_grams() is known). Grams / serving weight = servings;
+stored as before ("N servings"), so nothing downstream changes. A grams entry
+for a recipe with no known serving weight is refused with an error, not guessed.
+```
+
+-->
+
+#### Release v2026-10-05-0748 summary (dated details below)
 
 - An amount entered as a portion ("2 p1"), shown as "2 × 1 large egg", can now be saved again from Edit Recipe without changing it; before, NuMa rejected its own wording.
 - A food added to a meal now keeps the amount you typed ("1/3 c") as well as its grams, so meal pages show both, the Edit box offers what you typed, and a later portion correction or "≈ generic" mark reaches meal amounts too.

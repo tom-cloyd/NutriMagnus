@@ -1929,7 +1929,7 @@ def test_food_cache_delete_blocked_offers_bulk_replace_link(client: TestClient, 
     )
     assert replace_resp.status_code == 200
     assert f'value="U{cached_food["fdcId"]}"' in replace_resp.text
-    assert "<details class=\"mb-3\" open>" in replace_resp.text
+    assert "<details class=\"mb-3\" id=\"substitute-panel\" open>" in replace_resp.text
 
     # Regression test: the usage table below the substitute form lists every
     # food/recipe currently used in the selection, including the one being
@@ -3389,6 +3389,39 @@ def test_food_use_recipes_shows_subrecipe_as_its_own_row(client: TestClient, cac
     assert cached_food["name"] in resp.text
 
 
+def test_add_subrecipe_ingredient_by_grams(client: TestClient, db_conn) -> None:
+    """A sub-recipe can be added to a recipe by grams: the amount is converted
+    to servings through the sub-recipe's serving weight (here 400 g total over
+    4 servings = 100 g/serving, entered in kg to exercise unit conversion).
+    With no known serving weight, a grams entry is refused, not guessed."""
+    def _new(name, servings, **extra):
+        return int(
+            client.post("/recipe/new", data={"name": name, "servings": servings, **extra},
+                        follow_redirects=False)
+            .headers["location"].split("/recipe/")[1].split("/")[0]
+        )
+    sub_id = _new("Peanut Sauce", 4, total_weight="0.4", total_weight_unit="kg")
+    bare_id = _new("Mystery Sauce", 2)
+    outer_id = _new("Noodle Bowl", 1)
+
+    resp = client.get(f"/recipe/{outer_id}/edit?q=sauce")
+    assert 'name="amount_unit"' in resp.text
+
+    client.post(f"/recipe/{outer_id}/ingredient/add-recipe",
+                data={"ref_recipe_id": sub_id, "servings": 150, "amount_unit": "g"},
+                follow_redirects=False)
+    resp = client.post(f"/recipe/{outer_id}/ingredient/add-recipe",
+                       data={"ref_recipe_id": bare_id, "servings": 50, "amount_unit": "g"},
+                       follow_redirects=False)
+    assert "error=" in resp.headers["location"]
+
+    ings = _db.recipe_get_ingredients(db_conn, outer_id)
+    assert len(ings) == 1
+    assert ings[0]["ref_recipe_id"] == sub_id
+    assert ings[0]["amount"] == pytest.approx(1.5)
+    assert ings[0]["unit"] == "1.5 servings"
+
+
 def test_substitute_food_in_meals(client: TestClient, cached_food: dict, db_conn) -> None:
     """Replacing a food across the currently-selected meals updates the
     meal_items rows in place (by ID, not by re-adding), including relabeling
@@ -3425,6 +3458,76 @@ def test_substitute_food_in_meals(client: TestClient, cached_food: dict, db_conn
     assert item["fdc_id"] == 999001
     assert item["food_name"] == "Natural Peanut Butter"
     assert item["amount"] == 150  # amount/unit carry over unchanged
+
+
+def test_food_use_replace_column_and_replacement_search(client: TestClient, cached_food: dict, db_conn) -> None:
+    """Food Use in Meals offers a Replace tick-box only on items logged
+    straight onto a meal (an ingredient eaten only inside a recipe can't be
+    substituted there), and the replacement type-ahead finds cached foods and
+    recipes by name, returning the codes the substitute form takes."""
+    _db.cache_food(
+        db_conn, fdc_id=999003, name="Natural Peanut Butter", data_type="Foundation",
+        brand=None, serving_size=100.0, serving_unit="g", nutrients={"calories": 588, "protein_g": 25},
+    )
+    db_conn.commit()
+    rid = int(
+        client.post("/recipe/new", data={"name": "Peanut Toast", "servings": "1"}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(f"/recipe/{rid}/ingredient/add",
+                data={"fdc_id": 999003, "food_name": "Natural Peanut Butter", "portion_str": "30 g"},
+                follow_redirects=False)
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-20"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    client.post(f"/meal/{meal_id}/add-recipe", data={"recipe_id": rid, "servings": "1"}, follow_redirects=False)
+
+    page = client.get("/analysis/food-use?mode=range&ranges_raw=2026-07-01:2026-07-31").text
+    assert f'class="form-check-input js-replace-pick" type="checkbox" value="U{cached_food["fdcId"]}"' in page
+    assert f'value="R{rid}"' in page
+    assert 'value="U999003"' not in page  # only eaten inside the recipe
+
+    hits = client.get("/analysis/food-use/replacement-search?q=peanut").json()["results"]
+    codes = [h["code"] for h in hits]
+    assert "U999003" in codes and f"R{rid}" in codes
+    assert client.get("/analysis/food-use/replacement-search?q=p").json()["results"] == []
+
+
+def test_food_use_recipes_replace_column(client: TestClient, cached_food: dict, db_conn) -> None:
+    """Food Use in Recipes offers Replace only on ingredients listed straight
+    in a selected recipe: a sub-recipe's own ingredient gets a dash when the
+    sub-recipe isn't itself selected, and a tick-box once it is."""
+    _db.cache_food(
+        db_conn, fdc_id=999004, name="Natural Peanut Butter", data_type="Foundation",
+        brand=None, serving_size=100.0, serving_unit="g", nutrients={"calories": 588, "protein_g": 25},
+    )
+    db_conn.commit()
+
+    def _new(name):
+        return int(client.post("/recipe/new", data={"name": name, "servings": "1"}, follow_redirects=False)
+                   .headers["location"].split("/recipe/")[1].split("/")[0])
+    inner, outer = _new("Peanut Sauce"), _new("Noodle Bowl")
+    client.post(f"/recipe/{inner}/ingredient/add",
+                data={"fdc_id": 999004, "food_name": "Natural Peanut Butter", "portion_str": "30 g"},
+                follow_redirects=False)
+    client.post(f"/recipe/{outer}/ingredient/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+                follow_redirects=False)
+    client.post(f"/recipe/{outer}/ingredient/add-recipe", data={"ref_recipe_id": inner, "servings": 1},
+                follow_redirects=False)
+
+    page = client.get(f"/analysis/food-use-recipes?mode=ids&recipe_ids={outer}").text
+    assert 'id="replacement-search"' in page
+    assert f'js-replace-pick" type="checkbox" value="U{cached_food["fdcId"]}"' in page
+    assert f'js-replace-pick" type="checkbox" value="R{inner}"' in page
+    assert 'value="U999004"' not in page
+
+    page = client.get(f"/analysis/food-use-recipes?mode=ids&recipe_ids={outer},{inner}").text
+    assert 'js-replace-pick" type="checkbox" value="U999004"' in page
 
 
 def test_substitute_recipe_ingredient_recomputes_dcp(client: TestClient, cached_food: dict, db_conn) -> None:

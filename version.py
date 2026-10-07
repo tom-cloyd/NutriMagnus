@@ -1,4 +1,4 @@
-VERSION = "2026-10-05:0748"
+VERSION = "2026-10-06:1804"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -10,7 +10,7 @@ VERSION = "2026-10-05:0748"
 # it on every dev-session bump, which drifted it away from the real release
 # count); bump the MAJOR.MINOR.PATCH part by hand only for a deliberate
 # milestone (e.g. reaching 1.0.0).
-RELEASE_VERSION = "0.1.0-rc.23"
+RELEASE_VERSION = "0.1.0-rc.24"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.23"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "A food added to a meal now keeps the amount you typed, such as 1/3 c, alongside its grams; an amount entered as a portion can be saved again unchanged"
+NEW_VERSION_NOTE = "Food Use in Meals and in Recipes: tick Replace and search for the replacement by name; the manual search now lists the best-matching section first; a recipe added as an ingredient of another recipe can now be entered in grams as well as servings"

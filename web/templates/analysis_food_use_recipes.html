@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_replace_picker.html" as _rp %}
 {% block title %}NutriMagnus — Food Use in Recipes{% endblock %}
 
 {% block content %}
@@ -105,7 +106,7 @@
 <p class="text-warning">Recipe ID(s) not found: {{ missing_ids|join(", ") }}</p>
 {% endif %}
 
-<details class="mb-3" {% if sub_id %}open{% endif %}>
+<details class="mb-3" id="substitute-panel" {% if sub_id %}open{% endif %}>
   <summary><strong>Substitute a food or recipe</strong> {{ manual_link("fooduse-substitute") }}</summary>
   <p class="muted mt-2 mb-2">
     <small>Replace every ingredient occurrence of one food or recipe with another, across the recipes selected
@@ -114,12 +115,11 @@
     recomputed automatically, cascading up to any recipe that uses it as a sub-recipe in turn.</small>
   </p>
   <p class="muted mb-2">
-    <small>The table below (once you've searched) shows what's <em>currently used</em> in this selection —
-    it isn't a list of foods you can replace with, and the item you're replacing appears in it too (marked
-    "replacing this"), with its code in the Code column. To find the code of the food or recipe you want as the
-    <strong>replacement</strong>, look it up first: <a href="/food/search" target="_blank" rel="noopener">Food Search</a>
-    (opens in a new tab — its results table shows each food's code) or <a href="/recipes" target="_blank" rel="noopener">Recipes</a>
-    for a recipe's code.</small>
+    <small><strong>How:</strong> tick the <strong>Replace</strong> box beside the food or recipe in the table below
+    (once you've searched), then start typing the name of its replacement in the <strong>Replace it with</strong> box
+    here and pick it from the list. A replacement has to be in your Food Cache or Recipes already — to use a food
+    you've never added, find it with <a href="/food/search" target="_blank" rel="noopener">Food Search</a> first
+    (opens in a new tab). If you already know the codes, you can type them straight into the code boxes instead.</small>
   </p>
   {% if error %}
   <p class="text-danger"><small>{{ error }}</small></p>
@@ -134,17 +134,10 @@
     <input type="hidden" name="recipe_ids" value="{{ recipe_ids_raw or '' }}">
     <input type="hidden" name="protein_only" value="{{ 'true' if protein_only else '' }}">
     <input type="hidden" name="sort" value="{{ sort or 'frequency' }}">
-    <div>
-      <label class="form-label mb-0" for="old_code"><small>Replace this (code)</small></label>
-      <input type="text" class="form-control form-control-sm" name="old_code" id="old_code" placeholder="e.g. U171477" required style="max-width:9rem"
-             value="{% if sub_id %}{{ food_code(none, sub_id) if sub_kind == 'recipe' else food_code(sub_id) }}{% endif %}">
-    </div>
-    <div>
-      <label class="form-label mb-0" for="new_code"><small>With this (code)</small></label>
-      <input type="text" class="form-control form-control-sm" name="new_code" id="new_code" placeholder="e.g. R21" required style="max-width:9rem">
-    </div>
+    {{ _rp.fields(sub_id, sub_kind) }}
     <button type="submit" class="btn btn-sm btn-warning">Substitute everywhere in this selection</button>
   </form>
+  <p class="mt-2 mb-0" id="replace-summary" aria-live="polite"><small></small></p>
 </details>
 
 {% if submitted %}
@@ -157,6 +150,7 @@
     <table class="table table-sm table-hover" style="max-width:76rem">
       <thead class="table-light">
         <tr>
+          <th class="text-center" title="Tick a food or recipe to replace it with another one in every recipe selected above. The Substitute panel then opens, where you search for the replacement by name.">Replace</th>
           <th>Food / Recipe</th>
           <th>Code</th>
           <th class="num-col">Recipes used in</th>
@@ -170,6 +164,8 @@
              (sub_kind == "recipe" and r.kind == "recipe" and r.recipe_id == sub_id) or
              (sub_kind != "recipe" and r.kind != "recipe" and r.fdc_id == sub_id)) %}
         <tr>
+          {{ _rp.cell(r, is_replace_target, r.direct_recipes, "recipe(s) that list it directly",
+                      "Only used inside sub-recipes that aren't part of this selection, so it can't be replaced here: change it in that sub-recipe, or add the sub-recipe to the selection.") }}
           <td>
             {% if r.kind == "recipe" %}
               {% if r.recipe_id %}<a href="/recipe/{{ r.recipe_id }}"><strong>{{ r.name }}</strong></a>
@@ -198,11 +194,13 @@
   <p class="muted"><small>
     <strong>Recipes used in</strong> = number of the selected (container) recipes whose ingredient list contains this food or sub-recipe, directly or nested inside another sub-recipe &middot;
     <strong>% of Recipes in Selection</strong> = that count &divide; {{ total_recipes }} total recipe(s) in this selection &middot;
-    a sub-recipe used as an ingredient shows up as its own row (in bold) and its own ingredients are also listed individually, the same way a directly-added recipe does on Food Use in Meals.
+    a sub-recipe used as an ingredient shows up as its own row (in bold) and its own ingredients are also listed individually, the same way a directly-added recipe does on Food Use in Meals &middot;
+    <strong>Replace</strong> is offered only for items listed straight in a selected recipe's ingredients; a dash means it's only used inside a sub-recipe that isn't part of this selection.
   </small></p>
   {% include "_code_key.html" %}
   {% else %}
   <p class="muted mt-2">No recipes matched the selected date range(s) / recipe IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>
   {% endif %}
 {% endif %}
+{{ _rp.script() }}
 {% endblock %}

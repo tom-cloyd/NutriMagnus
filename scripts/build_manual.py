@@ -554,6 +554,7 @@ JS = """\
         nextEl: next,
         text: text,
         lower: text.toLowerCase(),
+        words: text.split(/\\s+/).length,
       };
     });
   }
@@ -580,14 +581,29 @@ JS = """\
     return m ? m.length : 0;
   }
 
-  function scoreOf(section, regexes) {
+  /* BM25-style ranking. A raw occurrence count let long sections (the
+     updates log above all) win every search on sheer size; instead each
+     word's count saturates and is scaled down by section length, rarer
+     words weigh more than common ones ("replace" over "food"), and a word
+     in the heading counts heavily. idfs: one weight per regex, from
+     idfWeights(). */
+  function scoreOf(section, regexes, idfs) {
     var score = 0;
-    regexes.forEach(function (re) {
-      score += countOccurrences(section.text, re);
+    var lenNorm = 0.25 + 0.75 * Math.max(section.words, 50) / 400;
+    regexes.forEach(function (re, i) {
+      var tf = countOccurrences(section.text, re);
+      score += idfs[i] * tf / (tf + 1.2 * lenNorm);
       re.lastIndex = 0;
-      if (re.test(section.title)) score += 5;
+      if (re.test(section.title)) score += 3 * idfs[i];
     });
     return score;
+  }
+
+  function idfWeights(regexes) {
+    return regexes.map(function (re) {
+      var df = sections.filter(function (s) { re.lastIndex = 0; return re.test(s.text); }).length;
+      return Math.log(1 + sections.length / Math.max(df, 1));
+    });
   }
 
   function setCount(txt) { document.getElementById('search-count').textContent = txt; }
@@ -710,13 +726,14 @@ JS = """\
       return;
     }
     var regexes = currentWords.map(wordRegex);
+    var idfs = idfWeights(regexes);
     resultItems = sections.filter(function (s) {
       var allPresent = regexes.every(function (re) { re.lastIndex = 0; return re.test(s.text); });
       if (!allPresent) return false;
       if (funcMode) return VERBS.some(function (v) { return s.lower.indexOf(v) !== -1; });
       return true;
     }).map(function (s) {
-      return { section: s, score: scoreOf(s, regexes) };
+      return { section: s, score: scoreOf(s, regexes, idfs) };
     }).sort(function (a, b) { return b.score - a.score; });
     renderResults(resultItems, funcMode);
   }

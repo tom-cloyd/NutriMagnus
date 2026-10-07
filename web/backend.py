@@ -8678,6 +8678,8 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
             if r["id"] != recipe_id and any(w in r["name"].lower() for w in query_words)
         ]
         recipe_aa_status = _recipe_aa_status([r["id"] for r in matching_recipes])
+        with _db.get_db() as conn:
+            recipe_srv_g = {r["id"]: recipe_serving_grams(r["id"], conn) for r in matching_recipes}
         for r in matching_recipes:
             search_results.append({
                 "_type":     "recipe",
@@ -8685,6 +8687,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
                 "name":      r["name"],
                 "servings":  float(r["servings"] or 1),
                 "serving_size": r["serving_size"],
+                "serving_grams": recipe_srv_g[r["id"]],
                 "data_type": "Recipe",
                 "source":    "recipe",
                 "aa":        recipe_aa_status[r["id"]],
@@ -8964,9 +8967,14 @@ async def recipe_ingredient_add_recipe(
     ref_recipe_id: int = Form(...),
     recipe_name: str = Form(""),
     servings: float = Form(1.0),
+    amount_unit: str = Form("servings"),
     notes: str = Form(""),
     q: str = Form(""),
 ):
+    """Add a recipe as an ingredient of another recipe. The amount can be
+    typed in servings or in grams; grams are converted to servings through
+    the sub-recipe's serving weight (recipe_serving_grams), since a
+    sub-recipe ingredient is always stored as a servings count."""
     from urllib.parse import urlencode
 
     def _redirect(error: str | None = None) -> RedirectResponse:
@@ -8984,6 +8992,12 @@ async def recipe_ingredient_add_recipe(
         sub = _db.recipe_get(conn, ref_recipe_id)
         if not sub:
             return _redirect(error="Recipe not found.")
+        if amount_unit == "g":
+            per_serving_g = recipe_serving_grams(ref_recipe_id, conn)
+            if not per_serving_g:
+                return _redirect(error=f"Can't add \"{sub['name']}\" by grams: its serving weight "
+                                       "is unknown. Give it a total weight, or add it by servings.")
+            servings = round(servings / per_serving_g, 4)
         name = recipe_name or sub["name"]
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         _db.recipe_add_ingredient(conn, recipe_id, 0, name, servings, unit,
@@ -10225,6 +10239,16 @@ async def analysis_food_use(
                 })
                 entry["meal_ids"].add(meal_id)
                 entry["days"].add(meal["meal_date"])
+            # Only items logged straight onto the meal can be substituted
+            # here (see substitute_item_in_meals); mark those rows so the
+            # Replace tick-box is offered on them alone.
+            for it in _db.meal_get_items(conn, meal_id):
+                if it["item_type"] == "recipe":
+                    direct_key = ("recipe", it["recipe_id"])
+                else:
+                    direct_key = (it["fdc_id"], "food")
+                if direct_key in agg:
+                    agg[direct_key].setdefault("direct_meal_ids", set()).add(meal_id)
 
     rows_all = list(agg.values())
     if protein_only:
@@ -10248,6 +10272,7 @@ async def analysis_food_use(
         "meals":     len(r["meal_ids"]),
         "pct":       round(len(r["days"]) / total_days * 100, 0) if total_days else 0,
         "meal_ids":  sorted(r["meal_ids"]),
+        "direct_meals": len(r.get("direct_meal_ids", ())),
     } for r in rows_sorted]
 
     return templates.TemplateResponse(request, "analysis_food_use.html", {
@@ -10267,6 +10292,29 @@ async def analysis_food_use(
         "sub_kind":      sub_kind,
         "sub_id":        sub_id,
     })
+
+
+@app.get("/analysis/food-use/replacement-search", response_class=JSONResponse)
+async def analysis_food_use_replacement_search(q: str = Query(default="")):
+    """Type-ahead for the Substitute panel's "With this" box: cached foods
+    and recipes whose names contain every typed word, best match first, so
+    the replacement can be picked by name instead of looked up by code.
+    Local only -- a food that isn't in the Food Cache yet has no code to
+    substitute with, so it has to be added through Food Search first."""
+    q = q.strip()
+    if len(q) < 2:
+        return JSONResponse({"results": []})
+    words = q.lower().split()
+    with _db.get_db() as conn:
+        foods = _db.search_cached_foods(conn, q)
+        recipes = [r for r in _db.recipe_list(conn)
+                   if all(w in r["name"].lower() for w in words)]
+    results = [{"code": _food_code(f["fdc_id"]), "name": f["name"], "kind": "food",
+                "detail": f["brand"] or ""} for f in foods]
+    results += [{"code": _food_code(None, r["id"]), "name": r["name"], "kind": "recipe",
+                 "detail": "recipe"} for r in recipes]
+    results.sort(key=lambda r: _search_ranking.relevance_key(r["name"], q))
+    return JSONResponse({"results": results[:20]})
 
 
 @app.post("/analysis/food-use/substitute", response_class=RedirectResponse)
@@ -10388,6 +10436,17 @@ async def analysis_food_use_recipes(
                     "recipe_id": ref_recipe_id, "container_ids": set(),
                 })
                 entry["container_ids"].add(recipe_id)
+            # Only ingredients listed straight in a selected recipe can be
+            # substituted (see substitute_item_in_recipes); a nested
+            # sub-recipe's own ingredients are reachable only when that
+            # sub-recipe is itself in the selection.
+            for ing in _db.recipe_get_ingredients(conn, recipe_id):
+                if ing["ref_recipe_id"]:
+                    direct_key = ("recipe", ing["ref_recipe_id"])
+                else:
+                    direct_key = (ing["fdc_id"], "food")
+                if direct_key in agg:
+                    agg[direct_key].setdefault("direct_container_ids", set()).add(recipe_id)
 
     rows_all = list(agg.values())
     if protein_only:
@@ -10409,6 +10468,7 @@ async def analysis_food_use_recipes(
         "count":       len(r["container_ids"]),
         "pct":         round(len(r["container_ids"]) / total_recipes * 100, 0) if total_recipes else 0,
         "recipe_ids":  sorted(r["container_ids"]),
+        "direct_recipes": len(r.get("direct_container_ids", ())),
     } for r in rows_sorted]
 
     return templates.TemplateResponse(request, "analysis_food_use_recipes.html", {

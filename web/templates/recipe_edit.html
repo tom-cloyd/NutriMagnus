@@ -330,12 +330,23 @@
                 <input type="hidden" name="ref_recipe_id" value="{{ food.recipe_id }}">
                 <input type="hidden" name="recipe_name" value="{{ food.name }}">
                 <input type="hidden" name="q" value="{{ q }}">
-                <div class="input-group" style="max-width:20rem">
+                <div class="input-group" style="max-width:30rem">
                   <input type="number" class="form-control" name="servings" value="1"
-                         min="0.01" max="999" step="0.01" aria-label="Servings" required>
+                         min="0.01" max="99999" step="0.01" aria-label="Amount" required
+                         style="flex:0 0 6rem;min-width:6rem">
+                  {% if food.serving_grams %}
+                  <select class="form-select" name="amount_unit" aria-label="Amount unit" style="max-width:7.5rem">
+                    <option value="servings" selected>servings</option>
+                    <option value="g">grams</option>
+                  </select>
+                  <span class="input-group-text">
+                    <small class="muted">({{ food.servings | round(2) }} total &middot; 1 serving = {% if food.serving_size %}{{ food.serving_size }}, {% endif %}{{ food.serving_grams | round(1) }} g)</small>
+                  </span>
+                  {% else %}
                   <span class="input-group-text">serving{% if food.servings != 1 %}s{% endif %}
                     <small class="muted ms-1">({{ food.servings | round(2) }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% endif %})</small>
                   </span>
+                  {% endif %}
                   <button type="submit" class="btn btn-primary">Add to recipe</button>
                 </div>
               </form>
