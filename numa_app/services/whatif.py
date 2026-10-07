@@ -23,12 +23,13 @@ import diaas as _diaas
 import profile as _profile
 import usda as _usda
 from numa_app.services.rda_status import rda_status
+from numa_app.services.recipe_dcp import recipe_dcp_per_serving
 from numa_app.services.recipe_nutrients import expand_recipe_ingredients, recipe_serving_grams
 
 Item = tuple[str, int]          # ("food", fdc_id) | ("recipe", recipe_id)
 
 OPS = ("remove", "add", "replace", "scale")
-REPLACE_BASES = ("grams", "servings", "stated")
+REPLACE_BASES = ("grams", "factor", "servings", "stated")
 
 # An added recipe ingredient this share of the recipe's weight or more, with
 # no value for a nutrient, marks that nutrient's "after" as possibly low.
@@ -48,9 +49,11 @@ class Edit:
     remove:  item, wherever it appears.
     scale:   item, wherever it appears, times `amount` (0.5 = half).
     replace: item -> replacement, wherever item appears. basis "grams" keeps
-             the same weight, "servings" the same servings count (recipe to
-             recipe only), "stated" uses `amount` in `unit` at each place.
-    add:     item, `amount` in `unit`, once on every logged day.
+             the same weight, "factor" uses the old weight times `amount`,
+             "servings" the same servings count (recipe to recipe only),
+             "stated" uses `amount` in `unit` at each place.
+    add:     item, `amount` in `unit`, once on every logged day (meals), or
+             into each recipe (recipes): per "batch" or per "serving".
     unit is "g" or "servings" (servings only for a recipe).
     """
     op: str
@@ -59,6 +62,7 @@ class Edit:
     amount: float | None = None
     unit: str = "g"
     basis: str = "grams"
+    per: str = "batch"      # recipes page, add: "batch" (whole recipe) | "serving"
 
 
 @dataclass
@@ -68,8 +72,8 @@ class _Ctx:
     serving_g: dict[int, float | None] = field(default_factory=dict)
     recipe_servings: dict[int, float | None] = field(default_factory=dict)
     food_nuts: dict[int, dict] = field(default_factory=dict)
-    current_meal: dict | None = None
-    hits: dict[int, set[int]] = field(default_factory=dict)   # edit index -> meal ids
+    current: int | None = None      # meal or recipe being evaluated, for hits
+    hits: dict[int, set[int]] = field(default_factory=dict)   # edit index -> meal/recipe ids
 
     def grams_per_serving(self, recipe_id: int) -> float | None:
         if recipe_id not in self.serving_g:
@@ -125,6 +129,8 @@ class _Ctx:
             new_kind, new_id = e.replacement
             if e.basis == "servings":
                 new_qty = qty
+            elif e.basis == "factor":
+                new_qty = self._from_grams(new_kind, new_id, self._to_grams(kind, item_id, qty) * e.amount)
             elif e.basis == "stated":
                 new_qty = e.amount if e.unit == "servings" else self._from_grams(new_kind, new_id, e.amount)
             else:
@@ -133,8 +139,8 @@ class _Ctx:
         return [(kind, item_id, qty)]
 
     def _hit(self, i: int) -> None:
-        if self.current_meal is not None:
-            self.hits.setdefault(i, set()).add(self.current_meal["id"])
+        if self.current is not None:
+            self.hits.setdefault(i, set()).add(self.current)
 
     def item_breakdown(self, kind: str, item_id: int, qty: float, *, rewrite,
                        name: str | None = None) -> tuple[dict, list[dict]]:
@@ -253,6 +259,8 @@ def validate(edits: list[Edit], conn) -> list[str]:
         if e.op == "scale" and (e.amount is None or e.amount < 0):
             problems.append(f"{where}: give a multiplier, such as 0.5 for half.")
         added = e.item if e.op == "add" else e.replacement
+        if e.op == "replace" and e.basis == "factor" and (e.amount is None or e.amount <= 0):
+            problems.append(f"{where}: give a multiplier for the old weight, such as 1.1 or 110%.")
         needs_amount = e.op == "add" or (e.op == "replace" and e.basis == "stated")
         if needs_amount and (e.amount is None or e.amount <= 0):
             problems.append(f"{where}: give an amount.")
@@ -332,11 +340,11 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
         nuts, leaves = meal_breakdown(meal["id"], conn, base_ctx)
         _add(before.setdefault(d, {}), nuts)
         leaves_before.setdefault(d, []).extend(leaves)
-        ctx.current_meal = meal
+        ctx.current = meal["id"]
         nuts, leaves = meal_breakdown(meal["id"], conn, ctx)
         _add(after.setdefault(d, {}), nuts)
         leaves_after.setdefault(d, []).extend(leaves)
-    ctx.current_meal = None
+    ctx.current = None
 
     # Like nutrient_trend: a day counts once something with nutrients is logged.
     dates = sorted(d for d in before if before[d])
@@ -485,3 +493,146 @@ def _nutrient_row(key, dates, before, after, avg_before, avg_after,
                        if ul_by_day[d].get(key) and by_day[d].get(key, 0.0) > ul_by_day[d][key])
         row["days_over_ul_before"], row["days_over_ul_after"] = over(before), over(after)
     return row
+
+
+# ---------------------------------------------------------------------------
+# Recipes
+# ---------------------------------------------------------------------------
+
+MAX_RECIPE_COLUMNS = 8
+
+
+def _ancestors(conn, recipe_ids: set[int]) -> set[int]:
+    """Every recipe that uses one of recipe_ids as a sub-recipe, at any depth."""
+    found: set[int] = set()
+    todo = list(recipe_ids)
+    while todo:
+        for row in _db.recipe_referencing_subrecipe(conn, todo.pop()):
+            if row["id"] not in found and row["id"] not in recipe_ids:
+                found.add(row["id"])
+                todo.append(row["id"])
+    return found
+
+
+def _change_size(before: dict, after: dict) -> float:
+    """How much a recipe moved overall: summed relative change across nutrients."""
+    return sum(abs(after.get(k, 0.0) - v) / v for k, v in before.items()
+               if v > 0 and not k.startswith("aa_"))
+
+
+def _avg_pct(pairs: list[tuple[float, float]]) -> tuple[float | None, int]:
+    """Mean percent change over (before, after) pairs with before > 0, and
+    how many pairs that was; (None, 0) when there are none."""
+    pcts = [(a - b) / b * 100 for b, a in pairs if b and b > 0]
+    return (sum(pcts) / len(pcts), len(pcts)) if pcts else (None, 0)
+
+
+def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
+                     groups: list[tuple[str, list[str]]]) -> dict:
+    """Per-serving nutrients before and after `edits` for each of `recipes`
+    (rows with id, name). An "add" puts its amount into each recipe like one
+    more ingredient — per batch (amount / servings per serving) or, with
+    Edit.per == "serving", per serving; the servings count never changes.
+
+    Recipes shown: those a remove/replace/scale edit actually reached (or,
+    with only add edits, every selected recipe), the MAX_RECIPE_COLUMNS that
+    changed most; the rest are listed by name. Writes nothing."""
+    problems = validate(edits, conn)
+    if problems:
+        raise WhatIfError(" ".join(problems))
+    ctx = _Ctx(conn, edits)
+    rewrite = ctx.rewrite if edits else None
+    adds = [(i, e) for i, e in enumerate(edits) if e.op == "add"]
+    evaluated = []
+    for r in recipes:
+        rid = r["id"]
+        servings = ctx.servings_of(rid)
+        if not servings:
+            continue
+        before, _ = ctx.item_breakdown("recipe", rid, 1.0, rewrite=None)
+        ctx.current = rid
+        after, _ = ctx.item_breakdown("recipe", rid, 1.0, rewrite=rewrite)
+        extra: list[dict] = []
+        for i, e in adds:
+            kind, item_id = e.item
+            qty = e.amount if e.unit == "servings" else ctx._from_grams(kind, item_id, e.amount)
+            per_serving = qty if e.per == "serving" else qty / servings
+            nuts, leaves = ctx.item_breakdown(kind, item_id, per_serving, rewrite=rewrite)
+            _add(after, nuts)
+            extra.extend(leaves)
+            ctx.hits.setdefault(i, set()).add(rid)
+        dcp_before, why_before = recipe_dcp_per_serving(rid, conn)
+        dcp_after, why_after = recipe_dcp_per_serving(rid, conn, rewrite=rewrite, extra=extra)
+        ctx.current = None
+        evaluated.append({"id": rid, "name": r["name"], "servings": servings,
+                          "serving_size": r.get("serving_size"),
+                          "before": before, "after": after,
+                          "dcp_before": dcp_before, "dcp_after": dcp_after,
+                          "dcp_missing_aa": "missing_aa" in (why_before, why_after)})
+
+    targeted = [i for i, e in enumerate(edits) if e.op != "add"]
+    reached = set().union(*(ctx.hits.get(i, set()) for i in targeted)) if targeted else None
+    candidates = [r for r in evaluated if reached is None or r["id"] in reached]
+    candidates.sort(key=lambda r: (-_change_size(r["before"], r["after"]), r["name"].lower()))
+    shown, more = candidates[:MAX_RECIPE_COLUMNS], candidates[MAX_RECIPE_COLUMNS:]
+
+    sections = _row_keys(groups, *(r["before"] for r in shown), *(r["after"] for r in shown))
+    all_keys = [k for _, keys in sections for k in keys]
+    added_items = [e.item if e.op == "add" else e.replacement for i, e in enumerate(edits)
+                   if e.op in ("add", "replace") and ctx.hits.get(i)]
+    unknown: dict[str, list[str]] = {}
+    for item in dict.fromkeys(added_items):
+        for k in _missing_keys(ctx, item, all_keys):
+            unknown.setdefault(k, []).append(item_name(conn, item))
+
+    out_sections = []
+    for group_name, keys in sections:
+        rows = []
+        for key in keys:
+            cells = [{"before": r["before"].get(key, 0.0), "after": r["after"].get(key, 0.0)} for r in shown]
+            if not any(c["before"] or c["after"] for c in cells):
+                continue
+            for c in cells:
+                c["delta"] = c["after"] - c["before"]
+                c["delta_pct"] = c["delta"] / c["before"] * 100 if c["before"] else None
+            label, unit = _usda.nutrient_label(key)
+            avg_pct, avg_n = _avg_pct([(r["before"].get(key, 0.0), r["after"].get(key, 0.0)) for r in candidates])
+            rows.append({"key": key, "label": label, "unit": unit, "cells": cells,
+                         "changed": any(abs(c["delta"]) > 1e-9 for c in cells),
+                         "unknown": unknown.get(key, []), "avg_pct": avg_pct, "avg_n": avg_n})
+            if key == "protein_g":
+                dcp_cells = [{"before": r["dcp_before"], "after": r["dcp_after"],
+                              "delta": (r["dcp_after"] - r["dcp_before"])
+                              if r["dcp_before"] is not None and r["dcp_after"] is not None else None,
+                              "delta_pct": None} for r in shown]
+                for c in dcp_cells:
+                    if c["delta"] is not None and c["before"]:
+                        c["delta_pct"] = c["delta"] / c["before"] * 100
+                avg_pct, avg_n = _avg_pct([(r["dcp_before"], r["dcp_after"]) for r in candidates
+                                           if r["dcp_before"] is not None and r["dcp_after"] is not None])
+                rows.append({"key": "dcp", "label": "Protein (DCP)", "unit": unit, "cells": dcp_cells,
+                             "avg_pct": avg_pct, "avg_n": avg_n,
+                             "changed": any(c["delta"] is None or abs(c["delta"]) > 1e-9 for c in dcp_cells
+                                            if c["before"] is not None or c["after"] is not None),
+                             "unknown": []})
+        if rows:
+            out_sections.append({"name": group_name, "rows": rows})
+
+    edit_report = []
+    for i, e in enumerate(edits):
+        edit_report.append({"edit": e, "item_name": item_name(conn, e.item),
+                            "replacement_name": item_name(conn, e.replacement) if e.replacement else None,
+                            "recipes": len(ctx.hits.get(i, set())), "days": None, "meals": None})
+
+    changed_ids = {r["id"] for r in candidates}
+    selected_ids = {r["id"] for r in recipes}
+    parents = sorted(_ancestors(conn, changed_ids) - selected_ids) if reached is not None else []
+    return {
+        "recipes":  shown,
+        "changed_count": len(candidates),
+        "more":     [{"id": r["id"], "name": r["name"]} for r in more],
+        "selected": len(recipes),
+        "sections": out_sections,
+        "edits":    edit_report,
+        "parents":  [{"id": pid, "name": item_name(conn, ("recipe", pid))} for pid in parents],
+    }

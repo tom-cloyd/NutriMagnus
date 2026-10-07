@@ -76,6 +76,7 @@ _SMOKE_ROUTES = [
     "/analysis/food-use",
     "/analysis/food-use-recipes",
     "/analysis/whatif",
+    "/analysis/whatif-recipes",
 ]
 
 
@@ -6335,3 +6336,94 @@ def test_whatif_summary_rows_say_before_and_after(client: TestClient, cached_foo
     resp = client.get("/analysis/whatif", params={"ranges_raw": "2026-07-15"})
     assert "Before (as logged)" in resp.text and "After your changes" in resp.text
     assert "Protein (DCP)" in resp.text and "Sugars" in resp.text
+
+
+def _whatif_recipe(client: TestClient, cached_food: dict, name: str, grams: str = "100 g") -> int:
+    rid = int(client.post("/recipe/new", data={"name": name, "servings": 2}, follow_redirects=False)
+              .headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(f"/recipe/{rid}/ingredient/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": grams},
+                follow_redirects=False)
+    return rid
+
+
+def test_whatif_recipes_shows_per_serving_after_and_change(client: TestClient, cached_food: dict) -> None:
+    rid = _whatif_recipe(client, cached_food, "Chicken Bake")
+    resp = client.get("/analysis/whatif-recipes", params={
+        "mode": "all", "e_op": "scale", "e_item": f"U{cached_food['fdcId']}",
+        "e_with": "", "e_amt": "50%", "e_basis": "grams"})
+    assert resp.status_code == 200
+    assert "found in 1 recipe(s)" in resp.text
+    assert "Chicken Bake" in resp.text
+    # 100 g x 31 g/100 g over 2 servings = 15.5 g protein; halved -> 7.75 (change -7.75)
+    assert "7.75" in resp.text and "&minus;7.75" in resp.text
+
+
+def test_whatif_recipes_lists_parent_recipes(client: TestClient, cached_food: dict) -> None:
+    sub = _whatif_recipe(client, cached_food, "Spice Rub")
+    outer = int(client.post("/recipe/new", data={"name": "Roast Dinner", "servings": 1}, follow_redirects=False)
+                .headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(f"/recipe/{outer}/ingredient/add-recipe",
+                data={"ref_recipe_id": sub, "recipe_name": "Spice Rub", "servings": 1}, follow_redirects=False)
+    resp = client.get("/analysis/whatif-recipes", params={
+        "mode": "ids", "recipe_ids": str(sub), "e_op": "remove", "e_item": f"U{cached_food['fdcId']}",
+        "e_with": "", "e_amt": "", "e_basis": "grams"})
+    assert "would change too" in resp.text and "Roast Dinner" in resp.text
+    import html, re
+    url = html.unescape(re.search(r'<a href="([^"]+)">Show them too</a>', resp.text).group(1))
+    assert f"recipe_ids={sub}%2C{outer}" in url and "e_op=remove" in url
+    follow = client.get(url)
+    assert "found in 2 recipe(s)" in follow.text
+
+
+def test_whatif_recipes_needs_a_change_first(client: TestClient) -> None:
+    resp = client.get("/analysis/whatif-recipes")
+    assert "Enter at least one change above" in resp.text
+
+
+def test_food_use_recipes_rows_link_to_whatif(client: TestClient, cached_food: dict) -> None:
+    _whatif_recipe(client, cached_food, "Chicken Bake")
+    resp = client.get("/analysis/food-use-recipes")
+    assert "/analysis/whatif-recipes?mode=ids" in resp.text and "try removing" in resp.text
+
+
+def test_whatif_recipes_add_per_serving_or_whole_recipe(client: TestClient, cached_food: dict) -> None:
+    _whatif_recipe(client, cached_food, "Chicken Bake")      # 2 servings
+    base = {"mode": "all", "e_op": "add", "e_item": f"U{cached_food['fdcId']}",
+            "e_with": "", "e_amt": "100 g", "e_basis": "grams"}
+    per_batch = client.get("/analysis/whatif-recipes", params={**base, "e_per": "batch"}).text
+    per_serving = client.get("/analysis/whatif-recipes", params={**base, "e_per": "serving"}).text
+    assert "+15.5" in per_batch and "to each recipe&#39;s whole batch" in per_batch.replace("'", "&#39;")
+    assert "+31" in per_serving and "to each serving" in per_serving
+
+
+@pytest.mark.parametrize("factor", ["1.5", "150%", "1 1/2"])
+def test_whatif_multiplier_accepts_decimal_and_percent(client: TestClient, cached_food: dict, factor: str) -> None:
+    _whatif_recipe(client, cached_food, "Chicken Bake")      # 15.5 g protein per serving
+    resp = client.get("/analysis/whatif-recipes", params={
+        "mode": "all", "e_op": "scale", "e_item": f"U{cached_food['fdcId']}",
+        "e_with": "", "e_amt": factor, "e_basis": "grams"})
+    assert "to 150% of the amount used" in resp.text
+    assert "+7.75" in resp.text
+
+
+def test_whatif_picker_supports_arrow_keys(client: TestClient) -> None:
+    text = client.get("/analysis/whatif").text
+    assert "ArrowDown" in text and "ArrowUp" in text
+    assert "Change amount (multiply: 1.5 or 150%)" in text
+    assert "Replace (same weight, a multiple of it, or a set amount)" in text
+
+
+def test_whatif_replace_with_multiple_of_old_weight(client: TestClient, cached_food: dict, db_conn) -> None:
+    """Hemp -> pumpkin at 1.1x the weight: 100 g chicken (31 g protein) in a
+    2-serving recipe becomes 110 g of a 30 g/100 g food = 16.5 g per serving."""
+    import json as _json
+    db_conn.execute("INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+                    (555, "Pumpkin seeds", "SR Legacy", _json.dumps({"protein_g": 30.0}), "[]"))
+    db_conn.commit()
+    _whatif_recipe(client, cached_food, "Chicken Bake")
+    resp = client.get("/analysis/whatif-recipes", params={
+        "mode": "all", "e_op": "replace", "e_item": f"U{cached_food['fdcId']}",
+        "e_with": "U555", "e_amt": "110%", "e_basis": "factor"})
+    assert "110% of the old weight" in resp.text
+    assert "16.50" in resp.text or "16.5" in resp.text

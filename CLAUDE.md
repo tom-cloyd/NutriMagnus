@@ -167,8 +167,8 @@ numa_app/
                          one, independently of program updates; Ed25519-verified
                          (published by scripts/publish_manual.py)
     whatif.py           — non-destructive what-if analysis (remove/add/replace/scale
-                         foods or recipes across a set of meals, before vs after);
-                         must never write — see Analysis -> What-if: meals
+                         foods or recipes across a set of meals or recipes, before
+                         vs after); must never write — see Analysis -> What-if
     update_check.py      — check_for_update(): GitHub latest-release check for
                          the home-page "update available" banner; cached
                          in-process, fails silently offline

@@ -97,6 +97,7 @@
         .then(function (data) {
           if (mine !== seq) return;
           results.innerHTML = '';
+          active = -1;
           if (!data.results.length) {
             var none = document.createElement('div');
             none.className = 'list-group-item small muted';
@@ -126,9 +127,27 @@
         });
     }, 200);
   });
+  // Arrow keys move a highlight through the list; Enter picks the
+  // highlighted item (or the top one), Escape closes the list.
+  var active = -1;
+  function items() { return Array.prototype.slice.call(results.querySelectorAll('button')); }
+  function highlight(i) {
+    var list = items();
+    list.forEach(function (b, j) {
+      b.classList.toggle('active', j === i);
+      b.setAttribute('aria-selected', j === i ? 'true' : 'false');
+    });
+    active = i;
+    if (list[i]) list[i].scrollIntoView({ block: 'nearest' });
+  }
   search.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') results.innerHTML = '';
-    if (e.key === 'Enter') { e.preventDefault(); var first = results.querySelector('button'); if (first) first.click(); }
+    var list = items();
+    if (e.key === 'Escape') { results.innerHTML = ''; active = -1; return; }
+    if (e.key === 'Enter') e.preventDefault();
+    if (!list.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(active + 1, list.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(active - 1, 0)); }
+    else if (e.key === 'Enter') { list[active >= 0 ? active : 0].click(); active = -1; }
   });
   document.addEventListener('click', function (e) {
     if (!results.contains(e.target) && e.target !== search) results.innerHTML = '';

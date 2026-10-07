@@ -1,18 +1,8 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — What-if: Meals{% endblock %}
 
-{% macro num(v) -%}
-  {%- if v is none -%}&ndash;
-  {%- elif v|abs >= 100 -%}{{ "{:,.0f}".format(v) }}
-  {%- elif v|abs >= 10 -%}{{ "%.1f"|format(v) }}
-  {%- else -%}{{ "%.2f"|format(v) }}{%- endif -%}
-{%- endmacro %}
-
-{% macro signed(v) -%}
-  {%- if v is none -%}&ndash;
-  {%- elif v|abs < 0.005 -%}0
-  {%- else -%}{{ "+" if v > 0 else "&minus;"|safe }}{{ num(v|abs) }}{%- endif -%}
-{%- endmacro %}
+{% import "_whatif_changes.html" as _wc %}
+{% from "_whatif_changes.html" import num, signed %}
 
 {% block content %}
 <nav aria-label="breadcrumb">
@@ -60,53 +50,7 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
     to drop one food and eat another every day, use a <strong>Remove</strong> row plus an <strong>Add</strong> row.
   </small></p>
 
-  <div id="edit-rows">
-    {% for r in rows %}
-    <div class="whatif-row d-flex flex-wrap align-items-end gap-2 mb-2 p-2 border rounded">
-      <div>
-        <label class="form-label mb-0"><small>Action</small></label>
-        <select class="form-select form-select-sm js-op" name="e_op" style="width:9rem">
-          <option value="remove" {% if r.op == "remove" %}selected{% endif %}>Remove</option>
-          <option value="add" {% if r.op == "add" %}selected{% endif %}>Add</option>
-          <option value="replace" {% if r.op == "replace" %}selected{% endif %}>Replace</option>
-          <option value="scale" {% if r.op == "scale" %}selected{% endif %}>Change amount</option>
-        </select>
-      </div>
-      <div class="js-pick-wrap" style="position:relative">
-        <label class="form-label mb-0"><small>Food or recipe</small></label>
-        <input type="text" class="form-control form-control-sm js-pick" name="e_item" value="{{ r.item }}"
-               autocomplete="off" placeholder="name or code" style="width:16rem">
-        <div class="small muted js-pick-name" style="max-width:16rem">{{ r.item_name }}</div>
-        <div class="list-group shadow-sm js-pick-results" role="listbox"
-             style="position:absolute;z-index:1000;width:28rem;max-width:90vw;max-height:20rem;overflow-y:auto"></div>
-      </div>
-      <div class="js-pick-wrap js-with" style="position:relative">
-        <label class="form-label mb-0"><small>Replace it with</small></label>
-        <input type="text" class="form-control form-control-sm js-pick" name="e_with" value="{{ r.with }}"
-               autocomplete="off" placeholder="name or code" style="width:16rem">
-        <div class="small muted js-pick-name" style="max-width:16rem">{{ r.with_name }}</div>
-        <div class="list-group shadow-sm js-pick-results" role="listbox"
-             style="position:absolute;z-index:1000;width:28rem;max-width:90vw;max-height:20rem;overflow-y:auto"></div>
-      </div>
-      <div class="js-basis">
-        <label class="form-label mb-0"><small>How much of the replacement</small></label>
-        <select class="form-select form-select-sm" name="e_basis" style="width:13rem">
-          <option value="grams" {% if r.basis == "grams" %}selected{% endif %}>Same weight</option>
-          <option value="servings" {% if r.basis == "servings" %}selected{% endif %}>Same servings (recipe for recipe)</option>
-          <option value="stated" {% if r.basis == "stated" %}selected{% endif %}>This amount each time</option>
-        </select>
-      </div>
-      <div class="js-amt">
-        <label class="form-label mb-0"><small class="js-amt-label">Amount</small></label>
-        <input type="text" class="form-control form-control-sm" name="e_amt" value="{{ r.amt }}" style="width:9rem">
-      </div>
-      <button type="button" class="btn btn-sm btn-outline-secondary js-remove-row" title="Remove this change">Remove this change</button>
-    </div>
-    {% endfor %}
-  </div>
-  <div class="d-flex gap-2 mb-3 mt-1">
-    <button type="button" class="btn btn-sm btn-outline-primary" id="add-row">Add another change</button>
-  </div>
+  {{ _wc.change_rows(rows) }}
 
   <h3 class="h5">3. Which days to average over</h3>
   <div class="mb-2">
@@ -166,7 +110,7 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
       {% if e.op == "remove" %}Remove <strong>{{ r.item_name }}</strong>
       {% elif e.op == "scale" %}Change <strong>{{ r.item_name }}</strong> to {{ "%g"|format(e.amount * 100) }}% of the amount eaten
       {% elif e.op == "replace" %}Replace <strong>{{ r.item_name }}</strong> with <strong>{{ r.replacement_name }}</strong>
-        ({% if e.basis == "grams" %}same weight{% elif e.basis == "servings" %}same servings{% else %}{{ "%g"|format(e.amount|round(1)) }} {{ "g" if e.unit == "g" else "serving(s)" }} each time{% endif %})
+        ({% if e.basis == "grams" %}same weight{% elif e.basis == "factor" %}{{ "%g"|format((e.amount * 100)|round(1)) }}% of the old weight{% elif e.basis == "servings" %}same servings{% else %}{{ "%g"|format(e.amount|round(1)) }} {{ "g" if e.unit == "g" else "serving(s)" }} each time{% endif %})
       {% else %}Add {{ "%g"|format(e.amount|round(1)) }} {{ "g" if e.unit == "g" else "serving(s)" }} of <strong>{{ r.item_name }}</strong> per day{% endif %}
       &mdash;
       {% if r.meals %}<span class="muted">{% if e.op == "add" %}added on {{ r.days }} day(s){% else %}found in {{ r.meals }} meal(s) on {{ r.days }} day(s){% endif %}</span>
@@ -299,105 +243,15 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
   rangesRaw.addEventListener('input', function () { if (rangesRaw.value.trim()) { rangeRadio.checked = true; sync(); } });
   sync();
 
-  var container = document.getElementById('edit-rows');
-  var maxRows = {{ max_rows }};
-  var blank = container.querySelector('.whatif-row').cloneNode(true);
-  blank.querySelectorAll('input').forEach(function (el) { el.value = ''; });
-  blank.querySelectorAll('.js-pick-name, .js-pick-results').forEach(function (el) { el.innerHTML = ''; });
-  blank.querySelector('.js-op').value = 'remove';
-  blank.querySelector('select[name=e_basis]').value = 'grams';
-
-  var amtLabels = {
-    add: 'Amount per day (e.g. 1 cup, 30 g, 1 serving)',
-    replace: 'Amount each time (e.g. 1/2 c, 100 g)',
-    scale: 'Multiplier (0.5 = half, 150%)'
-  };
-  function layout(row) {
-    var op = row.querySelector('.js-op').value;
-    var basis = row.querySelector('select[name=e_basis]').value;
-    row.querySelector('.js-with').classList.toggle('d-none', op !== 'replace');
-    row.querySelector('.js-basis').classList.toggle('d-none', op !== 'replace');
-    var showAmt = op === 'add' || op === 'scale' || (op === 'replace' && basis === 'stated');
-    row.querySelector('.js-amt').classList.toggle('d-none', !showAmt);
-    row.querySelector('.js-amt-label').textContent = amtLabels[op] || 'Amount';
-  }
-
-  function wirePicker(wrap) {
-    var input = wrap.querySelector('.js-pick');
-    var nameEl = wrap.querySelector('.js-pick-name');
-    var results = wrap.querySelector('.js-pick-results');
-    var timer = null, seq = 0;
-    input.addEventListener('input', function () {
-      nameEl.textContent = '';
-      clearTimeout(timer);
-      var q = input.value.trim();
-      if (q.length < 2) { results.innerHTML = ''; return; }
-      timer = setTimeout(function () {
-        var mine = ++seq;
-        fetch('/analysis/food-use/replacement-search?q=' + encodeURIComponent(q))
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (mine !== seq) return;
-            results.innerHTML = '';
-            data.results.forEach(function (item) {
-              var btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = 'list-group-item list-group-item-action small py-1';
-              btn.setAttribute('role', 'option');
-              var code = document.createElement('span');
-              code.className = 'muted me-2';
-              code.textContent = item.code;
-              btn.appendChild(code);
-              btn.appendChild(document.createTextNode(item.name));
-              if (item.detail) {
-                var det = document.createElement('span');
-                det.className = 'muted ms-2';
-                det.textContent = '(' + item.detail + ')';
-                btn.appendChild(det);
-              }
-              btn.addEventListener('click', function () {
-                input.value = item.code;
-                nameEl.textContent = item.name;
-                results.innerHTML = '';
-              });
-              results.appendChild(btn);
-            });
-          });
-      }, 200);
-    });
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') results.innerHTML = '';
-      if (e.key === 'Enter' && results.querySelector('button')) { e.preventDefault(); results.querySelector('button').click(); }
-    });
-    document.addEventListener('click', function (e) {
-      if (!wrap.contains(e.target)) results.innerHTML = '';
-    });
-  }
-
-  function wireRow(row) {
-    row.querySelector('.js-op').addEventListener('change', function () { layout(row); });
-    row.querySelector('select[name=e_basis]').addEventListener('change', function () { layout(row); });
-    row.querySelectorAll('.js-pick-wrap').forEach(wirePicker);
-    row.querySelector('.js-remove-row').addEventListener('click', function () {
-      if (container.querySelectorAll('.whatif-row').length > 1) row.remove();
-      else row.querySelectorAll('input').forEach(function (el) { el.value = ''; });
-    });
-    layout(row);
-  }
-  container.querySelectorAll('.whatif-row').forEach(wireRow);
-  {% if result %}
-  // With results on screen, switching which days to average over redraws them.
-  document.querySelectorAll('.js-days').forEach(function (r) {
-    r.addEventListener('change', function () { document.getElementById('whatif-form').submit(); });
-  });
-  {% endif %}
-  document.getElementById('add-row').addEventListener('click', function () {
-    if (container.querySelectorAll('.whatif-row').length >= maxRows) return;
-    var row = blank.cloneNode(true);
-    container.appendChild(row);
-    wireRow(row);
-    row.querySelector('.js-pick').focus();
-  });
 })();
 </script>
+{{ _wc.script(max_rows, 'Amount per day (e.g. 1 cup, 30 g, 1 serving)') }}
+{% if result %}
+<script>
+// With results on screen, switching which days to average over redraws them.
+document.querySelectorAll('.js-days').forEach(function (r) {
+  r.addEventListener('change', function () { document.getElementById('whatif-form').submit(); });
+});
+</script>
+{% endif %}
 {% endblock %}

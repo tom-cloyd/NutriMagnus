@@ -10429,14 +10429,16 @@ def _parse_whatif_factor(text: str) -> float:
     return parsed[0] / 100 if pct else parsed[0]
 
 
-def _whatif_rows_from_query(e_op, e_item, e_with, e_amt, e_basis) -> list[dict]:
-    """The change rows as typed (for re-display), padded to equal length."""
+def _whatif_rows_from_query(e_op, e_item, e_with, e_amt, e_basis, e_per=()) -> list[dict]:
+    """The change rows as typed (for re-display), padded to equal length.
+    e_per ("serving" | "batch") only comes from the recipes page."""
     n = min(max(len(e_op), len(e_item)), _WHATIF_MAX_EDITS)
 
     def at(lst, i, default=""):
         return lst[i] if i < len(lst) else default
     return [{"op": at(e_op, i, "remove"), "item": at(e_item, i).strip(), "with": at(e_with, i).strip(),
-             "amt": at(e_amt, i).strip(), "basis": at(e_basis, i, "grams")} for i in range(n)]
+             "amt": at(e_amt, i).strip(), "basis": at(e_basis, i, "grams"),
+             "per": at(e_per, i, "batch")} for i in range(n)]
 
 
 def _whatif_edits(rows: list[dict], conn) -> tuple[list, list[str]]:
@@ -10457,11 +10459,14 @@ def _whatif_edits(rows: list[dict], conn) -> tuple[list, list[str]]:
                 replacement = _parse_code(r["with"])
                 if basis == "stated":
                     amount, unit = _parse_whatif_amount(r["amt"], replacement, conn)
+                elif basis == "factor":
+                    amount = _parse_whatif_factor(r["amt"])
             elif op == "add":
                 amount, unit = _parse_whatif_amount(r["amt"], item, conn)
             elif op == "scale":
                 amount = _parse_whatif_factor(r["amt"])
-            edits.append(_whatif.Edit(op, item, replacement, amount, unit, basis))
+            edits.append(_whatif.Edit(op, item, replacement, amount, unit, basis,
+                                      per="serving" if r.get("per") == "serving" else "batch"))
         except ValueError as exc:
             errors.append(f"Change {n}: {exc}")
     return edits, errors
@@ -10524,7 +10529,7 @@ async def analysis_whatif(
                 except ValueError:
                     r[field + "_name"] = ""
     if not rows:
-        rows = [{"op": "remove", "item": "", "with": "", "amt": "", "basis": "grams",
+        rows = [{"op": "remove", "item": "", "with": "", "amt": "", "basis": "grams", "per": "batch",
                  "item_name": "", "with_name": ""}]
     return templates.TemplateResponse(request, "analysis_whatif.html", {
         "mode": mode, "ranges_raw": ranges_raw, "meal_ids_raw": meal_ids,
@@ -10560,6 +10565,61 @@ def _parse_food_use_recipes_selection(
         for row in found:
             recipes_by_id[row["id"]] = dict(row)
     return recipes_by_id, ranges, missing_ids
+
+
+@app.get("/analysis/whatif-recipes", response_class=HTMLResponse)
+async def analysis_whatif_recipes(
+    request: Request,
+    mode: str = Query(default="all"),
+    ranges_raw: str = Query(default=""),
+    recipe_ids: str = Query(default=""),
+    e_op: list[str] = Query(default=[]),
+    e_item: list[str] = Query(default=[]),
+    e_with: list[str] = Query(default=[]),
+    e_amt: list[str] = Query(default=[]),
+    e_basis: list[str] = Query(default=[]),
+    e_per: list[str] = Query(default=[]),
+    show_all: bool = Query(default=False),
+):
+    """What-if for recipes: per-serving nutrients of the recipes a list of
+    changes reaches, before and after (numa_app/services/whatif.py,
+    evaluate_recipes). Same change rows as the meals page; selection like Food
+    Use in Recipes. Nothing is written; the scenario lives in the URL."""
+    rows = _whatif_rows_from_query(e_op, e_item, e_with, e_amt, e_basis, e_per)
+    result, errors = None, []
+    with _db.get_db() as conn:
+        recipes_by_id, ranges, missing_ids = _parse_food_use_recipes_selection(conn, mode, ranges_raw, recipe_ids)
+        edits, errors = _whatif_edits(rows, conn)
+        if edits and not errors:
+            try:
+                result = _whatif.evaluate_recipes(conn, list(recipes_by_id.values()), edits,
+                                                  groups=_NUTRIENT_GROUPS)
+            except _whatif.WhatIfError as exc:
+                errors = [str(exc)]
+        for r in rows:
+            for field in ("item", "with"):
+                try:
+                    r[field + "_name"] = _whatif.item_name(conn, _parse_code(r[field])) if r[field] else ""
+                except ValueError:
+                    r[field + "_name"] = ""
+    if result:
+        from urllib.parse import urlencode
+        result["unchanged"] = sum(1 for sec in result["sections"] for r in sec["rows"] if not r["changed"])
+        ids = [r["id"] for r in result["recipes"] + result["more"] + result["parents"]]
+        result["with_parents_url"] = "/analysis/whatif-recipes?" + urlencode({
+            "mode": "ids", "recipe_ids": ",".join(map(str, ids)),
+            **{f"e_{k}": [r[k] for r in rows] for k in ("op", "item", "with", "amt", "basis", "per")},
+        }, doseq=True)
+    if not rows:
+        rows = [{"op": "remove", "item": "", "with": "", "amt": "", "basis": "grams", "per": "batch",
+                 "item_name": "", "with_name": ""}]
+    return templates.TemplateResponse(request, "analysis_whatif_recipes.html", {
+        "mode": mode, "ranges_raw": ranges_raw, "recipe_ids_raw": recipe_ids,
+        "missing_ids": missing_ids, "bad_dates": _bad_date_lines(ranges_raw) if mode == "range" else [],
+        "rows": rows, "max_rows": _WHATIF_MAX_EDITS, "errors": errors, "result": result,
+        "selected": len(recipes_by_id), "show_all": show_all,
+        "max_columns": _whatif.MAX_RECIPE_COLUMNS,
+    })
 
 
 @app.get("/analysis/food-use-recipes", response_class=HTMLResponse)

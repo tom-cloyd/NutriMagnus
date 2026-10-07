@@ -98,20 +98,27 @@ def cascade_food_change(fdc_id: int, conn) -> None:
             )
 
 
-def _recompute_single_recipe_dcp(recipe_id: int, conn) -> float | None:
-    """Recompute and persist just this recipe's own per-serving DCP (no
-    cascade). A sub-recipe ingredient is pooled as one atomic food using its
-    own already-computed nutrient profile rather than decomposed into its raw
-    ingredients — see atomic_recipe_ingredients() for why."""
+def recipe_dcp_per_serving(recipe_id: int, conn, *, rewrite=None,
+                           extra: list[dict] | None = None) -> tuple[float | None, str]:
+    """A recipe's per-serving DCP, computed without saving anything:
+    (dcp_g, "") when computable, else (None, "clear") — nothing to pool (no
+    recipe, 0 servings, no weighed ingredients, no DIAAS result) — or
+    (None, "missing_aa") — a significant protein source lacks amino-acid
+    data. A sub-recipe ingredient is pooled as one atomic food using its own
+    nutrient profile rather than decomposed into its raw ingredients — see
+    atomic_recipe_ingredients() for why.
+
+    rewrite / extra exist for what-if analysis (services/whatif.py): rewrite
+    as in recipe_nutrients, extra = more per-serving leaf foods to pool in."""
     recipe = _db.recipe_get(conn, recipe_id)
     if not recipe:
-        return None
+        return None, "clear"
     servings = float(recipe["servings"] or 0)
     if servings <= 0:
-        _clear_recipe_dcp_and_nutrients(conn, recipe_id)
-        return None
+        return None, "clear"
 
-    leaves = atomic_recipe_ingredients(recipe_id, conn, portion_factor=1.0 / servings)
+    leaves = atomic_recipe_ingredients(recipe_id, conn, portion_factor=1.0 / servings, rewrite=rewrite)
+    leaves += extra or []
     diaas_ingredients = [
         {
             "food_name":      leaf["food_name"],
@@ -122,14 +129,12 @@ def _recompute_single_recipe_dcp(recipe_id: int, conn) -> float | None:
         for leaf in leaves if leaf["grams"] > 0
     ]
     if not diaas_ingredients:
-        _clear_recipe_dcp_and_nutrients(conn, recipe_id)
-        return None
+        return None, "clear"
 
     result = _diaas.meal_level_diaas(diaas_ingredients, conn)
     dcp_g = result.get("digestible_complete_protein_g")
     if dcp_g is None:
-        _clear_recipe_dcp_and_nutrients(conn, recipe_id)
-        return None
+        return None, "clear"
 
     for ing in result.get("ingredients", []):
         if ing.get("has_aa_data") or ing.get("protein_g", 0.0) <= 0:
@@ -137,8 +142,20 @@ def _recompute_single_recipe_dcp(recipe_id: int, conn) -> float | None:
         p = ing["protein_g"]
         is_minor = p < _MINOR_PROTEIN_G
         if not is_minor:
-            _db.recipe_set_dcp(conn, recipe_id, None)
-            return None
+            return None, "missing_aa"
+    return dcp_g, ""
+
+
+def _recompute_single_recipe_dcp(recipe_id: int, conn) -> float | None:
+    """Recompute and persist just this recipe's own per-serving DCP (no
+    cascade) — recipe_dcp_per_serving() plus saving the result."""
+    dcp_g, why = recipe_dcp_per_serving(recipe_id, conn)
+    if why == "clear":
+        _clear_recipe_dcp_and_nutrients(conn, recipe_id)
+        return None
+    if why == "missing_aa":
+        _db.recipe_set_dcp(conn, recipe_id, None)
+        return None
 
     # Store at full precision — every reader formats to 1 decimal at display
     # time (e.g. f"{dcp_g:.1f}"). Pre-rounding here to 2 decimals caused a

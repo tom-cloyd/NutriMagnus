@@ -1,6 +1,6 @@
 # What-if analysis — implementation plan
 
-Drafted 2026-10-04. Phases 1 + 2 built 2026-10-06 (uncommitted at time of writing); Phases 3-5 not started. Non-destructive "what if I removed / added /
+Drafted 2026-10-04. Phases 1-3 built 2026-10-06; Phases 4-5 not started. Non-destructive "what if I removed / added /
 replaced / scaled X" analysis across a chosen set of meals (by date ranges,
 dates, or meal IDs) or a chosen set of recipes, showing nutrient profiles
 before and after.
@@ -111,6 +111,14 @@ Tests: tests/test_whatif.py (service) + 5 in tests/test_web.py.
 
 ## Phase 3 — Analysis → What-if: recipes
 
+**Status: done 2026-10-06.** `/analysis/whatif-recipes`, `evaluate_recipes()`.
+As built: "add" goes into each batch (per serving = amount / servings);
+columns = recipes a remove/replace/scale reached, top 8 by summed relative
+change, the rest listed by name; DCP row under protein via the new pure
+`recipe_dcp.recipe_dcp_per_serving()`; parents listed with a "Show them too"
+link; cells show after + change, with a tick-box to show before. Change-row
+editor shared in `_whatif_changes.html`.
+
 - Selection like Food use in recipes (all / created-date range / IDs); same edit list.
 - Output: the after (Δ) grid, cap 8; option to also list parent recipes the
   change flows into.
@@ -126,7 +134,7 @@ Tests: tests/test_whatif.py (service) + 5 in tests/test_web.py.
 ## Phase 5 — deeper analysis
 
 - GL before and after (DCP done 2026-10-06 in the summary table: ~0.4 s for 118 days;
-  fast enough that it did not need to be opt-in).
+  fast enough that it did not need to be opt-in). 
 - Speed check on a 90-day range; cache recipe totals for the length of one request.
 
 ## Later (agreed 2026-10-06, after the first working version)

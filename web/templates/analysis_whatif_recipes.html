@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — What-if: Recipes{% endblock %}
+{# Full width: the grid has a column per recipe (up to 8). #}
+{% block layout_class %}container-fluid px-3{% endblock %}
+
+{% import "_whatif_changes.html" as _wc %}
+{% from "_whatif_changes.html" import num, signed %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/summary">Analysis</a></li>
+    <li class="breadcrumb-item active" aria-current="page">What-if: Recipes</li>
+  </ol>
+</nav>
+
+<h2>What-if: Recipes {{ manual_link("whatif-recipes") }}</h2>
+<p class="muted">See how your recipes' nutrition per serving would change if you removed, added, replaced or cut down
+an ingredient. Nothing is saved or changed &mdash; your recipes stay exactly as they are.
+For the effect on what you actually ate, use <a href="/analysis/whatif">What-if: Meals</a>.</p>
+
+<form method="get" action="/analysis/whatif-recipes" class="mb-4" id="whatif-form">
+  <h3 class="h5">1. Which recipes</h3>
+  <div class="mb-2">
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="mode" id="mode-all" value="all" {% if mode == "all" %}checked{% endif %}>
+      <label class="form-check-label" for="mode-all">All recipes</label>
+    </div>
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="mode" id="mode-range" value="range" {% if mode == "range" %}checked{% endif %}>
+      <label class="form-check-label" for="mode-range">By date created</label>
+    </div>
+    <div class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="mode" id="mode-ids" value="ids" {% if mode == "ids" %}checked{% endif %}>
+      <label class="form-check-label" for="mode-ids">Recipe IDs</label>
+    </div>
+  </div>
+  <div class="d-flex gap-4 flex-wrap">
+    <div class="mb-3" id="range-block" style="max-width:22rem">
+      <label class="form-label" for="ranges_raw">Dates created <small class="muted">(one per line: <code>YYYY-MM-DD:YYYY-MM-DD</code>, or a single date <code>YYYY-MM-DD</code>)</small></label>
+      <textarea class="form-control" id="ranges_raw" name="ranges_raw" rows="3"
+                placeholder="2026-01-01:2026-01-31">{{ ranges_raw or "" }}</textarea>
+    </div>
+    <div class="mb-3" id="ids-block" style="max-width:22rem">
+      <label class="form-label" for="recipe_ids">Recipe IDs <small class="muted">(comma or space separated, ranges like <code>12-32</code> allowed)</small></label>
+      <input type="text" class="form-control" id="recipe_ids" name="recipe_ids" value="{{ recipe_ids_raw or "" }}" placeholder="12, 15, 18, 20-25">
+    </div>
+  </div>
+
+  <h3 class="h5">2. What to change</h3>
+  <p class="muted mb-2"><small>
+    Add a row for each change; they all apply together. Type part of a name in a food/recipe box and pick from the list.
+    <strong>Remove</strong>, <strong>Replace</strong> and <strong>Change amount</strong> reach the ingredient wherever it is used,
+    including inside sub-recipes. <strong>Add</strong> puts the amount into each recipe like one more ingredient; choose whether the amount is for
+    each serving or for the whole recipe (then each serving gets its share). The number of servings stays the same.
+  </small></p>
+  {{ _wc.change_rows(rows, per_choice=true) }}
+  <button type="submit" class="btn btn-sm btn-primary mb-3">Show the effect</button>
+</form>
+
+{% if bad_dates %}
+<p class="text-warning">These date lines weren't understood and were left out: {{ bad_dates|join(" · ") }}. Use <code>YYYY-MM-DD</code> or <code>YYYY-MM-DD:YYYY-MM-DD</code>.</p>
+{% endif %}
+{% if missing_ids %}
+<p class="text-warning">Recipe ID(s) not found: {{ missing_ids|join(", ") }}</p>
+{% endif %}
+{% for e in errors %}
+<p class="text-danger mb-1">{{ e }}</p>
+{% endfor %}
+
+{% if result %}
+  <hr style="margin:1.5em 0 0 0">
+  <h3 class="mb-2">Per serving, before and after
+    <small class="muted fw-normal" style="font-size:0.875rem">({{ selected }} recipe(s) selected)</small>
+  </h3>
+
+  <ul class="mb-3">
+    {% for r in result.edits %}{% set e = r.edit %}
+    <li>
+      {% if e.op == "remove" %}Remove <strong>{{ r.item_name }}</strong>
+      {% elif e.op == "scale" %}Change <strong>{{ r.item_name }}</strong> to {{ "%g"|format(e.amount * 100) }}% of the amount used
+      {% elif e.op == "replace" %}Replace <strong>{{ r.item_name }}</strong> with <strong>{{ r.replacement_name }}</strong>
+        ({% if e.basis == "grams" %}same weight{% elif e.basis == "factor" %}{{ "%g"|format((e.amount * 100)|round(1)) }}% of the old weight{% elif e.basis == "servings" %}same servings{% else %}{{ "%g"|format(e.amount|round(1)) }} {{ "g" if e.unit == "g" else "serving(s)" }} each time{% endif %})
+      {% else %}Add {{ "%g"|format(e.amount|round(1)) }} {{ "g" if e.unit == "g" else "serving(s)" }} of <strong>{{ r.item_name }}</strong> {% if e.per == "serving" %}to each serving{% else %}to each recipe's whole batch{% endif %}{% endif %}
+      &mdash;
+      {% if r.recipes %}<span class="muted">{% if e.op == "add" %}added to {{ r.recipes }} recipe(s){% else %}found in {{ r.recipes }} recipe(s){% endif %}</span>
+      {% else %}<span class="text-warning">not used in any of the selected recipes, so it changes nothing</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if not result.recipes %}
+  <p class="muted">None of the selected recipes would change.</p>
+  {% else %}
+  {% if result.more %}
+  <p class="text-warning mb-2"><small>{{ result.recipes|length + result.more|length }} recipes would change; the {{ max_columns }} that change most are shown.
+    The others: {% for r in result.more %}<a href="/recipe/{{ r.id }}">{{ r.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.
+    To see particular ones, choose <strong>Recipe IDs</strong> above.</small></p>
+  {% endif %}
+
+  {% set qs = request.url.query %}
+  <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
+    <div class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" id="show-before">
+      <label class="form-check-label" for="show-before">Also show the before values</label>
+    </div>
+    {% if result.unchanged %}
+      {% if show_all %}
+      <a href="?{{ qs|replace('&show_all=true', '') }}">Hide the {{ result.unchanged }} unchanged nutrient(s)</a>
+      {% else %}
+      <a href="?{{ qs }}&show_all=true">Show the {{ result.unchanged }} unchanged nutrient(s) too</a>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered whatif-grid" style="width:auto">
+      {# The site-wide first-column indent is sized for the nutrient tables'
+         own layout; here it only wastes width. #}
+      <style>.whatif-grid td:first-child, .whatif-grid th:first-child { padding-left: .5rem; width: 8.5rem; }</style>
+      <thead class="table-light">
+        <tr>
+          <th>Per serving</th>
+          <th class="num-col" style="width:5.5rem" title="The average of each recipe's percent change, over every recipe the change reaches (including any not shown as a column). A recipe that had none of the nutrient before is left out.">
+            Average<br>change
+            <div class="small muted fw-normal">{{ result.changed_count }} recipe(s)</div>
+          </th>
+          {% for r in result.recipes %}
+          <th class="num-col" style="min-width:6.5rem">
+            <a href="/recipe/{{ r.id }}">{{ r.name }}</a>
+            <div class="small muted fw-normal">{{ food_id_short(none, r.id) }} &middot; {{ "%g"|format(r.servings) }} serving(s){% if r.serving_size %} &middot; {{ r.serving_size }}{% endif %}</div>
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for sec in result.sections %}
+        {% set shown = sec.rows if show_all else sec.rows|selectattr("changed")|list %}
+        {% if shown %}
+        <tr class="table-light"><td colspan="{{ result.recipes|length + 2 }}"><strong>{{ sec.name }}</strong></td></tr>
+        {% for row in shown %}
+        <tr>
+          <td>{{ row.label }}{% if row.unknown %} <span class="text-warning" title="No value for this nutrient in: {{ row.unknown|join(', ') }}. The after figure may be too low.">?</span>{% endif %}
+            <span class="small muted d-block">{{ row.unit }}</span></td>
+          <td class="num-col table-light">
+            {% if row.avg_pct is not none %}<strong>{{ signed(row.avg_pct) }}%</strong>
+              {% if row.avg_n < result.changed_count %}<span class="small muted d-block" title="Recipes with none of this nutrient before (or DCP not computed) are left out of the average">over {{ row.avg_n }}</span>{% endif %}
+            {% else %}<span class="muted">&ndash;</span>{% endif %}
+          </td>
+          {% for c in row.cells %}
+          <td class="num-col">
+            {% if row.key == "dcp" and c.after is none %}
+              <span class="muted" title="Can't be worked out: an ingredient with 1 g or more of protein has no amino-acid data">NC</span>
+            {% else %}
+              <strong>{{ num(c.after) }}</strong>
+            {% endif %}
+            {% if c.delta is not none and c.delta|abs >= 0.005 %}
+              <div class="small">{{ signed(c.delta) }}{% if c.delta_pct is not none %} ({{ signed(c.delta_pct) }}%){% endif %}</div>
+            {% endif %}
+            <span class="small muted d-block js-before d-none">was {% if c.before is none %}NC{% else %}{{ num(c.before) }}{% endif %}</span>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+        {% endif %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted"><small>
+    Each cell shows the value per serving <strong>after</strong> your changes, with the change below it &middot;
+    <strong>Average change</strong> = the average of each recipe's percent change, over all {{ result.changed_count }} recipe(s) the change reaches, including any not shown as a column &middot;
+    the number of servings stays the same, so removing an ingredient makes each serving lighter, and adding one makes it heavier &middot;
+    <strong>Protein (DCP)</strong> is worked out the same way as on the recipe page; NC = not computed (an ingredient with 1 g or more of protein has no amino-acid data) &middot;
+    <span class="text-warning">?</span> = something you added has no value for that nutrient, so its "after" figure may be too low.
+  </small></p>
+
+  {% if result.parents %}
+  <p class="mb-1"><strong>These recipes use a changed recipe inside them, so they would change too:</strong>
+    {% for p in result.parents %}<a href="/recipe/{{ p.id }}">{{ p.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.</p>
+  <p class="small"><a href="{{ result.with_parents_url }}">Show them too</a></p>
+  {% endif %}
+  {% include "_code_key.html" %}
+  {% endif %}
+{% elif not errors %}
+<p class="muted">Enter at least one change above, then click <strong>Show the effect</strong>.</p>
+{% endif %}
+
+<script>
+(function () {
+  var radios = { all: document.getElementById('mode-all'), range: document.getElementById('mode-range'), ids: document.getElementById('mode-ids') };
+  var rangeBlock = document.getElementById('range-block');
+  var idsBlock = document.getElementById('ids-block');
+  var rangesRaw = document.getElementById('ranges_raw');
+  var recipeIds = document.getElementById('recipe_ids');
+  function sync() {
+    rangesRaw.disabled = !radios.range.checked;
+    recipeIds.disabled = !radios.ids.checked;
+    rangeBlock.classList.toggle('opacity-50', !radios.range.checked);
+    idsBlock.classList.toggle('opacity-50', !radios.ids.checked);
+  }
+  Object.keys(radios).forEach(function (k) { radios[k].addEventListener('change', sync); });
+  recipeIds.addEventListener('input', function () { if (recipeIds.value.trim()) { radios.ids.checked = true; sync(); } });
+  rangesRaw.addEventListener('input', function () { if (rangesRaw.value.trim()) { radios.range.checked = true; sync(); } });
+  sync();
+  var before = document.getElementById('show-before');
+  if (before) {
+    before.addEventListener('change', function () {
+      document.querySelectorAll('.js-before').forEach(function (el) { el.classList.toggle('d-none', !before.checked); });
+    });
+  }
+})();
+</script>
+{{ _wc.script(max_rows, 'Amount to add (e.g. 1 cup, 30 g, 1 serving)') }}
+{% endblock %}

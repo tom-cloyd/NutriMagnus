@@ -1,0 +1,200 @@
+{# Shared by the two What-if pages (meals, recipes): number formatting,
+   the change-row editor, and its script. Docs: user-manual.md #whatif #}
+
+{% macro num(v) -%}
+  {%- if v is none -%}&ndash;
+  {%- elif v|abs >= 100 -%}{{ "{:,.0f}".format(v) }}
+  {%- elif v|abs >= 10 -%}{{ "%.1f"|format(v) }}
+  {%- else -%}{{ "%.2f"|format(v) }}{%- endif -%}
+{%- endmacro %}
+
+{% macro signed(v) -%}
+  {%- if v is none -%}&ndash;
+  {%- elif v|abs < 0.005 -%}0
+  {%- else -%}{{ "+" if v > 0 else "&minus;"|safe }}{{ num(v|abs) }}{%- endif -%}
+{%- endmacro %}
+
+{# per_choice: offer "per serving / whole batch" on Add rows (recipes page). #}
+{% macro change_rows(rows, per_choice=false) %}
+  <div id="edit-rows">
+    {% for r in rows %}
+    <div class="whatif-row d-flex flex-wrap align-items-end gap-2 mb-2 p-2 border rounded">
+      <div>
+        <label class="form-label mb-0"><small>Action</small></label>
+        <select class="form-select form-select-sm js-op" name="e_op" style="width:auto;max-width:100%">
+          <option value="remove" {% if r.op == "remove" %}selected{% endif %}>Remove</option>
+          <option value="add" {% if r.op == "add" %}selected{% endif %}>Add</option>
+          <option value="replace" {% if r.op == "replace" %}selected{% endif %}>Replace (same weight, a multiple of it, or a set amount)</option>
+          <option value="scale" {% if r.op == "scale" %}selected{% endif %}>Change amount (multiply: 1.5 or 150%)</option>
+        </select>
+      </div>
+      <div class="js-pick-wrap" style="position:relative">
+        <label class="form-label mb-0"><small>Food or recipe</small></label>
+        <input type="text" class="form-control form-control-sm js-pick" name="e_item" value="{{ r.item }}"
+               autocomplete="off" placeholder="name or code" style="width:16rem">
+        <div class="small muted js-pick-name" style="max-width:16rem">{{ r.item_name }}</div>
+        <div class="list-group shadow-sm js-pick-results" role="listbox"
+             style="position:absolute;z-index:1000;width:28rem;max-width:90vw;max-height:20rem;overflow-y:auto"></div>
+      </div>
+      <div class="js-pick-wrap js-with" style="position:relative">
+        <label class="form-label mb-0"><small>Replace it with</small></label>
+        <input type="text" class="form-control form-control-sm js-pick" name="e_with" value="{{ r.with }}"
+               autocomplete="off" placeholder="name or code" style="width:16rem">
+        <div class="small muted js-pick-name" style="max-width:16rem">{{ r.with_name }}</div>
+        <div class="list-group shadow-sm js-pick-results" role="listbox"
+             style="position:absolute;z-index:1000;width:28rem;max-width:90vw;max-height:20rem;overflow-y:auto"></div>
+      </div>
+      <div class="js-basis">
+        <label class="form-label mb-0"><small>How much of the replacement</small></label>
+        <select class="form-select form-select-sm" name="e_basis" style="width:15rem">
+          <option value="grams" {% if r.basis == "grams" %}selected{% endif %}>Same weight</option>
+          <option value="factor" {% if r.basis == "factor" %}selected{% endif %}>A multiple of the old weight</option>
+          <option value="servings" {% if r.basis == "servings" %}selected{% endif %}>Same servings (recipe for recipe)</option>
+          <option value="stated" {% if r.basis == "stated" %}selected{% endif %}>This amount each time</option>
+        </select>
+      </div>
+      <div class="js-amt">
+        <label class="form-label mb-0"><small class="js-amt-label">Amount</small></label>
+        <input type="text" class="form-control form-control-sm" name="e_amt" value="{{ r.amt }}" style="width:11rem">
+      </div>
+      {% if per_choice %}
+      <div class="js-per">
+        <label class="form-label mb-0"><small>That amount is for</small></label>
+        <select class="form-select form-select-sm" name="e_per" style="width:11rem">
+          <option value="serving" {% if r.per == "serving" %}selected{% endif %}>Each serving</option>
+          <option value="batch" {% if r.per != "serving" %}selected{% endif %}>The whole recipe</option>
+        </select>
+      </div>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-outline-secondary js-remove-row" title="Remove this change">Remove this change</button>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="d-flex gap-2 mb-3 mt-1">
+    <button type="button" class="btn btn-sm btn-outline-primary" id="add-row">Add another change</button>
+  </div>
+{% endmacro %}
+
+{# add_label: the Amount box's label when the action is Add. #}
+{% macro script(max_rows, add_label) %}
+<script>
+(function () {
+  var container = document.getElementById('edit-rows');
+  var maxRows = {{ max_rows }};
+  var blank = container.querySelector('.whatif-row').cloneNode(true);
+  blank.querySelectorAll('input').forEach(function (el) { el.value = ''; });
+  blank.querySelectorAll('.js-pick-name, .js-pick-results').forEach(function (el) { el.innerHTML = ''; });
+  blank.querySelector('.js-op').value = 'remove';
+  blank.querySelector('select[name=e_basis]').value = 'grams';
+  var blankPer = blank.querySelector('select[name=e_per]');
+  if (blankPer) blankPer.value = 'batch';
+
+  var amtLabels = {
+    add: {{ add_label|tojson }},
+    replace: 'Amount each time (e.g. 1/2 c, 100 g)',
+    scale: 'Multiply by: 1.5 or 150% (0.5 or 50% = half)'
+  };
+  function layout(row) {
+    var op = row.querySelector('.js-op').value;
+    var basis = row.querySelector('select[name=e_basis]').value;
+    row.querySelector('.js-with').classList.toggle('d-none', op !== 'replace');
+    row.querySelector('.js-basis').classList.toggle('d-none', op !== 'replace');
+    var showAmt = op === 'add' || op === 'scale' || (op === 'replace' && (basis === 'stated' || basis === 'factor'));
+    row.querySelector('.js-amt').classList.toggle('d-none', !showAmt);
+    row.querySelector('.js-amt-label').textContent =
+      (op === 'replace' && basis === 'factor') ? 'Old weight times: 1.1 or 110%' : (amtLabels[op] || 'Amount');
+    var per = row.querySelector('.js-per');
+    if (per) per.classList.toggle('d-none', op !== 'add');
+  }
+
+  function wirePicker(wrap) {
+    var input = wrap.querySelector('.js-pick');
+    var nameEl = wrap.querySelector('.js-pick-name');
+    var results = wrap.querySelector('.js-pick-results');
+    var timer = null, seq = 0;
+    input.addEventListener('input', function () {
+      nameEl.textContent = '';
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2) { results.innerHTML = ''; return; }
+      timer = setTimeout(function () {
+        var mine = ++seq;
+        fetch('/analysis/food-use/replacement-search?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (mine !== seq) return;
+            results.innerHTML = '';
+            active = -1;
+            data.results.forEach(function (item) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'list-group-item list-group-item-action small py-1';
+              btn.setAttribute('role', 'option');
+              var code = document.createElement('span');
+              code.className = 'muted me-2';
+              code.textContent = item.code;
+              btn.appendChild(code);
+              btn.appendChild(document.createTextNode(item.name));
+              if (item.detail) {
+                var det = document.createElement('span');
+                det.className = 'muted ms-2';
+                det.textContent = '(' + item.detail + ')';
+                btn.appendChild(det);
+              }
+              btn.addEventListener('click', function () {
+                input.value = item.code;
+                nameEl.textContent = item.name;
+                results.innerHTML = '';
+              });
+              results.appendChild(btn);
+            });
+          });
+      }, 200);
+    });
+    // Arrow keys move a highlight through the list; Enter picks the
+    // highlighted item (or the top one), Escape closes the list.
+    var active = -1;
+    function items() { return Array.prototype.slice.call(results.querySelectorAll('button')); }
+    function highlight(i) {
+      var list = items();
+      list.forEach(function (b, j) {
+        b.classList.toggle('active', j === i);
+        b.setAttribute('aria-selected', j === i ? 'true' : 'false');
+      });
+      active = i;
+      if (list[i]) list[i].scrollIntoView({ block: 'nearest' });
+    }
+    input.addEventListener('keydown', function (e) {
+      var list = items();
+      if (e.key === 'Escape') { results.innerHTML = ''; active = -1; return; }
+      if (!list.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(active + 1, list.length - 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(active - 1, 0)); }
+      else if (e.key === 'Enter') { e.preventDefault(); list[active >= 0 ? active : 0].click(); active = -1; }
+    });
+    document.addEventListener('click', function (e) {
+      if (!wrap.contains(e.target)) results.innerHTML = '';
+    });
+  }
+
+  function wireRow(row) {
+    row.querySelector('.js-op').addEventListener('change', function () { layout(row); });
+    row.querySelector('select[name=e_basis]').addEventListener('change', function () { layout(row); });
+    row.querySelectorAll('.js-pick-wrap').forEach(wirePicker);
+    row.querySelector('.js-remove-row').addEventListener('click', function () {
+      if (container.querySelectorAll('.whatif-row').length > 1) row.remove();
+      else row.querySelectorAll('input').forEach(function (el) { el.value = ''; });
+    });
+    layout(row);
+  }
+  container.querySelectorAll('.whatif-row').forEach(wireRow);
+  document.getElementById('add-row').addEventListener('click', function () {
+    if (container.querySelectorAll('.whatif-row').length >= maxRows) return;
+    var row = blank.cloneNode(true);
+    container.appendChild(row);
+    wireRow(row);
+    row.querySelector('.js-pick').focus();
+  });
+})();
+</script>
+{% endmacro %}

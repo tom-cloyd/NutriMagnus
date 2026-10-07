@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-06:1905* / Reading time: 7 hours, 25 minutes
+*Updated 2026-10-06:2251* / Reading time: 7 hours, 29 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -270,6 +270,7 @@ The five items in the top navigation bar correspond to the five major things you
     - **Food use in recipes**: the same ranking, but for which foods and recipes are used as ingredients across your recipe book — not a measure of what you eat
     - Both Food Use pages can also bulk-substitute one food or recipe for another across the current selection — see [Substituting a Food or Recipe](#fooduse-substitute)
     - **What-if: meals**: see how your average daily nutrition over a set of days would change if you removed, added, replaced or cut down foods and recipes — without changing anything — see [What-if: Meals](#whatif)
+    - **What-if: recipes**: the same for your recipes — how each one's nutrition per serving would change if you removed, added or replaced an ingredient — see [What-if: Recipes](#whatif-recipes)
 - **Settings**
     - Color theme
     - Personal profile (age, sex, weight, height, activity level)
@@ -1685,7 +1686,7 @@ When you analyze a meal for the first time, you may see a "Fetching amino acid d
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 52 minutes)*
+*(Reading time: 55 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -1720,6 +1721,7 @@ The sections linked from analysis output are:
 - [Food use in recipes](#fooduse-recipes) — food use in recipes analysis table
 - [Replace a food or recipe everywhere (substitute)](#fooduse-substitute) — bulk-replace one food/recipe with another
 - [What-if: meals](#whatif) — see how removing, adding or replacing foods would change your daily nutrition
+- [What-if: recipes](#whatif-recipes) — see how changing an ingredient would change each recipe per serving
 - [Glossary](#glossary) — abbreviations and key terms
 - [Glycemic index](#gi) — glycemic index background
 - [Glycemic load](#gl) — glycemic load concept and formula
@@ -2219,7 +2221,8 @@ On either Food Use page, after you've searched:
    moves the tick. The Substitute panel opens and its "Replace this" box is
    filled in for you.
 2. In **Replace it with**, type part of the replacement's name, then click it
-   in the list that drops down (or press **Enter** for the top one). The list
+   in the list that drops down, or move to it with the up/down arrow keys and
+   press **Enter** (Enter alone picks the top one). The list
    covers your Food Cache and your recipes. A line under the button reads
    back what will be replaced with what.
 3. Click **Substitute everywhere in this selection** and confirm.
@@ -2276,7 +2279,8 @@ is saved or changed: your meals stay exactly as logged.
    **Meal IDs** to pick particular meals.
 2. **What to change.** Each row is one change; add as many as you like with
    **Add another change** and they all apply together. In a food/recipe box,
-   type part of a name and pick it from the list (or type its
+   type part of a name and pick it from the list with the mouse, or with the
+   up/down arrow keys and **Enter** (or type its
    [code](#fooduse), the one shown on Food Search or the Recipes list).
 3. **Which days to average over.** Either every day in your selection that
    has a meal logged, or only the days when something you're removing,
@@ -2302,10 +2306,12 @@ The four actions:
                     recipe takes servings (1, 1 1/2) or grams (150 g).
     Replace         Swaps one item for another only where the old one was
                     eaten. Choose how much of the replacement: the same
-                    weight, the same servings (recipe for recipe), or a
-                    stated amount each time.
-    Change amount   Multiplies the amount eaten everywhere it appears
-                    (0.5 or 50% = half; 150% = half again).
+                    weight, a multiple of the old weight (1.1 or 110% =
+                    a tenth more), the same servings (recipe for recipe),
+                    or a stated amount each time.
+    Change amount   Multiplies the amount eaten everywhere it appears.
+    (multiply)      Type the multiplier as a number or a percentage:
+                    1.5 or 150% = half again as much; 0.5 or 50% = half.
 
 To swap one food for another, you have two choices. **Replace** puts the new
 food only where the old one was. A **Remove** row plus an **Add** row drops
@@ -2341,6 +2347,67 @@ this page with that item already entered, for the same meals.
 
 The page address holds the whole scenario, so you can bookmark it and come
 back to it later.
+
+
+#### What-if: Recipes {: #whatif-recipes}
+Analysis -> What-if: recipes is the recipe-book version of
+[What-if: Meals](#whatif): it shows how each recipe's nutrition **per
+serving** would change if you removed, added, replaced or cut down an
+ingredient. Nothing is saved or changed.
+
+1. **Which recipes.** All recipes (the default), recipes created on certain
+   dates, or a list of recipe IDs.
+2. **What to change.** The same change rows as on What-if: Meals. Remove,
+   Replace and Change amount reach the ingredient wherever it's used,
+   including inside sub-recipes. **Add** puts an amount into each recipe like
+   one more ingredient; choose whether that amount is for **each serving** or
+   for **the whole recipe** (then each serving gets its share).
+3. Click **Show the effect**.
+
+The number of servings never changes, so removing an ingredient makes each
+serving lighter and adding one makes it heavier. That is usually what you
+want to know: "if I left the nutritional yeast out, what would one serving
+give me?"
+
+To swap one ingredient for another at a different amount — say, pumpkin
+seeds in place of hemp seeds at 1.1 times the hemp weight — use a single
+**Replace** row: hemp seeds, replaced with pumpkin seeds, **A multiple of the
+old weight**, `1.1` (or `110%`). Every recipe gets 1.1 times whatever weight
+of hemp it had. No Remove row is needed; Replace takes the old one out.
+
+To use more or less of an ingredient that's already in a recipe, use
+**Change amount (multiply: 1.5 or 150%)** with a multiplier, typed either way: 1.5 or
+150% for half again as much, 0.5 or 50% for half. It changes the amount wherever the ingredient is used,
+including inside sub-recipes. A **Remove** row plus an **Add** row does the
+same job when you'd rather state the new amount outright (for example
+"10 g per serving"), but remember that Add puts the ingredient into every
+selected recipe, not just the ones that already had it.
+
+The results are a grid with one column per recipe. Each cell shows the value
+per serving **after** your changes, in bold, with the change below it. Tick
+**Also show the before values** to add the old figure. The first column,
+**Average change**, gives the average of each recipe's percent change for
+that nutrient, over every recipe the change reaches, including any that
+don't fit as a column. A recipe that had none of the nutrient before is left
+out of that average (a percent change from zero means nothing), and a small
+"over N" note shows when that happened. Only nutrients that
+change are listed; a link shows the rest. Protein ([DCP](#gloss-dcp)) is
+worked out the same way as on the recipe page; NC (not computed) means it
+can't be, because an ingredient with 1 g or more of protein has no
+amino-acid data.
+
+Only recipes the change actually reaches are shown (with only Add rows,
+every selected recipe is). At most 8 fit side by side: the 8 that change
+most are shown and the rest are listed by name, so you can pick particular
+ones with **Recipe IDs**.
+
+If a changed recipe is used inside other recipes you didn't select, those
+are listed under the grid, since they would change too, with a **Show them
+too** link that adds them.
+
+On [Food Use in Recipes](#fooduse-recipes), the **try removing** link on
+each row opens this page with that ingredient already entered, for the
+recipes that use it.
 
 
 #### Glycemic Load Output {: #glycemic}
@@ -4467,7 +4534,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 30 minutes)*
+*(Reading time: 1 hour, 31 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4483,6 +4550,9 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- What-if Replace can use a multiple of the old weight (for example 1.1 or 110%).
+- Name lists on the What-if and Food Use replace boxes can be worked with the arrow keys and Enter.
+- New Analysis -> What-if: recipes: see how removing, adding or replacing an ingredient would change each recipe's nutrition per serving, without changing anything.
 - Food Use and What-if date boxes: dates typed without leading zeros (2026-6-1) now work; a line that isn't a date is pointed out instead of silently dropped.
 - New Analysis -> What-if: meals: see how removing, adding, replacing or cutting down foods would change your daily nutrition over a set of days, without changing anything.
 - Food Use pages: a single date on its own line now counts as a one-day range.
@@ -4491,6 +4561,34 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - A recipe added as an ingredient of another recipe can now be entered in grams as well as servings.
 
 #### October 6 updates
+
+**PROGRAM: REPLACE AT A MULTIPLE OF THE OLD WEIGHT**
+
+On both What-if pages, a Replace row can now give the replacement as a multiple of the old item's weight, such as `1.1` or `110%`, so you can try pumpkin seeds in place of hemp seeds at a tenth more, wherever hemp seeds were used. [learn more...](#whatif-recipes)
+
+**PROGRAM: ARROW KEYS IN NAME LISTS**
+
+When you type part of a food or recipe name on What-if: Meals, What-if: Recipes, or the Food Use pages' replace box, you can now move through the list that drops down with the up/down arrow keys and pick with **Enter**, instead of having to click. [learn more...](#whatif)
+
+**PROGRAM: WHAT-IF ANALYSIS FOR RECIPES**
+
+Analysis -> What-if: recipes shows how each recipe's nutrition per serving, including Protein (DCP), would change if you removed, added, replaced or cut down an ingredient, including inside sub-recipes. An added amount can be for each serving or for the whole recipe. An Average change column shows the typical percent change for each nutrient across the affected recipes. It also lists any other recipes that use a changed one inside them. Nothing in your recipes changes. [learn more...](#whatif-recipes)
+
+<!--
+
+```
+Scope: Analysis -> What-if: recipes (/analysis/whatif-recipes,
+analysis_whatif_recipes.html; nav item 5; "try removing" per row on Food Use in
+Recipes). whatif.evaluate_recipes(): per serving; "add" goes into the batch
+(amount / servings); shown = recipes a remove/replace/scale reached, top 8 by
+summed relative change, rest listed; ancestors via recipe_referencing_subrecipe.
+recipe_dcp.recipe_dcp_per_serving() split out of _recompute_single_recipe_dcp
+(pure, no writes; rewrite + extra leaves for what-if); atomic_recipe_ingredients
+gained the same optional rewrite hook. Change-row editor moved to the shared
+_whatif_changes.html (both What-if pages).
+```
+
+-->
 
 **PROGRAM: DATES WITHOUT LEADING ZEROS NOW WORK IN DATE BOXES**
 

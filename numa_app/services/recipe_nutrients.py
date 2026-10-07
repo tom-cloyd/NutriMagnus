@@ -79,6 +79,7 @@ def atomic_recipe_ingredients(
     conn,
     *,
     portion_factor: float = 1.0,
+    rewrite: Rewrite | None = None,
 ) -> list[dict]:
     """Expand a recipe into food-level dicts for DIAAS/digestibility pooling —
     direct ingredients expand as usual, but a sub-recipe ingredient is kept as
@@ -97,41 +98,54 @@ def atomic_recipe_ingredients(
     — fdc_id is None for a sub-recipe entry, recipe_id is None for a direct food.
     Use expand_recipe_ingredients() instead when you need raw-leaf totals (e.g.
     summing calories/vitamins/minerals, where grouping makes no difference).
+
+    rewrite: see expand_recipe_ingredients(); also applied inside each
+    sub-recipe's own totals.
     """
     result: list[dict] = []
     for ing in _db.recipe_get_ingredients(conn, recipe_id):
         if ing["ref_recipe_deleted"]:
             continue
         if ing["ref_recipe_id"]:
-            sub = _db.recipe_get(conn, ing["ref_recipe_id"])
-            sub_servings = float(sub["servings"] or 1) if sub else 0.0
-            if not sub or sub_servings <= 0:
-                continue
-            sub_total = recipe_total_nutrients(ing["ref_recipe_id"], conn)
-            scale = float(ing["amount"]) / sub_servings * portion_factor
-            scaled = {k: v * scale for k, v in sub_total.items()}
-            if scaled.get("protein_g", 0.0) <= 0:
-                continue
-            result.append({
-                "food_name":      ing["food_name"],
-                "fdc_id":         None,
-                "recipe_id":      ing["ref_recipe_id"],
-                "nutrients_100g": scaled,
-                "grams":          100.0,
-            })
+            entries = [("recipe", ing["ref_recipe_id"], float(ing["amount"]))]
         elif ing["fdc_id"]:
-            cached = _db.get_cached_food(conn, ing["fdc_id"])
+            entries = [("food", ing["fdc_id"], float(ing["amount"]))]
+        else:
+            continue
+        logged = entries[0][:2]
+        if rewrite is not None:
+            entries = rewrite(*entries[0])
+        for kind, item_id, qty in entries:
+            if kind == "recipe":
+                sub = _db.recipe_get(conn, item_id)
+                sub_servings = float(sub["servings"] or 1) if sub else 0.0
+                if not sub or sub_servings <= 0:
+                    continue
+                sub_total = recipe_total_nutrients(item_id, conn, rewrite=rewrite)
+                scale = qty / sub_servings * portion_factor
+                scaled = {k: v * scale for k, v in sub_total.items()}
+                if scaled.get("protein_g", 0.0) <= 0:
+                    continue
+                result.append({
+                    "food_name":      ing["food_name"] if (kind, item_id) == logged else sub["name"],
+                    "fdc_id":         None,
+                    "recipe_id":      item_id,
+                    "nutrients_100g": scaled,
+                    "grams":          100.0,
+                })
+                continue
+            cached = _db.get_cached_food(conn, item_id)
             if not cached or not cached["nutrients_json"]:
                 continue
             nuts_100g = json.loads(cached["nutrients_json"])
             if not nuts_100g:
                 continue
             result.append({
-                "food_name":      ing["food_name"],
-                "fdc_id":         ing["fdc_id"],
+                "food_name":      ing["food_name"] if (kind, item_id) == logged else cached["name"],
+                "fdc_id":         item_id,
                 "recipe_id":      None,
                 "nutrients_100g": nuts_100g,
-                "grams":          float(ing["amount"]) * portion_factor,
+                "grams":          qty * portion_factor,
             })
     return result
 

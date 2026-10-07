@@ -112,6 +112,12 @@ class TestOperations:
         day1 = 250 * 0.09 + 250 * 0.004
         assert protein["after"] == pytest.approx((day1 + 200 * 0.004) / 2)
 
+    def test_replace_with_a_multiple_of_the_old_weight(self, data):
+        res = run(data, [Edit("replace", ("food", OATS), ("food", LENTILS), amount=1.1, basis="factor")])
+        protein = row(res, "protein_g")
+        day1 = 250 * 1.1 * 0.09 + 250 * 0.004
+        assert protein["after"] == pytest.approx((day1 + 200 * 0.004) / 2)
+
     def test_replace_stated_amount_at_each_place(self, data):
         # Three places hold oats on day 1: the snack, Bowl, and Oat base.
         res = run(data, [Edit("replace", ("food", OATS), ("food", LENTILS),
@@ -272,3 +278,89 @@ def test_never_writes(data, db_path):
         ], groups=GROUPS)
         assert conn.total_changes == before_changes
     assert hashlib.sha256(db_path.read_bytes()).hexdigest() == digest
+
+
+# ---------------------------------------------------------------------------
+# Recipes
+# ---------------------------------------------------------------------------
+
+def run_recipes(data, edits, ids=None):
+    with _db.get_db() as conn:
+        rows = [dict(r) for r in _db.recipe_list(conn)]
+        if ids is not None:
+            rows = [r for r in rows if r["id"] in ids]
+        return _wi.evaluate_recipes(conn, rows, edits, groups=GROUPS)
+
+
+def cell(result, key, recipe_id):
+    idx = [r["id"] for r in result["recipes"]].index(recipe_id)
+    for sec in result["sections"]:
+        for r in sec["rows"]:
+            if r["key"] == key:
+                return r["cells"][idx]
+    return None
+
+
+class TestRecipes:
+    def test_remove_shows_only_reached_recipes_per_serving(self, data):
+        res = run_recipes(data, [Edit("remove", ("food", OATS))])
+        assert {r["id"] for r in res["recipes"]} == {data["sub"], data["bowl"]}
+        bowl = cell(res, "protein_g", data["bowl"])
+        # Bowl (1 serving): 50 g oats + half of Oat base (100 g oats, 250 g milk).
+        assert bowl["before"] == pytest.approx(150 * 0.13 + 250 * 0.004)
+        assert bowl["after"] == pytest.approx(250 * 0.004)
+        sub = cell(res, "protein_g", data["sub"])   # per serving of a 2-serving batch
+        assert sub["after"] == pytest.approx(250 * 0.004)
+        assert res["edits"][0]["recipes"] == 2
+
+    def test_average_percent_change_over_reached_recipes(self, data):
+        res = run_recipes(data, [Edit("scale", ("food", OATS), amount=0.5)])
+        protein = next(r for sec in res["sections"] for r in sec["rows"] if r["key"] == "protein_g")
+        pcts = [c["delta_pct"] for c in protein["cells"]]
+        assert protein["avg_n"] == 2 and res["changed_count"] == 2
+        assert protein["avg_pct"] == pytest.approx(sum(pcts) / 2)
+
+    def test_add_goes_into_the_batch(self, data):
+        res = run_recipes(data, [Edit("add", ("food", KELP), amount=10.0)])
+        assert len(res["recipes"]) == 3          # add only: every selected recipe
+        assert cell(res, "iodine_mcg", data["sub"])["delta"] == pytest.approx(10 * 10 / 2)
+        assert cell(res, "iodine_mcg", data["bowl"])["delta"] == pytest.approx(10 * 10)
+
+    def test_replace_inside_recipe(self, data):
+        res = run_recipes(data, [Edit("replace", ("food", MILK), ("food", LENTILS))], ids={data["sub"]})
+        c = cell(res, "iron_mg", data["sub"])
+        assert c["after"] == pytest.approx((200 * 0.04 + 500 * 0.033) / 2)
+
+    def test_parents_that_would_change_are_listed(self, data):
+        res = run_recipes(data, [Edit("remove", ("food", MILK))], ids={data["sub"]})
+        assert [p["id"] for p in res["parents"]] == [data["bowl"]]
+
+    def test_dcp_row_follows_protein(self, data, db_conn):
+        from tests.conftest import SAMPLE_NUTRIENTS
+        aa = {k: v for k, v in SAMPLE_NUTRIENTS.items() if k.startswith("aa_")}
+        for fid in (OATS, MILK):
+            nuts = json.loads(db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (fid,)).fetchone()[0])
+            db_conn.execute("UPDATE foods SET nutrients_json = ? WHERE fdc_id = ?", (json.dumps({**nuts, **aa}), fid))
+        db_conn.commit()
+        res = run_recipes(data, [Edit("scale", ("food", OATS), amount=0.5)], ids={data["sub"]})
+        keys = [r["key"] for sec in res["sections"] for r in sec["rows"]]
+        assert keys[keys.index("protein_g") + 1] == "dcp"
+        dcp = cell(res, "dcp", data["sub"])
+        assert dcp["before"] and dcp["after"] < dcp["before"]
+
+    def test_recipe_dcp_pure_matches_saved(self, data):
+        from numa_app.services import recipe_dcp
+        with _db.get_db() as conn:
+            pure = recipe_dcp.recipe_dcp_per_serving(data["sub"], conn)
+            saved = recipe_dcp.recompute_recipe_dcp(data["sub"], conn)
+        assert pure[0] == saved
+
+    def test_recipes_never_write(self, data, db_path):
+        digest = hashlib.sha256(db_path.read_bytes()).hexdigest()
+        with _db.get_db() as conn:
+            changes = conn.total_changes
+            _wi.evaluate_recipes(conn, [dict(r) for r in _db.recipe_list(conn)], [
+                Edit("remove", ("food", OATS)), Edit("add", ("food", KELP), amount=5.0),
+                Edit("replace", ("food", MILK), ("recipe", data["soup"]))], groups=GROUPS)
+            assert conn.total_changes == changes
+        assert hashlib.sha256(db_path.read_bytes()).hexdigest() == digest

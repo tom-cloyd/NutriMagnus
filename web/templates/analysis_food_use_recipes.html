@@ -33,7 +33,7 @@
 
   <div class="d-flex gap-4 flex-wrap">
     <div class="mb-3" id="range-block" style="max-width:22rem">
-      <label class="form-label" for="ranges_raw">Date ranges <small class="muted">(one per line, <code>YYYY-MM-DD:YYYY-MM-DD</code>, by when the recipe was created)</small></label>
+      <label class="form-label" for="ranges_raw">Date ranges <small class="muted">(one per line: <code>YYYY-MM-DD:YYYY-MM-DD</code> or a single date <code>YYYY-MM-DD</code>, by when the recipe was created)</small></label>
       <textarea class="form-control" id="ranges_raw" name="ranges_raw" rows="3"
                 placeholder="2026-01-01:2026-01-31">{{ ranges_raw or "" }}</textarea>
     </div>
@@ -159,6 +159,7 @@
           <th class="num-col">Recipes used in</th>
           <th style="min-width:14rem">% of Recipes<br>in Selection</th>
           <th style="min-width:24rem">Recipe IDs</th>
+          <th title="Open What-if: Recipes with this item already entered as a change, for the recipes that use it">What-if</th>
         </tr>
       </thead>
       <tbody>
@@ -188,6 +189,12 @@
           </td>
           <td class="muted">
             {% for rid in r.recipe_ids %}<a href="/recipe/{{ rid }}">{{ rid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+          </td>
+          <td style="white-space:nowrap">
+            {% if r.code and not r.deleted %}
+            <a href="/analysis/whatif-recipes?{{ {'mode': 'ids', 'recipe_ids': r.recipe_ids|join(','), 'e_op': 'remove', 'e_item': r.code}|urlencode }}"
+               title="See what removing (or replacing) {{ r.name }} would do to these recipes' nutrition per serving">try removing</a>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
