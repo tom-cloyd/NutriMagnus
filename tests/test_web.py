@@ -75,6 +75,7 @@ _SMOKE_ROUTES = [
     "/summary",
     "/analysis/food-use",
     "/analysis/food-use-recipes",
+    "/analysis/whatif",
 ]
 
 
@@ -6216,3 +6217,67 @@ def test_portion_amount_resaves_unchanged(client: TestClient, db_conn) -> None:
     assert "error=" not in r.headers["location"]
     ing = _db.recipe_get_ingredients(db_conn, rid)[0]
     assert (ing["amount"], ing["unit"]) == (100.0, "2 × 1 large egg")
+
+
+def _whatif_meal(client: TestClient, cached_food: dict, meal_date: str, grams: str = "200 g") -> int:
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Lunch", "meal_date": meal_date}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": grams},
+                follow_redirects=False)
+    return meal_id
+
+
+def test_whatif_remove_shows_before_and_after(client: TestClient, cached_food: dict) -> None:
+    """What-if: removing the only food eaten takes protein from its average to 0,
+    and the page says which meals the change touched."""
+    _whatif_meal(client, cached_food, "2026-07-15")
+    resp = client.get("/analysis/whatif", params={
+        "ranges_raw": "2026-07-15", "e_op": "remove", "e_item": f"U{cached_food['fdcId']}",
+        "e_with": "", "e_amt": "", "e_basis": "grams"})
+    assert resp.status_code == 200
+    assert "1 meal(s) on 1 day(s)" in resp.text
+    assert "found in 1 meal(s) on 1 day(s)" in resp.text
+    assert "Protein" in resp.text and "&minus;62" in resp.text   # 200 g x 31 g/100 g
+
+
+def test_whatif_add_with_portion_text(client: TestClient, cached_food: dict) -> None:
+    _whatif_meal(client, cached_food, "2026-07-15")
+    _whatif_meal(client, cached_food, "2026-07-16")
+    resp = client.get("/analysis/whatif", params={
+        "ranges_raw": "2026-07-15:2026-07-16", "e_op": "add", "e_item": f"U{cached_food['fdcId']}",
+        "e_with": "", "e_amt": "100 g", "e_basis": "grams"})
+    assert "added on 2 day(s)" in resp.text
+    assert "+31" in resp.text
+
+
+def test_whatif_bad_rows_are_explained_not_fatal(client: TestClient, cached_food: dict) -> None:
+    _whatif_meal(client, cached_food, "2026-07-15")
+    resp = client.get("/analysis/whatif", params={
+        "ranges_raw": "2026-07-15", "e_op": ["add", "replace"], "e_item": ["X99", f"U{cached_food['fdcId']}"],
+        "e_with": ["", ""], "e_amt": ["", ""], "e_basis": ["grams", "grams"]})
+    assert resp.status_code == 200
+    assert "Change 1:" in resp.text and "not a food or recipe code" in resp.text
+    assert "Change 2: choose what to replace it with" in resp.text
+
+
+def test_whatif_changes_nothing_in_the_database(client: TestClient, cached_food: dict, db_path) -> None:
+    import hashlib
+    _whatif_meal(client, cached_food, "2026-07-15")
+    client.get("/analysis/whatif", params={"ranges_raw": "2026-07-15"})   # settle any first-visit work
+    digest = hashlib.sha256(db_path.read_bytes()).hexdigest()
+    client.get("/analysis/whatif", params={
+        "ranges_raw": "2026-07-15", "e_op": ["remove", "add"],
+        "e_item": [f"U{cached_food['fdcId']}", f"U{cached_food['fdcId']}"],
+        "e_with": ["", ""], "e_amt": ["", "50 g"], "e_basis": ["grams", "grams"]})
+    assert hashlib.sha256(db_path.read_bytes()).hexdigest() == digest
+
+
+def test_food_use_bare_date_line_is_a_one_day_range(client: TestClient, cached_food: dict) -> None:
+    _whatif_meal(client, cached_food, "2026-07-15")
+    _whatif_meal(client, cached_food, "2026-07-16")
+    resp = client.get("/analysis/food-use", params={"ranges_raw": "2026-07-16"})
+    assert "1 meal(s) across 1 distinct day(s)" in resp.text
+    assert "try removing" in resp.text

@@ -166,6 +166,9 @@ numa_app/
     manual_update.py    — check/download/serve a newer User Manual than the baked-in
                          one, independently of program updates; Ed25519-verified
                          (published by scripts/publish_manual.py)
+    whatif.py           — non-destructive what-if analysis (remove/add/replace/scale
+                         foods or recipes across a set of meals, before vs after);
+                         must never write — see Analysis -> What-if: meals
     update_check.py      — check_for_update(): GitHub latest-release check for
                          the home-page "update available" banner; cached
                          in-process, fails silently offline

@@ -1,4 +1,4 @@
-VERSION = "2026-10-06:1804"
+VERSION = "2026-10-06:1817"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.24"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "Food Use in Meals and in Recipes: tick Replace and search for the replacement by name; the manual search now lists the best-matching section first; a recipe added as an ingredient of another recipe can now be entered in grams as well as servings"
+NEW_VERSION_NOTE = "New Analysis page What-if: meals shows how removing, adding, replacing or cutting down foods would change your daily nutrition over chosen days, without changing anything"

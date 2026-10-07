@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-05:0704
+UPDATED: 2026-10-06:1816
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -157,6 +157,9 @@ numa/
                                        cofid_lookup.py etc. are thin wrappers around it
       top_contributors.py            — rank a meal's/recipe's ingredients by contribution to one
                                       nutrient (or DCP), for the "Top Contributors" analysis section
+      whatif.py                      — non-destructive what-if analysis across a set of meals:
+                                      Edit (remove/add/replace/scale), evaluate_meals(); edits reach
+                                      every depth via recipe_nutrients' optional `rewrite` hook
   user-manual.md                   — Essential instructions, tips, and reference material for
                                      users; plain-text sections keyed by {: #anchor} for inline display
   oxalate.py                       — Read-only access to oxalate.db: get_oxalate_db(), search_similar(),
@@ -1399,6 +1402,10 @@ Build a prompt requesting a translation of a recipe's text into a language of th
 
 Analysis pages under the Analysis dropdown: frequency of a given food's use across logged meals (with date-range filters) and across recipes, respectively, each with a substitute-this-food-everywhere action.
 
+#### `analysis_whatif.html`
+
+Analysis -> What-if: meals (`/analysis/whatif`). Daily nutrient averages across a set of meals (dates — ranges or single dates — or meal IDs), before and after a list of changes: remove, add (once per logged day), replace (same weight / same servings / stated amount, at every depth) and scale. Read-only by design (`numa_app/services/whatif.py`; meals keep nutrient snapshots and recipe edits trigger DCP recomputes, so nothing here may call a write helper — a test checks the DB file is byte-identical afterwards). The whole scenario lives in the query string (`e_op`/`e_item`/`e_with`/`e_amt`/`e_basis`, one entry per change row), so it can be bookmarked. Shows a calories/macros summary, per-edit "found in N meals" report, % of target before and after from each day's pinned profile (read without pinning), days target not met and days over max, and a "?" where an added item has no value for a nutrient. Result rows come from `_NUTRIENT_GROUPS` plus an "Other" group for any non-AA key present, so newly tracked nutrients appear without changes here. Food Use in Meals links each row here ("try removing"). Plan for later phases: `WHATIF-PLAN.md`.
+
 #### `summary.html`
 
 Daily summary landing page — no longer a stub. Lists Recent Days (via the day-analysis machinery shared with `meal_day.html`) and links into a specific date's summary (`/summary/{meal_date}`), the nutrient averages view, and the nutrient plot.
@@ -1541,6 +1548,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_day_profile.py` | `numa_app/services/day_profile.py`: per-day profile pinning, backfill, and override behavior |
 | `tests/test_diet_aware.py` | `numa_app/services/diet_aware.py`: diet-preference-aware RDA-comparison notes (vegetarian/plant-based) |
 | `tests/test_nutrient_trend.py` | `numa_app/services/nutrient_trend.py`: multi-day nutrient averaging for the N-day trend view |
+| `tests/test_whatif.py` | `numa_app/services/whatif.py`: what-if analysis — each operation (remove/add/replace/scale) at every depth, add-on-logged-days-only, missing-value flags, "Other" nutrient rows, validation (circular replacement, servings vs weight), and a byte-identical-DB no-write check |
 | `tests/test_csv_import.py` | `numa_app/services/csv_import.py`: Food Cache CSV import parsing |
 | `tests/test_claude_fetch.py` | `numa_app/services/claude_fetch.py`: prompt-building and response-parsing for the Claude AI fetch/import workflow |
 | `tests/test_incoming_review.py` | `numa_app/services/incoming_review.py` and its review screen: fill/differs/same/dropped classification and default ticks, USDA Refresh keeping an edited food's own values, portions only ever added, fill-from-another-food marking the food edited (not custom), amino acids scaled to this food's (or the ticked incoming) protein, estimated values yielding to USDA's measured ones, and the meal page's blanks-only "Refresh from USDA" |

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-05:2206* / Reading time: 7 hours, 20 minutes
+*Updated 2026-10-06:1816* / Reading time: 7 hours, 23 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -238,7 +238,7 @@ This program necessarily uses some specialized vocabulary. You have two options:
 
 ## Part 2 — Introduction to NutriMagnus, a tool for intelligent eating: what you can do with this tool and why it matters
 
-*(Reading time: 11 minutes)*
+*(Reading time: 12 minutes)*
 
 ---
 
@@ -269,6 +269,7 @@ The five items in the top navigation bar correspond to the five major things you
     - **Food use in meals**: rank everything you actually ate — foods, recipes, sub-recipes, and the foods inside recipes — across a chosen set of date ranges and/or meals, with a frequency histogram
     - **Food use in recipes**: the same ranking, but for which foods and recipes are used as ingredients across your recipe book — not a measure of what you eat
     - Both Food Use pages can also bulk-substitute one food or recipe for another across the current selection — see [Substituting a Food or Recipe](#fooduse-substitute)
+    - **What-if: meals**: see how your average daily nutrition over a set of days would change if you removed, added, replaced or cut down foods and recipes — without changing anything — see [What-if: Meals](#whatif)
 - **Settings**
     - Color theme
     - Personal profile (age, sex, weight, height, activity level)
@@ -1684,7 +1685,7 @@ When you analyze a meal for the first time, you may see a "Fetching amino acid d
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 49 minutes)*
+*(Reading time: 52 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -1718,6 +1719,7 @@ The sections linked from analysis output are:
 - [Food use in meals](#fooduse) — food use in meals analysis table and histogram columns
 - [Food use in recipes](#fooduse-recipes) — food use in recipes analysis table
 - [Replace a food or recipe everywhere (substitute)](#fooduse-substitute) — bulk-replace one food/recipe with another
+- [What-if: meals](#whatif) — see how removing, adding or replacing foods would change your daily nutrition
 - [Glossary](#glossary) — abbreviations and key terms
 - [Glycemic index](#gi) — glycemic index background
 - [Glycemic load](#gl) — glycemic load concept and formula
@@ -2261,6 +2263,69 @@ is silently skipped rather than creating a broken self-reference.
 This writes to the [database](#gloss-database) immediately when you click through the
 confirmation prompt — there's no automatic undo, so it's worth double-
 checking the codes first.
+
+
+#### What-if: Meals {: #whatif}
+Analysis -> What-if: meals shows how your average daily nutrition over a set
+of days would change if you ate differently — dropped a food, added a
+supplement, swapped one food for another, or ate less of something. Nothing
+is saved or changed: your meals stay exactly as logged.
+
+1. **Which meals.** Type dates, one per line: a range
+   (`2026-09-01:2026-09-30`) or a single date (`2026-09-03`). Or switch to
+   **Meal IDs** to pick particular meals.
+2. **What to change.** Each row is one change; add as many as you like with
+   **Add another change** and they all apply together. In a food/recipe box,
+   type part of a name and pick it from the list (or type its
+   [code](#fooduse), the one shown on Food Search or the Recipes list).
+3. Click **Show the effect**.
+
+The four actions:
+
+    Remove          Takes the food or recipe out wherever it appears —
+                    logged on a meal, or used inside a recipe (at any depth).
+    Add             Adds an amount once on every day that has a meal logged
+                    (days with nothing logged are left alone). A food takes
+                    any amount the meal page accepts (1/3 c, 30 g, p1); a
+                    recipe takes servings (1, 1 1/2) or grams (150 g).
+    Replace         Swaps one item for another only where the old one was
+                    eaten. Choose how much of the replacement: the same
+                    weight, the same servings (recipe for recipe), or a
+                    stated amount each time.
+    Change amount   Multiplies the amount eaten everywhere it appears
+                    (0.5 or 50% = half; 150% = half again).
+
+To swap one food for another, you have two choices. **Replace** puts the new
+food only where the old one was. A **Remove** row plus an **Add** row drops
+the old food and adds the new one on every logged day.
+
+What you see:
+
+- A line for each change saying how many meals and days it was found in. A
+  change that matched nothing is pointed out, so a typo in a code doesn't go
+  unnoticed.
+- Calories, protein, carbohydrate, fat and fiber per day, after the change,
+  with how much each moved.
+- A table of every nutrient that changed (a link shows the unchanged ones
+  too): before, after, the change, % of your target before and after with
+  its status (low / near / met / over, as on the
+  [Daily Summary](#goals)), how many days fell short of the target before
+  and after, and how many days went over a maximum. An average can look fine
+  while several days fall short, which is why the day counts are there.
+  **Largest change first** is the default order; **Grouped like the daily
+  summary** puts them back in the usual groups.
+- A **?** beside a nutrient means something you added has no value for it,
+  so the "after" figure may be too low.
+
+Targets come from the profile pinned to each day, as on the Daily Summary.
+Averages count only days with a meal logged. Protein quality
+([DCP](#gloss-dcp)) and glycemic load aren't recalculated here yet.
+
+On [Food Use in Meals](#fooduse), the **try removing** link on each row opens
+this page with that item already entered, for the same meals.
+
+The page address holds the whole scenario, so you can bookmark it and come
+back to it later.
 
 
 #### Glycemic Load Output {: #glycemic}
@@ -4387,7 +4452,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 28 minutes)*
+*(Reading time: 1 hour, 29 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4403,9 +4468,41 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- New Analysis -> What-if: meals: see how removing, adding, replacing or cutting down foods would change your daily nutrition over a set of days, without changing anything.
+- Food Use pages: a single date on its own line now counts as a one-day range.
 - Food Use in Meals and in Recipes: replace a food by ticking its Replace box and searching for the replacement by name — no codes needed.
 - The manual's search now lists the best-matching section first, instead of the longest; "replace food" now finds how to replace a food everywhere.
 - A recipe added as an ingredient of another recipe can now be entered in grams as well as servings.
+
+#### October 6 updates
+
+**PROGRAM: SINGLE DATES IN FOOD USE DATE BOXES**
+
+On Food Use in Meals and Food Use in Recipes, a line with just one date (`2026-09-03`) now counts as that one day, so a set of separate days can be listed one per line. [learn more...](#fooduse)
+
+**PROGRAM: WHAT-IF ANALYSIS FOR MEALS**
+
+Analysis -> What-if: meals shows how your average daily nutrition over the days you choose would change if you removed, added, replaced or cut down foods and recipes, including ones used inside recipes. It shows calories and macros, % of target before and after, and how many days fell short, and changes nothing in your meals. [learn more...](#whatif)
+
+<!--
+
+```
+Scope: Analysis -> What-if: meals (/analysis/whatif, analysis_whatif.html; nav item 4;
+"try removing" link per row on Food Use in Meals). New numa_app/services/whatif.py:
+Edit(op remove|add|replace|scale), evaluate_meals(); edits applied through a new
+optional `rewrite` hook on recipe_nutrients.expand_recipe_ingredients /
+recipe_total_nutrients (no behavior change when absent). "add" lands once per
+logged day; replace basis grams/servings/stated; scale stacks, then first
+remove/replace wins; a replacement recipe containing the replaced item is refused
+(would recurse). Read-only: day profile read without ensure_day_profile pinning;
+tests check total_changes and a byte-identical DB file. Missing-value "?" for added
+items (food: key absent; recipe: absent from leaves >=10% of its weight). Rows from
+_NUTRIENT_GROUPS plus "Other" for any non-AA key, so polyphenols etc. appear
+without changes. _parse_date_range_lines now accepts bare YYYY-MM-DD lines
+(affects both Food Use pages too). Plan for later phases: WHATIF-PLAN.md.
+```
+
+-->
 
 #### October 5 updates
 

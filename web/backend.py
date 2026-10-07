@@ -57,6 +57,8 @@ from numa_app.services.glycemic_load import (average_day_gl, compute_glycemic_lo
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, _parse_portion_input, portion_amount_note
+from numa_app.services.portions import _parse_number_tokens
+from numa_app.services import whatif as _whatif
 from numa_app.services.portions import generic_density_kind as _generic_density_kind
 from numa_app.services.portions import match_portion_label as _match_portion_label
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
@@ -10143,10 +10145,15 @@ def _parse_id_list_tokens(raw: str) -> list[int]:
 
 def _parse_date_range_lines(raw: str) -> list[tuple[str, str]]:
     """Parse "YYYY-MM-DD:YYYY-MM-DD" lines (one per line) into (start, end)
-    tuples, swapping a reversed pair — shared by the Food Use analysis pages."""
+    tuples, swapping a reversed pair — shared by the Food Use and What-if
+    analysis pages. A bare "YYYY-MM-DD" line is a one-day range, so a set of
+    separate dates needs no mode of its own."""
     ranges: list[tuple[str, str]] = []
     for line in raw.splitlines():
         line = line.strip()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", line):
+            ranges.append((line, line))
+            continue
         if ":" not in line:
             continue
         start, end = line.split(":", 1)
@@ -10359,6 +10366,150 @@ async def analysis_food_use_substitute(
     except ValueError as exc:
         return _back(error=str(exc))
     return _back(n=n)
+
+
+# ---------------------------------------------------------------------------
+# What-if analysis (non-destructive) — numa_app/services/whatif.py
+# ---------------------------------------------------------------------------
+
+_WHATIF_MAX_EDITS = 12
+
+
+def _parse_whatif_amount(text: str, item: tuple[str, int], conn) -> tuple[float, str]:
+    """An amount typed on a What-if change row, for `item` (the food or
+    recipe being added or put in): a food takes anything the meal page's
+    amount box does ("1/3 c", "2 oz", "p1", "30"); a recipe takes servings
+    ("1", "1 1/2 servings") or grams ("150 g"). Returns (qty, "g"|"servings");
+    raises ValueError with a readable message."""
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("give an amount")
+    kind, item_id = item
+    if kind == "food":
+        cached = _db.get_cached_food(conn, item_id)
+        portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
+        grams, msg = _parse_portion_str(text, portions, cached["name"] if cached else "")
+        if grams is None:
+            raise ValueError(msg)
+        return grams, "g"
+    tokens = text.replace(",", " ").split()
+    parsed = _parse_number_tokens(tokens)
+    rest = " ".join(tokens[parsed[1]:]).lower() if parsed else ""
+    if not parsed or rest not in ("", "serving", "servings", "srv", "g", "gram", "grams"):
+        raise ValueError(f'"{text}": for a recipe, give servings (e.g. 1 or 1 1/2) or grams (e.g. 150 g)')
+    return parsed[0], "g" if rest.startswith("g") else "servings"
+
+
+def _parse_whatif_factor(text: str) -> float:
+    text = (text or "").strip()
+    pct = text.endswith("%")
+    parsed = _parse_number_tokens(text.rstrip("%").split())
+    if not parsed:
+        raise ValueError("give a multiplier, such as 0.5 or 50%")
+    return parsed[0] / 100 if pct else parsed[0]
+
+
+def _whatif_rows_from_query(e_op, e_item, e_with, e_amt, e_basis) -> list[dict]:
+    """The change rows as typed (for re-display), padded to equal length."""
+    n = min(max(len(e_op), len(e_item)), _WHATIF_MAX_EDITS)
+
+    def at(lst, i, default=""):
+        return lst[i] if i < len(lst) else default
+    return [{"op": at(e_op, i, "remove"), "item": at(e_item, i).strip(), "with": at(e_with, i).strip(),
+             "amt": at(e_amt, i).strip(), "basis": at(e_basis, i, "grams")} for i in range(n)]
+
+
+def _whatif_edits(rows: list[dict], conn) -> tuple[list, list[str]]:
+    """Turn typed change rows into whatif.Edit objects; rows with no item
+    code are skipped. Returns (edits, errors)."""
+    edits, errors = [], []
+    for n, r in enumerate(rows, 1):
+        if not r["item"]:
+            continue
+        op = r["op"] if r["op"] in _whatif.OPS else "remove"
+        try:
+            item = _parse_code(r["item"])
+            replacement = amount = None
+            unit, basis = "g", r["basis"] if r["basis"] in _whatif.REPLACE_BASES else "grams"
+            if op == "replace":
+                if not r["with"]:
+                    raise ValueError("choose what to replace it with")
+                replacement = _parse_code(r["with"])
+                if basis == "stated":
+                    amount, unit = _parse_whatif_amount(r["amt"], replacement, conn)
+            elif op == "add":
+                amount, unit = _parse_whatif_amount(r["amt"], item, conn)
+            elif op == "scale":
+                amount = _parse_whatif_factor(r["amt"])
+            edits.append(_whatif.Edit(op, item, replacement, amount, unit, basis))
+        except ValueError as exc:
+            errors.append(f"Change {n}: {exc}")
+    return edits, errors
+
+
+@app.get("/analysis/whatif", response_class=HTMLResponse)
+async def analysis_whatif(
+    request: Request,
+    mode: str = Query(default="range"),
+    ranges_raw: str | None = Query(default=None),
+    meal_ids: str = Query(default=""),
+    e_op: list[str] = Query(default=[]),
+    e_item: list[str] = Query(default=[]),
+    e_with: list[str] = Query(default=[]),
+    e_amt: list[str] = Query(default=[]),
+    e_basis: list[str] = Query(default=[]),
+    sort: str = Query(default="change"),
+    show_all: bool = Query(default=False),
+):
+    """What-if: daily nutrient totals across a chosen set of meals, before and
+    after a list of changes (remove / add / replace / scale foods or recipes).
+    Nothing is written — see numa_app/services/whatif.py. Everything lives in
+    the query string, so a scenario can be bookmarked."""
+    if ranges_raw is None:
+        today = datetime.date.today()
+        ranges_raw = f"{today - datetime.timedelta(days=13)}:{today}"
+    rows = _whatif_rows_from_query(e_op, e_item, e_with, e_amt, e_basis)
+    result, errors = None, []
+    with _db.get_db() as conn:
+        meals_by_id, ranges, missing_ids = _resolve_meals_for_food_use(conn, mode, ranges_raw, meal_ids)
+        edits, errors = _whatif_edits(rows, conn)
+        submitted = bool(ranges or (mode == "ids" and meal_ids.strip()))
+        if submitted and not errors:
+            try:
+                result = _whatif.evaluate_meals(conn, list(meals_by_id.values()), edits,
+                                                groups=_NUTRIENT_GROUPS, diet_pref=_current_diet_pref())
+            except _whatif.WhatIfError as exc:
+                errors = [str(exc)]
+    if result:
+        for sec in result["sections"]:
+            sec["rows"] = [dict(r, is_subtype=r["key"] in _SUBTYPE_KEYS,
+                                css_before=_rda_css(r["pct_before"], r["target_type"]) if r["target"] else "",
+                                css_after=_rda_css(r["pct_after"], r["target_type"]) if r["target"] else "")
+                           for r in sec["rows"]]
+        if sort == "change":
+            # Biggest move against target first; nutrients with no target by
+            # their own percent change.
+            flat = [r for sec in result["sections"] for r in sec["rows"]]
+            flat.sort(key=lambda r: -abs((r["pct_after"] - r["pct_before"]) if r["target"]
+                                         else (r["delta_pct"] or 0.0)))
+            result["sections"] = [{"name": "All nutrients, largest change first", "rows": flat}]
+        result["unchanged"] = sum(1 for sec in result["sections"] for r in sec["rows"] if not r["changed"])
+    with _db.get_db() as conn:
+        for r in rows:
+            for field in ("item", "with"):
+                try:
+                    r[field + "_name"] = _whatif.item_name(conn, _parse_code(r[field])) if r[field] else ""
+                except ValueError:
+                    r[field + "_name"] = ""
+    if not rows:
+        rows = [{"op": "remove", "item": "", "with": "", "amt": "", "basis": "grams",
+                 "item_name": "", "with_name": ""}]
+    return templates.TemplateResponse(request, "analysis_whatif.html", {
+        "mode": mode, "ranges_raw": ranges_raw, "meal_ids_raw": meal_ids,
+        "missing_ids": missing_ids, "rows": rows, "max_rows": _WHATIF_MAX_EDITS,
+        "errors": errors, "result": result, "submitted": submitted,
+        "sort": sort, "show_all": show_all,
+    })
 
 
 def _parse_food_use_recipes_selection(

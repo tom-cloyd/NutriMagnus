@@ -5,11 +5,18 @@ independently in five separate places before being extracted here.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/recipe_nutrients.py — recipe nutrient aggregation"
 """
 import json
+from collections.abc import Callable
 
 import db as _db
 import usda as _usda
 
 Nutrients = dict[str, float]
+
+# Optional per-ingredient rewrite used by what-if analysis (services/whatif.py):
+# given one ingredient as (kind, id, qty) — kind "food" (qty = grams) or
+# "recipe" (qty = servings of that sub-recipe) — return what to use in its
+# place, as a list of the same tuples ([] drops it). None means "as authored".
+Rewrite = Callable[[str, int, float], list[tuple[str, int, float]]]
 
 
 def expand_recipe_ingredients(
@@ -17,6 +24,7 @@ def expand_recipe_ingredients(
     conn,
     *,
     portion_factor: float = 1.0,
+    rewrite: Rewrite | None = None,
 ) -> list[dict]:
     """Recursively expand a recipe into its leaf food ingredients.
 
@@ -24,30 +32,44 @@ def expand_recipe_ingredients(
     (sub-ingredient amount / sub-recipe servings) * portion_factor — i.e.
     portion_factor=1.0 means "one full batch of this recipe as authored".
 
+    rewrite (see Rewrite) is applied to every ingredient row at every depth
+    before it is expanded — what-if analysis's hook; it never writes.
+
     Returns [{"food_name", "fdc_id", "nutrients_100g", "grams"}, ...] — one
     entry per leaf food ingredient; sub-recipes themselves don't appear.
     """
     result: list[dict] = []
     for ing in _db.recipe_get_ingredients(conn, recipe_id):
         if ing["ref_recipe_id"]:
-            sub = _db.recipe_get(conn, ing["ref_recipe_id"])
-            sub_servings = float(sub["servings"] or 1) if sub else 1.0
-            sub_factor = float(ing["amount"]) / sub_servings * portion_factor
-            result.extend(expand_recipe_ingredients(
-                ing["ref_recipe_id"], conn,
-                portion_factor=sub_factor,
-            ))
+            entries = [("recipe", ing["ref_recipe_id"], float(ing["amount"]))]
         elif ing["fdc_id"]:
-            cached = _db.get_cached_food(conn, ing["fdc_id"])
+            entries = [("food", ing["fdc_id"], float(ing["amount"]))]
+        else:
+            continue
+        rewritten = rewrite is not None
+        if rewritten:
+            entries = rewrite(*entries[0])
+        for kind, item_id, qty in entries:
+            if kind == "recipe":
+                sub = _db.recipe_get(conn, item_id)
+                sub_servings = float(sub["servings"] or 1) if sub else 1.0
+                sub_factor = qty / sub_servings * portion_factor
+                result.extend(expand_recipe_ingredients(
+                    item_id, conn,
+                    portion_factor=sub_factor,
+                    rewrite=rewrite,
+                ))
+                continue
+            cached = _db.get_cached_food(conn, item_id)
             if not cached or not cached["nutrients_json"]:
                 continue
             nuts_100g = json.loads(cached["nutrients_json"])
             if nuts_100g:
                 result.append({
-                    "food_name":      ing["food_name"],
-                    "fdc_id":         ing["fdc_id"],
+                    "food_name":      cached["name"] if rewritten and item_id != ing["fdc_id"] else ing["food_name"],
+                    "fdc_id":         item_id,
                     "nutrients_100g": nuts_100g,
-                    "grams":          float(ing["amount"]) * portion_factor,
+                    "grams":          qty * portion_factor,
                 })
     return result
 
@@ -119,15 +141,17 @@ def recipe_total_nutrients(
     conn,
     *,
     portion_factor: float = 1.0,
+    rewrite: Rewrite | None = None,
 ) -> Nutrients:
     """Sum nutrients across a recipe's (recursively expanded) leaf ingredients.
 
     portion_factor=1.0 (default) returns totals for one full batch of the
     recipe as authored — callers scale by their own serving-consumption math.
+    rewrite: see expand_recipe_ingredients().
     """
     total: Nutrients = {}
     for leaf in expand_recipe_ingredients(
-        recipe_id, conn, portion_factor=portion_factor,
+        recipe_id, conn, portion_factor=portion_factor, rewrite=rewrite,
     ):
         scaled = _usda.scale_nutrients(leaf["nutrients_100g"], leaf["grams"], base_size=100.0)
         total = _usda.sum_nutrients(total, scaled)
