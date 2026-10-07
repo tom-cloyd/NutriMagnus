@@ -19,10 +19,11 @@ import json
 from dataclasses import dataclass, field
 
 import db as _db
+import diaas as _diaas
 import profile as _profile
 import usda as _usda
 from numa_app.services.rda_status import rda_status
-from numa_app.services.recipe_nutrients import recipe_serving_grams, recipe_total_nutrients
+from numa_app.services.recipe_nutrients import expand_recipe_ingredients, recipe_serving_grams
 
 Item = tuple[str, int]          # ("food", fdc_id) | ("recipe", recipe_id)
 
@@ -33,7 +34,7 @@ REPLACE_BASES = ("grams", "servings", "stated")
 # no value for a nutrient, marks that nutrient's "after" as possibly low.
 _UNKNOWN_SHARE = 0.10
 
-SUMMARY_KEYS = ("calories", "protein_g", "carbs_g", "fat_g", "fiber_g")
+SUMMARY_KEYS = ("calories", "protein_g", "dcp", "carbs_g", "sugar_g", "fat_g", "fiber_g")
 
 
 class WhatIfError(ValueError):
@@ -135,14 +136,24 @@ class _Ctx:
         if self.current_meal is not None:
             self.hits.setdefault(i, set()).add(self.current_meal["id"])
 
-    def item_nutrients(self, kind: str, item_id: int, qty: float, *, rewrite) -> dict:
-        """Nutrients for qty of one item (grams of a food, servings of a recipe)."""
+    def item_breakdown(self, kind: str, item_id: int, qty: float, *, rewrite,
+                       name: str | None = None) -> tuple[dict, list[dict]]:
+        """(nutrients, leaf foods) for qty of one item — grams of a food,
+        servings of a recipe. Leaves are what diaas.meal_level_diaas() takes;
+        `name` is the logged food name (DIAAS overrides are keyed by name)."""
         if kind == "food":
-            return _usda.scale_nutrients(self.nutrients_100g(item_id), qty)
+            nuts = self.nutrients_100g(item_id)
+            leaves = [{"food_name": name or item_name(self.conn, (kind, item_id)), "fdc_id": item_id,
+                       "nutrients_100g": nuts, "grams": qty}] if nuts else []
+            return _usda.scale_nutrients(nuts, qty), leaves
         servings = self.servings_of(item_id)
         if servings is None:
-            return {}
-        return recipe_total_nutrients(item_id, self.conn, portion_factor=qty / servings, rewrite=rewrite)
+            return {}, []
+        leaves = expand_recipe_ingredients(item_id, self.conn, portion_factor=qty / servings, rewrite=rewrite)
+        total: dict[str, float] = {}
+        for leaf in leaves:
+            _add(total, _usda.scale_nutrients(leaf["nutrients_100g"], leaf["grams"]))
+        return total, leaves
 
 
 def item_name(conn, item: Item) -> str:
@@ -160,15 +171,18 @@ def _add(total: dict, more: dict) -> None:
         total[k] = total.get(k, 0.0) + v
 
 
-def meal_nutrients(meal_id: int, conn, ctx: _Ctx | None = None) -> dict[str, float]:
-    """A meal's nutrient total, with ctx's edits applied when ctx is given.
+def meal_breakdown(meal_id: int, conn, ctx: _Ctx | None = None) -> tuple[dict[str, float], list[dict]]:
+    """A meal's (nutrient total, leaf foods), with ctx's edits applied when
+    ctx is given.
 
-    Without ctx this equals the total_nutrients of web/backend.py's
+    Without ctx the total equals the total_nutrients of web/backend.py's
     _meal_expand_for_diaas() (tests hold the two together); it is kept
-    separate because that function also builds the meal page's display rows."""
+    separate because that function also builds the meal page's display rows
+    and records serving weights (a write)."""
     ctx = ctx or _Ctx(conn, [])
     rewrite = ctx.rewrite if ctx.edits else None
     total: dict[str, float] = {}
+    leaves: list[dict] = []
     for row in _db.meal_get_items(conn, meal_id):
         if row["item_type"] == "food" and row["fdc_id"]:
             entries = [("food", row["fdc_id"], float(row["amount"]))]
@@ -176,11 +190,36 @@ def meal_nutrients(meal_id: int, conn, ctx: _Ctx | None = None) -> dict[str, flo
             entries = [("recipe", row["recipe_id"], float(row["amount"]))]
         else:
             continue
+        logged = entries[0][:2]
         if rewrite:
             entries = rewrite(*entries[0])
         for kind, item_id, qty in entries:
-            _add(total, ctx.item_nutrients(kind, item_id, qty, rewrite=rewrite))
-    return total
+            nuts, item_leaves = ctx.item_breakdown(
+                kind, item_id, qty, rewrite=rewrite,
+                name=row["food_name"] if (kind, item_id) == logged else None)
+            _add(total, nuts)
+            leaves.extend(item_leaves)
+    return total, leaves
+
+
+def meal_nutrients(meal_id: int, conn, ctx: _Ctx | None = None) -> dict[str, float]:
+    """meal_breakdown()'s nutrient total alone."""
+    return meal_breakdown(meal_id, conn, ctx)[0]
+
+
+def day_dcp(leaves: list[dict], conn) -> float | None:
+    """A day's Digestible Complete Protein (g) from all its leaf foods pooled,
+    as the Daily Summary computes it; None when it can't be worked out (no
+    amino-acid data, no protein)."""
+    if not leaves:
+        return None
+    try:
+        result = _diaas.meal_level_diaas(leaves, conn)
+    except Exception:
+        return None
+    if not result or not result.get("diaas") or result.get("total_protein_g", 0) <= 0:
+        return None
+    return result.get("digestible_complete_protein_g") or 0.0
 
 
 def _contains(conn, recipe_id: int, item: Item, seen: set[int] | None = None) -> bool:
@@ -238,7 +277,6 @@ def _missing_keys(ctx: _Ctx, item: Item, keys: list[str]) -> set[str]:
     if kind == "food":
         nuts = ctx.nutrients_100g(item_id)
         return {k for k in keys if nuts.get(k) is None}
-    from numa_app.services.recipe_nutrients import expand_recipe_ingredients
     leaves = expand_recipe_ingredients(item_id, ctx.conn)
     weight = sum(leaf["grams"] for leaf in leaves)
     if weight <= 0:
@@ -269,10 +307,16 @@ def _row_keys(groups: list[tuple[str, list[str]]], *totals: dict) -> list[tuple[
 
 
 def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
-                   groups: list[tuple[str, list[str]]], diet_pref: str = "all") -> dict:
+                   groups: list[tuple[str, list[str]]], diet_pref: str = "all",
+                   days: str = "all") -> dict:
     """Before/after daily totals for `meals` (rows with id, meal_date) under
     `edits`. Raises WhatIfError if an edit can't be applied (e.g. a recipe
-    with no serving weight matched by weight). Writes nothing."""
+    with no serving weight matched by weight). Writes nothing.
+
+    days="all" averages over every day in the selection with a meal logged;
+    days="touched" only over the days a remove/replace/scale edit actually
+    found its item (an add lands on every day, so it doesn't narrow them).
+    With no such edit, "touched" falls back to "all"."""
     problems = validate(edits, conn)
     if problems:
         raise WhatIfError(" ".join(problems))
@@ -281,23 +325,41 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
     ctx = _Ctx(conn, edits)
     before: dict[str, dict] = {}
     after: dict[str, dict] = {}
+    leaves_before: dict[str, list] = {}
+    leaves_after: dict[str, list] = {}
     for meal in sorted(meals, key=lambda m: (m["meal_date"], m["id"])):
-        _add(before.setdefault(meal["meal_date"], {}), meal_nutrients(meal["id"], conn, base_ctx))
+        d = meal["meal_date"]
+        nuts, leaves = meal_breakdown(meal["id"], conn, base_ctx)
+        _add(before.setdefault(d, {}), nuts)
+        leaves_before.setdefault(d, []).extend(leaves)
         ctx.current_meal = meal
-        _add(after.setdefault(meal["meal_date"], {}), meal_nutrients(meal["id"], conn, ctx))
+        nuts, leaves = meal_breakdown(meal["id"], conn, ctx)
+        _add(after.setdefault(d, {}), nuts)
+        leaves_after.setdefault(d, []).extend(leaves)
     ctx.current_meal = None
 
-    dates = sorted(before)
+    # Like nutrient_trend: a day counts once something with nutrients is logged.
+    dates = sorted(d for d in before if before[d])
     rewrite = ctx.rewrite if edits else None
     for i, e in enumerate(edits):
         if e.op != "add" or not dates:
             continue
         kind, item_id = e.item
         qty = e.amount if e.unit == "servings" else ctx._from_grams(kind, item_id, e.amount)
-        added = ctx.item_nutrients(kind, item_id, qty, rewrite=rewrite)
+        added, added_leaves = ctx.item_breakdown(kind, item_id, qty, rewrite=rewrite)
         for d in dates:
             _add(after[d], added)
+            leaves_after[d].extend(added_leaves)
         ctx.hits[i] = {m["id"] for m in meals}
+
+    all_dates = dates
+    date_of = {m["id"]: m["meal_date"] for m in meals}
+    targeted = any(e.op != "add" for e in edits)
+    touched = sorted({date_of[mid] for i, e in enumerate(edits) if e.op != "add"
+                      for mid in ctx.hits.get(i, ())})
+    days_mode = "touched" if days == "touched" and targeted else "all"
+    if days_mode == "touched":
+        dates = touched
 
     # Targets from each day's own pinned profile.
     active = _profile.load_profile()
@@ -341,9 +403,13 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
 
     return {
         "dates":    dates,
-        "meals":    len(meals),
+        "meals":    sum(1 for m in meals if m["meal_date"] in set(dates)),
+        "all_days": len(all_dates),
+        "touched_days": len(touched) if targeted else None,
+        "days_mode": days_mode,
         "sections": out_sections,
-        "summary":  [_summary_cell(k, avg_before, avg_after) for k in SUMMARY_KEYS],
+        "summary":  [_dcp_cell(conn, dates, leaves_before, leaves_after) if k == "dcp"
+                     else _summary_cell(k, avg_before, avg_after) for k in SUMMARY_KEYS],
         "edits":    edit_report,
         "has_profile": any(rda_by_day.values()),
     }
@@ -351,6 +417,22 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
 
 def _keys(by_day: dict[str, dict]) -> set[str]:
     return {k for day in by_day.values() for k in day}
+
+
+def _dcp_cell(conn, dates, leaves_before, leaves_after) -> dict:
+    """Average daily DCP before and after, over the days where it could be
+    worked out both times (days lacking amino-acid data are counted in
+    `days` vs `of_days` rather than averaged in as zero)."""
+    pairs = []
+    for d in dates:
+        b, a = day_dcp(leaves_before[d], conn), day_dcp(leaves_after[d], conn)
+        if b is not None or a is not None:
+            pairs.append((b or 0.0, a or 0.0))
+    n = len(pairs)
+    b = sum(p[0] for p in pairs) / n if n else 0.0
+    a = sum(p[1] for p in pairs) / n if n else 0.0
+    return {"key": "dcp", "label": "Protein (DCP)", "unit": "g", "before": b, "after": a,
+            "delta": a - b, "days": n, "of_days": len(dates)}
 
 
 def _summary_cell(key: str, avg_before: dict, avg_after: dict) -> dict:

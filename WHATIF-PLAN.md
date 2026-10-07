@@ -125,8 +125,8 @@ Tests: tests/test_whatif.py (service) + 5 in tests/test_web.py.
 
 ## Phase 5 — deeper analysis
 
-- DCP/DIAAS and GL before and after (pooled per-day DIAAS is the expensive part;
-  opt-in).
+- GL before and after (DCP done 2026-10-06 in the summary table: ~0.4 s for 118 days;
+  fast enough that it did not need to be opt-in).
 - Speed check on a 90-day range; cache recipe totals for the length of one request.
 
 ## Later (agreed 2026-10-06, after the first working version)

@@ -170,6 +170,51 @@ class TestOperations:
         assert res["edits"][0]["meals"] == 0
 
 
+class TestSummary:
+    def test_summary_has_dcp_and_sugars(self, data):
+        keys = [c["key"] for c in run(data, [])["summary"]]
+        assert keys == ["calories", "protein_g", "dcp", "carbs_g", "sugar_g", "fat_g", "fiber_g"]
+
+    def test_dcp_matches_daily_summary_and_drops_with_removal(self, data, db_conn):
+        import web.backend as wb
+        from tests.conftest import SAMPLE_NUTRIENTS
+        aa = {k: v for k, v in SAMPLE_NUTRIENTS.items() if k.startswith("aa_")}
+        nuts = json.loads(db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (OATS,)).fetchone()[0])
+        db_conn.execute("UPDATE foods SET nutrients_json = ? WHERE fdc_id = ?", (json.dumps({**nuts, **aa}), OATS))
+        db_conn.commit()
+        before = {c["key"]: c for c in run(data, [])["summary"]}["dcp"]
+        page = []
+        for d in ("2026-01-01", "2026-01-02"):
+            res = wb._build_diaas_display(wb._day_analysis(d)[2])
+            if res:
+                page.append(res["dcp_g"])
+        assert before["days"] == len(page)
+        assert before["before"] == pytest.approx(sum(page) / len(page), abs=0.1)
+        after = {c["key"]: c for c in run(data, [Edit("remove", ("food", OATS))])["summary"]}["dcp"]
+        assert after["after"] < after["before"]
+
+
+class TestWhichDays:
+    def test_touched_averages_only_days_the_item_was_eaten(self, data):
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, data["meals"], [Edit("remove", ("food", OATS))],
+                                     groups=GROUPS, days="touched")
+        # Oats only on day 1, so day 2 drops out of the average.
+        assert res["dates"] == ["2026-01-01"] and res["all_days"] == 2 and res["touched_days"] == 1
+        assert row(res, "protein_g")["before"] == pytest.approx(250 * 0.13 + 250 * 0.004)
+        assert res["meals"] == 2
+
+    def test_all_is_the_default_and_reports_touched_count(self, data):
+        res = run(data, [Edit("remove", ("food", OATS))])
+        assert res["days_mode"] == "all" and len(res["dates"]) == 2 and res["touched_days"] == 1
+
+    def test_add_only_scenario_falls_back_to_all_days(self, data):
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, data["meals"], [Edit("add", ("food", KELP), amount=1.0)],
+                                     groups=GROUPS, days="touched")
+        assert res["days_mode"] == "all" and len(res["dates"]) == 2 and res["touched_days"] is None
+
+
 class TestDataQuality:
     def test_missing_value_on_added_food_is_flagged_not_silent(self, data):
         res = run(data, [Edit("add", ("food", LENTILS), amount=100.0)])

@@ -6281,3 +6281,57 @@ def test_food_use_bare_date_line_is_a_one_day_range(client: TestClient, cached_f
     resp = client.get("/analysis/food-use", params={"ranges_raw": "2026-07-16"})
     assert "1 meal(s) across 1 distinct day(s)" in resp.text
     assert "try removing" in resp.text
+
+
+def test_date_lines_without_leading_zeros_are_not_flipped() -> None:
+    """"2026-6-1" once sorted after "2026-10-06" as text, so the range was
+    silently swapped and covered only one day."""
+    from web.backend import _parse_date_range_lines, _bad_date_lines
+    assert _parse_date_range_lines("2026-6-1:2026-10-06") == [("2026-06-01", "2026-10-06")]
+    assert _parse_date_range_lines("2026-9-3") == [("2026-09-03", "2026-09-03")]
+    assert _parse_date_range_lines("2026-02-30\nnonsense\n") == []
+    assert _bad_date_lines("2026-6-1\n2026-02-30\n\nnonsense") == ["2026-02-30", "nonsense"]
+
+
+def test_whatif_unpadded_range_finds_the_meals(client: TestClient, cached_food: dict) -> None:
+    _whatif_meal(client, cached_food, "2026-07-15")
+    resp = client.get("/analysis/whatif", params={
+        "ranges_raw": "2026-6-1:2026-10-06", "e_op": "remove", "e_item": f"U{cached_food['fdcId']}",
+        "e_with": "", "e_amt": "", "e_basis": "grams"})
+    assert "found in 1 meal(s) on 1 day(s)" in resp.text
+    assert "Dates searched: 2026-06-01 to 2026-10-06" in resp.text
+
+
+def test_food_use_reports_date_lines_it_could_not_read(client: TestClient) -> None:
+    resp = client.get("/analysis/food-use", params={"ranges_raw": "2026-13-01:2026-14-01"})
+    assert "were left out: 2026-13-01:2026-14-01" in resp.text
+
+
+def test_whatif_states_which_days_are_averaged(client: TestClient, cached_food: dict) -> None:
+    """Day 1 logs a recipe, day 2 the bare food: removing the recipe touches 1 of 2 days."""
+    rid = int(client.post("/recipe/new", data={"name": "Stew", "servings": 1}, follow_redirects=False)
+              .headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(f"/recipe/{rid}/ingredient/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+                follow_redirects=False)
+    meal_id = int(client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-15"},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add-recipe",
+                data={"recipe_id": rid, "recipe_name": "Stew", "servings": 1, "mode": "recipe"},
+                follow_redirects=False)
+    _whatif_meal(client, cached_food, "2026-07-16")
+    params = {"ranges_raw": "2026-07-15:2026-07-16", "e_op": "remove", "e_item": f"R{rid}",
+              "e_with": "", "e_amt": "", "e_basis": "grams"}
+    resp = client.get("/analysis/whatif", params=params)
+    assert "all 2 day(s) with meals logged in your selection" in resp.text
+    assert "was eaten on 1 of them" in resp.text
+    resp = client.get("/analysis/whatif", params={**params, "days": "touched"})
+    assert "the 1 day(s) when something you" in resp.text
+    assert "out of 2 day(s) with meals logged" in resp.text
+
+
+def test_whatif_summary_rows_say_before_and_after(client: TestClient, cached_food: dict) -> None:
+    _whatif_meal(client, cached_food, "2026-07-15")
+    resp = client.get("/analysis/whatif", params={"ranges_raw": "2026-07-15"})
+    assert "Before (as logged)" in resp.text and "After your changes" in resp.text
+    assert "Protein (DCP)" in resp.text and "Sugars" in resp.text

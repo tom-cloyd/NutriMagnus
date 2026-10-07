@@ -95,6 +95,9 @@
 })();
 </script>
 
+{% if bad_dates %}
+<p class="text-warning">These date lines weren't understood and were left out: {{ bad_dates|join(" · ") }}. Use <code>YYYY-MM-DD</code> or <code>YYYY-MM-DD:YYYY-MM-DD</code>.</p>
+{% endif %}
 {% if missing_ids %}
 <p class="text-warning">Meal ID(s) not found: {{ missing_ids|join(", ") }}</p>
 {% endif %}

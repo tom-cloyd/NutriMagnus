@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-06:1816* / Reading time: 7 hours, 23 minutes
+*Updated 2026-10-06:1905* / Reading time: 7 hours, 25 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -2278,7 +2278,19 @@ is saved or changed: your meals stay exactly as logged.
    **Add another change** and they all apply together. In a food/recipe box,
    type part of a name and pick it from the list (or type its
    [code](#fooduse), the one shown on Food Search or the Recipes list).
-3. Click **Show the effect**.
+3. **Which days to average over.** Either every day in your selection that
+   has a meal logged, or only the days when something you're removing,
+   replacing or changing was actually eaten. Say your dates cover 119 days,
+   112 of them logged, and the food you're removing was eaten on 47. The
+   first choice averages over the 112 days and shows the effect on your
+   overall diet. The second averages over the 47 days and shows what those
+   particular days would have looked like. **Add** rows don't narrow the
+   days, since an addition goes on every day.
+4. Click **Show the effect**. Once results are showing, switching the day
+   choice redraws them straight away.
+
+The bold line above the results says exactly which days the averages cover,
+and how many of them contained what you're changing.
 
 The four actions:
 
@@ -2304,8 +2316,11 @@ What you see:
 - A line for each change saying how many meals and days it was found in. A
   change that matched nothing is pointed out, so a typo in a code doesn't go
   unnoticed.
-- Calories, protein, carbohydrate, fat and fiber per day, after the change,
-  with how much each moved.
+- A small table of calories, protein, Protein ([DCP](#gloss-dcp)),
+  carbohydrate, sugars, fat and fiber per day, with rows labeled **Before
+  (as logged)**, **After your changes** and **Change**. DCP is worked out
+  for each day the same way as on the Daily Summary; if some days lack the
+  amino-acid data it needs, a note says how many days it covers.
 - A table of every nutrient that changed (a link shows the unchanged ones
   too): before, after, the change, % of your target before and after with
   its status (low / near / met / over, as on the
@@ -2318,8 +2333,8 @@ What you see:
   so the "after" figure may be too low.
 
 Targets come from the profile pinned to each day, as on the Daily Summary.
-Averages count only days with a meal logged. Protein quality
-([DCP](#gloss-dcp)) and glycemic load aren't recalculated here yet.
+Days with nothing logged are never counted as zero; they're left out.
+Glycemic load isn't recalculated here yet.
 
 On [Food Use in Meals](#fooduse), the **try removing** link on each row opens
 this page with that item already entered, for the same meals.
@@ -4452,7 +4467,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 29 minutes)*
+*(Reading time: 1 hour, 30 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4468,6 +4483,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- Food Use and What-if date boxes: dates typed without leading zeros (2026-6-1) now work; a line that isn't a date is pointed out instead of silently dropped.
 - New Analysis -> What-if: meals: see how removing, adding, replacing or cutting down foods would change your daily nutrition over a set of days, without changing anything.
 - Food Use pages: a single date on its own line now counts as a one-day range.
 - Food Use in Meals and in Recipes: replace a food by ticking its Replace box and searching for the replacement by name — no codes needed.
@@ -4476,13 +4492,29 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### October 6 updates
 
+**PROGRAM: DATES WITHOUT LEADING ZEROS NOW WORK IN DATE BOXES**
+
+On Food Use in Meals, Food Use in Recipes and What-if, you can now type a date such as `2026-6-1` without leading zeros. Before, a range like `2026-6-1:2026-10-06` quietly covered only one day. A line that isn't a date is now listed in a warning instead of being dropped without a word.
+
+<!--
+
+```
+Scope: web/backend.py _parse_date_range_lines (new _iso_date, _bad_date_lines);
+warning in analysis_food_use(_recipes).html and analysis_whatif.html; What-if
+now echoes "Dates searched". Root cause: ranges are compared as text, and
+"2026-6-1" > "2026-10-06", so the pair was swapped to 2026-10-06..2026-6-1.
+Dates are now zero-padded and checked as real dates.
+```
+
+-->
+
 **PROGRAM: SINGLE DATES IN FOOD USE DATE BOXES**
 
 On Food Use in Meals and Food Use in Recipes, a line with just one date (`2026-09-03`) now counts as that one day, so a set of separate days can be listed one per line. [learn more...](#fooduse)
 
 **PROGRAM: WHAT-IF ANALYSIS FOR MEALS**
 
-Analysis -> What-if: meals shows how your average daily nutrition over the days you choose would change if you removed, added, replaced or cut down foods and recipes, including ones used inside recipes. It shows calories and macros, % of target before and after, and how many days fell short, and changes nothing in your meals. [learn more...](#whatif)
+Analysis -> What-if: meals shows how your average daily nutrition over the days you choose would change if you removed, added, replaced or cut down foods and recipes, including ones used inside recipes. It shows calories, macros and Protein (DCP), % of target before and after, and how many days fell short, and changes nothing in your meals. You can average over every logged day in your dates, or only the days when what you're changing was eaten. [learn more...](#whatif)
 
 <!--
 

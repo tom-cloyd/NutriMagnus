@@ -106,11 +106,27 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
   </div>
   <div class="d-flex gap-2 mb-3 mt-1">
     <button type="button" class="btn btn-sm btn-outline-primary" id="add-row">Add another change</button>
-    <button type="submit" class="btn btn-sm btn-primary">Show the effect</button>
   </div>
+
+  <h3 class="h5">3. Which days to average over</h3>
+  <div class="mb-2">
+    <div class="form-check">
+      <input class="form-check-input js-days" type="radio" name="days" id="days-all" value="all" {% if days != "touched" %}checked{% endif %}>
+      <label class="form-check-label" for="days-all">Every day in your selection that has a meal logged</label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input js-days" type="radio" name="days" id="days-touched" value="touched" {% if days == "touched" %}checked{% endif %}>
+      <label class="form-check-label" for="days-touched">Only the days when something you're removing, replacing or changing was eaten
+        <small class="muted">(Add rows don't narrow the days: they apply to every day)</small></label>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-sm btn-primary mb-3">Show the effect</button>
   <input type="hidden" name="sort" value="{{ sort }}">
 </form>
 
+{% if bad_dates %}
+<p class="text-warning">These date lines weren't understood and were left out: {{ bad_dates|join(" · ") }}. Use <code>YYYY-MM-DD</code> or <code>YYYY-MM-DD:YYYY-MM-DD</code>.</p>
+{% endif %}
 {% if missing_ids %}
 <p class="text-warning">Meal ID(s) not found: {{ missing_ids|join(", ") }}</p>
 {% endif %}
@@ -119,13 +135,26 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
 {% endfor %}
 
 {% if result %}
-  {% if not result.dates %}
-  <p class="muted">No meals matched the selected dates / meal IDs.</p>
+  {% if result.all_days and not result.dates %}
+  <p class="text-warning">None of the items you're removing, replacing or changing were eaten on these days, so there are no days to average.
+    Choose <strong>Every day in your selection</strong> above to see all {{ result.all_days }} day(s).</p>
+  {% elif not result.dates %}
+  <p class="muted">No meals matched the selected {% if mode == "ids" %}meal IDs{% else %}dates ({% for a, b in ranges %}{{ a }}{% if b != a %} to {{ b }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}){% endif %}.</p>
   {% else %}
   <hr style="margin:1.5em 0 0 0">
   <h3 class="mb-2">Average per day, before and after
     <small class="muted fw-normal" style="font-size:0.875rem">({{ result.meals }} meal(s) on {{ result.dates|length }} day(s), {{ result.dates[0] }}{% if result.dates|length > 1 %} to {{ result.dates[-1] }}{% endif %})</small>
   </h3>
+  <p class="mb-1"><strong>Averaged over
+    {% if result.days_mode == "touched" %}the {{ result.dates|length }} day(s) when something you're removing, replacing or changing was eaten
+      (out of {{ result.all_days }} day(s) with meals logged in your selection).
+    {% else %}all {{ result.dates|length }} day(s) with meals logged in your selection{% if result.touched_days is not none %}
+      (what you're removing, replacing or changing was eaten on {{ result.touched_days }} of them){% endif %}.
+    {% endif %}</strong>
+    Days with nothing logged are left out, not counted as zero.</p>
+  {% if mode != "ids" %}
+  <p class="muted mb-1"><small>Dates searched: {% for a, b in ranges %}{{ a }}{% if b != a %} to {{ b }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}</small></p>
+  {% endif %}
   {% if mode == "ids" %}
   <p class="muted"><small>Only the meals you listed are counted, so a day's total here may be part of what you ate that day.</small></p>
   {% endif %}
@@ -149,13 +178,33 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
   <p class="muted">No changes entered yet &mdash; the table shows your current averages.</p>
   {% endif %}
 
-  <div class="d-flex flex-wrap gap-2 mb-3">
-    {% for c in result.summary %}
-    <div class="border rounded p-2" style="min-width:9.5rem">
-      <div class="small muted">{{ c.label }}</div>
-      <div><strong>{{ num(c.after) }}</strong> {{ c.unit }}</div>
-      <div class="small {% if c.delta|abs >= 0.05 %}fw-semibold{% else %}muted{% endif %}">{{ signed(c.delta) }} {{ c.unit }} (was {{ num(c.before) }})</div>
-    </div>
+  <div class="table-responsive mb-3">
+    <table class="table table-sm table-bordered mb-1" style="max-width:60rem">
+      <thead class="table-light">
+        <tr>
+          <th>Average per day</th>
+          {% for c in result.summary %}
+          <th class="num-col">{{ c.label }} <span class="muted fw-normal">({{ c.unit }})</span></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row" class="fw-normal">Before (as logged)</th>
+          {% for c in result.summary %}<td class="num-col">{{ num(c.before) }}</td>{% endfor %}
+        </tr>
+        <tr>
+          <th scope="row">After your changes</th>
+          {% for c in result.summary %}<td class="num-col"><strong>{{ num(c.after) }}</strong></td>{% endfor %}
+        </tr>
+        <tr>
+          <th scope="row" class="fw-normal">Change</th>
+          {% for c in result.summary %}<td class="num-col {% if c.delta|abs < 0.05 %}muted{% endif %}">{{ signed(c.delta) }}</td>{% endfor %}
+        </tr>
+      </tbody>
+    </table>
+    {% for c in result.summary if c.key == "dcp" and c.days < c.of_days %}
+    <p class="small muted mb-0">Protein (DCP) is averaged over {{ c.days }} of the {{ c.of_days }} days: it needs amino-acid data, and the other days don't have enough.</p>
     {% endfor %}
   </div>
 
@@ -181,8 +230,8 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
       <thead class="table-light">
         <tr>
           <th>Nutrient</th>
-          <th class="num-col">Before</th>
-          <th class="num-col">After</th>
+          <th class="num-col">Before<br><span class="fw-normal muted">(as logged)</span></th>
+          <th class="num-col">After<br><span class="fw-normal muted">(your changes)</span></th>
           <th class="num-col">Change</th>
           <th class="num-col">Change %</th>
           <th class="num-col" title="Average per day as a percent of your target (from the profile pinned to each day)">% of target<br>before &rarr; after</th>
@@ -219,11 +268,11 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
     </table>
   </div>
   <p class="muted"><small>
-    Averages are over the {{ result.dates|length }} day(s) that have a meal logged; days with nothing logged are left out, not counted as zero &middot;
     targets come from the profile pinned to each day{% if not result.has_profile %} (no profile is set up, so there are no targets){% endif %} &middot;
     <strong>status</strong> uses the same bands as the daily summary (low / near / met / over) &middot;
     <span class="text-warning">?</span> = something you added has no value for that nutrient, so its "after" figure may be too low &middot;
-    protein quality (DCP) and glycemic load aren't recalculated here yet.
+    <strong>Protein (DCP)</strong> is pooled per day the same way as on the Daily Summary, and averaged over the days it can be worked out for &middot;
+    glycemic load isn't recalculated here yet.
   </small></p>
   {% include "_code_key.html" %}
   {% endif %}
@@ -336,6 +385,12 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
     layout(row);
   }
   container.querySelectorAll('.whatif-row').forEach(wireRow);
+  {% if result %}
+  // With results on screen, switching which days to average over redraws them.
+  document.querySelectorAll('.js-days').forEach(function (r) {
+    r.addEventListener('change', function () { document.getElementById('whatif-form').submit(); });
+  });
+  {% endif %}
   document.getElementById('add-row').addEventListener('click', function () {
     if (container.querySelectorAll('.whatif-row').length >= maxRows) return;
     var row = blank.cloneNode(true);

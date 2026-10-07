@@ -10143,26 +10143,45 @@ def _parse_id_list_tokens(raw: str) -> list[int]:
     return ids
 
 
+def _iso_date(text: str) -> str | None:
+    """A typed date as zero-padded YYYY-MM-DD, None if it isn't a real date.
+    Padding matters: ranges are compared as text, and an unpadded "2026-6-1"
+    sorts after "2026-10-06", which once silently flipped a range."""
+    m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", text.strip())
+    if not m:
+        return None
+    try:
+        return datetime.date(*map(int, m.groups())).isoformat()
+    except ValueError:
+        return None
+
+
 def _parse_date_range_lines(raw: str) -> list[tuple[str, str]]:
     """Parse "YYYY-MM-DD:YYYY-MM-DD" lines (one per line) into (start, end)
     tuples, swapping a reversed pair — shared by the Food Use and What-if
     analysis pages. A bare "YYYY-MM-DD" line is a one-day range, so a set of
-    separate dates needs no mode of its own."""
+    separate dates needs no mode of its own. Month and day may be typed
+    without a leading zero. Lines that aren't dates are skipped; see
+    _bad_date_lines() to report them."""
     ranges: list[tuple[str, str]] = []
     for line in raw.splitlines():
-        line = line.strip()
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", line):
-            ranges.append((line, line))
+        parts = line.split(":")
+        if len(parts) > 2:
             continue
-        if ":" not in line:
+        dates = [_iso_date(p) for p in parts]
+        if not all(dates):
             continue
-        start, end = line.split(":", 1)
-        start, end = start.strip(), end.strip()
-        if start and end:
-            if start > end:
-                start, end = end, start
-            ranges.append((start, end))
+        start, end = dates[0], dates[-1]
+        if start > end:
+            start, end = end, start
+        ranges.append((start, end))
     return ranges
+
+
+def _bad_date_lines(raw: str) -> list[str]:
+    """Non-blank lines of a date box that _parse_date_range_lines() skipped."""
+    return [line.strip() for line in (raw or "").splitlines()
+            if line.strip() and not _parse_date_range_lines(line)]
 
 
 def _item_code(e: dict) -> str:
@@ -10290,6 +10309,7 @@ async def analysis_food_use(
         "protein_only":  protein_only,
         "sort":          sort,
         "missing_ids":   missing_ids,
+        "bad_dates":     _bad_date_lines(ranges_raw) if mode == "range" else [],
         "rows":          result_rows,
         "total_meals":   len(meals_by_id),
         "total_days":    total_days,
@@ -10460,6 +10480,7 @@ async def analysis_whatif(
     e_basis: list[str] = Query(default=[]),
     sort: str = Query(default="change"),
     show_all: bool = Query(default=False),
+    days: str = Query(default="all"),
 ):
     """What-if: daily nutrient totals across a chosen set of meals, before and
     after a list of changes (remove / add / replace / scale foods or recipes).
@@ -10477,7 +10498,8 @@ async def analysis_whatif(
         if submitted and not errors:
             try:
                 result = _whatif.evaluate_meals(conn, list(meals_by_id.values()), edits,
-                                                groups=_NUTRIENT_GROUPS, diet_pref=_current_diet_pref())
+                                                groups=_NUTRIENT_GROUPS, diet_pref=_current_diet_pref(),
+                                                days=days)
             except _whatif.WhatIfError as exc:
                 errors = [str(exc)]
     if result:
@@ -10507,8 +10529,9 @@ async def analysis_whatif(
     return templates.TemplateResponse(request, "analysis_whatif.html", {
         "mode": mode, "ranges_raw": ranges_raw, "meal_ids_raw": meal_ids,
         "missing_ids": missing_ids, "rows": rows, "max_rows": _WHATIF_MAX_EDITS,
+        "bad_dates": _bad_date_lines(ranges_raw) if mode == "range" else [], "ranges": ranges,
         "errors": errors, "result": result, "submitted": submitted,
-        "sort": sort, "show_all": show_all,
+        "sort": sort, "show_all": show_all, "days": days,
     })
 
 
@@ -10630,6 +10653,7 @@ async def analysis_food_use_recipes(
         "protein_only":   protein_only,
         "sort":           sort,
         "missing_ids":    missing_ids,
+        "bad_dates":     _bad_date_lines(ranges_raw) if mode == "range" else [],
         "rows":           result_rows,
         "total_recipes":  total_recipes,
         "submitted":      mode == "all" or bool(ranges or requested_ids),
