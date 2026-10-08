@@ -16,7 +16,13 @@ from .food_import import VALID_NUTRIENT_KEYS, convert_per_serving, validate_and_
 META_KEYS = {
     "name", "fdc_id", "fdc_type", "source", "confidence_note",
     "serving_size_g", "nutrition_per_serving",
+    "gi", "gi_source", "diaas", "diaas_source",
 }
+
+# Annotation estimates a reply can carry beside the nutrients (opt-in on the
+# fetch page). Stored in food_annotations, not nutrients_json: GI as on the
+# glucose = 100 scale, DIAAS as a fraction (1.0 = 100%), the Annotate page's units.
+ANNOTATION_KEYS = ("gi", "diaas")
 
 AA_KEYS = {k for k in VALID_NUTRIENT_KEYS if k.startswith("aa_")}
 
@@ -63,14 +69,14 @@ Critical rules:
 3. aa_phenylalanine_g and aa_tyrosine_g are always separate keys — never combined.
 4. Omit any key where the value is genuinely unknown; do not estimate 0.
 5. For true zeros (e.g. vitamin B12 in plant foods), include the key explicitly with value 0.
-6. Source hierarchy: prefer USDA FoodData Central (cite FDC ID), then USDA SR Legacy (cite FDC ID), then peer-reviewed literature (cite paper), then estimate (flag clearly in confidence_note). Note: direct access to the USDA database is not possible — use your training data, which mirrors these sources.
+6. Source hierarchy: prefer USDA FoodData Central (cite FDC ID), then USDA SR Legacy (cite FDC ID), then peer-reviewed literature (cite paper), then estimate (flag clearly in confidence_note). Note: direct access to the USDA database is not possible — use your training data, which mirrors these sources. Where USDA has no value for a key, do a literature review for it — food-composition studies, other national food tables (e.g. UK CoFID, Australian AFCD, French CIQUAL, Canadian CNF), values for the same food prepared differently, adjusted for moisture — before deciding it is unknown. Omit a key only after that search comes up empty, and say in confidence_note which keys were left out and why.
 7. fdc_type must be exactly one of: "Foundation", "SR Legacy", "Branded", "Survey (FNDDS)", "User Drafted".
 8. If scaling from a non-100 g reference portion, show the calculation in confidence_note — UNLESS rule 9 applies.
 {targeted_rule}9. For a packaged/branded product where you have the manufacturer's Nutrition Facts label (per-serving values), do NOT do the per-100g arithmetic yourself. Instead replace the flat nutrient keys with:
      "serving_size_g": 28,
      "nutrition_per_serving": {{ "calories": 120, "protein_g": 3, ... }}
    NuMa converts this to per-100g automatically, which is more reliable than an LLM doing the scaling in prose. Use the same key names as above inside nutrition_per_serving.
-
+{annotation_rule}
 Foods ({n} total — USDA FDC IDs provided where known{list_note}):
 {food_list}"""
 
@@ -78,6 +84,15 @@ _INTRO_FULL = "I need complete nutritional data for {n} food(s), formatted as JS
 _INTRO_TARGETED = ("I need specific missing nutrient values for {n} food(s), formatted as JSON for "
                    "direct import into a Python nutrition app. The app already has the other values "
                    "for these foods, so only the keys listed for each food are wanted.")
+_ANNOTATION_RULE = """\
+10. Where a food's entry below says "also wanted: gi" or "also wanted: diaas", add these keys to that food's JSON block, after confidence_note:
+     "gi": 78,                 — glycemic index, glucose = 100 scale
+     "gi_source": "...",       — the study or table row (e.g. Atkinson et al. 2021, International Tables), the variety and preparation tested, and how closely it matches this food
+     "diaas": 0.85,            — DIAAS as a FRACTION (0.85 means 85%), using the FAO 2013 adult reference pattern
+     "diaas_source": "..."     — the study cited, or "calculated from the amino-acid values above with true ileal digestibility X from <source>"; name the limiting amino acid
+   If no measured value exists for this exact food, use the closest measured analogue and say so in the *_source text, or omit the key — do not invent a precise-looking number. Do not send gi or diaas for a food that does not ask for them.
+"""
+
 _TARGETED_RULE = ("8b. For each food, include ONLY the nutrient keys listed under it in the Foods list "
                   "below (plus the metadata keys). Do not send any other nutrient keys — the app "
                   "already has those values. Groups marked \"not needed\" have been deliberately "
@@ -85,21 +100,30 @@ _TARGETED_RULE = ("8b. For each food, include ONLY the nutrient keys listed unde
 
 
 def build_prompt(selected: list[tuple[int | None, str]],
-                 requests: dict[int, tuple[list[str], list[str]]] | None = None) -> str:
+                 requests: dict[int, tuple[list[str], list[str]]] | None = None,
+                 annotations: dict[int, list[str]] | None = None) -> str:
     """Build the Claude prompt text for a list of (fdc_id, name) foods.
 
     With `requests` (fdc_id -> (nutrient keys wanted, labels of groups the
     user marked not needed)), the prompt asks for only those keys per food
-    instead of a complete profile — see data_completeness.py."""
+    instead of a complete profile — see data_completeness.py.
+
+    `annotations` (fdc_id -> a subset of ANNOTATION_KEYS) also asks for
+    those GI/DIAAS estimates, per food."""
+    annotations = annotations or {}
+
     def _line(fdc_id, name):
         head = (f"    {fdc_id}  {_strip_starter_marker(name)}" if fdc_id
                 else f"    (no FDC ID)  {_strip_starter_marker(name)}")
-        if requests is None or fdc_id not in requests:
-            return head
-        keys, skipped = requests[fdc_id]
-        lines = [head, f"        provide only: {', '.join(keys)}"]
-        if skipped:
-            lines.append(f"        not needed (user's choice, do not supply): {', '.join(skipped)}")
+        lines = [head]
+        if requests is not None and fdc_id in requests:
+            keys, skipped = requests[fdc_id]
+            lines.append(f"        provide only: {', '.join(keys)}" if keys
+                         else "        provide only: no nutrient keys — every nutrient value is already present")
+            if skipped:
+                lines.append(f"        not needed (user's choice, do not supply): {', '.join(skipped)}")
+        if annotations.get(fdc_id):
+            lines.append(f"        also wanted: {', '.join(annotations[fdc_id])} (rule 10)")
         return "\n".join(lines)
 
     lines = "\n".join(_line(fdc_id, name) for fdc_id, name in selected)
@@ -112,6 +136,7 @@ def build_prompt(selected: list[tuple[int | None, str]],
                     else "all available nutrient keys"),
         targeted_rule=_TARGETED_RULE if targeted else "",
         list_note="; each lists the only nutrient keys wanted" if targeted else "",
+        annotation_rule=_ANNOTATION_RULE if any(annotations.values()) else "",
     )
 
 
@@ -124,6 +149,12 @@ def _strip_starter_marker(name: str) -> str:
     if name.startswith("*"):
         return name[1:]
     return name
+
+
+# Added to parse_response()'s warnings when it had to fall back to bare JSON.
+# Not a problem in itself — the import page shows it as a plain explanation
+# (or folds it into its "nothing found" advice) rather than as a warning.
+UNFENCED_NOTE = "No fenced JSON blocks found — scanning for bare JSON objects…"
 
 
 def parse_response(text: str) -> tuple[list[dict], str | None, list[str]]:
@@ -149,7 +180,7 @@ def parse_response(text: str) -> tuple[list[dict], str | None, list[str]]:
 
     if not blocks:
         # Fallback: bare JSON objects — brace-match to find each top-level { }
-        warnings.append("No fenced JSON blocks found — scanning for bare JSON objects…")
+        warnings.append(UNFENCED_NOTE)
         i = 0
         while i < len(text):
             if text[i] != "{":
@@ -240,6 +271,24 @@ def validate_block(block: dict, idx: int) -> tuple[dict | None, list[str]]:
 
     confidence_note = block.get("confidence_note")
 
+    estimates: dict[str, float] = {}
+    for key, lo, hi in (("gi", 0, 150), ("diaas", 0, 2.0)):
+        v = block.get(key)
+        if v is None:
+            continue
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            warnings.append(f"Block {idx} ({name!r}): {key!r} is non-numeric — skipped.")
+            continue
+        v = float(v)
+        if key == "diaas" and hi < v <= 200:
+            # Sent as a percentage despite the prompt asking for a fraction.
+            warnings.append(f"Block {idx} ({name!r}): diaas {v:g} read as a percentage — stored as {v / 100:g}.")
+            v /= 100
+        if not lo <= v <= hi:
+            warnings.append(f"Block {idx} ({name!r}): {key!r} {v:g} is outside {lo}–{hi} — skipped.")
+            continue
+        estimates[key] = v
+
     # Alternate input shape: per-serving values + serving_size_g, for label-sourced
     # data (e.g. a packaged product's Nutrition Facts panel). Converted to per-100g.
     per_serving = block.get("nutrition_per_serving")
@@ -270,6 +319,10 @@ def validate_block(block: dict, idx: int) -> tuple[dict | None, list[str]]:
         "source":          block.get("source"),
         "confidence_note": confidence_note,
         "nutrients":       nutrients,
+        "gi":              estimates.get("gi"),
+        "gi_source":       block.get("gi_source") if "gi" in estimates else None,
+        "diaas":           estimates.get("diaas"),
+        "diaas_source":    block.get("diaas_source") if "diaas" in estimates else None,
     }, warnings
 
 
@@ -292,6 +345,9 @@ def build_notes(food: dict) -> str | None:
         parts.append(f"Source: {food['source']}")
     if food.get("confidence_note"):
         parts.append(f"Confidence: {food['confidence_note']}")
+    if food.get("diaas_source"):
+        # food_annotations has no column for this; gi_source has its own.
+        parts.append(f"DIAAS source: {food['diaas_source']}")
     return "  |  ".join(parts) if parts else None
 
 
@@ -305,14 +361,35 @@ def plan_import(conn, valid: list[dict], overwrite: bool = False) -> list[dict]:
     plans = []
     for f in valid:
         row = _db.get_cached_food(conn, f["fdc_id"])
+        ann_add, ann_keep = _annotation_plan(conn, f, overwrite)
         if row is None:
-            plans.append({"existing": False, "add": list(f["nutrients"]), "keep": []})
+            plans.append({"existing": False, "add": list(f["nutrients"]), "keep": [],
+                          "ann_add": ann_add, "ann_keep": ann_keep})
             continue
         have = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
         add  = [k for k in f["nutrients"] if overwrite or is_blank(k, have)]
         keep = [k for k in f["nutrients"] if k not in add and have.get(k) != f["nutrients"][k]]
-        plans.append({"existing": True, "add": add, "keep": keep})
+        plans.append({"existing": True, "add": add, "keep": keep,
+                      "ann_add": ann_add, "ann_keep": ann_keep})
     return plans
+
+
+def _annotation_plan(conn, food: dict, overwrite: bool) -> tuple[list[str], list[str]]:
+    """Which of the reply's GI/DIAAS estimates would be written ("add") and
+    which the food's saved annotation already has a different value for
+    ("keep" — left alone unless overwrite=True)."""
+    import db as _db
+    ann = _db.get_food_annotation(conn, food["fdc_id"])
+    add, keep = [], []
+    for key, col in (("gi", "gi_estimate"), ("diaas", "diaas_estimate")):
+        if food.get(key) is None:
+            continue
+        have = ann[col] if ann else None
+        if overwrite or have is None:
+            add.append(key)
+        elif have != food[key]:
+            keep.append(key)
+    return add, keep
 
 
 def import_foods(conn, valid: list[dict], curator_text: str | None,
@@ -331,6 +408,7 @@ def import_foods(conn, valid: list[dict], curator_text: str | None,
                 conn, f["fdc_id"], f["nutrients"], overwrite=overwrite,
                 notes=build_notes(f), curator_notes=curator_text,
             )
+            _import_annotations(conn, f, overwrite)
             continue
         _db.cache_user_supplied_food(
             conn,
@@ -344,3 +422,21 @@ def import_foods(conn, valid: list[dict], curator_text: str | None,
             notes=build_notes(f),
             curator_notes=curator_text,
         )
+        _import_annotations(conn, f, overwrite)
+
+
+def _import_annotations(conn, food: dict, overwrite: bool) -> None:
+    """Save the reply's GI/DIAAS estimates to the food's annotation — filling
+    blanks only, like the nutrients, unless overwrite=True."""
+    import db as _db
+    add, _ = _annotation_plan(conn, food, overwrite)
+    if not add:
+        return
+    gi = "gi" in add
+    _db.upsert_food_annotation(
+        conn, food["fdc_id"],
+        gi_estimate=food["gi"] if gi else None,
+        gi_source=(food.get("gi_source") or "Claude AI reply") if gi else None,
+        diaas_estimate=food["diaas"] if "diaas" in add else None,
+    )
+    _db.refresh_user_edited(conn, food["fdc_id"])

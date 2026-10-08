@@ -159,6 +159,7 @@
     {% endfor %}
   </tbody>
 </table>
+{% include "_code_key.html" %}
 {% endif %}
 
 {# ── Pantry list ── #}
@@ -175,7 +176,7 @@
     <tr>
       <th title="Select to add to Compare">Compare</th>
       <th>Food</th>
-      <th>FDC link</th>
+      <th>Code</th>
       <th>Type</th>
       <th class="text-center" title="Amino acid data">AA</th>
       <th class="text-center">GI est.</th>
@@ -200,7 +201,6 @@
         {% else %}
         {{ item.food_name }}
         {% endif %}
-        {{ food_id_tag(item.fdc_id) }}
         {% if item.archived %}<span class="badge bg-secondary ms-1 js-archived-badge">Archived</span>{% endif %}
       </td>
       <td>
@@ -263,6 +263,7 @@
     {% endfor %}
   </tbody>
 </table>
+{% include "_code_key.html" %}
 <p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a> &middot; Archive hides an entry from complement suggestions without losing it</small></p>
 {% else %}
 <p>Your pantry is empty. Add some foods above, or <a href="/settings#starter-data">load starter data</a> to explore the app.</p>

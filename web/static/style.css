@@ -525,6 +525,16 @@ table {
   display: block;
   white-space: nowrap;
 }
+/* "edited" beside a code: a user-edited food (see _EDITED_MARK in backend.py). */
+.code-edited {
+  font-size: 0.72rem;
+  padding: 0 0.3em;
+  border: 1px solid #c9a227;
+  border-radius: 0.25rem;
+  background: #fff8e1;
+  color: #6b5200;
+  white-space: nowrap;
+}
 
 /* ── Status indicators ───────────────────────────────────────────────── */
 
@@ -784,6 +794,13 @@ td, th {
 
 td:first-child, th:first-child {
   padding-left: 3.6rem;
+}
+
+/* A table whose first column is a checkbox (Food Cache's Fetch) gains
+   nothing from the indent above — it only pushed every column right. */
+table.no-first-indent td:first-child,
+table.no-first-indent th:first-child {
+  padding-left: 0.5rem;
 }
 
 /* ── Manual page ─────────────────────────────────────────────────────── */

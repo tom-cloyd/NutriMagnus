@@ -131,6 +131,7 @@
     {% endfor %}
   </tbody>
 </table>
+{% include "_code_key.html" %}
 
 <p class="muted mt-2"><small>{{ recipes|length }} recipe{% if recipes|length != 1 %}s{% endif %}{% if q %} matching "{{ q }}"{% endif %}</small></p>
 {% endif %}

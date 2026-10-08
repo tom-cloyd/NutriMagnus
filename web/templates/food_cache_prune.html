@@ -34,12 +34,13 @@
       <tr>
         <td><input type="checkbox" name="delete_ids" value="{{ f.fdc_id }}" checked onchange="pruneUpdateCount()"></td>
         <td class="muted" style="white-space:nowrap">{{ food_id_short(f.fdc_id) }}</td>
-        <td>{{ f.name }}{{ food_id_tag(f.fdc_id) }}</td>
+        <td>{{ f.name }}</td>
         <td class="muted"><small>{{ food_type(f, "—") }}</small></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  {% include "_code_key.html" %}
 </div>
   <div class="d-flex gap-2">
     <button type="submit" class="btn btn-danger btn-sm" id="prune-submit"

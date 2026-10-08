@@ -19,6 +19,21 @@
   groups you marked &ldquo;not needed&rdquo; (undo that on the <a href="/food/cache/db-check#completeness">data completeness check</a>).</small>
 </div>
 {% endif %}
+{% if form_fdc_ids %}
+<form method="post" action="/food/cache/claude-fetch" class="mb-3">
+  {% for fid in form_fdc_ids %}<input type="hidden" name="fdc_id" value="{{ fid }}">{% endfor %}
+  {% for g in form_groups %}<input type="hidden" name="group" value="{{ g }}">{% endfor %}
+  {% for w in form_wants %}<input type="hidden" name="want" value="{{ w }}">{% endfor %}
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="gi_diaas" value="1" id="gi_diaas"
+           {% if gi_diaas %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label" for="gi_diaas">Also ask for each food&rsquo;s glycemic index (GI) and DIAAS
+      <small class="muted">(only for foods that don&rsquo;t already have them; importing the reply saves them to each food&rsquo;s
+      annotation, as if entered on its Annotate page)</small></label>
+  </div>
+  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary mt-1">Rebuild the prompt</button></noscript>
+</form>
+{% endif %}
 {% if not prompt %}
 {% if not nothing_missing %}
 <p class="text-warning">None of the foods you selected could be found — go back to the
@@ -35,7 +50,12 @@ for the values each food is missing, so importing the reply fills gaps without t
   <li class="mb-1">Copy the prompt below (button provided).</li>
   <li class="mb-1">Go to <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a> — open a
     <strong>new chat</strong> (not an existing one), paste the prompt, and send.</li>
-  <li class="mb-1">When Claude finishes, copy its entire reply.
+  <li class="mb-1"><strong>Check the reply for gaps.</strong> If Claude left many values out, or says they&rsquo;re unknown
+    or not in USDA&rsquo;s data, ask it in the same chat:
+    <em>&ldquo;Please do a literature review for the missing values and give me all the food blocks again, complete and in the same format.&rdquo;</em>
+    <br><small class="muted">Claude&rsquo;s first answer often sticks to USDA data. A second request usually turns up more
+    values from published studies and other countries&rsquo; food tables.</small></li>
+  <li class="mb-1">Copy Claude&rsquo;s <strong>latest complete</strong> reply, using the <strong>Copy</strong> button under it.
     <br><small class="muted">All foods should appear in one response. If Claude splits its answer across
     multiple replies, copy each one and paste them together.</small></li>
   <li class="mb-1">Go to <a href="/food/cache/claude-import">Import Claude response</a>, paste the reply, and

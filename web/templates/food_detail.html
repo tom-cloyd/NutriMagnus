@@ -221,14 +221,23 @@
   <p class="muted mb-2" style="font-size:0.85rem; max-width:42rem">
     {% if other_gaps %}No data for this food's {% for g in other_gaps %}<strong>{{ gap_labels[g] }}</strong>{{ ", " if not loop.last }}{% endfor %}.
     {% if 'macros' not in data_gaps %}
+    Claude AI can usually supply {{ "it" if other_gaps|length == 1 else "them" }} &mdash; and this food's GI and DIAAS too, if you tick that option on the next page.
     <form method="post" action="/food/cache/claude-fetch" style="display:inline">
       <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
-      <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Ask Claude AI for it</button>
+      {# Sized and styled as a link, to match the plain link beside it. #}
+      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit">Ask Claude AI for the missing data</button>
     </form>
     {% endif %}
     {% endif %}
-    {% if data_gaps_ignored %}Marked not needed: {% for g in data_gaps_ignored %}{{ gap_labels[g] }}{{ ", " if not loop.last }}{% endfor %}.{% endif %}
-    <a href="/food/cache/db-check#completeness">Review or undo</a>
+    {% if data_gaps_ignored %}<span class="d-inline-block">Marked not needed for this food:
+    {% for g in data_gaps_ignored %}{{ gap_labels[g] }}
+    <form method="post" action="/food/{{ food.fdc_id }}/data-ignore" style="display:inline">
+      <input type="hidden" name="group" value="{{ g }}">
+      <input type="hidden" name="ignored" value="0">
+      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit"
+              title="Start flagging this food's missing {{ gap_labels[g] }} again">(undo)</button>
+    </form>{{ ", " if not loop.last else "." }}
+    {% endfor %}</span>{% endif %}
   </p>
   {% endif %}
 </div>

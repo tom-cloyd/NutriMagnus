@@ -4,5 +4,5 @@
 <p class="muted"><small>
   <strong>Code</strong> = the item's short identifier; its letters say what kind of item it is:
   {% for prefix, meaning in code_prefixes %}<strong>{{ prefix }}</strong> {{ meaning }}{% if not loop.last %} &middot; {% endif %}{% endfor %}.
-  A <strong>&#9998;</strong> after a code means you've changed that food's data (it's user-edited); the code itself stays the same.
+  <span class="code-edited">edited</span> after a code means you&rsquo;ve changed that food&rsquo;s data since it came from its source (for example by importing Claude AI values, taking values on a review screen, or saving a GI/DIAAS estimate); the code itself stays the same.
 </small></p>

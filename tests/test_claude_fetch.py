@@ -217,3 +217,63 @@ class TestImportFoods:
         assert cached["name"] == "Chicken breast"
         assert cached["curator_notes"] == "Used SR Legacy throughout."
         assert "Source: USDA FDC 171477" in cached["notes"]
+
+
+class TestGiDiaas:
+    """The opt-in GI/DIAAS request: asked for per food in the prompt, read
+    from the reply's JSON, and saved to food_annotations (blanks only)."""
+
+    def test_prompt_asks_only_when_requested(self):
+        plain = _cf.build_prompt([(1, "Potato")], {1: (["aa_lysine_g"], [])})
+        assert '"gi"' not in plain and "also wanted" not in plain
+        asked = _cf.build_prompt([(1, "Potato"), (2, "Rice")],
+                                 {1: (["aa_lysine_g"], []), 2: ([], [])},
+                                 {1: ["gi", "diaas"], 2: ["gi"]})
+        assert "10. Where a food's entry" in asked
+        assert "also wanted: gi, diaas (rule 10)" in asked
+        assert "also wanted: gi (rule 10)" in asked
+        assert "no nutrient keys" in asked
+
+    def _block(self, **kw):
+        return {"name": "Potato", "fdc_id": 170115, "fdc_type": "SR Legacy", **kw}
+
+    def test_validate_reads_estimates_as_metadata_not_nutrients(self):
+        food, warnings = _cf.validate_block(
+            self._block(gi=78, gi_source="Atkinson 2021", diaas=0.85, diaas_source="calc"), 1)
+        assert (food["gi"], food["diaas"]) == (78.0, 0.85)
+        assert food["gi_source"] == "Atkinson 2021"
+        assert "gi" not in food["nutrients"]
+        assert warnings == []
+
+    def test_validate_diaas_percentage_is_converted(self):
+        food, warnings = _cf.validate_block(self._block(diaas=85), 1)
+        assert food["diaas"] == 0.85
+        assert any("percentage" in w for w in warnings)
+
+    def test_validate_out_of_range_and_non_numeric_skipped(self):
+        food, warnings = _cf.validate_block(self._block(gi=500, diaas="high"), 1)
+        assert food["gi"] is None and food["diaas"] is None
+        assert len(warnings) == 2
+
+    def _food(self, **kw):
+        food, _ = _cf.validate_block(self._block(protein_g=2.0, **kw), 1)
+        return food
+
+    def test_import_saves_annotation_and_keeps_existing_values(self):
+        with _db.get_db() as conn:
+            _cf.import_foods(conn, [self._food(gi=78, gi_source="Atkinson 2021", diaas=0.85,
+                                               diaas_source="calc")], None)
+        with _db.get_db() as conn:
+            ann = _db.get_food_annotation(conn, 170115)
+            assert (ann["gi_estimate"], ann["gi_source"], ann["diaas_estimate"]) == (78.0, "Atkinson 2021", 0.85)
+            assert "DIAAS source: calc" in _db.get_cached_food(conn, 170115)["notes"]
+            second = [self._food(gi=60, diaas=0.5)]
+            assert _cf.plan_import(conn, second)[0]["ann_keep"] == ["gi", "diaas"]
+            _cf.import_foods(conn, second, None)
+        with _db.get_db() as conn:
+            ann = _db.get_food_annotation(conn, 170115)
+            assert (ann["gi_estimate"], ann["diaas_estimate"]) == (78.0, 0.85)
+            _cf.import_foods(conn, second, None, overwrite=True)
+        with _db.get_db() as conn:
+            ann = _db.get_food_annotation(conn, 170115)
+            assert (ann["gi_estimate"], ann["diaas_estimate"]) == (60.0, 0.5)

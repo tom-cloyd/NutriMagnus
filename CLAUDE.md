@@ -294,6 +294,13 @@ dated entries below it are the detail. Prefix a bullet with `MANUAL: ` only for
 manual-only changes; program changes take no prefix. Append ` (dated details below)` to
 the heading only while dated entry sections actually follow it.
 
+**Each summary bullet is numbered** (adopted 2026-10-07, so the reader can see how
+many updates are pending): oldest is 1, newest highest, newest on top — e.g.
+`- **13.** New item.` above `- **12.** ...`. A new bullet takes the next number up;
+nothing else is renumbered. The number is written into a plain bullet because a
+Markdown ordered list can only count upward. Don't put a count in the heading — it
+would go stale. Numbering restarts at 1 after each release.
+
 **The layout to end up with**, always, reading down from the marker:
 
 ```
@@ -301,8 +308,8 @@ the heading only while dated entry sections actually follow it.
 
 #### Next release summary to this point (dated details below)
 
-- Newest bullet.            <- your new one-line summary goes on top
-- Older bullet.
+- **13.** Newest bullet.    <- your new one-line summary goes on top, next number up
+- **12.** Older bullet.
 
 #### Month Day updates      <- today's date heading (create if not already today's)
 

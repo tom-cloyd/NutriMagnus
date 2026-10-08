@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-06:2251* / Reading time: 7 hours, 29 minutes
+*Updated 2026-10-07:2020* / Reading time: 7 hours, 31 minutes
 
 *Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
 
@@ -376,7 +376,7 @@ In addition, the following internal data sources are used:
 
 ## Part 3 — Using the Web App
 
-*(Reading time: 39 minutes)*
+*(Reading time: 40 minutes)*
 
 NuMa's web app runs in your ordinary browser. This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
@@ -539,7 +539,7 @@ Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3]
 
 **Check for missing nutrient data.**{: #data-completeness} The same page (Foods → 9) has a section, **Missing nutrient data**, listing every cached food that has *no* values at all for one of six nutrient groups — the five blocks of a Nutritional Analysis table (Macronutrients, Omega Fatty Acids, Minerals, Vitamins, Phytonutrients) plus Amino Acids. Macronutrients count as missing if even one of calories, protein, carbohydrate, or fat is absent; amino acids only for a food that has protein. A group with *some* values is normal for real data and isn't listed.
 
-Not every gap matters. Basil doesn't need macronutrients — too little goes into a recipe to count. For a gap like that, check **not needed** under it and click **Save "not needed" choices**: NuMa stops listing it for that food, stops warning about it on the food's own page, and leaves it out of any Claude AI prompt (which tells Claude it's not needed). To undo one, tick **Also list foods whose only gaps are marked "not needed"**, uncheck the box, and save again. **Groups to check** narrows the list to the groups you care about. Omega Fatty Acids and Phytonutrients start out unchecked: most ordinary food records were never measured for them, so checking them lists nearly every food. Tick them if you want them anyway. NuMa remembers both settings.
+Not every gap matters. Basil doesn't need macronutrients — too little goes into a recipe to count. For a gap like that, check **not needed** under it and click **Save "not needed" choices**: NuMa stops listing it for that food, stops warning about it on the food's own page, and leaves it out of any Claude AI prompt (which tells Claude it's not needed). To undo one, tick **Also list foods whose only gaps are marked "not needed"**, uncheck the box, and save again — or, quicker, open that food's own page, where each group marked not needed has its own **(undo)** link. **Groups to check** narrows the list to the groups you care about. Omega Fatty Acids and Phytonutrients start out unchecked: most ordinary food records were never measured for them, so checking them lists nearly every food. Tick them if you want them anyway. NuMa remembers both settings.
 
 To fill real gaps, check **ask AI** under each gap you want help with — one food, a few, or a whole group at once with the **all** link under that column's heading — and click **Build a Claude AI prompt for the gaps checked "ask AI"**. The prompt covers only the gaps you checked. See [Fetching missing data with Claude AI](#fetch) below. A food's own page offers the same thing: if it's missing core macronutrients you'll see a warning with **Ask Claude AI for the missing data** and **Macronutrients not needed for this food** buttons, and any other missing group is named in a short line under it.
 
@@ -552,12 +552,17 @@ The same page (Foods → 9) has a section, **Food data problems**, listing every
 
 **Fetching missing data with Claude [AI](#gloss-ai).**{: #fetch} Some foods — especially branded or prepared items — arrive without amino acid data, and a few arrive missing even calories or protein. Check the boxes next to the foods you want (or click "Select all missing [AA](#gloss-aa) data" to grab every food currently missing it), then click **Fetch missing data from Claude AI**. (You can also start from the [missing nutrient data check](#data-completeness), or from the warning on a food's own page.) This builds a ready-to-send prompt and shows it on its own page with a **Copy prompt to clipboard** button.
 
-The prompt asks only for what each food is missing — the specific values, food by food — and says nothing about groups you've marked "not needed" except that they're not needed. A food with nothing missing is left out (the page tells you which). From there:
+The prompt asks only for what each food is missing — the specific values, food by food — and says nothing about groups you've marked "not needed" except that they're not needed. A food with nothing missing is left out (the page tells you which).
+
+**Asking for GI and DIAAS too.**{: #fetch-gi-diaas} Tick **Also ask for each food's glycemic index (GI) and DIAAS** at the top of the prompt page and the prompt is rebuilt to ask for those as well, for each food that doesn't already have them (a food whose Annotate page is set to stop asking is skipped). A food with no missing nutrients is then included if it still lacks GI or DIAAS. Importing the reply saves them to the food's [annotation](#annotate), just as if you'd typed them on **Foods → Annotate**, with Claude's cited source kept beside the GI. Like the nutrients, they only fill blanks unless you tick **Also replace the values these foods already have**.
+
+From there:
 
 1. Go to [claude.ai](https://claude.ai) — open a **new chat** (not an existing one) — paste the prompt, and send.
-2. When Claude finishes, copy its entire reply (all of it, including every fenced `json` block — if Claude splits its answer across multiple messages, copy each one and paste them together).
-3. Back in NuMa, click **Import Claude response** (also reachable directly from the Food Cache page), paste the reply into the box, and click **Review**.
-4. NuMa shows you a table of what it understood from the reply — name, [FDC](#gloss-fdc) ID, calories, protein, how many of the 11 tracked amino acids were found, and what importing will do — plus any warnings about data it couldn't use. Check it over, then click **Import** to save it to your cache.
+2. **Check the reply for gaps.** Claude's first answer often sticks to USDA data and leaves out anything USDA doesn't have. If many values are missing, or Claude says they're unknown, ask it in the same chat: *"Please do a literature review for the missing values and give me all the food blocks again, complete and in the same format."* That usually turns up more, from published studies and other countries' food tables. (The prompt asks for this already, but Claude doesn't always do it the first time.)
+3. Copy Claude's latest complete reply with the **Copy** button under it, rather than by selecting the text (all of it, including every fenced `json` block — if Claude splits its answer across multiple messages, copy each one and paste them together). If you did select the text instead, NuMa will usually still find the data and say so; nothing else to do.
+4. Back in NuMa, click **Import Claude response** (also reachable directly from the Food Cache page), paste the reply into the box, and click **Review**.
+5. NuMa shows you a table of what it understood from the reply — name, [FDC](#gloss-fdc) ID, calories, protein, how many of the 11 tracked amino acids were found, and what importing will do — plus any warnings about data it couldn't use. Check it over, then click **Import** to save it to your cache.
 
 **Importing only fills gaps.** For a food already in your cache, importing adds the values it was missing and nothing else — every value it already has stays, and so do its name, portions, and notes. If Claude's reply includes a different value for something the food already has, the review table names it, and a checkbox, **Also replace the values these foods already have**, lets you take Claude's value instead. Leave it unchecked unless you mean it.
 
@@ -3126,7 +3131,7 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **CIQUAL**{: #gloss-ciqual}  —  The French food composition table published by [ANSES](#gloss-anses); ~3,480 French and European foods bundled with NuMa. No amino acid data. See [Food data](#food-data).
 
-**Code**{: #gloss-code}  —  The short identifier every food and recipe gets, in one pattern: a few letters saying what kind of item it is, then a number. **U** = USDA FoodData Central food (U171477 — the number is its [FDC ID](#gloss-fdc-id)); **UD** = user-drafted food, one you entered yourself (UD4); **R** = recipe (R21); **OFF**, **CNF**, **CoFID**, **AFCD**, **CIQUAL** = a food from one of the other food databases, numbered 1, 2, 3… in the order you added them (OFF3). A **.1**, **.2** … on the end is an older version of that food, kept for past meals at a Refresh (U171477.1 — see [Keeping the old version](#keep-version)). A food's code never changes, even when you rename or edit it; a **✎** after a code means you've changed that food's data (it is *user-edited* — see [Custom Food Profiles](#drafted-foods)). The Substitute tool accepts codes typed in either upper or lower case. Shown in Code columns, and in parentheses under a food or recipe name — hover over it to see the kind spelled out. See also [ID](#gloss-id).
+**Code**{: #gloss-code}  —  The short identifier every food and recipe gets, in one pattern: a few letters saying what kind of item it is, then a number. **U** = USDA FoodData Central food (U171477 — the number is its [FDC ID](#gloss-fdc-id)); **UD** = user-drafted food, one you entered yourself (UD4); **R** = recipe (R21); **OFF**, **CNF**, **CoFID**, **AFCD**, **CIQUAL** = a food from one of the other food databases, numbered 1, 2, 3… in the order you added them (OFF3). A **.1**, **.2** … on the end is an older version of that food, kept for past meals at a Refresh (U171477.1 — see [Keeping the old version](#keep-version)). A food's code never changes, even when you rename or edit it; a small **edited** tag after a code (U175237 `edited`) means you've changed that food's data since it came from its source (it is *user-edited* — see [Custom Food Profiles](#drafted-foods)). The Substitute tool accepts codes typed in either upper or lower case. Shown in Code columns, or, where a table has no Code column, in parentheses under a food or recipe name — hover over it to see the kind spelled out. Every table with a Code column has a one-line key under it explaining the letters and the edited tag. See also [ID](#gloss-id).
 
 **CoFID**{: #gloss-cofid}  —  Composition of Foods Integrated Dataset. The UK's national food composition table, ~2,900 foods, published by Public Health England/[DHSC](#gloss-dhsc) and bundled with NuMa. No amino acid data. See [Food data](#food-data).
 
@@ -4534,7 +4539,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 31 minutes)*
+*(Reading time: 1 hour, 32 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4550,15 +4555,80 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
-- What-if Replace can use a multiple of the old weight (for example 1.1 or 110%).
-- Name lists on the What-if and Food Use replace boxes can be worked with the arrow keys and Enter.
-- New Analysis -> What-if: recipes: see how removing, adding or replacing an ingredient would change each recipe's nutrition per serving, without changing anything.
-- Food Use and What-if date boxes: dates typed without leading zeros (2026-6-1) now work; a line that isn't a date is pointed out instead of silently dropped.
-- New Analysis -> What-if: meals: see how removing, adding, replacing or cutting down foods would change your daily nutrition over a set of days, without changing anything.
-- Food Use pages: a single date on its own line now counts as a one-day range.
-- Food Use in Meals and in Recipes: replace a food by ticking its Replace box and searching for the replacement by name — no codes needed.
-- The manual's search now lists the best-matching section first, instead of the longest; "replace food" now finds how to replace a food everywhere.
-- A recipe added as an ingredient of another recipe can now be entered in grams as well as servings.
+- **12.** A food you've edited now shows a readable "edited" tag after its code instead of a ✎, and every table with a Code column has a key explaining codes.
+- **11.** The Claude AI fetch prompt asks Claude to search published studies before leaving a value out, and the import page explains what to do when a reply can't be read.
+- **10.** The Claude AI fetch prompt can now also ask for each food's GI and DIAAS, and importing the reply saves them to the food's annotation.
+- **9.** What-if Replace can use a multiple of the old weight (for example 1.1 or 110%).
+- **8.** Name lists on the What-if and Food Use replace boxes can be worked with the arrow keys and Enter.
+- **7.** New Analysis -> What-if: recipes: see how removing, adding or replacing an ingredient would change each recipe's nutrition per serving, without changing anything.
+- **6.** Food Use and What-if date boxes: dates typed without leading zeros (2026-6-1) now work; a line that isn't a date is pointed out instead of silently dropped.
+- **5.** New Analysis -> What-if: meals: see how removing, adding, replacing or cutting down foods would change your daily nutrition over a set of days, without changing anything.
+- **4.** Food Use pages: a single date on its own line now counts as a one-day range.
+- **3.** Food Use in Meals and in Recipes: replace a food by ticking its Replace box and searching for the replacement by name — no codes needed.
+- **2.** The manual's search now lists the best-matching section first, instead of the longest; "replace food" now finds how to replace a food everywhere.
+- **1.** A recipe added as an ingredient of another recipe can now be entered in grams as well as servings.
+
+#### October 7 updates
+
+**PROGRAM: "EDITED" TAG AND A CODE KEY UNDER EVERY CODE COLUMN**
+
+A food whose data you've changed now shows a small **edited** tag after its code (for example U175237 `edited`) in place of the hard-to-read ✎. Every table with a Code column, including the Food Cache and Pantry, now has a one-line key under it saying what the code letters and the edited tag mean. [learn more...](#gloss-code)
+
+<!--
+
+```
+Scope: web/backend.py _EDITED_MARK is now <span class="code-edited">edited</span> (style.css
+.code-edited), used by food_id_short()/food_id_tag() on every page. _code_key.html text
+updated and included under the Code-column table on compare, food_cache_db_check,
+food_cache, food_cache_prune, food_custom_profiles, claude_import, search, recipes,
+food_analyze_recipe_portion, pantry, meal, recipe_edit (Analysis pages had it already).
+```
+
+-->
+
+**PROGRAM: FULLER CLAUDE AI REPLIES, CLEARER IMPORT MESSAGES**
+
+The Claude AI prompt now asks Claude to search published studies and other countries' food tables before leaving a value out, and the fetch page tells you how to ask for a literature review if the reply still has gaps. On the import page, a reply copied without its code-block markers now gets a plain note that the data was found anyway. A reply with no usable data now explains the likely cause and what to do. [learn more...](#fetch)
+
+<!--
+
+```
+Scope: Foods -> Food Cache -> Fetch missing data from Claude AI / Import Claude response.
+claude_fetch.py PROMPT_TEMPLATE rule 6 now requires a literature review (studies, CoFID,
+AFCD, CIQUAL, CNF, other preparations adjusted for moisture) before omitting a key, and a
+note of omitted keys in confidence_note. claude_fetch.html: new step 2 (ask for a
+literature review in the same chat) and "use the Copy button". Import: the bare-JSON
+fallback note (claude_fetch.UNFENCED_NOTE) is pulled out of the validation warnings by
+the route and shown as an info alert when blocks were found; the no-blocks error now
+lists causes and fixes; validation notes now explain themselves and also show when no
+food record survived validation (previously that branch said "see the messages below"
+but never rendered them).
+```
+
+-->
+
+**PROGRAM: ASK CLAUDE AI FOR GI AND DIAAS**
+
+The Fetch from Claude AI page has a new checkbox, **Also ask for each food's glycemic index (GI) and DIAAS**. Tick it and the prompt also asks for those values for every food that doesn't have them yet. Importing the reply saves them to each food's annotation, the same as typing them on the Annotate page. [learn more...](#fetch-gi-diaas)
+
+<!--
+
+```
+Scope: Foods -> Food Cache -> Fetch missing data from Claude AI (/food/cache/claude-fetch,
+claude_fetch.html) and Import Claude response (claude_import.html).
+claude_fetch.build_prompt() takes an `annotations` map (fdc_id -> ["gi","diaas"]) and adds
+rule 10 plus an "also wanted:" line per food; replies carry gi / gi_source / diaas /
+diaas_source as JSON metadata keys (META_KEYS), so they no longer show as stripped
+unrecognised keys. validate_block() range-checks GI 0-150 and DIAAS 0-2.0 (a value
+2-200 is read as a percentage and divided by 100, with a warning). import_foods()
+writes them via db.upsert_food_annotation, blanks only unless overwrite; diaas_source
+goes into the food's notes (no column for it). The fetch route's gi_diaas form field
+skips a food whose annotation already has the value or has *_no_prompt set, and keeps
+a food with no nutrient gaps when it still needs GI/DIAAS. The page's checkbox
+resubmits the same fdc_id/group/want fields to rebuild the prompt.
+```
+
+-->
 
 #### October 6 updates
 

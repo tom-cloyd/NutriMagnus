@@ -126,7 +126,7 @@
   <tbody>
     {% for food in foods %}
     <tr>
-      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a>{{ food_id_tag(food.fdc_id) }}</td>
+      <td><a href="/food/{{ food.fdc_id }}">{{ food.name }}</a></td>
       <td class="muted">{{ food_id_short(food.fdc_id) }}</td>
       <td class="muted">{{ food_type(food, "User Drafted") }}</td>
       <td class="text-nowrap">
@@ -150,6 +150,7 @@
     {% endfor %}
   </tbody>
 </table>
+{% include "_code_key.html" %}
 {% else %}
 <p>No custom profiles yet. Create one above.</p>
 {% endif %}

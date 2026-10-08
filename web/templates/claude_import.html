@@ -27,20 +27,38 @@ Don't have a prompt yet? <a href="/food/cache">Go to the Food Cache</a> and sele
 <hr class="my-4">
 
 {% if no_blocks %}
-<div class="alert alert-danger">No JSON blocks found in that text. Make sure you pasted the full reply,
-including the <code>```json</code> fences.</div>
+<div class="alert alert-danger" style="max-width:48rem">
+  <strong>No food data found in that text.</strong> NuMa looks for Claude&rsquo;s JSON blocks (text starting
+  with <code>{"name": ...</code>), and there weren&rsquo;t any. Most likely:
+  <ul class="mb-0 mt-1">
+    <li><strong>Only part of the reply was copied.</strong> Copy it again using the <strong>Copy</strong> button
+      under Claude&rsquo;s reply, rather than selecting the text, and paste the whole thing.</li>
+    <li><strong>Claude answered in prose instead of JSON.</strong> In the same Claude chat, ask:
+      <em>&ldquo;Please give me that as the JSON blocks my first message asked for.&rdquo;</em> Then copy that new reply.</li>
+  </ul>
+</div>
 {% elif not review %}
-<div class="alert alert-danger">No valid food records after validation — see the messages below.</div>
-{% else %}
+<div class="alert alert-danger">None of the food records in that reply could be used — see why below.</div>
+{% endif %}
+
+{% if unfenced and review %}
+<div class="alert alert-info" style="max-width:48rem"><small>Claude&rsquo;s reply had no <code>```json</code>
+  code-block markers &mdash; this usually happens when the reply is copied by selecting the text instead of with the
+  <strong>Copy</strong> button under it. NuMa found the food data anyway: check the table below and import as usual.
+  Nothing else to do.</small></div>
+{% endif %}
 
 {% if warnings %}
 <div class="alert alert-warning">
-  <strong>Notes from validation:</strong>
+  <strong>Notes from validation</strong> <small class="muted">&mdash; what NuMa couldn&rsquo;t use, and why.
+  {% if review %}Everything else imports normally. {% endif %}To fix these, ask Claude in the same chat to correct them, then paste its new reply here.</small>
   <ul class="mb-0">
     {% for msg in warnings %}<li><small>{{ msg }}</small></li>{% endfor %}
   </ul>
 </div>
 {% endif %}
+
+{% if review %}
 
 {% if curator_text %}
 <div class="alert alert-info">
@@ -58,6 +76,7 @@ including the <code>```json</code> fences.</div>
       <th class="text-end">Cal</th>
       <th class="text-end">Protein (g)</th>
       <th class="text-end">AAs</th>
+      {% if any_estimates %}<th class="text-end">GI</th><th class="text-end">DIAAS</th>{% endif %}
       <th>What importing does</th>
     </tr>
   </thead>
@@ -69,15 +88,22 @@ including the <code>```json</code> fences.</div>
       <td class="text-end">{{ f.calories if f.calories is not none else "—" }}</td>
       <td class="text-end">{{ f.protein_g if f.protein_g is not none else "—" }}</td>
       <td class="text-end">{{ f.aa_count }}/11</td>
+      {% if any_estimates %}
+      <td class="text-end">{{ "%g"|format(f.gi) if f.gi is not none else "—" }}</td>
+      <td class="text-end">{{ "%.2f"|format(f.diaas) if f.diaas is not none else "—" }}</td>
+      {% endif %}
       <td><small>
         {% if not f.existing %}New food — added to your cache.
         {% else %}Already cached — fills in {{ f.add_n }} missing value{% if f.add_n != 1 %}s{% endif %}{% if f.keep %}; keeps the {{ f.keep|length }} value{% if f.keep|length != 1 %}s{% endif %} it already has that the reply would change ({{ f.keep|join(", ") }}){% endif %}.
         {% endif %}
+        {% if f.ann_add %}Saves {{ f.ann_add|join(" and ") }} to its annotation.{% endif %}
+        {% if f.ann_keep %}Keeps the {{ f.ann_keep|join(" and ") }} its annotation already has.{% endif %}
       </small></td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% include "_code_key.html" %}
 
 <form method="post" action="/food/cache/claude-import">
   <input type="hidden" name="response_text" value="{{ response_text }}">

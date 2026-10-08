@@ -1,4 +1,4 @@
-VERSION = "2026-10-06:2300"
+VERSION = "2026-10-07:2026"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.24"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "New Analysis pages What-if: meals and What-if: recipes show how removing, adding or replacing foods would change your nutrition, without changing anything"
+NEW_VERSION_NOTE = "Claude AI fetch can also ask for GI and DIAAS and asks for a literature review before leaving values out; the import page explains unreadable replies; edited foods show an edited tag after their code, with a key under every Code column"

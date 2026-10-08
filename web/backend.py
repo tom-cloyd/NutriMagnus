@@ -993,7 +993,9 @@ def _latest_release_anchor() -> str:
     return anchor
 templates.env.globals["is_local_source"] = _is_local_source
 
-_EDITED_MARK = "\u270e"  # ✎ — beside a code, never part of it
+# Beside a code, never part of it. A word, not a symbol: a ✎ at Code-column
+# font size read as a smudge.
+_EDITED_MARK = '<span class="code-edited">edited</span>'
 
 
 def _code_display(fdc_id: int | None, recipe_id: int | None) -> tuple[str, str, bool] | None:
@@ -2806,12 +2808,15 @@ async def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = 
 @app.post("/food/cache/claude-fetch", response_class=HTMLResponse)
 async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[]),
                                   group: list[str] = Form(default=[]),
-                                  want: list[str] = Form(default=[])):
+                                  want: list[str] = Form(default=[]),
+                                  gi_diaas: int = Form(0)):
     """Build a prompt asking only for each selected food's missing nutrient
     groups (data_completeness.py), less any the user marked not needed for
     that food. `group` limits it to those groups; `want` ("fdc_id:group",
     the Data Completeness page's per-gap checkboxes) picks exact food/group
-    pairs instead. A food with nothing missing is left out."""
+    pairs instead. `gi_diaas` also asks for each food's GI and DIAAS where
+    its annotation has none and isn't set to stop asking. A food with
+    nothing missing is left out."""
     checked = set(group) or None
     wanted: dict[int, set[str]] = {}
     for cell in want:
@@ -2819,9 +2824,10 @@ async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(def
         if g in _data_completeness.GROUP_LABELS and fid.lstrip("-").isdigit():
             wanted.setdefault(int(fid), set()).add(g)
     fdc_id = list(dict.fromkeys(fdc_id + list(wanted)))
-    selected, requests, nothing_missing = [], {}, []
+    selected, requests, nothing_missing, ann_wanted = [], {}, [], {}
     with _db.get_db() as conn:
         ignores = _db.food_data_ignores(conn)
+        anns = _db.annotations_for_fdcids(conn, fdc_id) if gi_diaas and fdc_id else {}
         for fid in fdc_id:
             cached = _db.get_cached_food(conn, fid)
             if not cached:
@@ -2830,21 +2836,35 @@ async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(def
             ignored = ignores.get(fid, set())
             gaps = _data_completeness.active_gaps(nutrients, ignored, wanted.get(fid, checked))
             keys = _data_completeness.requested_keys(nutrients, gaps)
-            if not keys:
+            if gi_diaas:
+                ann = anns.get(fid)
+                est = [k for k, col in (("gi", "gi"), ("diaas", "diaas"))
+                       if not ann or (ann[f"{col}_estimate"] is None and not ann[f"{col}_no_prompt"])]
+                if est:
+                    ann_wanted[fid] = est
+            if not keys and fid not in ann_wanted:
                 nothing_missing.append(cached["name"])
                 continue
             selected.append((fid, cached["name"]))
             requests[fid] = (keys, [_data_completeness.GROUP_LABELS[g]
                                     for g in _data_completeness.missing_groups(nutrients)
                                     if g in ignored])
-    prompt = _claude_fetch.build_prompt(selected, requests) if selected else ""
+    prompt = _claude_fetch.build_prompt(selected, requests, ann_wanted) if selected else ""
+    _est_labels = {"gi": "GI", "diaas": "DIAAS"}
     return templates.TemplateResponse(request, "claude_fetch.html", {
         "prompt":          prompt,
         "selected":        selected,
         "nothing_missing": nothing_missing,
         "group_labels":    {fid: [_data_completeness.GROUP_LABELS[g] for g in
                                   _data_completeness.groups_for_keys(keys)]
+                                 + [_est_labels[k] for k in ann_wanted.get(fid, [])]
                             for fid, (keys, _) in requests.items()},
+        # Replayed by the page's own form, which rebuilds the prompt with
+        # the GI/DIAAS option toggled.
+        "form_fdc_ids":    fdc_id,
+        "form_groups":     group,
+        "form_wants":      want,
+        "gi_diaas":        bool(gi_diaas),
     })
 
 
@@ -2863,6 +2883,10 @@ async def food_cache_claude_import_post(request: Request,
                                          overwrite: int = Form(0)):
     raw_blocks, curator_text, parse_warnings = _claude_fetch.parse_response(response_text)
     valid, validate_warnings = _claude_fetch.validate_all(raw_blocks)
+    # Bare JSON (no ```json fences) isn't a problem when food data was found
+    # anyway — the page explains it plainly instead of listing it as a warning.
+    unfenced = _claude_fetch.UNFENCED_NOTE in parse_warnings
+    parse_warnings = [w for w in parse_warnings if w != _claude_fetch.UNFENCED_NOTE]
     warnings = parse_warnings + validate_warnings
 
     if action == "confirm" and valid:
@@ -2891,17 +2915,23 @@ async def food_cache_claude_import_post(request: Request,
             "calories":  int(n["calories"]) if "calories" in n else None,
             "protein_g": round(n["protein_g"], 1) if "protein_g" in n else None,
             "aa_count":  sum(1 for k in _claude_fetch.AA_KEYS if k in n),
+            "gi":        f["gi"],
+            "diaas":     f["diaas"],
             "existing":  plan["existing"],
             "add_n":     len(plan["add"]),
             "keep":      plan["keep"],
+            "ann_add":   [k.upper() for k in plan["ann_add"]],
+            "ann_keep":  [k.upper() for k in plan["ann_keep"]],
         })
     return templates.TemplateResponse(request, "claude_import.html", {
         "response_text": response_text,
         "review":        review_rows,
-        "any_keep":      any(r["keep"] for r in review_rows),
+        "any_keep":      any(r["keep"] or r["ann_keep"] for r in review_rows),
+        "any_estimates": any(r["gi"] is not None or r["diaas"] is not None for r in review_rows),
         "warnings":      warnings,
         "curator_text":  curator_text,
         "no_blocks":     not raw_blocks,
+        "unfenced":      unfenced and bool(raw_blocks),
     })
 
 

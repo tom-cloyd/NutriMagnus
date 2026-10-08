@@ -1859,7 +1859,8 @@ def test_food_cache_id_column_labels_user_drafted_food_ud_not_off(client: TestCl
     resp = client.get("/food/cache", params={"q": "Copy of Bread"})
     assert resp.status_code == 200
     assert "UD3" in resp.text
-    assert ">OFF<" not in resp.text
+    # The table only, not the code key under it (which names every prefix).
+    assert ">OFF<" not in resp.text.split("Code</strong> = the item", 1)[0]
 
 
 def test_food_cache_delete_refuses_when_still_referenced(client: TestClient, cached_food, db_conn) -> None:
@@ -2098,7 +2099,7 @@ def test_claude_import_confirm_saves_to_cache(client: TestClient, db_conn) -> No
 def test_claude_import_no_json_shows_no_blocks_error_not_crash(client: TestClient) -> None:
     resp = client.post("/food/cache/claude-import", data={"response_text": "Sorry, no data available.", "action": "preview"})
     assert resp.status_code == 200
-    assert "No JSON blocks found" in resp.text
+    assert "No food data found" in resp.text
 
 
 def test_food_cache_prune_deletes_checked(client: TestClient, cached_food, db_conn) -> None:
@@ -3284,11 +3285,11 @@ def test_food_use_analysis_shows_codes_and_key(client: TestClient, cached_food: 
     assert "<strong>UD</strong> user-drafted food" in html
 
 
-def test_user_edited_food_shows_pencil_beside_code_but_not_in_form_value(
+def test_user_edited_food_shows_edited_beside_code_but_not_in_form_value(
         client: TestClient, cached_food: dict, db_conn) -> None:
-    """An edited USDA food keeps its code (U...) but gets a ✎ beside it on
+    """An edited USDA food keeps its code (U...) but gets "edited" beside it on
     Food Use in Meals; the Substitute box pre-filled with that food gets the
-    bare code, since a ✎ there would not parse."""
+    bare code, since the mark there would not parse."""
     _db.mark_user_edited(db_conn, cached_food["fdcId"])
     db_conn.commit()
     meal_id = int(
@@ -3302,7 +3303,7 @@ def test_user_edited_food_shows_pencil_beside_code_but_not_in_form_value(
     html = client.get("/analysis/food-use", params={
         "ranges_raw": "2026-07-01:2026-07-31", "sub_kind": "food", "sub_id": cached_food["fdcId"]}).text
     code = f"U{cached_food['fdcId']}"
-    assert f"{code} \u270e</span>" in html
+    assert f'{code} <span class="code-edited">edited</span></span>' in html
     assert "USDA FoodData Central food, user-edited" in html
     assert f'value="{code}"' in html
 
@@ -6427,3 +6428,59 @@ def test_whatif_replace_with_multiple_of_old_weight(client: TestClient, cached_f
         "e_with": "U555", "e_amt": "110%", "e_basis": "factor"})
     assert "110% of the old weight" in resp.text
     assert "16.50" in resp.text or "16.5" in resp.text
+
+
+def test_claude_fetch_gi_diaas_option(client: TestClient, cached_food, db_conn) -> None:
+    """cached_food has nothing missing, so plain fetch leaves it out; with the
+    GI/DIAAS option it's asked for those, and a saved GI drops GI only."""
+    fid = cached_food["fdcId"]
+    resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [fid]})
+    assert 'name="gi_diaas"' in resp.text and "also wanted" not in resp.text
+    resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [fid], "gi_diaas": "1"})
+    assert "also wanted: gi, diaas" in resp.text
+    _db.upsert_food_annotation(db_conn, fid, gi_estimate=50.0, gi_source="x")
+    db_conn.commit()
+    resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [fid], "gi_diaas": "1"})
+    assert "also wanted: diaas (rule 10)" in resp.text
+
+
+def test_claude_import_preview_shows_gi_diaas(client: TestClient) -> None:
+    text = '```json\n{"name": "Potato", "fdc_id": 170115, "fdc_type": "SR Legacy", "gi": 78, "diaas": 0.85}\n```'
+    resp = client.post("/food/cache/claude-import", data={"response_text": text, "action": "preview"})
+    assert "<th class=\"text-end\">DIAAS</th>" in resp.text
+    assert "Saves GI and DIAAS to its annotation." in resp.text
+
+
+def test_claude_import_bare_json_explained_not_warned(client: TestClient) -> None:
+    """Unfenced JSON that was found anyway gets a plain explanation, not a
+    bewildering validation warning."""
+    text = '{"name": "Potato", "fdc_id": 170115, "fdc_type": "SR Legacy", "protein_g": 2.0}'
+    resp = client.post("/food/cache/claude-import", data={"response_text": text, "action": "preview"})
+    assert "found the food data anyway" in resp.text
+    assert "scanning for bare JSON" not in resp.text
+    assert "Notes from validation" not in resp.text
+
+
+def test_claude_fetch_page_suggests_literature_review(client: TestClient, cached_food) -> None:
+    resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [cached_food["fdcId"]], "gi_diaas": "1"})
+    assert "literature review" in resp.text
+
+
+def test_food_cache_explains_codes_and_edited_mark(client: TestClient, cached_food, db_conn) -> None:
+    """The Food Cache's Code column shows a readable "edited" for a
+    user-edited food, and the table has the code key explaining it."""
+    _db.mark_user_edited(db_conn, cached_food["fdcId"])
+    db_conn.commit()
+    html = client.get("/food/cache").text
+    assert '<span class="code-edited">edited</span>' in html
+    assert "after a code means you&rsquo;ve changed that food&rsquo;s data" in html
+
+
+def test_food_cache_shows_code_once_per_row(client: TestClient, cached_food, db_conn) -> None:
+    """The Code column carries the code (and any "edited" tag); the name cell
+    no longer repeats it in parentheses."""
+    _db.mark_user_edited(db_conn, cached_food["fdcId"])
+    db_conn.commit()
+    html = client.get("/food/cache").text
+    assert html.count('<span class="code-edited">edited</span></span>') == 1
+    assert f'food-id-tag" title="USDA FoodData Central food, user-edited">(U{cached_food["fdcId"]}' not in html

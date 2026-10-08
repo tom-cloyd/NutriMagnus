@@ -127,7 +127,8 @@ class TestFillInImport:
             plan = _cf.plan_import(conn, self._valid(748608, {"calories": 884,
                                                              "saturated_fat_g": 99.0,
                                                              "mono_fat_g": 69.2}))
-        assert plan == [{"existing": True, "add": ["calories"], "keep": ["saturated_fat_g"]}]
+        assert plan == [{"existing": True, "add": ["calories"], "keep": ["saturated_fat_g"],
+                     "ann_add": [], "ann_keep": []}]
 
 
 class TestWeb:
@@ -144,7 +145,7 @@ class TestWeb:
         client.post("/food/748608/data-ignore", data={"group": "macros"})
         resp = client.get("/food/748608")
         assert "Some core macronutrients are missing" not in resp.text
-        assert "Marked not needed: Macronutrients" in resp.text
+        assert "Marked not needed for this food:" in resp.text and "(undo)" in resp.text
 
     def test_fetch_prompt_skips_ignored_group_and_says_so(self, client):
         _cache(748608, "Oil", OLIVE_OIL)
@@ -214,3 +215,17 @@ class TestPerGapSelection:
         line = resp.text.split("provide only:")[1].split("\n")[0]
         assert line.strip().startswith("calcium_mg") and "calories" not in line and "vitamin" not in line
         assert "748609" not in resp.text
+
+
+def test_food_page_undoes_not_needed_for_this_food_only(client, cached_food, db_conn):
+    """The food page offers a per-group undo for this food, not a link to the
+    site-wide completeness list."""
+    fid = cached_food["fdcId"]
+    _db.set_food_data_ignore(db_conn, fid, "omega", True)
+    db_conn.commit()
+    html = client.get(f"/food/{fid}").text
+    assert "Marked not needed for this food:" in html
+    assert 'name="ignored" value="0"' in html
+    assert "db-check#completeness" not in html
+    client.post(f"/food/{fid}/data-ignore", data={"group": "omega", "ignored": "0"})
+    assert "Marked not needed for this food:" not in client.get(f"/food/{fid}").text
