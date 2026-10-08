@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-06:1916
+UPDATED: 2026-10-07:2029
 
 Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
 
@@ -1677,6 +1677,12 @@ Added 2026-10-04. The fresh-install smoke test can't catch a startup migration t
 - **a copy of each `--db PATH`**: default your live `~/.local/share/numa/numa.db`. Your own live DB is already migrated whenever you run from source, so pass an older `numa.db.before-*` backup too for real data at an older schema.
 
 Every scenario runs in throwaway `HOME` / `NUMA_DATA_DIR` / `NUMA_CONFIG_DIR` dirs; the real databases are only ever opened read-only, to copy them. It waits for the real app (not the launcher's loading page), fetches the main pages plus one food, recipe and meal detail page, and fails on any non-200 page, `Traceback` / `Internal Server Error` text, a traceback in the server log, or fewer rows afterwards in `foods`, `recipes`, `recipe_ingredients`, `meals`, `meal_items` or `pantry`. Temp dirs are kept on failure (or with `--keep`) for inspection.
+
+### Cutting a release
+
+Added 2026-10-07. `make release-all` (`scripts/release-all.sh`) does the whole release from a terminal: `make push-release` (starter-data check, upgrade smoke test, push, GitHub release with the Linux binary), then `make release-windows` (build the `.exe` on the VM, attach it to that same release). Always in that order, never in parallel, since the Windows upload targets the newest release.
+
+It asks rather than fails: for a `GITHUB_TOKEN` if none is set (offering the `gh` CLI's login token when available), whether to go on with uncommitted changes (they won't be in the release), a final yes before anything is pushed, and, if the Windows build fails once Linux is published, whether to retry, retry with a fixed VM IP (`NUMA_VM_IP`), or stop and run `make release-windows` later. It refuses to run without a terminal.
 
 ### Weekly sweep (Wednesday evening / Thursday morning)
 

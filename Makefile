@@ -1,4 +1,4 @@
-.PHONY: help devserver build push push-release release-linux upload-manual vm-setup build-windows upload-windows release-windows clean starter-data smoke-upgrade
+.PHONY: help devserver build push push-release release-linux upload-manual vm-setup build-windows upload-windows release-windows release-all clean starter-data smoke-upgrade
 
 # Prints a usage summary of the available commands.
 help:
@@ -17,6 +17,7 @@ help:
 	@echo '   make build-windows  build the Windows .exe via the headless build VM (needs vm-setup once)'
 	@echo '   make upload-windows upload dist-windows/nutrimagnus.exe to the latest GitHub release'
 	@echo '   make release-windows build-windows + upload-windows'
+	@echo '   make release-all    push-release, then release-windows -- asks you for anything it needs'
 	@echo '   make clean          remove build/, dist/, dist-windows/'
 	@echo ''
 
@@ -147,6 +148,13 @@ upload-windows:
 
 # ── Windows: full release (build + upload) ───────────────────────────────────
 release-windows: build-windows upload-windows
+
+# ── Full release: Linux then Windows, interactive ────────────────────────────
+# A script, not prerequisites, so the two steps can never run in parallel
+# (make -j) and it can stop and ask: token, uncommitted changes, go-ahead,
+# and retry/stop if the Windows build fails after Linux is already out.
+release-all:
+	./scripts/release-all.sh
 
 # ── User Manual: publish on its own, no program release ──────────────────────
 # Rebuilds user-manual.html, signs it, and uploads it to the rolling
