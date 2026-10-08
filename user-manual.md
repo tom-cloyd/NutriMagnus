@@ -4553,7 +4553,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 <!-- Insert new updates below here -->
 
-#### Next release summary to this point (dated details below)
+#### Release v2026-10-07-2026 summary (dated details below)
 
 - **12.** A food you've edited now shows a readable "edited" tag after its code instead of a ✎, and every table with a Code column has a key explaining codes.
 - **11.** The Claude AI fetch prompt asks Claude to search published studies before leaving a value out, and the import page explains what to do when a reply can't be read.

@@ -10,7 +10,7 @@ VERSION = "2026-10-07:2026"
 # it on every dev-session bump, which drifted it away from the real release
 # count); bump the MAJOR.MINOR.PATCH part by hand only for a deliberate
 # milestone (e.g. reaching 1.0.0).
-RELEASE_VERSION = "0.1.0-rc.24"
+RELEASE_VERSION = "0.1.0-rc.25"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see
