@@ -4,6 +4,8 @@
 {% import "_result_limit_input.html" as _rli %}
 {% import "_serving_note.html" as _sn %}
 {% import "_failsafe_note.html" as _failsafe %}
+{% import "_online_search_notice.html" as _osn %}
+{% import "_search_results_block.html" as _srb %}
 {% block title %}NutriMagnus — Edit {{ recipe.name }}{% endblock %}
 
 {% block content %}
@@ -232,7 +234,7 @@
     <details id="add-ingredient-section" {% if show_add_section %}open{% endif %}>
       <summary><strong>Add Ingredient</strong></summary>
 
-      <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search>
+      <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search data-online-search>
         <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
         <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
           <div class="input-group" style="max-width:28rem">
@@ -243,14 +245,17 @@
                     onclick="this.form.querySelectorAll('input[name=source]').forEach(cb => cb.checked = true); this.form.requestSubmit();"
                     title="Check every source filter and re-run the search">Reset all sources to ON</button>
           </div>
-          {% if q and not search_results %}<span class="search-no-results" data-query="{{ q }}" data-field="q">No results for <strong>{{ q }}</strong>.</span>{% endif %}
+          {% if q %}<span id="recipe-search-no-results" class="search-no-results" data-query="{{ q }}" data-field="q"{% if search_results or search_pending %} style="display:none"{% endif %}>No results for <strong>{{ q }}</strong>.</span>{% endif %}
         </div>
         <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
         <div class="mb-2">{{ _rli.input(limit) }}</div>
         {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </form>
 
-      {% if search_results %}
+      {% if search_results or search_pending %}
+      <div{{ _srb.attrs("recipe", search_pending, request.url.query, "recipe-search-no-results", recipe.id) }}>
+      <p class="result-count mb-1">{{ _srb.count(search_results|length) }} for <strong>{{ q }}</strong>
+        {% if search_pending %}<span class="ms-3">{{ _osn.notice("recipe-search-loading", search_pending) }}</span>{% endif %}</p>
       {# A checkbox's own <tr> sits inside the results table below, which also
          contains each row's independent "Add to recipe" <form> — HTML forms
          can't nest, so this form wraps only the button/panel, and each
@@ -293,93 +298,12 @@
             <th class="col-amount" colspan="2">Amount &rarr; Add</th>
           </tr>
         </thead>
-        <tbody id="add-ingredient-tbody">
-          {% set ns = namespace(seen_local=false, divider_shown=false) %}
-          {% for food in search_results %}
-            {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
-            {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
-          <tr class="search-group-divider"><td colspan="7"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
-            {% set ns.divider_shown = true %}
-            {% endif %}
-          <tr>
-            <td class="confirm-col">
-              {% if food.aa == "~✓" %}
-              <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
-                     form="confirm-aa-form" aria-label="Select {{ food.name }} to fetch full details">
-              {% endif %}
-            </td>
-            <td>
-              {% if food._type == "recipe" %}<a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
-              {% else %}<a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>{% endif %}
-              {% if food.data_type or food.brand %}
-              <br><small class="muted">{{ food_type(food) }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
-              {% endif %}
-            </td>
-            <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none) if food._type == "recipe" else none) }}</small></td>
-            <td>
-              {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
-              {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
-              {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
-              {% elif food.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
-              {% else %}<span class="muted">—</span>{% endif %}
-            </td>
-            <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
-            {% if food._type == "recipe" %}
-            <td class="col-amount" colspan="2">
-              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add-recipe" class="add-food-form">
-                <input type="hidden" name="ref_recipe_id" value="{{ food.recipe_id }}">
-                <input type="hidden" name="recipe_name" value="{{ food.name }}">
-                <input type="hidden" name="q" value="{{ q }}">
-                <div class="input-group" style="max-width:30rem">
-                  <input type="number" class="form-control" name="servings" value="1"
-                         min="0.01" max="99999" step="0.01" aria-label="Amount" required
-                         style="flex:0 0 6rem;min-width:6rem">
-                  {% if food.serving_grams %}
-                  <select class="form-select" name="amount_unit" aria-label="Amount unit" style="max-width:7.5rem">
-                    <option value="servings" selected>servings</option>
-                    <option value="g">grams</option>
-                  </select>
-                  <span class="input-group-text">
-                    <small class="muted">({{ food.servings | round(2) }} total &middot; 1 serving = {% if food.serving_size %}{{ food.serving_size }}, {% endif %}{{ food.serving_grams | round(1) }} g)</small>
-                  </span>
-                  {% else %}
-                  <span class="input-group-text">serving{% if food.servings != 1 %}s{% endif %}
-                    <small class="muted ms-1">({{ food.servings | round(2) }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% endif %})</small>
-                  </span>
-                  {% endif %}
-                  <button type="submit" class="btn btn-primary">Add to recipe</button>
-                </div>
-              </form>
-            </td>
-            {% else %}
-            <td class="col-amount" colspan="2">
-              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add" class="add-food-form">
-                <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
-                <input type="hidden" name="food_name" value="{{ food.name }}">
-                <input type="hidden" name="q" value="{{ q }}">
-                {% if food.portions %}
-                <div class="mb-1"><small class="muted">
-                  Portions:
-                  {% for p in food.portions %}
-                  <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
-                  {% endfor %}
-                </small></div>
-                {% endif %}
-                <div class="input-group" style="width:100%">
-                  <input type="text" class="form-control" name="portion_str"
-                         placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1, 6 p1"
-                         aria-label="Amount" required>
-                  <button type="submit" class="btn btn-primary">Add to recipe</button>
-                </div>
-                <div style="font-size:0.8rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
-              </form>
-            </td>
-            {% endif %}
-          </tr>
-          {% endfor %}
+        <tbody id="add-ingredient-tbody" data-search-tbody>
+          {% include "_recipe_search_rows.html" %}
         </tbody>
       </table>
       {% include "_code_key.html" %}
+      </div>
       </div>
       <script>
       (function () {
@@ -401,6 +325,8 @@
         tbody.addEventListener('change', function (e) {
           if (e.target.matches('[data-confirm-aa-checkbox]')) refreshConfirmUI();
         });
+        // Online results replaced the rows (see base.html)
+        tbody.addEventListener('numa:search-rows', refreshConfirmUI);
         if (selectAll) {
           selectAll.addEventListener('change', function () {
             Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]'))

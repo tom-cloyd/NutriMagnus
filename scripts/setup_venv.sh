@@ -12,4 +12,4 @@ python -m pip install -r requirements.txt
 echo
 echo "[OK] Virtual environment created at $ROOT_DIR/.venv"
 echo "Activate it with: source .venv/bin/activate"
-echo "Run the app with: python numa.py"
+echo "Run the app with: python web/launcher.py"

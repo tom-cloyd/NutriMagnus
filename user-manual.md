@@ -1,14 +1,14 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-07:2020* / Reading time: 7 hours, 31 minutes
+*Updated 2026-10-09:1637* / Reading time: 7 hours, 22 minutes
 
-*Last full audit: 2026-09-13* / [Disclaimer](/disclaimer)
+*Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
 <!-- t:26-10-02:0741 Today I will start marking sections I have reviewed/edited with HTML comment of this sort. I have previously reviewed many sections, but not marked them, but I need to know which sections have not yet been reviewed so this is how I'll keep records. A section no so marked may be one of those previously reviewed, but it will take me a while to catch up with such sections, and I may not recall them all anyway. I may or may not append a comment to the basic flag comment, the first of which may be seen below. -->
 
 <!-- t:26-10-02 -->
 
-**NutriMagnus ("NuMa")** is a computer program with publicly available code which provides a thorough nutritional analysis of a user's food choices. NuMa has special resources for tracking and analysis of protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill:
+**NutriMagnus ("NuMa")** is a computer program with open source (publicly available) code which provides a thorough nutritional analysis of a user's food choices. NuMa has special resources for tracking and analysis of protein because this is a problem for those eating primarily a plant-based diet, for older people, and for the chronically-ill:
 
 * **Vegetarians and vegans** must deal with protein that has digestibility issues and amino acid completeness problems. 
 * **Older people** are impacted by multiple factors reducing the chances of their being well nourished, including a much-reduced ability to make use of protein. 
@@ -38,7 +38,7 @@ User-derived issues get immediate priority in the program-development process!
 
 ## How to read this Manual <!-- t:26-10-02 -->
 
-NuMa runs as a web app, opened in your ordinary browser — there is nothing to install and no command line involved.
+NuMa runs as a web app, opened in your ordinary browser — once it's installed (Part 1, section A), there's no command line involved.
 
 - Read **Part 1** (To get a quick start) for a fast orientation before diving in.
 - Read **Part 2** (Introduction) for the ideas behind the program.
@@ -46,12 +46,12 @@ NuMa runs as a web app, opened in your ordinary browser — there is nothing to 
 - Read **Part 4** (Core nutrition concepts) for more of the ideas behind the program.
 - Read **Part 5** (Reading Your Results) whenever you want to know what a column or table means.
 - Read **Part 6** (Shared Operations) for behaviors that show up in more than one place in the app, explained once.
-- Parts 7 to 10 apply to everyone.
+- Parts 7 to 10 apply to everyone; Part 11 logs recent program updates.
 - Trying to find something in this document itself, not in the app? See [Using this manual's search](#search-howto) — it works differently from a plain text search.
 
 ## Part 1 — To get a quick start <!-- t:26-10-04 -->
 
-*(Reading time: 16 minutes)*
+*(Reading time: 18 minutes)*
 
 ### A. Download and install the program <!-- t:26-10-03 -->
 
@@ -107,6 +107,8 @@ d. **How to launch it.** From then on, click NuMa's icon like any other program 
 
 **If the icon never appears,** even after logging back in, you can still run NuMa directly: open a terminal and run `~/.local/bin/nutrimagnus` — the same program the icon would have pointed to. [Contact us](#feedback) too, so this can get fixed for good.
 
+Your data doesn't live in the installed program: it's in two folders in your home folder, `~/.local/share/numa` and `~/.config/numa`, so updating or reinstalling NuMa leaves it untouched. See [Backing up your data](#backup).
+
 #### What kind of program this is {: #install-webapp-note}
 
 NuMa is a "web app" — it runs quietly in the background and shows its screens in a browser tab, like a website, but it's talking only to itself on your machine. It doesn't need the internet to run at all, and nothing you enter leaves your computer; NuMa reaches out only when you look up a food in an online [database](#gloss-database), or when it checks whether a newer version has been released. Two things follow from all this:
@@ -114,7 +116,35 @@ NuMa is a "web app" — it runs quietly in the background and shows its screens 
    - **The browser tab and the program are different things.** Closing the tab doesn't close NuMa — it's still running. To get back, start NuMa again the way you normally do (which opens a fresh tab) or open a new tab yourself to the same address.
    - **Sleep can disconnect the tab.** If your computer sleeps or hibernates while NuMa is open, the background program may stop and need restarting when it wakes — you'll typically see the tab fail to load. This is expected, not a sign anything's broken. Start NuMa again to relaunch it; your data is on disk and unaffected.
 
+#### What's on your computer, and why {: #installed-files}
+
+NuMa puts only a handful of files on your computer. The program itself is one file; everything else is either a menu shortcut or your own data.
+
+**The program**
+
+| File | What it's for |
+|---|---|
+| `nutrimagnus.exe` (Windows, in the folder you chose) or `~/.local/bin/nutrimagnus` (Linux) | The whole program, in one file. The built-in User Manual and NuMa's reference tables (oxalate, glycemic index, the UK, Australian and French food tables, starter foods and recipes) are packed inside it. |
+| `~/.local/share/icons/nutrimagnus.png` (Linux) | NuMa's icon, for the applications menu. |
+| `~/.local/share/applications/nutrimagnus.desktop` (Linux) | The applications-menu entry that starts NuMa. |
+
+**Your data** — created the first time NuMa runs, and never touched by an update. On Windows these folders are `%LOCALAPPDATA%\numa` (data) and `%APPDATA%\numa` (settings); on Linux, `~/.local/share/numa` and `~/.config/numa`.
+
+| File | What it's for |
+|---|---|
+| `numa.db` (data folder) | Everything you've entered: your Food Cache, pantry, recipes, logged meals, [GI](#gloss-gi) and [DIAAS](#gloss-diaas) notes, and the rest. The one file that matters most to back up. |
+| `prefs.json` (data folder) | How you like the pages: sort orders, chosen columns, dismissed notices. |
+| `demo_data.json`, `demo_data_seed_attempted`, `starter_versions.json` (data folder) | Small notes about the [starter foods and recipes](#starter-data): which were loaded, and which version of them you have. |
+| `manual/` (data folder) | Only if you've clicked **Update manual now**: a newer User Manual than the one inside the program. |
+| `gi_data_local.json` (data folder) | Only if you've built it in Settings → 11: your own copy of the 2021 glycemic index tables. |
+| `config.json` (settings folder) | Your [USDA](#gloss-usda) key, if you've entered one, and the search-depth setting. |
+| `profiles/`, `active_profile.txt` (settings folder) | Your profiles (age, weight, activity level, targets) and which one is in use. |
+
+To remove NuMa completely, delete the program file (and on Linux the icon and menu entry), then both folders above. To keep your data, keep the folders — see [Backing up your data](#backup).
+
 #### Backing up your data {: #backup}
+
+This section covers your data's location — where NuMa keeps it on your computer — and its storage, backing it up, restoring it, and moving your data to a new computer.
 
 Everything you put into NuMa lives in two folders on your computer, kept apart from the program itself: your foods, pantry, recipes, logged meals, annotations, profile and settings, and your 2021 glycemic index table if you built one (do this in Settings, item 11).
 
@@ -123,7 +153,7 @@ Everything you put into NuMa lives in two folders on your computer, kept apart f
 
 **To back up,** copy both folders somewhere safe — a memory stick, an external drive, or a cloud-synced folder. Do it when NuMa isn't in the middle of saving something; the simplest way is to do it before you start NuMa for the day. Repeat it now and then: a backup only holds what you'd entered when you made it.
 
-**To restore** — on a new computer, or after your system was wiped — install NuMa as described above, but don't start it yet. Copy both backed-up `numa` folders into place, replacing any that exist, and then start NuMa. Everything comes back as it was.
+**To restore, or to move your data to another computer** — a new computer, or one whose system was wiped — install NuMa as described above, but don't start it yet. Copy both backed-up `numa` folders into place, replacing any that exist, and then start NuMa. Everything comes back as it was.
 
 A [CSV](#gloss-csv) export from the Food Cache or Recipes pages is *not* a full backup. It's for moving selected foods or recipes around, and leaves out your meals, pantry, profile and settings.
 
@@ -133,7 +163,7 @@ This is a complex and powerful analytical program. A careful Internet search rev
 
 Start with what is easiest to understand: analysis of single foods and simple recipes. Use the manual to learn more. Do not expect to learn it all in a few sessions. [Contact us](#feedback) quickly rather than slowly if you start to get overwhelmed — one of our goals is to minimize the risk of that happening!
 
-### C. Simple tips for new learners <!-- t:26-10-03 -->
+### C. Simple tips for new learners <!-- t:26-10-03 --> 
 
 **Slow down and look carefully at what you see on your screen.** What you see is the interface between you and the program. By design, it is rich in information. You don't need to understand or use all of it immediately, but notice that there are often links such as "Learn more ==>" or "Why?" encouraging you to link to a section of the manual that will tell you much more about something. We've worked very hard on the Manual, with the hope that it will both help you and educate you.
 
@@ -192,9 +222,13 @@ Then open **Computed Daily Targets (section 2)** and glance at the targets calcu
 
 #### Step 3 — Set up your pantry
 
-Your pantry is the list of protein foods you actually keep at home. NuMa looks there first when it suggests foods to fill a protein gap, so a good pantry makes those suggestions practical ones.
+Your pantry is the list of foods you actually keep at home and use often. NuMa looks there first when it suggests foods to fill a protein gap, so a good pantry makes those suggestions practical ones.
 
-1. Look through [Appendix B](#appendix-plant-proteins) and note the foods there that you have, or would buy.
+**Getting the foods you often use into your pantry database, with complete nutritional information, is critical.**
+
+Here's the problem: NuMa cannot work with data it doesn't have. Foods from reliable online databases often lack protein amino acid data, have incomplete Omega fatty acid data, and always lack GI (glycemic index) data. Getting this information into the foods you eat most often is the most important focus to have. Use the Foods menu item 9 to find problems with you pantry foods (and others). The, use the Analysis menu item 3 to identify the foods you use most often. Any foods with problems which are frequently used should get cleaned up first.
+
+1. Look through [Appendix B](#appendix-plant-proteins) and note the foods there that you have, or would buy. Make a list!
 2. **Check the starter foods first.** Some of the foods you want are probably already in your Food Cache as starter foods — the ones whose names begin with `* `. They come with their nutrient data already checked, so using them saves real time. Go to **Foods → Food Cache**, type `*` in the filter box to list them, and add the ones you want to your pantry from there.
 3. For anything not among them, go to **Foods → My Pantry** and add it **by search**, picking a result from the list. Only a search-and-select brings in the food's nutrient data, including its amino acids.
 4. Prefer results with a ✓ in the **[AA](#gloss-aa)** (amino acid) column. Only foods with amino acid data can be used in protein suggestions, and plain, unbranded [USDA](#gloss-usda) entries are the likeliest to have it.
@@ -337,7 +371,7 @@ NuMa has been under intense development and is still being developed. Over time,
 - **Australian AFCD** (Australian Food Composition Database) — ~1,600 Australian foods from [FSANZ](#gloss-fsanz); also has real amino acid coverage, like Canadian Nutrient File.
 - **French [CIQUAL](#gloss-ciqual)** — ~3,480 French/European foods from [ANSES](#gloss-anses) (2025 edition); like CoFID, no amino acid data. 
 
-See [Food data — where it comes from and how it is stored](#food-data) in Part 8 for more on all six of NuMa's sources.
+See [Food data — where it comes from and how it is stored](#food-data) in Part 7 for more on all six of NuMa's sources.
 
 In addition, the following internal data sources are used:
 
@@ -376,7 +410,7 @@ In addition, the following internal data sources are used:
 
 ## Part 3 — Using the Web App
 
-*(Reading time: 40 minutes)*
+*(Reading time: 42 minutes)*
 
 NuMa's web app runs in your ordinary browser. This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
@@ -398,9 +432,9 @@ Above all of that, a few one-time or conditional banners can appear when relevan
 
 ### B. Finding your way around {: #web-shortcuts}
 
-Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
+Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Compare**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods**, **Recipes** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
 
-If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Browser to Launch, is `Alt+Shift+0`; sections 11 and 13 use their first letter, `G` and `D`; and section 12, System Issues, is `Alt+Shift+Y`, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
+If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Browser to Launch, is `Alt+Shift+0`; sections 11 and 13 use their first letter, `G` and `D`; and section 12, System Issues, is `Alt+Shift+Y`, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Recipes, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. On Edit Custom Profile, Edit Recipe and a meal page, running a search (or re-sorting its results) while you have unsaved edits saves them for you first, and a note at the top of the results offers to undo that save. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
 
@@ -424,7 +458,7 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 
 **What this shows:** how to search for a food, read its nutrient profile, and get automatic protein complement suggestions drawn from the built-in protein source list.
 
-**Step 1 — Open the Foods menu.** Click **Foods** in the top navigation bar. A dropdown appears with ten numbered items.
+**Step 1 — Open the Foods menu.** Click **Foods** in the top navigation bar. A dropdown appears with nine numbered items.
 
 **Step 2 — Search for a food.** Click **2. Analyze a food portion**. A search box appears. Type `brown rice cooked` and click **Search**. NuMa queries [USDA](#gloss-usda) FoodData Central and returns a ranked list of matches. Click the Foundation Foods entry — Foundation Foods have the most complete amino acid data.
 
@@ -446,7 +480,7 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 
 **Before you start, set up your profile.** Click **Settings**, fill in your age, sex, weight, height, and activity level, and save. This is what lets NuMa compare your protein intake against a target built for you, rather than a generic default — you'll see it reflected in the % goal figures later in this workflow and in Workflow 4.
 
-**Step 1 — Add a food to your Pantry.** Click **Foods** in the navigation bar, then click **7. My Pantry**. On the Pantry page, type `hemp seeds` into the search box under "Add a pantry item — search for full amino acid data" and click **Search**. A results table appears — click **Add to pantry** next to the best match. (The **Can't find it? Save just the name for now** link just under the search box skips the search and saves just the name, with no nutrient data — use it only when you can't find a match.)
+**Step 1 — Add a food to your Pantry.** Click **Foods** in the navigation bar, then click **6. My Pantry**. On the Pantry page, type `hemp seeds` into the search box under "Add a pantry item — search for full amino acid data" and click **Search**. A results table appears — click **Add to pantry** next to the best match. (The **Can't find it? Save just the name for now** link just under the search box skips the search and saves just the name, with no nutrient data — use it only when you can't find a match.)
 
 **Step 2 — Create a meal.** Click **Meals & Log** in the navigation bar. Click **New Meal**, give it a name (e.g., "Lunch today"), and a date. The meal page opens with a search box. Type `brown rice cooked`, click **Search**, then click the matching food and enter `1 cup` as the portion. Repeat with `black beans cooked` at `½ cup`. Both foods now appear in the meal's item list.
 
@@ -468,7 +502,7 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 
 **Step 2 — Look up a food with protein gaps.** Click **Foods** in the navigation bar, then click **2. Analyze a food portion**. Search for `corn tortilla`. Click the result, then enter `46 g` (about 2 tortillas) in the portion field and click **Recalculate nutrients**. Expand **Protein Quality** — corn is low in lysine and tryptophan.
 
-**Step 3 — Read the complement suggestions.** Expand **Protein Complement Suggestions**. Under **From your pantry & recipes**, your lentil soup recipe appears as a candidate, tagged `(#id, Recipe)` next to its name so you can tell it apart from a plain food. NuMa shows how many grams of the recipe would close the gaps in the corn tortillas — for example, "Serve alongside: 180 g."
+**Step 3 — Read the complement suggestions.** Expand **Protein Complement Suggestions**. Under **From your pantry & recipes**, your lentil soup recipe appears as a candidate, tagged with its recipe [code](#gloss-code) (R followed by a number) next to its name so you can tell it apart from a plain food. NuMa shows how many grams of the recipe would close the gaps in the corn tortillas — for example, "Serve alongside: 180 g."
 
 **Step 4 — Note what changes as you build up data.** The more recipes you analyze and the more pantry items you add, the more the complement suggestions reflect your actual kitchen — each qualifying recipe or pantry item appears as its own candidate card under **From your pantry & recipes**.
 
@@ -480,7 +514,7 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 
 Workflows 1–3 follow one thread — protein complementarity — since it's NuMa's most distinctive feature. A few other things worth a look, once you've got the basics down:
 
-**Foods → Compare.** Add up to eight foods side by side in one table (checkboxes in the search results, a gram amount for each) — a quick way to answer "which of these is actually better for me" instead of flipping between separate detail pages. A comparison can be saved under a name and reopened later.
+**Compare** (in the navigation bar). Add up to eight foods and recipes side by side in one table (checkboxes in the search results, an amount for each) — a quick way to answer "which of these is actually better for me" instead of flipping between separate detail pages. A comparison can be saved under a name and reopened later.
 
 **Foods → Custom food profiles.** Enter a homemade dish, a supplement, or a product NuMa's [databases](#gloss-database) don't have (or have incompletely) — either from scratch, or by copying an existing cached food as a starting draft and editing its nutrients from there.
 
@@ -512,7 +546,7 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 #### Search (Foods → Search)
 
-Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12/13-digit barcode ([UPC](#gloss-upc)-A or [EAN](#gloss-ean)-13) — see [Your own data is always checked first](#search-ranking) in Part 6 for how results are sourced and ordered. Next to the search box, a row of Source checkboxes (Pantry, Food Cache, Recipes, [USDA](#gloss-usda), Open Food Facts) lets you narrow results to any combination of sources before or after you search — see [Source filter](#food-search) in Part 6 for details. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
+Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, or a 12/13-digit barcode ([UPC](#gloss-upc)-A or [EAN](#gloss-ean)-13) — see [Your own data is always checked first](#search-ranking) in Part 6 for how results are sourced and ordered. Next to the search box, a row of Source checkboxes (Pantry, Food Cache, Recipes, [USDA](#gloss-usda), Open Food Facts, the Canadian Nutrient File, and the UK, Australian and French tables) lets you narrow results to any combination of sources before or after you search — see [Source filter](#food-search) in Part 5 for details. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
 
 #### Analyze a food portion / Analyze a saved recipe portion
 
@@ -524,12 +558,12 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 
 #### Compare
 
-Add up to eight foods (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set a gram amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
+**Compare** has its own place in the navigation bar, rather than in the Foods menu. Add up to eight foods and/or recipes (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set an amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
 
 #### Food Cache {: #food-cache-web}
-Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A **Sort by** dropdown orders the list by Name, [ID](#gloss-id), Type, [DIAAS](#gloss-diaas), or [GI](#gloss-gi) estimate. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. Per-food actions: **Add to pantry** (adds the food to your [Pantry](#pantry) and returns you to the same row; a food already there shows **In pantry** instead, which opens the Pantry), **Portions** (add or edit named portion sizes), **Refresh** (fetch USDA's current copy of the food and [choose which changed values to take](#review-incoming)), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
+Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A **Sort by** dropdown orders the list by Name, Code, Type, [DIAAS](#gloss-diaas), or [GI](#gloss-gi) estimate. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. The box at the top has two buttons: **Filter this list** narrows the foods already in your cache, and **Search online** opens [Foods → Search](#food-search) with the same words, to look in USDA, Open Food Facts and the other sources. After filtering, a **Not here? Search online** link next to the count does the same. Per-food actions: **Add to pantry** (adds the food to your [Pantry](#pantry) and returns you to the same row; a food already there shows **In pantry** instead, which opens the Pantry), **Portions** (add or edit named portion sizes), **Refresh** (fetch USDA's current copy of the food and [choose which changed values to take](#review-incoming)), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
 
-**Check [database](#gloss-database) integrity.**{: #db-check} *(This page — Foods → 9 — now runs five checks: broken references, below; [missing nutrient data](#data-completeness); [food data problems](#calorie-checks); [amounts that no longer match](#stale-amounts); and [old USDA copies](#old-copies). [Checking your data](#checking-your-data) lists every data check NuMa makes.)* The first scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited [database](#gloss-database) file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by [ID](#gloss-id) — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
+**Check [database](#gloss-database) integrity.**{: #db-check} *(This page — Foods → 9 — runs several checks: broken references, below; [missing nutrient data](#data-completeness); [food data problems](#calorie-checks); [amounts that no longer match](#stale-amounts); [amounts converted with a generic density](#generic-density); foods you use with no amino acid data or no portion weights; [duplicate foods](#duplicate-foods); and [old USDA copies](#old-copies). [Checking your data](#checking-your-data) lists every data check NuMa makes.)* The first scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited [database](#gloss-database) file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by [ID](#gloss-id) — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
 
 - **Pantry entries** — low impact; removing one only takes it off your pantry list.
 - **Recipe ingredients** — removing one deletes that ingredient line from its recipe; the recipe's nutrient totals recalculate without it.
@@ -568,7 +602,7 @@ From there:
 
 #### My Pantry
 
-Foods you keep on hand — see [My Pantry](#pantry) in Part 5 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Can't find it? Save just the name for now** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 5. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items; a quick-add item with no linked data can't be compared.
+Foods you keep on hand — see [My Pantry](#pantry) in Part 5 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Can't find it? Save just the name for now** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 5. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items; a quick-add item with no linked data can't be compared. Search results have Compare checkboxes too, with their own button, so you can compare foods before deciding which to add. Matches from your pantry and Food Cache appear at once; results from the online sources fill in a few seconds later (a red **Online search in progress…** note shows until they do), as on [Foods → Search](#food-search). The search box at the top looks for *new* foods to add. To narrow the pantry list you already have, use **Filter my pantry list** just above it: it keeps only the items whose name or notes contain every word you type.
 
 #### Custom food profiles
 
@@ -580,7 +614,7 @@ A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](
 
 ### E. Opening a food's detail page
 
-A food's page shows, in order: **Protein Summary** ([DCP](#gloss-dcp)), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos — each can be [ignored and recalculated](#ignore-complement)), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or [SR](#gloss-sr) Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
+A food's page shows, in order: a line with its [GI](#gloss-gi) (if you've recorded one) and [glycemic load](#glycemic) per 100 g and for the amount you're analyzing, **Protein Summary** ([DCP](#gloss-dcp)), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos — each can be [ignored and recalculated](#ignore-complement)), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or [SR](#gloss-sr) Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
 
 Right below the title, every food's page also has a **Copy as custom-food draft** button — no detour through Food Search or Custom Food Profiles needed to start editing a copy of what you're already looking at. See [Entering custom foods and dietary supplements](#custom-foods) for what to do with the copy.
 
@@ -607,6 +641,9 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 - **Food use in meals** — see how often you've eaten a given food or recipe. Everything you actually ate is counted: foods logged on their own, recipes, the sub-recipes inside them, and foods you only eat inside recipes. Choose either a date range or a specific list of meal IDs, optionally limit results to protein-containing foods, and get a sortable table with a visual frequency bar.
 - **Food use in recipes** — the same idea, but for your recipe book: see how many of your recipes use a given food or sub-recipe as an ingredient. This doesn't measure what you eat: a recipe you log in meals but never use inside another recipe won't appear. Choose all recipes, a date-created range, or a specific list of recipe IDs.
 
+- **What-if: meals** — see how removing, adding, replacing or cutting down foods would change your daily nutrition over a set of days, before changing anything — see [What-if: Meals](#whatif).
+- **What-if: recipes** — the same for recipes: change an ingredient and see each recipe's nutrition per serving, before and after — see [What-if: Recipes](#whatif-recipes).
+
 Both Food Use pages have a **Substitute a food or recipe** panel for bulk-replacing one food or recipe with another across whatever's currently selected — see [Substituting a Food or Recipe](#fooduse-substitute).
 
 ### I. Using the Settings menu {: #settings}
@@ -627,7 +664,7 @@ Settings is organized into thirteen numbered, collapsible sections:
 - **13. Data Quality Reminder** — the Home page note about new data problems (see [Checking your data](#data-check-reminder)).
 
 #### Your Profile {: #profile-setup}
-Age, sex, weight, height, and activity level. This is the one form that everything else in NuMa's nutrient-target system depends on: your [RDA](#rda) values (Part 5, Section P), the age/sex-adjusted [Daily Nutrient Goals](#goals) (Section Q), and — where you've set them — your [Revised Optimal targets](#optimal) and [Maximum Nutrient Limits](#maxlimits) all key off the age, sex, weight, height, and activity level you enter here. Also on this form: a checkbox enabling [oxalate](#oxalate) lookup, off by default.
+Age, sex, weight, height, and activity level. This is the one form that everything else in NuMa's nutrient-target system depends on: your [RDA](#rda) values (Part 4, Section P), the age/sex-adjusted [Daily Nutrient Goals](#goals) (Part 4, Section Q), and — where you've set them — your [Revised Optimal targets](#optimal) and [Maximum Nutrient Limits](#maxlimits) all key off the age, sex, weight, height, and activity level you enter here. Also on this form: a checkbox enabling [oxalate](#oxalate) lookup, off by default.
 
 Leave this form empty and NuMa still works — you can search, log, and analyze foods and recipes — but every nutrient table's "% of daily target" column is blank, since there's no profile to calculate a target from. Fill it in whenever you're ready; every already-logged meal is re-evaluated against your new targets immediately, nothing needs to be re-entered.
 
@@ -726,6 +763,7 @@ The amino acid completeness categories NuMa uses are derived from the work of th
 These foods can mathematically close a specific amino acid gap with a practical amount (up to 300 g). A gap closer has a high enough ratio of the [limiting amino acid](#gloss-limiting-amino-acid) to protein that adding it to the base food brings that amino acid's score to 1.0 (the [FAO](#gloss-fao) reference floor).
 
 Each suggestion shows:
+  - The food's or recipe's name, linked to its own page (it opens in a new tab, so the analysis stays as it was; a generic estimate from the built-in list has no page and isn't linked)
   - Grams to add
   - Which gaps it closes, with scores before and after
   - Digestible protein added
@@ -1093,7 +1131,7 @@ Note that this is *your* map from food to reference row, stored in your own [dat
 
 - Matching by food name is approximate. "Spinach, raw" in the Harvard table maps reasonably to [USDA](#gloss-usda) spinach entries, but processed or branded foods may not match well. Always verify the match makes culinary sense before confirming it.
 
-For background on [oxalates](#gloss-oxalate) and kidney health, see the Harvard Health references in the source data (Settings -> [Oxalate](#gloss-oxalate) data for data provenance).
+For background on [oxalates](#gloss-oxalate) and kidney health, see the Harvard Health references in the source data; the table's source (Harvard T.H. Chan School of Public Health) is named under every oxalate table NuMa shows.
 
 
 ### N. Glycemic Index {: #gi}
@@ -1255,9 +1293,9 @@ A whole day's total is a much larger number and goes against its own scale:
 
 **Treat that second table more loosely than the first.** The per-serving bands are the ones published with the international [GI](#gloss-gi) tables and are well established. The daily bands are a widely-repeated convention rather than a clinically validated target, and expert groups define them inconsistently — the University of Sydney group, for instance, describes a daily [GL](#gloss-gl) under 80 per 2,000 kcal as a *moderate* diet rather than a low one. A day's [GL](#gloss-gl) also rises with how much you eat, so a large or very active person naturally runs higher without that meaning anything is wrong. NuMa shows the daily band for orientation, and repeats this caveat underneath it every time.
 
-NuMa displays [GL](#gloss-gl) in the nutrient summary alongside [GI](#gloss-gi) when carbohydrate data is available, and on a food's own page it shows the [GL](#gloss-gl) of the exact portion you are analyzing — halve the portion and the [GL](#gloss-gl) halves with it while the [GI](#gloss-gi) stays put, which is the whole point of the measure. Like [GI](#gloss-gi), it is shown for reference and does not affect protein quality calculations.
+NuMa shows [GL](#gloss-gl) for every food (per 100 g, and for the exact portion you are analyzing — halve the portion and the [GL](#gloss-gl) halves with it while the [GI](#gloss-gi) stays put, which is the whole point of the measure), every recipe (per serving) and every meal and day. When some foods have no [GI](#gloss-gi) value the figure is marked incomplete rather than hidden — see [Glycemic Load Output](#glycemic). Like [GI](#gloss-gi), it is shown for reference and does not affect protein quality calculations.
 
-**Averages beat single days.** A single day's [GL](#gloss-gl) swings with whatever happened to be eaten. **Summary → Trend** shows your average daily [GL](#gloss-gl) across the last 7, 14 or 30 days, and the [Nutrient Plot](#nutrient-plot) offers **Daily glycemic load** as a plottable series so you can see the pattern — weekends, late evenings, stressful weeks — instead of a snapshot. Both skip any day whose [GI](#gloss-gi) coverage is incomplete rather than counting it as a low day, and both tell you how many days actually contributed.
+**Averages beat single days.** A single day's [GL](#gloss-gl) swings with whatever happened to be eaten. **Nutrient averages across days** (from Analysis → Daily summary) shows your average daily [GL](#gloss-gl) across the last 7, 14 or 30 days, and the [Nutrient Plot](#nutrient-plot) offers **Daily glycemic load** as a plottable series so you can see the pattern — weekends, late evenings, stressful weeks — instead of a snapshot. Both skip any day whose [GL](#gloss-gl) is incomplete rather than counting it as a low day, and both tell you how many days actually contributed.
 
 For a discussion of how [GL](#gloss-gl) compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix C: GL and Blood Glucose Comparison](#appendix-gl-comparison).
 
@@ -1520,7 +1558,7 @@ Linoleic acid (omega-6) is tracked for completeness but has no established goal 
 
 
 ### V. Profile Revised Optimal (Recent Research) Targets {: #optimal}
-**A word on terminology, since two different ideas both sound like "optimal":** the standard [RDA](#gloss-rda) (Part 5, Section P) is not a bare minimum — it's already defined to meet the needs of nearly all healthy people in your age/sex group[^9]. What's described in this section is a *different, second* tier: a small number of nutrients where specific, more recent research argues for a target meaningfully *above* even that generous RDA figure. To keep the two clearly apart, NuMa calls this second tier **Revised Optimal (Recent Research)** — never just "optimal" on its own — and the RDA is never relabeled to match it.
+**A word on terminology, since two different ideas both sound like "optimal":** the standard [RDA](#gloss-rda) (Part 4, Section P) is not a bare minimum — it's already defined to meet the needs of nearly all healthy people in your age/sex group[^9]. What's described in this section is a *different, second* tier: a small number of nutrients where specific, more recent research argues for a target meaningfully *above* even that generous RDA figure. To keep the two clearly apart, NuMa calls this second tier **Revised Optimal (Recent Research)** — never just "optimal" on its own — and the RDA is never relabeled to match it.
 
 The clearest example is Vitamin D: the RDA is 15–20 mcg/day, but a 2011 Endocrine Society clinical practice guideline recommends 37.5–50 mcg/day for adults at risk of deficiency[^12]. Rather than change what "RDA" means, NuMa lets you set your own **Revised Optimal target** for any nutrient, on top of the standard RDA, and tracks both side by side.
 
@@ -1544,7 +1582,7 @@ Revised Optimal targets are per-nutrient, not per-day -- there is no single "opt
 ### W. Maximum Nutrient Limits {: #maxlimits}
 NuMa tracks three tiers of daily maximum, from broadest to narrowest:
 
-- **Sodium's built-in [RDA](#gloss-rda)-tier limit.** Sodium is the one nutrient with a "limit" type right in the standard [RDA](#rda) calculation itself (Part 5, Section Q) — 2300 mg/day, the Chronic Disease Risk Reduction Intake. This is separate from the tier below and isn't configurable.
+- **Sodium's built-in [RDA](#gloss-rda)-tier limit.** Sodium is the one nutrient with a "limit" type right in the standard [RDA](#rda) calculation itself (Part 4, Section Q) — 2300 mg/day, the Chronic Disease Risk Reduction Intake. This is separate from the tier below and isn't configurable.
 - **Built-in Tolerable Upper Intake Levels ([UL](#gloss-ul)).** Twelve more nutrients carry a real risk of harm from chronic excess, most often from supplementing rather than food alone. NuMa applies the standard adult UL for these automatically — no setup required — using the same age/sex-band pattern as the RDA table:
 
     | Nutrient | Adult UL | Age band |
@@ -1679,19 +1717,15 @@ Not every food in the [USDA](#gloss-usda) [database](#gloss-database) has a comp
 When a meal contains ingredients without amino acid data, NuMa tells you how many are affected and distinguishes two situations:
 
 - **Inside a recipe**: the ingredient is part of a recipe you logged as a meal item. Fix these by opening the recipe's ingredient editor and replacing or re-fetching the ingredient there.
-- **Standalone meal ingredients**: foods you logged directly to the meal (not inside a recipe). These can be replaced on the spot: NuMa asks whether you want to search for a substitute.
+- **Standalone meal ingredients**: foods you logged directly to the meal (not inside a recipe). The meal's **Refresh from [USDA](#gloss-usda)** button fetches amino acid data for every such food that USDA has it for, filling in only what's missing (see [Reviewing incoming data](#review-incoming)). For a food USDA has no amino acid data for, replace it with a Foundation or [SR](#gloss-sr) Legacy equivalent — those datasets are the most likely to have full amino acid profiles — or [estimate its amino acids from a similar food](#drafted-foods).
 
-If you say yes, for each affected ingredient the program opens a focused search of [USDA](#gloss-usda) [SR](#gloss-sr) Legacy and Foundation foods — the datasets most likely to include full amino acid profiles. The **[AA](#gloss-aa)** column in the results (✓ or ✗) shows at a glance which options have the data you need. Choosing a replacement updates that ingredient for the current analysis. Press Enter to skip an ingredient and leave it excluded from the calculation.
-
-##### Why the first analysis of a meal can be slow
-
-When you analyze a meal for the first time, you may see a "Fetching amino acid data…" message with a brief wait — sometimes several seconds. This is normal. NuMa is going online to download complete amino acid information for each food in the meal that doesn't already have it saved locally. Once downloaded, the data is stored on your computer, so the next time you analyze the same meal it will be fast.
+Until then, an ingredient without amino acid data is simply left out of the protein-quality pooling, and named, so you know the figure is short. NuMa never goes online by itself during an analysis.
 
 ---
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 55 minutes)*
+*(Reading time: 59 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -1727,6 +1761,7 @@ The sections linked from analysis output are:
 - [Replace a food or recipe everywhere (substitute)](#fooduse-substitute) — bulk-replace one food/recipe with another
 - [What-if: meals](#whatif) — see how removing, adding or replacing foods would change your daily nutrition
 - [What-if: recipes](#whatif-recipes) — see how changing an ingredient would change each recipe per serving
+- [Saving, downloading and applying a what-if](#whatif-apply) — keep a scenario by name, download it as a spreadsheet file, or make its replacements for real
 - [Glossary](#glossary) — abbreviations and key terms
 - [Glycemic index](#gi) — glycemic index background
 - [Glycemic load](#gl) — glycemic load concept and formula
@@ -1851,6 +1886,8 @@ Columns:
     Unit         kcal for calories; g for macronutrients (protein, fat,
                  carbs, fiber, omega fatty acids); mg or mcg for minerals
                  and vitamins.
+
+**Every nutrient NuMa tracks gets a row, and "0" and "no data" mean different things.** **0** means the food's source measured it and found none (or, for a recipe or meal, that every ingredient reporting it has none). **no data** means nothing was ever recorded — the source didn't measure it, so the true amount is unknown, not zero. A meal or recipe shows a figure as soon as any of its ingredients has one, so a total can still be an underestimate when some ingredients have no data; [Missing nutrient data](#data-completeness) on Foods → 9 lists the foods with whole groups missing. Small amounts keep their decimals (0.3 mg, 0.04 mcg) rather than rounding down to a misleading 0.
 
 When analyzing a meal within a full-day context, three additional columns appear:
 
@@ -1977,9 +2014,10 @@ Columns:
                  divided by (FAO reference value x total meal protein).
                  1.0 = exactly meets the reference. Below 1.0 = shortfall.
                  Above 1.0 = surplus.
-    Bar          Visual indicator; each block = 0.10, capped at 2.0.
+    Status       Met (ratio 1.0 or above) or Gap.
+    (bar)        Visual indicator, colored as below.
 
-The amino acid with the lowest ratio is the [limiting amino acid](#gloss-limiting-amino-acid), marked "LIMITING". The meal [DIAAS](#gloss-diaas) score equals that lowest ratio (capped at 1.0).
+The amino acid with the lowest ratio is the [limiting amino acid](#gloss-limiting-amino-acid), marked "← limiting". The meal [DIAAS](#gloss-diaas) score equals that lowest ratio (capped at 1.0).
 
 #### Color coding
     Green    1.0 or above.
@@ -2009,22 +2047,9 @@ Shown when viewing a food with a saved [DIAAS](#gloss-diaas) estimate. Displays:
       See <a href="#antinutrients">Antinutrients</a> for a full explanation of what these notes mean.
 </pre>
 
-#### RECIPE PER SERVING (labeled BIOAVAILABILITY -- PER SERVING)
+#### RECIPE PER SERVING
 
-Per-ingredient table in recipe analysis. Columns:
-
-    ID              FDC ID, OFF, or usr.
-    Ingredient      Name.
-    Serving         Grams of this ingredient in one recipe serving.
-    Crude protein   Raw protein from this ingredient (g per serving).
-    Digestibility   True ileal digestibility coefficient (0.00-1.00).
-    Limiting IAA    Most-limiting amino acid for this ingredient, or
-                    "-- (complete)" if none.
-    Digestible      Crude protein x Digestibility (g).
-
-Color for Digestibility: Green 0.90+, Yellow 0.70-0.89, Red below 0.70.
-
-A summary panel below the table shows total digestible protein and the [pooled DIAAS](#gloss-pooled-diaas) score for one recipe serving.
+A recipe's page uses the same per-ingredient table as a meal — Food, Protein (g), Digestibility, Digestible (g), [AA](#gloss-aa) data, [DCP](#gloss-dcp) (g) — figured for one serving; see [Meal Protein Digestibility Analysis](#meal-diaas) for what each column means. A summary below the table shows total digestible protein and the [pooled DIAAS](#gloss-pooled-diaas) score for one serving.
 
 See [DIAAS](#diaas) for [DIAAS](#gloss-diaas) background. See [digestible complete protein](#dcp) for Digestible [Complete Protein](#gloss-complete-protein). See [complement suggestions](#comp) for [complement food](#gloss-complement-food) suggestions.
 
@@ -2034,22 +2059,25 @@ The main Meals & Log screen lists your recent meals, 9 at a time by default, sor
 
 Columns:
 
+    ID              The meal's number.
+    Meal            Name you gave the meal (e.g. Breakfast, Lunch).
     Date            Date of the meal (YYYY-MM-DD).
     Complete        Checkmark when you have marked the meal finished
                     (a Mark complete / Mark incomplete button on the meal page).
-    Meal            Name you gave the meal (e.g. Breakfast, Lunch).
     Items           Number of foods and recipes logged in this meal.
-    Meal DCP        Bioavailable complete protein for this meal alone (g).
+    Calories        Calories for this meal alone.
+    Meal DCP        Digestible complete protein for this meal alone (g).
     Day DCP         Sum of DCP for every meal on this date with a computed
                     value — including meals not yet marked complete, since
                     DCP is auto-saved as you add items. If any contributing
                     meal isn't marked complete, the total is flagged with
                     an asterisk (*) as provisional, since it may still
                     change. Shown on the topmost row for each date only.
-    % profile goal  Day DCP as a percentage of your daily protein target.
+    % of goal (min) Day DCP as a percentage of that date's protein target.
                     Also flagged with * when provisional. Shown on the
                     topmost row for each date only.
-    Calories        Calories for this meal alone.
+    Profile         Which profile the day is pinned to — shown only if you
+                    have more than one (see Per-Day Profile Tracking).
 
 You can add up to 6 more nutrient columns of your own choosing — see
 [Meals & Log columns](#meal-columns).
@@ -2063,7 +2091,7 @@ Opening and analyzing a meal also saves its DCP and calories automatically.
     n/a   Computed but no amino acid data (DCP) or nutrient data (calories)
           was available.
 
-% profile goal requires a user profile (Settings -> User profile). Blank if no profile is set.
+% of goal requires a user profile (Settings → 1. Your Profile). Blank if no profile is set.
 
 Click a meal to view or edit it, or delete it from there. **Search meal history** (a separate page, linked from Meals & Log) searches every logged food/recipe item by name only — no date filter, sort control, or pagination of its own. Results show a flat "All Occurrences" table (one row per time that food or recipe was logged, linked to its meal) and a "Summary by Food" table grouping those occurrences by name with times-used count, total grams, and first/last-seen dates. Ingredients inside a logged recipe aren't searched — only the recipe itself, by name.
 
@@ -2415,6 +2443,40 @@ each row opens this page with that ingredient already entered, for the
 recipes that use it.
 
 
+#### Saving, downloading and applying a what-if {: #whatif-apply}
+Once a what-if is showing results, on either What-if page, a bar under the
+list of changes offers three things.
+
+- **Save this scenario.** Give it a name and click the button. It appears
+  under **Use a saved scenario** at the top of that page (meals and recipes
+  each have their own list), where you can open, rename or delete it.
+  Opening one brings back everything: the dates or recipes, the changes, and
+  how the results were set out. Dates are kept as you typed them, so a
+  saved scenario always covers the same days.
+- **Download CSV.** The results as a CSV (comma-separated values) spreadsheet file: the changes, then
+  every nutrient, including the unchanged ones. From What-if: Recipes, it
+  has a column group for *every* recipe the change reaches, not only the 8
+  shown on the page.
+- **Apply these replacements for real…** This changes your actual meals or
+  recipes, so it's only offered when doing it for real gives the same result
+  you're looking at. That means every change is a **Replace**: a food for a
+  food at the same weight, or a recipe for a recipe at the same servings,
+  and no change replaces something with an item another change is
+  replacing. If that isn't so, the bar says why instead.
+
+Clicking it doesn't change anything yet. A page first lists what will
+change: for each replacement, the meals or recipes it will be made in.
+It also says where the old item will stay. On What-if: Meals, a food used
+inside a recipe is left alone, because changing the recipe would change it
+in every meal that uses it; use What-if: Recipes for that. On What-if:
+Recipes, a recipe that has the old food only inside a sub-recipe changes
+only if that sub-recipe is one of the ones listed. Click **Yes, make these
+replacements** to go ahead, or go back. This is the same substitution as the
+Replace box on [Food Use in Meals](#fooduse) and
+[Food Use in Recipes](#fooduse-recipes). Every recipe changed has its
+Protein ([DCP](#gloss-dcp)) worked out again.
+
+
 #### Glycemic Load Output {: #glycemic}
 Shows the estimated glycemic load ([GL](#gloss-gl)) for a food portion, meal, recipe, or whole day.
 
@@ -2432,7 +2494,17 @@ A whole day (Daily Summary, the day view, and the day printout) uses the daily s
 
 The daily bands are a convention rather than a validated clinical target, and a day's [GL](#gloss-gl) rises with how much you eat — NuMa says so underneath the number every time it shows one. See [glycemic load](#gl) for the fuller discussion.
 
-When the output reads "Not available -- GI annotation missing for: ...", one or more foods lack a [GI](#gloss-gi) value. [GL](#gloss-gl) cannot be computed without [GI](#gloss-gi) data for every single ingredient — one missing value blocks the whole total. To fix this, annotate the listed foods via Foods → Annotate, or edit the food directly from the Food Cache.
+**Where you see it:** a food's page shows [GL](#gloss-gl) per 100 g and for the portion you're analyzing; a recipe's page, for one serving (or however many servings you ask for); a meal's page, for the whole meal; and a day's pages, for the whole day. A recipe's [GL](#gloss-gl) is worked out from its ingredients, including any recipes used inside it, so it changes as soon as an ingredient or a [GI](#gloss-gi) value does.
+
+**When a figure reads "at least 14.2 — incomplete, missing GI data",** some foods in it have carbohydrate but no [GI](#gloss-gi) value, so their share couldn't be counted. The number is the [GL](#gloss-gl) of everything that *could* be counted, so the true figure is higher. The foods left out are listed underneath, each with the reason:
+
+- **no GI recorded yet** — with an **add a GI** link to that food's Annotate page.
+- **no GI (marked "don't prompt me")** — you've told NuMa not to ask for this food's [GI](#gloss-gi), or turned GI off in Settings. It still can't be counted, so the figure is still incomplete; **add one anyway** is there if you change your mind.
+- **this food has no nutrient data** — NuMa can't tell how much carbohydrate it has.
+
+A band (Low, Medium, High) is shown only for a complete figure, since the missing foods could move it — except when the incomplete figure is already High, which the missing foods can only push higher. If none of the foods with carbohydrate has a [GI](#gloss-gi), the output reads **Not available** and lists them.
+
+**Foods with almost no carbohydrate don't need a GI.** A food with under 1 g of carbohydrate in the amount used (meat, eggs, oil, a pinch of spice) counts as zero, since its [GL](#gloss-gl) could be at most 1 whatever its [GI](#gloss-gi). So a recipe isn't marked incomplete because the salt has no [GI](#gloss-gi). This is the same rule [DCP](#gloss-dcp) uses for foods with under 1 g of protein and no amino acid data.
 
 [GL](#gloss-gl) = ([GI](#gloss-gi) x grams of available carbohydrate) / 100 per ingredient, summed across all ingredients in the meal.
 
@@ -2440,11 +2512,12 @@ When the output reads "Not available -- GI annotation missing for: ...", one or 
 
 
 #### Meal History Tables {: #meal-history}
-These tables appear when you search your meal history with s from the Meals & Log list. Results can be shown as Flat (every occurrence), Summary (totals per food), or Both.
+These tables appear when you click **Search meal history** on the Meals & Log list. Results can be shown as Flat (every occurrence), Summary (totals per food), or Both.
 
 #### MEAL HISTORY -- OCCURRENCES
 Every time a food or recipe appeared in any logged meal.
 
+    ID          The meal's number.
     Date        Date of the meal.
     Meal        Name of the meal.
     Food/Recipe Name of the food or recipe. Recipe items show "(recipe)".
@@ -2473,13 +2546,14 @@ NuMa distinguishes two cases:
 
 Standalone meal ingredients: foods logged directly in the meal.
 
-    These can often be replaced on the spot. NuMa can search for
-    a USDA Foundation or SR Legacy substitute with amino acid data.
+    The meal's Refresh from USDA button fetches amino acid data for
+    these where USDA has it. Otherwise, replace the food with a USDA
+    Foundation or SR Legacy equivalent that has amino acid data.
 
 Inside a recipe: ingredients that are part of a recipe you logged.
 
-    These must be fixed by editing that recipe (Recipes -> browse -> edit)
-    and replacing the problematic ingredient there.
+    These must be fixed by editing that recipe (Recipes → the recipe →
+    Edit) and replacing the problematic ingredient there.
 
 It's safe to ignore when the affected food contributes negligible protein (garnish, spice, a small amount of fruit). It matters more when the food is a significant protein source in your meal. Foods contributing less than 1 g of protein are treated as negligible and left off this list entirely (a footnote tells you when items were omitted this way).
 
@@ -2493,7 +2567,8 @@ Shows all your saved recipes. Sorted by Last accessed by default; use the sort d
 
 Columns:
 
-    ID          Recipe ID.
+    Compare     Tick to compare recipes side by side (see Compare selected).
+    Code        The recipe's code (R21).
     Name        Recipe name; click it to open the recipe.
     Description Short recipe description, if any.
     Servings    Number of servings. 0 means the recipe is analyzed by
@@ -2520,21 +2595,19 @@ See [digestible complete protein](#dcp) for a full explanation of digestible [co
 
 
 #### Recipe Ingredient List {: #recipe-ingredients}
-Shows the current ingredients in a recipe during create, develop, or edit. Refreshes after each change so you can see the current state.
+Shows the current ingredients in a recipe, on its page and on Edit Recipe. Refreshes after each change so you can see the current state.
 
 Columns:
 
-    #       Row number. Use with Remove (option 3) and Reorder (option 4)
-            in the ingredient edit menu.
-    Amount  Portion entered: e.g. "175g", "1 T", "2 servings".
-    ID      Database identifier for this ingredient.
-              A number = USDA FDC ID.
-              OFF      = Open Food Facts.
-              usr      = User-drafted custom food.
-              recipe   = This ingredient is itself a saved recipe (nested).
-    Food    Ingredient name.
+    #       Row number. On Edit Recipe, each row also has up/down, Edit
+            and Remove controls.
+    Amount  Portion entered: e.g. "175 g", "14.7 g (2 T)", "2 servings".
+    Food    Ingredient name, followed by its code (U171477, UD4, R21 for
+            an ingredient that is itself a saved recipe, and so on —
+            see code in the Glossary).
+    Notes   Your note for that ingredient, if any.
 
-Nested recipes ([ID](#gloss-id) = recipe) have their nutrients scaled automatically from their recorded serving count and total weight. Note that a nested recipe's Amount here is always a plain serving count, never a `pN` shortcut — see [Recipes: servings instead of `pN`](#portions-vs-servings) for why recipes and foods work differently here.
+Nested recipes (a code starting with R) have their nutrients scaled automatically from their recorded serving count and total weight. Note that a nested recipe's Amount here is always a plain serving count, never a `pN` shortcut — see [Recipes: servings instead of `pN`](#portions-vs-servings) for why recipes and foods work differently here.
 
 **Unsaved recipe-details edits and adding an ingredient.** The Recipe details fields (name, servings, instructions, etc.) at the top of the Edit Recipe page save separately from the ingredient list — clicking "Add to recipe" doesn't normally touch them. If you've changed one of those fields without clicking "Save recipe details" yet and then add an ingredient, a warning appears: adding the ingredient will save those pending changes for you rather than silently discard them. Choose Cancel to go back and finish editing those fields first, or Continue to save them and add the ingredient in one step.
 
@@ -2606,17 +2679,17 @@ To select: click the result. If the food is not yet in your cache, NuMa fetches 
 <pre>
     Best match to name (default)   See <a href="#search-ranking">Ordering food search results</a> in
                                     Part 6 for how this ranking works.
-    Pantry, Cache, then Other       Same match-quality ranking, but when two
-                                    or more results are tied on how well they
-                                    matched your search, your own Pantry,
-                                    then Cache, then Recipe entries sort
+    Recipes, Pantry, Cache,         Same match-quality ranking, but when two
+      then Other                    or more results are tied on how well they
+                                    matched your search, your own Recipe,
+                                    then Pantry, then Cache entries sort
                                     ahead of USDA/OFF/other external results
                                     within that tie. It never lets a weaker
                                     match from your own data outrank a
                                     stronger external match.
 </pre>
 
-Both modes group your own Pantry/Food Cache/Recipe matches under their own heading above a divider, with external results below — but that heading reflects where the top-ranked matches happen to sort, not a hard rule; a strong external match can still land ahead of a weak local one under either sort mode.
+Both modes group your own matches under their own heading above a divider, with external results below. Within your own matches, **recipes always come first**, then Pantry and Food Cache foods, each in best-match order. Your own matches are always listed before online ones, so a food or recipe you already have is never buried under a wall of online results.
 
 See [Ordering food search results](#search-ranking) in Part 6 for the full explanation.
 
@@ -2626,7 +2699,7 @@ See [Ordering food search results](#search-ranking) in Part 6 for the full expla
 
 **Omitted-source warning.** Because the Source filter is sticky, a box unchecked once (even by accident, or while narrowing down a different search) stays unchecked everywhere until you re-check it — silently, with no visual difference from a normal search. If that hides a food you expected to see, it can look exactly like a search or ranking bug rather than a filter setting. On the Foods search page and the Meals & Log "Add Food or Recipe" panel, whenever one or more sources are unchecked, a small red note appears next to the Sort by control — **Omitted from search: RECIPE**, for example — naming exactly which ones. Check the Source filter row below to bring them back.
 
-While a live [database](#gloss-database) (USDA, Open Food Facts, or Canadian Nutrient File) is being searched, a status line names exactly which ones it's contacting — just "Searching USDA FoodData Central…" if you've unchecked the other two, for instance. If you've unchecked all three, that line (and the network requests behind it) doesn't appear at all. CoFID, AFCD, and [CIQUAL](#gloss-ciqual) are different: each is a bundled dataset, not a live lookup, so their results appear instantly alongside your own Pantry/Cache/Recipe matches — checking or unchecking any of them never triggers a network wait.
+While a live [database](#gloss-database) (USDA, Open Food Facts, or Canadian Nutrient File) is being searched, a red **Online search in progress…** note shows, so a few seconds' wait doesn't look like NuMa has stalled. It appears on every page that searches online: near the result count where your own matches show first, or beside the Search button on pages that show nothing until the online results are in. Hover over it to see which sources it's contacting. If you've unchecked all three, the note (and the network requests behind it) doesn't appear at all. CoFID, AFCD, and [CIQUAL](#gloss-ciqual) are different: each is a bundled dataset, not a live lookup, so their results appear instantly alongside your own Pantry/Cache/Recipe matches — checking or unchecking any of them never triggers a network wait.
 
 **Result limit.** A "Show up to ___ search results" box next to the Source filter controls how many results are fetched and shown, per source (default 25, up to 500). Type a number and press Enter or click Search to apply it — like the Source filter, your choice is remembered as the default for next time.
 
@@ -2692,15 +2765,18 @@ Appears when you click Review on the Import Claude response page, to import the 
 Columns:
 
     Name        Food name from the Claude response.
-    FDC ID      USDA FDC ID if one was provided.
-    Calories    Calorie value from the response (per 100 g).
-    Protein     Protein value (g per 100 g).
-    AA count    How many of the 11 tracked amino acids were found
+    Code        The food's code, if it is already in your cache.
+    Cal         Calorie value from the response (per 100 g).
+    Protein (g) Protein value (g per 100 g).
+    AAs         How many of the 11 tracked amino acids were found
                 (e.g. 9/11 means 9 out of 11 were present).
+    GI, DIAAS   Values from the reply, when you asked for them.
+    What importing does
+                New food, or which missing values will be filled in.
 
-Review each row for plausibility. If a value looks wrong, don't click "Confirm and import" — go back to the Import Claude response page, edit the pasted text in the textarea (or paste in a corrected reply from Claude), and click **Review** again.
+Review each row for plausibility. If a value looks wrong, don't import — go back to the Import Claude response page, edit the pasted text in the textarea (or paste in a corrected reply from Claude), and click **Review** again. Otherwise click **Import … into cache**.
 
-After confirming, each food is written to your cache. Foods that gain amino acid data change from — to ✓ in the [AA](#gloss-aa) column of the [Food Cache](#gloss-food-cache). Any notes Claude added are saved as curator notes — view them by clicking that food's "Notes ▸" link in the [Food Cache](#gloss-food-cache) list.
+After importing, each food is written to your cache. Foods that gain amino acid data change from — to ✓ in the [AA](#gloss-aa) column of the [Food Cache](#gloss-food-cache). Any notes Claude added are saved as curator notes — view them by clicking that food's "Notes ▸" link in the [Food Cache](#gloss-food-cache) list.
 
 For the full import workflow, see [Food Cache](#food-cache-web).
 
@@ -2710,11 +2786,12 @@ Shows the custom food profiles you have created by hand -- products from a label
 
 Columns:
 
-    #       Row number. Use to select a profile for viewing or editing.
     Name    Food name as you entered it.
-    Note    Your optional source or description note.
+    Code    The food's code — UD followed by a number (UD4).
+    Type    Where it came from ("User Drafted", or the source of a
+            food you copied and edited).
 
-Custom food profiles are stored in your [Food Cache](#gloss-food-cache) and appear in all food searches alongside [USDA](#gloss-usda) and Open Food Facts[^3] entries. Internally these are called "user-drafted" foods, and in [ID](#gloss-id) columns throughout the program they're shown as "usr" — see the [usr](#gloss-usr) glossary entry.
+Custom food profiles are stored in your [Food Cache](#gloss-food-cache) and appear in all food searches alongside [USDA](#gloss-usda) and Open Food Facts[^3] entries. Internally these are called "user-drafted" foods, and their [codes](#gloss-code) start with UD (older versions of NuMa showed "usr" — see the [usr](#gloss-usr) glossary entry).
 
 To edit nutrient data: open the food from [Food Cache](#gloss-food-cache) or this list and click **Edit nutrients**. Editing is done in the [Food Cache](#gloss-food-cache) record itself, not in a separate copy.
 
@@ -2733,15 +2810,17 @@ Shows the protein sources you have flagged as currently on hand. The Pantry driv
 Columns:
 
 <pre>
-    ID      USDA FDC ID, OFF, or usr -- for name-only entries.
+    Compare Tick to compare pantry foods side by side.
+    Food    Food name.
+    Code    The food's code (U171477, UD4, OFF3 ...); -- for name-only entries.
     AA      Amino acid data status.
               checkmark  AA data in your cache. This food can be used in
                          complement suggestions.
               X          No AA data. Click Edit to add it.
               --         Name-only entry: no USDA link, no nutrient data.
                          Use Link a food to attach real data.
-    Food    Food name.
     Notes   Your optional note for this pantry entry.
+    Added   When you added it.
     Type, GI est., DIAAS   Same as the matching columns in the
             <a href="#cached">Food Cache</a> list — see the DIAAS entry there for
             how the saved-estimate-vs-reference-table value is chosen.
@@ -2755,7 +2834,7 @@ Actions: **Add a food** ([USDA](#gloss-usda) search or name-only — the search 
 
 **Why save just a name?**{: #pantry-name-only} It's a placeholder: it records that you have a food on hand when a search doesn't turn up a good match, you're offline, or you'd rather pick the right match later. To add one, click **Can't find it? Save just the name for now** just under the Pantry search box. A name-only entry has no nutrient data at all, so it can't be analyzed or compared until you link it — but it keeps your pantry list complete in the meantime, and **Link a food** turns it into a full entry without retyping anything.
 
-**Only a search-and-select adds a food to your [Food Cache](#gloss-food-cache).** Picking a real match from **Add a food** caches it, the same as any other food search in NuMa — see [how foods enter your Food Cache](#food-data) in Part 8. Typing a **name-only** entry does not: nothing is written to the cache until you use **Link a food** to attach a real match, which is why a name-only row shows "--" in the [AA](#gloss-aa) column above instead of a checkmark or X.
+**Only a search-and-select adds a food to your [Food Cache](#gloss-food-cache).** Picking a real match from **Add a food** caches it, the same as any other food search in NuMa — see [how foods enter your Food Cache](#food-data) in Part 7. Typing a **name-only** entry does not: nothing is written to the cache until you use **Link a food** to attach a real match, which is why a name-only row shows "--" in the [AA](#gloss-aa) column above instead of a checkmark or X.
 
 See [complement suggestions](#comp) for how complement suggestions use your pantry.
 
@@ -2783,7 +2862,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 31 minutes)*
+*(Reading time: 38 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -2814,7 +2893,7 @@ The setting is saved between sessions and applies to both the interactive comple
 ### C. Ordering food search results {: #search-ranking}
 When you search for a food — whether from the Food Search page, the Meals & Log "Add Food or Recipe" panel, or a recipe's ingredient search — NuMa has to decide what order to show the matches in. That's a harder problem than it sounds, because "best match" usually means several different things at once: does the name contain your search words? All of them, or just some? And does it matter which words a near-miss is missing?
 
-**The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. Your own Pantry/Food Cache/Recipe matches only sort ahead of [USDA](#gloss-usda)/Open Food Facts/Canadian Nutrient File results when they're tied on that match quality — a genuinely better external match is never buried beneath a weak or coincidental match from your own data. The results table still shows your local matches under their own "From your pantry, food cache, and recipes" heading, with a divider before the external results below, but that's a display grouping over a single relevance-ranked list, not a hard "local always first" rule — the two groups can interleave if a later block of external results actually matches better. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
+**The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. Your own matches are then listed before the online ones ([USDA](#gloss-usda), Open Food Facts, Canadian Nutrient File and the rest), under a "From your recipes, pantry, and food cache" heading with a divider below it, so something you already have is never buried under a wall of online results. Within your own matches, **recipes come first**, then Pantry and Food Cache foods, each group in best-match order. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
 
 **Word order matters, too.** If you type more than one search word, NuMa treats the order you typed them in as a signal of what matters most to you. Suppose you search `milk dry instant` because there are two kinds of dry milk — instant and non-instant — and you specifically want the instant kind, but you've put "dry" before "instant" because that's the more important distinguishing word to you. If nothing in your data matches all three words, NuMa prefers a match on `milk` + `dry` over a match on `milk` + `instant`, precisely because you typed "dry" first. In effect, the words you type earlier act as your stated priorities — a partial match that preserves your earlier words beats one that preserves only a later one, even when both partial matches contain the same number of words.
 
@@ -2828,8 +2907,28 @@ This means you can deliberately front-load your most important search word when 
 
 **Search result depth.** Plain, unprocessed foods (the ones most likely to carry full amino acid data) can get buried under branded or prepared-dish matches for the same word — USDA's own relevance ranking can push something like "Potatoes, flesh and skin, raw" 15–20 results deep for a plain "potato" search, or return two dozen canned/branded products before a plain cooked bean shows up for "pinto beans." To counter this, NuMa runs a second search pass restricted to Foundation Foods and SR Legacy (USDA's most complete, least processed data), so those results aren't lost in the noise. How many results that second pass fetches is configurable (Settings → 5. USDA [API](#gloss-api) Key → Search result depth) — the default of 25 is enough for the vast majority of searches; set it higher if you still don't see the food you expect, or to 0 to remove the cap entirely (every matching result USDA returns, in one page — a higher number means a slightly slower search).
 
-### D. Editing your data, and what changes as a result {: #editing-consequences}
+### D. Data editing: what changes when editing recipes, meals, or the food cache {: #editing-consequences}
 *How NuMa shows you the effect of a change, including on past days: [Seeing what a fix changed](#data-effects). Every data check: [Checking your data](#checking-your-data).*
+
+**The short answer: changes to nutrient data cascade, all the way down; amounts you've already typed do not change.** Edit a food's nutrients, or a recipe's ingredients or servings, and every total built on it — other recipes, logged meals, past days, the Meals & Log list, the Daily Summary, averages and plots — is brought up to date automatically. You never need to recompute anything by hand. What does *not* change by itself is an amount already entered in a recipe or meal: it was saved as grams when you typed it, so a later portion edit leaves it alone, and Foods → 9 lists the ones worth a second look.
+
+| You change… | Recipes that use it | Meals that log it, past days included | More |
+|---|---|---|---|
+| **A food's nutrients** — editing them, copying from another food, estimating amino acids, refreshing from [USDA](#gloss-usda), importing Claude's answer, merging duplicates | Recalculated at once, and every recipe built on those too | Recalculated by the next page you open | [Editing or changing a food](#food-edit-consequences) |
+| **A food's portions** (`p1`, a cup weight) | No change — amounts keep the grams they were entered with | No change, for the same reason | [Amounts that no longer match](#stale-amounts) |
+| **A food's [GI](#gloss-gi)** (Foods → Annotate) | Recipe glycemic load follows at once — it's worked out fresh each time it's shown | Same, for meals and days | [Glycemic Load Output](#glycemic) |
+| **A food's name** | Ingredient lines keep the name they were added with; nutrients unaffected | Same | [Editing or changing a food](#food-edit-consequences) |
+| **Deleting a food** | Refused while any recipe, meal or pantry entry uses it | Refused | [Editing or changing a food](#food-edit-consequences) |
+| **A recipe's ingredients or amounts** | That recipe recalculated, and every recipe built on it | Recalculated by the next page you open | [Changing a recipe…](#recipe-dcp-cascade) |
+| **A recipe's servings count or Total weight** | Per-serving figures change, and cascade as above | A meal logs servings, so "1 serving" now means the new serving; the meal page flags the item and asks whether to keep the grams you ate | [How a meal records a recipe](#recipe-servings-grams) |
+| **A recipe's name** | The new name replaces the old one everywhere | Same | [Editing or changing a food](#food-edit-consequences) |
+| **Deleting a recipe** | Its sub-recipe lines stay, flagged "recipe (deleted)" | Its meal items stay, flagged the same way | [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) |
+| **Substituting** one food or recipe for another everywhere | Ingredients switched and recalculated, cascading up; amounts kept as typed | Items switched; amounts kept as typed | [Replace a Food or Recipe Everywhere](#fooduse-substitute) |
+| **A what-if** | Nothing, unless you click Apply | Nothing, unless you click Apply | [Saving, downloading and applying a what-if](#whatif-apply) |
+| **Your profile** (weight, targets) | — | Past days keep the profile they were pinned to | [Per-Day Profile Tracking](#day-profile) |
+| **The manual's source file** | — | — | [Editing the manual's source file](#manual-source-edits) |
+
+A meal's or recipe's own page always works its figures out fresh from your data as it is now, so it is never behind. The cascade exists for the figures NuMa *saves* for its lists, and is described below.
 
 NuMa saves some of its results so it doesn't have to work them out again on every page: each recipe's [DCP](#gloss-dcp) per serving, and each meal's DCP, calories and nutrient totals — the figures the Meals & Log list, the Daily Summary's Recent Days table, Nutrient averages across days and Nutrient Plot all read from. Whenever you change something those results were worked out from, NuMa works them out again for you. This section is the list of what follows from what, so an edit never has a consequence you didn't expect. For the other side of the same question — where NuMa fills in data that's missing, rather than recalculating data you've changed — see [Where NuMa fills gaps: estimates and estimation](#filling-gaps).
 
@@ -2885,6 +2984,18 @@ A meal's or a day's own page always works everything out fresh, from whatever yo
 
 If one of these automatic recalculations ever fails outright, it's reported under [System Issues](#system-issues-howto) in Settings rather than silently leaving old numbers in place.
 
+#### Editing the manual's source file (user-manual.md) {: #manual-source-edits}
+*For anyone running NuMa from its source folder (`python web/launcher.py`). An installed copy of NuMa carries its own manual; editing files there does nothing useful.*
+
+This manual is written in `user-manual.md` and shown in your browser as `user-manual.html`, which NuMa builds from it. **To see an edit, save `user-manual.md` and reload the manual's browser tab.** Opening the manual, or the Home page, checks whether the `.md` file is newer than the `.html` and rebuilds it if so. There's no need to restart NuMa or run anything. A manual tab that is already open won't change until you reload it.
+
+The rebuild also rewrites the reading-time figures in `user-manual.md` itself, so your editor may report that the file changed on disk. Accept the new version.
+
+If a reloaded tab still shows the old text:
+
+- **Check the "Updated" date on the manual's second line.** If you've ever clicked **Update manual now** on the Home page, NuMa keeps that downloaded manual and shows it instead of your own build whenever its date is the newer one. Set the date to the current date and time to make your copy the newer one.
+- **Run `python3 scripts/build_manual.py` from the NuMa folder.** It does the same rebuild, but prints any error that stopped it (two footnote markers side by side, for instance).
+
 ### E. Entering custom foods and dietary supplements {: #custom-foods}
 #### Custom food profiles
 
@@ -2894,8 +3005,8 @@ Whichever interface you use, the same fields apply:
 
 - **Name** — what to call this food in searches and meal logs.
 - **Supplement mode** (see below) or a normal serving size and unit.
-- **Basic macros** — calories, protein, total fat, carbohydrates, fiber, sugars, saturated fat, mono/poly fats, sodium. Always required.
-- **Minerals, vitamins, amino acids, and [phytonutrients](#gloss-phytonutrients)** — all optional. For vitamins A, D, and E you can type the amount in [IU](#gloss-iu) (e.g. `400 IU`) and NuMa converts it automatically; amino acids can be entered one-by-one or pasted in as a block from a research table (g per 100 g protein — converted automatically).
+- **Basic macros** — calories, protein, total fat, carbohydrates, fiber, sugars, saturated fat, mono/poly fats, sodium. Fill these in first: calorie totals and protein quality depend on them.
+- **Minerals, vitamins, amino acids, and [phytonutrients](#gloss-phytonutrients)** — all optional. Each box takes a plain number in the unit shown beside it, or a number with a unit that NuMa converts: `400 IU` ([IU](#gloss-iu)) for vitamins A, D and E, `12 mg`, `2.4 µg`, `1046 kJ` for calories. Amino acids can be typed one by one, or pasted as a table into **Paste an amino acid table** (g or mg per 100 g of food, g per 100 g of protein, or mg per g of protein — choose which, and NuMa converts). See [Data entry](#data-entry) for every form NuMa accepts.
 - **Note** — document your source or any caveats about the data.
 
 Once saved, the food appears in every search and can be used in meals and recipes exactly like any other food. Edit or delete it from the same place you created it, at any time.
@@ -2904,7 +3015,7 @@ Once saved, the food appears in every search and can be used in meals and recipe
 
 #### Dietary supplements — tablets, capsules, softgels
 
-Supplement labels give amounts per tablet, not per 100 g. NuMa handles this with **supplement mode**: create a custom food profile as above, set the serving size to **1** with a unit of `tablet`, `capsule`, `softgel`, or similar, then enter the nutrient amounts exactly as printed on the label. Logging "1 [unit]" in a meal then adds exactly those label amounts to your totals — no weighing involved, and no conversion math on your part.
+Supplement labels give amounts per tablet, not per 100 g. NuMa handles this with **supplement mode**: create a custom food profile as above, set the serving size to **1** with a unit of `tablet`, `capsule`, `softgel`, `pill`, `gummy`, `scoop` or similar, then enter the nutrient amounts exactly as printed on the label (`400 IU` — [IU](#gloss-iu) — and `25 mcg` both work). When you save, NuMa adds a "1 tablet" portion to the food and says so. Logging `1 tablet` in a meal then adds exactly those label amounts to your totals, and `2 tablets` twice them — no weighing involved, and no conversion math on your part.
 
 **Tip:** try a barcode search first (the 12- or 13-digit number on the label, entered at any search prompt). Many supplement products are already in Open Food Facts[^3] with complete data, saving you the manual entry.
 
@@ -2992,7 +3103,7 @@ Fixing data changes results, sometimes a lot. A missing calorie value on almonds
 **Amounts that no longer match.**{: #stale-amounts} An amount you type as a volume or portion is turned into grams once, when you enter it (see [Editing or changing a food](#food-edit-consequences)). If the food's portions change later, or NuMa's way of converting does, those grams stay as they were. Foods → 9 lists every recipe and logged meal amount that would come out differently if typed today, with the grams stored and the grams it works out to now (each food has a **portions** link beside it). Check the food's portions first: if a portion weight is itself wrong (a "tsp" that's really a half teaspoon, say), fix it on the food's Portions page, and the "Now" figure follows. Then, for the amounts you tick, choose one of two buttons:
 
 - **Update the ticked amounts to their "Now" grams** — the amount you entered stays; its grams change. Updating a logged meal changes that past day's totals.
-- **Keep the ticked amounts as entered** — the stored grams are right (you weighed it, say). NuMa stops listing the amount and shows it under **Kept as entered**, marked with a badge, on Foods → 9 and on the food's Portions page. Tick it there and click **Stop keeping** to review it again. Changing the amount itself also ends the keep.
+- **Keep the ticked amounts as entered** — the stored grams are right (you weighed it, say). NuMa rewrites the amount as your own weight, "8 c (2309 gr)" becoming "2309.2 g (8 c)", the same as if you'd typed the weight yourself, so it's never listed again. To change it later, edit the amount.
 
 Amounts typed with their own weight ("42 g", "2 T 15 g") are never listed. A volume with a weight in brackets after it, like "1/3 c (42 gr)", is: older versions of NuMa added that weight themselves, but it may be one you weighed, so check before updating. Updating one drops the bracketed figure.
 
@@ -3006,11 +3117,77 @@ The food's own **Portions page** shows the same list for that one food, right af
 
 **Old USDA copies.**{: #old-copies} USDA revises its records from time to time. Foods → 9 lists USDA foods you haven't fetched or refreshed in over a year. That isn't a problem in itself; **Refresh from USDA** on the food's page shows whether anything changed and lets you choose what to take.
 
+
+### J. Data entry: what you can type, and data errors to catch {: #data-entry}
+*Every data check NuMa runs afterwards: [Checking your data](#checking-your-data).*
+
+**NuMa's rule for anything you type: it reads what it can, tells you when it converted something, and refuses — by name — anything it can't read.** Nothing you type is silently thrown away. If a form can't be saved, everything you typed stays in its box, with a list of exactly which values need fixing.
+
+#### Amounts — in meals, recipes, a food's page, Convert and Compare
+
+| You type | NuMa reads it as |
+|---|---|
+| `150` or `150 g` | 150 g (a number on its own is grams) |
+| `150g`, `3oz`, `2T` | the same as with a space |
+| `3 oz`, `0.5 lb`, `1 kg` | converted to grams |
+| `1/4 cup`, `1 1/2 c`, `2 T`, `1 tsp`, `100 ml`, `1 fl oz` | converted to grams with the food's own cup or spoon weight (or a [generic density](#gloss-generic-density), marked **≈ generic**) |
+| `½ cup`, `1½ c`, `¾ tsp` | the same as `1/2 cup`, `1 1/2 c`, `3/4 tsp` |
+| `1,000 g` | 1000 g; `12,5 g` (a decimal comma) is 12.5 g |
+| `2 tbsp.`, `3 oz.`, `2 tbs`, `1 fl. oz` | trailing periods and common spellings are understood |
+| `2 T 15 g`, `1/4 c 60` | your weight wins: 15 g, shown as "15 g (2 T)" — use this when you've weighed it |
+| `p1`, `2 p1`, `1.5 p2` | the food's 1st portion, twice its 1st, one and a half times its 2nd (see [Portion Input Formats](#portion-formats)) |
+| `1 large egg`, `2 eggs`, `3 slices`, `2 tablets` | a count of one of the food's own portions, matched by name |
+| `1 serving`, `2` (for a recipe) | servings; or switch the box to grams |
+
+**Writing the weight in the amount and the volume in the note** (amount `16 g`, note `2 T`) is safe: the grams you typed are what's used. It's no longer necessary — `2 T 16 g` records both in one box — and better still is to give the food its real cup or spoon weight once (Food Cache → **Portions**), so `2 T` comes out right by itself.
+
+**Refused, with the reason:**
+
+- `2 bananas` for a food with no portion called banana — the message lists the food's portions (`p1 = 1 medium banana`…) so you can pick one.
+- `2 eggs` when the food has both "1 large egg" and "1 small egg" — NuMa won't guess; type `2 large eggs` or `2 p1`.
+- `2 cups` for a food with no cup weight and no generic density — weigh it, or give the food a cup portion.
+- `2 T 15 bananas` — whatever follows a volume must be a weight.
+
+#### Nutrient values — custom food profiles, and Settings → 7. Nutrient Targets
+
+| You type | NuMa reads it as |
+|---|---|
+| `18` | 18 in the box's own unit (shown beside it) |
+| `18 mg`, `0.018 g` (in an mg box) | 18 mg — converted, and named in a note |
+| `2.4 µg`, `2.4 ug`, `2.4 mcg` | micrograms, however written |
+| `400 IU` ([IU](#gloss-iu)) vitamin D | 10 mcg; `5000 IU` vitamin A = 1500 mcg RAE (retinol activity equivalents); `30 IU` vitamin E = 20.1 mg |
+| `1046 kJ` calories | 250 kcal |
+| `1,200`, `2½`, `12,5` | 1200, 2.5, 12.5 |
+| `trace` | 0, noted |
+| `-`, `n/a`, `—`, blank | left empty |
+
+**Refused, with the reason:**
+
+- `400 IU` in any box but vitamins A, D and E — IU means something different for each vitamin, so NuMa only converts the three it can.
+- `10%` — a percent of daily value can't be turned into an amount reliably; enter the amount from the label.
+- `<0.5` — a limit, not an amount; enter `0` or a figure.
+- `-3` — negative.
+- `3 cups` or `250 g` in a calories box — not a unit for that box.
+
+**A pasted amino acid table** (Edit Custom Profile → **Paste an amino acid table**) takes one amino acid per line, name then figure, in whatever form the table used: `Lysine 5.2`, `Leucine: 7.9`, two columns copied from a spreadsheet. Choose what the figures are measured in. Per-protein figures are converted with the Protein box, so fill that in first. Amino acids NuMa doesn't track (arginine, alanine…) are left out and named; an unknown name, a line with no number, or the same amino acid twice is refused.
+
+#### Data errors NuMa can't catch for you
+
+Some mistakes produce a perfectly readable number, so no form can refuse them. These are the ones worth watching for:
+
+- **Per-serving figures typed into per-100 g boxes.** A label saying "protein 6 g per 30 g serving" means 20 g per 100 g. Typing 6 makes the food a third as nutritious as it is. (Supplements are the exception: in [supplement mode](#custom-foods) you type per-tablet amounts.)
+- **The wrong unit's number.** Sodium "0.4" typed as mg when the label says 0.4 g is a thousandfold error. Type the unit with it — `0.4 g` — and NuMa does the conversion.
+- **A slip of the decimal point.** `100` for `10.0`. Foods → 9 catches the impossible cases (more than 100 g of protein in 100 g of food, sugars more than carbohydrate, calories that don't fit the protein, carbs and fat) but not a merely unlikely one.
+- **A wrong portion weight.** A "cup" portion that's really a half cup makes every `1 c` of that food wrong. Foods → 9 lists amounts that change when you correct a portion, under [Amounts that no longer match](#stale-amounts).
+- **The wrong food.** An ingredient line keeps the name you gave it even when it's linked to a different food — see [Editing or changing a food](#food-edit-consequences).
+
+After saving a food, its page shows any problem NuMa can see straight away; [Checking your data](#checking-your-data) lists every check.
+
 ---
 
 ## Part 7 — Essential resources
 
-*(Reading time: 27 minutes)*
+*(Reading time: 28 minutes)*
 
 ---
 
@@ -3036,7 +3213,7 @@ Your key is stored on your computer only. Once set, all food searches use your p
 
 Every food in these online tables has a unique [ID](#gloss-id) number — think of it as a product code that identifies that one food and nothing else.
 
-**Your [Food Cache](#gloss-food-cache)**{: #FoodCache} is a table stored on your own computer. When you search for a food, NuMa checks your [Food Cache](#gloss-food-cache) first and shows any matches in a fast **[Food cache](#gloss-food-cache)** table before going online. Any food you have looked up before will be there and can be selected instantly, without a network call. If the food is not yet in your cache, the program searches both online tables and shows you a combined list of matches. When you select a food from that list, NuMa saves a copy of its nutrient data in your [Food Cache](#gloss-food-cache) automatically. Over time, most of the foods you normally eat will be in your [Food Cache](#gloss-food-cache) for quick retrieval.
+**Your [Food Cache](#gloss-food-cache)**{: #FoodCache} is a table stored on your own computer. When you search for a food, NuMa checks your [Food Cache](#gloss-food-cache) first and shows any matches in a fast **[Food cache](#gloss-food-cache)** table before going online. Any food you have looked up before will be there and can be selected instantly, without a network call. If the food is not yet in your cache, the program searches the other sources you've ticked and shows you a combined list of matches. When you select a food from that list, NuMa saves a copy of its nutrient data in your [Food Cache](#gloss-food-cache) automatically. Over time, most of the foods you normally eat will be in your [Food Cache](#gloss-food-cache) for quick retrieval.
 
 **Edit protection.** Any food you edit manually — through Foods → 5. [Food Cache](#gloss-food-cache) — is marked as user-modified, and its type then reads, for example, "[SR](#gloss-sr) Legacy · user-edited": where it came from, and that you've changed it. NuMa will never silently overwrite a user-modified food with a fresh copy from [USDA](#gloss-usda), even if you search for that food again later. Your edits, custom amino acid values, and notes are permanent unless you change or delete them yourself. When you do ask for fresh data, with **Refresh**, you see it side by side with yours first and choose value by value — see [Refreshing a food, or filling it in from another food](#review-incoming).
 
@@ -3103,6 +3280,13 @@ Every food's nutrient data lives in exactly one place: the [Food Cache](#gloss-f
 This means: if you edit a food's nutrients in the [Food Cache](#gloss-food-cache), that change is immediately reflected everywhere — in Custom Food Profiles, in any recipe using that food, in pantry-based analyses, and in annotations. There is no syncing, no duplication, and no risk of one list getting out of step with another.
 
 **To edit nutrient data for any food, always go to Foods → 5. [Food Cache](#gloss-food-cache).** Annotations ([GI](#gloss-gi), [DIAAS](#gloss-diaas) estimates) work the same way: annotate a food once in the [Food Cache](#gloss-food-cache) and the annotation appears everywhere that food is used.
+
+**Where it all lives on your computer.**{: #data-location} Your Food Cache, Food Annotations, Pantry, recipes and logged meals are all tables in one database file. That file, your page preferences (sorts, columns, dismissed notices), and any large files you've built (such as your 2021 glycemic index table) sit in NuMa's data folder. Your profiles and USDA key sit in a separate config folder:
+
+- **Windows:** data in `%LOCALAPPDATA%\numa`, config in `%APPDATA%\numa`.
+- **Linux:** data in `~/.local/share/numa`, config in `~/.config/numa` (hidden folders; press Ctrl+H in your file manager to see them).
+
+Both folders are kept apart from the program itself, so updating NuMa never touches them. To back them up, restore them, or move your data to another computer, see [Backing up your data](#backup).
 
 ### B. Glossary {: #glossary}
 Abbreviations and key terms used in NuMa output and this manual.
@@ -3177,6 +3361,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **FSANZ**{: #gloss-fsanz}  —  Food Standards Australia New Zealand, the agency publishing the [AFCD](#gloss-afcd) food composition [database](#gloss-database) bundled with NuMa.
 
+**Generic density**{: #gloss-generic-density}  —  A typical weight-per-volume figure for a kind of food (flours, protein powders, seeds and so on) that NuMa uses to turn a cup or spoon amount into grams when the food has no cup or spoon portion of its own. A reasonable guess, but a guess: such amounts are marked **≈ generic**. See [Amounts converted with a generic density](#generic-density).
+
 **GI**{: #gloss-gi}  —  Glycemic Index. A scale from 0 to 100 measuring how quickly a food raises blood glucose relative to pure glucose (100). See [glycemic index](#gi).
 
 **GL**{: #gloss-gl}  —  Glycemic Load. A measure of glycemic impact that combines GI with the actual amount of carbohydrate in a serving. More useful than GI alone for real-world meal comparisons. See [glycemic load](#gl).
@@ -3247,7 +3433,11 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **USDA**{: #gloss-usda}  —  United States Department of Agriculture. The U.S. government body that publishes FoodData Central, NuMa's primary food data source.
 
+**User-edited**{: #gloss-user-edited}  —  A food whose data you've changed since it came from its source — shown as an **edited** tag after its [code](#gloss-code), and in its type ("SR Legacy · user-edited"). NuMa remembers which values you changed, and a Refresh keeps them unless you choose otherwise. See [Food data](#food-data).
+
 **usr**{: #gloss-usr}  —  User-drafted. Older name for what is now the **UD** prefix of a [code](#gloss-code) (UD4): a food whose nutrient profile you created or edited by hand, rather than one retrieved from USDA or Open Food Facts[^3] — this is what the [Custom Food Profiles](#drafted-foods) list shows.
+
+**What-if**{: #gloss-what-if}  —  NuMa's Analysis pages for trying a change before making it: remove, add, replace or scale a food across a set of meals or recipes and see the nutrition before and after, with nothing saved unless you apply it. See [What-if: Meals](#whatif) and [What-if: Recipes](#whatif-recipes).
 
 **WHO**{: #gloss-who}  —  World Health Organization. The United Nations health agency; co-publisher, with the [FAO](#gloss-fao), of the protein and amino acid requirement guidance NuMa's protein quality scoring follows.
 
@@ -3294,7 +3484,7 @@ Use the sidebar search box near the top of the table of contents.
 
 ## Part 8 — Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 
-*(Reading time: 19 minutes)*
+*(Reading time: 20 minutes)*
 
 If something seems broken or confusing, there's a good chance the answer is already below. The topics are grouped by how the problem *feels* rather than which menu it's in, since that's usually how you'll remember it later — and a few topics are listed in more than one group, since the same problem can feel different ways depending on what you were expecting. There aren't so many that you can't just skim the headings if nothing matches at first.
 
@@ -3303,13 +3493,15 @@ If something seems broken or confusing, there's a good chance the answer is alre
 #### The program crashes unexpectedly {: #ts-crash}
 If NuMa crashes or freezes, nothing you'd already saved is lost — every action (adding a food, saving a recipe, logging a meal) is written to your data immediately, not held until some later "save" step. It's safe to just restart the program and pick up where you left off.
 
+**If a yellow "NuMa has been updated — please restart it" bar appears,** the program was updated while it was running, and some pages won't work until it restarts. Click **Restart NuMa now**: NuMa restarts behind the page, which reloads by itself a few seconds later, right where you were. (The button appears when you start NuMa from its source folder with `python web/launcher.py`; otherwise, quit NuMa and start it again.) A page that fails for this reason shows the same message and button instead of an error.
+
 If a page seems frozen or won't load, try refreshing it first. If that doesn't help, the program running in the background may need restarting — close and relaunch it the way you normally start NuMa.
 
 Either way, [let us know](#feedback) — see ["How to contact help"](#quickhelp) below. This is beta software; a crash almost always means we found a real bug worth fixing, not something you did wrong.
 
 #### You know what you want to do but can't see how to do it {: #ts-findit}
 Click any **Learn more** link near a section heading or analysis output — see [Getting help](#help) for the full list of what each one covers.
-- Either version: this manual's own search — if you're reading it in the web app, use the sidebar search box (see [Using this manual's search](#search-howto) for how to get good results from it, especially the "Only show things you can do" checkbox); if you're skimming the plain text version, search for a word describing what you're trying to do rather than a menu name.
+Or use this manual's own search box, in the sidebar (see [Using this manual's search](#search-howto) for how to get good results from it, especially the "Only show things you can do" checkbox) — search for a word describing what you're trying to do rather than a menu name.
 
 If you still can't find it, [tell us what you were trying to do](#feedback) in plain language, not what menu item you were looking for. That phrasing is exactly what we need to know whether the feature exists, is named confusingly, or genuinely isn't built yet.
 
@@ -3326,7 +3518,7 @@ Setting a recipe's **Servings** field to 0 is a deliberate mode switch, not an e
 ### C. I'm confused — something unexpected happened
 
 #### USDA searches got slow, or started failing {: #ts-usda-slow}
-Without a personal [USDA API key](#food-data), NuMa shares a demonstration key (`DEMO_KEY`) with every other NuMa user, and its rate limit is tight enough that heavy use by anyone can exhaust it, causing searches to fail temporarily for everyone. A free personal key removes this ceiling and takes about a minute to get — see [Food data — where it comes from and how it is stored](#food-data) for the sign-up steps and where to enter it (Settings, either version).
+Without a personal [USDA API key](#food-data), NuMa shares a demonstration key (`DEMO_KEY`) with every other NuMa user, and its rate limit is tight enough that heavy use by anyone can exhaust it, causing searches to fail temporarily for everyone. A free personal key removes this ceiling and takes about a minute to get — see [Food data — where it comes from and how it is stored](#food-data) for the sign-up steps and where to enter it (Settings → 5. USDA API Key).
 
 #### A deleted recipe shows up as "(deleted)" somewhere {: #ts-deleted-recipe}
 This is expected, not a bug: deleting a recipe that's used as an ingredient in another recipe doesn't remove that ingredient line — it stays in place, flagged "recipe (deleted)" wherever it appears (ingredient lists, meal history, Food Use in Meals). If you later create a new recipe with a similar or identical name, NuMa offers to relink the old references to it automatically. See [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) for the full behavior and how to browse every currently-broken reference.
@@ -3351,7 +3543,7 @@ Once you have a proxy food — blended or not — holding the numbers you need, 
 
 **Option 1 — create a new, clearly-labeled draft (the general-purpose default).** Foods → Custom Food Profiles → **Copy a cached food as a draft**, pick the real food you're missing [AA](#gloss-aa) data for (it copies that food's full nutrient snapshot — protein included — into a brand-new, independent entry), rename the copy something unambiguous like "Graham Cracker, generic (estimated AA)," then run the AA-copying picker on *that* draft, scaling from your proxy food. Web app: [Food Search](#food-search)'s **Copy as custom-food draft** link does the "copy as draft" half of this step in one click, right from the search results row (also available from Food Cache and Pantry's own ingredient search). Because the original cached food is never touched, USDA can still refresh its full nutrient profile and portions automatically if that entry ever changes. The tradeoff: this new draft doesn't retroactively reach meals or recipes that already reference the *original* food — those keep pointing at the un-estimated entry until you go swap the reference over by hand.
 
-**Option 2 — edit the original food's AA fields directly (a deliberate exception).** If you know you'll always be logging this exact product, editing its AA data in place is often more practical: every past and future meal or recipe that already references it picks up the estimate immediately, with nothing to swap. The cost is real, though — editing *any* of a food's data marks the entire record user-modified, not just the amino acid fields, so NuMa will never again silently refresh its full nutrient profile, portions, or anything else on it from USDA; you're taking permanent manual ownership of that specific record. That's an easy trade when the food is unlikely to gain real measured data any other way — a specific branded product like Nabisco Honey Maid Grahams already has its macronutrients measured and isn't about to grow USDA amino acid data on its own, so there's little future refresh being given up.
+**Option 2 — edit the original food's AA fields directly (a deliberate exception).** If you know you'll always be logging this exact product, editing its AA data in place is often more practical: every past and future meal or recipe that already references it picks up the estimate immediately, with nothing to swap. The cost is small: NuMa marks the food *user-edited* and remembers exactly which values you changed, and a later **Refresh from USDA** keeps those values unless you choose otherwise ([Reviewing incoming data](#review-incoming)). Amino acids estimated this way are also remembered as estimates, so measured values from USDA can replace them later. It's an easy choice when the food is unlikely to gain real measured data any other way — a specific branded product like Nabisco Honey Maid Grahams already has its macronutrients measured and isn't about to grow USDA amino acid data on its own, so there's little future refresh being given up.
 
 **Worked example: graham crackers, no AA data on any brand, made from a 2:1 white-to-whole-wheat flour blend. Nabisco Honey Maid Grahams specifically are already logged in past meals.**
 
@@ -3433,7 +3625,7 @@ If that's not the priority you meant, reorder your search words so the one you c
 If DCP is still showing as missing, the real cause is the same as [an "insufficient amino acid data" warning](#ts-missing-aa): none of the meal's food items — and for recipe items, the recipe itself — have amino acid data available yet. Add [AA](#gloss-aa) data to at least one ingredient (or analyze the recipe), and DCP fills in immediately without needing to reopen or reanalyze the meal.
 
 #### Oxalate or glycemic index data isn't showing for a food {: #ts-oxalate-gi}
-Both are opt-in and off by default — this is a configuration gap, not a bug. [Oxalate data](#oxalate) needs its Settings toggle switched on (one account-wide switch, either version). [Glycemic index](#gi) needs either the built-in reference-table seed or your own annotation on that specific food; NuMa will offer to prompt you for it the first time you add a new food to your Pantry or a meal.
+Both are opt-in and off by default — this is a configuration gap, not a bug. [Oxalate data](#oxalate) needs its Settings toggle switched on (Settings → 1. Your Profile). [Glycemic index](#gi) needs either the built-in reference-table seed or your own annotation on that specific food; NuMa will offer to prompt you for it the first time you add a new food to your Pantry or a meal.
 
 *See also:* [A recipe's "Complete" checkbox doesn't match its protein-completeness score](#ts-complete-confusion).
 
@@ -3454,7 +3646,7 @@ Most of what's below isn't NuMa misbehaving, it's a gap or error in the underlyi
 #### A food has no "per piece" or "per egg" portion — only grams {: #ts-no-piece-portion}
 Some foods that obviously come in natural units — a whole egg, a piece of fruit, a slice of bread — still have no [USDA](#gloss-usda)-supplied portion for that unit, only the generic per-100-g figures. This happens because USDA's portion records are contributed per food entry, not derived automatically from the food's description, so some entries simply never got one. It's not something NuMa can infer on its own — "1 egg" isn't a fixed weight (USDA's own size grades range from about 38 g for "Small" to 63 g for "Jumbo").
 
-Two fixes: weigh the item once on a kitchen scale and enter that weight directly (`56g`, for instance), or teach NuMa the unit permanently via the food's [Food Cache](#food-cache-web) entry, **Portions** action. Either way, every later analysis, recipe, and meal entry for that food can then use the unit directly (`1 egg`, `2 slices`) instead of a gram weight.
+Two fixes: weigh the item once on a kitchen scale and enter that weight directly (`56g`, for instance), or teach NuMa the unit permanently via the food's [Food Cache](#food-cache-web) entry, **Portions** action. Once the portion exists, every later analysis, recipe, and meal entry for that food can use it by name (`2 eggs`, `1 slice`) or by its `pN` shortcut (`2 p1`) instead of a gram weight.
 
 #### A food has a weight portion but no cup/tablespoon equivalent {: #ts-no-volume-portion}
 NuMa converts a volume measure (cup, tablespoon, teaspoon) to grams using a *density* estimate for that food — mass per milliliter. [USDA](#gloss-usda) doesn't publish density directly; NuMa derives it first from a cup, tablespoon or teaspoon portion in the food's own record, including one you've set yourself in the Portions editor. Only when the food has no such portion does it fall back to a small built-in table of common foods, mostly dried herbs and spices (see [Portion Input Formats](#portion-formats)). Outside those cases, entering a volume measure will prompt you to weigh the amount and enter the grams yourself — this is expected, not a bug, since guessing a density would silently produce wrong nutrient totals.
@@ -4033,11 +4225,9 @@ NuMa converts volume to grams via the food's recorded density. If density is unk
 
 Note: T (uppercase) means tablespoon; t (lowercase) means teaspoon. These two are case-sensitive. All other units are case-insensitive.
 
-PIECE / COUNT UNITS
+PIECE COUNT (eggs, slices, tablets)
 
-    pc  pcs  piece  pieces  each  ea  count  ct  item  items
-
-Piece entries record a count but no gram weight. The program will ask you to confirm or supply a weight if it needs one for nutrient scaling. Unlike weight and volume units, piece units require a space: "2 pc", not "2pc".
+There is no general count unit (`2 pc` isn't recognized), since NuMa can't know what one weighs. But once a food has a portion for one of it (Food Cache → **Portions**, e.g. "1 large egg", 50 g), you can count it by name — `2 eggs`, `2 large eggs` — or with its shortcut, `2 p1`. If two portions share the name ("1 large egg", "1 small egg"), name the one you mean. See [Data entry](#data-entry) for every form NuMa accepts.
 
 [USDA](#gloss-usda) STANDARD PORTIONS
 
@@ -4046,6 +4236,8 @@ Many [USDA](#gloss-usda) foods include pre-defined portion sizes (e.g. "1 medium
     p1         select USDA portion #1
     p2         select USDA portion #2
     1.5 p1     one-and-a-half times USDA portion #1
+
+You can also type a portion's description (`1 large egg`), a count of it (`3 large eggs`), or just its main word (`2 eggs`) when only one portion has that word.
 
 **`p1`, `p2`, … mean "the food's 1st portion, 2nd portion, …" — position in the list, never the portion's own text.** This trips people up specifically when you add a custom portion (via [Food Cache](#food-cache-web) → **Portions**) and happen to *name* it something like `p1`: that name has no effect on its shortcut number. If it's the fourth portion in the list, its shortcut is `p4`, no matter what you called it. Every screen where you type a `pN` shortcut — Foods, Recipes, Meals — also lists that food's full portion set with the real shortcut number next to each one; check that list before typing `pN`, don't guess from a portion's name. Adding, removing, or reordering portions on a food also renumbers every `pN` that follows the changed spot, so re-check the list after any portion edit, too — see [A food's portion "pN" shortcut points to the wrong portion](#ts-portion-numbering) if a `pN` amount doesn't come out the way you expected.
 
@@ -4074,8 +4266,6 @@ For all weight and volume units, the space between the number and unit is option
     150 g  =   150g
     3 oz   =   3oz
     1/4 c  =   1/4c
-
-(Piece units — pc, each, etc. — always require a space.)
 
 VOLUME WITH EXPLICIT WEIGHT
 
@@ -4539,7 +4729,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 32 minutes)*
+*(Reading time: 1 hour, 6 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4552,6 +4742,440 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Many entries also carry a fenced "Scope:" block underneath, with the technical detail (menu path, files touched, root cause). It is developer-facing only: the next comment explains why it is wrapped in an HTML comment and therefore never reaches a reader of the built manual. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 <!-- Insert new updates below here -->
+
+#### Next release summary to this point (dated details below)
+
+- **21.** USDA foods now keep the zeros USDA measured (earlier versions dropped them); 17 starter foods are updated to match.
+- **20.** Nutrient tables list every nutrient: "0" where the source measured none, "no data" where nothing was recorded; small amounts keep their decimals.
+- **19.** When NuMa is updated while it's running, every page says so, with a **Restart NuMa now** button, instead of failing with an error.
+- **18.** Food and recipe names in complement suggestions and DIAAS boosters are now links to their pages.
+- **17.** MANUAL: Part 1 A now lists every file NuMa puts on your computer, and why.
+- **16.** MANUAL: New section "Data entry: what you can type, and data errors to catch" (Part 6, J), with every accepted form and the common errors.
+- **15.** Forms read what you type more forgivingly — `400 IU`, `12 mg`, `1,200`, `1½ c`, `2 eggs`, `2 tablets`, a pasted amino acid table — and anything NuMa can't read is named instead of silently dropped. Supplement mode now works.
+- **14.** MANUAL: Weekly sweep and full manual audit — column guides, menu paths and portion formats brought up to date, three new Glossary entries, and the updates log trimmed to the last two weeks.
+- **13.** A volume typed with its weight ("2 T 15 g") now records the weight you typed; before, the weight was ignored and an estimate used instead.
+- **12.** In search results, your recipes now come first among your own matches, ahead of Pantry and Food Cache foods.
+- **11.** Glycemic load now shows for every food (per 100 g and per portion), every recipe (per serving) and every meal and day — marked "incomplete, missing GI data" with the missing foods listed when some have no GI value.
+- **10.** MANUAL: New quick-answer table on what each edit changes — editing recipes, the food cache, or the manual's source file.
+- **9.** A meal's food search shows each food's or recipe's own note beside its "Add to meal" box.
+- **8.** Compare, Convert, Edit Recipe and the "copy from another food" searches show your own matches at once while online results load; the copy-from searches now rank results and honour the result limit like every other search.
+- **7.** Compare, Convert and Edit Recipe now search every source you tick, and a search result from any source opens and adds correctly.
+- **6.** A red "Online search in progress…" note now shows wherever NuMa is waiting on an online search; Food Cache gains a **Search online** button.
+- **5.** My Pantry's search now covers every source you tick (CNF, CoFID, AFCD and CIQUAL were being skipped), and shows your own matches at once while online results load.
+- **4.** My Pantry: a new **Filter my pantry list** box narrows the pantry list itself, and search results now have Compare checkboxes.
+- **3.** What-if pages: save a scenario by name, download the results as CSV, and apply a replace-only scenario to your meals or recipes for real, after a confirmation page.
+- **2.** "Keep as entered" now rewrites an amount as your own weight ("2309.2 g (8 c)"), so it's never listed again; the "Kept as entered" lists are gone.
+- **1.** On the Database check page (Foods → 9), any list longer than 6 entries now starts folded behind its count line; click it to show the list.
+
+#### October 9 updates
+
+**PROGRAM: USDA'S ZEROS ARE BACK**
+
+Earlier versions of NuMa threw away every nutrient USDA had measured at zero, so a food with no vitamin C, say, looked the same as one never tested for it. New lookups now keep those zeros, and 17 of the [starter foods](#starter-data) are updated to include them: after updating NuMa, they're listed under **Improved in this version of NuMa** in Settings → 9, where you can take the update or keep your copy. A food you've already looked up gets its zeros back the next time you use **Refresh from USDA**. [learn more...](#nutrients)
+
+<!--
+```
+Scope: new scripts/restore_usda_zeros.py (fetch each cached USDA food; add
+only keys USDA reports as exactly 0 that the food lacks, to nutrients_json
+and source_json; never touches an existing value; backs up the DB). Run on
+the owner's DB 2026-10-09: 236 checked, 64 foods got zeros, 5 lookups failed
+(4 ids USDA doesn't serve, 1 timeout), no food's user_edited changed, no
+non-zero value changed. starter_data.json: 37 zero values added to 17 foods
+(refresh_starter_data.py also pulled 4 unrelated live edits — Organic Diced
+Tomatoes portions and 3 recipes — which were deliberately NOT included; run
+the refresh yourself when you want them). Nutrients are part of
+demo_data._item_hash, so prior-version users get the "improved" notice.
+Tests: tests/test_restore_usda_zeros.py.
+```
+-->
+
+**PROGRAM: "NO DATA" IS NOT ZERO**
+
+Nutrient tables now show a row for every nutrient NuMa tracks. A nutrient the food's source measured at zero shows **0**; one that was never recorded shows **no data**, instead of being left out (which hid EPA, DHA and linoleic acid while showing ALA) or shown as 0. Small amounts keep their decimals, so 0.3 mg no longer reads as 0. Zeros from USDA and zeros you type on a custom food are now kept as real zeros. [learn more...](#nutrients)
+
+<!--
+```
+Scope: food, recipe, recipe-portion, meal, day, Daily Summary, trend and print
+nutrient tables. web/backend.py _nutrient_sections(): every key in
+_NUTRIENT_GROUPS gets a row; value None + missing=True when absent;
+_display_amount() (whole from 10, 1 dp from 0.1, then 2-4 dp) replaced
+round(val), which showed 0.3 as 0. usda_api._parse_food(): `value or amount`
+dropped measured zeros — now explicit None checks; a 0 kcal Energy row no
+longer blocks the Atwater figure. Custom profile save keeps a typed 0 (was
+dropped). Existing cached USDA foods still lack their zeros until
+re-fetched (222 foods; one-time fill-zeros-only repair offered to owner).
+Tests: TestNutrientTableNoData, test_usda_parse_keeps_measured_zeros.
+```
+-->
+
+**PROGRAM: "PLEASE RESTART" INSTEAD OF AN ERROR**
+
+When NuMa is updated while it's still running, a yellow bar at the top of every page now says so, with a **Restart NuMa now** button that restarts it behind the page and brings you back where you were. A page that would have failed with "Internal Server Error" because of the update shows the same message instead. [learn more...](#ts-crash)
+
+<!--
+```
+Scope: web/backend.py — _disk_version() (version.py re-read on mtime
+change; path from sys.modules["version"]), _restart_needed() (never when
+frozen), _restart_needed_middleware (outermost; a crash while stale ->
+503 restart page), _can_restart_in_place() (argv[0] is launcher.py, not
+--reload), _schedule_restart() (Popen a fresh launcher with --no-browser,
+start_new_session; the new launcher's port-in-use path stops this process;
+os._exit backstop after 8 s), POST /restart-now (waiting page polls GET
+/restart-status until a different VERSION answers, then location.replace),
+base.html banner. Cause: 2026-10-09 the owner hit a 500 running a server
+started before that day's code changes (templates are read from disk, code
+isn't). Verified end to end on an isolated port. Tests: TestRestartNeeded.
+```
+-->
+
+**PROGRAM: SUGGESTED FOODS AND RECIPES ARE LINKS**
+
+In Complement Suggestions and DIAAS boosters, every food or recipe name — in a suggestion card, a two-food pair or a two-step combination — now links to that food's or recipe's own page, opened in a new tab so the analysis you're reading stays put. A generic estimate from the built-in list has no page, so it stays plain text. [learn more...](#comp)
+
+<!--
+```
+Scope: food, meal, day, Daily Summary, recipe and recipe-portion analysis
+pages (suggest_card macros, pairs, two_step_combos, diaas_improvers); new
+Jinja global item_link() in web/backend.py (recipe_id -> /recipe/N, else
+fdc_id -> /food/N, else escaped plain name). Printouts unchanged. Tests:
+test_item_link_links_suggested_foods_and_recipes,
+test_complement_cards_use_item_link_everywhere (no bare name left).
+```
+-->
+
+**PROGRAM: NOTHING YOU TYPE IS SILENTLY DROPPED**
+
+Forms now read the everyday ways people write values, and say so when they convert one. On a custom food: `400 IU` (vitamins A, D, E), `12 mg`, `2.4 µg`, `1046 kJ`, `1,200`, `2½`, `trace`, and a pasted amino acid table. In any amount box: `½ cup`, `1,000 g`, `2 tbsp.`, and counts of a food's own portions such as `2 eggs` or `2 tablets`. Anything NuMa can't read is named, and the form keeps everything you typed until it's fixed; before, such values vanished without a word. Supplement mode now works: a custom food with a serving of 1 tablet gets a "1 tablet" portion, so `2 tablets` logs twice the label amounts. [learn more...](#data-entry)
+
+<!--
+```
+Scope: new numa_app/services/entry_parse.py (parse_number, parse_nutrient,
+parse_aa_block, supplement_portion, EntryError). Edit Custom Profile: boxes
+are now text inputs (type=number refused "400 IU" in the browser); the POST
+reads every box through parse_nutrient, refuses the whole save on any error
+with typed values kept (_custom_edit_response), notes conversions, adds the
+supplement portion, takes a pasted AA table. web/backend.py
+_parse_portion_str_raw: _normalize_amount_text (fraction characters,
+thousands/decimal commas, unit periods and aliases), _match_count_portion
+("2 eggs" -> "1 large egg"; ambiguous -> refused) and _portion_hint in the
+not-recognised message. Settings -> 7 targets (parse_nutrient; error shown,
+nothing saved) and a recipe's weight/volume on a meal (add_error) no longer
+swallow unreadable values. Owner's earlier weight-in-amount / volume-in-note
+entries (39 recipe lines) checked read-only: grams as typed, nothing wrong.
+Tests: tests/test_entry_parse.py, TestParsePortionStrTolerant,
+test_custom_profile_save_converts_units_and_refuses_unreadable,
+test_settings_nutrient_target_reads_units_and_reports_errors.
+```
+-->
+
+**MANUAL: DATA ENTRY, AND WHAT'S INSTALLED**
+
+A new section, [Data entry: what you can type, and data errors to catch](#data-entry), lists every form NuMa accepts in amount and nutrient boxes, what it refuses and why, and the mistakes no form can catch (per-serving figures typed as per 100 g, the wrong unit, a slipped decimal point). Part 1 A has a new list, [What's on your computer, and why](#installed-files). Custom foods, supplement mode and the portion-formats appendix now describe what actually works.
+
+<!--
+```
+Scope: user-manual.md Part 6 E (custom foods, supplements), new Part 6 J
+(#data-entry), Part 1 A (#installed-files), Appendix E counts, Part 8
+ts-no-piece-portion. Also removed export.py (unused CLI report export) and
+scripts/run_numa.sh (launched the deleted numa.py); docs references updated.
+README sweep item 8 now requires every non-200 link to be reported in full,
+and names the fdc.nal.usda.gov food-details curl 404 as a known false alarm
+(owner confirmed both Appendix F links work, 2026-10-09).
+tests/test_packaging_spec.py::test_readme_test_count_matches_the_suite now
+enforces the README test count, which nothing had checked.
+```
+-->
+
+**MANUAL: WEEKLY SWEEP AND FULL MANUAL AUDIT**
+
+The manual's column guides now match what each table actually shows (Codes instead of IDs, the Pantry, Recipes, Meals & Log and import tables), menu paths and cross-references are corrected, the portion-formats appendix now says how to enter counts like "2 eggs", leftover instructions from the old command-line version are gone, and the Glossary has new entries for what-if, user-edited and generic density. The updates log is trimmed to the last two weeks. [learn more...](#portion-formats)
+
+<!--
+```
+Scope: user-manual.md Parts 1, 3-8, Appendix E, Glossary; README.md key
+features (what-if, data checks, food-use replace); README-numa-documentation.md
+monthly deep check (Project Structure: 6 modules, ~40 templates, 20 scripts;
+schema table +9 tables; Data Storage rewritten; Setup now Python 3.12 +
+cryptography/matplotlib/pdfminer.six/playwright; dead state.py/prefs.py,
+_search_relevance_key, export.py, update-notify-frequency references fixed);
+CLAUDE.md (data_quality.py, energy_check.py added; export.py marked unused);
+scripts/setup_venv.sh message (python numa.py -> web/launcher.py).
+New test: db-check list folding (>6 folds). Findings NOT fixed, for the
+owner: custom-food supplement mode, IU entry and AA paste-block exist only
+in the manual (CLI-era); count units ("2 eggs") unsupported; export.py and
+scripts/run_numa.sh dead; two fdc.nal.usda.gov food-details links 404 to
+curl (SPA? unverified).
+```
+-->
+
+**PROGRAM: A WEIGHT TYPED WITH A VOLUME IS NOW USED**
+
+Typing a volume with its weight, like `2 T 15 g` or `1/4 c 60`, now records the weight you typed and shows it as "15 g (2 T)". Before, NuMa ignored the weight and worked the grams out from the volume instead. Check any amount you entered this way in a recipe or meal: re-enter it to get the weight you meant. [learn more...](#portion-formats)
+
+<!--
+```
+Scope: every amount box using web/backend.py _parse_portion_str_raw() (meal
+add/edit, recipe ingredients, food page, analyze, convert). Found in the
+2026-10-09 full manual audit: Appendix E documented "2 T 30g" -> 30 g, which
+numa_app/services/portions.py handles, but the web's own parser stopped at
+the volume unit, so the typed weight was dropped and density used. Worse,
+data_quality treats "2 T 15 g" as a typed own weight and never lists it
+under Amounts that no longer match, so the wrong grams were invisible. The
+volume branch now reads a trailing number (+ weight unit) as the weight,
+label "15 g (2 T)" (own_weight_text's form); anything else after the
+volume is an error. Tests: TestParsePortionStrExplicitWeight.
+```
+-->
+
+**PROGRAM: RECIPES FIRST IN SEARCH RESULTS**
+
+Wherever a search can return recipes as well as foods, your recipes are now listed first among your own matches, ahead of Pantry and Food Cache foods. Online results still follow below the divider. The "Pantry, Cache, then Other" sort is now "Recipes, Pantry, Cache, then Other". [learn more...](#search-ranking)
+
+<!--
+```
+Scope: every _run_food_search() screen (Food Search, a meal's Add panel,
+Edit Recipe, Compare, Convert) and Food Use's substitute picker.
+web/backend.py _cap_results_preserving_local() now orders the local block
+recipe, then pantry/cache (each keeping relevance order); _SEARCH_CATEGORY_RANK
+and search_ranking.SOURCE_RANK tie-breaks recipe 0, pantry 1, cache 2; the
+substitute search sorts recipes first. Divider and sort-mode labels renamed
+(search.html, meal.html, _search_api_rows.html). Manual: Part 6 C and the
+Sort order note corrected -- they said local and online results could
+interleave, but local results have always been grouped first.
+```
+-->
+
+**PROGRAM: GLYCEMIC LOAD FOR EVERY FOOD, RECIPE AND MEAL**
+
+Glycemic load now shows on every food's page (per 100 g, and for the portion you're analyzing), every recipe's page (per serving) and every meal and day. When some foods have carbohydrate but no GI value, the figure reads "at least 14.2 — incomplete, missing GI data", with each missing food listed and a link to add its GI. Foods marked "don't prompt me" are listed as such. Foods with under 1 g of carbohydrate in the amount used no longer need a GI at all. [learn more...](#glycemic)
+
+<!--
+```
+Scope: food, recipe, recipe-portion, meal, day, Daily Summary and print pages;
+numa_app/services/glycemic_load.py (rewritten core: gl_for_items, food_gl,
+recipe_gl, meal_gl, combine_gl; result dict {total, complete, gaps}),
+web/backend.py (_recipe_gl_web, _compute_gl, day pools, _food_detail_context
+gl_100g/gl_portion, food print), new web/templates/_gl_result.html macro
+replacing six copies of the GL block; food_detail.html GI/GL line; db.py
+recipe_set_gl removed. Root cause: recipe items read recipes.gl_g, which
+nothing in production ever wrote (only tests), so every recipe -- and every
+meal or day containing one -- showed "Not available". Recipe GL is now
+worked out live from ingredients through sub-recipes (cycle guard; deleted
+sub-recipe = gap). A missing GI no longer hides the total: the counted part
+is a lower bound, banded only when complete or already High. gi_no_prompt
+(and the global GI opt-out) mark a gap "not_wanted" rather than "no_gi".
+NEGLIGIBLE_CARBS_G = 1.0 in the amount eaten, mirroring DCP's 1 g protein
+floor. Trends/plots still skip incomplete days (day_gl_total -> None).
+```
+-->
+
+**MANUAL: WHAT AN EDIT CHANGES, AT A GLANCE**
+
+The section on data editing now opens with a short answer and a table: for each kind of change (a food's nutrients, its portions, a recipe's ingredients or servings, a rename, a delete, a substitution, a what-if, your profile), what happens to the recipes and meals that use it. In short, nutrient changes cascade everywhere automatically; amounts you have already typed keep their grams. A new subsection explains how an edit to the manual's own source file reaches your browser. [learn more...](#editing-consequences)
+
+<!--
+```
+Scope: user-manual.md Part 6 D (#editing-consequences) -- heading renamed to
+"Data editing: what changes when editing recipes, meals, or the food cache"
+so sidebar searches for "data editing", "editing recipes" and "editing food
+cache" rank it first (title words score 3x idf in scoreOf()). Quick-answer
+table synthesized from the existing D subsections, #data-effects,
+#stale-amounts, #fooduse-substitute, #whatif-apply, #day-profile; cascade
+claims checked against recipe_dcp.cascade_food_change/recompute_recipe_dcp
+and backend _stale_meals_middleware. New #manual-source-edits subsection:
+/manual and / both run manual_build.rebuild_manual_if_stale() (mtime check),
+and manual_update.get_active_manual() serves a downloaded manual instead
+when its stamp is newer than the baked header stamp.
+```
+-->
+
+#### October 8 updates
+
+**PROGRAM: NOTES IN A MEAL'S FOOD SEARCH**
+
+When you search for something to add to a meal, any note you've saved on a food or recipe now shows to the right of its **Add to meal** box. Long notes show their first few lines; click the note to read all of it, and click again to fold it back.
+
+<!--
+```
+Scope: Meals -> a meal -> Add food search (_add_food_row.html, meal.html,
+style.css). _search_local_results() rows now carry `notes` (foods.notes;
+recipes.notes, now selected by db.recipe_list()). The add-food table widens
+(76rem cap instead of 46rem) only when a result has a note; the note is a
+flex item beside the form that wraps below it on narrow windows, clamped to
+4 lines with CSS line-clamp, toggled open on click.
+```
+-->
+
+**PROGRAM: YOUR OWN MATCHES FIRST, ON EVERY SEARCH**
+
+The searches on Compare, Convert and Edit Recipe (Add ingredient), and the "copy from another food" searches (a custom food's **Estimate amino acids** and **Copy nutrient values**, and **Fill in nutrients from another food**), now show matches from your pantry, Food Cache and recipes straight away. The online results fill in a moment later, with the red **Online search in progress…** note showing until they do; anything you type or tick meanwhile is kept. The "copy from another food" searches now also rank results by how well they match, follow your "Show up to" result limit, and include your pantry foods. The amino acid search still lists foods with amino acid data first. [learn more...](#food-search)
+
+<!--
+```
+Scope: web/backend.py (_SEARCH_SCREENS, /search-rows/{screen}, _run_food_search
+options exclude_fdc_id / aa_first, _picker_sources), base.html
+[data-search-results] script, _search_results_block.html, new rows partials
+(_compare_search_rows, _convert_search_rows, _recipe_search_rows,
+_source_picker_rows; _pantry_search_rows reused), README "Searching for a
+food". _search_food_sources() removed: the pickers had no ranking, no limit,
+fetched USDA twice per search, and ran their online searches with a database
+connection open. My Pantry moved off its own script and
+/pantry/search-api-results onto the shared mechanism. Compare's entry loader
+now fetches uncached foods before opening its connection (CLAUDE.md DB rule).
+Rows carry data-row-key so typed amounts / ticks survive the swap; the
+unsaved-changes guard is re-pointed at the new rows.
+```
+-->
+
+**PROGRAM: EVERY SEARCH BOX SEARCHES EVERY SOURCE YOU TICK**
+
+The searches on Compare, Convert and Edit Recipe (Add ingredient) now look in every source ticked in their Source list, just like Foods → Search; they had been skipping Open Food Facts, the Canadian Nutrient File, and, on Convert and Edit Recipe, CoFID, AFCD and CIQUAL too. Clicking a result's name, converting it, adding it to a recipe, or comparing it now works whichever source it came from; a result not yet in your Food Cache from one of those sources used to end at "Could not load food". [learn more...](#food-search)
+
+<!--
+```
+Scope: web/backend.py search + fetch paths; README "Searching for a food".
+One pipeline, _run_food_search() (local -> online -> sort -> Source filter ->
+cap), now used by Foods -> Search, Analyze a Food Portion, meal add-food panel,
+My Pantry, Compare, Convert and Edit Recipe; options external / foods_only /
+exclude_recipe_id / clean_query. _meal_add_food_local_results() merged into
+_search_local_results() (superset row shape; GI/DIAAS as strings, matching
+online rows; aa_indicator everywhere, so a cached food with no nutrient data
+shows the warning sign on the meal panel too). Compare/Convert/Edit Recipe
+dropped their own cache+USDA loops; search_error dropped from Compare/Convert
+search (per-source failures are skipped silently, as elsewhere).
+Fetch-on-pick: food page (_food_detail_context), Convert detail, recipe
+ingredient add and Compare "Add to food cache" use _get_or_cache_source_food();
+Compare's uncached-entry loader uses _fetch_uncached_food_detail(). Open Food
+Facts ids are a one-way hash of the barcode number, so it travels as off_code:
+food_url() template global for result links, hidden field on Add to recipe,
+off_code_<id> beside Compare checkboxes (add-multiple caches those foods).
+```
+-->
+
+**PROGRAM: "ONLINE SEARCH IN PROGRESS…" WHEREVER YOU'RE WAITING ON ONE**
+
+Whenever NuMa is searching USDA, Open Food Facts or the Canadian Nutrient File, a red **Online search in progress…** note now shows where you'll see it: next to the result count, or beside the Search button on pages that wait for the online results before showing anything. It goes away when the results arrive. Food Cache also has a **Search online** button beside **Filter this list**, which takes the same words to Foods → Search. [learn more...](#food-search)
+
+<!--
+```
+Scope: all online-search screens. Async pages (Foods -> Search, Analyze a Food
+Portion, meal add-food panel, My Pantry): the grey "Searching ..." row at the
+bottom of the results table is replaced by a red note near the count / search
+box (_online_search_notice.html macro; same element ids, so the JS gate and the
+e2e "removed after fetch" checks still hold); the JS now removes it on success
+and rewrites it on failure. Pages that wait server-side (Compare's add panel,
+Convert, Fill in from another food, custom-food AA/nutrient source pickers,
+Edit Recipe ingredient search; also Foods -> Search's barcode path): search
+forms carry data-online-search, and a base.html submit listener adds the note
+beside the button when the query is non-empty and a live source is ticked (or
+none is). Live keys come from _LIVE_SOURCES via the live_source_keys template
+global. Notes it adds are cleared on a back-button (bfcache) restore. Food
+Cache: "Filter" renamed "Filter this list", plus a "Search online" button.
+```
+-->
+
+**PROGRAM: MY PANTRY SEARCHES EVERY SOURCE YOU TICK, AND SHOWS YOUR OWN MATCHES AT ONCE**
+
+My Pantry's search now looks in every source ticked in its Source list, the same as Foods → Search: Canadian Nutrient File, CoFID, AFCD and CIQUAL included, which it had been skipping. Matches from your pantry and Food Cache show straight away, and the online results fill in a few seconds later. Ticks you make in the meantime are kept. [learn more...](#pantry)
+
+<!--
+```
+Scope: Foods -> My Pantry (web/backend.py, pantry.html, new
+_pantry_search_rows.html). pantry_get had its own cache+USDA+OFF search that
+ignored cnf and the static sources despite offering their checkboxes. Replaced
+by the shared _search_local_results() and
+_external_food_search_results() (recipe rows dropped: a pantry holds foods).
+First render is local-only; new GET /pantry/search-api-results returns the
+full merged, re-sorted, capped rows, which replace the tbody (Compare ticks
+carried across), mirroring /food/search-api-results. search_error dropped:
+the shared helpers swallow per-source failures, as on Foods -> Search.
+Compare-button colouring now uses a delegated change listener.
+```
+-->
+
+**PROGRAM: MY PANTRY CAN FILTER ITS OWN LIST, AND COMPARE SEARCH RESULTS**
+
+My Pantry has a new **Filter my pantry list** box just above the list. Type a word or two to show only the pantry items whose name or notes contain them all. The search box at the top of the page still looks for new foods to add, and its results now have Compare checkboxes of their own. Each Compare button turns blue once two or more items are ticked. On Food Cache, a filter now also offers a **Not here? Search online** link to Foods → Search. [learn more...](#pantry)
+
+<!--
+```
+Scope: Foods -> My Pantry (web/backend.py pantry_get, pantry.html). New GET param
+"filter": every lower-cased word must appear in food_name + notes; applied after
+the items are built, so search's in-pantry detection and the link_id lookup
+still use the full list (all_items). Result count reads "N of M pantry items
+matching X"; an empty filter result says so rather than "Your pantry is empty".
+The Add search form carries the filter forward as a hidden field. Search
+results get an external compare-search-form (rows hold their own add/remove
+forms); a shared data-compare-btn script colours each button by the ticks for
+its own form only.
+```
+-->
+
+**PROGRAM: WHAT-IF SCENARIOS CAN BE SAVED, DOWNLOADED, AND APPLIED FOR REAL**
+
+Both What-if pages now let you save a scenario under a name and open it again later, and download the results as a CSV file. When every change is a straight swap (a food for a food at the same weight, or a recipe for a recipe at the same servings), **Apply these replacements for real…** makes the swap in your meals or recipes. A confirmation page first lists exactly which ones will change and which won't. [learn more...](#whatif-apply)
+
+<!--
+```
+Scope: Analysis -> What-if: meals / recipes (WHATIF-PLAN.md Phase 4). New table
+saved_whatif_scenarios (name, page, query) storing the page's own query string,
+minus "applied"; db.saved_whatif_*; routes /analysis/whatif/save, /load/{id},
+/saved/rename, /saved/delete; macros saved_panel / result_actions /
+applied_banner in _whatif_changes.html. CSV: /analysis/whatif/export.csv and
+/analysis/whatif-recipes/export.csv via whatif.meals_csv()/recipes_csv();
+evaluate_recipes(max_columns=None) for an uncapped recipe CSV. Route bodies
+split into _whatif_meals_compute()/_whatif_recipes_compute() so page, CSV and
+apply share one computation. Apply: whatif.real_substitution_problems() (pure)
+allows only replace food->food "grams" or recipe->recipe "servings", since
+db.substitute_item_in_meals/_recipes keep the stored amount as a number; chains
+and duplicate items refused. GET /analysis/whatif/apply = confirmation
+(analysis_whatif_apply.html) listing direct targets via new
+db.meals_with_direct_item / recipes_with_direct_ingredient and the nested-only
+count (what-if hits minus direct); POST re-plans from the query, substitutes in
+one transaction, recomputes DCP for changed recipes, redirects with applied=N.
+whatif.py itself still never writes.
+```
+-->
+
+#### October 7 updates
+
+**PROGRAM: "KEEP AS ENTERED" SETTLES AN AMOUNT FOR GOOD**
+
+When an amount you weighed doesn't match its food's portions, **Keep the ticked amounts as entered** now rewrites it as your own weight: "8 c (2309 gr)" becomes "2309.2 g (8 c)", just as if you'd typed the weight yourself. NuMa never lists it again, so there's no "Kept as entered" list on Foods → 9 or the food's Portions page. Amounts you'd already kept were rewritten the same way. [learn more...](#stale-amounts)
+
+<!--
+```
+Scope: Foods -> 9 and a food's Portions page ("Amounts that no longer match").
+Prompted by Refried beans' "8 c (2309 gr)" (289 g/cup, weighed) showing on the
+pinto beans' Portions page as kept vs 1368 g "now" (USDA 171 g/cup), which read
+as an unresolved problem. data_quality.own_weight_text()/keep_as_entered()
+rewrite the unit text to the "<g> g (<volume>)" form the entry parser stores
+for a typed weight (grams untouched, so no totals move); _has_explicit_weight
+then excludes it from stale_amounts(). convert_keeps() runs in backend
+_lifespan: amount_keeps rows whose grams are unchanged are rewritten, the rest
+dropped. Removed: action=unkeep, kept_amounts context, the kept-list tables
+and "Stop keeping". demo_data._recipe_ingredients() applies a starter recipe's
+"kept" positions the same way on load, and _bundled_recipe_state() matches,
+so the loaded copy still compares as unedited.
+```
+-->
+
+**PROGRAM: LONG LISTS ON THE DATABASE CHECK PAGE START FOLDED**
+
+On Foods → 9, any list of more than 6 entries now starts folded up behind a bar giving its count (say, "96 foods with missing data still to deal with — show the list"), so the whole page can be taken in at a glance; click the bar to open the list. Shorter lists show as before. [learn more...](#db-check)
+
+<!--
+```
+Scope: Foods -> 9 (web/templates/food_cache_db_check.html, web/static/style.css).
+New fold_list(n, key, summary, only_when_folded) call-macro wraps the missing-
+nutrient-data table, food data problems, amounts that no longer match (with the
+kept-as-entered list; folded on their combined count), USDA copies over a year
+old, and each broken-references table in <details class="fold-list"> when n > 6.
+data-remember="dbcheck-<key>" keeps an opened list open across the page's own
+POST-redirect saves. The summary bar shows "show the list" / "hide the list" via
+CSS on details[open]. The two sections already in <details> are unchanged.
+```
+-->
 
 #### Release v2026-10-07-2026 summary (dated details below)
 
@@ -6855,1638 +7479,6 @@ written to the annotation; population/ref/study are display-only, so Prep
 context is the place for provenance; no rescaling from the bread-referenced
 column, no GL import), and gi-why-foster-powell (the existing bold-lead
 paragraph promoted to a heading). No behaviour change beyond the new panel.
-```
--->
-
-#### Release v2026-09-24-0941 summary (dated details below)
-
-- Complement suggestions no longer skip over plant foods like sesame seeds, sunflower seeds and oats — a scoring error had been quietly filtering them out in favour of animal foods.
-- Printable pages now use dark ink for every line of text — the greyed-out notes and subtitles came out too faint to read on paper.
-- The Edit Recipe page has one Save button instead of two: Introduction now saves with everything else in Recipe details, and the button sits up on the "Recipe details" heading row.
-- A printed recipe lists each ingredient the way you typed it — "1/2 t", "3 T", "3/4 c" — instead of converting everything to grams.
-- A printable analysis of an incomplete protein now says "(limited by Lysine)" rather than just tacking the amino acid's name onto the DCP figure.
-- A recipe's step-by-step is now called "Instructions" everywhere — the recipe page, the printout, and the translation preview used to call the same thing "Procedure".
-- Every page with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — now carries the same "Data-entered safety" note, and all of them now actually offer to save your typing if you click away before saving.
-- Recipe notes now travel with the recipe: they print on the nutritional analysis (at the very bottom), go into the recipe CSV export, and are included in the AI translation.
-- Recipes now have a "Notes and documentation" field on the Edit Recipe page, for sources, substitutions, and anything else you want on record.
-- Recipes that show "NC (not computed)" in the recipes list are now re-checked automatically when the program starts, so a recipe whose own page shows a real DCP can't keep showing NC in the list.
-- MANUAL: Windows installation is now documented — the install section of Part 1 has separate Windows and Linux instructions, with Windows first.
-
-#### Sep 24 updates
-
-**PROGRAM: COMPLEMENT SUGGESTIONS NO LONGER OVERLOOK PLANT FOODS**
-
-Foods like sesame seeds, sunflower seeds, oats and pumpkin seeds now appear as protein-complement suggestions where they belong. A scoring error had been quietly dropping plant foods out of the main suggestion list and pushing them down into the secondary list, so the top suggestions leaned toward eggs, cheese, fish and chicken more than they should have. For a bowl of lentils, four plant complements that close the amino acid gap in a normal-sized serving were being left out entirely. [learn more...](#gloss-diaas)
-
-<!--
-```
-Scope: usda_nutrients.py (_score_one_complement, suggest_complements),
-tests/test_usda.py. The pooled-DIAAS projection used by the "would this
-addition reduce digestible protein" guard weighted the base by its true
-ileal digestibility but the candidate by its DIAAS SCORE. DIAAS already
-folds in a food own limiting-amino-acid ratio, so using it as a
-digestibility factor double-counts that shortfall -- sesame is TID 0.84
-but DIAAS 0.44. Low-DIAAS plant foods therefore failed the guard while
-animal foods (DIAAS approx TID approx 1) were unaffected, a systematic
-one-directional bias. It also contradicted _diaas_improver_score, which
-has always used TID, so the same food could be rejected by one tier and
-recommended by the other. _score_one_complement now takes an explicit
-cand_digestibility (TID via diaas.get_digestibility), passed at all three
-call sites including both legs of the gap-cascade pair builder; it falls
-back to the old behaviour only when no candidate name is available. For a
-100 g cooked-lentil base this restores sesame at 22 g, sunflower at 38 g,
-oats at 51 g and pumpkin seeds at 55 g to the gap-closer tier. Three
-regression tests added (TestComplementCandidateDigestibilityBasis), and
-the pair-recompute test updated to mirror the production call. Two new
-reference documents, COMPLEMENT-LOGIC.md and COMPLEMENT-WORKED-EXAMPLE.md,
-describe the whole selection path in plain English with a hand-checkable
-worked example, and scripts/complement_worksheet.py prints every
-intermediate figure for any base food so the result can be verified by
-hand.
-```
--->
-
-**PROGRAM: PRINTABLE PAGES NOW PRINT IN DARK INK THROUGHOUT**
-
-Every line of text on a printable analysis is now dark enough to read on paper. The greyed-out text — ingredient notes, the subtitle under the title, the small explanatory lines — looked fine on screen but came out faint from a real printer. Nothing moved or changed wording; the lighter text is simply darker, and still set apart by being smaller or italic.
-
-<!--
-```
-Scope: web/templates/print.html stylesheet. .muted now inherits the body ink
-(#111) instead of #666; .meta, .dcp-row and .protein-oneline drop their own
-greys, as does the translation disclaimer paragraph inline style. The two
-semantic status colours stay, because they carry meaning rather than
-emphasis, but were darkened (green #146c2e to #0f5222, amber #a05a00 to
-#7a4400) so a mono printer renders them as dark ink rather than mid-grey.
-A new test walks every colour declaration on a rendered printable page and
-fails any whose channels are not all below 0x66, bar that short allow-list.
-```
--->
-
-**PROGRAM: ONE SAVE BUTTON ON THE EDIT RECIPE PAGE**
-
-The Introduction box no longer has a Save button of its own — it saves with everything else in Recipe details, so there is one "Save recipe details" button for the whole section and no question about which one to press. That button now sits up on the "Recipe details" heading row rather than taking up a row by itself, and the data-entry safety net covers the Introduction along with every other field in the form.
-
-<!--
-```
-Scope: web/templates/recipe_edit.html, base.html; web/backend.py; three tests
-updated in tests/test_web.py. The Introduction textarea used to belong to a
-second, empty <form id="introduction-form"> via the HTML form="" attribute,
-posting to its own /recipe/<id>/introduction route -- which also meant it had
-to be excluded from the main form dirty tracking (data-leave-guard-ignore)
-and needed its own branch in the cross-form submit guard. It is now an
-ordinary field of the Recipe details form; recipe_edit_post() takes
-introduction as a form field instead of preserving the stored value, and the
-now-callerless /introduction route is deleted. The recipe page's own inline
-"Save instructions" editor (/recipe/<id>/instructions) is unaffected and
-still carries every other text field forward. The single Save button moved
-onto the <summary> row, so it sits outside the form and targets it by id
-with form=""; base.html's unsaved-changes tracker gained a fallback lookup
-for exactly that shape, or such a form would silently lose its "Unsaved
-changes" badge, and a click handler stops the button from collapsing the
-<details> it now lives on.
-```
--->
-
-**PROGRAM: PRINTED RECIPES SHOW THE AMOUNTS YOU ACTUALLY TYPED**
-
-The Ingredients list on a printable recipe now reads "1/2 t" for the salt and "3 T" for the applesauce, exactly as you entered them, instead of converting every line to grams — nobody measures vanilla extract in grams. The gram weights are unchanged and still drive every calculation behind the scenes; they simply are not what gets printed.
-
-<!--
-```
-Scope: web/backend.py (_ingredient_amount_display(), attached in
-_recipe_detail_context), web/templates/print.html Ingredients table.
-recipe_ingredients already stores both: amount in grams and unit as the
-typed portion string, and portions._ing_amount_display() already rendered
-the latter for the Edit Recipe page. The printout now uses it too, via a
-wrapper that also resolves a stored "p1" shorthand back to that food's own
-portion description, falling back to grams when the portion is gone.
-Ingredient amounts are never scaled by the "servings to analyze" widget
-(only nutrients are), so an as-typed label can never disagree with what is
-printed beside it. The recipe detail page still shows grams plus a volume
-hint -- it is an analysis view, not something you cook from. One new test.
-```
--->
-
-**PROGRAM: A PRINTOUT NOW SAYS WHAT THE LIMITING AMINO ACID MEANS**
-
-When a printable nutritional analysis shows incomplete protein, it now reads "DCP: 1.4 g - (limited by Lysine)" instead of "DCP: 1.4 g - Lysine", which looked as though the figure itself were somehow Lysine. The Protein Summary section on the same printout says it the same way.
-
-<!--
-```
-Scope: web/templates/print.html, the protein-oneline header and the
-Protein Summary section, both for the pooled meal/recipe DIAAS variant
-which previously rendered diaas.limiting_label bare. The single-food
-variants already read "Incomplete -- limiting AA: X" and were left alone.
-Falls back to "Incomplete" when there is no limiting label, as before.
-One new test.
-```
--->
-
-**PROGRAM: ONE NAME FOR A RECIPE STEP-BY-STEP: INSTRUCTIONS**
-
-A recipe's step-by-step is called "Instructions" wherever it appears — the recipe page, the printable analysis, and the translation preview all used to head it "Procedure" while the Edit Recipe page called the same box "Instructions". The buttons on the recipe page now read "Edit instructions" and "Save instructions" to match.
-
-<!--
-```
-Scope: web/templates/recipe_detail.html, print.html, recipe_translate_import.html,
-recipe_edit.html; numa_app/services/print_sections.py. Visible labels only. The
-sec-procedure element id and the "procedure" PRINT_SECTION_LABELS key keep their
-old names on purpose: the id is linked to from the instructions-save redirect,
-and the key is what prefs.json stores for the print "what to include" choices,
-so renaming it would silently uncheck that section for anyone who had already
-chosen it. Both are commented in place to say so.
-```
--->
-
-**PROGRAM: THE SAME DATA-ENTRY SAFETY NET ON EVERY EDIT PAGE**
-
-Edit Custom Profile and Annotate a Food now protect your typing the way the Edit Recipe page already did: click a link elsewhere in NuMa with unsaved edits and NuMa asks whether to save them first, leave without saving, or stay and keep editing. All four edit pages (Edit Recipe, a meal, Edit Custom Profile, Annotate a Food) now carry the same "Data-entered safety" note at the top explaining it.
-
-<!--
-```
-Scope: web/templates/base.html, _failsafe_note.html (new), recipe_edit.html,
-meal.html, food_custom_edit.html, food_annotate.html. The link-interception
-guard existed only as near-duplicate per-page scripts on recipe_edit.html and
-meal.html. It now lives once in base.html, driven by data-leave-guard="<what
-the form edits>" on the form, with data-leave-guard-alert (a Saved banner to
-drop on first keystroke) and data-leave-guard-ignore (fields inside the form
-that submit elsewhere via form="", i.e. the Introduction block) as options,
-and window.numaLeaveGuard.isDirty()/markClean() exposed so recipe_edit.html
-keeps its extra behavior: submitting the ingredient-add or Introduction form
-saves pending Recipe details first. The note text itself is the shared
-_failsafe_note.html macro, so note and behavior can't drift apart; a test
-asserts every page showing the note also marks a form with data-leave-guard.
-Deliberately not added: create-new forms (New Recipe, Add Portion), where
-"save first" would mean creating a record the user has not asked for, and
-one-click pickers like the oxalate link chooser.
-```
--->
-
-**PROGRAM: RECIPE NOTES PRINT, EXPORT, AND TRANSLATE**
-
-The "Notes and documentation" you write for a recipe now follow it everywhere: they print at the very bottom of the printable nutritional analysis (and can be unchecked there like any other section), they travel in the recipe CSV export and come back on import, and the AI recipe translation now translates them too. On the recipe page itself, the notes now sit at the very bottom, after the analysis.
-
-<!--
-```
-Scope: numa_app/services/print_sections.py, recipe_csv.py, recipe_translate.py;
-web/templates/print.html, recipe_detail.html, recipe_translate_import.html;
-web/backend.py. "notes" added last in PRINT_SECTION_LABELS and rendered last in
-print.html, offered by _recipe_available_sections() only when non-empty. CSV
-gains a recipe_notes column (named to avoid colliding with ingredient_notes);
-parse_recipes_csv() reads it with .get(), so a CSV exported before the column
-existed still imports. RECIPE_TEXT_KEYS gains "notes", which carries it through
-prompt-building, validation fallback-to-English, the import preview, and
-_render_translated_recipe(). The recipe detail section moved from just after
-Procedure to the end of the page, sidebar entry with it. Five new tests.
-```
--->
-
-**PROGRAM: RECIPES NOW HAVE A NOTES AND DOCUMENTATION FIELD**
-
-Every recipe can now carry free-form notes — where it came from, sources you consulted, substitutions you have tried, changes to make next time. The box sits just below Instructions on the Edit Recipe page and saves with the "Save recipe details" button; once you have written something, it appears as its own "Notes and documentation" section on the recipe page. [Learn more...](#recipes)
-
-<!--
-```
-Scope: Edit Recipe (/recipe/<id>/edit), recipe detail (/recipe/<id>); db.py,
-web/backend.py, web/templates/recipe_edit.html, web/templates/recipe_detail.html.
-New recipes.notes TEXT column, added to the CREATE TABLE for fresh installs
-and to the recipes ALTER TABLE migration list for existing databases (adding
-a column preserves every existing row; existing recipes get NULL). Threaded
-through recipe_create()/recipe_update() as a keyword arg. recipe_update()
-writes every text field on every call, so the Instructions and Introduction
-save routes now pass the current notes through -- same bug class as the
-earlier total_volume/serving_size wipes -- and /recipe/<id>/copy carries
-notes to the copy. The detail-page section and its sidebar entry render only
-when notes are non-empty. Not wired into the printable analysis vocabulary
-(print_sections.py) or recipe CSV export/translation; those stay as they are
-for now. Two new tests in tests/test_web.py.
-```
--->
-
-**PROGRAM: RECIPES LIST NO LONGER SHOWS "NC" FOR A RECIPE THAT ACTUALLY HAS A DCP**
-
-Every recipe still showing "NC (not computed)" now gets re-checked each time the program starts, so one whose ingredients have since gained the amino acid data it needs picks up its real digestible complete protein figure on its own. Before this, the recipes list could show NC for a recipe whose own page displayed a properly calculated DCP. [Learn more...](#recipes)
-
-<!--
-```
-Scope: Recipes list (/recipes) vs recipe detail (/recipe/<id>); web/backend.py
-lifespan, db.py, import_foods.py, import_json_folder.py, numa_import_claude.py.
-Root cause: the recipes list reads the stored recipes.dcp_g column, while the
-detail page recomputes DIAAS live on every view, so any recipe whose stored
-value was never written (or was cleared while an ingredient lacked AA data)
-displayed NC in the list and a real number on its own page. Several food-write
-paths overwrite an existing food's nutrients via cache_food() without calling
-recipe_dcp.cascade_food_change(), so a food gaining AA data left every recipe
-using it stale: the web Claude AI import route (/food/cache/claude-import) and
-the three CLI importers (import_foods.py, import_json_folder.py,
-numa_import_claude.py) all now cascade. The CSV import needs no cascade — it
-only ever creates new fdc_ids, which no recipe can reference yet. For recipes
-already left stale by those paths, the web app's startup now runs one repair
-pass over db.recipes_missing_dcp() (recipes with dcp_g IS NULL), recomputing
-each; genuinely-uncomputable ones (0 servings, or a significant protein
-ingredient with no AA data) simply stay NC, and a failure is logged to
-recompute_errors rather than blocking startup. Cost is bounded by the number
-of NC recipes, not the recipe count. Found on a real database: 2 of 42
-recipes were stale this way; both now compute. Three new tests in
-tests/test_food_cascade.py cover the Claude-import cascade and both startup
-repair outcomes.
-```
--->
-
-**MANUAL: WINDOWS INSTALLATION INSTRUCTIONS**
-
-Part 1's "Download and install the program" section now covers Windows as well as Linux, with Windows first since that's what most people will need. It walks through where to put the program file, getting past the two warnings Windows shows for unsigned programs (and why they appear), launching it, pinning it to the Start menu, quitting properly, and updating later without losing your data. [Learn more...](#install-windows)
-
-<!--
-```
-Scope: user-manual.md Part 1, section F. Section F split into "#### Windows
-{: #install-windows}" and "#### Linux {: #install-linux}", Windows first.
-The old item e ("what kind of program this is" / browser-tab and sleep
-caveats) was platform-neutral, so it moved out of the Linux list into its own
-"#### What kind of program this is {: #install-webapp-note}" subsection
-serving both, with its Linux-specific "click NuMa's icon" wording generalized.
-The "Windows instructions are coming soon" line at the top of F is gone. The
-Linux items are otherwise verbatim from before. Windows content reflects the
-actual build: a single unsigned PyInstaller one-file nutrimagnus.exe with
-console=True (hence the "leave the black window open" instruction), data in
-%LOCALAPPDATA%\numa and %APPDATA%\numa per platform_utils.py, so replacing
-the .exe is the whole update procedure. The Windows steps give the releases/latest/download/nutrimagnus.exe
-link and nothing else -- no releases-page navigation -- verified 200 /
-application/octet-stream, so a click downloads rather than opening a page.
-No program change, so no version.py bump.
-```
--->
-
-#### Release v2026-09-23-2133 summary (dated details below)
-
-- Mutation testing run against the three modules flagged by this week's churn check: six real test gaps found and closed, including one that would have reported a trace-protein food as having confirmed amino acid data.
-- MANUAL: Weekly sweep — the Annotate page's manual section rewritten for the web app, several new features documented, and the sweep moved to Wednesday evening / Thursday morning.
-- Deleting a food that one of your recipes, meals, or pantry entries still uses is now refused by the database itself, not just by the page you asked from.
-- A recipe that uses another recipe as an ingredient can now be starter data; one such recipe was previously dropped from every release without saying so on the Home page.
-
-#### Sep 23 updates
-
-**PROGRAM: NO VISIBLE CHANGE — MUTATION TESTING CLOSED SIX REAL GAPS IN THIS WEEK'S CODE**
-
-Nothing you can see changed. NuMa's [test suite](#extensive-code-testing) was checked by deliberately planting small errors in the three modules that changed most this week and seeing whether the tests noticed; six places where they would not have are now covered. The most consequential: a food with a trace of protein and no amino acid data could have been reported as having confirmed data, the same wrong-checkmark problem fixed twice before in other places.
-
-<!--
-```
-Scope: tests/test_recipe_nutrients.py, tests/test_complements.py,
-tests/test_usda.py, setup.cfg, README-numa-documentation.md (rotation log).
-Run against the three modules the 2026-09-23 weekly churn check flagged, per
-the documented procedure's "flag it and ask" step -- the deferral offered
-first was mine, not the procedure's, and was withdrawn when asked.
-recipe_nutrients.py 240->244 killed of 293. Four real gaps: servings <= 0 vs
-<= 1 in recipe_serving_grams() (every test used 2+ servings, so the mutant
-returned None for every single-serving recipe); its `or "g"` unit default
-(a NULL total_weight_unit silently lost the weight); and, twice over, a
-`continue` that skips an unusable ingredient becoming `break`, which drops
-every ingredient after it -- once in expand_recipe_ingredients() for an
-uncached food, once in atomic_recipe_ingredients() for a deleted sub-recipe.
-complements.py 1113->1122 killed of 1548; the churn's new _amount_note() went
-12 survivors to 3. Its cache lookup was never exercised because every existing
-assertion recomputed portions.amount_note() in the test and compared, so
-gutting the lookup silently drops the amount hint from every suggestion.
-usda_nutrients.py 1265 killed of 1520. aa_indicator()/has_confirmed_aa_data()/
-has_macro_data() produced no survivors. One real gap: has_amino_acid_data()'s
-"no protein, so AA data is irrelevant" shortcut was tested at exactly 0 and
-with the key absent but never just above it.
-Two infrastructure fixes found by doing this: mutmut's also_copy in setup.cfg
-had gone stale when manual_update.py was added (conftest could not import it
-inside the mutant tree), and naming package files individually only works when
-a source_path already creates numa_app/ inside mutants/ -- which it does not
-when the module under test is at the repo root. also_copy now copies the
-package.
-Survivors left are equivalent mutants, chiefly sqlite3.Row's case-insensitive
-key lookup making ing["FDC_ID"] identical to ing["fdc_id"], plus the scattered
-suggest_complements()/build_complement_display() population characterized on
-2026-09-10. No "no tests" (zero-coverage) regions in any of the three.
-```
--->
-
-**MANUAL: WEEKLY SWEEP — ANNOTATE SECTION REWRITTEN FOR THE WEB, FOUR FEATURES DOCUMENTED, SWEEP DAY MOVED**
-
-This week's maintenance pass. The manual's **Annotate a Food** section still described the old typed-command picker ("type the number to select that food") rather than the web page the app's own Learn more link sends you to — rewritten, and it now covers all four ways to reach Annotate, the GI lookup's click-a-result behavior, and why the two "don't prompt me again" checkboxes are rarely needed. Newly documented: the gram weight shown beside a serving amount, the amino acid status now shown for recipes in search results, and the clickable GI/DIAAS figures on an add-food list. The front-page feature list was claiming NuMa searched two food databases when it searches six. The weekly sweep itself moves from Saturday to Wednesday evening / Thursday morning.
-
-<!--
-```
-Scope (weekly sweep, 2026-09-23 — first under the new day):
-Longer-cadence checks: none due (monthly 09-01, quarterly fixtures 09-11,
-glossary 09-16, annual datasets 09-20, full manual audit 09-13).
-1 CLAUDE.md drift: version.py was missing from Package Layout despite
-  CLAUDE.md carrying a rule about bumping it. Added.
-2 NuMa capitalization: 3 prose hits fixed. The same grep caught real drift --
-  README described the bundled CIQUAL as the 2020 edition when the 09-20
-  annual check had already upgraded it to 2025 (3,484 entries, verified).
-3 Vendored Bootstrap: 5.3.8 vendored, 5.3.8 upstream. No action.
-4 Changelog pruning: removed the Sep 7 and Sep 6 sections, 168 lines, leaving
-  the Sep 9-23 window.
-5 Manual consolidation: the CLI-era #annotate section (the last such section
-  left -- greps for "Type ?", "^Commands:", "Command line:", a{id} now come
-  back clean outside the changelog); plus the three undocumented features
-  above.
-6 README.md accuracy: food-search bullet named only USDA + OFF against an
-  intro paragraph two lines above it that says six sources; GI reference-table
-  lookup absent from the feature list entirely.
-7 Test coverage: everything from this week had tests except two JS-only
-  behaviors. Closed the meal-item scroll restore with an e2e test aimed at the
-  action-URL regex that gates the save (finding the right form also confirmed
-  the Rename popup correctly does not save an offset). NOT closed: the
-  spurious "Leave site?" suppression -- Playwright auto-dismisses beforeunload
-  dialogs, so a test asserting "no dialog" would pass for the wrong reason.
-8 Links: internal links now covered by tests/test_link_integrity.py (passing).
-  External: 23 non-200s across 75 URLs, all bot-gating hosts already known
-  from previous sweeps (NIH ODS, examine.com, doi.org, researchgate,
-  claude.ai, fdc.nal.usda.gov). No real rot.
-9 Glossary: "sub-recipe" was used 20 times in the manual body with no entry --
-  added, and linked from the two passages written this week.
-Mutation-testing churn check: usda_nutrients.py (+62), complements.py (+61,
-  carried over from the 09-20 flag) and recipe_nutrients.py (+44) all flagged
-  in the rotation log; triage stays a dedicated session.
-Cadence: sweep moved Saturday -> Wednesday evening / Thursday morning, with
-  .github/workflows/e2e-tests.yml moved to cron "0 6 * * 4" so its result is
-  fresh for the sweep.
-Also this session, outside the numbered items: README's Test Suite section
-  claimed 733 tests against an actual 1,117 and was missing 13 test files --
-  corrected, and two new tests in test_packaging_spec.py now fail if that
-  table misses a file or lists a deleted one, so it cannot drift silently
-  between monthly accuracy checks again.
-```
--->
-
-**PROGRAM: A FOOD IN USE CANNOT BE DELETED, NOW GUARANTEED BY THE DATABASE**
-
-NuMa has refused for some time to delete a food that one of your recipes, meals, or pantry entries still uses, telling you which one is holding it. That refusal now also lives in the database itself, so no future part of the program — or any script, or anything editing the file directly — can get around it and leave a recipe pointing at a food that no longer exists. If you use the Settings toggle to clear starter data, any starter food you have since used in a meal or recipe of your own is now kept instead, and the page tells you how many and why.
-
-<!--
-```
-Scope: db.py (trg_foods_no_delete_when_referenced in init_db),
-numa_app/services/demo_data.py (clear_demo_data), web/backend.py
-(settings_demo_data_clear), web/templates/settings.html, tests/test_db.py,
-test_demo_data.py, test_web.py, README-numa-documentation.md.
-BEFORE DELETE trigger on foods, aborting when a pantry/recipe_ingredients/
-meal_items row still references the fdc_id -- the same three conditions
-food_references() reports. A trigger, not an FK on recipe_ingredients.fdc_id:
-sub-recipe rows store fdc_id 0 (their target is ref_recipe_id, so no food row
-can ever match), and adding an FK to an existing table needs a table rebuild
-plus repair of every pre-existing orphan, whereas a trigger guards new
-deletions and leaves existing damage to check_db_integrity()/
-repair_db_integrity(). Application-level checks in the delete routes stay --
-they can name the holder, which the trigger cannot.
-clear_demo_data() had to change with it: it deleted every starter food
-outright, silently orphaning a meal logged with one; under the trigger that
-would have aborted the whole clear instead. It now skips still-referenced
-foods and returns foods_kept, which the Settings confirmation reports.
-Three integrity tests that manufactured orphans BY deleting a referenced food
-now write the orphan row directly, since the scenario they simulate is exactly
-what is no longer possible.
-```
--->
-
-**PROGRAM: A RECIPE BUILT ON ANOTHER RECIPE CAN NOW BE STARTER DATA**
-
-Starter data — the foods, pantry items and recipes a brand-new install arrives with, and that [Settings](#starter-data) can restore individually — now supports a recipe that uses another recipe as one of its ingredients. Marking such a recipe with a leading `*` previously did nothing at all: it was silently left out of every release, along with any food only it used. The sub-recipe travels with it, so restoring the parent on its own brings the sub-recipe too rather than leaving a broken ingredient.
-
-<!--
-```
-Scope: scripts/export_starter_data.py, numa_app/services/demo_data.py,
-scripts/refresh_starter_data.py, numa_app/services/starter_data.json,
-tests/test_demo_data.py, test_export_starter_data.py,
-test_refresh_starter_data.py, README-numa-documentation.md.
-Export is now recursive (_export_recipe): a sub-recipe is exported before its
-user, so the recipes list is in dependency order and load_demo_data() always
-has the sub-recipe's new id when it links the parent. An unstarred sub-recipe
-is auto-included with a NOTE, same as an unstarred ingredient food. Ingredient
-entries gained a 4th element, kind ("food"/"recipe"); demo_data._ingredient_parts()
-reads a 3-element entry as a food so a pre-nesting starter_data.json still loads.
-clear_demo_data() now deletes recipes in REVERSE creation order -- deleting a
-sub-recipe first trips the recipe_ingredients.ref_recipe_id foreign key.
-restore_selected() widens a selection to the sub-recipe closure and links to an
-already-present sub-recipe by name instead of duplicating it.
-Also fixed a latent crash found while doing this: db.recipe_delete() leaves the
-ingredient row with ref_recipe_id NULL, ref_recipe_deleted 1 and fdc_id 0, which
-the export's food branch would have followed into get_cached_food(0) -- that
-recipe is now skipped with a warning. refresh_starter_data.py refreshes existing
-sub-recipe entries by source id but still defers adding a NEW one to the export,
-which is what orders the list. Live effect: starter data goes from 46 foods /
-7 recipes to 47 / 8.
-```
--->
-
-#### Release v2026-09-23-1718 summary (dated details below)
-
-- A food's own detail and Edit Custom Profile pages now link straight to Annotate, for adding or changing its GI and DIAAS estimates.
-- An amount given in servings now shows what it weighs in grams alongside it, on a meal's item list, both recipe ingredient lists, and a printed recipe.
-- In the Annotate page's GI lookup you can now click anywhere on a result to use its GI value; the list then closes, leaving the value and the Save button in view.
-- Recipes in a search list now show whether they have amino acid data, instead of leaving that column blank.
-- The Home page's "see what changed" link now opens the manual at the most recent release's summary, instead of the top of the updates log.
-- You are now asked for a missing DIAAS estimate as well as a missing GI, and the GI/DIAAS figures on the add-food list are clickable for editing a value you have already entered.
-- The Edit Custom Profile page now has the same Contents sidebar the Food Detail and Daily Summary pages use, for moving straight to any of its nine sections.
-- Recipe ingredient amounts shown in cups or tablespoons are now worked out from the food's own portion data, instead of a generic density guess that could be well off.
-- Every nutrient column on the Daily Summary's Recent Days table now shows its own "% Goal" figure, and the Date column stays put as you scroll the table sideways.
-- The Nutrient Plot page now opens showing the plot you've pinned to the Home page, instead of starting blank and hiding its own "Show on Home page" toggle.
-- Adding a recipe as "Individual ingredients" now fully breaks down nested sub-recipes too, instead of adding them as whole-recipe items.
-- A recipe result's "Servings" field no longer goes blank when background search results finish loading and merge into the list.
-- "Add as individual ingredients" no longer quietly reverts to "Whole recipe" when external search results arrive after you've picked it.
-- Manage Portions can now edit a custom portion's description and gram weight in place, keeping its `pN` shortcut unchanged.
-- Clicking a food's name from a recipe's ingredient list or a meal's item list now says which recipe or meal that amount came from.
-- Leaving unsaved Recipe Details, or a meal's Rename/date edits, now offers you the choice to save first, leave without saving, or stay and keep editing.
-- A meal's item list now keeps your scroll position when you add, edit, or remove an item.
-- Fixed a spurious "Leave site?" browser warning when adding an ingredient to a meal or recipe.
-
-#### Sep 23 updates
-
-**PROGRAM: REACH ANNOTATE FROM THE FOOD ITSELF**
-
-A food's detail page and its [Edit Custom Profile](#drafted-foods) page now each carry an **Add or edit GI / DIAAS estimates** button that goes straight to that food's [Annotate](#annotate) page and brings you back when you are done. Until now the only ways in were the post-add prompt, the GI/DIAAS cells on an add-food list, and Foods → Annotate followed by filtering for the food by name — so for a food you were already looking at, there was no obvious way at all.
-
-<!--
-```
-Scope: web/templates/food_detail.html, food_custom_edit.html,
-food_annotate.html, tests/test_web.py.
-Annotate has always accepted any cached fdc_id, user-drafted ones included
-(list_cached_foods/search_cached_foods don't filter on user_drafted) -- the
-gap was purely navigational. The ?next= round-trip is the same one the
-post-add prompt uses. That prompt's "No X estimate on file yet" paragraph
-and its Skip-forever button were gated on `next` alone, so a deliberate
-visit to a food that already had both values rendered "No  estimate on file
-yet" with an empty join; both are now gated on `next and missing`, and the
-return button reads "Back without saving" rather than "Skip for now" when
-there is nothing to skip.
-```
--->
-
-**PROGRAM: SERVINGS NOW SHOW WHAT THEY WEIGH**
-
-Wherever an amount is given in servings — a recipe added to a meal, or a recipe used as an ingredient inside another recipe — the gram weight of that amount now appears next to it, as in "2 servings (500 g)", on screen and on a printed recipe alike. A serving count on its own says nothing about how much food it is; the weight makes two recipes comparable at a glance. Nothing is shown if the weight can't be worked out, which happens when a recipe has neither a total weight of its own nor a full set of weighable ingredients.
-
-<!--
-```
-Scope: numa_app/services/recipe_nutrients.py (new recipe_serving_grams()),
-web/backend.py (_meal_items_with_nutrients recipe branch, and ref_grams in
-_attach_ref_serving_sizes), web/templates/meal.html, recipe_detail.html,
-recipe_edit.html, print.html, tests/test_web.py.
-recipe_serving_grams() prefers the recipe's own stated total_weight, which
-is stored AS TYPED with its unit (only total_volume is normalized, to ml on
-save), so it converts via portions._UNIT_TO_GRAMS rather than assuming
-grams -- two existing callers do assume grams and are wrong for an oz/lb/kg
-recipe. Falls back to db.recipe_compute_weight() but only when that reports
-complete: an incomplete sum is a lower bound, and a serving weight quietly
-short by an unknown amount is worse than none. The print/export page picks
-ref_grams up from the same shared helper, via _recipe_detail_context.
-```
--->
-
-**PROGRAM: CLICK ANY GI LOOKUP RESULT TO USE ITS VALUE**
-
-On the [Annotate](#annotate) page, clicking anywhere on a [GI](#gi) lookup result — the food name included — now puts that value in the GI estimate box. The list of matches then disappears and the lookup panel closes, so what you are left looking at is the GI box, which flashes as it fills, and the **Save annotation** button, now highlighted and ready to press. Before, only the small button at the end of the row did anything, and it gave no visible sign it had worked.
-
-<!--
-```
-Scope: web/templates/food_annotate.html (gi-pick-row + usePick()),
-web/static/style.css (.gi-pick-row/.btn-save-pending/.field-just-set),
-tests/e2e/test_search_e2e.py.
-The click handler was bound to .gi-pick (the button) alone, so a click on
-any other cell hit nothing, and the handler's only effect was setting a
-field above a collapsed <details> panel -- indistinguishable from a dead
-click. Handler now binds to the row; the button stays as the explicit
-affordance and rides the same row listener. A confirmation line under the
-results was tried first and dropped: it lands below a result list that can
-be long enough to scroll it out of sight. Instead the pick empties the
-results and sets details.open = false, and the still-unsaved value is
-carried by highlighting and focusing #save-annotation-btn.
-```
--->
-
-**PROGRAM: RECIPES NOW SHOW THEIR AMINO ACID STATUS IN SEARCH LISTS**
-
-When you search for something to add to a meal or a recipe, or search on the Foods page, the AA column now shows a green checkmark for any recipe whose ingredients carry [amino acid](#gloss-aa) data — the same way it already did for individual foods. Before, that column was simply blank for every recipe, so a recipe with full AA data looked no different from one with none.
-
-<!--
-```
-Scope: numa_app/services/recipe_nutrients.py (new recipe_aa_indicator()),
-web/backend.py (_recipe_aa_status() + the three recipe-row builders:
-_search_local_results, _meal_add_food_local_results, recipe_edit_get),
-web/templates/recipe_edit.html, tests/test_web.py.
-Two of the three recipe-row builders emitted no "aa" key at all, so the
-template's aa branches all fell through; the third (Food Search) set
-"✓" if dcp_g is not None, a stale-DCP proxy that says nothing about AA
-data either way. A recipe has no nutrients dict of its own, so the status
-now comes from aa_indicator() over recipe_total_nutrients() -- an empty or
-fully uncached recipe totals to {} and reports "⚠", matching an uncached
-food. recipe_edit.html also hard-coded an em-dash for recipe rows ahead of
-its own aa branches; removed.
-```
--->
-
-**PROGRAM: "SEE WHAT CHANGED" NOW OPENS AT THE LAST RELEASE'S SUMMARY**
-
-The "see what changed" link beside the version note on the Home page now takes you straight to the newest release's summary in [Recent program updates](#updates-log) — the list of what the version you are running actually shipped with. Before, it landed at the top of that log, which leads with a running summary of changes that have not been released yet.
-
-<!--
-```
-Scope: web/backend.py (_latest_release_anchor() beside _manual_link, plus
-changelog_anchor in the home context), web/templates/home.html (both
-"see what changed" links), tests/test_web.py, tests/test_link_integrity.py.
-The anchor can't be a constant: create_release.py renames the running
-"Next release summary to this point" heading to "Release <tag> summary" at
-release time, so the target id changes with every release. _latest_release_anchor()
-regexes the first <h4 id="release-...-summary"> out of the ACTIVE manual html
-(baked-in or downloaded), cached on the file's mtime, falling back to
-#a-recent-program-updates-log when the log has no release summary in it yet.
-test_link_integrity now skips fragments containing "{{" -- a Jinja-computed
-anchor can't be resolved statically.
-```
--->
-
-**PROGRAM: EDIT A GI OR DIAAS VALUE STRAIGHT FROM THE ADD-FOOD LIST, AND GET ASKED ABOUT DIAAS TOO**
-
-When you add a food and it has no [GI](#gi) estimate yet, NuMa offers you the chance to enter one — and now does the same for a missing [DIAAS](#gloss-diaas) estimate, which it previously never asked about at all. Once a value is saved you are not asked for it again. To change one later, the GI and DIAAS figures in the add-food list are now links: click one to go straight to that food's Annotate page with the value filled in ready to edit, then come back to your search exactly where you left it. A dash in those columns means nothing is recorded yet, and clicking it is how you add one.
-
-<!--
-```
-Scope: web/backend.py (_missing_annotations() + _annotation_prompt_needed()
-replacing _gi_prompt_needed(); both pantry-add and meal-add call sites),
-web/templates/_add_food_row.html (annot_cell macro), food_annotate.html,
-web/static/style.css (.annot-cell/.annot-cell-empty).
-diaas_no_prompt and its Annotate checkbox already existed but nothing ever
-read them -- there was no DIAAS prompt to suppress, so that half of the
-feature was dead. skip-forever now sets both no_prompt flags, since
-suppressing only GI would leave the DIAAS detour firing on every add.
-The Annotate page's prompt text now names only what is actually missing,
-via the new missing=[] context.
-annot_cell uses default('', true) because the cell values arrive in three
-shapes: a preformatted string from _ann_gi/_ann_diaas ("" when unset), None
-from the barcode/cache row builders, and undefined on recipe rows (no
-annotation). An earlier "is none" test silently matched none of them.
-```
--->
-
-**PROGRAM: A CONTENTS SIDEBAR ON EDIT CUSTOM PROFILE**
-
-The [Edit Custom Profile](#drafted-foods) page now has the same Contents sidebar the Food Detail and Daily Summary pages use, listing all nine of its sections — the two copy-from-another-food tools, Identity, and each nutrient group. It stays put as you scroll, highlights whichever section you're currently in, and takes you straight there, so you no longer have to scroll a very long page to find one group of fields. Picking a section you've collapsed opens it for you. The page also no longer jumps down to the amino-acid search box when it loads, so the heading, the "Profile saved" confirmation, and the sidebar are all visible when you arrive.
-
-<!--
-```
-Scope: web/templates/food_custom_edit.html. Adopts the existing analysis-page
-sidebar pattern rather than a one-off: layout_class=analysis-page,
-main_class=analysis-content, and a sidebar_nav block of
-li.sb-item > a.sb-toggle, same as summary.html/food_detail.html. Section ids
-renamed to the sec-* convention so the standard scroll-spy ([id^="sec-"] ->
-.sb-active) works unchanged; nothing linked to the old #copy-nutrients /
-#estimate-aa ids. Nutrient-group anchors are derived in-template from
-group.name (lower|replace(' ','-')) rather than added to field_groups, which
-is built identically in both the GET and POST handlers. One addition over the
-shared pattern: every section here is a <details>, so a jump opens a collapsed
-target first, otherwise it lands on a bare summary line.
-Also dropped the autofocus on the aa_source_q input: it loaded the page already
-scrolled 482px down, hiding the h2, any alert, and the sidebar.
-```
--->
-
-#### Sep 22 updates
-
-**PROGRAM: RECIPE INGREDIENT AMOUNTS NO LONGER GUESS CUP/TABLESPOON EQUIVALENTS**
-
-Recipe pages showing an ingredient's amount in cups or tablespoons now calculate that figure only from the food's own known portion data (its p1, p2, etc.), scaling it exactly to whatever amount is in the recipe. Previously this used a generic, name-based density guess that could be quite wrong, and could even openly contradict a portion you'd just edited for that food. When a food has no portion data at all, the recipe page now says so plainly and links straight to where you can add it, instead of guessing — the same policy the [amount-entry side](#ts-no-volume-portion) of NuMa already followed. The same fix applies to protein complement suggestions' "Add to meal/recipe/day" amount hints.
-
-<!--
-```
-Scope: numa_app/services/portions.py (portion_scaled_display(), portion_amount_note()
-replacing volume_hint()/old amount_note()'s _usda.get_density_g_per_ml() guess),
-numa_app/services/complements.py (_amount_note() now threads fdc_id through all 7
-call sites instead of food_name), web/backend.py (_ingredient_volume_display()).
-No template changes needed -- portion_amount_note() returns a markupsafe.Markup
-instance for the "no portion data" case so the <a href="/food/cache/{fdc_id}/portions">
-edit it here</a> link renders through existing {{ ing.volume_display }}/
-{{ f.amount_note }} interpolations without any autoescaping.
-```
--->
-
-**PROGRAM: EVERY NUTRIENT ON DAILY SUMMARY'S RECENT DAYS TABLE NOW SHOWS % GOAL**
-
-Every nutrient column on the [Daily Summary](#goals) page's Recent Days table — Protein and any extra nutrient you've picked in Settings — now gets its own "% Goal" figure alongside it: the percentage on top, that date's own target amount underneath in parens, both scored against whichever profile is pinned to that date. Previously only Day DCP had this. The Date column now stays put at the left edge as you scroll the table sideways to see it all.
-
-<!--
-```
-Scope: web/backend.py's _build_day_rows() (feeds /summary and /summary/{date}),
-web/templates/summary.html, web/static/style.css, numa_app/services/meal_list_columns.py.
-Per day row, computes profile.compute_rda() once (reused for the existing
-Protein-goal figure too, replacing a separate day_profile.protein_target_for_date()
-call) and a new day_nutrient_raw_totals() helper (raw floats, alongside the
-existing formatted day_nutrient_values()) to get pct = total/rda_val*100 per
-key, stored in pct_goal_map. Template: a new pct_goal_cell() macro renders
-value/goal as a two-line cell (percent, then "(goal)" below) so adding this
-per nutrient column doesn't double the table's width -- also applied to Day
-DCP's own %/Goal, replacing its previous two separate columns. Date column
-gets position:sticky via a new .sticky-col class, with hover/active-row
-background repeated on it (a sticky cell paints over its own background, so
-without this it'd go transparent showing scrolled content underneath).
-```
--->
-
-#### Sep 21 updates
-
-**PROGRAM: FIXED THE NUTRIENT PLOT PAGE HIDING ITS OWN "SHOW ON HOME PAGE" OPTION**
-
-Opening the [Nutrient Plot](#nutrient-plot) page fresh (not from a saved link) now shows your currently-pinned Home page plot right away, instead of always starting blank. Landing on a blank page like that used to hide the "Show on Home page" toggle entirely (it only appears once something's actually plotted) while still claiming a "different" plot was on the Home page — true of every fresh visit, not just an actual mismatch. Clicking "Remove it from Home page" from that blank state also used to fail outright with an on-screen error; that's fixed too.
-
-<!--
-```
-Scope: web/backend.py's nutrient_plot_page (GET /summary/nutrient-plot) and
-nutrient_plot_home_pref (POST .../home-pref), web/templates/nutrient_plot.html.
-Two bugs: (1) a bare landing (no query params) always rendered with
-chosen=[]/has_plot=False rather than defaulting to the saved
-home_nutrient_plot_qs, so the "Show on Home page" toggle (gated on has_plot)
-never appeared even with a Home plot active, and home_plot_enabled_elsewhere
-was unconditionally true. Added a hidden submitted=1 marker to the form so a
-genuine fresh landing (no marker) redirects to the saved qs, while a real
-"submitted with nothing checked" request (marker present) is left alone.
-(2) nutrient_plot_home_pref declared qs: str = Form(...) (required); FastAPI
-treats a submitted empty-string form value as a MISSING field for a required
-Form param (reproduced directly against a minimal FastAPI app), and the
-hidden qs field is exactly empty on that blank-landing page -- changed to
-Form(default="").
-```
--->
-
-**PROGRAM: FIXED A NESTED SUB-RECIPE ADDING ITSELF AS A WHOLE PACKAGE IN "INDIVIDUAL INGREDIENTS" MODE**
-
-Adding a recipe to a meal (or another recipe) as "Individual ingredients" now fully flattens it, even when one of its own ingredients is itself another recipe. Previously that inner recipe was added as its own whole-recipe meal item alongside the real ingredients, instead of being broken down into its own leaf foods too.
-
-<!--
-```
-Scope: web/backend.py's meal_add_recipe_item (POST /meal/{meal_id}/add-recipe,
-mode="ingredients"). It only expanded one level: a direct ingredient with
-ref_recipe_id was added via db.meal_add_recipe() (a whole recipe-type meal
-item) instead of being recursed into. Now uses the existing shared recursive
-flattener, numa_app.services.recipe_nutrients.expand_recipe_ingredients(),
-already used for recipe nutrient totaling elsewhere.
-```
--->
-
-**PROGRAM: FIXED SERVINGS FIELDS GOING BLANK AFTER A BACKGROUND SEARCH MERGE**
-
-On a meal's Add Food or Recipe search, a recipe result's "Servings" field could reset from its default (or whatever you'd typed) to blank once results from USDA/Open Food Facts/etc. finished loading in the background and merged into the list. Fixed as part of the same-day fix below for "Individual ingredients" losing your pick after that merge.
-
-<!--
-```
-Scope: web/templates/meal.html's search-api-results merge handler, the
-restoreRows() fix added earlier the same day. It called recipeAmtSwitch() to
-re-show the right servings/weight/volume panel after the merge replaced the
-table, but that function also clears and focuses the newly-active panel's
-input as part of its normal "user just switched panels" behavior -- which
-ran on every row on every merge, wiping out the very value restoreRows() had
-just written back in. Replaced with panel-visibility-only logic that doesn't
-touch the input's value.
-```
--->
-
-**PROGRAM: FIXED "ADD AS INDIVIDUAL INGREDIENTS" SILENTLY ADDING THE WHOLE RECIPE INSTEAD**
-
-Adding a recipe to a meal (or another recipe) via a search that also includes an external source (USDA, Open Food Facts, CNF, CoFID, AFCD, or CIQUAL) could quietly reset "Individual ingredients" back to the default "Whole recipe" pick if those external results happened to arrive after you'd already chosen it — with no visible sign it happened. Picking "Individual ingredients" is now reliable regardless of when the background search finishes.
-
-<!--
-```
-Scope: web/templates/meal.html's search-api-results merge handler. It
-replaces the whole results tbody with the server's merged+re-sorted HTML
-once external sources respond, which was silently discarding any
-in-progress row state (the mode radio, amount_mode radio, typed
-portion/servings amounts) set before that replace landed. Now snapshots
-each row's current field values first (keyed by add/add-recipe + recipe or
-food id) and restores them onto the matching row after the replace,
-re-running recipeAmtSwitch so a restored amount_mode also shows the right
-input panel.
-```
--->
-
-**PROGRAM: EDIT A PORTION IN PLACE**
-
-[Manage Portions](#portion-formats) now lets you edit a custom portion's description and gram weight directly in the list — no more deleting it and re-adding it from scratch to fix a typo or a wrong weight. Editing keeps the portion in its position, so its `pN` shortcut doesn't change.
-
-<!--
-```
-Scope: web/templates/food_cache_portions.html, web/backend.py (new
-POST /food/cache/{fdc_id}/portions/edit route). Each row's description/grams
-became inline form controls tied to a per-row edit form via the HTML `form=`
-attribute; validation mirrors the existing add-portion checks (non-blank
-description, positive gram weight).
-```
--->
-
-**PROGRAM: RECIPE/MEAL ITEM LINKS SAY WHERE THE AMOUNT CAME FROM**
-
-Clicking a food's name from a recipe's ingredient list or a meal's item list now labels that food-detail page "Recipe ingredient amount: …" or "Meal item amount: …", so it's clear you're looking at one measured amount from that recipe or meal — not a generic 100 g food lookup.
-
-<!--
-```
-Scope: web/backend.py (food_detail route gained a from_context query param,
-validated to "recipe"/"meal"/""), web/templates/food_detail.html (title/h2
-prefix), web/templates/recipe_detail.html and meal.html (ingredient/item
-links now pass &from_context=recipe / &from_context=meal).
-```
--->
-
-**PROGRAM: LEAVING RECIPE/MEAL DETAILS UNSAVED NOW WARNS — AND LETS YOU CHOOSE**
-
-Editing a recipe's Recipe Details, or a meal's Rename/change date fields, and then clicking a link elsewhere in NuMa before saving now prompts you: save those changes first, leave without saving them, or stay and keep editing. Previously an in-app click away could silently lose the edit; closing or refreshing the browser tab itself still shows only your browser's own generic warning, since NuMa can't intervene at that point.
-
-<!--
-```
-Scope: web/templates/recipe_edit.html, web/templates/meal.html. A dirty flag
-on the Recipe Details / rename form is checked on in-app <a> clicks
-(intercepted, chained confirm() for save-then-go vs. discard-then-go vs.
-stay) and on window.beforeunload (browser's own warning only, no custom
-save possible there).
-```
--->
-
-**PROGRAM: MEAL ITEM LIST KEEPS YOUR SCROLL POSITION**
-
-Adding, editing, or removing an item on a meal's page no longer jumps you back to the top of the page — it stays scrolled to where you were working, matching how the recipe editor's ingredient list already behaved.
-
-<!--
-```
-Scope: web/templates/meal.html — added the same sessionStorage
-scroll-save/restore pattern recipe_edit.html already had for its ingredient
-list, for the add/add-recipe/update/remove/confirm-aa routes.
-```
--->
-
-**PROGRAM: FIXED A SPURIOUS "LEAVE SITE?" WARNING WHEN ADDING AN INGREDIENT**
-
-Adding a food or recipe to a meal or recipe could sometimes trigger a "Leave site? Changes you made may not be saved" browser prompt even though nothing was actually lost — most noticeably when adding an item redirected to the Annotate page for missing GI/DIAAS data instead of back to the same page. This no longer happens.
-
-<!--
-```
-Scope: web/templates/base.html's generic per-form "unsaved changes" tracker.
-Submitting any tracked form now clears every tracked form's dirty flag, not
-just its own -- a stray dirty flag left on some other untouched-but-modified
-search-result row (typed and abandoned, or filled in by browser autofill)
-was outliving the submit and firing the beforeunload warning on the
-resulting navigation, wherever it redirected to.
-```
--->
-
-#### Release v2026-09-21-0647 summary
-
-- MANUAL: The User Manual can now be updated on its own — a separate home-page notice offers a newer manual without needing a program update.
-
-#### Release v2026-09-21-0526 summary (dated details below)
-
-- Nutrient tables now show separate Minimum, Target, and Maximum columns instead of one ambiguous "Daily Target" column.
-- The Nutrient Plot has a "Clear all nutrient checkmarks" button, and clearer wording on what "completeness" affects.
-- Nutrient tables show the actual RDA/limit number next to the percentage, not just the percentage.
-- The Nutrient Plot now draws maximum-limit lines in addition to goal lines.
-- New Appendix H: a full nutrient key.
-- Fiber, sugar, and the three fat types now show indented under Carbohydrates and Fat in nutrient tables.
-- Complement suggestions' graduated amounts can now be pinned to your own chosen serving size.
-- Recipe yield volume can now be entered in cups, fluid ounces, etc., not just milliliters.
-- Gap-closer suggestions no longer recommend absurd serving sizes.
-- Two-step complement food combinations no longer show a combo with no second step.
-- A "Check for updates now" link lets you undo a dismissed update notice.
-- "Did you mean" can now fix two misspelled words in a search at once.
-- Keyboard shortcuts (Alt+Shift+key) no longer go dead while you're typing.
-- Dropdown menu numbers (Foods/Recipes/Analysis) are now real keyboard shortcuts.
-- "Did you mean" suggestions now appear on every search box, not just some.
-- The "Choose fields to copy" page can select or deselect a whole nutrient group at once.
-- Edit Custom Profile can copy just the fields you choose from another food, and shows amino-acid status in its search results.
-- The manual now opens in its own tab and picks up where you left off.
-- The Recent program updates log now marks a clear line for each release, and the summary above that line is what release downloads on GitHub show first.
-- Appendix H's Full Nutrient Key now flags which nutrients have a built-in safe-intake ceiling (UL) and summarizes, from NIH, what happens if you exceed it.
-- Glycemic index lookup now searches the full ~2,487-entry published reference table, by subject population, instead of a small 62-item starter set.
-- The bundled French CIQUAL food database is now the 2025 edition (3,484 foods, up from 3,186), replacing the 2020 edition NuMa shipped with until now.
-- Nutrient table color coding: "near" is now blue and "below minimum" is now orange (previously the other way around) — a near-minimum reading is a reassuring state, not a warning one.
-- The "Why you can trust NuMa" testing section is simpler to read, and now mentions mutation testing in plain language.
-- No visible change: mutation testing found and closed real coverage gaps in two more modules (amino-acid estimation, recipe nutrient aggregation).
-
-##### September 21 program updates
-
-**USER MANUAL NOW UPDATES SEPARATELY FROM THE PROGRAM**
-
-The home page now shows a separate "NEW USER MANUAL AVAILABLE" notice when a newer manual is published, with an **Update manual now** button — no program update, no restart. If the new manual describes features from a newer program than yours, the notice says so. The home page also shows which manual version you have.
-
-<!--
-```
-Scope: numa_app/services/manual_update.py (new), scripts/publish_manual.py
-(new), web/backend.py (/, /manual, /manual-update-now, /manual-notice/ack-banner,
-/check-for-updates), web/templates/home.html, numa_app/services/update_check.py,
-requirements.txt (+cryptography), tests/test_manual_update.py (new),
-tests/test_web.py, tests/test_update_check.py, tests/conftest.py.
-The manual is published as a rolling PRERELEASE "manual-latest" (prerelease so
-releases/latest and install-linux.sh are unaffected) with three assets:
-user-manual.html, manual-manifest.json (stamp, sha256, size, requires_program),
-and manual-manifest.sig (Ed25519 over the manifest bytes; private key at
-~/.config/numa-signing/manual_signing_key.pem, only the public key is baked
-into manual_update.py). Downloads install to <data dir>/manual/, are
-re-verified on every serve, and win only while newer than the baked-in
-manual's stamp. /manual skips rebuild_manual_if_stale() for downloaded copies
-(html-only, no .md). update_check now ignores non-"v" release tags.
-Publish with: python scripts/publish_manual.py [--dry-run].
-Anchor rule going forward: never remove or rename a manual anchor; keep old
-ids as aliases (older programs link into newer manuals).
-```
--->
-
-##### September 20 program updates
-
-**MAINTENANCE: WEEKLY SWEEP — BROKEN MANUAL ANCHOR FIXED, TWO UNDOCUMENTED FEATURES ADDED, TWO REAL TEST GAPS CLOSED**
-
-Item 1 (CLAUDE.md drift) found one real gap: the new `gi_lookup.py` module (glycemic index table lookup) was missing from the Package Layout listing — added, along with a docstring correction for `import_gi_seed.py`. Item 2 ("NuMa" capitalization) found two real lowercase slips in prose, fixed. Item 3 (vendored Bootstrap) confirmed still current at 5.3.8. Item 5 (manual consolidation) found two shipped features that had only ever appeared in the changelog: the Settings "Browser to Launch" option, and printable pages' Print layout (Full/Half sheet) and Paper size (US Letter/A4) choices — both now documented in the manual body. Item 7 (test coverage) found and closed two real gaps: `has_confirmed_aa_data()`/`aa_indicator()` (the AA-checkmark fix spanning 8+ call sites, flagged in a past session as a recurring risk area) had zero tests anywhere despite the production code being correct; and `anchor_overrides` (the "pin a complement suggestion's graduated table to your own serving size" feature) likewise had zero coverage. Item 8 (stale links) found a real broken one this time: two changelog entries linked to `#web-shortcuts`, an anchor that never actually existed on the keyboard-shortcuts passage in Part 1 — fixed, and a new automated test (`test_manual_internal_links_resolve_to_real_anchors`) now catches this class of drift going forward instead of relying on the manual sweep alone. External URL check: all non-200s were 403/429/404 from sites already known to bot-gate automated requests (claude.ai, ods.od.nih.gov, examine.com, doi.org, researchgate.net, and — newly confirmed this week — fdc.nal.usda.gov, which 404s even a known-valid food-details URL when fetched by curl) — inconclusive, not real rot. Item 4 pruned this log back to the last two weeks.
-
-<!--
-```
-Scope: CLAUDE.md (gi_lookup.py added to Package Layout; import_gi_seed.py's
-entry corrected to describe its actual 62-item bulk-apply role now that
-gi_lookup.py covers the full table), user-manual.md (two "NuMa" capitalization
-fixes; #web-shortcuts anchor added to Part 1 Section B's heading; Settings
-section gains a "Browser to Launch" subsection; Recipes menu's print
-description gains Print layout/Paper size coverage), tests/test_usda.py
-(new TestHasConfirmedAaData, 7 tests), tests/test_complements.py (new
-test_anchor_overrides_pins_grad_steps_to_a_chosen_serving_size),
-tests/test_web.py (new TestParseAnchorOverrides, 5 tests),
-tests/test_link_integrity.py (new test_manual_internal_links_resolve_to_real_anchors).
-Full suite: 1035 passed (was 1021).
-```
--->
-
-**THE BUNDLED FRENCH CIQUAL FOOD DATABASE IS NOW THE 2025 EDITION**
-
-Foods from the French CIQUAL source (used in every food search alongside USDA, Open Food Facts, and the other bundled national tables) now come from ANSES's Ciqual 2025 table instead of Ciqual 2020 — 3,484 foods instead of 3,186, including 298 new entries and updated values throughout. Found via this week's annual static-dataset check (a new yearly Maintenance item — see [Extensive code testing](#extensive-code-testing)); AFCD and CoFID, the other two bundled national tables, were checked the same way and are both still current, no newer edition published for either.
-
-<!--
-```
-Scope: ciqual_data.json regenerated from ANSES's Ciqual 2025 English-language
-XLS export (3,484 records, up from 3,186) via scripts/build_ciqual_data.py.
-That script needed updating for two source-format changes in the 2025
-export: the data sheet was renamed ("compo" -> "food composition", now
-tried in order via a new _SHEET_NAMES fallback tuple) and every column
-header cell now wraps its label across embedded newlines instead of one
-line (e.g. "Protein\n(g\n100g)" vs 2020's "Protein (g/100g)") — column
-matching now goes through a new _normalize_header() (newlines and slashes
-both collapsed to plain spaces) so this survives similar reformatting in a
-future edition too. The Vitamin B9/folate column split into two variants
-this edition (plain "total folates" vs a new DFE-adjusted figure); mapped
-to the plain total-folates column, matching 2020's single-column semantics.
-A new "Vitamin A activity, retinol equivalent" column was deliberately NOT
-adopted for vitamin_a_mcg (still retinol-only, unchanged) — its header's
-units read "µg/100mg", inconsistent with every other per-100g column on
-the sheet, and using it unverified risked silently mis-scaling vitamin A
-by 1000x for every CIQUAL food. user-manual.md, README-numa-documentation.md
-(~7,600 -> ~8,000 total static-dataset food-name count), numa_app/services/
-search_suggest.py (same count, in a code comment) updated to match the new
-totals (CoFID 2,886 + AFCD 1,588 + CIQUAL 3,484). Full test suite (1035
-tests, including tests/test_ciqual.py) passes unchanged against the new
-data — nothing downstream assumed specific CIQUAL record content.
-```
--->
-
-**NUTRIENT TABLE COLOR CODING: NEAR/BELOW MINIMUM COLORS SWAPPED FOR A CALMER FEEL**
-
-Every color-coded "% of daily target" column now shows **near** (70–99% of a minimum) in blue and **below minimum** in orange — the reverse of before. Orange reads as a warning color, but being close to a minimum is a reassuring state, not an alarming one; a genuine shortfall is the state that should carry the warning color. [Learn more...](#rda)
-
-<!--
-```
-Scope: web/static/style.css — .rda-near and .rda-low swap color values
-(#1e40af blue / #c2410c orange, both unchanged as literal colors, just
-which status class gets which). Applies everywhere the shared rda-met/
-rda-near/rda-low/rda-over classes are used (_rda_legend.html and every
-nutrient table); no template or backend change needed since color is the
-only thing that moved. Full suite: 1035 passed, unaffected (no test
-asserts on literal color values, only on class names).
-```
--->
-
-**THE "WHY YOU CAN TRUST NUMA" TESTING SECTION IS SIMPLER TO READ, AND NOW MENTIONS MUTATION TESTING**
-
-Part 2's "Extensive code testing" section (part of "Why you can trust NutriMagnus") no longer names specific tool libraries, test file names, or exact per-tier test counts — that detail wasn't helping a non-technical reader trust the program more, it was just jargon in the way. It now explains, in plain language, what automated testing and mutation testing actually are and why they matter, with a pointer to README-numa-documentation.md for anyone who does want the technical detail. Mutation testing specifically — deliberately planting small errors in the code to check whether the test suite actually notices — had never been mentioned here at all before, despite being a real, ongoing part of how NuMa is verified.
-
-<!--
-```
-Scope: user-manual.md Part 2 Section E (#data-testing-validation) —
-"Extensive code testing" subsection rewritten: dropped Hypothesis/
-Playwright links, tests/e2e/ and specific *_properties.py/test_complements.py/
-test_claude_fetch.py file names, and the 1,019/90/26/6 sub-counts; added a
-plain-language mutation-testing paragraph and a pointer to README's Test
-Suite/Maintenance sections for technical detail. "Reliable data sources"
-subsection left mostly as-is (a typo, "In additions" -> "In addition",
-fixed) — reviewed but judged not actually jargon-heavy, just citation-dense,
-which is appropriate for a "why trust" section. README-numa-documentation.md
-Test Suite section gained three new subsections that were previously
-undocumented there at all: "Property-based tests" (naming Hypothesis and
-the three *_properties.py files), "Browser-level end-to-end tests" (naming
-Playwright and tests/e2e/), and "Mutation testing" (a short pointer to the
-existing, fuller Maintenance-section writeup) — so the technical detail
-removed from the manual actually landed somewhere, rather than being lost.
-```
--->
-
-**NO VISIBLE CHANGE: MUTATION TESTING FOUND AND CLOSED REAL COVERAGE GAPS IN TWO MORE MODULES**
-
-The weekly sweep's mutation-testing churn check flagged `aa_estimate.py` and `recipe_nutrients.py` (both had real code changes since their last check, from the AA-checkmark fix and the new glycemic-index/complement-anchor work). Triaged this session: `aa_estimate.py`'s AA-scaling error paths and note-formatting helpers went from 13 real gaps to 0; `recipe_nutrients.py`'s complement-merge success path (previously entirely untested) and its recipe-ingredient-expansion skip logic went from 85 to 43 survivors, with the remainder confirmed to be an equivalent-mutant artifact of `sqlite3.Row`'s case-insensitive key lookups rather than real gaps. 37 new tests total. See TESTING-ROADMAP.md item #5 and README-numa-documentation.md's mutation-testing log for the full triage detail.
-
-<!--
-```
-Scope: tests/test_aa_estimate.py (16 new tests: exact-text error messages,
-rounding precision, target/source-protein boundary at exactly 1.0g,
-source_note()'s id_part fallback, and full coverage of copy_nutrients_note()
-which had none at all). tests/test_recipe_nutrients.py (21 new tests:
-best_aa_nutrients()'s merge/scale success path via a real curated-table
-entry, ref_protein==0 boundary via monkeypatch; atomic_recipe_ingredients()/
-expand_recipe_ingredients()'s continue-vs-break skip branches for a deleted
-sub-recipe reference, a zero-serving sub-recipe, an uncached food, empty
-cached nutrients, and a sub-recipe scaling to zero protein; sub["servings"]
-or 1 defaulting; the "not sub or sub_servings <= 0" vs "and" logic bug;
-leaf["fdc_id"] key coverage). No application code changed. Full suite: 1059
-passed (was 1035).
-```
--->
-
-**LIST PAGES NO LONGER RESET WHEN YOU ARCHIVE OR DELETE A ROW**
-
-Archiving, restoring, or deleting an item from a list — Recipes, My Pantry, Food Cache, a recipe's saved translations, or a saved DIAAS override — used to reload the whole page from scratch, which reset any search, sort order, or "show archived" filter you had set. Now only that one row changes; everything else on the page stays exactly as it was, including your place in a long filtered search. The Recipes list header was also fixed along the way — it read "Selected recipes in internal database" even when nothing was selected; now it just says "Recipes in internal database".
-
-<!--
-```
-Scope: web/templates/base.html — new shared fetch()-based handler for
-forms marked class="js-row-remove" (always removes the closest row) or
-class="js-row-archive" (toggles archived state in place — badge, button
-label/title, row shading — removing the row only when the enclosing
-[data-show-archived] table isn't currently showing archived items); falls
-back to a normal form submit if the request fails or the server reports
-the action didn't go through (e.g. a blocked Food Cache delete still needs
-its full explanation page). web/backend.py — new _is_ajax_row_action()
-helper; recipe_delete_post, recipe_archive, pantry_remove, pantry_archive,
-food_cache_delete, food_cache_archive, settings_diaas_override_delete, and
-recipe_translation_delete now return a small JSON reply instead of a
-redirect when that header is present, with existing non-JS behavior
-unchanged otherwise. web/templates/recipes.html, pantry.html,
-food_cache.html, food_cache_db_check.html, settings.html,
-recipe_translate.html, recipe_detail.html — forms wired to the new classes.
-Also fixed recipes.html's list header, which read "Selected recipes in
-internal database" even though nothing on the page is a "selection" (that
-word is used elsewhere for the Compare checkboxes) — now "Recipes in
-internal database". Deliberately left meal-item removal and Compare's
-remove-from-comparison alone: both already redirect back to an equivalent
-state with no data lost, and meal.html's running nutrient totals and
-compare.html's per-item columns would need a real re-render on removal
-rather than a plain row deletion, so converting those risks showing stale
-aggregate numbers in a nutrition app — not worth it for what's currently
-just an extra page flash, not the state-loss bug reported here.
-```
--->
-
-**FULL NUTRIENT KEY NOW FLAGS EACH NUTRIENT'S SAFE-INTAKE CEILING AND WHAT HAPPENS IF YOU EXCEED IT**
-
-Appendix H's [Full Nutrient Key](#nutrient-key) previously described what each nutrient does but said nothing about its safety ceiling. The twelve nutrients with a built-in Tolerable Upper Intake Level (UL) — calcium, phosphorus, iron, zinc, iodine, selenium, vitamins A, C, D, and E, B6, and choline — now each carry two sub-points: one flagging that the nutrient has a UL and linking to [Maximum Nutrient Limits](#maxlimits) for the number itself, and a second summarizing, in plain language, what NIH says actually happens if you exceed it — from calcium's kidney-stone risk to vitamin B6's nerve-damage risk at sustained high supplemental doses. [Learn more...](#nutrient-key)
-
-<!--
-```
-Scope: user-manual.md Appendix H (#nutrient-key) — each of the 12 UL-
-bearing nutrient entries (Calcium, Phosphorus, Iron, Zinc, Iodine,
-Selenium, Vitamin A, Vitamin C, Vitamin D, Vitamin E, Vitamin B6, Choline)
-split into a two-item nested sub-list: "Has a built-in Tolerable Upper
-Intake Level..." (added first, linking to #maxlimits) and "Risk of
-excess: ..." (this entry), each summarizing that nutrient's NIH Office of
-Dietary Supplements consumer fact sheet. New footnotes 48-59, one per
-nutrient, citing the specific ODS consumer fact sheet URL used (NIH's own
-site blocks WebFetch with a 403, so content was pulled via WebSearch
-snippets of those pages instead of a direct fetch).
-```
--->
-
-**RECENT PROGRAM UPDATES LOG NOW MARKS RELEASE BOUNDARIES**
-
-This log's dated entries are grouped under release boundaries — a heading like "Release v2026-09-14-2336 boundary" marks the last entry that shipped in that release, so it's clear at a glance which entries are already out and which are still pending. The entries still pending sit under a "Next release" heading at the top, with a short plain-language summary bullet for each one; that summary list is what shows up first when you look at a new release download on GitHub.
-
-<!--
-```
-Scope: user-manual.md Appendix A — every dated entry heading demoted from
-h4 (####) to h5 (#####); new h4 "Release <tag> boundary" headings inserted
-between releases (only the 2026-09-14 boundary backfilled — earlier
-boundaries are not being reconstructed); "Release to be done" heading holds
-a running bullet list of one-line summaries for unreleased entries.
-scripts/create_release.py — _release_notes_for_today() replaced with
-_release_notes(), which now reads the bullet list under "Release to be
-done" instead of matching today's date heading; new _roll_release_boundary()
-renames that heading to "Release <tag> boundary" and inserts a fresh empty
-"Release to be done" above it, called automatically after a release is
-created.
-```
--->
-
-**GLYCEMIC INDEX LOOKUP NOW SEARCHES THE FULL PUBLISHED REFERENCE TABLE**
-
-Every food's Annotate page can now search the full ~2,487-entry Foster-Powell glycemic index table directly, instead of relying on a small 62-item automatic starter set for common foods. Type the food's name (already filled in for you), choose normal glucose tolerance, impaired glucose tolerance/diabetes, or both, and NuMa lists every plausible match — not just its single best guess — so you pick the right one yourself. A new [Settings](#settings) option sets which population the lookup defaults to. [Learn more...](#gi)
-
-<!--
-```
-Scope: scripts/build_gi_data.py — new one-time ingest script parsing the two
-Foster-Powell/Holt/Brand-Miller online-only appendix PDFs (Table A1, normal
-glucose tolerance; Table A2, impaired glucose tolerance/small-n/high-
-variance) into gi_data.json (1,879 + 608 entries), via pdftotext -layout
-with per-page column-boundary detection (column offsets drift slightly page
-to page). gi_lookup.py — new fuzzy name-search module (difflib, same
-normalize approach as search_suggest.py/import_gi_seed.py) returning
-ranked multi-candidate matches rather than a single best guess; GI values
-are read from the glucose-referenced column only (GI, Glucose=100), never
-the bread-referenced column; serve size/available carbohydrate/GL are not
-captured, since GL is already computed live from a food's own cached
-carbohydrate content (numa_app.services.glycemic_load). profile.py — new
-UserProfile.glucose_tolerance field ("", "normal", "impaired"). web/
-backend.py — new GET /food/annotate/{fdc_id}/gi-lookup JSON endpoint;
-settings_post accepts glucose_tolerance. web/templates/food_annotate.html —
-new lookup section (search box, population selector, results table with
-per-row "Use" buttons that fill the GI field client-side; nothing is
-written until the existing Save annotation button is used).
-web/templates/settings.html — new Glycemic index lookup default select.
-import_gi_seed.py — docstring updated to point at the new full-table web
-lookup; its own 62-item exact-match bulk-apply behavior is unchanged.
-```
--->
-
-##### September 19 program updates
-
-**NUTRIENT TABLES: SEPARATE MINIMUM, TARGET, AND MAXIMUM COLUMNS**
-
-Earlier today's single "Daily Target" column (added this same day — see below) turned out to still be confusing: it carried whichever DRI figure applied to a nutrient — a floor to meet, a two-sided ideal, or a ceiling not to exceed — under one ambiguous heading, with only a tiny "min"/"target"/"max" tag two columns over to tell them apart. Every nutrient table now has three separate columns instead — **Minimum**, **Target**, **Maximum** — right after Unit; each nutrient's figure lands in exactly one of the three (the other two show "—" for that row), so which kind of number you're looking at is never in question. A footer note under every table explains all four columns (Minimum, Target, Maximum, and the existing UL) with a link back to the manual. [Learn more...](#rda)
-
-<!--
-```
-Scope: web/backend.py — _nutrient_sections() now computes rda_minimum,
-rda_target, rda_maximum (one populated per row, keyed off rda_type) instead
-of the single rda_goal field from the same-day earlier entry. web/templates/
-_rda_goal_column.html rewritten from a fixed one-column macro to a
-parameterized header(label)/cell(value) pair, called 3x per template (once
-per column) across all 8 nutrient-table templates. web/templates/
-_rda_definition_footer.html rewritten with 4 separate paragraphs (Minimum,
-Target, Maximum, UL) replacing the prior single RDA + max-vs-UL note.
-user-manual.md Part 4 §P (#rda) rewritten to document the 3-column split.
-```
--->
-
-**NUTRIENT PLOT: "CLEAR ALL NUTRIENT CHECKMARKS" BUTTON, AND CLEARER WORDING ON WHAT COMPLETENESS AFFECTS**
-
-A **Clear all nutrient checkmarks** link now sits above the nutrient checklist, unchecking every box in one click instead of one at a time when starting a fresh selection. The page also now always states, up front, that every logged day appears in the plot regardless of whether its meals are marked complete — only a day with no logged meal at all leaves a gap — and that "Always end on last complete day" only ever changes where the plot's trailing edge sits, not which days in between show. That explanation previously existed only as a caption shown on the Home page, and only when that toggle was on; the Nutrient Plot page itself said nothing about completeness at all. [Learn more...](#nutrient-plot)
-
-<!--
-```
-Scope: web/templates/nutrient_plot.html — new "Clear all nutrient
-checkmarks" link (#clear-nutrient-checkmarks) above the checklist, wired to
-a small JS handler that unchecks every input[name="nutrients"] without
-submitting (deliberately not auto-submitting like the existing Auto links,
-since clearing is a starting point for picking a new set, not something to
-plot immediately). New always-visible intro paragraph states the actual
-date-range behavior (_nutrient_plot_params() in web/backend.py already
-built `dates` from every meal_date with at least one meal regardless of its
-`complete` flag — db.meal_dates_with_bcp() has no completeness filter — so
-this was a documentation gap, not a logic bug; only the "rolling"/Always-
-end-on-last-complete-day path, which is off by default, ever excludes
-trailing dates, and only past whichever date db.last_complete_meal_date()
-resolves to). user-manual.md Part 4 §S (#nutrient-plot) updated to match.
-Test added: test_nutrient_plot_clear_nutrients_button_and_gap_note.
-```
--->
-
-**NUTRIENT TABLES NOW SHOW THE ACTUAL RDA/LIMIT NUMBER, NOT JUST A PERCENTAGE**
-
-Every nutrient table (food, recipe, meal, day, trend, and print pages) now has a **Daily Target** column showing the actual RDA/AI/limit figure itself — e.g. "1.3 mg" for riboflavin, "2300.0 mg" for sodium — right next to the existing percentage. Previously that number was only reachable by hovering the percentage badge's tooltip, which isn't visible on every device or browser; a badge colored orange or red could look alarming with no way to see what it was actually being measured against. A new note also spells out that a Daily Target row tagged "max" (currently sodium only) is a different, more conservative figure than the separate UL (Tolerable Upper Intake Level) column — the two ceilings are easy to conflate but never appear on the same nutrient. [Learn more...](#rda)
-
-<!--
-```
-Scope: web/backend.py — _nutrient_sections() computes rda_goal = f"{rda_val:.1f}
-{rda_unit}" alongside the existing pct/rda_css_val, added to each row dict (and
-the DCP pseudo-row). New shared macro web/templates/_rda_goal_column.html
-(header()/cell(), mirroring the existing _ul_column.html pattern) imported
-and wired into all 8 nutrient-table templates (meal.html, meal_day.html,
-recipe_detail.html, print.html, food_detail.html, summary.html, trend.html,
-food_analyze_recipe_portion.html) — new column inserted right after Unit,
-gated by has_profile same as the %-of-target column it sits beside.
-web/templates/_rda_definition_footer.html gained a second note paragraph
-distinguishing a "max"-tagged Daily Target (an RDA-table rda_type=="limit"
-row, currently only sodium's 2300 mg CDRR figure from profile.compute_rda)
-from the separate UL column (profile.get_max_limits/compute_upper_limits) —
-sodium is deliberately excluded from the UL table already, so the two never
-overlap on one nutrient, but nothing on the page previously said so.
-user-manual.md Part 4 §P (#rda) updated to document the new column and this
-same max-vs-UL distinction.
-```
--->
-
-**NUTRIENT PLOT NOW SHOWS MAXIMUM LIMIT LINES, NOT JUST GOAL LINES**
-
-The [Nutrient Plot](#nutrient-plot) already drew a dashed reference line for a nutrient's profile goal (Revised Optimal target, or RDA/AI where no Optimal is set). It now also draws a dotted reference line for that nutrient's maximum limit — a built-in Tolerable Upper Intake Level, or your own configured cap if you've set one — for any chosen nutrient that has one. Both lines draw in that nutrient's own line color, so goal and limit stay easy to tell apart from the data line and from each other.
-
-<!--
-```
-Scope: numa_app/services/plotting.py — line_plot_image() draws a series'
-"limit" value as a dotted axhline (existing "goal" stays dashed). web/
-backend.py — new _nutrient_plot_limit()/_nutrient_plot_add_limits(),
-mirroring _nutrient_plot_goal()/_nutrient_plot_add_goals(), sourced from
-profile.get_max_limits() (built-in ULs merged with user max_limits
-overrides); wired into the /summary/nutrient-plot/image endpoint alongside
-the existing goal attachment. Scale-factor steps (_apply_plot_scale_factor,
-_apply_individual_factors) now rescale "limit" the same way they already
-rescaled "goal", so the dotted line stays aligned to the data after either
-scaling step. Subtitle text picks goal-only/limit-only/both wording
-depending on which reference lines are actually present on the chart. This
-closes the "Plots of individual nutrients..." item in Part 9 — the
-per-nutrient goal/limit data problem it was waiting on (profile.compute_
-optimal/compute_rda/get_max_limits) was already solved elsewhere; only the
-second reference line was missing. Test added:
-test_nutrient_plot_image_renders_limit_lines.
-```
--->
-
-**A FOOD'S DIGESTIBLE COMPLETE PROTEIN NOW MATCHES ITS MEAL AND RECIPE VALUES**
-
-A single food's own DCP figure (on its Food Cache detail page and in its Protein Summary/Protein Quality sections) could come out noticeably lower than the same food's contribution shown in a meal's Top Contributors table — for one bread, 2.1 g per 100 g on the food page versus a rate implying 3.8 g per 100 g in a meal. The two were pulling digestibility from different tables and, on the food page, applying an amino-acid-limitation penalty a second time on top of a digestibility figure that already had it baked in. The food page now uses the same digestibility source as meal- and recipe-level DIAAS, so a food's own DCP and its contribution inside a meal or recipe agree.
-
-<!--
-```
-Scope: web/backend.py — _protein_section() (food_detail route) and
-_food_complement_section() now source `digestibility` from
-diaas.get_digestibility(food_name, conn) instead of usda_nutrients.get_diaas().
-Root cause: usda_nutrients._DIAAS_TABLE stores full, already amino-acid-
-balance-adjusted literature DIAAS scores (e.g. bread 0.46, keyed on the same
-"bread"/"wheat" keywords diaas.py's _DIGESTIBILITY_TABLE uses for a pure
-0.84 true-ileal-digestibility estimate), but _protein_section() treated that
-0.46 as raw digestibility and then multiplied by protein_completeness()'s own
-freshly-computed limiting-amino-acid ratio, penalizing amino acid limitation
-twice. Meal-level diaas.py never had this bug — it always used the pure
-digestibility table. export.py's three _render_bioavailability_* single-food
-report renderers switched to the same diaas.get_digestibility() call (no conn
-available there, so no per-food user override lookup in exported reports)
-for consistent numbers between the app and exported reports. Side effect:
-diaas.get_digestibility() always returns a value (defaulting to 0.82 for an
-unrecognized food name) where usda_nutrients.get_diaas() could return None,
-so food_detail.html's now-unreachable "no DIAAS reference for this food"
-fallback card was removed — every food with amino acid data now gets a DCP
-estimate. Tests updated: test_food_detail_protein_summary_shows_completeness_
-without_diaas_reference (renamed, now checks the default-digestibility DCP
-instead of the removed fallback text) and
-test_unusable_protein_line_absent_for_complete_food (switched its test food
-from chicken, whose true digestibility is 0.96, to milk, at 1.00, to keep
-testing the zero-unusable-protein suppression case).
-```
--->
-
-**NEW: FULL NUTRIENT KEY (APPENDIX H)**
-
-A new appendix gives a plain-language entry for every nutrient NuMa tracks — what it does, where it's discussed elsewhere in this manual, and a link to a respected outside source (mostly the Linus Pauling Institute's Micronutrient Information Center) for anyone who wants to go deeper than a nutrient table can show. All five Nutrient Analysis groups are covered (Macronutrients, Omega Fatty Acids, Minerals, Vitamins, Phytonutrients); amino acids point back to their own existing extensive treatment instead of repeating it. [Learn more...](#nutrient-key)
-
-<!--
-```
-Scope: user-manual.md — new Part 10 Appendix H (#nutrient-key), replacing
-the "under development" Part 9 stub. 40 nutrient entries across 5 groups,
-cross-linked to ~15 existing manual sections (RDA, Daily Nutrient Goals,
-DCP, Essential Amino Acids, Omega-3, Antinutrients, Diet-Aware
-Bioavailability, Maximum Nutrient Limits, Revised Optimal, Glycemic Load).
-25 new footnotes ([^17]-[^47]), each an externally-verified URL (fetched
-and confirmed live before citing, mostly Linus Pauling Institute
-Micronutrient Information Center pages plus a few MedlinePlus and
-Examine.com pages for macronutrients). Minerals/Vitamins/Phytonutrients/
-Omega groups are sub-grouped by standard nutrition-science families
-(macro- vs. trace minerals, fat- vs. water-soluble vitamins, carotenoids
-vs. other phytonutrients, omega-3 vs. omega-6) using heading+bullet
-nesting; Macronutrients uses the same nesting for the literal subset
-relationship (Fiber/Sugar under Carbohydrates, the three fat types under
-Fat) — see the separate entry below for that same hierarchy reaching the
-app's own nutrient tables. Part 9's old stub now points to this appendix.
-```
--->
-
-**FIBER, SUGAR, AND THE THREE FAT TYPES NOW SHOW INDENTED UNDER CARBOHYDRATES AND FAT**
-
-Fiber and Sugar are subsets of Carbohydrates, not additional to it — and Saturated, Monounsaturated, and Polyunsaturated fat are subsets of Fat the same way — the same relationship a Nutrition Facts label shows by indenting those rows under their parent. Every nutrient table in NuMa (food, recipe, meal, daily-summary, and the printable report) now shows that same indentation instead of five flat, same-looking rows. See the new [Full Nutrient Key](#nutrient-key) (Appendix H) for a plain-language description of every nutrient NuMa tracks, including this same parent/child relationship spelled out in full. [Learn more...](#nesting-carb-subtypes)
-
-<!--
-```
-Scope: web/backend.py — _nutrient_sections() gained a _SUBTYPE_KEYS constant
-(fiber_g, sugar_g, saturated_fat_g, mono_fat_g, poly_fat_g) and each row now
-carries an is_subtype flag. web/static/style.css gained a .subtype-row
-CSS rule (padding-left on the label cell). All 8 nutrient-table templates
-(food_detail, recipe_detail, meal, meal_day, summary, trend,
-food_analyze_recipe_portion, print) apply the subtype-row class when the
-flag is set; print.html carries its own inline copy of the CSS rule since
-it doesn't load style.css. New test:
-test_nutrient_table_indents_carb_and_fat_subtypes in tests/test_web.py.
-New user-manual.md Appendix H (#nutrient-key) built in the same session,
-covering all five Nutrient Analysis groups (Macronutrients, Omega Fatty
-Acids, Minerals, Vitamins, Phytonutrients) with internal cross-links and
-external citations (footnotes 17-47, mostly Linus Pauling Institute
-Micronutrient Information Center pages, each URL verified live before
-citing).
-```
--->
-
-##### September 17 program updates
-
-**YOU CAN NOW PIN A COMPLEMENT SUGGESTION'S GRADUATED AMOUNTS TO YOUR OWN SERVING SIZE**
-
-On a meal, food, or recipe's Complement Suggestions section, each suggestion's 25/50/75/100% graduated table now has a small "Base the scale above on: ___ g" field. Normally that table is scaled off the amount needed to *fully* close the amino acid gap — but for some foods that amount is impractically large (e.g. hundreds of grams of a protein powder), because the food's own ratio of the gapped amino acid to its total protein is only barely above the reference target. Type your own realistic serving size there and the table recalculates around it instead, so you can see the real effect of an amount you'd actually eat.
-
-<!--
-```
-Scope: numa_app/services/complements.py (build_complement_display gains
-anchor_overrides: dict[str, float] param, keyed by suggestion name lowercased;
-_grad_steps() takes an anchor_grams override that replaces the math-derived
-full_grams as the basis for the 25/50/75/100% fractions, while dig_protein per
-step still scales off the food's real per-gram digestible-protein rate; _fmt()
-surfaces full_closure_grams when the override differs from the true closure
-amount, for the "fully closing this gap would take Ng" note). web/backend.py
-adds _parse_anchor_overrides() and threads anchor_name/anchor_grams query-param
-lists through _food_detail_context/_food_complement_section (food_detail route),
-meal_view, and _recipe_detail_context/recipe_detail route into
-_complement_suggestions/build_complement_display. New shared partial
-web/templates/_complement_anchor.html renders the input; wired into meal.html,
-food_detail.html (which previously had no graduated table at all — added to
-match), and recipe_detail.html's suggest_card macros, submitted via the
-existing #complements-form GET form alongside ignore_complements. Also fixed a
-pre-existing sign-formatting bug (literal "+" prefix concatenated with a
-possibly-negative "%.0f"-formatted pct_increase, e.g. "+-8%") across all six
-grad_steps/diaas_improver step tables, using "%+.0f" instead.
-```
--->
-
-**THE "RECIPE SAVED" BANNER NO LONGER LINGERS OVER UNSAVED EDITS**
-
-On a recipe's Edit page, the green **Recipe saved** banner used to stay up no matter what you typed afterward — implying edits you hadn't saved yet were already saved. It now disappears the instant you touch any field in Recipe details, so it never claims more than it knows.
-
-<!--
-```
-Scope: web/templates/recipe_edit.html — the existing "unsaved Recipe details"
-dirty-tracking script (added for the ingredient-add warning) now also removes
-the #recipe-saved-alert element on the first input/change event against
-#recipe-details-form.
-```
--->
-
-**RECIPE YIELD VOLUME CAN NOW BE ENTERED IN CUPS, FLUID OUNCES, ETC. — NOT JUST MILLILITERS**
-
-The **Total yield volume** field on a recipe's Edit page now has a unit dropdown (mL, L, cup, fl oz, tbsp, tsp) instead of forcing milliliters. The explanation next to it also now spells out what entering this actually does: paired with the yield weight, it lets the [Convert](#convert) tool work out the recipe's density, so you can type an amount in one unit (like "1 cup") and see it converted to another (grams, ounces, servings) on that recipe's Convert page.
-
-<!--
-```
-Scope: web/templates/recipe_edit.html (total_volume_unit <select>, options ml/l/
-cup/floz/tbsp/tsp, expanded help text), web/backend.py recipe_edit_post() (new
-total_volume_unit form field, converted to mL via the existing
-numa_app.services.portions._VOLUME_TO_ML table before storage — total_volume
-is still always persisted in mL internally, matching food_convert_recipe()'s
-density calc which assumes mL).
-```
--->
-
-**GAP-CLOSER SUGGESTIONS NO LONGER RECOMMEND ABSURD SERVING SIZES**
-
-A [complement suggestion](#comp) that could only close its amino acid gap with an implausibly large amount — hundreds of grams of a concentrated food like protein powder — used to be shown anyway, as long as it stayed under a 500&nbsp;g ceiling that was really just a "not mathematically impossible" check, not a real-world sanity check. That ceiling is now 300&nbsp;g, and when a candidate's full-gap-closing amount would exceed it, the suggestion now falls back to the smaller amount needed to close a lesser amino acid gap it can still reach in a practical serving, rather than showing hundreds of grams of one food as your only option. [Learn more...](#comp)
-
-<!--
-```
-Scope: usda_nutrients.py — new module constant MAX_PRACTICAL_GAP_CLOSER_GRAMS
-(300) replaces the hardcoded literal in _score_one_complement()'s
-"grams <= 0 or grams > 500" guard; re-exported via usda.py. suggest_complements()
-already iterates candidate target AAs in gap order and falls through to the next
-gap when _score_one_complement() returns None for the primary one, so lowering
-the cap alone causes foods that fail the primary-gap closure (blocked by the new,
-tighter ceiling) to naturally surface their secondary-gap closure instead — no
-change needed there. numa_app/services/complements.py's exhausted_msg text
-(previously hardcoded "≤ 500 g") now reads the same constant.
-```
--->
-
-**TWO-STEP COMBINATIONS NO LONGER SHOWS A COMBO WITH NO SECOND STEP**
-
-The Two-Step Combinations section used to include a "Combination" card even when no Step 2 booster qualified for it — duplicating a suggestion already shown in the ordinary Protein Complement Suggestions list above it, but dressed up as a "combination" with nothing to combine. Those step-1-only entries no longer appear here; they're still visible in the regular Complement Suggestions section where they add real information.
-
-<!--
-```
-Scope: numa_app/services/complements.py — build_complement_display() only
-appends to two_step_combos when two_step_combo()'s returned dict has a
-non-None "step2", instead of appending on any non-None combo. Also fixed a
-related bug found while investigating: two_step_combo()'s gc_diaas (the pool
-DIAAS Step 1 achieves, used as the bar Step 2 must clear) came from
-predicted_diaas uncapped, which can mathematically exceed 1.0 when a
-combined pool over-supplies every essential amino acid — every other DIAAS
-comparison in this file caps at min(1.0, ...), but this one didn't, so an
-over-1.0 gc_diaas could make Step 2 structurally impossible (no real
-candidate's capped score can ever exceed it) even when a genuine
-improvement existed. Now capped the same way.
-```
--->
-
-##### September 16 program updates
-
-**A COMPLEMENT FOOD NO LONGER SHOWS UP TWICE IN DIAAS-BOOSTING OPTIONS**
-
-A protein-complement suggestion could appear as two separate cards under [DIAAS-Boosting Options](#comp) on a food, recipe, or meal page — once correctly linked to its real Food Cache entry, and once as an unlinked "generic estimate" duplicate of the very same food. Only the correctly-linked card now shows.
-
-<!--
-```
-Scope: web/backend.py _web_pantry_candidates() — pantry candidate dicts were
-missing their own "fdc_id" key, so a pantry item's DIAAS-improver suggestion
-always looked unidentified even when it had real cached nutrient data.
-usda_nutrients.py suggest_complements() — the same cached food could also be
-pulled into the "general" tier's candidate pool via load_cache_candidates()
-whenever its pantry display name didn't literally match the curated
-complement table's entry name (e.g. "Nutritional Yeast Flakes (FDC
-2411476)" vs. the table's "Nutritional yeast"), producing a second,
-independently-scored suggestion for the same fdc_id; general_candidates
-construction now skips a curated match whose fdc_id is already present in
-pantry_candidates, and the pantry+general DIAAS-improver merge now dedupes
-by fdc_id/recipe_id (falling back to name) instead of trusting each pool to
-be duplicate-free on its own.
-```
--->
-
-**A "CHECK FOR UPDATES NOW" LINK, FOR CHANGING YOUR MIND AFTER DISMISSING ONE**
-
-Dismissed an UPDATE AVAILABLE banner (see below) and want it back — because you changed your mind, or just want to re-check right now instead of waiting for the periodic check? A new **Check for updates now** link sits right next to the version date at the bottom of the home page. It undoes any dismissal and re-checks GitHub immediately; it only appears when no update banner is currently showing.
-
-<!--
-```
-Scope: numa_app/services/update_check.py — new clear_cache() resets the
-module-level check cache. web/backend.py — new POST /check-for-updates
-route clears both that cache and prefs.json's update_notice_dismissed_tag
-(set to "" rather than deleted, since _save_prefs_file only merges).
-web/templates/home.html — "Check for updates now" link/form next to the
-version-date line, shown only when update_available is falsy. New test:
-tests/test_web.py test_check_for_updates_now_undoes_a_dismissal.
-```
--->
-
-**"UPDATE AVAILABLE" NO LONGER DISAPPEARS ON ITS OWN**
-
-The home page's UPDATE AVAILABLE banner used to hide itself again shortly after first appearing — by default, at most once per calendar day — even if you hadn't updated or read it yet. It now stays on every page load, restart included, until you either install the update or check its new **Don't show this again for this version** checkbox (the same pattern as the System Issues banner's "Got it" checkbox). Checking it only dismisses that exact release; a later one still shows. The Settings → Update Notifications daily/weekly/monthly frequency setting is gone — this checkbox replaces it.
-
-<!--
-```
-Scope: web/backend.py — removed _UPDATE_NOTIFY_FREQ_LABELS/_DAYS,
-_VALID_UPDATE_NOTIFY_FREQS, _current_update_notify_frequency(), and the
-POST /settings/update-notify-frequency route. _should_show_update_notice()
-now just compares the release tag against a new
-prefs.json update_notice_dismissed_tag key (set by new POST
-/update-notice/ack-banner, mirroring /recompute-errors/ack-banner). Root
-cause: the old logic persisted a last-shown date the first time a release
-was seen, then suppressed every same-day recheck — so a restart or reload
-minutes later (as opposed to the intended "next calendar day") already
-hid it, with no way to bring it back short of a new release. web/templates/
-home.html (dismiss checkbox + form, removed frequency line), settings.html
-(removed "Update Notifications" section). tests/test_web.py: replaced
-test_update_notice_frequency_gate_lets_a_newer_release_through with
-test_update_notice_keeps_showing_until_dismissed and
-test_update_notice_dismiss_checkbox_hides_only_that_release.
-```
--->
-
-**"DID YOU MEAN" CAN NOW FIX TWO MISSPELLED WORDS AT ONCE**
-
-Searching for something like `triskitt originle` (two typos) used to only ever suggest a correction for one word at a time — `triscuit originle` or `triskitt original`, both still broken if you clicked them. The first suggestion now fixes every misspelled word in the query together — `triscuit original` — so clicking it actually finds something.
-
-<!--
-```
-Scope: numa_app/services/search_suggest.py suggest() — previously built one
-variant per (word index, candidate) pair, substituting only that one word.
-Now collects candidate replacements per out-of-corpus word first, and when
-more than one word needs fixing, adds a single combined variant (each
-word's best candidate applied at once) ahead of the existing per-word
-variants. New test: tests/test_search_suggest.py
-test_suggest_corrects_two_misspelled_words_at_once.
-```
--->
-
-**A TYPO'D SEARCH WORD NO LONGER SILENTLY GETS DROPPED IN FAVOR OF A GENERIC WORD LIKE "ORIGINAL"**
-
-Searching Food Cache (or any other local search) for something like `triskitt original` used to quietly ignore the misspelled `triskitt` and return hits matched on `original` alone, with no indication anything was wrong — a search that looks like it worked, on a food you didn't actually ask for. That search now correctly finds nothing, and offers the ["Did you mean"](#search-suggestions) correction (`triscuit original`) instead.
-
-<!--
-```
-Scope: db.py _OR_FALLBACK_STOPWORDS — the any-word OR-fallback search for
-user-drafted foods (search_cached_foods()) already excluded generic
-prep/state words (raw, cooked, ...) from single-handedly justifying a match,
-per the August 27 fix for "orange raw" wrongly surfacing "Raw Brazil Nuts".
-Same failure mode, different word category: "original", "organic",
-"classic", and "traditional" are near-universal branded-food descriptors
-that carry no identifying signal on their own, so they're now excluded too.
-New regression test in tests/test_db.py:
-test_search_cached_foods_generic_descriptor_word_alone_does_not_trigger_or_fallback.
-```
--->
-
-**KEYBOARD SHORTCUTS (ALT+SHIFT+KEY) NO LONGER GO DEAD WHILE YOU'RE TYPING**
-
-The [Alt+Shift navigation shortcuts](#web-shortcuts) (F, R, M, N, S, A, and the Settings section numbers) now keep working even while your cursor is sitting in a text box — which on a data-entry app is most of the time. Previously they silently stopped working the moment any field had focus, so the browser's own default handling took over instead, making the shortcuts feel broken or unreliable in normal use.
-
-<!--
-```
-Scope: web/templates/base.html — the Alt+Shift keydown handler bailed out
-whenever document.activeElement was an INPUT/TEXTAREA/SELECT, before it
-could call preventDefault(), so the browser's native handling of that key
-combo ran instead. That guard made sense on macOS, where Option(Alt)+Shift+
-letter really can insert a special character into a text field, but on
-Windows/Linux Alt+Shift+letter never inserts anything, so there was nothing
-to protect and it just killed the shortcuts almost all the time, since most
-NuMa pages autofocus a text input on load. Narrowed the guard to only apply
-on macOS (detected via navigator.platform); Windows/Linux now ignore focus
-entirely for this handler, matching the "works in any desktop browser"
-claim already in Settings section 4.
-```
--->
-
-**FOODS/RECIPES/ANALYSIS KEYBOARD SHORTCUTS NOW WORK WITH A NARROW BROWSER WINDOW**
-
-Pressing Alt+Shift+F, R, or N to jump to the Foods, Recipes, or Analysis dropdown did nothing if your browser window was narrow enough that the main menu had collapsed into the mobile-style hamburger icon (roughly less than 768 pixels wide — a half-screen window on many laptops). The shortcut now expands the menu first, so the dropdown opens and gets focus regardless of window width.
-
-<!--
-```
-Scope: web/templates/base.html — the Alt+Shift keydown handler's dropdown
-branch called target.click() then firstItem.focus() without checking
-whether the toggle's ancestor #main-nav (Bootstrap's .navbar-collapse) was
-actually expanded. Below the navbar-expand-md breakpoint, #main-nav starts
-display:none until its own "show" class is added by the hamburger toggler;
-Bootstrap still added "show" to the dropdown-menu itself on click, but a
-hidden ancestor kept it invisible, so the subsequent focus() call silently
-failed on a display:none descendant. Now checks navCollapse.contains(target)
-before the existing click()/focus() logic.
-
-First attempt at the collapse-expand check used
-!navCollapse.classList.contains('show'), which turned out to be true on
-every press even at full desktop width — navbar-expand-md's CSS forces
-the collapse visible there (display:flex !important) without the JS ever
-adding "show", so bootstrap.Collapse.show() fired unconditionally,
-animating an already-visible element's height from 0 and producing a
-visible "opens on top, then drops into place" glitch on every shortcut
-press regardless of window width. Fixed by checking
-getComputedStyle(navCollapse).display === 'none' instead, which is only
-true when the collapse is genuinely hidden (below the breakpoint,
-unexpanded). Verified with Playwright: at 1200px a MutationObserver on
-#main-nav sees zero attribute/style mutations (Collapse is never
-instantiated) and the dropdown opens with no animation; at 600px the
-collapse still expands and focus lands correctly. Full test suite: 1008
-passed.
-```
--->
-
-**DROPDOWN MENU NUMBERS (FOODS/RECIPES/ANALYSIS) ARE NOW REAL SHORTCUTS**
-
-Each item in the Foods, Recipes, and Analysis dropdowns is labeled with a number ("1. Search", "2. Analyze a food portion", ...). Once the menu is open, pressing that plain number key (no Alt/Shift needed) now jumps straight to that item — matching what the numbering already implied. Previously an unhandled digit keypress fell straight through to the browser instead, and in Firefox this could pop up its own "find in page" bar with the digit typed into it, since Firefox treats any unhandled plain character key as the start of a find-as-you-type search. See [Keyboard Shortcuts](#web-shortcuts) in Settings.
-
-<!--
-```
-Scope: web/templates/base.html — added a second keydown listener alongside
-the existing Alt+Shift one: when a plain digit 1-9 is pressed with no
-Ctrl/Alt/Meta held and a `.numa-dropdown.show` menu is currently open,
-preventDefault() and click() the nth `.dropdown-item` (1-indexed, skipping
-the `<hr class="dropdown-divider">` list item so item numbers line up with
-the visible "1./2./3." labels). Works whether the menu was opened by mouse
-or by the Alt+Shift shortcut. web/templates/settings.html — added a line to
-the Keyboard Shortcuts section documenting this. Verified with Playwright:
-mouse-opened menu + digit selects the right item, Alt+Shift+F + digit does
-too, and a bare digit with no menu open does nothing (doesn't interfere
-with normal typing). Full test suite: 1008 passed.
-```
--->
-
-**"DID YOU MEAN" SUGGESTIONS NOW APPEAR ON EVERY SEARCH BOX THAT WAS MISSING THEM**
-
-Misspell a search on Food Cache, Annotate a Food, Recipes, Meal History Search, or either of the two food-lookup searches on the Edit Custom Profile page (Copy nutrient values, Estimate amino acids), and you'll now see "Did you mean: ..." suggestions the same way Search, Pantry, Compare, and the other search boxes already did — those six had a "no results" message but were never wired up to actually offer a correction.
-
-<!--
-```
-Scope: web/templates/food_cache.html, food_annotate.html, meals_search.html,
-recipes.html, food_custom_profiles.html, food_custom_edit.html (two search
-boxes) — each of these had a no-results branch with no
-<span class="search-no-results" data-query data-field> marker element, so
-base.html's shared numaInitSearchSuggestions()/`/search/suggestions` (backed
-by numa_app/services/search_suggest.py, unchanged) never fired for them.
-Added the marker span to each, matching the pattern already used in
-search.html, pantry.html, compare.html, recipe_edit.html, meal.html,
-food_convert.html, and food_analyze_portion.html. web/templates/
-oxalate_link.html's search deliberately excluded — it already always
-returns difflib-ranked candidates via oxalate.py's own search_similar()
-against a different corpus (the oxalate reference table), so it has no true
-zero-result state and wiring the generic suggester in would surface
-irrelevant cross-corpus suggestions. No backend/route changes; verified via
-FastAPI TestClient against an isolated DB plus the full tests/test_web.py
-suite (187 passed).
-```
--->
-
-**THE "CHOOSE FIELDS TO COPY" PAGE CAN NOW SELECT OR DESELECT A WHOLE NUTRIENT GROUP AT ONCE**
-
-On [Edit Custom Profile](#drafted-foods)'s "Choose fields to copy" page (see "Edit Custom Profile can now copy just the fields you choose" below), each nutrient group — Macronutrients, Minerals, Vitamins, Amino Acids, and so on — now has its own checkbox in the card header, next to the group's name. Checking or unchecking it selects or deselects every field in that group in one click, instead of clicking each field individually; it also reflects a partially-selected group (a dash rather than a check) if you've hand-picked only some of that group's fields.
-
-<!--
-```
-Scope: web/templates/food_custom_copy_select.html — each field-group <div
-data-field-group> card gets a checkbox (data-group-select-all) in its
-card-title. JS: a change listener on that checkbox toggles every
-.copy-field-checkbox within the same card; a change listener on each field
-checkbox calls syncGroupCheckbox() to keep the group checkbox's checked/
-indeterminate state in sync (indeterminate when some-but-not-all of that
-group's fields are checked). The page-wide "Select all"/"Select none"
-buttons now also resync every group checkbox afterward. tests/test_web.py:
-test_custom_profile_copy_nutrients_select_page_lists_source_fields extended
-to assert the per-group checkbox markup is present.
-```
--->
-
-**A USER-DRAFTED FOOD'S ID NO LONGER SHOWS AS THE NONSENSE LABEL "OFF"**
-
-Several ID columns across the app (Food Cache, Pantry, Compare, Prune, and every food/recipe search-results table) labeled *any* negative food id as "OFF" (Open Food Facts) — including small, ordinary user-drafted food ids that aren't from Open Food Facts at all. A [drafted food](#drafted-foods) now gets its own readable id instead: **UD1**, **UD2**, **UD3**, and so on, assigned in the order each draft was created. Real Open Food Facts, Canadian Nutrient File, CoFID, AFCD, and CIQUAL ids are unaffected — those already had correct, distinct labels; only the fallback that swallowed everything else into "OFF" was wrong.
-
-<!--
-```
-Scope: numa_app/services/food_ids.py classify_food_id() — the final fallback
-branch (fdc_id doesn't match any _SYNTHETIC_ID_RANGES block, i.e. a genuine
-user-drafted id from db.next_user_drafted_fdc_id()'s -1, -2, -3, ...
-allocation) now returns id_str f"UD{-fdc_id}" instead of the bare negative
-number. web/backend.py — new food_id_short() Jinja global (id_str half of
-classify_food_id(), for a compact standalone ID column where food_id_tag()'s
-full "(#id, SOURCE)" form would duplicate an adjacent Type/Source column).
-Replaced six separate ad hoc "fdc_id < 0 ? OFF : fdc_id" template
-expressions — the actual bug, present since before the multi-source
-(CNF/CoFID/AFCD/CIQUAL) expansion — with food_id_short() calls in
-food_cache.html, food_cache_prune.html, compare.html, pantry.html,
-_add_food_row.html, recipe_edit.html, and _search_result_row.html. New
-tests/test_food_ids.py (6 cases) plus one new web-level regression test in
-tests/test_web.py asserting the Food Cache ID column renders "UD3" and
-never renders ">OFF<" for a drafted food.
-```
--->
-
-**EDIT CUSTOM PROFILE CAN NOW COPY JUST THE FIELDS YOU CHOOSE FROM ANOTHER FOOD, AND SHOWS AMINO ACID STATUS IN ITS SEARCH RESULTS**
-
-"Copy nutrient values from another food" (renamed from "Copy a full nutrient profile") used to be all-or-nothing — picking a source food replaced every value on the profile at once, amino acids included, even if you only wanted to fill in a couple of missing minerals. Clicking a search result now opens a **Choose fields to copy** page listing every nutrient the source food actually has, grouped the same way the edit form is, each with a checkbox (all checked by default) and a side-by-side look at what's on this profile now versus what the source would bring in. Only the fields you leave checked are changed — everything else on the profile stays exactly as it was. Separately, that search results table now shows an AA column, same as the amino-acid estimator's search results below it, so you can see at a glance which candidates actually have amino acid data before picking one.
-
-<!--
-```
-Scope: web/backend.py — new GET /food/custom-profiles/{fdc_id}/copy-nutrients/select
-(renders food_custom_copy_select.html: per-group checkbox list built from
-_EDIT_NUTRIENT_GROUPS, restricted to keys the source actually has, each row
-showing target_value vs source_value). POST /copy-nutrients now takes
-keys: list[str] = Form(default=[]) and merges only those keys into the
-target's existing nutrients dict (dict(target_nutrients); updated[k] =
-source[k] for k in selected) instead of replacing the whole dict — a food
-with no keys selected redirects with nutrients_applied=none_selected
-rather than silently doing nothing. New _get_or_cache_source_food() helper
-extracted from the (now three) copy-aa/copy-nutrients/-select routes'
-duplicated "fetch-and-cache an uncached source" block.
-numa_app/services/aa_estimate.py copy_nutrients_note() takes an optional
-field_labels list, naming up to 6 fields or falling back to a count, so
-the saved Notes text reflects a partial copy instead of always implying a
-full-profile one. web/templates/food_custom_edit.html — nutrient_source_results
-table gets an AA column (mirroring aa_source_results below it); the
-"Use as source" button/confirm() replaced with a plain link to the new
-select page. New file: food_custom_copy_select.html. Tests: 3 new in
-tests/test_web.py (select page renders source fields, selective copy
-merges instead of replacing, no-selection case), 2 existing tests
-(test_food_cascade.py, test_web.py) updated to pass explicit keys=... now
-that a bare POST is a no-op by design.
-```
--->
-
-**THE MISLEADING AMINO-ACID CHECKMARK FIX NOW COVERS EVERY PAGE THAT SHOWS ONE, NOT JUST FOOD SEARCH**
-
-Yesterday's fix for the false "amino acid data confirmed" checkmark (a food with no nutrient data at all showing ✓ instead of a warning) only touched Food Search — Food Cache, Pantry, Compare, the meal "Refresh AA data" action, and both AA-source pickers on the Edit Custom Profile page still had the same bug, using the same unguarded check. All of them now use the same fixed logic. Two consequences beyond the visual checkmark: a food this broken could never be picked up by "Refresh AA data" (it looked done already, so it was silently skipped forever), and a recipe containing it could silently skip the usual complement-table AA fallback for the same reason — both now correctly treat it as needing attention.
-
-Separately, on [Edit Custom Profile](#drafted-foods), the "Copy a full nutrient profile" and "Estimate amino acids" sections have been relabeled so it's clear at a glance (and again in the confirmation prompt when you click) that the first replaces everything on the profile, amino acids included, while the second only ever touches amino acids and leaves the rest of the profile alone.
-
-<!--
-```
-Scope: usda_nutrients.py — new has_confirmed_aa_data() (has_macro_data()
-AND has_amino_acid_data()), the boolean counterpart to aa_indicator() for
-call sites that need a plain True/False rather than a ✓/✗/⚠ display
-string. Re-exported via usda.py. web/backend.py — food_cache_get(),
-food_cache_refresh()'s error-path re-render, pantry_get(),
-_search_food_sources() (the AA-source picker's has_aa/button-disable
-flag), meal_refresh_aa()'s "already has AA data, skip" gate, and the
-Compare page's has_aa flag all switched from has_amino_acid_data() to
-has_confirmed_aa_data(). numa_app/services/recipe_nutrients.py
-best_aa_nutrients() — same swap, fixing the recipe-level complement
-fallback. web/templates/food_custom_edit.html — both <details> summaries,
-their descriptions, the "Use as source"/confirm() text, and the AA-picker
-button text reworded to name what each action does and does not touch.
-```
--->
-
-**THE MANUAL NOW OPENS IN ITS OWN TAB AND PICKS UP WHERE YOU LEFT OFF**
-
-Clicking **Manual** in the main navigation now always opens it in a new browser tab, so you don't lose your place in the app. It also remembers the last section you were reading and scrolls straight back there on your next visit — unless you followed a specific "Learn more" link, which always takes you to that link's own section instead. And the Table of Contents search box is now focused automatically when the page loads, so you can just start typing.
-
-<!--
-```
-Scope: web/templates/base.html — Manual nav link gets target="_blank"
-rel="noopener". scripts/build_manual.py — search-input autofocus()'d on
-load (skipped below 1050px, where CSS hides the TOC sidebar, to avoid
-popping the mobile keyboard unasked). New localStorage key
-numa_manual_last_section, set in the scroll-spy's activate() and read on
-load: with no location.hash (a plain nav click) it scrolls to the saved
-section; an explicit hash (a deep "Learn more" link) always wins instead.
-localStorage rather than sessionStorage since target="_blank" opens a
-fresh tab with its own session storage each time.
 ```
 -->
 

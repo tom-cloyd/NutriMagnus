@@ -75,6 +75,72 @@
   </div>
 {% endmacro %}
 
+{# Saved scenarios for this page (page = "meals" | "recipes"), like
+   Compare's saved lists. query = the current page's query string. #}
+{% macro saved_panel(saved, page, query) %}
+{% if saved %}
+<details class="mb-3">
+  <summary><strong>Use a saved scenario</strong> <span class="muted">({{ saved|length }})</span></summary>
+  <table class="table table-sm table-hover mt-2" style="max-width:52rem">
+    <thead class="table-light"><tr><th>Name</th><th>Saved</th><th></th></tr></thead>
+    <tbody>
+      {% for s in saved %}
+      <tr>
+        <td>
+          <a href="/analysis/whatif/load/{{ s.id }}">{{ s.name }}</a>
+          <form method="post" action="/analysis/whatif/saved/rename" class="d-inline-flex align-items-center gap-1 ms-2">
+            <input type="hidden" name="scenario_id" value="{{ s.id }}">
+            <input type="hidden" name="page" value="{{ page }}">
+            <input type="hidden" name="query" value="{{ query }}">
+            <input type="text" name="name" value="{{ s.name }}" class="form-control form-control-sm" style="max-width:14rem">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
+          </form>
+        </td>
+        <td class="muted">{{ s.created_at[:10] }}</td>
+        <td>
+          <form method="post" action="/analysis/whatif/saved/delete" style="display:inline">
+            <input type="hidden" name="scenario_id" value="{{ s.id }}">
+            <input type="hidden" name="page" value="{{ page }}">
+            <input type="hidden" name="query" value="{{ query }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">Delete this saved scenario</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+{% endmacro %}
+
+{# Under a result: save the scenario, download it, or apply it for real. #}
+{% macro result_actions(page, query, apply_problems, csv_path) %}
+<div class="d-flex flex-wrap align-items-end gap-3 mb-3 p-2 border rounded">
+  <form method="post" action="/analysis/whatif/save" class="d-flex align-items-end gap-1">
+    <input type="hidden" name="page" value="{{ page }}">
+    <input type="hidden" name="query" value="{{ query }}">
+    <div>
+      <label class="form-label mb-0" for="scenario-name"><small>Name for this scenario</small></label>
+      <input type="text" class="form-control form-control-sm" id="scenario-name" name="name" style="width:16rem" placeholder="e.g. Swap oat milk for soy milk">
+    </div>
+    <button type="submit" class="btn btn-sm btn-outline-primary">Save this scenario</button>
+  </form>
+  <a href="{{ csv_path }}?{{ query }}" class="btn btn-sm btn-outline-secondary">Download CSV</a>
+  {% if not apply_problems %}
+  <a href="/analysis/whatif/apply?{{ {'page': page, 'query': query}|urlencode }}" class="btn btn-sm btn-outline-danger">Apply these replacements for real&hellip;</a>
+  {% else %}
+  <span class="small muted" style="max-width:30rem">Apply for real isn't offered: {{ apply_problems|join(" ") }}</span>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro applied_banner(applied, page) %}
+{% if applied is not none %}
+<div class="alert alert-success py-2">Applied for real: {{ applied }} {{ "meal(s)" if page == "meals" else "recipe(s)" }} changed.
+  The table below now starts from your data as it is now, so the replacements you applied find nothing left to replace.</div>
+{% endif %}
+{% endmacro %}
+
 {# add_label: the Amount box's label when the action is Add. #}
 {% macro script(max_rows, add_label) %}
 <script>

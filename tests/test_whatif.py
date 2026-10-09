@@ -364,3 +364,128 @@ class TestRecipes:
                 Edit("replace", ("food", MILK), ("recipe", data["soup"]))], groups=GROUPS)
             assert conn.total_changes == changes
         assert hashlib.sha256(db_path.read_bytes()).hexdigest() == digest
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: CSV, saved scenarios, apply for real
+# ---------------------------------------------------------------------------
+
+class TestRealSubstitutionCheck:
+    def test_food_for_food_same_weight_is_allowed(self):
+        assert _wi.real_substitution_problems([Edit("replace", ("food", OATS), ("food", LENTILS))]) == []
+
+    def test_recipe_for_recipe_same_servings_is_allowed(self):
+        assert _wi.real_substitution_problems(
+            [Edit("replace", ("recipe", 1), ("recipe", 2), basis="servings")]) == []
+
+    @pytest.mark.parametrize("edit", [
+        Edit("remove", ("food", OATS)),
+        Edit("add", ("food", OATS), amount=10.0),
+        Edit("scale", ("food", OATS), amount=0.5),
+        Edit("replace", ("food", OATS), ("food", LENTILS), amount=1.2, basis="factor"),
+        Edit("replace", ("food", OATS), ("food", LENTILS), amount=30.0, basis="stated"),
+        Edit("replace", ("food", OATS), ("recipe", 1)),
+    ])
+    def test_anything_the_real_substitute_would_do_differently_is_refused(self, edit):
+        assert _wi.real_substitution_problems([edit])
+
+    def test_chains_and_duplicates_are_refused(self):
+        chain = [Edit("replace", ("food", OATS), ("food", MILK)), Edit("replace", ("food", MILK), ("food", LENTILS))]
+        twice = [Edit("replace", ("food", OATS), ("food", MILK)), Edit("replace", ("food", OATS), ("food", LENTILS))]
+        assert _wi.real_substitution_problems(chain)
+        assert _wi.real_substitution_problems(twice)
+        assert _wi.real_substitution_problems([])
+
+
+def test_meals_csv_has_every_row_and_the_changes(data):
+    res = run(data, [Edit("remove", ("food", OATS))])
+    text = _wi.meals_csv(res)
+    assert "Change,Remove Oats,found in 2 meal(s) on 1 day(s)" in text
+    assert "Iodine" in text          # unchanged rows are exported too
+    assert text.count("\n") > 10
+
+
+def test_recipes_csv_uncapped_lists_every_reached_recipe(data, db_conn):
+    recipes = [dict(r) for r in db_conn.execute("SELECT * FROM recipes")]
+    with _db.get_db() as conn:
+        res = _wi.evaluate_recipes(conn, recipes, [Edit("replace", ("food", OATS), ("food", LENTILS))],
+                                   groups=GROUPS, max_columns=None)
+    text = _wi.recipes_csv(res)
+    assert f"R{data['bowl']} Bowl: after" in text and f"R{data['sub']} Oat base: after" in text
+    assert "Lentil soup" not in text
+
+
+@pytest.fixture()
+def web():
+    from fastapi.testclient import TestClient
+    from web import backend
+    return TestClient(backend.app)
+
+
+def _meals_query(op="replace", item=f"U{OATS}", with_=f"U{LENTILS}", basis="grams"):
+    from urllib.parse import urlencode
+    return urlencode({"mode": "range", "ranges_raw": "2026-01-01:2026-01-02", "e_op": op,
+                      "e_item": item, "e_with": with_, "e_amt": "", "e_basis": basis, "days": "all"})
+
+
+def test_saved_scenario_round_trip(data, web, db_conn):
+    q = _meals_query()
+    web.post("/analysis/whatif/save", data={"page": "meals", "name": "Oats to lentils", "query": q + "&applied=3"},
+             follow_redirects=False)
+    row = db_conn.execute("SELECT * FROM saved_whatif_scenarios").fetchone()
+    assert row["name"] == "Oats to lentils" and row["page"] == "meals" and "applied" not in row["query"]
+    resp = web.get(f"/analysis/whatif/load/{row['id']}", follow_redirects=False)
+    assert resp.headers["location"] == "/analysis/whatif?" + row["query"]
+    assert "Oats to lentils" in web.get("/analysis/whatif?" + q).text
+    assert "Oats to lentils" not in web.get("/analysis/whatif-recipes").text   # per page
+    web.post("/analysis/whatif/saved/rename", data={"scenario_id": row["id"], "name": "Swap", "page": "meals"})
+    assert db_conn.execute("SELECT name FROM saved_whatif_scenarios").fetchone()["name"] == "Swap"
+    web.post("/analysis/whatif/saved/delete", data={"scenario_id": row["id"], "page": "meals"})
+    assert db_conn.execute("SELECT COUNT(*) FROM saved_whatif_scenarios").fetchone()[0] == 0
+
+
+def test_csv_routes(data, web):
+    resp = web.get("/analysis/whatif/export.csv?" + _meals_query())
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "Replace Oats with Lentils (same weight)" in resp.text
+    resp = web.get("/analysis/whatif-recipes/export.csv?" + _meals_query().replace("mode=range", "mode=all"))
+    assert "Bowl: after" in resp.text
+
+
+def test_apply_offered_only_for_a_matching_scenario(data, web):
+    assert "Apply these replacements for real" in web.get("/analysis/whatif?" + _meals_query()).text
+    text = web.get("/analysis/whatif?" + _meals_query(op="remove")).text
+    assert "Apply these replacements for real" not in text and "Apply for real isn't offered" in text
+
+
+def test_apply_meals_changes_direct_items_only(data, web, db_conn):
+    from urllib.parse import urlencode
+    q = _meals_query()
+    page = web.get("/analysis/whatif/apply?" + urlencode({"page": "meals", "query": q})).text
+    assert f"M{data['m2']}" in page and f"M{data['m1']}<" not in page
+    assert "1 other meal(s) have it only inside a recipe" in page
+    resp = web.post("/analysis/whatif/apply", data={"page": "meals", "query": q}, follow_redirects=False)
+    assert "applied=1" in resp.headers["location"]
+    item = db_conn.execute("SELECT * FROM meal_items WHERE meal_id=?", (data["m2"],)).fetchone()
+    assert (item["fdc_id"], item["food_name"], item["amount"]) == (LENTILS, "Lentils", 100.0)
+    # The oats inside the Bowl recipe are untouched.
+    assert db_conn.execute("SELECT COUNT(*) FROM recipe_ingredients WHERE fdc_id=?", (OATS,)).fetchone()[0] == 2
+
+
+def test_apply_recipes_changes_selected_recipes(data, web, db_conn):
+    from urllib.parse import urlencode
+    q = urlencode({"mode": "ids", "recipe_ids": str(data["sub"]), "e_op": "replace", "e_item": f"U{OATS}",
+                   "e_with": f"U{LENTILS}", "e_amt": "", "e_basis": "grams"})
+    page = web.get("/analysis/whatif/apply?" + urlencode({"page": "recipes", "query": q})).text
+    assert f"R{data['sub']}" in page
+    web.post("/analysis/whatif/apply", data={"page": "recipes", "query": q})
+    rows = db_conn.execute("SELECT recipe_id, fdc_id FROM recipe_ingredients WHERE fdc_id IN (?, ?)",
+                           (OATS, LENTILS)).fetchall()
+    assert {(r["recipe_id"], r["fdc_id"]) for r in rows} == {
+        (data["sub"], LENTILS), (data["bowl"], OATS), (data["soup"], LENTILS)}
+
+
+def test_apply_refuses_a_non_matching_scenario(data, web, db_conn):
+    before = db_conn.execute("SELECT * FROM meal_items ORDER BY id").fetchall()
+    web.post("/analysis/whatif/apply", data={"page": "meals", "query": _meals_query(op="remove")})
+    assert [dict(r) for r in db_conn.execute("SELECT * FROM meal_items ORDER BY id")] == [dict(r) for r in before]

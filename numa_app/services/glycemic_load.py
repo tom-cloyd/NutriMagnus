@@ -1,67 +1,166 @@
 """
-glycemic_load.py — glycemic load (GL) aggregation across a list of line items
-(foods and/or recipes), used by the web backend (backend.py). Extracted after
-web's two separate call sites independently recomputed this same accumulation
-loop and both lacked the recipe-GL rollup via recipes.gl_g, always treating a
-nested recipe/sub-recipe line item as an unconditional blocker instead of
-using its precomputed GL.
+glycemic_load.py — glycemic load (GL) for foods, recipes, meals and days,
+used by the web backend (backend.py).
+
+GL = GI x carbohydrate grams / 100, summed over every food eaten. A recipe's GL
+is worked out live from its ingredients, through any sub-recipes, rather than
+read from a saved figure, so it is never stale and never missing just because
+nobody "analyzed" the recipe. A food with no GI value can't be counted; instead
+of hiding the whole figure, the result keeps the GL of everything that could be
+counted and lists each food that couldn't, with the reason — so a page can say
+"at least 14.2, incomplete" and name what is missing.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/glycemic_load.py — GL aggregation"
 """
 import json
 
 import db as _db
 
+# A food without a GI whose carbohydrate in the amount eaten is under this
+# counts as zero rather than as missing data: its GL can be at most 1 even at
+# GI 100. The same idea as DCP's 1 g protein floor for foods with no amino
+# acid data (recipe_dcp.py), so a pinch of spice or a splash of oil never
+# makes a recipe's GL "incomplete".
+NEGLIGIBLE_CARBS_G = 1.0
 
-def compute_glycemic_load(line_items: list[dict], conn) -> tuple[float, list[tuple[str, int | None, int | None]]]:
-    """Compute total glycemic load across a list of line items.
+# Why a food's share of the GL could not be counted (gap["reason"]).
+GAP_NO_GI      = "no_gi"       # no GI recorded yet
+GAP_NOT_WANTED = "not_wanted"  # GI marked "don't prompt me" (or GI opted out in Settings)
+GAP_NO_DATA    = "no_data"     # the food has no nutrient data at all
+GAP_NO_RECIPE  = "no_recipe"   # a logged recipe that has since been deleted
 
-    Each line item: {"kind": "food" | "recipe", "name": str, "amount": float,
-                      "fdc_id": int | None, "recipe_id": int | None}
-    `amount` is grams for "food" items, servings consumed for "recipe" items.
 
-    Recipe items use the recipe's own precomputed gl_g (GL per serving, set
-    via db.recipe_set_gl after analyzing that recipe) scaled by servings
-    consumed; a recipe with no gl_g yet becomes a blocker.
+def _ingredient_line_items(conn, recipe_id: int) -> list[dict]:
+    return [
+        {
+            # A sub-recipe whose recipe was deleted keeps its line, flagged.
+            "kind":      "recipe" if ing["ref_recipe_id"] or ing["ref_recipe_deleted"] else "food",
+            "name":      ing["food_name"],
+            "amount":    ing["amount"] or 0.0,
+            "fdc_id":    None if ing["ref_recipe_id"] or ing["ref_recipe_deleted"] else ing["fdc_id"],
+            "recipe_id": ing["ref_recipe_id"],
+        }
+        for ing in _db.recipe_get_ingredients(conn, recipe_id)
+    ]
 
-    Returns (gl_total, blockers). gl_total accumulates every line item that
-    *could* be computed, even when blockers is non-empty — callers decide
-    whether a partial total is worth showing or whether any blocker should
-    suppress the total entirely (existing call sites differ on this).
-    blockers is a list of (label, fdc_id, recipe_id) tuples so callers can show
-    each blocker's ID + source alongside its name; label already includes any
-    trailing note (e.g. "(no GL — analyze it first)") for recipe blockers.
-    """
+
+def _add_gap(gaps: list[dict], gap: dict) -> None:
+    """Append `gap` unless the same food or recipe is already listed — a food
+    used in two recipes of one meal is one thing to fix, not two."""
+    def key(g):
+        return (g["fdc_id"], g["recipe_id"]) if g["fdc_id"] or g["recipe_id"] else g["name"]
+    if all(key(g) != key(gap) for g in gaps):
+        gaps.append(gap)
+
+
+def _food_share(nutrients: dict, grams: float, ann, gi_opt_out: bool) -> tuple[float, str | None]:
+    """(GL of `grams` of a food, gap reason or None). A food with no
+    carbohydrate value at all (an oil, say) counts as carbohydrate-free, the
+    same as every other nutrient total treats it."""
+    carbs_g = (nutrients.get("carbs_g") or 0.0) * grams / 100.0
+    if ann is not None and ann["gi_estimate"] is not None:
+        return ann["gi_estimate"] * carbs_g / 100.0, None
+    if carbs_g < NEGLIGIBLE_CARBS_G:
+        return 0.0, None
+    not_wanted = gi_opt_out or (ann is not None and ann["gi_no_prompt"])
+    return 0.0, GAP_NOT_WANTED if not_wanted else GAP_NO_GI
+
+
+def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out) -> float:
+    """GL of `line_items` x `scale`, appending a gap per item that can't be
+    counted. `seen` holds the recipes already being expanded on this path, so
+    a reference cycle stops instead of recursing forever."""
     food_ids = [li["fdc_id"] for li in line_items if li["kind"] == "food" and li.get("fdc_id")]
     ann_map = _db.annotations_for_fdcids(conn, food_ids) if food_ids else {}
+    total = 0.0
 
-    blockers: list[tuple[str, int | None, int | None]] = []
-    gl_total = 0.0
+    def gap(name, fdc_id, recipe_id, reason):
+        _add_gap(gaps, {"name": name, "fdc_id": fdc_id, "recipe_id": recipe_id, "reason": reason})
 
     for li in line_items:
         if li["kind"] == "recipe":
-            recipe = _db.recipe_get(conn, li["recipe_id"]) if li.get("recipe_id") else None
-            if recipe is None or recipe["gl_g"] is None:
-                name = recipe["name"] if recipe else li["name"]
-                blockers.append((f"{name} (no GL — analyze it first)", None, li.get("recipe_id")))
+            rid = li.get("recipe_id")
+            recipe = _db.recipe_get(conn, rid) if rid else None
+            if recipe is None:
+                gap(li["name"], None, rid, GAP_NO_RECIPE)
+                continue
+            if rid in seen:
                 continue
             servings = recipe["servings"] or 1
-            gl_total += recipe["gl_g"] * (li["amount"] / servings)
+            total += _accumulate(_ingredient_line_items(conn, rid), conn,
+                                 scale * (li["amount"] or 0.0) / servings,
+                                 seen | {rid}, gaps, gi_opt_out)
             continue
 
-        ann = ann_map.get(li["fdc_id"])
-        if ann is None or ann["gi_estimate"] is None:
-            blockers.append((li["name"], li.get("fdc_id"), None))
-            continue
-
-        cached = _db.get_cached_food(conn, li["fdc_id"])
+        cached = _db.get_cached_food(conn, li["fdc_id"]) if li.get("fdc_id") else None
         if not cached or not cached["nutrients_json"]:
-            blockers.append((li["name"], li.get("fdc_id"), None))
+            gap(li["name"], li.get("fdc_id"), None, GAP_NO_DATA)
             continue
+        share, reason = _food_share(json.loads(cached["nutrients_json"]),
+                                    (li["amount"] or 0.0) * scale,
+                                    ann_map.get(li["fdc_id"]), gi_opt_out)
+        total += share
+        if reason:
+            gap(li["name"], li["fdc_id"], None, reason)
+    return total
 
-        carbs_g = json.loads(cached["nutrients_json"]).get("carbs_g", 0.0) * li["amount"] / 100.0
-        gl_total += ann["gi_estimate"] * carbs_g / 100.0
 
-    return gl_total, blockers
+def _result(total: float, gaps: list[dict]) -> dict:
+    """{"total", "complete", "gaps"}. total is the GL of everything that could
+    be counted, rounded — a lower bound when gaps is non-empty — or None when
+    nothing with carbohydrate could be counted at all ("at least 0" would say
+    nothing). complete is True only when nothing was left out."""
+    return {
+        "total":    None if gaps and total <= 0 else round(total, 1),
+        "complete": not gaps,
+        "gaps":     gaps,
+    }
+
+
+def gl_for_items(line_items: list[dict], conn, *, scale: float = 1.0,
+                 gi_opt_out: bool = False) -> dict:
+    """GL of a list of line items, as a result dict (see _result()).
+
+    Each line item: {"kind": "food" | "recipe", "name": str, "amount": float,
+                      "fdc_id": int | None, "recipe_id": int | None}
+    `amount` is grams for "food" items, servings for "recipe" items.
+    gi_opt_out: the user doesn't record GI at all (Settings), so every food
+    without one is reported as not wanted rather than as still to do.
+    """
+    gaps: list[dict] = []
+    total = _accumulate(line_items, conn, scale, frozenset(), gaps, gi_opt_out)
+    return _result(total, gaps)
+
+
+def food_gl(name: str, fdc_id: int, nutrients: dict, grams: float, ann, *,
+            gi_opt_out: bool = False) -> dict:
+    """GL of `grams` of one food, from nutrients and an annotation row the
+    caller already has (the food page may show a food not yet cached)."""
+    share, reason = _food_share(nutrients, grams, ann, gi_opt_out)
+    gaps = [{"name": name, "fdc_id": fdc_id, "recipe_id": None, "reason": reason}] if reason else []
+    return _result(share, gaps)
+
+
+def recipe_gl(conn, recipe_id: int, servings: float = 1.0, *, gi_opt_out: bool = False) -> dict:
+    """GL of `servings` servings of a recipe."""
+    recipe = _db.recipe_get(conn, recipe_id)
+    name = recipe["name"] if recipe else str(recipe_id)
+    return gl_for_items([{"kind": "recipe", "name": name, "amount": servings,
+                          "fdc_id": None, "recipe_id": recipe_id}], conn, gi_opt_out=gi_opt_out)
+
+
+def meal_gl(conn, meal_id: int, *, gi_opt_out: bool = False) -> dict:
+    """GL of everything logged in one meal."""
+    return gl_for_items(meal_line_items(conn, meal_id), conn, gi_opt_out=gi_opt_out)
+
+
+def combine_gl(results: list[dict]) -> dict:
+    """Sum several GL results (a day's meals), keeping every gap once."""
+    total = sum(r["total"] for r in results if r["total"] is not None)
+    gaps: list[dict] = []
+    for r in results:
+        for g in r["gaps"]:
+            _add_gap(gaps, g)
+    return _result(total, gaps)
 
 
 # ── GL classification bands ───────────────────────────────────────────────
@@ -123,7 +222,7 @@ def gl_band_caveat(scope: str = "serving") -> str | None:
 # ── Day-level GL, for trends and plots ────────────────────────────────────
 
 def meal_line_items(conn, meal_id: int) -> list[dict]:
-    """A meal's items in the shape compute_glycemic_load() expects."""
+    """A meal's items in the shape gl_for_items() expects."""
     return [
         {
             "kind":      "recipe" if item["item_type"] == "recipe" else "food",
@@ -137,10 +236,10 @@ def meal_line_items(conn, meal_id: int) -> list[dict]:
 
 
 def day_gl_total(conn, meal_date: str) -> float | None:
-    """Total GL for every meal logged on meal_date, or None if any item on
-    that day blocks the calculation (no GI annotation, or a recipe with no
-    computed GL yet). None means "unknown", never zero -- a day with partial
-    GI coverage would otherwise read as a lower GL than it really is.
+    """Total GL for every meal logged on meal_date, or None if it is
+    incomplete (a food on that day had carbohydrate but no GI). None means
+    "unknown", never zero -- trends and plots average across days, and a
+    partial total would read as a lower GL than the day really had.
 
     Returns None for a date with no meals at all, which callers treat the
     same way nutrient averaging does: a day that was never logged is absent
@@ -149,13 +248,8 @@ def day_gl_total(conn, meal_date: str) -> float | None:
     meals = _db.meal_list_by_date(conn, meal_date)
     if not meals:
         return None
-    total = 0.0
-    for meal in meals:
-        meal_total, blockers = compute_glycemic_load(meal_line_items(conn, meal["id"]), conn)
-        if blockers:
-            return None
-        total += meal_total
-    return round(total, 1)
+    day = combine_gl([meal_gl(conn, m["id"]) for m in meals])
+    return day["total"] if day["complete"] else None
 
 
 def day_gl_totals(conn, dates: list[str]) -> dict[str, float | None]:

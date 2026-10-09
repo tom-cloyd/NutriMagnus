@@ -1,0 +1,87 @@
+{# Edit Recipe's "Add Ingredient" result rows — rendered by the edit page
+   (local matches) and by /search-rows/recipe (full merged set, replacing
+   the tbody). #}
+          {% set ns = namespace(seen_local=false, divider_shown=false) %}
+          {% for food in search_results %}
+            {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
+            {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
+          <tr class="search-group-divider"><td colspan="7"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+            {% set ns.divider_shown = true %}
+            {% endif %}
+          <tr data-row-key="{{ 'recipe:%s' % food.recipe_id if food._type == 'recipe' else 'food:%s' % food.fdc_id }}">
+            <td class="confirm-col">
+              {% if food.aa == "~✓" %}
+              <input type="checkbox" name="fdc_ids" value="{{ food.fdc_id }}" data-confirm-aa-checkbox
+                     form="confirm-aa-form" aria-label="Select {{ food.name }} to fetch full details">
+              {% endif %}
+            </td>
+            <td>
+              {% if food._type == "recipe" %}<a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
+              {% else %}<a href="{{ food_url(food) }}"><strong>{{ food.name }}</strong></a>{% endif %}
+              {% if food.data_type or food.brand %}
+              <br><small class="muted">{{ food_type(food) }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
+              {% endif %}
+            </td>
+            <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none) if food._type == "recipe" else none) }}</small></td>
+            <td>
+              {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+              {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
+              {% elif food.aa == "✗" %}<span class="text-danger" title="No amino acid data">✗</span>
+              {% elif food.aa == "⚠" %}<span class="text-danger" title="No nutrient data cached for this food — needs a re-fetch">⚠</span>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+            <td class="col-source"><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+            {% if food._type == "recipe" %}
+            <td class="col-amount" colspan="2">
+              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add-recipe" class="add-food-form">
+                <input type="hidden" name="ref_recipe_id" value="{{ food.recipe_id }}">
+                <input type="hidden" name="recipe_name" value="{{ food.name }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                <div class="input-group" style="max-width:30rem">
+                  <input type="number" class="form-control" name="servings" value="1"
+                         min="0.01" max="99999" step="0.01" aria-label="Amount" required
+                         style="flex:0 0 6rem;min-width:6rem">
+                  {% if food.serving_grams %}
+                  <select class="form-select" name="amount_unit" aria-label="Amount unit" style="max-width:7.5rem">
+                    <option value="servings" selected>servings</option>
+                    <option value="g">grams</option>
+                  </select>
+                  <span class="input-group-text">
+                    <small class="muted">({{ food.servings | round(2) }} total &middot; 1 serving = {% if food.serving_size %}{{ food.serving_size }}, {% endif %}{{ food.serving_grams | round(1) }} g)</small>
+                  </span>
+                  {% else %}
+                  <span class="input-group-text">serving{% if food.servings != 1 %}s{% endif %}
+                    <small class="muted ms-1">({{ food.servings | round(2) }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% endif %})</small>
+                  </span>
+                  {% endif %}
+                  <button type="submit" class="btn btn-primary">Add to recipe</button>
+                </div>
+              </form>
+            </td>
+            {% else %}
+            <td class="col-amount" colspan="2">
+              <form method="post" action="/recipe/{{ recipe.id }}/ingredient/add" class="add-food-form">
+                <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+                <input type="hidden" name="off_code" value="{{ food.off_code or '' }}">
+                <input type="hidden" name="food_name" value="{{ food.name }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                {% if food.portions %}
+                <div class="mb-1"><small class="muted">
+                  Portions:
+                  {% for p in food.portions %}
+                  <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+                  {% endfor %}
+                </small></div>
+                {% endif %}
+                <div class="input-group" style="width:100%">
+                  <input type="text" class="form-control" name="portion_str"
+                         placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1, 6 p1"
+                         aria-label="Amount" required>
+                  <button type="submit" class="btn btn-primary">Add to recipe</button>
+                </div>
+                <div style="font-size:0.8rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if food.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}

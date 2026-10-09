@@ -111,7 +111,7 @@
     {% for row in section.rows %}
     <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
       <td>{{ row.label }}</td>
-      <td class="num-col">{{ row.value }}</td>
+      <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}</td>
       <td class="muted">{{ row.unit }}</td>
       {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}

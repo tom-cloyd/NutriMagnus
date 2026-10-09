@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — What-if: Apply for real{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/summary">Analysis</a></li>
+    <li class="breadcrumb-item"><a href="{{ back_url }}">What-if: {{ "Meals" if page == "meals" else "Recipes" }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Apply for real</li>
+  </ol>
+</nav>
+
+<h2>Apply these replacements for real {{ manual_link("whatif-apply") }}</h2>
+
+{% if problems %}
+  {% for p in problems %}<p class="text-danger mb-1">{{ p }}</p>{% endfor %}
+  <p class="mt-3"><a href="{{ back_url }}">Back to the what-if</a></p>
+{% else %}
+<p>This changes your {{ "logged meals" if page == "meals" else "recipes" }} &mdash; it can't be undone from here.
+  {% if page == "meals" %}Each replacement keeps the amount you logged (same grams for a food, same servings for a recipe).
+  {% else %}Each replacement keeps the ingredient's amount (same grams for a food, same servings for a recipe),
+  and every recipe changed has its protein quality (DCP) worked out again.{% endif %}</p>
+
+<ul class="mb-3">
+  {% for ch in changes %}
+  <li class="mb-2"><strong>{{ ch.text }}</strong><br>
+    {% if ch.direct %}
+      {% if page == "meals" %}Changes {{ ch.direct|length }} meal(s): {% for mid in ch.direct %}<a href="/meal/{{ mid }}">M{{ mid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.
+      {% else %}Changes {{ ch.direct|length }} recipe(s): {% for rid in ch.direct %}<a href="/recipe/{{ rid }}">R{{ rid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}
+    {% else %}<span class="text-warning">Nothing to change: it isn't {{ "logged straight on any of these meals" if page == "meals" else "listed straight in any of these recipes" }}.</span>{% endif %}
+    {% if ch.nested_only %}
+    <br><span class="text-warning">
+      {% if page == "meals" %}{{ ch.nested_only }} other meal(s) have it only inside a recipe; those stay as they are, because changing the recipe changes it everywhere it's used.
+        To do that, use <a href="/analysis/whatif-recipes">What-if: Recipes</a>.
+      {% else %}{{ ch.nested_only }} other recipe(s) have it only inside a sub-recipe; they change only if that sub-recipe is one of the recipes listed above.{% endif %}
+    </span>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+
+{% if total %}
+<form method="post" action="/analysis/whatif/apply" class="d-flex gap-2">
+  <input type="hidden" name="page" value="{{ page }}">
+  <input type="hidden" name="query" value="{{ query }}">
+  <button type="submit" class="btn btn-danger">Yes, make these replacements</button>
+  <a href="{{ back_url }}" class="btn btn-outline-secondary">No, go back to the what-if</a>
+</form>
+{% else %}
+<p><a href="{{ back_url }}">Back to the what-if</a></p>
+{% endif %}
+{% endif %}
+{% endblock %}

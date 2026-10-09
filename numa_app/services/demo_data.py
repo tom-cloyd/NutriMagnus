@@ -28,6 +28,7 @@ import uuid
 
 import db as _db
 import platform_utils as _platform_utils
+from numa_app.services import data_quality as _data_quality
 from numa_app.services import recipe_dcp as _recipe_dcp
 
 _MARKER_FILE = _platform_utils.get_data_dir() / "demo_data.json"
@@ -219,11 +220,19 @@ def kept_positions(conn, recipe_id: int) -> list[int]:
     return out
 
 
-def _write_kept(conn, recipe_id: int, recipe: dict) -> None:
-    rows = _db.recipe_get_ingredients(conn, recipe_id)
-    for i in recipe.get("kept") or []:
-        if 0 <= i < len(rows) and rows[i]["amount"] is not None:
-            _db.amount_keep(conn, "recipe", rows[i]["id"], float(rows[i]["amount"]))
+def _recipe_ingredients(recipe: dict) -> list[tuple[str, float, str, str]]:
+    """A starter recipe's ingredients as (name, amount, unit, kind), with each
+    "kept" amount written as its own weight ("8 c (2309 gr)" -> "2309.2 g
+    (8 c)"), as "Keep as entered" does (data_quality.keep_as_entered), so it
+    is never flagged on a new user's data check."""
+    kept = set(recipe.get("kept") or [])
+    out = []
+    for i, entry in enumerate(recipe["ingredients"]):
+        name, amount, unit, kind = _ingredient_parts(entry)
+        if i in kept and amount is not None:
+            unit = _data_quality.own_weight_text(unit, amount) or unit
+        out.append((name, amount, unit, kind))
+    return out
 
 
 def starter_copies(conn) -> tuple[set[int], set[int]]:
@@ -257,7 +266,6 @@ def _create_recipe(conn, recipe: dict, food_ids: dict[int, int], rid_by_name: di
         conn.execute("UPDATE recipes SET starter_uid = ? WHERE id = ?", (recipe["uid"], rid))
     rid_by_name[recipe["name"]] = rid
     _add_ingredients(conn, rid, recipe, food_ids, rid_by_name)
-    _write_kept(conn, rid, recipe)
     _recipe_dcp.recompute_recipe_dcp(rid, conn)
     return rid
 
@@ -280,7 +288,7 @@ def _add_ingredients(conn, recipe_id: int, recipe: dict, food_ids: dict[int, int
     writes one. starter_data.json lists every recipe after the ones it uses,
     so rid_by_name already holds the id of any sub-recipe it needs."""
     by_name = {f["name"]: f for f in DEMO_FOODS}
-    for name, amount, unit, kind in (_ingredient_parts(i) for i in recipe["ingredients"]):
+    for name, amount, unit, kind in _recipe_ingredients(recipe):
         if kind == "recipe":
             _db.recipe_add_ingredient(conn, recipe_id, 0, name, amount, unit,
                                       ref_recipe_id=rid_by_name[name])
@@ -414,7 +422,7 @@ def _bundled_recipe_state(recipe: dict) -> dict:
     return {
         "name": recipe["name"], "description": recipe["description"] or "", "servings": recipe["servings"],
         "instructions": recipe["instructions"] or "", "serving_size": None, "introduction": None,
-        "notes": None, "ingredients": [list(_ingredient_parts(i)) for i in recipe["ingredients"]],
+        "notes": None, "ingredients": [list(i) for i in _recipe_ingredients(recipe)],
     }
 
 
@@ -1039,7 +1047,6 @@ def apply_improvements(conn, food_fdc_ids: list[int], recipe_names: list[str]) -
         )
         conn.execute("DELETE FROM recipe_ingredients WHERE recipe_id = ?", (rid,))
         _add_ingredients(conn, rid, recipe, food_ids, rid_by_name)
-        _write_kept(conn, rid, recipe)
         _recipe_dcp.recompute_recipe_dcp(rid, conn)
         updated_recipes += 1
 

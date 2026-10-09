@@ -30,7 +30,6 @@ usda_api.py           — USDA HTTP client, NUTRIENT_MAP, amino acid constants
 usda_nutrients.py     — nutrient math, AA analysis, DIAAS, complement suggestions
 diaas.py              — meal-level DIAAS pooled calculation
 profile.py            — UserProfile dataclass, RDA computation
-export.py             — report rendering (txt / md / html)
 openfoodfacts.py      — Open Food Facts API client
 cnf_api.py             — Canadian Nutrient File API client (search is a local
                          name filter over one cached bulk food-list fetch —
@@ -119,6 +118,19 @@ numa_app/
                          also starter identity (starter_key/starter_uid),
                          edit-safe clear, and the between-version starter
                          manifest (starter_manifest(), apply_improvements())
+    data_quality.py     — every data-quality check in one place: food_issues(),
+                         stale_amounts() ("Amounts that no longer match"),
+                         generic_density_in_use(), duplicate_groups(),
+                         old_usda_copies(), scan(); feeds
+                         Foods → 9, the Home page reminder, and the
+                         just-added-food note
+    entry_parse.py      — tolerant reading of what people type: numbers,
+                         nutrient amounts with units (IU, mg, kJ), pasted
+                         amino acid tables, supplement mode; a value it can't
+                         read raises EntryError — forms must show it, never
+                         drop it silently
+    energy_check.py     — calories missing (Atwater 4/4/9 estimate, marked
+                         estimated) or not matching the macros (flag only)
     diet_aware.py       — diet-preference-aware analysis notes (iron/zinc RDA bump etc.)
                          for the daily summary / RDA comparison views
     food_ids.py        — display codes: classify_food_id() (U171477 / UD4 / R21 / OFF3 …), parse_code(), CODE_PREFIXES; outside-source numbers live in db.food_codes
@@ -131,7 +143,9 @@ numa_app/
     gi_table_build.py   — builds the user's own gi_data_local.json from the two
                          Atkinson 2021 supplemental PDFs (pdfminer.six);
                          Settings' upload/Build button runs it on a thread
-    glycemic_load.py    — shared GL aggregation: compute_glycemic_load();
+    glycemic_load.py    — GL for foods, recipes, meals, days: food_gl(),
+                         recipe_gl() (live, through sub-recipes), meal_gl(),
+                         combine_gl(); partial total + "gaps" when GI is missing;
                          per-serving vs whole-day GL bands (gl_band(),
                          gl_band_caveat()); day totals/averages for trends
                          and plots (day_gl_total(s), average_day_gl())
@@ -204,7 +218,7 @@ with _db.get_db() as conn:
 
 `recipe_list()` / `recipe_get()` rows:
 `id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete, last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit`
-(`recipe_get` is `SELECT *` and also returns `instructions`, `introduction`, `notes`, `archived`)
+(`recipe_list` also returns `archived`, `notes`; `recipe_get` is `SELECT *` and also returns `instructions`, `introduction`, `notes`, `archived`)
 
 `serving_size` is a free-text human description of what one serving actually is (e.g. `"1 muffin"`), set on the Edit Recipe page — independent of `total_weight`/`servings`, which give the gram weight of that same serving. Shown wherever a recipe's serving count is displayed, via the `_serving_note.html` macro.
 

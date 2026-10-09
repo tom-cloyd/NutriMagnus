@@ -465,7 +465,12 @@ def _parse_food(data: dict) -> dict:
     _ATWATER_NUMBERS = {"958": "specific", "957": "general"}
     raw_nutrients = data.get("foodNutrients", [])
     for item in raw_nutrients:
-        value = item.get("value") or item.get("amount")
+        # A measured 0 is data ("this food has none"), not a missing value:
+        # `value or amount` used to drop every zero, so a nutrient USDA had
+        # measured at 0 looked exactly like one it never measured.
+        value = item.get("value")
+        if value is None:
+            value = item.get("amount")
         if value is None:
             continue
         val = float(value)
@@ -490,7 +495,7 @@ def _parse_food(data: dict) -> dict:
         if key:
             nutrients[key] = val
 
-    if "calories" not in nutrients:
+    if not nutrients.get("calories"):
         energy = atwater.get("specific", atwater.get("general"))
         if energy is not None:
             nutrients["calories"] = energy

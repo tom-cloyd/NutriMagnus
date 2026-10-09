@@ -8,7 +8,7 @@ Ranks a candidate name against a multi-word query so that:
      matching later ones — so "milk dry instant" ranks "milk dry" hits ahead
      of "milk instant" hits, since "instant" (the last word) is the one
      missing in the stronger result.
-  3. Source (pantry/cache/recipe/external) breaks remaining ties — a real
+  3. Source (recipe/pantry/cache/external) breaks remaining ties — a real
      match always beats a weak or coincidental one, regardless of where it
      lives.
   4. Among external (USDA/OFF) results tied on all of the above, USDA data
@@ -19,7 +19,7 @@ Ranks a candidate name against a multi-word query so that:
      Foundation/SR Legacy food that actually has the data being searched
      for, since a bare text/length tiebreak has no way to prefer it.
 """
-SOURCE_RANK = {"pantry": 0, "cache": 1, "recipe": 2, "usda": 3, "off": 3}
+SOURCE_RANK = {"recipe": 0, "pantry": 1, "cache": 2, "usda": 3, "off": 3}
 
 DATA_TYPE_RANK = {
     "Foundation": 0, "SR Legacy": 0,

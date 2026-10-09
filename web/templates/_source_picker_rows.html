@@ -1,0 +1,43 @@
+{# Result rows for the "pick another food as a source" searches — rendered by
+   their pages (local matches) and by /search-rows/<screen> (full merged set,
+   replacing the tbody). `mode`: "aa" (Estimate amino acids from another
+   food), "nutrient" (Copy nutrient values from another food), or "fill"
+   (Fill in nutrients from another food). `food` is the food being edited. #}
+{% set compare_form_id = {"aa": "compare-aa-picks", "nutrient": "compare-nutrient-picks", "fill": "fill-compare-picks"}[mode] %}
+{% set ns = namespace(seen_local=false, divider_shown=false) %}
+{% for r in search_results %}
+  {% if is_local_source(r.source) %}{% set ns.seen_local = true %}{% endif %}
+  {% if not is_local_source(r.source) and ns.seen_local and not ns.divider_shown %}
+<tr class="search-group-divider"><td colspan="5"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+  {% set ns.divider_shown = true %}
+  {% endif %}
+{% set likely_aa = r.aa in ("✓", "~✓") %}
+<tr data-row-key="food:{{ r.fdc_id }}">
+  <td><input type="checkbox" class="form-check-input" form="{{ compare_form_id }}" name="pick"
+             value="{{ r.fdc_id }}|{{ r.off_code or '' }}" aria-label="Compare {{ r.name }}"
+             title="Check to include in the comparison"></td>
+  <td>
+    {% if likely_aa %}<span class="status-met" title="Has (or likely has) amino acid data">&#10003;</span>
+    {% else %}<span class="text-danger" title="No amino acid data">&#10007;</span>{% endif %}
+  </td>
+  <td>{{ r.name }} <small class="muted">({{ food_id_short(r.fdc_id) }})</small></td>
+  <td class="muted">{{ food_type(r) }}</td>
+  <td>
+    {% if mode == "aa" %}
+    <form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/copy-aa" style="margin:0">
+      <input type="hidden" name="source_fdc_id" value="{{ r.fdc_id }}">
+      <input type="hidden" name="off_code" value="{{ r.off_code or '' }}">
+      <button type="submit" class="btn btn-sm btn-primary" {% if not likely_aa %}disabled{% endif %}>Use as AA source</button>
+    </form>
+    {% elif mode == "nutrient" %}
+    <a class="btn btn-sm btn-primary"
+       href="/food/custom-profiles/{{ food.fdc_id }}/copy-nutrients/select?source_fdc_id={{ r.fdc_id }}&off_code={{ (r.off_code or '') | urlencode }}">
+      Choose fields to copy&hellip;
+    </a>
+    {% else %}
+    <a class="btn btn-sm btn-primary"
+       href="/food/{{ food.fdc_id }}/review-incoming?source=food&source_fdc_id={{ r.fdc_id }}&off_code={{ (r.off_code or '') | urlencode }}&next={{ ('/food/%s' % food.fdc_id) | urlencode }}">Review values to copy&hellip;</a>
+    {% endif %}
+  </td>
+</tr>
+{% endfor %}

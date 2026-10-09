@@ -222,3 +222,27 @@ def test_readme_test_table_has_no_rows_for_deleted_files():
         f"README-numa-documentation.md's Test Suite table still lists {sorted(stale)}, "
         "which no longer exist."
     )
+
+
+def test_readme_test_count_matches_the_suite():
+    """The Test Suite section's "**N tests** ... (D in the default run plus E
+    browser-level ...)" figures match what pytest actually collects. Until
+    2026-10-09 nothing checked them and they drifted from 1,114 to 1,653
+    unnoticed. Collection only — nothing is run."""
+    import sys
+    out = subprocess.run(
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
+        cwd=_PROJECT_ROOT, capture_output=True, text=True, timeout=120,
+    ).stdout
+    m = re.search(r"(\d+)/(\d+) tests collected \((\d+) deselected\)", out)
+    assert m, f"couldn't read pytest's collection summary:\n{out[-500:]}"
+    default, total, e2e = (int(x) for x in m.groups())
+    text = (_PROJECT_ROOT / "README-numa-documentation.md").read_text(encoding="utf-8")
+    r = re.search(r"\*\*([\d,]+) tests\*\*, all passing \(([\d,]+) in the default run plus (\d+) browser-level",
+                  text)
+    assert r, "README-numa-documentation.md's Test Suite count line has changed shape"
+    stated = tuple(int(x.replace(",", "")) for x in r.groups())
+    assert stated == (total, default, e2e), (
+        f"README Test Suite says {stated[0]:,} tests ({stated[1]:,} default + {stated[2]} browser); "
+        f"pytest collects {total:,} ({default:,} + {e2e}). Update the line under '## Test Suite'."
+    )

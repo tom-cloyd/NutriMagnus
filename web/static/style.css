@@ -57,6 +57,13 @@ details[open] > summary::before {
   content: "▼ ";
 }
 
+/* A long list folded behind its count line (Foods -> 9): the bar says
+   whether clicking shows or hides it. */
+details.fold-list:not([open]) .fold-hide,
+details.fold-list[open] .fold-show { display: none; }
+details.fold-list .fold-show,
+details.fold-list .fold-hide { color: #0d6efd; }
+
 /* ── Sticky navbar ───────────────────────────────────────────────────── */
 
 /* The navbar stays pinned to the top of the viewport (see #main-navbar's
@@ -1144,4 +1151,34 @@ td.compare-val-col {
 @keyframes field-just-set-flash {
   from { background-color: #fff3cd; }
   to   { background-color: transparent; }
+}
+
+/* Meal add-food results: a food's or recipe's note beside its add form
+   (_add_food_row.html) — the first four lines, the rest on click. */
+.add-food-table.add-food-table-notes {
+  max-width: 76rem;
+}
+.add-food-row-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 1.5rem;
+}
+.add-food-note {
+  flex: 1 1 18rem;
+  max-width: 40rem;
+  font-size: 0.8rem;
+  color: #333;
+  white-space: pre-line;
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.add-food-note-open {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
 }

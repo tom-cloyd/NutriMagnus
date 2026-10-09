@@ -311,7 +311,7 @@ checks forward when warranted:
   3. Web-layer glue — `web/backend.py` route logic, `day_profile.py`,
      `meal_bcp.py`, `recipe_dcp.py`, `top_contributors.py`,
      `search_ranking.py`, `search_suggest.py`.
-  4. Everything else — `export.py`, `demo_data.py`, `plotting.py`,
+  4. Everything else — `demo_data.py`, `plotting.py`,
      `nutrient_trend.py`, `portions.py`, etc.
 - **Weekly churn check, early-warning.** During the weekly sweep, check the
   tracked log (module → last-mutation-tested commit hash — now live in

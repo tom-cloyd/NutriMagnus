@@ -4,6 +4,7 @@
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_dcp_footnote.html" as _dcp_note %}
 {% import "_recipe_amount.html" as _ramt %}
+{% import "_gl_result.html" as _gl %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -248,7 +249,7 @@
     {% for row in section.rows %}
     <tr{% if row.is_dcp_row %} class="dcp-row"{% elif row.is_subtype %} class="subtype-row"{% endif %}>
       <td>{{ row.label }}</td>
-      <td class="num">{{ row.value }}</td>
+      <td class="num">{% if row.value is none %}no data{% else %}{{ row.value }}{% endif %}</td>
       <td class="muted">{{ row.unit }}</td>
       {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}
@@ -375,11 +376,11 @@
 {% if diaas.dcp_g is not none %}&middot; <strong>Digestible complete protein:</strong> {{ diaas.dcp_g }}&thinsp;g{% endif %}</p>
 {% endif %}
 
-{% if "glycemic_load" in enabled and gl and gl.total is not none %}
+{% if "glycemic_load" in enabled and gl %}
 <h2>Glycemic Load</h2>
 {% set _gl_scope = gl_scope | default("serving") %}
-<p><strong>{{ gl.total }}</strong> <span class="muted">&mdash; {{ gl_band(gl.total, _gl_scope) }}</span></p>
-{% if gl_band_caveat(_gl_scope) %}<p class="muted"><small>{{ gl_band_caveat(_gl_scope) }}</small></p>{% endif %}
+{{ _gl.gl_figure(gl, _gl_scope, links=False) }}
+{% if gl.total is not none and gl_band_caveat(_gl_scope) %}<p class="muted"><small>{{ gl_band_caveat(_gl_scope) }}</small></p>{% endif %}
 {% endif %}
 
 {% if "antinutrients" in enabled and (oxalate_agg or ingredient_antinutrients) %}

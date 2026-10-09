@@ -191,6 +191,14 @@
     </div>
   </nav>
 
+  {% if restart_needed() %}
+  <div class="alert alert-warning text-center mb-0 rounded-0" role="alert" id="restart-needed-banner">
+    <strong>NuMa has been updated — please restart it.</strong>
+    The program on disk ({{ disk_version() }}) is newer than the one running ({{ running_version }}), so some pages may not work until you do.
+    {% set _rb = restart_button(request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) %}
+    {% if _rb %}{{ _rb }}{% else %}Quit NuMa completely, then start it again.{% endif %} Nothing you entered is lost.
+  </div>
+  {% endif %}
   {# Analysis pages override layout_class + sidebar_nav blocks to get two-column layout #}
   <div class="{% block layout_class %}container{% endblock %}">
     {% block sidebar_nav %}{% endblock %}
@@ -520,6 +528,116 @@
       window.numaInitSearchSuggestions(el);
     });
   });
+  </script>
+  <script>
+  // Search results that fill in after the page renders. A block marked
+  // data-search-results="/search-rows/<screen>?..." shows the instant local
+  // matches; this fetches the full local + online rows and swaps them into
+  // its <tbody data-search-tbody>, then removes the block's red
+  // .online-search-notice. Rows carry data-row-key ("food:123",
+  // "recipe:5"), so whatever was typed or ticked in a row while the online
+  // search ran is carried across the swap. If nothing matched at all, the
+  // block hides and its data-search-empty element shows. Pages hook in via
+  // the "numa:search-rows" event fired on the tbody afterwards.
+  (function () {
+    function snapshot(tbody) {
+      var map = {};
+      tbody.querySelectorAll('tr[data-row-key]').forEach(function (tr) {
+        var data = [];
+        tr.querySelectorAll('input, select, textarea').forEach(function (el) {
+          if (!el.name || el.type === 'hidden' || el.type === 'submit') return;
+          data.push({name: el.name, value: el.value,
+                     checked: (el.type === 'checkbox' || el.type === 'radio') ? el.checked : null});
+        });
+        map[tr.getAttribute('data-row-key')] = data;
+      });
+      return map;
+    }
+    function restore(tbody, map) {
+      tbody.querySelectorAll('tr[data-row-key]').forEach(function (tr) {
+        var data = map[tr.getAttribute('data-row-key')];
+        if (!data) return;
+        data.forEach(function (d) {
+          tr.querySelectorAll('[name="' + d.name + '"]').forEach(function (el) {
+            if (d.checked === null) el.value = d.value;
+            else if (el.value === d.value) el.checked = d.checked;
+          });
+        });
+      });
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('[data-search-results]').forEach(function (block) {
+        var tbody = block.querySelector('tbody[data-search-tbody]');
+        var notice = block.querySelector('.online-search-notice');
+        fetch(block.getAttribute('data-search-results'))
+          .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+          .then(function (html) {
+            var state = snapshot(tbody);
+            tbody.innerHTML = html;
+            restore(tbody, state);
+            if (notice) notice.remove();
+            var n = tbody.querySelectorAll('tr[data-row-key]').length;
+            block.querySelectorAll('.js-result-n').forEach(function (el) { el.textContent = n; });
+            block.querySelectorAll('.js-result-s').forEach(function (el) { el.textContent = n === 1 ? '' : 's'; });
+            if (!n) {
+              block.style.display = 'none';
+              var empty = document.getElementById(block.getAttribute('data-search-empty'));
+              if (empty) { empty.style.display = ''; window.numaInitSearchSuggestions(empty); }
+            }
+            // The unsaved-changes guard snapshotted the rows just replaced
+            // (see meal.html): forget those, track the new ones.
+            if (window.numaDirtyGuard) {
+              window.numaDirtyGuard.prune();
+              window.numaDirtyGuard.track(tbody);
+              window.numaDirtyGuard.recheck(tbody);
+            }
+            tbody.dispatchEvent(new CustomEvent('numa:search-rows', {bubbles: true}));
+          })
+          .catch(function () {
+            if (notice) notice.textContent = 'Online search failed — reload to retry.';
+          });
+      });
+    });
+  })();
+  </script>
+  <script>
+  // "Online search in progress…" for search forms marked data-online-search,
+  // whose next page waits on USDA / Open Food Facts / CNF before it renders.
+  // Shown on submit beside the form's search button, only when the query box
+  // isn't empty and an online source is ticked (or none is: none = all).
+  (function () {
+    var LIVE = {{ live_source_keys | tojson }};
+    function goesOnline(form) {
+      var text = form.querySelector('input[type="text"], input[type="search"]');
+      if (text && !text.value.trim()) return false;
+      var boxes = Array.prototype.filter.call(
+        form.querySelectorAll('input[type="checkbox"]'),
+        function (b) { return /source$/.test(b.name); });
+      var checked = boxes.filter(function (b) { return b.checked; });
+      if (!checked.length) return true;
+      return checked.some(function (b) { return LIVE.indexOf(b.value) !== -1; });
+    }
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (e.defaultPrevented || !form.matches('form[data-online-search]')) return;
+      if (!goesOnline(form) || form.querySelector('.js-online-search-note')) return;
+      var btn = e.submitter || form.querySelector('[type="submit"]');
+      if (!btn) return;
+      var note = document.createElement('span');
+      note.className = 'online-search-notice js-online-search-note text-danger fw-semibold ms-2';
+      note.textContent = 'Online search in progress…';
+      // Inside a Bootstrap .input-group the note would be styled as a group
+      // part, so it goes just after the group instead.
+      var anchor = btn.closest('.input-group') || btn;
+      anchor.insertAdjacentElement('afterend', note);
+    });
+    // Back-button restores the page from cache with the note still showing.
+    window.addEventListener('pageshow', function (e) {
+      if (!e.persisted) return;
+      document.querySelectorAll('.js-online-search-note')
+        .forEach(function (n) { n.remove(); });
+    });
+  })();
   </script>
   <script>
   // Auto-focus the first text/number input whenever any <details> is opened.

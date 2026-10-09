@@ -487,3 +487,139 @@ class TestASkippedIngredientDoesNotStopTheRest:
 
         items = _rn.atomic_recipe_ingredients(rid, db_conn)
         assert [i["fdc_id"] for i in items] == [22]
+
+
+def _food(conn, fdc_id, name, nutrients):
+    conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+        (fdc_id, name, "SR Legacy", nutrients if isinstance(nutrients, str) else json.dumps(nutrients), "[]"),
+    )
+
+
+def _swap(old_id, new_id):
+    """A what-if rewrite that replaces food old_id with new_id, everywhere."""
+    def rewrite(kind, item_id, qty):
+        return [("food", new_id, qty)] if (kind, item_id) == ("food", old_id) else [(kind, item_id, qty)]
+    return rewrite
+
+
+class TestRecipeNutrientsMutationGaps:
+    """Survivors from the 2026-10-09 mutmut run (with tests/test_whatif.py
+    also selected): the what-if rewrite hook's naming and depth, and the
+    skip-and-carry-on paths."""
+
+    def test_rewrite_names_a_swapped_food_by_its_own_name(self, db_conn, nested_recipe):
+        rid = _db.recipe_create(db_conn, name="R", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 1, "My oats", 10.0, "g")
+        _db.recipe_add_ingredient(db_conn, rid, 2, "My milk", 10.0, "g")
+        db_conn.commit()
+        leaves = _rn.expand_recipe_ingredients(rid, db_conn, rewrite=_swap(1, 2))
+        # The swapped line takes the new food's name; the untouched one keeps
+        # the name typed into the recipe.
+        assert [l["food_name"] for l in leaves] == ["Almond milk", "My milk"]
+
+    def test_rewrite_reaches_sub_recipe_totals_in_atomic_entries(self, db_conn, nested_recipe):
+        plain = _rn.atomic_recipe_ingredients(nested_recipe["top_id"], db_conn)
+        swapped = _rn.atomic_recipe_ingredients(nested_recipe["top_id"], db_conn, rewrite=_swap(1, 2))
+        sub_plain = next(e for e in plain if e["recipe_id"] == nested_recipe["sub_id"])
+        sub_swapped = next(e for e in swapped if e["recipe_id"] == nested_recipe["sub_id"])
+        # Oat base per serving: 100 g oats + 250 g milk = 13 + 1 g protein;
+        # oats swapped for milk: 350 g milk = 1.4 g.
+        assert sub_plain["nutrients_100g"]["protein_g"] == pytest.approx(14.0)
+        assert sub_swapped["nutrients_100g"]["protein_g"] == pytest.approx(1.4)
+        assert sub_swapped["food_name"] == "Oat base"
+        oats_line = next(e for e in swapped if e["recipe_id"] is None)
+        assert (oats_line["fdc_id"], oats_line["food_name"]) == (2, "Almond milk")
+
+    def test_rewrite_into_a_different_sub_recipe_takes_its_name(self, db_conn, nested_recipe):
+        other = _db.recipe_create(db_conn, name="Other base", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, other, 1, "Oats", 100.0, "g")
+        db_conn.commit()
+        sub = nested_recipe["sub_id"]
+        def rewrite(kind, item_id, qty):
+            return [("recipe", other, qty)] if (kind, item_id) == ("recipe", sub) else [(kind, item_id, qty)]
+        entries = _rn.atomic_recipe_ingredients(nested_recipe["top_id"], db_conn, rewrite=rewrite)
+        assert [e["food_name"] for e in entries if e["recipe_id"]] == ["Other base"]
+
+    def test_recipe_total_nutrients_passes_portion_factor_and_rewrite(self, db_conn, nested_recipe):
+        full = _rn.recipe_total_nutrients(nested_recipe["sub_id"], db_conn)
+        half = _rn.recipe_total_nutrients(nested_recipe["sub_id"], db_conn, portion_factor=0.5)
+        assert half["protein_g"] == pytest.approx(full["protein_g"] / 2)
+        swapped = _rn.recipe_total_nutrients(nested_recipe["sub_id"], db_conn, rewrite=_swap(1, 2))
+        assert swapped["protein_g"] == pytest.approx(700 * 0.4 / 100)
+
+    @pytest.mark.parametrize("fn", ["expand_recipe_ingredients", "atomic_recipe_ingredients"])
+    def test_every_skipped_line_lets_the_next_one_through(self, db_conn, fn):
+        _food(db_conn, 1, "Oats", {"protein_g": 13.0})
+        _food(db_conn, 3, "No data", "")
+        _food(db_conn, 4, "Empty", "{}")
+        zero = _db.recipe_create(db_conn, name="Zero servings", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, zero, 1, "Oats", 10.0, "g")
+        db_conn.execute("UPDATE recipes SET servings = 0 WHERE id = ?", (zero,))
+        noprot = _db.recipe_create(db_conn, name="No protein", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, noprot, 4, "Empty", 10.0, "g")
+        rid = _db.recipe_create(db_conn, name="R", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 0, "Gone", 1.0, "serving", ref_recipe_id=None, ref_recipe_deleted=True)
+        _db.recipe_add_ingredient(db_conn, rid, 0, "Zero servings", 1.0, "serving", ref_recipe_id=zero)
+        _db.recipe_add_ingredient(db_conn, rid, 0, "No protein", 1.0, "serving", ref_recipe_id=noprot)
+        _db.recipe_add_ingredient(db_conn, rid, 999, "Uncached", 10.0, "g")
+        _db.recipe_add_ingredient(db_conn, rid, 3, "No data", 10.0, "g")
+        _db.recipe_add_ingredient(db_conn, rid, 4, "Empty", 10.0, "g")
+        _db.recipe_add_ingredient(db_conn, rid, 1, "Oats", 25.0, "g")
+        db_conn.commit()
+        out = getattr(_rn, fn)(rid, db_conn)
+        assert out[-1]["food_name"] == "Oats" and out[-1]["grams"] == 25.0
+
+    def test_a_trace_protein_sub_recipe_still_counts(self, db_conn):
+        _food(db_conn, 2, "Almond milk", {"protein_g": 0.4})
+        sub = _db.recipe_create(db_conn, name="Splash", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, sub, 2, "Almond milk", 100.0, "g")   # 0.4 g protein
+        rid = _db.recipe_create(db_conn, name="R", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 0, "Splash", 1.0, "serving", ref_recipe_id=sub)
+        db_conn.commit()
+        assert [e["food_name"] for e in _rn.atomic_recipe_ingredients(rid, db_conn)] == ["Splash"]
+
+    def test_serving_grams_from_a_tiny_complete_ingredient_sum(self, db_conn):
+        _food(db_conn, 5, "Salt", {"sodium_mg": 38000.0})
+        rid = _db.recipe_create(db_conn, name="Pinch", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 5, "Salt", 0.5, "g")
+        db_conn.commit()
+        assert _rn.recipe_serving_grams(rid, db_conn) == pytest.approx(0.5)
+
+    def test_serving_grams_of_a_zero_weight_recipe_is_unknown(self, db_conn):
+        _food(db_conn, 5, "Salt", {"sodium_mg": 38000.0})
+        rid = _db.recipe_create(db_conn, name="Nothing", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 5, "Salt", 0.0, "g")
+        db_conn.commit()
+        assert _rn.recipe_serving_grams(rid, db_conn) is None
+
+    @pytest.mark.parametrize("fn", ["expand_recipe_ingredients", "atomic_recipe_ingredients"])
+    @pytest.mark.parametrize("first", ["uncached", "no data", "empty", "sub recipe", "no-protein sub",
+                                       "deleted sub"])
+    def test_a_rewrite_into_several_entries_keeps_each(self, db_conn, fn, first):
+        """What-if "add" turns one line into several entries; an entry that
+        has to be skipped mustn't drop the ones after it."""
+        _food(db_conn, 1, "Oats", {"protein_g": 13.0})
+        _food(db_conn, 3, "No data", "")
+        _food(db_conn, 4, "Empty", "{}")
+        sub = _db.recipe_create(db_conn, name="Sub", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, sub, 1, "Oats", 10.0, "g")
+        noprot = _db.recipe_create(db_conn, name="No protein", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, noprot, 4, "Empty", 10.0, "g")
+        rid = _db.recipe_create(db_conn, name="R", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 1, "Oats", 25.0, "g")
+        db_conn.commit()
+        lead = {"uncached": ("food", 999, 5.0), "no data": ("food", 3, 5.0), "empty": ("food", 4, 5.0),
+                "sub recipe": ("recipe", sub, 1.0), "no-protein sub": ("recipe", noprot, 1.0),
+                "deleted sub": ("recipe", 9999, 1.0)}[first]
+        out = getattr(_rn, fn)(rid, db_conn,
+                               rewrite=lambda k, i, q: [lead, (k, i, q)] if (k, i, q) == ("food", 1, 25.0) else [(k, i, q)])
+        assert out[-1]["fdc_id"] == 1 and out[-1]["grams"] == 25.0
+
+    def test_atomic_keeps_the_typed_name_of_an_untouched_food(self, db_conn, nested_recipe):
+        rid = _db.recipe_create(db_conn, name="R", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 1, "My oats", 10.0, "g")
+        db_conn.commit()
+        for rewrite in (None, _swap(2, 1)):
+            out = _rn.atomic_recipe_ingredients(rid, db_conn, rewrite=rewrite)
+            assert [e["food_name"] for e in out] == ["My oats"]

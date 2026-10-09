@@ -1,0 +1,31 @@
+{# Glycemic load figure from a glycemic_load.py result dict
+   ({"total", "complete", "gaps"}) — shared by the food, recipe, meal, day and
+   print pages so an incomplete GL reads the same everywhere.
+   scope: "serving" or "day" (which GL bands apply). label: optional bold text
+   before the figure. links: False on printouts. #}
+
+{% macro gl_gaps(gl, links=True) %}
+<ul class="list-unstyled ms-2">
+  {% for g in gl.gaps %}<li><small>&#9888; {{ g.name }}{{ food_id_tag(g.fdc_id, recipe_id=g.recipe_id) }} &mdash;
+    {% if g.reason == "no_gi" %}no GI recorded yet{% if links and g.fdc_id %} &middot; <a href="/food/annotate/{{ g.fdc_id }}">add a GI</a>{% endif %}
+    {% elif g.reason == "not_wanted" %}no GI (marked &ldquo;don&rsquo;t prompt me&rdquo;){% if links and g.fdc_id %} &middot; <a href="/food/annotate/{{ g.fdc_id }}">add one anyway</a>{% endif %}
+    {% elif g.reason == "no_data" %}this food has no nutrient data
+    {% else %}recipe (deleted){% endif %}</small></li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+
+{% macro gl_figure(gl, scope="serving", label="", links=True) %}
+{% if gl.complete %}
+<p>{% if label %}<strong>{{ label }}</strong> {% endif %}<strong>{{ gl.total }}</strong>
+  <small class="muted">&mdash; {{ gl_band(gl.total, scope) }}</small></p>
+{% elif gl.total is not none %}
+<p>{% if label %}<strong>{{ label }}</strong> {% endif %}<strong>at least {{ gl.total }}</strong>
+  <small class="muted">&mdash; incomplete, missing GI data{% if gl_band(gl.total, scope) == "High" %} (already High without it){% endif %}</small></p>
+<p class="muted mb-1"><small>These foods have carbohydrate but no GI value, so their share isn&rsquo;t counted and the true figure is higher:</small></p>
+{{ gl_gaps(gl, links) }}
+{% else %}
+<p class="muted mb-1">{% if label %}<strong>{{ label }}</strong> {% endif %}Not available &mdash; none of the foods with carbohydrate here has a GI value:</p>
+{{ gl_gaps(gl, links) }}
+{% endif %}
+{% endmacro %}

@@ -2,9 +2,9 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-07:2029
+UPDATED: 2026-10-09:1637
 
-Last monthly accuracy check: 2026-09-01 (2026-08-30, actually).
+Last monthly accuracy check: 2026-10-09.
 
 Last quarterly source-fixture check: 2026-09-11 (see Maintenance section).
 
@@ -80,23 +80,46 @@ numa/
   ciqual_lookup.py                 — French CIQUAL local search over bundled ciqual_data.json (no
                                      live API, no amino-acid data; see scripts/build_ciqual_data.py)
   diaas.py                         — Meal-level DIAAS calculation and digestibility data
-  export.py                        — Report export (txt, md, html)
   profile.py                       — User profile dataclass, RDA computation, unit parsing
   platform_utils.py                — Cross-platform data-dir path resolution
   version.py                       — Single-source-of-truth VERSION stamp
-  requirements.txt                 — Python dependencies (fastapi, uvicorn, Jinja2, Markdown, python-multipart;
-                                     pytest/httpx/hypothesis for test/dev)
+  requirements.txt                 — Python dependencies (fastapi, uvicorn, Jinja2, Markdown, python-multipart,
+                                     cryptography, matplotlib, pdfminer.six; pytest/httpx/hypothesis/
+                                     playwright for test/dev)
   import_foods.py, import_json_folder.py, import_gi_seed.py
                                     — standalone maintenance scripts, independent of the web app
                                      (numa_gen_prompt.py, numa_import_claude.py also exist locally
                                      as personal, gitignored scratch tools — not part of the repo)
   build_oxalate_db.py              — one-time script: builds oxalate.db from oxalate_source_data.py
+  gi_lookup.py                     — fuzzy name search over the GI reference table (gi_data.json, or the
+                                     user's own gi_data_local.json when present); Annotate page's GI lookup
   README-numa-documentation.md     — This file
   scripts/
     setup_venv.sh                  — Create and populate .venv
     build_manual.py                — Regenerates user-manual.html from user-manual.md
     build_ai_manual.py             — Builds the AI edition of the manual (ai-edition/, git-ignored)
     upload_ai_manual.py            — Builds it, then updates its Google Doc in Drive (owner-only)
+    publish_manual.py              — Publish the manual on its own (signed) to the "manual-latest" release
+    audit_glossary.py              — List manual terms that look like they need a Glossary entry
+    bump_version.py                — Set version.py's VERSION stamp to now (never hand-edit it)
+    create_release.py              — Create the GitHub release and upload the Linux binary/installer
+    release-all.sh                 — `make release-all`: Linux release, then the Windows build
+    build-windows.sh, vm-setup.ps1, vm-build.ps1
+                                   — Windows .exe build in a KVM VM driven over SSH
+    install-linux.sh               — The one-file Linux installer users download
+    smoke_test_upgrade.py          — Pre-release: the new binary must migrate databases made by older code
+    build_cofid_data.py, build_afcd_data.py, build_ciqual_data.py
+                                   — Regenerate the bundled national-dataset JSON files
+    build_gi_data.py               — CLI wrapper for gi_table_build.py (the user's 2021 GI table)
+    build_gi_data_2008.py          — Superseded 2008-edition GI ingest, kept, not part of a build
+    export_starter_data.py         — Rebuild starter_data.json from "* "-prefixed content in a real DB
+    refresh_starter_data.py        — Sync existing starter_data.json entries against the live cache
+    record_source_fixtures.py      — Record real USDA/OFF/CNF responses as test fixtures
+    complement_worksheet.py        — Print every number behind one food's complement suggestions
+    repair_usda_portions.py        — One-off: re-read USDA portions an older NuMa misread
+    restore_usda_zeros.py          — One-off: add back the 0 values USDA measured that NuMa dropped
+                                     before 2026-10-09 (fills absent keys only; never touches a value)
+    restore_food_origins.py        — One-off: restore USDA foods' data_type overwritten as "User Drafted"
   numa_app/
     __init__.py
     services/
@@ -105,6 +128,10 @@ numa/
       claude_fetch.py                — Claude AI amino-acid-fetch prompt building and response import
       data_completeness.py           — which nutrient groups a cached food is missing: missing_groups(),
                                       active_gaps(), requested_keys(), is_blank()
+      entry_parse.py                 — tolerant reading of typed values: parse_number() ("1,200", "½"),
+                                      parse_nutrient() (units, IU for vitamins A/D/E, kJ, "trace"),
+                                      parse_aa_block() (pasted amino acid tables), supplement_portion();
+                                      raises EntryError with a plain-language reason, never drops a value
       energy_check.py                — calories missing or inconsistent with protein/carbs/fat:
                                       atwater_estimate(), fill_missing_calories(), calorie_mismatch()
       data_quality.py                — every data-quality check in one place: food_issues(),
@@ -128,12 +155,19 @@ numa/
       diet_aware.py                  — B12/iron/zinc bioavailability notes based on dietary preference
       food_ids.py                    — display codes: classify_food_id() (U171477 / UD4 / R21 / OFF3 …), parse_code(), CODE_PREFIXES; outside-source numbers live in db.food_codes
       food_import.py                 — shared food-cache import logic (used by import_foods.py etc.)
-      glycemic_load.py               — shared glycemic load aggregation: compute_glycemic_load();
+      gi_table_build.py              — build the user's own gi_data_local.json from the Atkinson 2021
+                                      supplemental PDFs (Settings' Build button); never committed
+      glycemic_load.py               — glycemic load for foods, recipes, meals and days
+                                       (food_gl, recipe_gl, meal_gl, combine_gl, gl_for_items):
+                                       recipes worked out live through sub-recipes; a partial
+                                       total plus each left-out food and why ("gaps");
                                        two-scale banding (gl_band/gl_band_caveat — "serving"
                                        vs "day", which are NOT interchangeable); and day-level
                                        totals for the GL trend and plot (day_gl_total,
                                        day_gl_totals, average_day_gl)
       manual_build.py                — rebuild_manual_if_stale(), used by the web app's /manual route
+      manual_update.py               — check for, download (Ed25519-verified) and serve a newer User
+                                      Manual than the baked-in one, independent of program updates
       meal_bcp.py                    — shared meal-DCP fallback: recipe_dcp_fallback()
       meal_list_columns.py           — nutrient-column picker logic shared by Meals & Log, Recent
                                       Days/Daily Summary, and the Nutrient Plot picker
@@ -152,9 +186,13 @@ numa/
                                       parse_translation_response(), validate_translation() — see
                                       "Recipe translation for printing" below
       search_ranking.py              — shared food-search relevance ranking: relevance_key()
+      search_suggest.py              — "did you mean" suggestions (difflib) for a search with no results
+      self_update.py                 — replace the running packaged Linux binary with the latest
+                                      release, for the home page's "Update Now" button
       static_source_lookup.py        — StaticSource class: shared local-search/lookup machinery
                                        for bundled static datasets (CoFID/AFCD/CIQUAL);
                                        cofid_lookup.py etc. are thin wrappers around it
+      update_check.py                — GitHub latest-release check for the "update available" banner
       top_contributors.py            — rank a meal's/recipe's ingredients by contribution to one
                                       nutrient (or DCP), for the "Top Contributors" analysis section
       whatif.py                      — non-destructive what-if analysis across a set of meals or
@@ -193,6 +231,24 @@ numa/
       _diet_pref_quick.html        — Inline dietary-preference quick-switcher partial
       _rda_definition_footer.html  — Shared RDA/limit-column definitions footer
       _top_contributors.html       — Top Contributors table partial (food/recipe/meal analyses)
+      _pantry_search_rows.html, _compare_search_rows.html, _convert_search_rows.html,
+      _recipe_search_rows.html, _source_picker_rows.html, _search_results_block.html,
+      _online_search_notice.html   — Per-screen search-result rows (served by /search-rows/{screen}),
+                                      and the red "Online search in progress…" note
+      _gl_result.html              — Glycemic load figure: complete, "at least … incomplete", or not available
+      _calorie_note.html, _food_quality_note.html, _impact_note.html, _recalc_note.html,
+      _stale_amounts_form.html, _generic_density.html
+                                    — Data-quality notes: calorie coverage, a food's problems, "what this
+                                      change did", recalculated-totals note, amounts that no longer match,
+                                      "≈ generic" density marks
+      _food_amount.html, _recipe_amount.html, _serving_note.html
+                                    — How an amount or a recipe serving is shown
+      _code_key.html, _archived_toggle.html, _replace_picker.html, _whatif_changes.html,
+      _complement_anchor.html, _dcp_footnote.html, _failsafe_note.html, _rda_goal_column.html,
+      _rda_legend.html, _smoothing_note.html
+                                    — Other shared partials (code key, show/hide archived, pick-by-name
+                                      replace box, what-if change list, complement "base the scale on",
+                                      table footnotes and legends, plot smoothing note)
       _ul_column.html              — Shared upper-limit column partial for nutrient tables
       food_detail.html             — Single food nutrient breakdown with RDA % and protein quality
       food_analyze_portion.html    — Select food + enter grams → nutrient table
@@ -207,6 +263,11 @@ numa/
       food_custom_profiles.html    — List user-drafted food profiles; create/delete
       food_custom_edit.html        — Edit a food's nutrients (drafted profiles and Food Cache share this)
       food_annotate.html           — Browse foods for GI/DIAAS annotation; edit annotation form
+      food_custom_copy_select.html — Pick a food to copy as a custom-food draft
+      food_fill_from.html          — Fill in nutrients from another food (search + pick)
+      food_review_incoming.html    — Value-by-value review of a USDA refresh or a fill-from source
+      food_duplicates.html         — Find duplicate foods: compare, keep one, or mark not duplicates
+      oxalate_link.html            — Choose which oxalate reference row a food is matched to
       claude_fetch.html            — Build a Claude AI amino-acid/nutrient fetch prompt for a food
       claude_import.html           — Import a pasted Claude AI response into the food cache
       pantry.html                  — My Pantry: add/remove/archive foods on hand
@@ -223,6 +284,11 @@ numa/
       compare.html                 — Unified side-by-side comparison (up to 8 foods and/or recipes, mixed; save/load)
       analysis_food_use.html       — Analysis: frequency of a food's use across meals/date ranges
       analysis_food_use_recipes.html — Analysis: frequency of a food's use across recipes
+      analysis_whatif.html         — What-if: meals (remove/add/replace/scale across a set of days)
+      analysis_whatif_recipes.html — What-if: recipes (per-serving before vs after)
+      analysis_whatif_apply.html   — Confirmation page before a replace-only what-if is applied for real
+      recipe_translate.html, recipe_translate_import.html
+                                    — Recipe translation for printing: build the prompt, paste the reply
       summary.html                 — Daily summary landing page (Recent Days list)
       trend.html                   — nutrient averages across days view
       nutrient_plot.html           — Nutrient trend line-plot picker/display
@@ -230,7 +296,7 @@ numa/
       print.html                   — Shared printable nutritional-analysis page (food/recipe/meal/day)
       settings.html                — User profile, dietary preferences, USDA API key, DIAAS overrides,
                                      nutrient targets, starter-data toggle, system-issues list
-      manual.html                  — Rendered user-manual.md
+      disclaimer.html              — The /disclaimer page
   .venv/                           — Python virtual environment (not committed)
 ```
 
@@ -240,7 +306,7 @@ numa/
 
 ### 1. Virtual environment
 
-The `.venv` directory is already created and populated. It uses Python 3.13 from the local miniconda installation, matching the `cmgr` project convention.
+The `.venv` directory is already created and populated. It uses the system Python 3.12 (`/usr/bin/python3.12`).
 
 To recreate it from scratch using the setup script:
 
@@ -253,7 +319,7 @@ Or manually:
 
 ```bash
 cd numa
-/home/tomc/miniconda3/bin/python3 -m venv .venv
+python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
@@ -266,7 +332,10 @@ Dependencies (`requirements.txt`):
 | `Jinja2`          | Template rendering                         |
 | `Markdown`        | Renders the manual and other markdown text |
 | `python-multipart`| Form-data parsing (FastAPI dependency)     |
-| `pytest`, `httpx`, `hypothesis` | Test suite / test client / property-based tests (test/dev only) |
+| `cryptography`    | Ed25519 signature check on downloaded manuals (manual_update.py) |
+| `matplotlib`      | Nutrient Plot rendering (plotting.py)      |
+| `pdfminer.six`    | Reading the 2021 GI table PDFs (gi_table_build.py) |
+| `pytest`, `httpx`, `hypothesis`, `playwright` | Test suite / test client / property-based tests / browser tests (test/dev only) |
 
 > **Note:** `requests` is not a dependency; HTTP uses stdlib `urllib`.
 
@@ -286,7 +355,7 @@ The key is free and gives you **1,000 requests per hour**, which is more than en
 
 #### Setting the key
 
-Set it from **Settings → Advanced settings → USDA API key** in the web app. It's saved to `~/.config/numa/config.json` and used automatically on all subsequent runs.
+Set it from **Settings → 5. USDA API Key** in the web app. It's saved to `~/.config/numa/config.json` and used automatically on all subsequent runs.
 
 ---
 
@@ -296,7 +365,7 @@ Set it from **Settings → Advanced settings → USDA API key** in the web app. 
 python web/launcher.py
 ```
 
-This starts uvicorn and opens a browser tab at `http://127.0.0.1:8000`. Useful flags: `--port N`, `--no-browser`, `--reload` (dev auto-restart). Alternatively, from the `web/` directory: `uvicorn backend:app --reload`.
+This starts uvicorn and opens a browser tab at `http://127.0.0.1:8000`. Useful flags: `--host`, `--port N`, `--no-browser`, `--reload` (dev auto-restart). Alternatively, from the `web/` directory: `uvicorn backend:app --reload`.
 
 For first-run setup, see the [NutriMagnus User Manual](user-manual.html).
 
@@ -304,7 +373,7 @@ For first-run setup, see the [NutriMagnus User Manual](user-manual.html).
 
 ## Menu Structure
 
-NuMa has five top-level nav areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary - DCP and goals** (the original per-day nutrient/RDA workflow), **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs, with a substitution action), and **Food use in recipes** (the same frequency/substitution analysis, scoped to recipe ingredients instead of logged meals). For a complete description of every page and workflow, see the [NutriMagnus User Manual](user-manual.html).
+NuMa has five top-level nav areas: **Foods**, **Recipes**, **Meals & Log**, **Analysis**, and **Settings**. Analysis is a growing collection of preset analyses — currently **Daily summary** (DCP, trends, plot — the original per-day nutrient/RDA workflow), **Food use in meals** (frequency of food use across a chosen set of date ranges and/or meal IDs, with a substitution action), **Food use in recipes** (the same frequency/substitution analysis, scoped to recipe ingredients instead of logged meals), **What-if: meals** and **What-if: recipes** (remove/add/replace/scale foods and see the effect before vs after, without changing anything unless you apply it). For a complete description of every page and workflow, see the [NutriMagnus User Manual](user-manual.html).
 
 ---
 
@@ -456,6 +525,20 @@ The conversion math is shown on screen so you can verify it against the label.
 ### Searching for a food
 
 See the [User Manual](user-manual.html) for usage documentation on food search, barcode scanning, and the food cache quick-pick.
+
+**One search path for every screen.** Every food-search screen in the web app — Foods → Search, Analyze a Food Portion, a meal's add-food panel, My Pantry, Compare, Convert, Edit Recipe's ingredient search, and the "pick another food as a source" searches (custom food: Estimate amino acids / Copy nutrient values; Fill in nutrients from another food) — gets its results from `_run_food_search()` in `web/backend.py`. Don't hand-roll another search loop on a page; add an option to it instead. It runs:
+
+1. `_search_local_results()` — pantry, Food Cache, recipes, and the bundled no-network datasets (CoFID, AFCD, CIQUAL). Its rows carry every field any results table needs (a cached food's portions, a recipe's servings/weights, the pantry entry id, GI/DIAAS as display strings).
+2. `_external_food_search_results()` — the online sources in `_LIVE_SOURCES` (USDA, Open Food Facts, CNF), only those ticked in the Source filter.
+3. `_sort_search_results()` → `_filter_search_results_by_source()` → `_cap_results_preserving_local()`.
+
+Options: `external=False` for a page's instant local-only first render; `foods_only` (My Pantry, the source pickers); `exclude_recipe_id` (a recipe can't contain itself); `exclude_fdc_id` (a food can't be its own source); `aa_first` (the Estimate-amino-acids picker lists foods with ✓/~✓ amino acid data first); `clean_query` (the meal panel's handling of source names and prep-state words typed into the box). The source pickers' Source list has no Pantry box, so `_picker_sources()` counts pantry foods under Food Cache.
+
+**Local matches first, online results after.** Every search screen renders its local matches at once and fills in the online ones afterwards. Foods → Search, Analyze a Food Portion and the meal panel do this with their own `*-search-api-results` endpoints and page scripts (they also carry a confirm-amino-acids panel, barcode lookup, and the meal panel's amount-mode handling). The rest — My Pantry, Compare, Convert, Edit Recipe, and the three source pickers — share one mechanism: each has a builder in `_SEARCH_SCREENS` that reads its own query parameters and returns its rows partial and context; the page route calls it with `external=False`, and `GET /search-rows/<screen>` calls it with `external=True`. The page marks its results block with `_search_results_block.html`'s `attrs()`, and the `[data-search-results]` script in `base.html` fetches those rows, swaps them into the block's `tbody[data-search-tbody]`, carries across anything typed or ticked in a row (rows carry `data-row-key`), re-registers the rows with the unsaved-changes guard, and fires `numa:search-rows` for page-specific follow-up. A new search screen: write a builder, a rows partial, and add it to `_SEARCH_SCREENS`.
+
+**Picking a result fetches it through one helper too.** A result from a source that isn't cached yet is fetched and cached by `_get_or_cache_source_food(fdc_id, off_code)` (built on `_fetch_uncached_food_detail()`, which dispatches on the code's source range) — used by the food page, Convert, Add to recipe / pantry, and Compare. An Open Food Facts result is the one case that needs more than its code: its code is a one-way hash of the product's barcode number, so the number travels with the result as `off_code` (a query parameter on `food_url()` links, a hidden field on add forms, `off_code_<id>` beside a Compare checkbox).
+
+**Online-search notice.** While online results are pending, a red "Online search in progress…" note shows: from `_online_search_notice.html` on the pages that fill results in after rendering, and from a `base.html` submit handler on search forms marked `data-online-search` (pages that wait for the online results before rendering).
 
 **Result ordering.** See `numa_app/services/search_ranking.py`. `relevance_key(name, query, source, data_type)` returns a sort tuple, lower sorts first:
 
@@ -615,11 +698,11 @@ Every write to `foods.nutrients_json` (`db.cache_food`, `db.merge_user_supplied_
 
 `calorie_mismatch()` flags a stored value outside the range spanned by the general estimate and a fibre-at-0-kcal estimate, ±25% plus a 25 kcal floor. Flag only — alcohol, polyols and high fibre are real causes.
 
-UI: *Calorie checks* (`#calories`) on `/food/cache/db-check` (`_calorie_check_rows()`), and `_calorie_note.html` above the Nutritional Analysis table on meal, recipe and daily-summary pages (`_calorie_warnings()` over the leaf foods, sub-recipes expanded).
+UI: *Calorie checks* (`#calories`) on `/food/cache/db-check` (rows from `data_quality.scan()`), and `_calorie_note.html` above the Nutritional Analysis table on meal, recipe and daily-summary pages (`_calorie_warnings()` over the leaf foods, sub-recipes expanded).
 
 #### `numa_app/services/data_quality.py` — data-quality checks
 
-The single home for per-food and whole-database checks, so the Database check page, the Home page reminder, the post-add note and a food's own page can't disagree. `food_issues()` = `impossible_values()` (negatives; one macro > 100 g/100 g; protein+carbs+fat > 102 g; sugars > carbs; fat types > total fat) + the calorie checks above (skipped when the food's macros are marked "not needed"). `stale_amounts()` re-parses each recipe ingredient's / logged food's typed volume-or-portion entry (`unit`) with `portions._parse_portion_input` and lists those whose stored grams differ by ≥ 2% and ≥ 0.5 g — entries with an explicit weight are skipped (meal items store "g", so in practice only recipes). `fdc_id=` limits it to one food; `include_bracketed=True` (used by `scan()`, so Foods → 9 and the reminder include them) also returns volume entries carrying a bracketed gram figure ("1/3 c (42 gr)", an April-era stored format) as `bracketed` rows with `unit_after` = the entry minus that figure, which is what the fix writes. The food's Portions page shows its own (`backend._portion_amounts_review()`, after every portion change; recipe rows pre-ticked, meal and bracketed rows not); Foods → 9 pre-ticks nothing. Both render `_stale_amounts_form.html`. **Keep as entered** (`action=keep` on the same POST) records `(kind, item_id, stored_g)` in the `amount_keeps` table (`db.amount_keep()` / `amount_unkeep()` / `amount_keeps()`); `stale_amounts()` drops a kept row while the item's grams still equal `stored_g` (editing the amount ends the keep) unless `include_kept=True`, and rows carry `kept`. Both pages list kept rows separately under "Kept as entered" with a badge and a **Stop keeping** action. `old_usda_copies()` = USDA foods with `cached_at` > 365 days. `scan()` returns everything plus stable issue keys (`food:<id>:<kind>`, `gap:<id>:<group>`, `stale:<where>:<item>`, `integrity:<cat>:<id>`); estimates and old copies carry no key, since they aren't problems.
+The single home for per-food and whole-database checks, so the Database check page, the Home page reminder, the post-add note and a food's own page can't disagree. `food_issues()` = `impossible_values()` (negatives; one macro > 100 g/100 g; protein+carbs+fat > 102 g; sugars > carbs; fat types > total fat) + the calorie checks above (skipped when the food's macros are marked "not needed"). `stale_amounts()` re-parses each recipe ingredient's / logged food's typed volume-or-portion entry (`unit`) with `portions._parse_portion_input` and lists those whose stored grams differ by ≥ 2% and ≥ 0.5 g — entries with an explicit weight are skipped (meal items store "g", so in practice only recipes). `fdc_id=` limits it to one food; `include_bracketed=True` (used by `scan()`, so Foods → 9 and the reminder include them) also returns volume entries carrying a bracketed gram figure ("1/3 c (42 gr)", an April-era stored format) as `bracketed` rows with `unit_after` = the entry minus that figure, which is what the fix writes. The food's Portions page shows its own (`backend._portion_amounts_review()`, after every portion change; recipe rows pre-ticked, meal and bracketed rows not); Foods → 9 pre-ticks nothing. Both render `_stale_amounts_form.html`. **Keep as entered** (`action=keep` on the same POST) calls `keep_as_entered()`, which leaves the grams alone and rewrites the unit text in the form NuMa stores for a weight typed with its volume (`own_weight_text()`: "8 c (2309 gr)" at 2309.216 g → "2309.2 g (8 c)"). That counts as the user's own weight, so `stale_amounts()` never lists it again and there is no kept list or undo; editing the amount is the way to change it. Before 2026-10-07 a keep was a row in the `amount_keeps` table (`db.amount_keep()` / `amount_unkeep()` / `amount_keeps()`) and both pages listed kept rows under "Kept as entered"; `convert_keeps()`, run at startup, rewrites any such row whose grams are unchanged and drops the rest. `stale_amounts()` still skips a leftover kept row unless `include_kept=True`. `old_usda_copies()` = USDA foods with `cached_at` > 365 days. `scan()` returns everything plus stable issue keys (`food:<id>:<kind>`, `gap:<id>:<group>`, `stale:<where>:<item>`, `integrity:<cat>:<id>`); estimates and old copies carry no key, since they aren't problems.
 
 UI: `/food/cache/db-check` sections *Food data problems* (`#calories`), *Amounts that no longer match* (`#stale-amounts`, fixed by `POST /food/cache/db-check/stale-amounts`), *USDA copies over a year old* (`#old-copies`). Visiting the page saves the current keys as prefs `data_check_seen` + `data_check_last_seen`; `_data_check_reminder()` shows the Home banner for keys not in that set, or (prefs `data_check_reminder_weeks` > 0) after that many weeks with problems open; prefs `data_check_reminder` (default on) disables it — Settings → 13. `_added_food_check()` puts `added_check=<fdc_id>` on the redirect after adding a problem food to a meal or recipe; `_food_quality_note.html` renders it there and on the food's own page.
 
@@ -703,20 +786,12 @@ For an annotated example of the meal-level DIAAS output table, see the [User Man
 
 #### Filling missing AA profiles at analysis time
 
-When a meal has ingredients without AA data, the analysis reports how many are affected and distinguishes two categories:
+When a meal has ingredients without AA data, its Meal-Level Protein Analysis lists them under **Missing AA Profiles**, split two ways:
 
-- **Inside a recipe** — the ingredient is part of a recipe logged as a meal item. To fix these, edit the recipe directly (Recipes → browse → edit ingredients) and replace or re-fetch the ingredient there.
-- **Standalone meal ingredients** — foods logged directly to the meal (not inside a recipe). These can be replaced interactively: the program offers a `y/n` prompt asking whether to search for a substitute.
+- **Inside a recipe** — fix these in the recipe itself (Edit Recipe: replace the ingredient, or improve the food).
+- **Standalone meal foods** — the meal page's **Refresh from USDA** button (`POST /meal/{id}/refresh-aa`, `meal_refresh_aa()`) re-fetches every non-Branded USDA food in the meal that lacks AA data, or whose amino acids are only estimates (`db.estimated_keys()`). It fills blanks only, never overwriting a value the food already has; measured AAs replace estimated ones. Foods where USDA's copy also differs on existing values are listed for a per-value review (`incoming_review.nutrient_review()`).
 
-If you answer `y`, for each affected standalone ingredient the program runs a focused search of USDA **SR Legacy** and **Foundation** foods — the datasets most likely to include full amino acid profiles. The **AA** column in the results table (✓/✗) shows at a glance which candidates have AA data. Picking a replacement updates that ingredient in the meal for the current analysis session. Press Enter to skip an ingredient and leave it excluded from IAA pooling.
-
-Ingredients contributing less than 1 g of protein are treated as negligible and left off all of these missing-AA lists and digestibility tables — a footnote notes when items were omitted this way. This keeps garnishes, spices, and trace amounts (e.g. a square of dark chocolate) from cluttering warnings that matter only for real protein sources.
-
-#### Why the "Fetching amino acid data…" spinner can be slow
-
-When meal analysis begins, `_compute_meal_ingredient_list()` (`meals.py:610`) loops over every food in the meal and calls `_best_nutrients()` for each one. Inside `_best_nutrients()`, `_refresh_cache_if_missing_aa()` checks whether the cached food has amino acid data. If it does not — and the food is Foundation or SR Legacy (i.e. USDA *should* have AA data) — it makes a synchronous USDA API call to re-fetch the full nutrient profile and update the cache.
-
-The result is one sequential HTTP round-trip per ingredient that lacks cached AA data. For a meal with six foods where four were cached without AA data (common for foods first added via a quick text search), that is four back-to-back network requests, each potentially taking 1–3 seconds. After the first analysis the AA data is stored in the local cache, so subsequent analyses of the same meal are fast. The spinner is a one-time fetch-and-cache cost per food.
+Nothing is fetched automatically during analysis: an ingredient without AA data is simply left out of IAA pooling and named. Ingredients contributing less than 1 g of protein are treated as negligible and left off these missing-AA lists and digestibility tables — a footnote notes when items were omitted this way — so garnishes, spices, and trace amounts don't clutter warnings that matter only for real protein sources.
 
 #### Digestibility data — three-tier lookup
 
@@ -766,7 +841,7 @@ See the [User Manual](user-manual.html) for the meal logging workflow.
 
 Reports are auto-saved to `~/.numa/reports/` after every analysis. Additional user-exported copies (md/txt/html) go to `~/.numa/user-requested-nutrition-reports/`. See the [User Manual](user-manual.html) for the full workflow.
 
-**Diet preference in exports:** Exported reports filter complement suggestion sections by the active dietary preference. Implemented by passing `diet_pref=state._diet_pref` to `export.build_report()` from `reports._offer_export()`. The `build_report(title, sections, fmt, diet_pref="all")` signature accepts the preference and overrides the static `complement_suggestions` renderer for that call.
+**Exports.** The web app's printable reports are `print.html`, with sections chosen through `print_sections.py`.
 
 ### Daily summary
 
@@ -783,7 +858,7 @@ See the [User Manual](user-manual.html) for usage.
 - **`usda_api.py`** — HTTP client: API key management, `search_foods()`, `get_food_detail()`, `_parse_food()`, and the `NUTRIENT_MAP` / `ESSENTIAL_AMINO_ACIDS` / `AA_REFERENCE_MG_PER_G_PROTEIN` constants.
 - **`usda_nutrients.py`** — all nutrient math: `scale_nutrients()`, `sum_nutrients()`, `has_amino_acid_data()`, `protein_completeness()`, `get_aa_gaps()`, `suggest_complements()`, `get_diaas()`, `get_antinutrient_flags()`, `get_density_g_per_ml()`, and the embedded DIAAS, anti-nutrient, and complement data tables.
 
-The support modules (`db.py`, `usda.py`, `diaas.py`, `export.py`, `profile.py`) live at the project root and are imported by `numa_app/services/*` and `web/backend.py` as needed.
+The support modules (`db.py`, `usda.py`, `diaas.py`, `profile.py`) live at the project root and are imported by `numa_app/services/*` and `web/backend.py` as needed.
 
 ### `openfoodfacts.py` — Open Food Facts API client
 
@@ -808,7 +883,7 @@ OFF nutrient keys (`energy-kcal_100g`, `proteins_100g`, etc.) are mapped to the 
 - **USDA portion shortcut** (`p1`, `p2`) → gram weight from USDA portions list.
 - **Portion multiple** (`1.5 p1`) → multiple of a USDA portion.
 
-Returns `None` on unrecognized input; `(None, vol_display)` when volume is recognized but density is unavailable (caller then prompts for grams). `_PIECE_UNITS` is a frozenset of the recognized piece-unit words. `volume_hint()` and `amount_note()` (also in this file) render a cups/tbsp/tsp approximation for a gram amount, used by complement suggestions and elsewhere. `web/backend.py` builds its own portion-picker UI around `_parse_portion_input()` directly.
+Returns `None` on unrecognized input; `(None, vol_display)` when volume is recognized but density is unavailable (caller then prompts for grams). `_PIECE_UNITS` is a frozenset of the recognized piece-unit words. `amount_note()` (also in this file) renders a cups/tbsp/tsp approximation for a gram amount, used by complement suggestions and elsewhere. `web/backend.py` builds its own portion-picker UI around `_parse_portion_input()` directly.
 
 **`numa_app/services/aa_estimate.py` — AA copy/estimate:** manually typing or pasting a food's amino acid profile is slow, and copying another food's raw AA grams verbatim silently misestimates whenever the two foods' protein density differs (a food with 2× the protein would otherwise look 2× more complete than it really is). `estimate_aa(target_nutrients, source_nutrients) -> (updated, factor, error)` scales every `usda.ALL_AMINO_ACIDS` key present in `source_nutrients` by `target_protein_g / source_protein_g` before writing it onto a copy of `target_nutrients`; returns an `error` string instead if the source lacks amino acid data (`usda.has_amino_acid_data()`) or either food has no usable `protein_g`. `source_note(name, fdc_id, factor)` renders the "AA data estimated by scaling from X (#id), factor N.NNx, DATE" string used to auto-suggest a Note. `usda.ALL_AMINO_ACIDS` (in `usda_api.py`, re-exported via `usda.py`) is `ESSENTIAL_AMINO_ACIDS` plus `aa_cystine_g`/`aa_tyrosine_g` — the full trackable AA set, as distinct from the 9-key essential set used for completeness scoring. Entry point: an inline picker on `food_custom_edit.html` (search your Food Cache, "Use as source" button) posting to `POST /food/custom-profiles/{fdc_id}/copy-aa` (`web/backend.py`), which fetches-and-caches the source if it isn't cached yet, applies `estimate_aa()`, and redirects back with an `aa_applied` status flag.
 
@@ -836,6 +911,14 @@ All persistence goes through a `get_db()` context manager that commits on clean 
 | `day_profile`        | Per-date pinned profile snapshot — see `numa_app/services/day_profile.py` below |
 | `recompute_errors`   | Logged DCP-cascade recompute failures — see below |
 | `stale_meals`        | Meals whose saved DCP/calories/nutrient snapshot went stale after a food or recipe edit — see below |
+| `meal_recalc_log`    | Why and when a meal's totals were recalculated ("Nuts, almonds: its data changed"), shown on meal and day pages |
+| `food_codes`         | Display-code numbers (UD4, OFF3 …) for foods whose code isn't derived from their id — see `food_ids.py` |
+| `food_versions`      | Older versions of a food kept by Refresh (U171477.1), with the date meals before which keep using them |
+| `food_data_ignores`  | Per-food "not needed" choices for nutrient-group gaps and data checks (incl. "these calories are right") |
+| `food_duplicate_dismissals` | Groups marked "Not duplicates" on Find duplicate foods, keyed by their sorted fdc_ids |
+| `amount_keeps`       | Legacy "Keep as entered" rows; `data_quality.convert_keeps()` rewrites them as typed-own-weight amounts |
+| `saved_whatif_scenarios` | Named what-if scenarios (the page and its query string) |
+| `recipe_translations` | Saved recipe translations for printing, per language |
 
 (`oxalate_links` also lives in `numa.db`; documented separately under [Oxalate Data](#oxalate-data) below since it belongs to that subsystem.)
 
@@ -876,9 +959,9 @@ One consequence worth knowing when writing code that deletes foods: `demo_data.c
 - Single-row lookups (`get_cached_food`, `expand_recipe_ingredients` in `recipe_nutrients.py`) are never filtered — an archived food/recipe still resolves correctly wherever it's already referenced (an existing recipe ingredient, a logged meal item).
 - `set_food_archived` / `set_pantry_archived` / `set_recipe_archived` flip the flag; callers reuse the current-state check as a toggle, so one route handles both archive and restore.
 - `food_references(conn, fdc_id)` / `recipe_references(conn, recipe_id)` return reference counts (pantry/recipes/meals) so the UI can warn — but not block — before archiving something still in active use.
-- `list_unused_cached_foods` / `prune_unused_cached_foods` always exclude archived rows: archiving is meant to protect data from being lost, so an archived-but-unreferenced food is never swept up by `u` (prune unused).
-- Per-list "show archived" visibility is a session/persisted preference, not a query default — `numa_app/state.py`'s `AppContext.list_filters` dict (`get_list_filter`/`set_list_filter`) mirrors the existing `sort_prefs` pattern exactly, and `numa_app/config/prefs.py` persists it (`show_archived_food_cache`/`show_archived_pantry`/`show_archived_recipes` keys in `prefs.json`) the same way sort choices are persisted. Any future per-list view-state toggle should follow this same two-layer (state.py get/set + config/prefs.py persisted wrapper) pattern.
-- `web/backend.py`'s `/food/cache`, `/pantry`, and `/recipes` GET routes accept a `show_archived` query param resolved via `_resolve_bool_pref()` (mirrors `_resolve_sort()`), and each has a `POST .../{{id}}/archive` route that flips the flag and redirects with `?archived=1`/`?restored=1` (plus `&still_used=1` when the item was still referenced) for a flash-banner message. The web flow archives immediately (one click, no JS-driven confirm dialog) and surfaces the "still referenced" warning as a post-action flash message instead of a pre-action prompt — a warn-but-never-block policy, matching the app's plain-HTML-forms architecture (no fetch/AJAX anywhere in `web/`).
+- `list_unused_cached_foods` / `prune_unused_cached_foods` always exclude archived rows: archiving is meant to protect data from being lost, so an archived-but-unreferenced food is never swept up by Food Cache's prune-unused action.
+- Per-list "show archived" visibility is a persisted preference, not a query default (`show_archived_food_cache`/`show_archived_pantry`/`show_archived_recipes` keys in `prefs.json`) — the same way sort choices are persisted. Any future per-list view-state toggle should follow this same pattern: `web/backend.py`'s `_resolve_bool_pref()` (an explicit query param wins and is saved to `prefs.json` as the new default; otherwise the saved value is used).
+- `web/backend.py`'s `/food/cache`, `/pantry`, and `/recipes` GET routes accept a `show_archived` query param resolved via `_resolve_bool_pref()` (mirrors `_resolve_sort()`), and each has a `POST .../{{id}}/archive` route that flips the flag and redirects with `?archived=1`/`?restored=1` (plus `&still_used=1` when the item was still referenced) for a flash-banner message. The web flow archives immediately (one click, no confirm dialog) — a warn-but-never-block policy. On the list pages the Archive/Restore button is a `js-row-archive` form, which `base.html` submits via `fetch()` with an `X-Numa-Ajax: 1` header; the route sees that through `_is_ajax_row_action()` and replies with a small JSON `{ok, archived}` instead of redirecting, so the row updates in place and the page keeps its search/sort/filter state. In that in-place path the "still referenced" warning is not shown; it appears as the post-action flash message only when the form falls back to a full POST-and-redirect (no JavaScript, or the fetch failed). `fetch()` is also used elsewhere in `web/` — e.g. the `*-search-api-results` endpoints that fill in online search results after a page's local-only first render.
 
 ### `usda_api.py` — USDA HTTP client (~290 lines)
 
@@ -1106,6 +1189,7 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | GET/POST | `/food/search` | Food search form / results (USDA + cache + recipes) |
 | POST | `/search` | Legacy alias for POST `/food/search` |
 | GET | `/food/search-api-results` | Background/async search results partial |
+| GET | `/search-rows/{screen}` | Full (local + online) result rows for a `_SEARCH_SCREENS` search screen (pantry, compare, convert, recipe, aa-picker, nutrient-picker, fill-from); `id` = the page's recipe/food id |
 | GET | `/food/analyze-portion-api-results` | Background/async portion-analysis results partial |
 | POST | `/food/confirm-aa` | Batch-fetch full nutrient detail for checked `"~✓"` search results (see `search.html` below) |
 | GET/POST | `/food/analyze-portion` | Portion analysis form / results |
@@ -1149,7 +1233,7 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/pantry` | Pantry list (`show_archived` supported) |
+| GET | `/pantry` | Pantry list (`show_archived`, `filter` supported); `search` renders local matches only |
 | POST | `/pantry/add` | Add a food to pantry |
 | POST | `/pantry/remove/{pantry_id}` | Remove a food from pantry |
 | POST | `/pantry/{pantry_id}/archive` | Archive/restore a pantry entry |
@@ -1260,7 +1344,7 @@ Renders the home page's about text from `user-manual.md`'s Preface — `_extract
 
 **Update-check flow.** `index()` calls `_update_check.check_for_update(VERSION)` (`numa_app/services/update_check.py`) on every load of `/` — launch, manual reload, or navigating back to Home from elsewhere — except immediately after a successful in-place update (`updated=1` query param), since the running process's in-memory `VERSION` is still stale until relaunch. `check_for_update()` compares the tag-ified current version against GitHub's latest-release tag via plain string comparison (safe because `VERSION` is a fixed-width, lexically-sortable stamp) and returns `{"tag": ..., "url": ...}` or `None`; it never raises, so a network failure or offline state is silently treated as "no update." Its own module-level cache (`_CACHE_TTL_SECONDS = 6 * 60 * 60`) means repeated home-page loads within a 6-hour window reuse the last GitHub response rather than making a fresh call each time; the cache key includes the version string, so it self-invalidates the moment `VERSION` changes (e.g. right after a self-update).
 
-**Notification-frequency gate.** Even when `check_for_update()` reports a real update, `index()` only lets the **UPDATE AVAILABLE** banner through if `_should_show_update_notice()` (`web/backend.py`) says so — otherwise it sets `update_available = None` before rendering, same as the post-update suppression case. That helper reads the saved `update_notify_frequency` pref (`"daily"` / `"weekly"` / `"monthly"`, default `"daily"`, validated against `_VALID_UPDATE_NOTIFY_FREQS`) and an `update_notice_last_shown_at` ISO date, both in `prefs.json`; if fewer days than the frequency's interval (`_UPDATE_NOTIFY_FREQ_DAYS`: 1/7/30) have elapsed since the last time the banner was shown, it returns `False` without touching `prefs.json`. Otherwise it stamps today's date into `update_notice_last_shown_at` and returns `True`. This is a display throttle only — it never affects the 6-hour network-cache TTL above, which keeps polling GitHub at its own fixed cadence regardless of the user's notification preference. The setting itself lives in Settings → "Update Notifications" (`settings.html`, `POST /settings/update-notify-frequency`), following the same radio-button/`prefs.json` pattern as the Dietary Preferences section (`diet_pref`).
+**Per-release dismissal.** Even when `check_for_update()` reports a real update, `index()` only lets the **UPDATE AVAILABLE** banner through if `_should_show_update_notice(tag)` (`web/backend.py`) says so — otherwise it sets `update_available = None` before rendering, same as the post-update suppression case. The banner shows on every page load for a given release, so it can't silently disappear before you've acted on it, unless you've ticked its "Don't show this again for this version" checkbox, which saves that release's tag as `update_notice_dismissed_tag` in `prefs.json`. A newer release always gets through. This is a display gate only — it never affects the 6-hour network-cache TTL above. (It replaced an earlier daily/weekly/monthly notification-frequency setting, removed because the banner could vanish on its own.)
 
 **When the banner does show**, its build-note line also names the current frequency setting in a muted aside with a link to `/settings#update-notifications`, so the note doubles as a reminder of how often you've asked to be told.
 
@@ -1276,7 +1360,7 @@ Either way, waiting up to 6 hours without restarting works too — the cache exp
 
 Food search results. Shows a results table with food name, data type, brand, and source badge (`pantry` / `cache` / `recipe` / `usda` / `off`). Each row links to `/food/{fdc_id}`. Used for both the Foods → Search page and as a reusable search partial.
 
-**Ranking.** Results can be ordered two ways, chosen via a dropdown and persisted per-user in `prefs.json` (key `sort_food_search`, default `"relevance"`; shared with the meal add-food panel in `meal.html`): `"relevance"` ranks purely by name-match quality (`_search_relevance_key()` in `web/backend.py` — exact match, then prefix match, then fraction of query words matched, then shortest name, then alphabetical), ignoring source; `"grouped"` sorts by source category first (`_SEARCH_CATEGORY_RANK`: pantry → recipe → cache → USDA/OFF), using the same relevance key as a tiebreaker within each group. Both modes are applied via the shared `_sort_search_results()` helper. A cached food is tagged `"pantry"` instead of `"cache"` when its `fdc_id` is present in the Pantry table (`_pantry_fdc_ids()`).
+**Ranking.** Results can be ordered two ways, chosen via a dropdown and persisted per-user in `prefs.json` (key `sort_food_search`, default `"relevance"`; shared with the meal add-food panel in `meal.html`), both applied by `_sort_search_results()`. `"relevance"` sorts by `search_ranking.relevance_key()`: number of query words matched, then which ones (earlier words outrank later), then source (`SOURCE_RANK`: recipe → pantry → cache → external), then USDA data type (Foundation/SR Legacy first), exact match, prefix match, shorter name. `"grouped"` ("Recipes, Pantry, Cache, then Other") moves source (`_SEARCH_CATEGORY_RANK`) ahead of the word-order tiebreak but still after match count, so a weaker local match never outranks a stronger external one. After sorting, `_cap_results_preserving_local()` lists every local match first — recipes, then pantry and Food Cache foods, each in that order — then external results up to the result limit. A cached food is tagged `"pantry"` instead of `"cache"` when its `fdc_id` is in the Pantry table (`_pantry_id_by_fdc()`).
 
 **Batch AA confirmation.** A live (uncached) USDA search result's `aa` field is the coarse guess `"~✓"` for Foundation/SR Legacy types — `search_foods()`'s API response carries no nutrient data at all, so completeness genuinely can't be known without a detail fetch, and fetching every uncached result on every search would cost one USDA API call each. Instead, `search.html` renders a checkbox per `"~✓"` row (plus a select-all checkbox in the header) inside a `<form action="/food/confirm-aa">`; a "Fetch full details for selected" submit button (disabled until at least one box is checked, via inline JS) posts the chosen `fdc_id`s. `POST /food/confirm-aa` (`web/backend.py`) fetches and caches each one not already cached (same `get_food_detail()` + `cache_food()` pattern as `meal_add_food`), then redirects back to `/food/search?query=...&sort=...` — where those foods now resolve to a confirmed `"✓"` or `"✗"` via the normal cached-food path in `_search_logic()`.
 
@@ -1411,6 +1495,10 @@ Analysis -> What-if: meals (`/analysis/whatif`). Daily nutrient averages across 
 
 Analysis -> What-if: recipes (`/analysis/whatif-recipes`): per-serving nutrients and DCP of the selected recipes (all / by date created / IDs, as on Food Use in Recipes) before and after the same kind of change list (`whatif.evaluate_recipes()`). "Add" goes into each batch (per serving = amount / servings; the servings count never changes). Only recipes a remove/replace/scale reached are shown, at most 8 columns (largest summed relative change first; the rest listed), plus any unselected recipes that use a changed one as a sub-recipe. Recipe DCP comes from `recipe_dcp.recipe_dcp_per_serving()`, the pure half of `_recompute_single_recipe_dcp()` (which now just saves its result). `_whatif_changes.html` holds the change-row editor, its script, and the `num`/`signed` number macros shared by both What-if pages.
 
+#### `analysis_whatif_apply.html` — save, CSV, apply for real
+
+Both What-if pages share one computation (`_whatif_meals_compute()` / `_whatif_recipes_compute()` in web/backend.py), used by the page, its CSV export and Apply. Under a result, `_whatif_changes.html`'s `result_actions` macro offers: **Save** — the page's query string (minus the one-off `applied` flag) goes into `saved_whatif_scenarios` (`db.saved_whatif_*`, per page; `saved_panel` lists them, load = redirect to that URL); **Download CSV** — `/analysis/whatif/export.csv` and `/analysis/whatif-recipes/export.csv` (`whatif.meals_csv()` / `recipes_csv()`; the recipe CSV runs `evaluate_recipes(max_columns=None)`, so it isn't capped at 8); **Apply these replacements for real** — offered only when `whatif.real_substitution_problems()` is empty: every edit a replace, food→food at the same weight or recipe→recipe at the same servings (what `db.substitute_item_in_meals` / `substitute_item_in_recipes` do, keeping the stored amount as a number), no chains or duplicates. `GET /analysis/whatif/apply` is the confirmation page (direct targets from `db.meals_with_direct_item` / `recipes_with_direct_ingredient`, plus how many are reached only inside a recipe and so won't change); the POST re-plans from the query, substitutes in one transaction, recomputes DCP for changed recipes, and redirects back with `applied=N`. `whatif.py` itself still never writes.
+
 #### `summary.html`
 
 Daily summary landing page — no longer a stub. Lists Recent Days (via the day-analysis machinery shared with `meal_day.html`) and links into a specific date's summary (`/summary/{meal_date}`), the nutrient averages view, and the nutrient plot.
@@ -1435,7 +1523,7 @@ Shared printable-page template used by the various `.../print` routes (food, mea
 
 A recipe's "Translate for printing" button (`web/backend.py` routes under `/recipe/{id}/translate*`, logic in `numa_app/services/recipe_translate.py`) offers a manual-paste translation workflow — deliberately not a live translation API call, so there's no API key to manage, no per-use cost, and no new network dependency; the trade-off is one extra copy/paste round trip through an AI chat tool the user already has.
 
-**Step 1 — prompt generation (`recipe_translate.build_translate_prompt()`).** The user types a target language on `/recipe/{id}/translate`. NuMa builds a JSON payload of the recipe's translatable text — `name`, `description`, `introduction`, `instructions`, plus a `disclaimer` sentence with the language name already substituted in — and, per ingredient, `food_name`, `notes`, and `volume_display` (the human-readable unit hint from `portions.volume_hint()`, e.g. "1 cup"). Amounts, raw units, `fdc_id`, servings, and all nutrient values are never included. The prompt instructs the AI to translate values only, preserve every key (falling back to the original text rather than dropping a key it can't translate well), and keep the ingredients array the same length.
+**Step 1 — prompt generation (`recipe_translate.build_translate_prompt()`).** The user types a target language on `/recipe/{id}/translate`. NuMa builds a JSON payload of the recipe's translatable text — `name`, `description`, `introduction`, `instructions`, plus a `disclaimer` sentence with the language name already substituted in — and, per ingredient, `food_name`, `notes`, and `volume_display` (the human-readable amount as entered, e.g. "1 cup", from `web/backend.py`'s `_ingredient_volume_display()`). Amounts, raw units, `fdc_id`, servings, and all nutrient values are never included. The prompt instructs the AI to translate values only, preserve every key (falling back to the original text rather than dropping a key it can't translate well), and keep the ingredients array the same length.
 
 **Step 2 — response review (`recipe_translate.parse_translation_response()` / `validate_translation()`).** The user pastes the reply on `/recipe/{id}/translate/import`. `validate_translation()` distinguishes two failure modes:
 - **Hard failure** — the `ingredients` array length doesn't match the original. Row alignment can't be trusted, so this can't be recovered field-by-field; the page shows only "resubmit" or "cancel," no way to proceed with that reply.
@@ -1508,21 +1596,23 @@ the notebook pointing at nothing); `--new` creates a fresh Doc deliberately.
 
 | Location | Contents |
 |---|---|
-| `~/.local/share/numa/numa.db` | SQLite database (foods cache, recipes, meals, pantry, DIAAS overrides) |
+| `~/.local/share/numa/numa.db` | SQLite database (foods cache, recipes, meals, pantry, annotations, DIAAS overrides, and the other tables under Architecture → `db.py`) |
+| `~/.local/share/numa/prefs.json` | Web preferences: dietary preference (`diet_pref`), remembered sorts, column choices, show-archived toggles, dismissed notices, data-check state, GI opt-out |
+| `~/.local/share/numa/gi_data_local.json` | The user's own 2021 GI table, built from Settings (never shipped — licence) |
+| `~/.local/share/numa/manual/` | A downloaded newer User Manual (manual_update.py), served instead of the built-in one when its stamp is newer |
+| `~/.local/share/numa/demo_data.json`, `demo_data_seed_attempted`, `starter_versions.json` | Starter-data markers: what was loaded, whether first-run seeding was tried, which starter set each version shipped |
 | `~/.config/numa/config.json` | USDA API key, search result depth (`search_boost_page_size`) |
-| `~/.config/numa/theme` | Saved color theme preference |
-| `~/.local/share/numa/prefs.json` | Dietary preferences (`diet_pref`), editor command, and remembered list-sort choices (`sort_recipes`, `sort_food_cache`, `sort_meals`) |
-| `~/.config/numa/profile.json` | User profile (age, sex, weight, height, activity level) |
-| `~/.numa/reports/` | Auto-saved nutrition reports (Markdown) — one file per analysis |
-| `~/.numa/user-requested-nutrition-reports/` | User-exported reports (txt, md, or html) |
+| `~/.config/numa/profiles/`, `active_profile.txt` | Named user profiles (age, sex, weight, height, activity level, targets) and which one is active; a pre-profiles `profile.json` is migrated and kept as `profile.json.bak` |
+
+Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (data) and `%APPDATA%\numa` (config) on Windows.
 
 ---
 
 ## Test Suite
 
-**1,114 tests**, all passing (1,110 in the default run plus 4 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**1,810 tests**, all passing (1,805 in the default run plus 5 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
-`tests/test_packaging_spec.py::test_readme_test_table_lists_every_test_file` keeps the count and the file table below honest, so this section can no longer drift quietly between accuracy checks.
+`tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
 Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `pythonpath = .`).
 
@@ -1541,7 +1631,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_complements_properties.py` | Property-based tests for `numa_app/services/complements.py`, complementing `test_complements.py`'s hand-picked cases |
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
 | `tests/test_recipe_csv.py` | `numa_app/services/recipe_csv.py`: recipe CSV export/import, sub-recipe closure collection, two-pass dedup-and-create import |
-| `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL rollup via `gl_g`, partial totals alongside blockers, serving-vs-day band boundaries, day totals and multi-day averaging; multi-item accumulation, items after each blocker kind, and `meal_line_items()` shape (from the 2026-09-30 mutation run) |
+| `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL worked out live through sub-recipes (cycles, deleted sub-recipes), partial totals with gaps and their reasons (no GI / "don't prompt" / no data), the 1 g negligible-carbohydrate floor, serving-vs-day band boundaries, day totals and multi-day averaging; multi-item accumulation, items after each blocker kind, and `meal_line_items()` shape (from the 2026-09-30 mutation run) |
 | `tests/test_meal_bcp.py` | `numa_app/services/meal_bcp.py`: `recipe_dcp_fallback()` sums precomputed recipe `dcp_g` when ingredient-level AA data is unavailable |
 | `tests/test_rda_status.py` | `numa_app/services/rda_status.py`: `rda_status()` tier boundaries for minimum/target and limit-type nutrients; `limit_warning()` 90%/100% thresholds |
 | `tests/test_food_import.py` | `numa_app/services/food_import.py`: `VALID_NUTRIENT_KEYS` completeness, `convert_per_serving()` scaling/validation, `validate_and_strip()` key/type filtering |
@@ -1553,15 +1643,17 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_day_profile.py` | `numa_app/services/day_profile.py`: per-day profile pinning, backfill, and override behavior |
 | `tests/test_diet_aware.py` | `numa_app/services/diet_aware.py`: diet-preference-aware RDA-comparison notes (vegetarian/plant-based) |
 | `tests/test_nutrient_trend.py` | `numa_app/services/nutrient_trend.py`: multi-day nutrient averaging for the N-day trend view |
-| `tests/test_whatif.py` | `numa_app/services/whatif.py`: what-if analysis for meals and recipes — each operation (remove/add/replace/scale) at every depth, add-on-logged-days-only, missing-value flags, "Other" nutrient rows, validation (circular replacement, servings vs weight), and a byte-identical-DB no-write check |
+| `tests/test_whatif.py` | `numa_app/services/whatif.py`: what-if analysis for meals and recipes — each operation (remove/add/replace/scale) at every depth, add-on-logged-days-only, missing-value flags, "Other" nutrient rows, validation (circular replacement, servings vs weight), and a byte-identical-DB no-write check; saved scenarios, CSV export, and Apply for real (which scenarios qualify, direct-only meal changes, recipe changes, refusal leaves data untouched) |
 | `tests/test_csv_import.py` | `numa_app/services/csv_import.py`: Food Cache CSV import parsing |
 | `tests/test_claude_fetch.py` | `numa_app/services/claude_fetch.py`: prompt-building and response-parsing for the Claude AI fetch/import workflow |
 | `tests/test_incoming_review.py` | `numa_app/services/incoming_review.py` and its review screen: fill/differs/same/dropped classification and default ticks, USDA Refresh keeping an edited food's own values, portions only ever added, fill-from-another-food marking the food edited (not custom), amino acids scaled to this food's (or the ticked incoming) protein, estimated values yielding to USDA's measured ones, and the meal page's blanks-only "Refresh from USDA" |
-| `tests/test_data_quality.py` | `numa_app/services/data_quality.py` and its pages: impossible values, stale amounts found and fixed (with the change-impact summary; from Foods → 9 and from a food's Portions page, with its default ticks, bracketed-weight rows, and Keep as entered / Stop keeping), Home reminder new/seen/off, the note after adding a problem food, the past-meal recalculation note, in-use missing-AA/portion lists with "not needed", duplicate merge/dismiss, Claude-import impact |
+| `tests/test_data_quality.py` | `numa_app/services/data_quality.py` and its pages: impossible values, stale amounts found and fixed (with the change-impact summary; from Foods → 9 and from a food's Portions page, with its default ticks, bracketed-weight rows, Keep as entered rewriting the amount as its own weight, and old keeps converted at startup), Home reminder new/seen/off, the note after adding a problem food, the past-meal recalculation note, in-use missing-AA/portion lists with "not needed", duplicate merge/dismiss, Claude-import impact |
+| `tests/test_entry_parse.py` | `numa_app/services/entry_parse.py`: numbers (thousands/decimal commas, fractions, ½), nutrient units and conversions (mg/mcg/g, IU for A/D/E, kJ), blanks and "trace", refused inputs and their messages, pasted amino acid tables in four units, supplement-mode portion |
 | `tests/test_energy_check.py` | `numa_app/services/energy_check.py` and `db._calorie_check()`: 4/4/9 estimate, fill-and-mark on save, re-estimate on macro edits, real value clears the mark, mismatch rule |
 | `tests/test_data_completeness.py` | `numa_app/services/data_completeness.py`: missing-group rules, per-food "not needed" choices, the targeted Claude prompt, fill-in-only import, and the completeness section of the database check page |
 | `tests/test_demo_data.py` | `numa_app/services/demo_data.py`: load/clear starter foods/pantry/recipes, fresh-install auto-seeding, idempotency, and that real data is never touched |
 | `tests/test_export_starter_data.py` | `scripts/export_starter_data.py`: starred-recipe/sub-recipe export behavior for regenerating `starter_data.json` |
+| `tests/test_restore_usda_zeros.py` | `scripts/restore_usda_zeros.py`: only absent keys get zeros (existing values, edits and non-zero USDA values untouched), report-only vs --apply, source copy updated so nothing turns user-edited, failed lookups skipped, non-USDA foods not looked up |
 | `tests/test_repair_usda_portions.py` | `scripts/repair_usda_portions.py`: renaming portions an older NuMa misread from USDA (SR Legacy amount dropped), adding dropped Foundation portions at the end, leaving the user's own portions alone, correcting the source copy so the food never counts as user-edited |
 | `tests/test_refresh_starter_data.py` | `scripts/refresh_starter_data.py`: refreshing existing `starter_data.json` entries from the live cache by stable ID rather than by name |
 | `tests/test_cnf.py` | `cnf_api.py`: id assignment, local name-search over a mocked food list, nutrient mapping (network calls mocked) |
@@ -1630,7 +1722,7 @@ The starter foods/pantry/recipes a fresh install seeds itself with (see `demo_da
 
 A starred recipe's own ingredients don't need to be starred themselves — they're auto-included by `fdc_id` regardless of name. The same goes for a recipe used as a sub-recipe ingredient: it's exported too, and the exported `recipes` list is ordered so a sub-recipe always precedes any recipe that uses it, which is what lets `demo_data.load_demo_data()` link the parent to an id it has already created. Ingredient entries are `[name, amount, unit, kind]` with `kind` either `"food"` or `"recipe"`; a three-element entry is a pre-nesting export and is read as a food. Full mechanism, edge cases, and the companion `scripts/refresh_starter_data.py` (re-syncs existing starter entries by their original ID rather than by name) are documented in `export_starter_data.py`'s own module docstring — read that before changing the export logic, rather than duplicating it here.
 
-**Starter data must pass the data checks.** A new user's Home page warns about data problems, so the starter set has to arrive clean. Starter foods carry the curator's data-check choices as `"ignores"` (nutrient groups marked "not needed", "no portions needed", "calories are right"), and starter recipes the positions of their "Keep as entered" amounts as `"kept"`; both are loaded with the item and neither counts as an "improved starter item". Before exporting, open Foods → 9 in your own database and settle every problem in a starred food or recipe (or an ingredient of one): fix it, mark it not needed, or keep the amount. Anything the checks still find in starter data is recorded as already seen on load (`_mark_starter_problems_seen()` in `web/backend.py`), so it never raises the banner, but it would still show on Foods → 9. The export refuses two starter foods with the same name, since recipes find their foods by name.
+**Starter data must pass the data checks.** A new user's Home page warns about data problems, so the starter set has to arrive clean. Starter foods carry the curator's data-check choices as `"ignores"` (nutrient groups marked "not needed", "no portions needed", "calories are right"), and starter recipes the positions of their "Keep as entered" amounts as `"kept"` (older exports; a recipe exported now carries the rewritten "2309.2 g (8 c)" text itself, so its `"kept"` is empty). `demo_data._recipe_ingredients()` writes a `"kept"` amount in that own-weight form on load, and `_bundled_recipe_state()` applies the same rewrite so the loaded copy doesn't look user-edited; neither counts as an "improved starter item". Before exporting, open Foods → 9 in your own database and settle every problem in a starred food or recipe (or an ingredient of one): fix it, mark it not needed, or keep the amount. Anything the checks still find in starter data is recorded as already seen on load (`_mark_starter_problems_seen()` in `web/backend.py`), so it never raises the banner, but it would still show on Foods → 9. The export refuses two starter foods with the same name, since recipes find their foods by name.
 
 
 #### Starter identity: which of the user's rows is which starter item
@@ -1721,7 +1813,7 @@ Cross-check the week's changelog entries against `tests/` to catch a shipped beh
 #### 8. Stale internal links
 
 Two separate targets, both worth checking, since a broken link in either one is invisible to the normal test suite (routes/anchors that exist just don't get exercised by a broken `href` — nothing errors, the link just 404s for a real user):
-   - **The manual's own links** — every `#anchor` reference in `user-manual.md` checked against actual anchor definitions (`[name]` tags / heading IDs, including auto-slugged ones from headings with no explicit `{: #foo}` tag — check these against `id="..."` in the *built* `user-manual.html`, not against `{: #foo}` tags alone, or every auto-slugged heading falsely shows up as "missing"). A quick way: extract every `](#anchor)` reference from the .md and diff against every `id="..."` in the built .html (two `re.findall` calls). Also worth a pass over external URLs (footnotes, source citations) for rot: `curl -s -o /dev/null -w "%{http_code}"` with a browser-like `-A` user agent and `-L` to follow redirects, but treat a 403/429 as inconclusive (bot-blocking, not necessarily rot) and only trust a 404/redirect-to-an-error-page as real rot.
+   - **The manual's own links** — every `#anchor` reference in `user-manual.md` checked against actual anchor definitions (`[name]` tags / heading IDs, including auto-slugged ones from headings with no explicit `{: #foo}` tag — check these against `id="..."` in the *built* `user-manual.html`, not against `{: #foo}` tags alone, or every auto-slugged heading falsely shows up as "missing"). A quick way: extract every `](#anchor)` reference from the .md and diff against every `id="..."` in the built .html (two `re.findall` calls). Also worth a pass over external URLs (footnotes, source citations) for rot: `curl -s -o /dev/null -w "%{http_code}"` with a browser-like `-A` user agent and `-L` to follow redirects, but treat a 403/429 as inconclusive (bot-blocking, not necessarily rot) and only trust a 404/redirect-to-an-error-page as real rot. **Report every link that didn't return 200 in full** — the URL itself, where it appears (Part/section and line), and what it should show — so the owner can click it by hand; a count alone ("two links 404") gives them nothing to check. Known false alarm: `https://fdc.nal.usda.gov/food-details/<id>/nutrients` returns 404 to curl but works in a browser (the site builds those pages in the browser; confirmed by hand 2026-10-09). Check the food still exists with `https://api.nal.usda.gov/fdc/v1/food/<id>?api_key=DEMO_KEY&format=abridged` instead, and don't report it.
    - **The app's own screens** — every `href="/..."` in `web/templates/**/*.html` checked against both `@app.get`/`@app.post` routes actually registered in `web/backend.py` and (for a `/manual#anchor`-style deep link) the same built-manual anchor set as above; anything under a mounted static prefix (`/static`) is exempt. This direction is the one that's gone unchecked longest — found for the first time on 2026-09-13, immediately turning up a genuine dead link present since the oxalate-reporting feature's original commit (a "correct if wrong" link on food pages with no route ever built for it). Do this **last** — item 5 (manual consolidation) is the item most likely to add new `[text](#anchor)` links, so checking beforehand just means checking again afterward anyway.
 
    Both internal-link checks are also automated in `tests/test_link_integrity.py`, and a release can't ship with either failing: the release workflow builds `user-manual.html` *before* running the test suite (a clean checkout has no built manual, so the other order made the link test fail for the wrong reason), and `scripts/create_release.py` rebuilds the manual and runs that test file itself before contacting GitHub, stopping with "Nothing was released" if any link is broken. Fix the link and run the release again.
@@ -1821,7 +1913,7 @@ Mutation testing (`mutmut`) deliberately breaks a small piece of the code (a "mu
 1. Core nutrient math — `usda_nutrients.py`, `diaas.py`, `profile.py`, `complements.py`, `aa_estimate.py`, `recipe_nutrients.py`, `glycemic_load.py`, `rda_status.py`. Deeply worked 2026-09. `glycemic_load.py` is the exception — only ever screened, never fully run — so it gets a proper run before re-treading the others.
 2. Data-source parsing — `usda_api.py`, `openfoodfacts.py`, `cnf_api.py`, the CoFID/AFCD/CIQUAL lookups, `food_import.py`, `csv_import.py`/`csv_export.py`, `recipe_csv.py`. **Never run.**
 3. Web-layer glue — `web/backend.py` route logic, `day_profile.py`, `meal_bcp.py`, `recipe_dcp.py`, `top_contributors.py`, `search_ranking.py`, `search_suggest.py`. Never run.
-4. Everything else — `export.py`, `demo_data.py`, `plotting.py`, `nutrient_trend.py`, `portions.py`, etc. Never run.
+4. Everything else — `demo_data.py`, `plotting.py`, `nutrient_trend.py`, `portions.py`, etc. Never run.
 
 **Procedure:**
 
@@ -1848,12 +1940,12 @@ Mutation testing (`mutmut`) deliberately breaks a small piece of the code (a "mu
 | Module | Last checked | Commit |
 |---|---|---|
 | `diaas.py` | 2026-09-10 | Pilot run. `pooled_tid()` (used in 7 places) had zero test coverage — 10 new tests in `TestPooledTid` (weighted-average logic, boundary cases, an integration check against a real `meal_level_diaas()` call). 0/369 mutants survive against it now. One accepted equivalent mutant elsewhere in the file. See TESTING-ROADMAP.md item #5. |
-| `usda_nutrients.py` | 2026-09-30 | *(pending — see `diaas.py` row. Five rounds this day, in prep for the Windows port and upcoming releases. Rounds 1-2 fixed real gaps in `_score_one_complement()` — 105→39 survivors combined, including a recurring "tested only at digestibility=1.0" masking pattern, a permanently-unsatisfiable `or`→`and` guard, an arithmetic sign flip, and several dict-key-literal mutations. Round 3 targeted `suggest_complements()` directly: 394→209 (47% reduction), headlined by discovering its entire `diaas_improvers` tier (~95 lines, the numerical pooled-DIAAS search used for foods that can't analytically close a specific AA gap) had ZERO test coverage of any kind. Round 4 closed `get_density_g_per_ml()`: 53→13 (75% reduction) — the entire USDA-portion volume-unit parsing fallback had been almost completely untested. Round 5 went back into `suggest_complements()` with three sampling-and-fix cycles (a deliberate "how do we know when to stop" exercise): found and closed a second genuine concentration in `_build_pairs()`'s candidate-pool/leg-resolution logic (48%→38%→27% of remaining survivors across the three passes, confirming it converged to baseline scatter) — 209→117 (70% total reduction for the function). Real bugs found this round included a `continue`→`break` in `general_candidates` construction that could've silently hidden most of the "general" suggestions tier, and a `+=`→`-=` paired-AA bug in the pooled-DIAAS formula. `suggest_complements()`'s remaining 117 survivors are now confirmed scattered/low-value by re-sampling — this thread is at a reasonable stopping point. See TESTING-ROADMAP.md item #5 before treating this row as closed)*<br>**2026-09-20 churn check** (pulled forward — real commits since 2026-09-10: the anchor_overrides/pin-to-serving-size feature, MAX_PRACTICAL_GAP_CLOSER_GRAMS): rerun against a restricted test selection (not the full suite — see caveat below) found `suggest_complements()` back up to 127 survivors and `_score_one_complement()` to 35, `protein_completeness()` to 39, `get_density_g_per_ml()` to 13 — **flagged but not triaged**, decision made to defer full triage to a dedicated session rather than repeat the multi-hour 2026-09-10 marathon on a Saturday sweep. Caveat: counts may be inflated by the restricted test selection used for speed (the same class of artifact noted in the 2026-09-10 entries above) — re-verify against the full suite before trusting these numbers as a true baseline.<br>**2026-09-23 churn check**: flagged — 62 lines added since the logged run (`aa_indicator()`/`has_confirmed_aa_data()`, and the single-food DCP double-penalty fix). Both arrived with tests; not yet mutation-checked. **2026-09-23 churn-check run** (1520 mutants, 1265 killed / 255 survived): tonight's additions `aa_indicator()`/`has_confirmed_aa_data()`/`has_macro_data()` produced NO survivors at all. One real gap found and closed in `has_amino_acid_data()`: the "no protein, so AA data is irrelevant" shortcut was tested at exactly 0 g and with the key absent, never just above it, so loosening the guard to `<= 1` survived — that mutant reports a trace-protein food with no AA data as confirmed, the same false-checkmark class that has surfaced twice already. `TestHasAminoAcidData::test_trace_protein_still_needs_aa_data` now covers it. The remaining 255 are the same scattered `suggest_complements()`/`protein_completeness()`/`_score_one_complement()` population as 2026-09-10, unchanged in character; no zero-coverage ("no tests") regions anywhere in the module.<br>**2026-09-30 churn check**: flagged — 27 lines since the logged run (complement scoring now weights a candidate by its true ileal digestibility via `cand_digestibility`/`_cand_tid()`, not its DIAAS). **2026-09-30 churn-check run** (1536 mutants, 1279 killed / 257 survived; same `tests/test_usda.py` + `tests/test_diaas.py` selection as 2026-09-23). Of the new code, only three mutants survived, all on one line: the pairs tier's first leg (`cand_digestibility=_cand_tid(a_name)` → `None`, or dropped) — falling back to that food's DIAAS, the exact bug the change fixed. Masked, once again, by every pair test running at `base_digestibility=1.0`, where the "pool must not fall below the base" rejection never fires. `test_pair_first_leg_is_weighted_by_tid_not_diaas` now runs at 0.8, where Oats (DIAAS 0.57, TID 0.82) + Cheddar is a real pair that the DIAAS weighting would silently drop. Rerun: 257 → 254, below the 2026-09-23 baseline. |
+| `usda_nutrients.py` | 2026-09-30 | *(pending — see `diaas.py` row. Five rounds this day, in prep for the Windows port and upcoming releases. Rounds 1-2 fixed real gaps in `_score_one_complement()` — 105→39 survivors combined, including a recurring "tested only at digestibility=1.0" masking pattern, a permanently-unsatisfiable `or`→`and` guard, an arithmetic sign flip, and several dict-key-literal mutations. Round 3 targeted `suggest_complements()` directly: 394→209 (47% reduction), headlined by discovering its entire `diaas_improvers` tier (~95 lines, the numerical pooled-DIAAS search used for foods that can't analytically close a specific AA gap) had ZERO test coverage of any kind. Round 4 closed `get_density_g_per_ml()`: 53→13 (75% reduction) — the entire USDA-portion volume-unit parsing fallback had been almost completely untested. Round 5 went back into `suggest_complements()` with three sampling-and-fix cycles (a deliberate "how do we know when to stop" exercise): found and closed a second genuine concentration in `_build_pairs()`'s candidate-pool/leg-resolution logic (48%→38%→27% of remaining survivors across the three passes, confirming it converged to baseline scatter) — 209→117 (70% total reduction for the function). Real bugs found this round included a `continue`→`break` in `general_candidates` construction that could've silently hidden most of the "general" suggestions tier, and a `+=`→`-=` paired-AA bug in the pooled-DIAAS formula. `suggest_complements()`'s remaining 117 survivors are now confirmed scattered/low-value by re-sampling — this thread is at a reasonable stopping point. See TESTING-ROADMAP.md item #5 before treating this row as closed)*<br>**2026-09-20 churn check** (pulled forward — real commits since 2026-09-10: the anchor_overrides/pin-to-serving-size feature, MAX_PRACTICAL_GAP_CLOSER_GRAMS): rerun against a restricted test selection (not the full suite — see caveat below) found `suggest_complements()` back up to 127 survivors and `_score_one_complement()` to 35, `protein_completeness()` to 39, `get_density_g_per_ml()` to 13 — **flagged but not triaged**, decision made to defer full triage to a dedicated session rather than repeat the multi-hour 2026-09-10 marathon on a Saturday sweep. Caveat: counts may be inflated by the restricted test selection used for speed (the same class of artifact noted in the 2026-09-10 entries above) — re-verify against the full suite before trusting these numbers as a true baseline.<br>**2026-09-23 churn check**: flagged — 62 lines added since the logged run (`aa_indicator()`/`has_confirmed_aa_data()`, and the single-food DCP double-penalty fix). Both arrived with tests; not yet mutation-checked. **2026-09-23 churn-check run** (1520 mutants, 1265 killed / 255 survived): tonight's additions `aa_indicator()`/`has_confirmed_aa_data()`/`has_macro_data()` produced NO survivors at all. One real gap found and closed in `has_amino_acid_data()`: the "no protein, so AA data is irrelevant" shortcut was tested at exactly 0 g and with the key absent, never just above it, so loosening the guard to `<= 1` survived — that mutant reports a trace-protein food with no AA data as confirmed, the same false-checkmark class that has surfaced twice already. `TestHasAminoAcidData::test_trace_protein_still_needs_aa_data` now covers it. The remaining 255 are the same scattered `suggest_complements()`/`protein_completeness()`/`_score_one_complement()` population as 2026-09-10, unchanged in character; no zero-coverage ("no tests") regions anywhere in the module.<br>**2026-09-30 churn check**: flagged — 27 lines since the logged run (complement scoring now weights a candidate by its true ileal digestibility via `cand_digestibility`/`_cand_tid()`, not its DIAAS). **2026-09-30 churn-check run** (1536 mutants, 1279 killed / 257 survived; same `tests/test_usda.py` + `tests/test_diaas.py` selection as 2026-09-23). Of the new code, only three mutants survived, all on one line: the pairs tier's first leg (`cand_digestibility=_cand_tid(a_name)` → `None`, or dropped) — falling back to that food's DIAAS, the exact bug the change fixed. Masked, once again, by every pair test running at `base_digestibility=1.0`, where the "pool must not fall below the base" rejection never fires. `test_pair_first_leg_is_weighted_by_tid_not_diaas` now runs at 0.8, where Oats (DIAAS 0.57, TID 0.82) + Cheddar is a real pair that the DIAAS weighting would silently drop. Rerun: 257 → 254, below the 2026-09-23 baseline.<br>**2026-10-09 churn check**: flagged — +58/−20 across 2 commits since the logged run. Asked whether to run now.<br>**2026-10-09 run** (same `tests/test_usda.py` + `tests/test_diaas.py` selection): 1552 mutants, 255 survived. The churn (density lookup) had real gaps: portions spelled "tbsp", "tbs", "millilitre", "1 T", "1 t", "1 c" or "fl oz" never tested, and the 1.6 g/ml ceiling never tested at the boundary. `TestDensityFromPortionSpellings` (10 tests). Rerun: 255 → 251; `density_with_source` 18 → 14, the rest equivalent (literal-case mutants where a shorter anchor like "tbs" still matches). The other 237 are the scattered `suggest_complements()`/`protein_completeness()`/`_score_one_complement()` population characterized since 2026-09-10. |
 | `profile.py` | 2026-09-10 | Rotation group 1. `rename_profile()`/`delete_profile()`/`get_profile_file()` had zero coverage (6 new tests, `TestProfileFileCrud`). `compute_rda()`'s age-threshold step functions (magnesium at 31, fiber at 50, calcium/iron boundaries) each had a survived exact-boundary mutant (existing tests only compared a young vs. old profile well past each threshold, never the boundary itself) — 11 new parametrized tests, `TestAgeBoundariesExact`. `compute_rda()` still has ~125 other survivors, mostly untestable default-parameter-value noise — not chased. See TESTING-ROADMAP.md item #5. |
 | `numa_app/services/complements.py` | 2026-09-23 | *(pending — see `diaas.py` row. Seven rounds this day. The originally-reported 757/191 survivor counts for `build_complement_display()`/`two_step_combo()` were inflated by a scoping artifact — isolated correctly they were 125/191, down from the original ~948 by 59% to 341/51. Real bugs fixed: `_grad_steps()`'s inverted fallback, `exact_dcp()`'s inverted return (had zero direct tests before), `load_cache_candidates()`'s break/continue bug and `"diaas"` field, `aa_effects()`'s `"label"`/`"met"`/`"before"` fields, `two_step_combo()`'s step1, step2, `exclude_names`, AND `aa_effects_limit` handling, `_dcp_at_frac()`'s weighted-pool formula, `has_estimate_or_generic`'s neutered check, three separate instances of a sneaky stable-sort-masking bug across different sort modes, the pairs tier's `total_dig_complete` multiply/divide bug. Two techniques proved dramatically more efficient than one-test-per-mutant sampling: comprehensive whole-dict field tests (round 4, biggest single drops), and systematically providing a real `ingredients` list to close the previously-untested per-ingredient `exact_dcp()` recompute path (rounds 6-7 — no new bugs found there, but confirmed correct wiring rather than leaving it unknown, including round 7's closure of `two_step_combo()`'s step2 `b_dcp`, the one corner round 6 left open). Round 7 also added exact-value coverage for `_total_dig()`'s scale-formula branch and the `new_complete` top-of-tier sort promotion invariant. Both functions' survivor pools remain open with diminishing but real returns — see TESTING-ROADMAP.md item #5 before treating this row as closed)*<br>**2026-09-20 churn check** (pulled forward — real commit since 2026-09-10: the anchor_overrides/pin-to-serving-size feature, new lines in `_grad_steps()`/`build_complement_display()`/`_fmt()`): rerun found `build_complement_display()` back up to 353 survivors and `two_step_combo()` to 51 — **flagged but not triaged**, same deferral decision as the `usda_nutrients.py` row above, same restricted-test-selection caveat applies.<br>**2026-09-23 churn check**: still flagged — 61 further lines since the logged run (anchor_overrides, gap-closer sanity caps). Carried over from the 2026-09-20 flag; triage still deferred to a dedicated session. **2026-09-23 churn-check run** (1548 mutants, 1122 killed / 426 survived, up from 1113 killed): the churn's new `_amount_note()` went 12 survivors -> 3. Real gap: every existing assertion compared a suggestion's amount_note against `portions.amount_note()` recomputed in the test, so this wrapper's own cache lookup was never exercised — gutting it drops the amount hint from every complement suggestion in the app silently. `TestPrivateAmountNote` now covers the portion hit, both no-portion-data paths and the no-amount path. anchor_overrides (the other half of the churn) has 12 test references and only equivalent/sub-gram survivors. build_complement_display's 359 remain the scattered population 2026-09-10 characterized after seven rounds. |
 | `numa_app/services/aa_estimate.py` | 2026-09-20 | Rotation group 1 (2026-09-10) found only `copy_nutrients_note()` (2 mutants, deliberately left untested as trivial). **2026-09-20 churn check**, pulled forward for the same reason as the row below (AA-checkmark fix touched this module): rerun found 13 real survivors across `estimate_aa()` (exact-text error messages never pinned, just substring-checked; the AA-value rounding precision, 4 vs 5 decimal places, untested; the `target_protein`/`source_protein` `<= 0` boundary untested at exactly 1.0) and `source_note()`/`copy_nutrients_note()` (the `id_part` empty-string fallback only weakly checked; `copy_nutrients_note()` had zero tests of any kind despite being a real, user-visible saved note). All triaged and fixed this session — 16 new tests, `tests/test_aa_estimate.py`. Rerun: **0/48 mutants survive.** |
-| `numa_app/services/recipe_nutrients.py` | 2026-09-23 | Rotation group 1 (2026-09-10) closed `atomic_recipe_ingredients()` to 0/111 with `TestAtomicRecipeIngredients`. **2026-09-20 churn check**, pulled forward (real commit since: `best_aa_nutrients()` swapped to `has_confirmed_aa_data()` for the AA-checkmark fix): rerun found 85 survivors across all three functions — a same-session earlier note in this row speculated `atomic_recipe_ingredients()`'s 31 survivors might be a restricted-test-selection artifact rather than real; **that speculation was checked and disproven** (rerun against exactly its own test file, no other files, reproduced the identical count) — these were always real, reproducible gaps, just never triaged before now. Triaged: `best_aa_nutrients()`'s entire merge/scale success path had never been exercised (34 survivors, down to 0) — the two pre-existing tests only ever covered "already has data" and "no complement match," never the actual merge. `atomic_recipe_ingredients()` and `expand_recipe_ingredients()`'s `continue`-vs-`break` skip branches, `sub["servings"] or 1` defaults, and `not X or Y <= 0`-vs-`and` logic all got real tests (31→24 and 18→14 survivors respectively). The remaining 43 survivors across these two functions are overwhelmingly one equivalent-mutant class, confirmed empirically: mutmut's case-mutation strategy turns `ing["fdc_id"]` into `ing["FDC_ID"]`, but `_db.recipe_get_ingredients()` returns `sqlite3.Row` objects, whose key lookups are case-insensitive (`row["foo"] == row["FOO"]`) — these mutants are behaviorally identical to the original code, not real gaps, and not worth chasing further. 21 new tests total, `tests/test_recipe_nutrients.py`. Rerun: 85→43 survivors (49% reduction), remainder characterized as equivalent.<br>**2026-09-23 churn check**: flagged — 44 lines added since the logged run (`recipe_aa_indicator()`, `recipe_serving_grams()`), both new public helpers with hand-written tests but no mutation pass. **2026-09-23 churn-check run** (293 mutants, 240 -> 244 killed, 53 -> 49 survived). Four real gaps closed. `recipe_aa_indicator()` had no survivors. `recipe_serving_grams()`: `servings <= 0` was never distinguished from `<= 1` (every test used 2+ servings — the mutant returns None for every single-serving recipe), and the `or "g"` unit default was untested (a NULL total_weight_unit would silently lose the weight). Two more of one shape: `expand_recipe_ingredients()` and `atomic_recipe_ingredients()` each skip an unusable ingredient with `continue`, and nothing caught `continue` becoming `break` — which silently drops every ingredient after the unusable one. Both covered now. Remaining 49 are equivalent: sqlite3.Row key lookup is case-insensitive, so the many `ing["FDC_ID"]`-style mutants cannot change behavior. |
-| `numa_app/services/glycemic_load.py` | 2026-09-30 | Rotation group 1 (2026-09-10): screened only, for the two priority categories of that pass's narrow scope. **2026-09-30 churn check** (116 lines added since: GL bands, `gl_band_caveat()`, `meal_line_items()`, day totals/averages) — first full run, against `tests/test_glycemic_load.py`: 232 mutants, 57 survived. Real gaps: no test ever summed two computable items in one `compute_glycemic_load()` call (`+=` → `=` survived on both the food and recipe paths — only the last item's GL would count); every blocker was the last item in its list, so `continue` → `break` survived on all four blocker branches; a food with no nutrient data, a food with no `carbs_g`, a deleted recipe and a 0-servings recipe were never exercised; blocker tuple contents never pinned; `meal_line_items()`'s recipe mapping never exercised; day-total and average rounding unpinned; caveat text only substring-checked. 11 new tests (`TestComputeGlycemicLoadAccumulation`, `TestMealLineItems`, plus additions to the band/day/average classes). Rerun: 57 → 19, all equivalent (`sqlite3.Row` case-insensitive key mutants; `scope` default-string mutants that fall back to "serving" anyway; `and` → `or` in the `food_ids` filter, which only adds harmless ids to an annotation lookup). Commit d818f8c + tests. |
+| `numa_app/services/recipe_nutrients.py` | 2026-09-23 | Rotation group 1 (2026-09-10) closed `atomic_recipe_ingredients()` to 0/111 with `TestAtomicRecipeIngredients`. **2026-09-20 churn check**, pulled forward (real commit since: `best_aa_nutrients()` swapped to `has_confirmed_aa_data()` for the AA-checkmark fix): rerun found 85 survivors across all three functions — a same-session earlier note in this row speculated `atomic_recipe_ingredients()`'s 31 survivors might be a restricted-test-selection artifact rather than real; **that speculation was checked and disproven** (rerun against exactly its own test file, no other files, reproduced the identical count) — these were always real, reproducible gaps, just never triaged before now. Triaged: `best_aa_nutrients()`'s entire merge/scale success path had never been exercised (34 survivors, down to 0) — the two pre-existing tests only ever covered "already has data" and "no complement match," never the actual merge. `atomic_recipe_ingredients()` and `expand_recipe_ingredients()`'s `continue`-vs-`break` skip branches, `sub["servings"] or 1` defaults, and `not X or Y <= 0`-vs-`and` logic all got real tests (31→24 and 18→14 survivors respectively). The remaining 43 survivors across these two functions are overwhelmingly one equivalent-mutant class, confirmed empirically: mutmut's case-mutation strategy turns `ing["fdc_id"]` into `ing["FDC_ID"]`, but `_db.recipe_get_ingredients()` returns `sqlite3.Row` objects, whose key lookups are case-insensitive (`row["foo"] == row["FOO"]`) — these mutants are behaviorally identical to the original code, not real gaps, and not worth chasing further. 21 new tests total, `tests/test_recipe_nutrients.py`. Rerun: 85→43 survivors (49% reduction), remainder characterized as equivalent.<br>**2026-09-23 churn check**: flagged — 44 lines added since the logged run (`recipe_aa_indicator()`, `recipe_serving_grams()`), both new public helpers with hand-written tests but no mutation pass. **2026-09-23 churn-check run** (293 mutants, 240 -> 244 killed, 53 -> 49 survived). Four real gaps closed. `recipe_aa_indicator()` had no survivors. `recipe_serving_grams()`: `servings <= 0` was never distinguished from `<= 1` (every test used 2+ servings — the mutant returns None for every single-serving recipe), and the `or "g"` unit default was untested (a NULL total_weight_unit would silently lose the weight). Two more of one shape: `expand_recipe_ingredients()` and `atomic_recipe_ingredients()` each skip an unusable ingredient with `continue`, and nothing caught `continue` becoming `break` — which silently drops every ingredient after the unusable one. Both covered now. Remaining 49 are equivalent: sqlite3.Row key lookup is case-insensitive, so the many `ing["FDC_ID"]`-style mutants cannot change behavior.<br>**2026-10-09 churn check**: flagged — +70/−32 across 2 commits since the logged run. Asked whether to run now.<br>**2026-10-09 run** (`tests/test_recipe_nutrients.py` + `tests/test_whatif.py`): 333 mutants, 63 survived. Concentration: the what-if `rewrite` hook — a swapped food's name vs the typed name, the rewrite reaching sub-recipe totals inside `atomic_recipe_ingredients()`, `recipe_total_nutrients()` not passing `portion_factor`/`rewrite` on — plus every skip (`continue`→`break`) only reachable when a rewrite turns one line into several. 13 new tests (`TestRecipeNutrientsMutationGaps`). Rerun: 63 → 42, all equivalent (Row key case, `servings or 1` making 0-serving guards unreachable, defaults the data always supplies). |
+| `numa_app/services/glycemic_load.py` | 2026-09-30 | Rotation group 1 (2026-09-10): screened only, for the two priority categories of that pass's narrow scope. **2026-09-30 churn check** (116 lines added since: GL bands, `gl_band_caveat()`, `meal_line_items()`, day totals/averages) — first full run, against `tests/test_glycemic_load.py`: 232 mutants, 57 survived. Real gaps: no test ever summed two computable items in one `compute_glycemic_load()` call (`+=` → `=` survived on both the food and recipe paths — only the last item's GL would count); every blocker was the last item in its list, so `continue` → `break` survived on all four blocker branches; a food with no nutrient data, a food with no `carbs_g`, a deleted recipe and a 0-servings recipe were never exercised; blocker tuple contents never pinned; `meal_line_items()`'s recipe mapping never exercised; day-total and average rounding unpinned; caveat text only substring-checked. 11 new tests (`TestComputeGlycemicLoadAccumulation`, `TestMealLineItems`, plus additions to the band/day/average classes). Rerun: 57 → 19, all equivalent (`sqlite3.Row` case-insensitive key mutants; `scope` default-string mutants that fall back to "serving" anyway; `and` → `or` in the `food_ids` filter, which only adds harmless ids to an annotation lookup). Commit d818f8c + tests.<br>**2026-10-09 churn check**: flagged — core rewritten that day (uncommitted, +147/−53): recipe GL worked out live through sub-recipes, partial totals with gaps, 1 g negligible-carbohydrate floor. 51 new hand-written tests; no mutation pass yet. Asked whether to run now.<br>**2026-10-09 run** (on the rewritten module, uncommitted on HEAD f4e6a59; `tests/test_glycemic_load.py`): 450 mutants, 49 survived. Real gaps closed: the exact 1 g negligible-carbohydrate boundary; `continue`→`break` after a counted recipe and after a reference cycle (items after them would be skipped); the GI opt-out not passed into sub-recipes, `food_gl()` or `meal_gl()`; a missing amount counting as 0 rather than 1; a small partial total still shown; name-keyed de-duplication of id-less gaps; a deleted recipe's label. 10 new tests (`TestGlMutationGaps`). Rerun: 49 → 30, all equivalent (`sqlite3.Row` key case, default-scope strings, an `and`→`or` that only widens an annotation lookup, `fdc_id` key noise on recipe lines). |
 | `numa_app/services/rda_status.py` | 2026-09-13 | Pulled forward early by the weekly churn check — same-day commit added a new "target" branch to `rda_status()` with no dedicated mutation-testing pass since. Full run (not the narrow 2026-09-10 screening pass): 50 mutants, 1 survivor found and fixed — `limit_warning()`'s `limit > 0` guard survived a `> 1` swap (only a limit of exactly 1 distinguishes them; no test used a limit that small). New `test_smallest_positive_limit_still_warns` in `tests/test_rda_status.py`. Rerun: 0/50 survive. `setup.cfg`'s `[mutmut]` `also_copy` needed `numa_app/__init__.py`, `numa_app/services/__init__.py`, and `numa_app/services/update_check.py` (conftest.py's autouse fixture imports it) added for this module — same class of gap as the 2026-09-10 `numa_app/services/` scoping bug noted elsewhere in this log. |
 
 ---

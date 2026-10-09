@@ -2314,3 +2314,29 @@ class TestHasConfirmedAaData:
     def test_aa_indicator_flags_missing_aa_data_when_macros_present(self):
         nutrients = {"calories": 100, "protein_g": 5.0, "carbs_g": 10, "fat_g": 2}
         assert _usda.aa_indicator(nutrients) == "✗"
+
+
+class TestDensityFromPortionSpellings:
+    """2026-10-09 mutmut: each way a portion can spell its volume yields the
+    density from that portion, and the 1.6 g/ml plausibility ceiling is
+    inclusive."""
+
+    @pytest.mark.parametrize("desc,grams,expected", [
+        ("2 tbsp", 29.6, 1.0),
+        ("1 tbs", 14.8, 1.0),
+        ("100 millilitre", 90.7, 0.907),
+        ("100 milliliter", 90.7, 0.907),
+        ("1 T", 14.8, 1.0),
+        ("1 t", 4.9, 1.0),
+        ("1 c", 236.6, 1.0),
+        ("1 fl oz", 29.6, 1.0),
+        ("1 cup", 378.56, 1.6),
+    ])
+    def test_spellings(self, desc, grams, expected):
+        density, source = _usda.density_with_source("Zzqx", [{"description": desc, "gram_weight": grams}])
+        assert source == "portion"
+        assert density == pytest.approx(expected, rel=1e-3)
+
+    def test_just_over_the_ceiling_is_not_used(self):
+        density, source = _usda.density_with_source("Zzqx", [{"description": "1 cup", "gram_weight": 380.0}])
+        assert source != "portion"

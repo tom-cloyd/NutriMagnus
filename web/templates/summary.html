@@ -7,6 +7,7 @@
 {% import "_rda_legend.html" as _rda_legend %}
 {% import "_dcp_footnote.html" as _dcp_note %}
 {% import "_recipe_amount.html" as _ramt %}
+{% import "_gl_result.html" as _gl %}
 {% block title %}NutriMagnus — {% if date_detail %}Summary — {{ date_detail }}{% else %}Daily Summary{% endif %}{% endblock %}
 
 {% block layout_class %}{% if date_detail %}analysis-page{% else %}container{% endif %}{% endblock %}
@@ -362,7 +363,7 @@
   {% macro suggest_card(s) %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
     <p class="mb-1">
-      <strong>{{ s.name }}</strong>{{ food_id_tag(s.fdc_id, s.get('recipe_id')) }}
+      <strong>{{ item_link(s.name, s.fdc_id, s.get('recipe_id')) }}</strong>{{ food_id_tag(s.fdc_id, s.get('recipe_id')) }}
       {% if not s.fdc_id and not s.recipe_id %}<small class="muted"> generic estimate</small>{% elif s.estimated %}<small class="muted"> estimated</small>{% endif %}
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
       {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
@@ -426,11 +427,11 @@
   <p class="muted"><small>Food A closes the primary gap (but opens a new one); food B closes what A left behind. Together they achieve a complete amino acid profile.</small></p>
   {% for p in complements.pairs %}
   <div class="card card-body mb-2 p-2" style="max-width:38rem">
-    <p class="mb-1"><strong>{{ p.foods[0].name }}</strong> + <strong>{{ p.foods[1].name }}</strong>
+    <p class="mb-1"><strong>{{ item_link(p.foods[0].name, p.foods[0].fdc_id, p.foods[0].get('recipe_id')) }}</strong> + <strong>{{ item_link(p.foods[1].name, p.foods[1].fdc_id, p.foods[1].get('recipe_id')) }}</strong>
       {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
     </p>
     {% for f in p.foods %}
-    <p class="mb-1 ms-2"><strong>Add to day: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ f.name }}</strong>{{ food_id_tag(f.fdc_id, f.get('recipe_id')) }}
+    <p class="mb-1 ms-2"><strong>Add to day: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ item_link(f.name, f.fdc_id, f.get('recipe_id')) }}</strong>{{ food_id_tag(f.fdc_id, f.get('recipe_id')) }}
       {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
     </p>
     {% endfor %}
@@ -456,18 +457,10 @@
 <details id="sec-gl" data-remember="glycemic-load">
   <summary><strong>Glycemic Load — Full Day</strong> {{ manual_link("glycemic") }}</summary>
   <div class="protein-meta mt-2">
+    {{ _gl.gl_figure(gl, "day", "Glycemic load:") }}
     {% if gl.total is not none %}
-    <p>
-      <strong>Glycemic load:</strong> {{ gl.total }}
-      <small class="muted">&mdash; {{ gl_band(gl.total, "day") }}</small>
-    </p>
     <p class="muted"><small>{{ gl_band_caveat("day") }}</small></p>
     <p class="muted"><small>Per-meal figures are banded on the separate per-serving scale &mdash; low 10 or under, medium 11&ndash;19, high 20 or more &mdash; so a day total and a meal total are not read against the same numbers.</small></p>
-    {% else %}
-    <p class="muted">GL cannot be computed &mdash; missing GI annotations for:</p>
-    <ul class="list-unstyled ms-2">
-      {% for name, b_fdc_id, b_recipe_id in gl.blockers %}<li><small>&#9888; {{ name }}{{ food_id_tag(b_fdc_id, recipe_id=b_recipe_id) }}</small></li>{% endfor %}
-    </ul>
     {% endif %}
   </div>
 </details>
@@ -515,7 +508,7 @@
       {% for row in section.rows %}
       <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
         <td>{{ row.label }}</td>
-        <td class="num-col">{{ row.value }}</td>
+        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}</td>
         <td class="muted">{{ row.unit }}</td>
         {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}

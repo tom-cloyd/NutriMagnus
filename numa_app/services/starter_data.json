@@ -45,7 +45,8 @@
         "aa_phenylalanine_g": 0.185,
         "aa_tyrosine_g": 0.083,
         "aa_valine_g": 0.185,
-        "aa_histidine_g": 0.127
+        "aa_histidine_g": 0.127,
+        "omega3_epa_mg": 0.0
       },
       "portions": [
         {
@@ -158,7 +159,9 @@
         "aa_phenylalanine_g": 0.025,
         "aa_tyrosine_g": 0.014,
         "aa_valine_g": 0.021,
-        "aa_histidine_g": 0.014
+        "aa_histidine_g": 0.014,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -242,7 +245,11 @@
         "aa_cystine_g": 0.09,
         "aa_phenylalanine_g": 0.45,
         "aa_valine_g": 0.435,
-        "aa_histidine_g": 0.232
+        "aa_histidine_g": 0.232,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0
       },
       "portions": [
         {
@@ -340,7 +347,8 @@
         "poly_fat_g": 0.46,
         "calories": 424.0,
         "niacin_mg": 3.78,
-        "calcium_mg": 79.0
+        "calcium_mg": 79.0,
+        "vitamin_c_mg": 0.0
       },
       "portions": [
         {
@@ -394,7 +402,9 @@
         "aa_phenylalanine_g": 0.356,
         "aa_tyrosine_g": 0.143,
         "aa_valine_g": 0.348,
-        "aa_histidine_g": 0.166
+        "aa_histidine_g": 0.166,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -448,7 +458,9 @@
         "aa_phenylalanine_g": 0.479,
         "aa_tyrosine_g": 0.25,
         "aa_valine_g": 0.464,
-        "aa_histidine_g": 0.247
+        "aa_histidine_g": 0.247,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -649,7 +661,9 @@
         "aa_phenylalanine_g": 0.62,
         "aa_tyrosine_g": 0.5,
         "aa_valine_g": 0.51,
-        "aa_histidine_g": 0.29
+        "aa_histidine_g": 0.29,
+        "thiamin_mg": 0.0,
+        "vitamin_c_mg": 0.0
       },
       "portions": null
     },
@@ -941,7 +955,9 @@
         "aa_phenylalanine_g": 0.02,
         "aa_tyrosine_g": 0.019,
         "aa_valine_g": 0.018,
-        "aa_histidine_g": 0.012
+        "aa_histidine_g": 0.012,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -988,7 +1004,9 @@
         "vitamin_d_mcg": 0.0,
         "saturated_fat_g": 0.092,
         "mono_fat_g": 0.029,
-        "poly_fat_g": 0.112
+        "poly_fat_g": 0.112,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -1123,7 +1141,9 @@
         "saturated_fat_g": 0.014,
         "mono_fat_g": 0.275,
         "poly_fat_g": 0.04,
-        "beta_sitosterol_mg": 3.0
+        "beta_sitosterol_mg": 3.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -1355,7 +1375,9 @@
         "aa_histidine_g": 0.012,
         "protein_g": 0.85,
         "carbs_g": 0.58,
-        "calories": 717.0
+        "calories": 717.0,
+        "iodine_mcg": 0.0,
+        "selenium_mcg": 0.0
       },
       "portions": [
         {
@@ -1397,7 +1419,10 @@
         "vitamin_d_mcg": 0.0,
         "saturated_fat_g": 0.01,
         "mono_fat_g": 0.01,
-        "poly_fat_g": 0.004
+        "poly_fat_g": 0.004,
+        "selenium_mcg": 0.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -1460,7 +1485,9 @@
         "aa_phenylalanine_g": 0.005,
         "aa_tyrosine_g": 0.003,
         "aa_valine_g": 0.008,
-        "aa_histidine_g": 0.003
+        "aa_histidine_g": 0.003,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -1625,7 +1652,11 @@
         "vitamin_d_mcg": 0.0,
         "saturated_fat_g": 0.0,
         "mono_fat_g": 0.0,
-        "poly_fat_g": 0.0
+        "poly_fat_g": 0.0,
+        "selenium_mcg": 0.0,
+        "omega6_la_mg": 0.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -1797,7 +1828,9 @@
         "saturated_fat_g": 22.031,
         "mono_fat_g": 11.522,
         "poly_fat_g": 1.221,
-        "beta_sitosterol_mg": 29.0
+        "beta_sitosterol_mg": 29.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -1890,7 +1923,9 @@
         "aa_phenylalanine_g": 0.146,
         "aa_tyrosine_g": 0.136,
         "aa_valine_g": 0.224,
-        "aa_histidine_g": 0.117
+        "aa_histidine_g": 0.117,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {
@@ -1937,7 +1972,9 @@
         "vitamin_d_mcg": 0.0,
         "saturated_fat_g": 25.94,
         "mono_fat_g": 3.22,
-        "poly_fat_g": 0.35
+        "poly_fat_g": 0.35,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0
       },
       "portions": [
         {

@@ -359,12 +359,15 @@
 </details>
 
 {# ── 7. Nutrient targets: Revised Optimal + custom max limits ──────────── #}
-<details id="nutrient-targets" {% if saved in ('nutrient_target', 'nutrient_target_defaults') %}open{% endif %}>
+<details id="nutrient-targets" {% if saved in ('nutrient_target', 'nutrient_target_defaults') or target_error %}open{% endif %}>
   <summary data-ak="7"><u class="ak">7</u>. <strong>Nutrient Targets</strong>
     <span class="muted"> — custom Revised Optimal (Recent Research) targets and max limits, on top of your standard RDA</span>
     {{ manual_link("optimal") }}
   </summary>
 
+  {% if target_error %}
+  <p class="status-gap mt-2"><strong>&#9888; Not saved:</strong> {{ target_error }}</p>
+  {% endif %}
   {% if saved == 'nutrient_target' %}
   <p class="status-met mt-2"><strong>&#10003; Nutrient target saved.</strong></p>
   {% endif %}
@@ -400,15 +403,15 @@
       <tr>
         <td>{{ row.label }} <span class="muted">({{ row.unit }})</span></td>
         <td class="text-end">
-          <input type="number" class="form-control form-control-sm" name="optimal"
+          <input type="text" inputmode="decimal" class="form-control form-control-sm" name="optimal"
                  form="nt-form-{{ row.key }}"
-                 step="any" min="0" style="width:8rem;display:inline-block"
+                 style="width:8rem;display:inline-block"
                  value="{{ row.optimal if row.optimal is not none else '' }}">
         </td>
         <td class="text-end">
-          <input type="number" class="form-control form-control-sm" name="limit"
+          <input type="text" inputmode="decimal" class="form-control form-control-sm" name="limit"
                  form="nt-form-{{ row.key }}"
-                 step="any" min="0" style="width:8rem;display:inline-block"
+                 style="width:8rem;display:inline-block"
                  value="{{ row.limit if row.limit is not none else '' }}">
         </td>
         <td>

@@ -1,17 +1,17 @@
 """
 Tests for numa_app/services/glycemic_load.py — GL aggregation used by the web
-backend (backend.py). Its two previous separate implementations always
-treated a recipe/sub-recipe line item as an unconditional blocker instead of
-using the recipe's own precomputed gl_g.
+backend (backend.py): partial totals with the foods left out, recipes worked
+out live from their ingredients, and day totals.
 """
 import json
 
 import pytest
 
 import db as _db
-from numa_app.services.glycemic_load import (average_day_gl, compute_glycemic_load,
-                                             day_gl_total, day_gl_totals, gl_band,
-                                             gl_band_caveat, meal_line_items)
+from numa_app.services.glycemic_load import (GAP_NO_DATA, GAP_NO_GI, GAP_NO_RECIPE, GAP_NOT_WANTED,
+                                             average_day_gl, combine_gl, day_gl_total,
+                                             day_gl_totals, food_gl, gl_band, gl_band_caveat,
+                                             gl_for_items, meal_gl, meal_line_items, recipe_gl)
 
 
 @pytest.fixture()
@@ -22,62 +22,6 @@ def rice_food(db_conn):
     )
     db_conn.commit()
     return 1
-
-
-class TestComputeGlycemicLoad:
-    def test_food_item_without_gi_annotation_is_a_blocker(self, db_conn, rice_food):
-        gl_total, blockers = compute_glycemic_load(
-            [{"kind": "food", "name": "Rice", "amount": 100.0, "fdc_id": rice_food, "recipe_id": None}],
-            db_conn,
-        )
-        assert gl_total == 0.0
-        assert blockers == [("Rice", rice_food, None)]
-
-    def test_food_item_with_gi_annotation_computes_gl(self, db_conn, rice_food):
-        _db.set_food_annotation(db_conn, rice_food, gi_estimate=70.0, gi_no_prompt=False, diaas_estimate=None, diaas_no_prompt=False, prep_context=None)
-        db_conn.commit()
-        gl_total, blockers = compute_glycemic_load(
-            [{"kind": "food", "name": "Rice", "amount": 100.0, "fdc_id": rice_food, "recipe_id": None}],
-            db_conn,
-        )
-        # carbs_g=28 per 100g * 70 GI / 100 = 19.6
-        assert gl_total == pytest.approx(19.6)
-        assert blockers == []
-
-    def test_recipe_item_uses_precomputed_gl_g(self, db_conn):
-        rid = _db.recipe_create(db_conn, name="Rice bowl", description="", servings=2, instructions="")
-        _db.recipe_set_gl(db_conn, rid, 30.0)
-        db_conn.commit()
-        gl_total, blockers = compute_glycemic_load(
-            [{"kind": "recipe", "name": "Rice bowl", "amount": 1.0, "fdc_id": None, "recipe_id": rid}],
-            db_conn,
-        )
-        # 1 serving consumed out of the recipe's 2 servings at gl_g=30 total
-        assert gl_total == pytest.approx(15.0)
-        assert blockers == []
-
-    def test_recipe_item_without_gl_g_is_a_blocker(self, db_conn):
-        rid = _db.recipe_create(db_conn, name="Unanalyzed recipe", description="", servings=1, instructions="")
-        db_conn.commit()
-        gl_total, blockers = compute_glycemic_load(
-            [{"kind": "recipe", "name": "Unanalyzed recipe", "amount": 1.0, "fdc_id": None, "recipe_id": rid}],
-            db_conn,
-        )
-        assert blockers == [("Unanalyzed recipe (no GL — analyze it first)", None, rid)]
-
-    def test_mixed_items_accumulate_partial_total_alongside_blockers(self, db_conn, rice_food):
-        _db.set_food_annotation(db_conn, rice_food, gi_estimate=70.0, gi_no_prompt=False, diaas_estimate=None, diaas_no_prompt=False, prep_context=None)
-        rid = _db.recipe_create(db_conn, name="Unanalyzed recipe", description="", servings=1, instructions="")
-        db_conn.commit()
-        gl_total, blockers = compute_glycemic_load(
-            [
-                {"kind": "food", "name": "Rice", "amount": 100.0, "fdc_id": rice_food, "recipe_id": None},
-                {"kind": "recipe", "name": "Unanalyzed recipe", "amount": 1.0, "fdc_id": None, "recipe_id": rid},
-            ],
-            db_conn,
-        )
-        assert gl_total == pytest.approx(19.6)
-        assert blockers == [("Unanalyzed recipe (no GL — analyze it first)", None, rid)]
 
 
 def _food_item(fdc_id, name, amount):
@@ -100,81 +44,187 @@ def _add_food(conn, fdc_id, name, nutrients_json):
     )
 
 
-class TestComputeGlycemicLoadAccumulation:
-    """Gaps found by the 2026-09-30 mutation run: every earlier test had at
-    most one computable item, and every blocker was the last item in its list."""
+def _gaps(result):
+    return [(g["name"], g["fdc_id"], g["recipe_id"], g["reason"]) for g in result["gaps"]]
 
-    def test_two_foods_are_summed(self, db_conn, rice_food):
+
+def _ingredient(conn, rid, fdc_id, name, grams):
+    _db.recipe_add_ingredient(conn, rid, fdc_id, name, grams, "g")
+
+
+def _subrecipe(conn, rid, sub_id, name, servings):
+    _db.recipe_add_ingredient(conn, rid, 0, name, servings, "serving", ref_recipe_id=sub_id)
+
+
+class TestGlForItems:
+    def test_food_with_gi_computes_gl(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        db_conn.commit()
+        r = gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn)
+        # carbs_g=28 per 100g * 70 GI / 100 = 19.6
+        assert r == {"total": 19.6, "complete": True, "gaps": []}
+
+    def test_food_without_gi_is_not_available_not_zero(self, db_conn, rice_food):
+        r = gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn)
+        assert r["total"] is None
+        assert r["complete"] is False
+        assert _gaps(r) == [("Rice", rice_food, None, GAP_NO_GI)]
+
+    def test_partial_total_is_kept_and_marked_incomplete(self, db_conn, rice_food):
         _add_food(db_conn, 2, "Bread", json.dumps({"carbs_g": 49.0}))
         _annotate(db_conn, rice_food, 70.0)
-        _annotate(db_conn, 2, 75.0)
         db_conn.commit()
-        gl_total, blockers = compute_glycemic_load(
-            [_food_item(rice_food, "Rice", 100.0), _food_item(2, "Bread", 100.0)], db_conn)
-        # 28 * 0.70 + 49 * 0.75 = 19.6 + 36.75
-        assert gl_total == pytest.approx(56.35)
-        assert blockers == []
+        r = gl_for_items([_food_item(rice_food, "Rice", 100.0), _food_item(2, "Bread", 100.0)], db_conn)
+        assert r["total"] == 19.6
+        assert r["complete"] is False
+        assert _gaps(r) == [("Bread", 2, None, GAP_NO_GI)]
 
-    def test_two_recipes_are_summed(self, db_conn):
-        a = _db.recipe_create(db_conn, name="A", description="", servings=2, instructions="")
-        b = _db.recipe_create(db_conn, name="B", description="", servings=4, instructions="")
-        _db.recipe_set_gl(db_conn, a, 30.0)
-        _db.recipe_set_gl(db_conn, b, 20.0)
+    def test_dont_prompt_food_is_reported_as_not_wanted(self, db_conn, rice_food):
+        _db.set_food_annotation(db_conn, rice_food, gi_estimate=None, gi_no_prompt=True, diaas_estimate=None,
+                                diaas_no_prompt=False, prep_context=None)
         db_conn.commit()
-        gl_total, _ = compute_glycemic_load([_recipe_item(a, "A", 1.0), _recipe_item(b, "B", 2.0)], db_conn)
-        assert gl_total == pytest.approx(15.0 + 10.0)
+        r = gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn)
+        assert _gaps(r) == [("Rice", rice_food, None, GAP_NOT_WANTED)]
 
-    def test_recipe_with_no_servings_counts_as_one(self, db_conn):
-        rid = _db.recipe_create(db_conn, name="A", description="", servings=1, instructions="")
-        _db.recipe_set_gl(db_conn, rid, 30.0)
-        db_conn.execute("UPDATE recipes SET servings = 0 WHERE id = ?", (rid,))
-        db_conn.commit()
-        gl_total, _ = compute_glycemic_load([_recipe_item(rid, "A", 1.0)], db_conn)
-        assert gl_total == pytest.approx(30.0)
+    def test_global_opt_out_reports_every_missing_gi_as_not_wanted(self, db_conn, rice_food):
+        r = gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn, gi_opt_out=True)
+        assert _gaps(r) == [("Rice", rice_food, None, GAP_NOT_WANTED)]
 
-    def test_missing_recipe_is_a_blocker_under_the_line_item_name(self, db_conn):
-        gl_total, blockers = compute_glycemic_load([_recipe_item(9999, "Deleted recipe", 1.0)], db_conn)
-        assert gl_total == 0.0
-        assert blockers == [("Deleted recipe (no GL — analyze it first)", None, 9999)]
-
-    def test_food_with_no_nutrient_data_is_a_blocker(self, db_conn):
-        _add_food(db_conn, 3, "Mystery", "")
-        _annotate(db_conn, 3, 50.0)
-        db_conn.commit()
-        gl_total, blockers = compute_glycemic_load([_food_item(3, "Mystery", 100.0)], db_conn)
-        assert gl_total == 0.0
-        assert blockers == [("Mystery", 3, None)]
+    def test_negligible_carbohydrate_without_gi_counts_as_zero(self, db_conn, rice_food):
+        # 3 g of rice holds 0.84 g carbohydrate: under the 1 g floor.
+        r = gl_for_items([_food_item(rice_food, "Rice", 3.0)], db_conn)
+        assert r == {"total": 0.0, "complete": True, "gaps": []}
+        # 4 g holds 1.12 g: now it matters.
+        assert gl_for_items([_food_item(rice_food, "Rice", 4.0)], db_conn)["complete"] is False
 
     def test_food_with_no_carbs_value_contributes_zero(self, db_conn):
         _add_food(db_conn, 4, "Oil", json.dumps({"fat_g": 100.0}))
-        _annotate(db_conn, 4, 50.0)
         db_conn.commit()
-        assert compute_glycemic_load([_food_item(4, "Oil", 100.0)], db_conn) == (0.0, [])
+        assert gl_for_items([_food_item(4, "Oil", 100.0)], db_conn) == {"total": 0.0, "complete": True, "gaps": []}
 
-    def test_items_after_each_kind_of_blocker_still_count(self, db_conn, rice_food):
-        """A blocker skips only its own item — `continue`, never `break`."""
+    def test_food_with_no_nutrient_data_is_a_gap(self, db_conn):
+        _add_food(db_conn, 3, "Mystery", "")
+        _annotate(db_conn, 3, 50.0)
+        db_conn.commit()
+        assert _gaps(gl_for_items([_food_item(3, "Mystery", 100.0)], db_conn)) == [("Mystery", 3, None, GAP_NO_DATA)]
+
+    def test_deleted_recipe_is_a_gap_under_the_line_item_name(self, db_conn):
+        r = gl_for_items([_recipe_item(9999, "Deleted recipe", 1.0)], db_conn)
+        assert _gaps(r) == [("Deleted recipe", None, 9999, GAP_NO_RECIPE)]
+
+    def test_items_after_each_kind_of_gap_still_count(self, db_conn, rice_food):
+        """A gap skips only its own item — `continue`, never `break`."""
         _annotate(db_conn, rice_food, 70.0)
         _add_food(db_conn, 2, "Unannotated", json.dumps({"carbs_g": 10.0}))
         _add_food(db_conn, 3, "No data", "")
-        _annotate(db_conn, 3, 50.0)
-        unanalyzed = _db.recipe_create(db_conn, name="Unanalyzed", description="", servings=1, instructions="")
-        analyzed = _db.recipe_create(db_conn, name="Analyzed", description="", servings=1, instructions="")
-        _db.recipe_set_gl(db_conn, analyzed, 5.0)
         db_conn.commit()
-        gl_total, blockers = compute_glycemic_load([
-            _recipe_item(unanalyzed, "Unanalyzed", 1.0),
-            _recipe_item(analyzed, "Analyzed", 1.0),
+        r = gl_for_items([
+            _recipe_item(9999, "Gone", 1.0),
             _food_item(2, "Unannotated", 100.0),
-            _food_item(rice_food, "Rice", 100.0),
             _food_item(3, "No data", 100.0),
-            _recipe_item(analyzed, "Analyzed", 1.0),
+            _food_item(rice_food, "Rice", 100.0),
         ], db_conn)
-        assert gl_total == pytest.approx(5.0 + 19.6 + 5.0)
-        assert blockers == [
-            ("Unanalyzed (no GL — analyze it first)", None, unanalyzed),
-            ("Unannotated", 2, None),
-            ("No data", 3, None),
-        ]
+        assert r["total"] == 19.6
+        assert [g[3] for g in _gaps(r)] == [GAP_NO_RECIPE, GAP_NO_GI, GAP_NO_DATA]
+
+
+class TestRecipeGl:
+    """A recipe's GL is worked out from its ingredients. It used to be read
+    from recipes.gl_g, which nothing ever wrote, so every recipe — and every
+    meal or day containing one — showed no GL at all."""
+
+    def test_recipe_gl_per_serving_from_its_ingredients(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        rid = _db.recipe_create(db_conn, name="Rice bowl", description="", servings=2, instructions="")
+        _ingredient(db_conn, rid, rice_food, "Rice", 200.0)
+        db_conn.commit()
+        # 200 g rice = GL 39.2 for the pot; one of two servings = 19.6
+        assert recipe_gl(db_conn, rid)["total"] == 19.6
+        assert recipe_gl(db_conn, rid, 2.0)["total"] == 39.2
+
+    def test_recipe_in_a_meal_scales_by_servings_eaten(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        rid = _db.recipe_create(db_conn, name="Rice bowl", description="", servings=4, instructions="")
+        _ingredient(db_conn, rid, rice_food, "Rice", 400.0)
+        db_conn.commit()
+        assert gl_for_items([_recipe_item(rid, "Rice bowl", 1.5)], db_conn)["total"] == pytest.approx(29.4)
+
+    def test_sub_recipes_are_followed(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        base = _db.recipe_create(db_conn, name="Cooked rice", description="", servings=2, instructions="")
+        _ingredient(db_conn, base, rice_food, "Rice", 200.0)
+        dish = _db.recipe_create(db_conn, name="Dish", description="", servings=1, instructions="")
+        _subrecipe(db_conn, dish, base, "Cooked rice", 1.0)
+        db_conn.commit()
+        assert recipe_gl(db_conn, dish)["total"] == 19.6
+
+    def test_gap_inside_a_sub_recipe_reaches_the_top(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        _add_food(db_conn, 2, "Bread", json.dumps({"carbs_g": 49.0}))
+        base = _db.recipe_create(db_conn, name="Base", description="", servings=1, instructions="")
+        _ingredient(db_conn, base, 2, "Bread", 50.0)
+        dish = _db.recipe_create(db_conn, name="Dish", description="", servings=1, instructions="")
+        _ingredient(db_conn, dish, rice_food, "Rice", 100.0)
+        _subrecipe(db_conn, dish, base, "Base", 1.0)
+        db_conn.commit()
+        r = recipe_gl(db_conn, dish)
+        assert r["total"] == 19.6 and r["complete"] is False
+        assert _gaps(r) == [("Bread", 2, None, GAP_NO_GI)]
+
+    def test_deleted_sub_recipe_is_a_gap(self, db_conn):
+        dish = _db.recipe_create(db_conn, name="Dish", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, dish, 0, "Old sauce", 1.0, "serving",
+                                  ref_recipe_id=None, ref_recipe_deleted=True)
+        db_conn.commit()
+        assert _gaps(recipe_gl(db_conn, dish)) == [("Old sauce", None, None, GAP_NO_RECIPE)]
+
+    def test_recipe_with_no_servings_counts_as_one(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        rid = _db.recipe_create(db_conn, name="A", description="", servings=1, instructions="")
+        _ingredient(db_conn, rid, rice_food, "Rice", 100.0)
+        db_conn.execute("UPDATE recipes SET servings = 0 WHERE id = ?", (rid,))
+        db_conn.commit()
+        assert recipe_gl(db_conn, rid)["total"] == 19.6
+
+    def test_a_reference_cycle_stops(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        a = _db.recipe_create(db_conn, name="A", description="", servings=1, instructions="")
+        b = _db.recipe_create(db_conn, name="B", description="", servings=1, instructions="")
+        _ingredient(db_conn, a, rice_food, "Rice", 100.0)
+        _subrecipe(db_conn, a, b, "B", 1.0)
+        _subrecipe(db_conn, b, a, "A", 1.0)
+        db_conn.commit()
+        # B holds only A, which is not expanded a second time: just the rice.
+        assert recipe_gl(db_conn, a)["total"] == 19.6
+
+    def test_the_same_food_twice_is_listed_once(self, db_conn):
+        _add_food(db_conn, 2, "Bread", json.dumps({"carbs_g": 49.0}))
+        rid = _db.recipe_create(db_conn, name="A", description="", servings=1, instructions="")
+        _ingredient(db_conn, rid, 2, "Bread", 50.0)
+        _ingredient(db_conn, rid, 2, "Bread, toasted", 50.0)
+        db_conn.commit()
+        assert len(recipe_gl(db_conn, rid)["gaps"]) == 1
+
+
+class TestFoodGl:
+    def test_food_gl_from_given_nutrients(self):
+        ann = {"gi_estimate": 70.0, "gi_no_prompt": 0}
+        assert food_gl("Rice", 1, {"carbs_g": 28.0}, 50.0, ann)["total"] == 9.8
+
+    def test_no_annotation_is_a_gap(self):
+        r = food_gl("Rice", 1, {"carbs_g": 28.0}, 100.0, None)
+        assert r["total"] is None and _gaps(r) == [("Rice", 1, None, GAP_NO_GI)]
+
+
+class TestCombineGl:
+    def test_sums_totals_and_merges_gaps(self):
+        gap = {"name": "Bread", "fdc_id": 2, "recipe_id": None, "reason": GAP_NO_GI}
+        r = combine_gl([
+            {"total": 10.0, "complete": True, "gaps": []},
+            {"total": 5.0, "complete": False, "gaps": [gap]},
+            {"total": None, "complete": False, "gaps": [dict(gap)]},
+        ])
+        assert r == {"total": 15.0, "complete": False, "gaps": [gap]}
 
 
 class TestMealLineItems:
@@ -259,13 +309,13 @@ class TestDayGlTotals:
         # Not a partial total — an unannotated food would understate the day.
         assert day_gl_total(db_conn, "2026-09-21") is None
 
-    def test_a_recipe_in_a_meal_uses_its_gl(self, db_conn):
+    def test_a_recipe_in_a_meal_uses_its_gl(self, db_conn, rice_with_gi):
         rid = _db.recipe_create(db_conn, name="Bowl", description="", servings=2, instructions="")
-        _db.recipe_set_gl(db_conn, rid, 30.0)
+        _db.recipe_add_ingredient(db_conn, rid, rice_with_gi, "Rice", 100.0, "g")
         mid = _db.meal_create(db_conn, "Lunch", "2026-09-25")
         _db.meal_add_recipe(db_conn, mid, rid, "Bowl", 1.0)
         db_conn.commit()
-        assert day_gl_total(db_conn, "2026-09-25") == pytest.approx(15.0)
+        assert day_gl_total(db_conn, "2026-09-25") == pytest.approx(9.8)
 
     def test_total_is_rounded_to_one_decimal(self, db_conn, rice_with_gi):
         mid = _db.meal_create(db_conn, "Snack", "2026-09-26")
@@ -298,3 +348,80 @@ class TestAverageDayGl:
 
     def test_empty_window(self):
         assert average_day_gl({}) == (None, 0)
+
+
+class TestGlMutationGaps:
+    """Survivors from the 2026-10-09 mutmut run on the rewritten module."""
+
+    def test_exactly_one_gram_of_carbohydrate_needs_a_gi(self, db_conn):
+        _add_food(db_conn, 5, "Exact", json.dumps({"carbs_g": 10.0}))
+        db_conn.commit()
+        # 10 g of a 10%-carb food = exactly 1.0 g: no longer negligible.
+        r = gl_for_items([_food_item(5, "Exact", 10.0)], db_conn)
+        assert _gaps(r) == [("Exact", 5, None, GAP_NO_GI)]
+
+    def test_items_after_a_reference_cycle_still_count(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        a = _db.recipe_create(db_conn, name="A", description="", servings=1, instructions="")
+        _subrecipe(db_conn, a, a, "A again", 1.0)
+        _ingredient(db_conn, a, rice_food, "Rice", 100.0)
+        db_conn.commit()
+        assert recipe_gl(db_conn, a)["total"] == 19.6
+
+    def test_gi_opt_out_reaches_foods_inside_sub_recipes(self, db_conn, rice_food):
+        base = _db.recipe_create(db_conn, name="Base", description="", servings=1, instructions="")
+        _ingredient(db_conn, base, rice_food, "Rice", 100.0)
+        dish = _db.recipe_create(db_conn, name="Dish", description="", servings=1, instructions="")
+        _subrecipe(db_conn, dish, base, "Base", 1.0)
+        db_conn.commit()
+        assert [g[3] for g in _gaps(recipe_gl(db_conn, dish, gi_opt_out=True))] == [GAP_NOT_WANTED]
+        assert [g[3] for g in _gaps(recipe_gl(db_conn, dish))] == [GAP_NO_GI]
+
+    def test_food_gl_honours_gi_opt_out(self):
+        r = food_gl("Rice", 1, {"carbs_g": 28.0}, 100.0, None, gi_opt_out=True)
+        assert r["gaps"][0]["reason"] == GAP_NOT_WANTED
+
+    def test_meal_gl_honours_gi_opt_out_and_defaults_off(self, db_conn, rice_food):
+        mid = _db.meal_create(db_conn, "Lunch", "2026-09-20")
+        _db.meal_add_food(db_conn, mid, rice_food, "Rice", 100.0, "g")
+        db_conn.commit()
+        assert meal_gl(db_conn, mid)["gaps"][0]["reason"] == GAP_NO_GI
+        assert meal_gl(db_conn, mid, gi_opt_out=True)["gaps"][0]["reason"] == GAP_NOT_WANTED
+
+    def test_a_missing_amount_counts_as_nothing(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        db_conn.commit()
+        item = _food_item(rice_food, "Rice", None)
+        assert gl_for_items([item], db_conn)["total"] == 0.0
+        rid = _db.recipe_create(db_conn, name="Bowl", description="", servings=1, instructions="")
+        _ingredient(db_conn, rid, rice_food, "Rice", 100.0)
+        db_conn.commit()
+        assert gl_for_items([_recipe_item(rid, "Bowl", None)], db_conn)["total"] == 0.0
+
+    def test_a_small_partial_total_is_still_shown(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        _add_food(db_conn, 2, "Bread", json.dumps({"carbs_g": 49.0}))
+        db_conn.commit()
+        # 2 g rice: 0.56 g carbs x 0.70 = GL 0.39 — tiny but known, so "at least 0.4".
+        r = gl_for_items([_food_item(rice_food, "Rice", 2.0), _food_item(2, "Bread", 50.0)], db_conn)
+        assert r["total"] == 0.4 and r["complete"] is False
+
+    def test_gaps_without_an_id_are_told_apart_by_name(self, db_conn):
+        dish = _db.recipe_create(db_conn, name="Dish", description="", servings=1, instructions="")
+        for name in ("Old sauce", "Old dressing", "Old sauce"):
+            _db.recipe_add_ingredient(db_conn, dish, 0, name, 1.0, "serving",
+                                      ref_recipe_id=None, ref_recipe_deleted=True)
+        db_conn.commit()
+        assert [g[0] for g in _gaps(recipe_gl(db_conn, dish))] == ["Old sauce", "Old dressing"]
+
+    def test_a_deleted_recipe_is_named_by_its_number(self, db_conn):
+        r = recipe_gl(db_conn, 9999)
+        assert _gaps(r) == [("9999", None, 9999, GAP_NO_RECIPE)]
+
+    def test_items_after_a_recipe_still_count(self, db_conn, rice_food):
+        _annotate(db_conn, rice_food, 70.0)
+        rid = _db.recipe_create(db_conn, name="Bowl", description="", servings=1, instructions="")
+        _ingredient(db_conn, rid, rice_food, "Rice", 100.0)
+        db_conn.commit()
+        r = gl_for_items([_recipe_item(rid, "Bowl", 1.0), _food_item(rice_food, "Rice", 100.0)], db_conn)
+        assert r["total"] == 39.2

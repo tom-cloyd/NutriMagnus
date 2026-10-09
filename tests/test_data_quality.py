@@ -130,45 +130,58 @@ def test_portion_edit_offers_this_foods_amounts_and_fixes_them(client):
     assert (meal_row["amount"], meal_row["unit"]) == (pytest.approx(33.0), "1/3 c")
 
 
-def test_keep_as_entered_hides_then_unkeep_restores(client):
+def test_keep_as_entered_rewrites_the_amount_as_its_own_weight(client):
     with _db.get_db() as conn:
         _food(conn, 997021, "Yeast keep test", {**GOOD}, [{"description": "1 tbsp", "gram_weight": 2.6}])
         rid = _db.recipe_create(conn, "Smoothie keep test", "", 1, "")
         _db.recipe_add_ingredient(conn, rid, 997021, "Yeast keep test", 18.06, "2 T")
-        (row,) = dq.stale_amounts(conn, fdc_id=997021)
-    item = f"recipe:{row['item_id']}"
+        _db.recipe_add_ingredient(conn, rid, 997021, "Yeast keep test", 2309.216, "8 c (2309 gr)")
+        rows = dq.stale_amounts(conn, fdc_id=997021, include_bracketed=True)
+    assert len(rows) == 2
 
     r = client.post("/food/cache/db-check/stale-amounts", follow_redirects=False,
-                    data={"portions_fdc_id": 997021, "item": item, "action": "keep"})
-    assert r.headers["location"] == "/food/cache/997021/portions?amounts_kept=1#stale-amounts"
+                    data={"portions_fdc_id": 997021, "action": "keep",
+                          "item": [f"recipe:{a['item_id']}" for a in rows]})
+    assert r.headers["location"] == "/food/cache/997021/portions?amounts_kept=2#stale-amounts"
     page = client.get(r.headers["location"]).text
-    assert "Kept 1 amount as entered" in page
-    assert "Amounts of this food kept as entered" in page and "Kept as entered</span>" in page
-    assert "Amounts of this food that no longer match" not in page
+    assert "Kept 2 amounts as entered" in page
+    assert "Amounts of this food that no longer match" not in page and "kept as entered</h4>" not in page
     with _db.get_db() as conn:
-        assert dq.stale_amounts(conn) == []                                  # off Foods -> 9's list and the reminder
-        amt = conn.execute("SELECT amount FROM recipe_ingredients WHERE id = ?", (row["item_id"],)).fetchone()[0]
-    assert amt == pytest.approx(18.06)                                       # grams untouched
-    db_page = client.get("/food/cache/db-check").text
-    assert "Kept as entered" in db_page and "Smoothie keep test" in db_page
-
-    r = client.post("/food/cache/db-check/stale-amounts", follow_redirects=False,
-                    data={"portions_fdc_id": 997021, "item": item, "action": "unkeep"})
-    page = client.get(r.headers["location"]).text
-    assert "1 amount is listed for review again" in page
-    assert "Amounts of this food that no longer match" in page
+        assert dq.stale_amounts(conn, include_bracketed=True, include_kept=True) == []
+        got = conn.execute("SELECT amount, unit FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id",
+                           (rid,)).fetchall()
+        assert _db.amount_keeps(conn) == {}
+    assert [(g["amount"], g["unit"]) for g in got] == [(pytest.approx(18.06), "18.1 g (2 T)"),
+                                                       (pytest.approx(2309.216), "2309.2 g (8 c)")]   # grams untouched
+    assert "Smoothie keep test" not in client.get("/food/cache/db-check").text
 
 
-def test_keep_ends_when_the_amount_is_edited():
+@pytest.mark.parametrize("unit,grams,expect", [
+    ("2 T", 18.06, "18.1 g (2 T)"),
+    ("8 c (2309 gr)", 2309.216, "2309.2 g (8 c)"),
+    ("1/3 c (~42 g)", 42.0, "42 g (1/3 c)"),
+    ("42 g", 42.0, None),
+    ("200 g (1 3/5 c)", 200.0, None),
+    ("", 5.0, None),
+])
+def test_own_weight_text(unit, grams, expect):
+    assert dq.own_weight_text(unit, grams) == expect
+
+
+def test_old_keeps_are_converted_at_startup():
     with _db.get_db() as conn:
-        _food(conn, 997022, "Yeast edit test", {**GOOD}, [{"description": "1 tbsp", "gram_weight": 2.6}])
-        rid = _db.recipe_create(conn, "Edit keep test", "", 1, "")
-        _db.recipe_add_ingredient(conn, rid, 997022, "Yeast edit test", 18.06, "2 T")
-        (row,) = dq.stale_amounts(conn, fdc_id=997022)
-        _db.amount_keep(conn, "recipe", row["item_id"], row["stored_g"])
-        assert dq.stale_amounts(conn, fdc_id=997022) == []
-        _db.recipe_update_ingredient(conn, row["item_id"], 12.0, "2 T", "Yeast edit test", None)
-        assert len(dq.stale_amounts(conn, fdc_id=997022)) == 1
+        _food(conn, 997022, "Yeast convert test", {**GOOD}, [{"description": "1 tbsp", "gram_weight": 2.6}])
+        rid = _db.recipe_create(conn, "Convert keep test", "", 1, "")
+        _db.recipe_add_ingredient(conn, rid, 997022, "Yeast convert test", 18.06, "2 T")
+        _db.recipe_add_ingredient(conn, rid, 997022, "Yeast convert test", 12.0, "2 T")
+        ids = [r[0] for r in conn.execute("SELECT id FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id", (rid,))]
+        _db.amount_keep(conn, "recipe", ids[0], 18.06)
+        _db.amount_keep(conn, "recipe", ids[1], 10.0)                       # edited since it was kept
+        assert dq.convert_keeps(conn) == 1
+        units = [r[0] for r in conn.execute("SELECT unit FROM recipe_ingredients WHERE recipe_id = ? ORDER BY id", (rid,))]
+        assert units == ["18.1 g (2 T)", "2 T"]
+        assert _db.amount_keeps(conn) == {}
+        assert len(dq.stale_amounts(conn, fdc_id=997022)) == 1               # the edited one is listed again
 
 
 def test_database_check_lists_bracketed_rows_unticked(client):

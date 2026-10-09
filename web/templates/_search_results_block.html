@@ -1,0 +1,15 @@
+{# Pieces for a search-results block whose online results fill in after the
+   page renders — see the [data-search-results] script in base.html and
+   _SEARCH_SCREENS in web/backend.py.
+
+   attrs(): goes inside the block's opening tag. `pending` is the builder's
+   search_pending (names of the online sources still to search); with none,
+   the block is complete as rendered and nothing is fetched. `query` is the
+   page's own query string (request.url.query); `ident` the page's id.
+   count(): "N result(s)", kept current by the script. #}
+{% macro attrs(screen, pending, query, empty_id, ident=none) -%}
+{% if pending %} data-search-results="/search-rows/{{ screen }}?{% if ident %}id={{ ident }}&{% endif %}{{ query }}"{% endif %} data-search-empty="{{ empty_id }}"
+{%- endmacro %}
+{% macro count(n) -%}
+<span class="js-result-n">{{ n }}</span> result<span class="js-result-s">{{ '' if n == 1 else 's' }}</span>
+{%- endmacro %}

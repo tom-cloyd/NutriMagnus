@@ -1,0 +1,11 @@
+{# Red "Online search in progress…" note shown while USDA / Open Food Facts /
+   CNF results are being fetched, so a few seconds' wait doesn't look like a
+   hang. Pages that fetch online results after rendering place this near the
+   result count and remove it (by id) when the results land, or replace its
+   text on failure. Search forms whose page waits for the online results
+   before rendering get the same note from base.html instead — mark the form
+   with data-online-search. #}
+{% macro notice(id, labels) -%}
+<span id="{{ id }}" class="online-search-notice text-danger fw-semibold"
+      title="Searching {{ labels | join(' and ') }}">Online search in progress…</span>
+{%- endmacro %}

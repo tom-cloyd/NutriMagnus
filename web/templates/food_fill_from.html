@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as source_filter %}
+{% import "_online_search_notice.html" as _osn %}
+{% import "_search_results_block.html" as _srb %}
 {% block title %}NutriMagnus — Fill in nutrients from another food{% endblock %}
 
 {% block content %}
@@ -19,7 +21,7 @@
   so meals and recipes that use it pick up the new values. It will show as user-edited afterwards.
 </p>
 
-<form method="get" action="/food/{{ food.fdc_id }}/fill-from" class="mb-2">
+<form method="get" action="/food/{{ food.fdc_id }}/fill-from" class="mb-2" data-online-search>
   <div class="d-flex gap-2 mb-2 align-items-center">
     <input type="text" class="form-control form-control-sm" name="q" value="{{ q }}"
            placeholder="Search for a food to copy from…" style="max-width:22rem" autofocus>
@@ -31,34 +33,27 @@
 <p class="mb-2"><small class="text-danger">Omitted from search: {{ omitted_sources | join(', ') }}</small></p>
 {% endif %}
 
-{% if q and not results %}
-<p class="muted"><small>No foods match "{{ q }}".</small></p>
-<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>
-{% elif results %}
+{% if q %}
+<p id="fill-search-no-results" class="muted search-no-results" data-query="{{ q }}" data-field="q"{% if search_results or search_pending %} style="display:none"{% endif %}><small>No foods match "{{ q }}".</small></p>
+{% endif %}
+{% if search_results or search_pending %}
+<div{{ _srb.attrs("fill-from", search_pending, request.url.query, "fill-search-no-results", food.fdc_id) }}>
 <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/compare" id="fill-compare-picks"
       class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <input type="hidden" name="return_to" value="/food/{{ food.fdc_id }}/fill-from?q={{ q | urlencode }}">
   <button type="submit" class="btn btn-sm btn-outline-primary">Compare checked foods with this one &rarr;</button>
   <small class="muted">Opens Compare with this food first; its <strong>&larr; Back</strong> button returns you here.</small>
 </form>
+<p class="result-count mb-1">{{ _srb.count(search_results|length) }}
+  {% if search_pending %}<span class="ms-3">{{ _osn.notice("fill-search-loading", search_pending) }}</span>{% endif %}</p>
 <table class="table table-sm table-hover" style="max-width:52rem">
   <thead class="table-light">
     <tr><th>Compare</th><th title="Amino acid data">AA</th><th>Food</th><th>Type</th><th></th></tr>
   </thead>
-  <tbody>
-    {% for r in results %}
-    <tr>
-      <td><input type="checkbox" class="form-check-input" form="fill-compare-picks" name="pick"
-                 value="{{ r.fdc_id }}|{{ r.off_code or '' }}" aria-label="Compare {{ r.name }}"></td>
-      <td>{% if r.has_aa %}<span class="status-met" title="Has (or likely has) amino acid data">&#10003;</span>
-          {% else %}<span class="text-danger" title="No amino acid data">&#10007;</span>{% endif %}</td>
-      <td>{{ r.name }} <small class="muted">({{ food_id_short(r.fdc_id) }})</small></td>
-      <td class="muted">{{ food_type(r) }}</td>
-      <td><a class="btn btn-sm btn-primary"
-             href="/food/{{ food.fdc_id }}/review-incoming?source=food&source_fdc_id={{ r.fdc_id }}&off_code={{ (r.off_code or '') | urlencode }}&next={{ ('/food/%s' % food.fdc_id) | urlencode }}">Review values to copy&hellip;</a></td>
-    </tr>
-    {% endfor %}
+  <tbody data-search-tbody>
+    {% include "_source_picker_rows.html" %}
   </tbody>
 </table>
+</div>
 {% endif %}
 {% endblock %}

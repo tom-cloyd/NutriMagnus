@@ -1,6 +1,6 @@
 # What-if analysis — implementation plan
 
-Drafted 2026-10-04. Phases 1-3 built 2026-10-06; Phases 4-5 not started. Non-destructive "what if I removed / added /
+Drafted 2026-10-04. Phases 1-3 built 2026-10-06; Phase 4 built 2026-10-08; Phase 5 not started. Non-destructive "what if I removed / added /
 replaced / scaled X" analysis across a chosen set of meals (by date ranges,
 dates, or meal IDs) or a chosen set of recipes, showing nutrient profiles
 before and after.
@@ -125,6 +125,7 @@ Both pages: Replace basis "factor" (a multiple of the old weight, 1.1 or
 110%); arrow keys in the name lists; clearer action labels.
 
 **Next session (2026-10-07):** user to finish checking Phases 1-3, then Phase 4.
+(Phase 4 done 2026-10-08 — see below. Next: user checks Phase 4, then Phase 5.)
 
 - Selection like Food use in recipes (all / created-date range / IDs); same edit list.
 - Output: the after (Δ) grid, cap 8; option to also list parent recipes the
@@ -132,6 +133,21 @@ Both pages: Replace basis "factor" (a multiple of the old weight, 1.1 or
 - "Use in what-if" button on each Food use in recipes row.
 
 ## Phase 4 — bridges
+
+**Status: done 2026-10-08.** As built:
+- Saved scenarios: table `saved_whatif_scenarios (name, page, query)` holding the
+  page's own query string (minus `applied`); one list per page, "Use a saved
+  scenario" panel; save / load / rename / delete routes under /analysis/whatif/.
+- CSV: `/analysis/whatif/export.csv`, `/analysis/whatif-recipes/export.csv`
+  (`whatif.meals_csv/recipes_csv`); the recipe CSV is uncapped (every recipe reached).
+- Apply for real: offered only when `whatif.real_substitution_problems()` is empty —
+  every edit a replace, food→food same weight or recipe→recipe same servings,
+  because the existing substitute keeps the stored amount number; no chains or
+  duplicates. Confirmation page lists direct targets and how many are reached only
+  inside a recipe (those don't change: the real substitute is direct-only). POST
+  re-plans from the query, one transaction, DCP recompute for changed recipes.
+- Not done: applying other bases (factor / stated amount), or nested occurrences
+  in meals — would need new write helpers, not a hand-off. Raise if wanted.
 
 - "Apply this for real": a scenario made only of replace edits hands off to the
   existing destructive substitute, with a confirmation step.

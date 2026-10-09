@@ -871,9 +871,10 @@ def test_shipped_ignores_and_kept_amounts_are_loaded(db_conn: sqlite3.Connection
     demo_data.load_demo_data(db_conn)
     db_conn.commit()
     assert _db.food_data_ignores(db_conn) == {999001: {"vitamins", "not-a-key"}}
-    rows = db_conn.execute("SELECT id FROM recipe_ingredients ORDER BY id").fetchall()
-    assert _db.amount_keeps(db_conn) == {("recipe", rows[1]["id"]): 150.0}
-    assert demo_data.kept_positions(db_conn, db_conn.execute("SELECT id FROM recipes").fetchone()[0]) == [1]
+    units = [r[0] for r in db_conn.execute("SELECT unit FROM recipe_ingredients ORDER BY id")]
+    assert units == ["1 cup", "150 g (1 cup)"]                    # the kept one written as its own weight
+    rid = db_conn.execute("SELECT id FROM recipes").fetchone()[0]
+    assert demo_data._recipe_state(db_conn, rid) == demo_data._bundled_recipe_state(recipe)   # not "edited"
     assert demo_data.exportable_ignores(db_conn, 999001) == ["vitamins"]
 
 

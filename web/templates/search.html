@@ -2,6 +2,7 @@
 {% import "_search_result_row.html" as _sr %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
+{% import "_online_search_notice.html" as _osn %}
 {% block title %}NutriMagnus — Search{% endblock %}
 
 {% block content %}
@@ -17,7 +18,7 @@
 {% set _bc = query.replace(" ", "").replace("-", "") %}
 {% set is_barcode_query = _bc.isdigit() and (_bc|length == 12 or _bc|length == 13) %}
 
-<form method="get" action="/food/search" data-persist-search="query">
+<form method="get" action="/food/search" data-persist-search="query" data-online-search>
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <div class="input-group" style="max-width: 40%">
@@ -44,6 +45,7 @@
     {{ results|length }} result{% if results|length != 1 %}s{% endif %}
     for <strong>{{ query }}</strong>
   </p>
+  {% if not is_barcode_query and external_source_labels %}{{ _osn.notice("search-api-loading", external_source_labels) }}{% endif %}
   {% if not is_barcode_query %}
   <form method="get" action="/food/search" class="d-flex flex-wrap gap-2 align-items-center">
     <input type="hidden" name="query" value="{{ query }}">
@@ -52,7 +54,7 @@
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
             onchange="this.form.submit()">
-      <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Pantry, Cache, then Other</option>
+      <option value="grouped"   {% if sort == "grouped"   %}selected{% endif %}>Recipes, Pantry, Cache, then Other</option>
       <option value="relevance" {% if sort == "relevance" %}selected{% endif %}>Best match to name</option>
     </select>
     {% if omitted_sources %}
@@ -123,7 +125,7 @@
       {% set ns = namespace(seen_local=false, divider_shown=false, local_header_shown=false) %}
       {% for food in results %}
         {% if is_local_source(food.source) and not ns.local_header_shown %}
-      <tr class="search-group-divider"><td colspan="12"><small class="muted">From your pantry, food cache, and recipes</small></td></tr>
+      <tr class="search-group-divider"><td colspan="12"><small class="muted">From your recipes, pantry, and food cache</small></td></tr>
         {% set ns.local_header_shown = true %}
         {% endif %}
         {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
@@ -133,11 +135,6 @@
         {% endif %}
         {{ _sr.row(food, show_compare=true) }}
       {% endfor %}
-      {% if not is_barcode_query and external_source_labels %}
-      <tr id="search-api-loading" class="food-meta-row">
-        <td colspan="12"><small class="muted">Searching {{ external_source_labels | join(' and ') }}…</small></td>
-      </tr>
-      {% endif %}
     </tbody>
   </table>
   {% include "_code_key.html" %}
@@ -192,6 +189,7 @@
       var checkedAA = Array.prototype.slice.call(tbody.querySelectorAll('[data-confirm-aa-checkbox]:checked'))
         .map(function (b) { return b.value; });
       tbody.innerHTML = html;
+      loadingRow.remove();
       checkedFood.forEach(function (v) {
         var el = tbody.querySelector('.checkbox-compare[name="fdc_id"][value="' + v + '"]');
         if (el) el.checked = true;
@@ -219,7 +217,7 @@
       refreshConfirmUI();
     })
     .catch(function () {
-      loadingRow.querySelector('small').textContent = 'Search failed — reload to retry.';
+      loadingRow.textContent = 'Online search failed — reload to retry.';
     });
 })();
 </script>

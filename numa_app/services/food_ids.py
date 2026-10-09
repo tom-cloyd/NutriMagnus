@@ -1,5 +1,5 @@
 """
-food_ids.py — food/recipe ID classification shared by export.py and the web app.
+food_ids.py — food/recipe ID classification used by the web app.
 Docs: README-numa-documentation.md, Project Structure
 """
 

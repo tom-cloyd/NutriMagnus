@@ -306,6 +306,20 @@ def init_db() -> None:
             )
         """)
 
+        # What-if scenarios (numa_app/services/whatif.py): `query` is the
+        # What-if page's own query string (selection + change rows + view
+        # options), so loading one is just opening that URL. page is
+        # "meals" or "recipes".
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS saved_whatif_scenarios (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT    NOT NULL,
+                page       TEXT    NOT NULL,
+                query      TEXT    NOT NULL,
+                created_at TEXT    DEFAULT (datetime('now'))
+            )
+        """)
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS recipe_translations (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1336,11 +1350,6 @@ def recipe_save_nutrients(
     )
 
 
-def recipe_set_gl(conn: sqlite3.Connection, recipe_id: int, gl_g: float | None) -> None:
-    """Store whole-recipe glycemic load (GL). None means GI data incomplete."""
-    conn.execute("UPDATE recipes SET gl_g = ? WHERE id = ?", (gl_g, recipe_id))
-
-
 def recipe_set_saved_analysis(conn: sqlite3.Connection, recipe_id: int,
                                text: str, timestamp: str) -> None:
     """Store a plain-text analysis snapshot with an ISO timestamp."""
@@ -1359,7 +1368,7 @@ def recipe_list(conn: sqlite3.Connection, *, include_archived: bool = False) -> 
     archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete,"
-        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived"
+        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived, notes"
         f" FROM recipes {archived_clause} ORDER BY name"
     ).fetchall()
 
@@ -2187,6 +2196,39 @@ def substitute_item_in_meals(conn: sqlite3.Connection, meal_ids: list[int],
     return cur.rowcount
 
 
+def meals_with_direct_item(conn: sqlite3.Connection, meal_ids: list[int],
+                           kind: str, item_id: int) -> list[int]:
+    """Which of meal_ids have (kind, item_id) logged straight on the meal —
+    exactly the meals substitute_item_in_meals would change."""
+    if not meal_ids or kind not in ("food", "recipe"):
+        return []
+    col = "fdc_id" if kind == "food" else "recipe_id"
+    placeholders = ",".join("?" * len(meal_ids))
+    rows = conn.execute(
+        f"SELECT DISTINCT meal_id FROM meal_items "
+        f"WHERE meal_id IN ({placeholders}) AND item_type=? AND {col}=? ORDER BY meal_id",
+        (*meal_ids, kind, item_id)
+    ).fetchall()
+    return [r["meal_id"] for r in rows]
+
+
+def recipes_with_direct_ingredient(conn: sqlite3.Connection, recipe_ids: list[int],
+                                   kind: str, item_id: int) -> list[int]:
+    """Which of recipe_ids list (kind, item_id) straight in their own
+    ingredients — the recipes substitute_item_in_recipes would change
+    (before its self-reference guard)."""
+    if not recipe_ids or kind not in ("food", "recipe"):
+        return []
+    col = "fdc_id" if kind == "food" else "ref_recipe_id"
+    placeholders = ",".join("?" * len(recipe_ids))
+    rows = conn.execute(
+        f"SELECT DISTINCT recipe_id FROM recipe_ingredients "
+        f"WHERE recipe_id IN ({placeholders}) AND {col}=? ORDER BY recipe_id",
+        (*recipe_ids, item_id)
+    ).fetchall()
+    return [r["recipe_id"] for r in rows]
+
+
 def substitute_item_in_recipes(conn: sqlite3.Connection, recipe_ids: list[int],
                                old_kind: str, old_id: int, new_kind: str, new_id: int) -> list[int]:
     """Replace ingredient references to (old_kind, old_id) with (new_kind, new_id)
@@ -2976,6 +3018,43 @@ def saved_mixed_comparison_rename(conn: sqlite3.Connection, cmp_id: int, name: s
 
 def saved_mixed_comparison_delete(conn: sqlite3.Connection, cmp_id: int) -> bool:
     cur = conn.execute("DELETE FROM saved_mixed_comparisons WHERE id = ?", (cmp_id,))
+    return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Saved what-if scenarios
+# ---------------------------------------------------------------------------
+
+def saved_whatif_save(conn: sqlite3.Connection, name: str, page: str, query: str) -> int:
+    cur = conn.execute(
+        "INSERT INTO saved_whatif_scenarios (name, page, query) VALUES (?, ?, ?)",
+        (name, page, query),
+    )
+    return cur.lastrowid
+
+
+def saved_whatif_list(conn: sqlite3.Connection, page: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT id, name, page, query, created_at FROM saved_whatif_scenarios "
+        "WHERE page = ? ORDER BY created_at DESC, id DESC",
+        (page,),
+    ).fetchall()
+
+
+def saved_whatif_get(conn: sqlite3.Connection, scenario_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT id, name, page, query, created_at FROM saved_whatif_scenarios WHERE id = ?",
+        (scenario_id,),
+    ).fetchone()
+
+
+def saved_whatif_rename(conn: sqlite3.Connection, scenario_id: int, name: str) -> bool:
+    cur = conn.execute("UPDATE saved_whatif_scenarios SET name = ? WHERE id = ?", (name, scenario_id))
+    return cur.rowcount > 0
+
+
+def saved_whatif_delete(conn: sqlite3.Connection, scenario_id: int) -> bool:
+    cur = conn.execute("DELETE FROM saved_whatif_scenarios WHERE id = ?", (scenario_id,))
     return cur.rowcount > 0
 
 

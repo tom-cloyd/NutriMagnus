@@ -1,7 +1,6 @@
 {# "Amounts that no longer match" review table, shared by Foods -> 9 and a
    food's Portions page. Context: stale_amounts (rows to review, each may
-   carry `ticked`), kept_amounts (rows the user chose to keep as entered),
-   portions_fdc_id (set on the Portions page: the action returns there),
+   carry `ticked`), portions_fdc_id (set on the Portions page: the action returns there),
    show_food (show the Food column: Foods -> 9 only). Rows come from
    data_quality.stale_amounts(); the POST is backend.food_cache_fix_stale_amounts. #}
 {% if stale_amounts %}
@@ -28,36 +27,8 @@
 </div>
 <button type="submit" name="action" value="update" class="btn btn-sm btn-primary">Update the ticked amounts to their &ldquo;Now&rdquo; grams</button>
 <button type="submit" name="action" value="keep" class="btn btn-sm btn-outline-secondary ms-1">Keep the ticked amounts as entered</button>
-<p class="muted mt-1"><small><strong>Keep as entered</strong> says the stored grams are right (you weighed it, say): NuMa stops
-listing that amount, and shows it under &ldquo;Kept as entered&rdquo; instead, until you change the amount itself.</small></p>
-</form>
-{% endif %}
-
-{% if kept_amounts %}
-<h5 class="mt-3">Kept as entered <span class="badge bg-secondary">{{ kept_amounts|length }}</span></h5>
-<p class="muted small" style="max-width:48rem">You chose to keep these at their stored grams, although their volume or
-portion now works out differently. Tick one and click <strong>Stop keeping</strong> to review it again.</p>
-<form method="post" action="/food/cache/db-check/stale-amounts">
-{% if portions_fdc_id %}<input type="hidden" name="portions_fdc_id" value="{{ portions_fdc_id }}">{% endif %}
-<div class="table-responsive mb-2">
-  <table class="table table-sm align-middle" style="max-width:60rem">
-    <thead class="table-light"><tr>
-      <th><input type="checkbox" class="form-check-input" title="Select all" onclick="document.querySelectorAll('.kept-cb').forEach(function (cb) { cb.checked = this.checked; }, this)"></th>
-      <th>In</th>{% if show_food %}<th>Food</th>{% endif %}<th>You entered</th><th class="text-end">Kept at</th><th class="text-end">Would be now</th></tr></thead>
-    <tbody>
-      {% for a in kept_amounts %}
-      <tr>
-        <td><input type="checkbox" class="form-check-input kept-cb" name="item" value="{{ a.where }}:{{ a.item_id }}"></td>
-        <td>{% if a.where == "recipe" %}<a href="/recipe/{{ a.owner_id }}/edit">{{ a.owner_label }}</a>{% else %}<a href="/meal/{{ a.owner_id }}">{{ a.owner_label }}</a> <small class="muted">(logged meal)</small>{% endif %}</td>
-        {% if show_food %}<td><a href="/food/{{ a.fdc_id }}">{{ a.food_name }}</a></td>{% endif %}
-        <td>{{ a.typed }} <span class="badge bg-secondary">Kept as entered</span></td>
-        <td class="text-end">{{ "%.1f"|format(a.stored_g) }}&thinsp;g</td>
-        <td class="text-end muted">{{ "%.1f"|format(a.now_g) }}&thinsp;g</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-<button type="submit" name="action" value="unkeep" class="btn btn-sm btn-outline-secondary">Stop keeping the ticked amounts (list them for review again)</button>
+<p class="muted mt-1"><small><strong>Keep as entered</strong> says the stored grams are right (you weighed it, say): NuMa
+rewrites the amount as your own weight, &ldquo;8 c (2309 gr)&rdquo; becoming &ldquo;2309.2 g (8 c)&rdquo;, and never lists it again.
+To change it later, edit the amount.</small></p>
 </form>
 {% endif %}

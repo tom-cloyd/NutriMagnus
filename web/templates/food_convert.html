@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
+{% import "_online_search_notice.html" as _osn %}
+{% import "_search_results_block.html" as _srb %}
 {% block title %}NutriMagnus — Convert a Portion{% endblock %}
 
 {% block content %}
@@ -13,7 +15,7 @@
 
 <h2>Convert a Portion &harr; Weight</h2>
 
-<form method="get" action="/food/convert" class="mb-4">
+<form method="get" action="/food/convert" class="mb-4" data-online-search>
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <div class="input-group" style="max-width:36rem">
@@ -21,7 +23,7 @@
              placeholder="Search for a food to look up portions…" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
     </div>
-    {% if query and not food and not search_results %}<span class="search-no-results" data-query="{{ query }}" data-field="q">No results for <strong>{{ query }}</strong>.</span>{% endif %}
+    {% if query and not food %}<span id="convert-search-no-results" class="search-no-results" data-query="{{ query }}" data-field="q"{% if search_results or search_pending %} style="display:none"{% endif %}>No results for <strong>{{ query }}</strong>.</span>{% endif %}
   </div>
   <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
   {{ _rli.input(limit) }}
@@ -31,10 +33,12 @@
 <p class="numa-error">{{ search_error }}</p>
 {% endif %}
 
-{% if search_results %}
+{% if search_results or search_pending %}
+<div{{ _srb.attrs("convert", search_pending, request.url.query, "convert-search-no-results") }}>
 <p class="result-count">
-  {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
+  {{ _srb.count(search_results|length) }}
   for <strong>{{ query }}</strong> — click a food to view its portions.
+  {% if search_pending %}<span class="ms-3">{{ _osn.notice("convert-search-loading", search_pending) }}</span>{% endif %}
 </p>
 <table class="table table-sm table-hover">
   <thead class="table-light">
@@ -45,23 +49,11 @@
       <th>Source</th>
     </tr>
   </thead>
-  <tbody>
-    {% set ns = namespace(seen_local=false, divider_shown=false) %}
-    {% for food in search_results %}
-      {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
-      {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
-    <tr class="search-group-divider"><td colspan="4"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
-      {% set ns.divider_shown = true %}
-      {% endif %}
-    <tr>
-      <td><a href="{{ food.convert_url }}"><strong>{{ food.name }}</strong></a></td>
-      <td class="muted">{{ food.brand or "—" }}</td>
-      <td class="muted">{{ food_type(food) }}</td>
-      <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
-    </tr>
-    {% endfor %}
+  <tbody data-search-tbody>
+    {% include "_convert_search_rows.html" %}
   </tbody>
 </table>
+</div>
 {% endif %}
 
 {% if food %}

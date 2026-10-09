@@ -15,8 +15,10 @@ read from here, so they can't drift apart. The checks themselves:
   amount is entered, so nothing else ever notices. With include_bracketed,
   also volume amounts carrying a gram figure in brackets ("1/3 c (42 gr)"),
   which older versions wrote themselves (offered unticked, since the figure
-  may equally be one the user weighed). An amount the user chose to "Keep as
-  entered" (db.amount_keeps) is left out while its grams stay as kept.
+  may equally be one the user weighed). "Keep as entered" (keep_as_entered())
+  rewrites an amount in the typed-own-weight form ("2309.2 g (8 c)"), which
+  is never listed; a leftover db.amount_keeps row is left out while its grams
+  stay as kept, until convert_keeps() rewrites it the same way.
 - generic_density_in_use(): foods whose volume amounts (in recipes or meals)
   were converted with the generic density table, because the food has no
   cup/spoon portion of its own — measuring one makes those amounts exact.
@@ -212,6 +214,51 @@ def stale_amounts(conn, *, fdc_id: int | None = None, include_bracketed: bool = 
                              "bracketed": bracketed, "unit_after": unit_after, "kept": kept})
     rows.sort(key=lambda r: (r["where"], r["owner_label"].lower(), r["food_name"].lower()))
     return rows
+
+
+def own_weight_text(unit: str, grams: float) -> str | None:
+    """"8 c (2309 gr)" or "8 c" at 2309.216 g -> "2309.2 g (8 c)": the form
+    NuMa stores for a weight typed with its volume. None if `unit` is already
+    a weight of its own, or empty."""
+    unit = (unit or "").strip()
+    volume = _bracketed_volume(unit) or ("" if _has_explicit_weight(unit) else unit)
+    if not volume or not grams:
+        return None
+    return f"{round(float(grams), 1):g} g ({volume})"
+
+
+def keep_as_entered(conn, where: str, item_id: int) -> bool:
+    """"Keep as entered": the stored grams are right (the user weighed it),
+    so rewrite the amount's text in the form NuMa stores for a weight typed
+    with its volume — "8 c (2309 gr)" or "8 c" stored as 2309.216 g becomes
+    "2309.2 g (8 c)". That form is the user's own weight, so stale_amounts()
+    never lists it again; there is nothing left to show or undo (editing the
+    amount is the way to change it). Grams are untouched, so no totals move.
+    Drops any db.amount_keeps row for the item. False if it isn't found."""
+    table = "recipe_ingredients" if where == "recipe" else "meal_items"
+    row = conn.execute(f"SELECT amount, unit FROM {table} WHERE id = ?", (item_id,)).fetchone()
+    _db.amount_unkeep(conn, where, item_id)
+    new = own_weight_text(row["unit"], row["amount"]) if row else None
+    if new is None:
+        return False
+    conn.execute(f"UPDATE {table} SET unit = ? WHERE id = ?", (new, item_id))
+    return True
+
+
+def convert_keeps(conn) -> int:
+    """Rewrite every db.amount_keeps row (from before keep_as_entered()
+    rewrote the amount itself, or a starter recipe's shipped "kept") whose
+    grams are still as kept; drop the rest. Run at startup; returns the
+    number rewritten."""
+    done = 0
+    for (where, item_id), kept_g in _db.amount_keeps(conn).items():
+        table = "recipe_ingredients" if where == "recipe" else "meal_items"
+        row = conn.execute(f"SELECT amount FROM {table} WHERE id = ?", (item_id,)).fetchone()
+        if row and row["amount"] is not None and abs(float(row["amount"]) - kept_g) < 0.005:
+            done += keep_as_entered(conn, where, item_id)
+        else:
+            _db.amount_unkeep(conn, where, item_id)
+    return done
 
 
 def generic_density_in_use(conn) -> list[dict]:

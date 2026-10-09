@@ -15,6 +15,8 @@ DCP recomputes, so nothing here may call a write helper. Even the day-profile
 lookup is done without day_profile.ensure_day_profile()'s pinning.
 Docs: README-numa-documentation.md, "analysis_whatif.html" and the Architecture tree entry for whatif.py; user-manual.md #whatif
 """
+import csv
+import io
 import json
 from dataclasses import dataclass, field
 
@@ -528,15 +530,17 @@ def _avg_pct(pairs: list[tuple[float, float]]) -> tuple[float | None, int]:
 
 
 def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
-                     groups: list[tuple[str, list[str]]]) -> dict:
+                     groups: list[tuple[str, list[str]]],
+                     max_columns: int | None = MAX_RECIPE_COLUMNS) -> dict:
     """Per-serving nutrients before and after `edits` for each of `recipes`
     (rows with id, name). An "add" puts its amount into each recipe like one
     more ingredient — per batch (amount / servings per serving) or, with
     Edit.per == "serving", per serving; the servings count never changes.
 
     Recipes shown: those a remove/replace/scale edit actually reached (or,
-    with only add edits, every selected recipe), the MAX_RECIPE_COLUMNS that
-    changed most; the rest are listed by name. Writes nothing."""
+    with only add edits, every selected recipe), the max_columns that
+    changed most (None: all of them, for the CSV); the rest are listed by
+    name. Writes nothing."""
     problems = validate(edits, conn)
     if problems:
         raise WhatIfError(" ".join(problems))
@@ -574,7 +578,8 @@ def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
     reached = set().union(*(ctx.hits.get(i, set()) for i in targeted)) if targeted else None
     candidates = [r for r in evaluated if reached is None or r["id"] in reached]
     candidates.sort(key=lambda r: (-_change_size(r["before"], r["after"]), r["name"].lower()))
-    shown, more = candidates[:MAX_RECIPE_COLUMNS], candidates[MAX_RECIPE_COLUMNS:]
+    cap = len(candidates) if max_columns is None else max_columns
+    shown, more = candidates[:cap], candidates[cap:]
 
     sections = _row_keys(groups, *(r["before"] for r in shown), *(r["after"] for r in shown))
     all_keys = [k for _, keys in sections for k in keys]
@@ -636,3 +641,121 @@ def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
         "edits":    edit_report,
         "parents":  [{"id": pid, "name": item_name(conn, ("recipe", pid))} for pid in parents],
     }
+
+
+# ---------------------------------------------------------------------------
+# Describing, exporting, and the "apply for real" check
+# ---------------------------------------------------------------------------
+
+def describe(report_row: dict, page: str = "meals") -> str:
+    """One edit_report row (from evaluate_meals / evaluate_recipes) as a
+    plain sentence, matching the wording on the What-if pages."""
+    e, name = report_row["edit"], report_row["item_name"]
+    if e.op == "remove":
+        return f"Remove {name}"
+    if e.op == "scale":
+        return f"Change {name} to {e.amount * 100:g}% of the amount {'eaten' if page == 'meals' else 'used'}"
+    if e.op == "replace":
+        if e.basis in ("grams", "servings"):
+            how = "same weight" if e.basis == "grams" else "same servings"
+        elif e.basis == "factor":
+            how = f"{round(e.amount * 100, 1):g}% of the old weight"
+        else:
+            how = f"{round(e.amount, 1):g} {'g' if e.unit == 'g' else 'serving(s)'} each time"
+        return f"Replace {name} with {report_row['replacement_name']} ({how})"
+    where = ("per day" if page == "meals" else
+             "to each serving" if e.per == "serving" else "to each recipe's whole batch")
+    return f"Add {round(e.amount, 1):g} {'g' if e.unit == 'g' else 'serving(s)'} of {name} {where}"
+
+
+def _csv_num(v) -> str:
+    return "" if v is None else f"{v:.4g}" if abs(v) < 1000 else f"{v:.0f}"
+
+
+def meals_csv(result: dict) -> str:
+    """evaluate_meals()'s result as CSV text: the changes, the summary, then
+    every nutrient row (changed or not) in display-group order."""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    dates = result["dates"]
+    w.writerow(["What-if: meals", f"{result['meals']} meal(s) on {len(dates)} day(s)",
+                f"{dates[0]} to {dates[-1]}" if dates else ""])
+    for r in result["edits"]:
+        reach = (f"added on {r['days']} day(s)" if r["edit"].op == "add" else
+                 f"found in {r['meals']} meal(s) on {r['days']} day(s)") if r["meals"] else "not found"
+        w.writerow(["Change", describe(r, "meals"), reach])
+    w.writerow([])
+    w.writerow(["Average per day", "Unit", "Before", "After", "Change"])
+    for c in result["summary"]:
+        w.writerow([c["label"], c["unit"], _csv_num(c["before"]), _csv_num(c["after"]), _csv_num(c["delta"])])
+    w.writerow([])
+    w.writerow(["Group", "Nutrient", "Unit", "Before", "After", "Change", "Change %",
+                "Target", "% of target before", "% of target after", "Status before", "Status after",
+                "Days target not met before", "Days target not met after",
+                "Days over max before", "Days over max after", "After may be low (no value in)"])
+    for sec in result["sections"]:
+        for r in sec["rows"]:
+            w.writerow([sec["name"], r["label"], r["unit"], _csv_num(r["before"]), _csv_num(r["after"]),
+                        _csv_num(r["delta"]), _csv_num(r["delta_pct"]), _csv_num(r["target"]),
+                        _csv_num(r["pct_before"]), _csv_num(r["pct_after"]),
+                        r["status_before"] or "", r["status_after"] or "",
+                        "" if r["days_unmet_before"] is None else r["days_unmet_before"],
+                        "" if r["days_unmet_after"] is None else r["days_unmet_after"],
+                        "" if r["days_over_ul_before"] is None else r["days_over_ul_before"],
+                        "" if r["days_over_ul_after"] is None else r["days_over_ul_after"],
+                        "; ".join(r["unknown"])])
+    return buf.getvalue()
+
+
+def recipes_csv(result: dict) -> str:
+    """evaluate_recipes()'s result (run with max_columns=None, so every
+    recipe the changes reach is a column) as CSV text, per serving."""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["What-if: recipes", f"{result['changed_count']} recipe(s) changed",
+                f"of {result['selected']} selected", "per serving"])
+    for r in result["edits"]:
+        w.writerow(["Change", describe(r, "recipes"),
+                    f"reaches {r['recipes']} recipe(s)" if r["recipes"] else "not found"])
+    w.writerow([])
+    head = ["Group", "Nutrient", "Unit", "Average change %"]
+    for rec in result["recipes"]:
+        label = f"R{rec['id']} {rec['name']}"
+        head += [f"{label}: before", f"{label}: after", f"{label}: change"]
+    w.writerow(head)
+    for sec in result["sections"]:
+        for row in sec["rows"]:
+            line = [sec["name"], row["label"], row["unit"], _csv_num(row["avg_pct"])]
+            for c in row["cells"]:
+                line += [_csv_num(c["before"]), _csv_num(c["after"]), _csv_num(c["delta"])]
+            w.writerow(line)
+    return buf.getvalue()
+
+
+def real_substitution_problems(edits: list[Edit]) -> list[str]:
+    """Why this scenario can't be handed to the real (destructive) substitute
+    in db.substitute_item_in_meals / substitute_item_in_recipes; empty when
+    it can. That substitute swaps the item and keeps the logged amount as a
+    number (grams for a food, servings for a recipe), so only these replace
+    edits mean the same thing there as here: food for food at the same
+    weight, recipe for recipe at the same servings. Chains (A->B plus B->C)
+    and an item replaced twice are refused: applied one after another they
+    would not match what the what-if showed."""
+    if not edits:
+        return ["There are no changes to apply."]
+    problems = []
+    for n, e in enumerate(edits, 1):
+        if e.op != "replace":
+            problems.append(f"Change {n} is a {e.op}; only Replace changes can be applied for real.")
+        elif (e.item[0], e.replacement[0], e.basis) not in (("food", "food", "grams"),
+                                                           ("recipe", "recipe", "servings")):
+            problems.append(f"Change {n}: only a food replaced by a food at the same weight, or a recipe "
+                            "by a recipe at the same servings, can be applied for real.")
+    if not problems:
+        items = [e.item for e in edits]
+        if len(set(items)) < len(items):
+            problems.append("The same item is replaced more than once.")
+        if any(e.replacement in items for e in edits):
+            problems.append("One change replaces an item with something another change replaces; "
+                            "apply them one at a time instead.")
+    return problems

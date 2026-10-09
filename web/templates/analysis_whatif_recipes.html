@@ -19,6 +19,9 @@
 an ingredient. Nothing is saved or changed &mdash; your recipes stay exactly as they are.
 For the effect on what you actually ate, use <a href="/analysis/whatif">What-if: Meals</a>.</p>
 
+
+{{ _wc.applied_banner(applied, "recipes") }}
+{{ _wc.saved_panel(saved, "recipes", query) }}
 <form method="get" action="/analysis/whatif-recipes" class="mb-4" id="whatif-form">
   <h3 class="h5">1. Which recipes</h3>
   <div class="mb-2">
@@ -88,6 +91,7 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
     </li>
     {% endfor %}
   </ul>
+  {{ _wc.result_actions("recipes", query, apply_problems, "/analysis/whatif-recipes/export.csv") }}
 
   {% if not result.recipes %}
   <p class="muted">None of the selected recipes would change.</p>

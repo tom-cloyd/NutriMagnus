@@ -1454,6 +1454,20 @@ def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
     assert profile.optimal_targets == {}
 
 
+def test_settings_nutrient_target_reads_units_and_reports_errors(client: TestClient) -> None:
+    """Settings -> 7 used to drop an unreadable value without a word."""
+    client.post("/settings/nutrient-target",
+                data={"key": "vitamin_d_mcg", "optimal": "2,000 IU", "limit": ""}, follow_redirects=False)
+    assert _profile.load_profile().optimal_targets == {"vitamin_d_mcg": 50.0}
+    resp = client.post("/settings/nutrient-target",
+                       data={"key": "vitamin_d_mcg", "optimal": "60", "limit": "lots"}, follow_redirects=False)
+    assert "target_error=" in resp.headers["location"]
+    # Nothing saved — not even the readable target beside the bad limit.
+    assert _profile.load_profile().optimal_targets == {"vitamin_d_mcg": 50.0}
+    page = client.get(resp.headers["location"]).text
+    assert "Not saved:" in page and "has no number" in page
+
+
 def test_settings_nutrient_target_load_defaults(client: TestClient) -> None:
     resp = client.post("/settings/nutrient-target/load-defaults", follow_redirects=False)
     assert resp.status_code == 303
@@ -4016,6 +4030,311 @@ def test_pantry_has_compare_checkbox_and_form(client: TestClient, cached_food, d
     assert "Compare nutrition of selected (up to 8)" in resp.text
 
 
+def test_online_search_notice_on_async_pages(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pages that fetch online results after rendering show the red notice
+    up top (removed by their JS when the results land)."""
+    _mock_api(monkeypatch)
+    for url, params in [("/food/search", {"query": "Chicken"}), ("/pantry", {"search": "Chicken"})]:
+        resp = client.get(url, params=params)
+        assert "Online search in progress…" in resp.text, url
+        assert "online-search-notice text-danger" in resp.text, url
+    # Only local sources ticked: nothing goes online, so no notice
+    resp = client.get("/food/search", params={"query": "Chicken", "source": "cache"})
+    assert 'id="search-api-loading"' not in resp.text
+
+
+def test_search_forms_that_wait_on_online_sources_are_marked(client: TestClient, cached_food) -> None:
+    """Search forms whose next page waits for USDA/OFF/CNF carry
+    data-online-search, so base.html shows the notice on submit; the
+    Pantry list filter (local only) must not."""
+    import re
+    marked = re.compile(r"<form[^>]*\bdata-online-search\b[^>]*>")
+    fid = cached_food["fdcId"]
+    for url in ["/compare", "/food/convert", f"/food/{fid}/fill-from", "/food/search"]:
+        assert marked.search(client.get(url).text), url
+    client.post("/pantry/add", data={"food_name": "Oats"})
+    pantry_forms = marked.findall(client.get("/pantry").text)
+    assert len(pantry_forms) == 1 and "/pantry" in pantry_forms[0]   # the search, not the filter
+    assert not marked.search(client.get("/food/cache").text)          # filter only
+    assert 'var LIVE = ["usda", "off", "cnf"]' in client.get("/compare").text
+
+
+def test_food_cache_has_search_online_button(client: TestClient) -> None:
+    text = client.get("/food/cache").text
+    assert "Filter this list" in text
+    assert "location.href = '/food/search?query='" in text
+
+
+_FAKE_BARCODE = "3017620422003"
+
+
+def _fake_off(monkeypatch: pytest.MonkeyPatch) -> int:
+    """One Open Food Facts product for "hazelnut spread"; returns its code."""
+    import openfoodfacts as _off
+    fid = _off.off_id(_FAKE_BARCODE)
+    monkeypatch.setattr(_off, "search_foods", lambda q, *a, **kw: [{
+        "fdcId": fid, "description": "Hazelnut spread", "dataType": "Branded",
+        "_from_off": True, "_off_code": _FAKE_BARCODE,
+    }] if "hazelnut" in q.lower() else [])
+    monkeypatch.setattr(_off, "lookup_by_barcode", lambda code, *a, **kw: {
+        "fdcId": fid, "name": "Hazelnut spread", "dataType": "Open Food Facts",
+        "nutrients": {"calories": 539, "protein_g": 6.3, "fat_g": 30.9, "carbs_g": 57.5},
+        "portions": [],
+    } if code == _FAKE_BARCODE else None)
+    return fid
+
+
+def test_every_search_screen_covers_every_ticked_source(
+    client: TestClient, db_conn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: Compare, Convert and Edit Recipe had their own searches that
+    covered only the cache and USDA (Compare also recipes and bundled sets),
+    silently skipping the other ticked sources. All now use _run_food_search."""
+    _mock_api(monkeypatch)
+    _fake_off(monkeypatch)
+    db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Toast', 1)")
+    db_conn.commit()
+    rid = db_conn.execute("SELECT id FROM recipes").fetchone()["id"]
+    for screen, page, field in [("compare", "/compare", "search"), ("convert", "/food/convert", "q"),
+                                ("recipe", f"/recipe/{rid}/edit", "q")]:
+        params = {field: "hazelnut", "source": ["off", "cofid"]}
+        page_text = client.get(page, params=params).text
+        assert "source-cofid" in page_text, page            # bundled: instant, in the page
+        assert "Hazelnut spread" not in page_text, page     # online: fetched afterwards
+        assert f'data-search-results="/search-rows/{screen}?' in page_text, page
+        rows = client.get(f"/search-rows/{screen}", params={**params, "id": rid}).text
+        assert "source-off" in rows and "Hazelnut spread" in rows and "source-cofid" in rows, screen
+
+
+def test_off_barcode_travels_with_search_results(client: TestClient, db_conn, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An uncached Open Food Facts food can only be fetched by its barcode
+    number, so each "pick this result" path carries it and can fetch it."""
+    fid = _fake_off(monkeypatch)
+    # Food page link from Foods -> Search
+    rows = client.get("/food/search-api-results", params={"query": "hazelnut", "source": "off"}).text
+    assert f'href="/food/{fid}?off_code={_FAKE_BARCODE}"' in rows
+    assert "Could not load food" not in client.get(f"/food/{fid}", params={"off_code": _FAKE_BARCODE}).text
+    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (fid,))
+    db_conn.commit()
+    # Convert
+    page = client.get("/search-rows/convert", params={"q": "hazelnut", "source": "off"}).text
+    assert f"/food/convert/{fid}?off_code={_FAKE_BARCODE}" in page
+    assert "Could not load food" not in client.get(f"/food/convert/{fid}", params={"off_code": _FAKE_BARCODE}).text
+    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (fid,))
+    db_conn.commit()
+    # Edit Recipe -> Add to recipe
+    db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Toast', 1)")
+    db_conn.commit()
+    rid = db_conn.execute("SELECT id FROM recipes").fetchone()["id"]
+    page = client.get("/search-rows/recipe", params={"q": "hazelnut", "source": "off", "id": rid}).text
+    assert f'name="off_code" value="{_FAKE_BARCODE}"' in page
+    client.post(f"/recipe/{rid}/ingredient/add",
+                data={"fdc_id": fid, "off_code": _FAKE_BARCODE, "portion_str": "30 g"})
+    assert db_conn.execute("SELECT food_name FROM recipe_ingredients WHERE recipe_id = ?",
+                           (rid,)).fetchone()["food_name"] == "Hazelnut spread"
+    db_conn.execute("DELETE FROM recipe_ingredients")
+    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (fid,))
+    db_conn.commit()
+    # Compare: the barcode rides along with the checkbox; adding caches it
+    page = client.get("/search-rows/compare", params={"search": "hazelnut", "source": "off"}).text
+    assert f'name="off_code_{fid}" value="{_FAKE_BARCODE}"' in page
+    resp = client.post("/compare/add-multiple", data={"fdc_id": fid, f"off_code_{fid}": _FAKE_BARCODE},
+                       follow_redirects=False)
+    assert resp.status_code == 303
+    assert db_conn.execute("SELECT name FROM foods WHERE fdc_id = ?", (fid,)).fetchone()["name"] == "Hazelnut spread"
+
+
+def _insert_food(db_conn, fdc_id: int, name: str, with_aa: bool) -> None:
+    nutrients = {"calories": 116, "protein_g": 9.0, "fat_g": 0.4, "carbs_g": 20.0}
+    if with_aa:
+        nutrients.update({"aa_lysine_g": 0.6, "aa_leucine_g": 0.65, "aa_valine_g": 0.45,
+                          "aa_threonine_g": 0.32, "aa_isoleucine_g": 0.39})
+    db_conn.execute("INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+                    "VALUES (?, ?, 'Foundation', ?, '[]')", (fdc_id, name, json.dumps(nutrients)))
+
+
+def test_source_pickers_use_the_shared_search(client: TestClient, db_conn) -> None:
+    """The custom-food AA / nutrient pickers and Fill from use _run_food_search:
+    the food being edited is left out, pantry foods count as Food Cache (the
+    pickers have no Pantry box), and the AA picker lists foods with (likely)
+    amino acid data first."""
+    _insert_food(db_conn, 900001, "Lentil target", with_aa=False)
+    _insert_food(db_conn, 900002, "Lentil soup", with_aa=False)
+    _insert_food(db_conn, 900003, "Lentils raw", with_aa=True)
+    db_conn.execute("INSERT INTO pantry (food_name, fdc_id) VALUES ('Lentil soup', 900002)")
+    db_conn.commit()
+    for screen in ("aa-picker", "nutrient-picker", "fill-from"):
+        field = {"aa-picker": "aa_source_q", "nutrient-picker": "nutrient_source_q"}.get(screen, "q")
+        src = {"aa-picker": "aa_source", "nutrient-picker": "nutrient_source"}.get(screen, "source")
+        rows = client.get(f"/search-rows/{screen}", params={field: "lentil", src: "cache", "id": 900001}).text
+        assert "Lentil target" not in rows, screen
+        assert "Lentil soup" in rows and "Lentils raw" in rows, screen
+    aa_rows = client.get("/search-rows/aa-picker",
+                         params={"aa_source_q": "lentil", "aa_source": "cache", "id": 900001}).text
+    assert aa_rows.index("Lentils raw") < aa_rows.index("Lentil soup")
+    assert "Use as AA source" in aa_rows
+
+
+def test_source_picker_pages_show_local_matches_then_fetch_online(client: TestClient, db_conn) -> None:
+    _insert_food(db_conn, 900001, "Lentil target", with_aa=False)
+    _insert_food(db_conn, 900003, "Lentils raw", with_aa=True)
+    db_conn.commit()
+    page = client.get("/food/900001/fill-from", params={"q": "lentil"}).text
+    assert "Lentils raw" in page
+    assert 'data-search-results="/search-rows/fill-from?id=900001&' in page
+    assert 'id="fill-search-loading"' in page
+    # only local sources ticked: nothing to fetch afterwards
+    page = client.get("/food/900001/fill-from", params={"q": "lentil", "source": "cache"}).text
+    assert 'data-search-results="/search-rows/fill-from' not in page
+
+
+def test_no_search_no_pending_results_block(client: TestClient, cached_food) -> None:
+    """With nothing typed, a search screen shows no results block and
+    fetches nothing — even when online sources are ticked."""
+    fid = cached_food["fdcId"]
+    for url in ["/compare", "/food/convert", f"/food/{fid}/fill-from", f"/food/custom-profiles/{fid}/edit"]:
+        assert not re.search(r'data-search-results="/search-rows/[a-z]', client.get(url).text), url
+    page = client.get(f"/food/custom-profiles/{fid}/edit", params={"aa_source_q": "chicken"}).text
+    assert "/search-rows/aa-picker" in page and "/search-rows/nutrient-picker" not in page
+
+
+def test_meal_search_rows_show_food_and_recipe_notes(client: TestClient, db_conn) -> None:
+    """The meal add-food results show a food's or recipe's own note beside its
+    add form."""
+    _insert_food(db_conn, 900003, "Lentils raw", with_aa=True)
+    db_conn.execute("UPDATE foods SET notes = 'Soak overnight first' WHERE fdc_id = 900003")
+    db_conn.execute("INSERT INTO recipes (name, servings, notes) VALUES ('Lentil stew', 4, 'Freezes well')")
+    meal_id = db_conn.execute("INSERT INTO meals (name, meal_date) VALUES ('Lunch', '2026-01-01')").lastrowid
+    db_conn.commit()
+    page = client.get(f"/meal/{meal_id}", params={"q": "lentil", "source": ["cache", "recipe"]}).text
+    assert page.count('class="add-food-note"') == 2
+    assert "Soak overnight first" in page and "Freezes well" in page
+
+
+def test_search_rows_unknown_screen_is_404(client: TestClient) -> None:
+    assert client.get("/search-rows/nope").status_code == 404
+
+
+def test_compare_fetches_uncached_food_with_no_db_connection_open(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CLAUDE.md: never hold a connection open across a network call."""
+    import contextlib
+    import web.backend as backend
+    open_conns = {"n": 0}
+    real_get_db = backend._db.get_db
+
+    @contextlib.contextmanager
+    def counting_get_db(*a, **kw):
+        open_conns["n"] += 1
+        try:
+            with real_get_db(*a, **kw) as conn:
+                yield conn
+        finally:
+            open_conns["n"] -= 1
+
+    seen = []
+    def fake_fetch(fdc_id, off_code=""):
+        seen.append(open_conns["n"])
+        return {"fdcId": fdc_id, "name": "Fetched food", "dataType": "Foundation",
+                "nutrients": {"calories": 100, "protein_g": 5}, "portions": []}
+    monkeypatch.setattr(backend._db, "get_db", counting_get_db)
+    monkeypatch.setattr(backend, "_fetch_uncached_food_detail", fake_fetch)
+    text = client.get("/compare", params={"items": "f123456,f654321"}).text
+    assert "Fetched food" in text
+    assert seen and all(n == 0 for n in seen), seen
+
+
+def test_bundled_source_food_opens_without_network(client: TestClient) -> None:
+    """Regression: an uncached CoFID/AFCD/CIQUAL/CNF result's food page and
+    Convert page used to try USDA only and fail with "Could not load food"."""
+    import cofid_lookup as _cofid
+    fid = _cofid.search_foods("lentils")[0]["fdcId"]
+    assert "Could not load food" not in client.get(f"/food/{fid}").text
+    assert "Could not load food" not in client.get(f"/food/convert/{fid}").text
+
+
+def test_food_cache_filter_links_to_online_search(client: TestClient) -> None:
+    resp = client.get("/food/cache", params={"q": "peanut butter"})
+    assert resp.status_code == 200
+    assert 'href="/food/search?query=peanut%20butter"' in resp.text
+    assert "Not here? Search online" not in client.get("/food/cache").text
+
+
+def test_pantry_search_results_have_compare_checkboxes(client: TestClient, cached_food) -> None:
+    """Search results on My Pantry get their own Compare form, separate from
+    the pantry list's, so ticking a result doesn't mix with pantry ticks."""
+    resp = client.get("/pantry", params={"search": cached_food["name"], "source": "cache"})
+    assert resp.status_code == 200
+    assert 'id="compare-search-form"' in resp.text
+    assert f'form="compare-search-form"\n               name="fdc_id" value="{cached_food["fdcId"]}"' in resp.text
+
+
+def test_pantry_search_defers_online_sources_to_async_endpoint(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """My Pantry renders local matches at once and fetches USDA/OFF/CNF from
+    /pantry/search-api-results afterwards, same as Foods -> Search."""
+    _mock_api(monkeypatch)
+    resp = client.get("/pantry", params={"search": "Chicken"})
+    assert resp.status_code == 200
+    assert "broilers or fryers" not in resp.text
+    assert 'data-search-results="/search-rows/pantry?' in resp.text
+    assert 'id="pantry-search-loading"' in resp.text
+
+    api_resp = client.get("/search-rows/pantry", params={"search": "Chicken"})
+    assert api_resp.status_code == 200
+    assert "broilers or fryers" in api_resp.text
+    assert "Add to pantry" in api_resp.text
+
+
+def test_pantry_search_includes_bundled_sources_and_drops_recipes(
+    client: TestClient, db_conn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: My Pantry's own search used to cover only cache, USDA and
+    OFF, silently ignoring CNF/CoFID/AFCD/CIQUAL even when ticked. It now uses
+    the shared search helpers — but a pantry holds foods, so no recipe rows."""
+    _mock_api(monkeypatch)
+    db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Peanut butter cookies', 1)")
+    db_conn.commit()
+    resp = client.get("/pantry", params={"search": "peanut butter", "source": ["cofid", "recipe"]})
+    assert resp.status_code == 200
+    assert "source-cofid" in resp.text
+    assert "Peanut butter cookies" not in resp.text
+    # cofid is bundled (no network), so nothing is left to fetch
+    assert 'id="pantry-search-loading"' not in resp.text
+
+
+def test_pantry_search_results_keep_link_mode(client: TestClient, db_conn, monkeypatch: pytest.MonkeyPatch) -> None:
+    _mock_api(monkeypatch)
+    db_conn.execute("INSERT INTO pantry (food_name) VALUES ('Chicken thing')")
+    db_conn.commit()
+    pid = db_conn.execute("SELECT id FROM pantry").fetchone()["id"]
+    api_resp = client.get("/search-rows/pantry", params={"search": "Chicken", "link_id": pid})
+    assert "Link this" in api_resp.text
+    assert f'name="link_id" value="{pid}"' in api_resp.text
+
+
+def test_pantry_filter_narrows_list_without_searching_online(client: TestClient, db_conn) -> None:
+    """Filter my pantry list narrows the existing list by name or notes —
+    distinct from the Add search, which looks in the cache and online."""
+    db_conn.execute("INSERT INTO pantry (food_name, notes) VALUES ('Peanut butter', '')")
+    db_conn.execute("INSERT INTO pantry (food_name, notes) VALUES ('Rolled oats', 'bulk bin')")
+    db_conn.commit()
+    resp = client.get("/pantry", params={"filter": "peanut"})
+    assert resp.status_code == 200
+    assert "Peanut butter" in resp.text
+    assert "Rolled oats" not in resp.text
+    assert "1 of 2 pantry items matching" in resp.text
+    # matches notes too
+    resp = client.get("/pantry", params={"filter": "bulk"})
+    assert "Rolled oats" in resp.text and "Peanut butter" not in resp.text
+    # no match: says so, and doesn't claim the pantry is empty
+    resp = client.get("/pantry", params={"filter": "zzz"})
+    assert "No pantry items match" in resp.text
+    assert "Your pantry is empty" not in resp.text
+
+
 def test_recipes_list_has_compare_checkbox_and_form(client: TestClient, db_conn) -> None:
     db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Soup', 1)")
     db_conn.commit()
@@ -4091,6 +4410,22 @@ class TestCapResultsPreservingLocal:
         results = self._mk("usda", 10)
         assert backend._cap_results_preserving_local(results, 5) == results[:5]
 
+    def test_recipes_lead_the_local_block(self):
+        """Recipes come ahead of pantry and Food Cache foods, whatever their
+        relevance order; each group keeps its own order."""
+        results = (self._mk("cache", 2) + self._mk("usda", 1)
+                   + [{"source": "pantry", "name": "P"}] + self._mk("recipe", 2))
+        capped = backend._cap_results_preserving_local(results, 25)
+        assert [r["name"] for r in capped] == [
+            "recipe 0", "recipe 1", "cache 0", "cache 1", "P", "usda 0"]
+
+
+def test_search_ranking_tie_break_puts_recipes_before_pantry_and_cache():
+    from numa_app.services import search_ranking
+    keys = {src: search_ranking.relevance_key("Lentil soup", "lentil soup", src)
+            for src in ("recipe", "pantry", "cache", "usda")}
+    assert sorted(keys, key=keys.get) == ["recipe", "pantry", "cache", "usda"]
+
 
 def test_meal_search_api_results_keeps_cached_food_past_result_limit(
     client: TestClient, db_conn, monkeypatch: pytest.MonkeyPatch
@@ -4156,7 +4491,7 @@ def test_food_search_groups_local_results_before_external_divider(
     # The local results also get their own heading, above the cached food's
     # own row, so the top section isn't unlabeled the way the bottom one used
     # to be alone in having a caption.
-    local_header_pos = resp.text.index("From your pantry, food cache, and recipes")
+    local_header_pos = resp.text.index("From your recipes, pantry, and food cache")
     assert local_header_pos < local_pos < divider_pos
 
 
@@ -5760,10 +6095,58 @@ def test_food_detail_shows_gl_for_the_analyzed_portion(client: TestClient, db_co
     assert "GL 10.2" in r2.text
 
 
-def test_food_without_a_gi_annotation_shows_no_gl(client: TestClient, cached_food) -> None:
+def test_carb_free_food_without_a_gi_shows_gl_zero(client: TestClient, cached_food) -> None:
+    """Chicken has no carbohydrate, so its GL is 0 whatever its GI — no GI needed."""
     r = client.get(f"/food/{cached_food['fdcId']}?amount=100")
     assert r.status_code == 200
-    assert "GL " not in r.text
+    assert "GL 0.0</strong> per 100" in r.text
+    assert "almost no carbohydrate, so no GI is needed" in r.text
+
+
+def _gl_bread(db_conn) -> int:
+    """A carb-heavy food with no GI annotation."""
+    db_conn.execute(
+        "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?,?,?,?,?)",
+        (900002, "Bread, plain", "SR Legacy",
+         json.dumps({"calories": 265.0, "protein_g": 9.0, "carbs_g": 49.0, "fat_g": 3.2}), "[]"),
+    )
+    db_conn.commit()
+    return 900002
+
+
+def test_food_without_a_gi_says_gl_is_not_available(client: TestClient, db_conn) -> None:
+    fdc_id = _gl_bread(db_conn)
+    r = client.get(f"/food/{fdc_id}?amount=100")
+    assert "GL per 100" in r.text and "not available" in r.text
+    assert "no GI recorded for this food yet" in r.text
+    assert f'href="/food/annotate/{fdc_id}"' in r.text
+
+
+def test_recipe_page_shows_gl_per_serving(client: TestClient, db_conn) -> None:
+    """Recipes always lacked a GL: it was read from a saved figure nothing wrote."""
+    rice = _gl_rice(db_conn)
+    rid = _db.recipe_create(db_conn, name="Rice pot", description="", servings=4, instructions="")
+    _db.recipe_add_ingredient(db_conn, rid, rice, "Rice, white, cooked", 400.0, "g")
+    db_conn.commit()
+    r = client.get(f"/recipe/{rid}")
+    assert r.status_code == 200
+    # 100 g rice per serving: 28 g carbs x 73 / 100 = 20.4
+    assert "Per serving:" in r.text
+    assert "<strong>20.4</strong>" in r.text
+
+
+def test_meal_with_a_missing_gi_shows_an_incomplete_lower_bound(client: TestClient, db_conn) -> None:
+    rice = _gl_rice(db_conn)
+    bread = _gl_bread(db_conn)
+    meal_id = _log_gl_day(client, rice, datetime.date.today().isoformat(), grams="100 g")
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": bread, "food_name": "Bread, plain", "portion_str": "50 g"},
+                follow_redirects=False)
+    r = client.get(f"/meal/{meal_id}")
+    assert "at least 20.4" in r.text
+    assert "incomplete, missing GI data" in r.text
+    assert "Bread, plain" in r.text and "no GI recorded yet" in r.text
 
 
 def test_nutrient_plot_offers_daily_gl_as_a_series(client: TestClient, db_conn) -> None:
@@ -5793,10 +6176,12 @@ def test_trend_page_averages_daily_gl(client: TestClient, db_conn) -> None:
     assert "Moderate" in r.text
 
 
-def test_trend_gl_skips_days_with_incomplete_gi_coverage(client: TestClient, db_conn, cached_food) -> None:
-    """A day holding an unannotated food has no GL at all, rather than a
-    partial total that would understate it — and the skipped days are named."""
+def test_trend_gl_skips_days_with_incomplete_gi_coverage(client: TestClient, db_conn) -> None:
+    """A day holding an unannotated carbohydrate food has no GL in the trend,
+    rather than a partial total that would understate it — and the skipped
+    days are named."""
     fdc_id = _gl_rice(db_conn)
+    bread = _gl_bread(db_conn)
     today = datetime.date.today()
     _log_gl_day(client, fdc_id, today.isoformat())
 
@@ -5805,8 +6190,7 @@ def test_trend_gl_skips_days_with_incomplete_gi_coverage(client: TestClient, db_
                        follow_redirects=False)
     gap_meal = int(resp.headers["location"].rsplit("/", 1)[-1])
     client.post(f"/meal/{gap_meal}/add",
-                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
-                      "portion_str": "150 g"},
+                data={"fdc_id": bread, "food_name": "Bread, plain", "portion_str": "150 g"},
                 follow_redirects=False)
 
     r = client.get("/summary/trend?days=7")
@@ -6143,6 +6527,20 @@ def test_custom_profile_compare_checked_foods_puts_profile_first_with_return(
 
     hostile = client.get(f"/compare?items=f{fdc_id}&return_to=//evil.example/x")
     assert 'id="compare-return"' not in hostile.text
+
+
+@pytest.mark.parametrize("n,folded", [(6, False), (7, True)])
+def test_db_check_folds_a_list_longer_than_six(client: TestClient, n: int, folded: bool) -> None:
+    """Foods -> 9: a list of more than 6 entries starts folded behind its
+    count line; 6 or fewer show open."""
+    import db as _dbm
+    with _dbm.get_db() as conn:
+        for i in range(n):
+            _dbm.cache_food(conn, 998900 + i, f"Impossible food {i}", "Branded", None, 100.0, "g",
+                            {"calories": 100, "protein_g": -1, "carbs_g": 10, "fat_g": 1})
+    html = client.get("/food/cache/db-check").text
+    assert "Impossible food 0" in html
+    assert ('data-remember="dbcheck-food-problems"' in html) is folded
 
 
 def test_calorie_note_on_meal_page_and_db_check(client: TestClient, db_conn) -> None:
@@ -6484,3 +6882,240 @@ def test_food_cache_shows_code_once_per_row(client: TestClient, cached_food, db_
     html = client.get("/food/cache").text
     assert html.count('<span class="code-edited">edited</span></span>') == 1
     assert f'food-id-tag" title="USDA FoodData Central food, user-edited">(U{cached_food["fdcId"]}' not in html
+
+
+class TestParsePortionStrExplicitWeight:
+    """A volume followed by a weight ("2 T 50 g") records the typed weight,
+    not a density estimate — the user weighed it. Until 2026-10-09 the web
+    parser ignored everything after the volume unit, so "2 T 50 g" of milk
+    came out as 30 g, and Foods -> 9 never flagged it (a typed weight is
+    presumed right)."""
+
+    _CUP = [{"description": "cup", "gram_weight": 240.0}]
+
+    @pytest.mark.parametrize("raw,grams,label", [
+        ("2 T 50 g", 50.0, "50 g (2 T)"),
+        ("2 T 50g", 50.0, "50 g (2 T)"),
+        ("1/4 c 75 g", 75.0, "75 g (1/4 c)"),
+        ("1 c 2 oz", 56.7, "2 oz (1 c)"),
+        ("2 T 50", 50.0, "50 g (2 T)"),
+    ])
+    def test_typed_weight_wins(self, raw, grams, label):
+        g, lab = backend._parse_portion_str(raw, self._CUP, "Milk")
+        assert g == pytest.approx(grams, abs=0.01)
+        assert lab == label
+
+    def test_volume_alone_still_uses_density(self):
+        g, lab = backend._parse_portion_str("2 T", self._CUP, "Milk")
+        assert g == pytest.approx(30.03, abs=0.01)
+        assert lab == "2 T"
+
+    def test_typed_weight_needs_no_density(self):
+        g, lab = backend._parse_portion_str("2 T 15 g", [], "Zzqx")
+        assert (g, lab) == (15.0, "15 g (2 T)")
+
+    def test_junk_after_the_volume_is_an_error(self):
+        g, msg = backend._parse_portion_str("2 T 15 bananas", self._CUP, "Milk")
+        assert g is None
+
+
+class TestParsePortionStrTolerant:
+    """Amount boxes accept the everyday ways people write an amount
+    (added 2026-10-09): fraction characters, thousands and decimal commas,
+    unit abbreviations with periods, and a count of one of the food's own
+    portions by name."""
+
+    _P = [{"description": "1 large egg", "gram_weight": 50.0}, {"description": "slice", "gram_weight": 30.0},
+          {"description": "1 tablet", "gram_weight": 100.0}, {"description": "cup", "gram_weight": 240.0}]
+
+    @pytest.mark.parametrize("raw,grams", [
+        ("2 eggs", 100.0), ("1 egg", 50.0), ("2 large eggs", 100.0), ("3 slices", 90.0),
+        ("1/2 slice", 15.0), ("2 tablets", 200.0), ("1½ c", 360.0), ("½ cup", 120.0),
+        ("1,000 g", 1000.0), ("12,5 g", 12.5), ("3 oz.", 85.05), ("2 tbsp.", 30.03),
+        ("2 tbs", 30.03), ("1 fl oz", 30.03),
+    ])
+    def test_reads(self, raw, grams):
+        g, _label = backend._parse_portion_str(raw, self._P, "Milk")
+        assert g == pytest.approx(grams, abs=0.01)
+
+    def test_an_unknown_word_lists_the_foods_portions(self):
+        g, msg = backend._parse_portion_str("2 bananas", self._P, "Milk")
+        assert g is None
+        assert "p1 = 1 large egg" in msg and "p3 = 1 tablet" in msg
+
+    def test_an_ambiguous_count_is_not_guessed(self):
+        portions = [{"description": "1 large egg", "gram_weight": 50.0},
+                    {"description": "1 small egg", "gram_weight": 38.0}]
+        assert backend._parse_portion_str("2 eggs", portions, "Egg")[0] is None
+        assert backend._parse_portion_str("2 small eggs", portions, "Egg")[0] == 76.0
+
+
+def test_custom_profile_save_converts_units_and_refuses_unreadable(client: TestClient, db_conn) -> None:
+    """Edit Custom Profile reads "400 IU" etc.; an unreadable box refuses the
+    whole save and keeps what was typed; a 1-tablet serving gets its portion."""
+    import db as _dbm
+    with _dbm.get_db() as conn:
+        _dbm.cache_food(conn, -77, "Vit D3", "User Drafted", None, 1.0, "tablet", {"calories": 1.0})
+    bad = client.post("/food/custom-profiles/-77/edit", data={
+        "name": "Vit D3", "serving_size": "1", "serving_unit": "tablet",
+        "vitamin_d_mcg": "400 IU", "iron_mg": "lots", "calories": "1"})
+    assert "Not saved" in bad.text and "Iron" in bad.text and 'value="400 IU"' in bad.text
+    stored = json.loads(db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id=-77").fetchone()[0])
+    assert "vitamin_d_mcg" not in stored
+    ok = client.post("/food/custom-profiles/-77/edit", data={
+        "name": "Vit D3", "serving_size": "1", "serving_unit": "tablet",
+        "vitamin_d_mcg": "400 IU", "calories": "1"})
+    assert "Profile saved" in ok.text and "400 IU = 10 mcg" in ok.text
+    row = db_conn.execute("SELECT nutrients_json, portions_json FROM foods WHERE fdc_id=-77").fetchone()
+    assert json.loads(row[0])["vitamin_d_mcg"] == 10.0
+    assert {"description": "1 tablet", "gram_weight": 100.0} in json.loads(row[1])
+    g, _ = backend._parse_portion_str("2 tablets", json.loads(row[1]), "Vit D3")
+    assert g == 200.0
+
+
+def test_item_link_links_suggested_foods_and_recipes():
+    """Complement suggestions and DIAAS boosters link each name to its page,
+    in a new tab; a generic estimate (no id) stays plain text."""
+    assert backend._item_link("Lentils", 172420) == (
+        '<a href="/food/172420" target="_blank" rel="noopener" title="Open in a new tab">Lentils</a>')
+    assert 'href="/recipe/21"' in backend._item_link("Lentil soup", None, 21)
+    assert 'href="/recipe/21"' in backend._item_link("Lentil soup", 0, 21)
+    assert backend._item_link("Hemp seeds", None, None) == "Hemp seeds"
+    assert "&lt;b&gt;" in backend._item_link("<b>", 1)
+
+
+def test_complement_cards_use_item_link_everywhere():
+    """No suggestion card, booster, pair or two-step combination prints a
+    bare name: each analysis template links it."""
+    import re as _re
+    from pathlib import Path as _P
+    bare = _re.compile(r"\{\{ (?:s|f|combo\.step[12]|p\.foods\[\d\])\.name \}\}</strong>")
+    for name in ("food_detail.html", "meal.html", "meal_day.html", "recipe_detail.html",
+                 "summary.html", "food_analyze_recipe_portion.html"):
+        text = (_P(backend.__file__).parent / "templates" / name).read_text(encoding="utf-8")
+        assert not bare.search(text), name
+
+
+class TestRestartNeeded:
+    """Running from source, new templates can meet old in-memory code after an
+    update; NuMa now says "please restart" instead of crashing blind."""
+
+    def test_no_banner_when_versions_match(self, client: TestClient, monkeypatch) -> None:
+        monkeypatch.setattr(backend, "_disk_version", lambda: backend.VERSION)
+        assert "restart-needed-banner" not in client.get("/").text
+
+    def test_banner_when_the_code_on_disk_is_newer(self, client: TestClient, monkeypatch) -> None:
+        monkeypatch.setattr(backend, "_disk_version", lambda: "2099-01-01:0000")
+        page = client.get("/").text
+        assert "restart-needed-banner" in page and "2099-01-01:0000" in page
+
+    def test_packaged_install_never_asks(self, monkeypatch) -> None:
+        monkeypatch.setattr(backend, "_disk_version", lambda: "2099-01-01:0000")
+        monkeypatch.setattr(backend.sys, "frozen", True, raising=False)
+        assert backend._restart_needed() is False
+
+    def test_a_crash_after_an_update_shows_the_restart_page(self, client: TestClient, monkeypatch) -> None:
+        monkeypatch.setattr(backend, "_disk_version", lambda: "2099-01-01:0000")
+        def boom():
+            raise RuntimeError("old code, new template")
+        monkeypatch.setattr(backend, "_refresh_stale_meals", boom)
+        r = client.get("/")
+        assert r.status_code == 503 and "please restart it" in r.text
+
+    def test_a_crash_without_an_update_is_still_an_error(self, monkeypatch) -> None:
+        monkeypatch.setattr(backend, "_disk_version", lambda: backend.VERSION)
+        def boom():
+            raise RuntimeError("a real bug")
+        monkeypatch.setattr(backend, "_refresh_stale_meals", boom)
+        with TestClient(backend.app, raise_server_exceptions=False) as c:
+            r = c.get("/")
+        assert r.status_code == 500
+
+    def test_disk_version_reads_version_py(self) -> None:
+        backend._disk_version_cache = None
+        assert backend._disk_version() == backend.VERSION
+
+    def test_restart_button_shown_when_launched_by_launcher(self, client: TestClient, monkeypatch) -> None:
+        monkeypatch.setattr(backend, "_disk_version", lambda: "2099-01-01:0000")
+        monkeypatch.setattr(backend.sys, "argv", ["/x/web/launcher.py"])
+        assert "Restart NuMa now" in client.get("/settings").text
+        monkeypatch.setattr(backend.sys, "argv", ["/x/web/launcher.py", "--reload"])
+        page = client.get("/settings").text
+        assert "Restart NuMa now" not in page and "Quit NuMa completely" in page
+
+    def test_restart_now_schedules_and_returns_the_waiting_page(self, client: TestClient, monkeypatch) -> None:
+        calls = []
+        monkeypatch.setattr(backend, "_schedule_restart", lambda: calls.append(1))
+        monkeypatch.setattr(backend.sys, "argv", ["/x/web/launcher.py"])
+        r = client.post("/restart-now", data={"next": "/meals"})
+        assert calls == [1] and "Restarting NuMa" in r.text and '"/meals"' in r.text
+        r = client.post("/restart-now", data={"next": "//evil.example"})
+        assert '"/"' in r.text
+
+    def test_restart_now_refused_when_it_cant_work(self, client: TestClient, monkeypatch) -> None:
+        calls = []
+        monkeypatch.setattr(backend, "_schedule_restart", lambda: calls.append(1))
+        monkeypatch.setattr(backend.sys, "argv", ["uvicorn"])
+        r = client.post("/restart-now", data={"next": "/"}, follow_redirects=False)
+        assert r.status_code == 303 and calls == []
+
+    def test_restart_status_reports_the_running_version(self, client: TestClient) -> None:
+        assert client.get("/restart-status").json() == {"version": backend.VERSION}
+
+    def test_schedule_restart_relaunches_without_a_browser(self, monkeypatch) -> None:
+        launched, threads = [], []
+        monkeypatch.setattr(backend.sys, "argv", ["/x/web/launcher.py", "--port", "8001"])
+        import subprocess, threading
+        monkeypatch.setattr(subprocess, "Popen", lambda cmd, **kw: launched.append(cmd))
+        monkeypatch.setattr(backend.os, "_exit", lambda code: None)
+        monkeypatch.setattr(threading, "Thread", lambda target, daemon: threads.append(target) or type("T", (), {"start": lambda self: None})())
+        import time
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+        backend._schedule_restart()
+        threads[0]()
+        cmd = launched[0]
+        assert cmd[0] == backend.sys.executable and cmd[1].endswith("launcher.py")
+        assert cmd[2:] == ["--port", "8001", "--no-browser"]
+
+
+class TestNutrientTableNoData:
+    """Every tracked nutrient gets a row: a recorded 0 shows 0, a value never
+    recorded shows "no data" (2026-10-09 — EPA/DHA used to vanish while ALA,
+    which has a daily target, showed 0)."""
+
+    def test_rows_for_missing_and_zero(self):
+        sections = backend._nutrient_sections({"omega3_ala_mg": 0.0, "protein_g": 10.0})
+        rows = {r["label"]: r for s in sections for r in s["rows"]}
+        epa = next(r for label, r in rows.items() if "EPA" in label)
+        ala = next(r for label, r in rows.items() if "ALA" in label)
+        assert epa["value"] is None and epa["missing"] is True
+        assert ala["value"] == 0.0 and ala["missing"] is False
+
+    @pytest.mark.parametrize("val,shown", [(250.4, 250), (12.6, 13), (2.44, 2.4), (0.3, 0.3),
+                                           (0.04, 0.04), (0.003, 0.003), (0.0, 0.0)])
+    def test_small_amounts_are_not_rounded_to_zero(self, val, shown):
+        assert backend._display_amount(val) == shown
+
+    def test_food_page_says_no_data(self, client: TestClient, db_conn) -> None:
+        import db as _dbm
+        with _dbm.get_db() as conn:
+            _dbm.cache_food(conn, 998950, "Rye test", "Foundation", None, 100.0, "g",
+                            {"calories": 325.0, "protein_g": 10.9, "omega3_ala_mg": 0.0})
+        page = client.get("/food/998950").text
+        assert "no data" in page
+
+    def test_custom_profile_keeps_a_typed_zero(self, client: TestClient, db_conn) -> None:
+        import db as _dbm
+        with _dbm.get_db() as conn:
+            _dbm.cache_food(conn, -78, "Zero test", "User Drafted", None, 100.0, "g", {"calories": 1.0})
+        client.post("/food/custom-profiles/-78/edit", data={"name": "Zero test", "calories": "1", "sodium_mg": "0"})
+        stored = json.loads(db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id=-78").fetchone()[0])
+        assert stored["sodium_mg"] == 0.0 and "iron_mg" not in stored
+
+
+def test_usda_parse_keeps_measured_zeros():
+    import usda_api
+    food = usda_api._parse_food({"fdcId": 1, "description": "X", "dataType": "Foundation",
+                                 "foodNutrients": [{"nutrient": {"id": 1003}, "amount": 0},
+                                                   {"nutrient": {"id": 1004}, "amount": 3.2}]})
+    assert food["nutrients"]["protein_g"] == 0.0 and food["nutrients"]["fat_g"] == 3.2

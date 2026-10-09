@@ -14,7 +14,7 @@
     {% if food._type == "recipe" %}
     <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
     {% else %}
-    <a href="/food/{{ food.fdc_id }}"><strong>{{ food.name }}</strong></a>
+    <a href="{{ food_url(food) }}"><strong>{{ food.name }}</strong></a>
     {% endif %}
   </td>
   <td class="muted">{{ food.brand or "—" }}</td>

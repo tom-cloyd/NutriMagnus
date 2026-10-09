@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as source_filter %}
 {% import "_failsafe_note.html" as _failsafe %}
+{% import "_online_search_notice.html" as _osn %}
+{% import "_search_results_block.html" as _srb %}
 {% block title %}NutriMagnus — Edit {{ food.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -39,11 +41,6 @@
     its <strong>&larr; Back to editing</strong> button at the top returns you here.</small>
 </form>
 {% endmacro %}
-{% macro compare_cell(r, form_id) %}
-<td><input type="checkbox" class="form-check-input" form="{{ form_id }}" name="pick"
-           value="{{ r.fdc_id }}|{{ r.off_code or '' }}" aria-label="Compare {{ r.name }}"
-           title="Check to include in the comparison"></td>
-{% endmacro %}
 
 {% block content %}
 <nav aria-label="breadcrumb">
@@ -56,13 +53,18 @@
 
 <h2>Edit Custom Profile {{ manual_link("drafted-foods") }}</h2>
 {{ _failsafe.note("this food's details", "food-profile-failsafe-note", autosave=True) }}
-<p class="muted">All nutrient values are <strong>per 100 g</strong>. Leave fields blank to clear them (zero is treated as absent).</p>
+<p class="muted">All nutrient values are <strong>per 100 g</strong> (for a supplement, per tablet — see the Serving unit box). Type <code>0</code> for a nutrient the food really has none of; leave a box blank when there's no data, and it shows as "no data". You can type a unit after a number and NuMa converts it: <code>400 IU</code> (vitamins A, D, E), <code>12 mg</code>, <code>2.4 µg</code>, <code>1046 kJ</code>; <code>1,200</code>, <code>2½</code> and <code>trace</code> work too. Anything NuMa can't read is named, and nothing is saved until it's fixed. {{ manual_link("data-entry", "Data entry: what you can type") }}</p>
 <p class="mb-3"><a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/custom-profiles/%s/edit' % food.fdc_id) | urlencode }}"
     class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
   <span class="muted"><small>GI and DIAAS estimates are annotations, not nutrients, so they live on their own page.</small></span></p>
 
+{% if entry_errors %}
+<div class="alert alert-danger"><strong>Not saved — {{ entry_errors|length }} value{{ "s" if entry_errors|length != 1 }} couldn't be read.</strong> Everything you typed is still in the boxes below; fix these and save again:
+  <ul class="mb-0">{% for e in entry_errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
 {% if saved %}
-<div class="alert alert-success">Profile saved. <a href="/food/{{ food.fdc_id }}">View food detail</a></div>
+<div class="alert alert-success">Profile saved. <a href="/food/{{ food.fdc_id }}">View food detail</a>
+  {% if entry_notes %}<br>NuMa converted or noted:<ul class="mb-0">{% for n in entry_notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}</div>
 {% include "_impact_note.html" %}
 {% endif %}
 {% if aa_applied == "ok" %}
@@ -92,7 +94,7 @@
     is left exactly as it is on this profile. If you only want amino acids, scaled to this food's own
     protein content rather than copied raw, use "Estimate amino acids from another food" below instead.</small>
   </p>
-  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="mb-2">
+  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="mb-2" data-online-search>
     <input type="hidden" name="aa_source_q" value="{{ aa_source_q }}">
     <div class="d-flex gap-2 mb-2 align-items-center">
       <input type="text" class="form-control form-control-sm" name="nutrient_source_q" value="{{ nutrient_source_q }}"
@@ -104,11 +106,14 @@
   {% if nutrient_omitted_sources %}
   <p class="mb-2"><small class="text-danger" title="Check the Source filter above to include these again">Omitted from search: {{ nutrient_omitted_sources | join(', ') }}</small></p>
   {% endif %}
-  {% if nutrient_source_q and not nutrient_source_results %}
-  <p class="muted"><small>No foods match "{{ nutrient_source_q }}".</small></p>
-  <span class="search-no-results" data-query="{{ nutrient_source_q }}" data-field="nutrient_source_q"></span>
-  {% elif nutrient_source_results %}
+  {% if nutrient_source_q %}
+  <p id="nutrient-search-no-results" class="muted search-no-results" data-query="{{ nutrient_source_q }}" data-field="nutrient_source_q"{% if nutrient_source_results or nutrient_search_pending %} style="display:none"{% endif %}><small>No foods match "{{ nutrient_source_q }}".</small></p>
+  {% endif %}
+  {% if nutrient_source_results or nutrient_search_pending %}
+  <div{{ _srb.attrs("nutrient-picker", nutrient_search_pending, request.url.query, "nutrient-search-no-results", food.fdc_id) }}>
   {{ compare_form("compare-nutrient-picks") }}
+  <p class="result-count mb-1">{{ _srb.count(nutrient_source_results|length) }}
+    {% if nutrient_search_pending %}<span class="ms-3">{{ _osn.notice("nutrient-search-loading", nutrient_search_pending) }}</span>{% endif %}</p>
   <table class="table table-sm table-hover">
     <thead class="table-light">
       <tr>
@@ -119,26 +124,11 @@
         <th></th>
       </tr>
     </thead>
-    <tbody>
-      {% for r in nutrient_source_results %}
-      <tr>
-        {{ compare_cell(r, "compare-nutrient-picks") }}
-        <td>
-          {% if r.has_aa %}<span class="status-met" title="Has (or likely has) amino acid data">&#10003;</span>
-          {% else %}<span class="text-danger" title="No amino acid data">&#10007;</span>{% endif %}
-        </td>
-        <td>{{ r.name }} <small class="muted">({{ food_id_short(r.fdc_id) }})</small></td>
-        <td class="muted">{{ food_type(r) }}</td>
-        <td>
-          <a class="btn btn-sm btn-primary"
-             href="/food/custom-profiles/{{ food.fdc_id }}/copy-nutrients/select?source_fdc_id={{ r.fdc_id }}&off_code={{ r.off_code or '' | urlencode }}">
-            Choose fields to copy&hellip;
-          </a>
-        </td>
-      </tr>
-      {% endfor %}
+    <tbody data-search-tbody>
+      {% with search_results=nutrient_source_results, mode="nutrient" %}{% include "_source_picker_rows.html" %}{% endwith %}
     </tbody>
   </table>
+  </div>
   {% endif %}
 </details>
 
@@ -151,7 +141,7 @@
     everything else on this profile is left untouched. Want to replace the whole profile instead? Use
     "Copy nutrient values from another food" above.</small>
   </p>
-  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="mb-2">
+  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="mb-2" data-online-search>
     <input type="hidden" name="nutrient_source_q" value="{{ nutrient_source_q }}">
     <div class="d-flex gap-2 mb-2 align-items-center">
       <input type="text" class="form-control form-control-sm" name="aa_source_q" value="{{ aa_source_q }}"
@@ -163,11 +153,14 @@
   {% if aa_omitted_sources %}
   <p class="mb-2"><small class="text-danger" title="Check the Source filter above to include these again">Omitted from search: {{ aa_omitted_sources | join(', ') }}</small></p>
   {% endif %}
-  {% if aa_source_q and not aa_source_results %}
-  <p class="muted"><small>No foods match "{{ aa_source_q }}".</small></p>
-  <span class="search-no-results" data-query="{{ aa_source_q }}" data-field="aa_source_q"></span>
-  {% elif aa_source_results %}
+  {% if aa_source_q %}
+  <p id="aa-search-no-results" class="muted search-no-results" data-query="{{ aa_source_q }}" data-field="aa_source_q"{% if aa_source_results or aa_search_pending %} style="display:none"{% endif %}><small>No foods match "{{ aa_source_q }}".</small></p>
+  {% endif %}
+  {% if aa_source_results or aa_search_pending %}
+  <div{{ _srb.attrs("aa-picker", aa_search_pending, request.url.query, "aa-search-no-results", food.fdc_id) }}>
   {{ compare_form("compare-aa-picks") }}
+  <p class="result-count mb-1">{{ _srb.count(aa_source_results|length) }}
+    {% if aa_search_pending %}<span class="ms-3">{{ _osn.notice("aa-search-loading", aa_search_pending) }}</span>{% endif %}</p>
   <table class="table table-sm table-hover">
     <thead class="table-light">
       <tr>
@@ -178,27 +171,11 @@
         <th></th>
       </tr>
     </thead>
-    <tbody>
-      {% for r in aa_source_results %}
-      <tr>
-        {{ compare_cell(r, "compare-aa-picks") }}
-        <td>
-          {% if r.has_aa %}<span class="status-met" title="Has (or likely has) amino acid data">&#10003;</span>
-          {% else %}<span class="text-danger" title="No amino acid data">&#10007;</span>{% endif %}
-        </td>
-        <td>{{ r.name }} <small class="muted">({{ food_id_short(r.fdc_id) }})</small></td>
-        <td class="muted">{{ food_type(r) }}</td>
-        <td>
-          <form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/copy-aa" style="margin:0">
-            <input type="hidden" name="source_fdc_id" value="{{ r.fdc_id }}">
-            <input type="hidden" name="off_code" value="{{ r.off_code or '' }}">
-            <button type="submit" class="btn btn-sm btn-primary" {% if not r.has_aa %}disabled{% endif %}>Use as AA source</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
+    <tbody data-search-tbody>
+      {% with search_results=aa_source_results, mode="aa" %}{% include "_source_picker_rows.html" %}{% endwith %}
     </tbody>
   </table>
+  </div>
   {% endif %}
 </details>
 
@@ -221,15 +198,16 @@
       <div class="row g-2 mb-2">
         <div class="col-sm-4">
           <label for="serving_size" class="form-label">Serving size</label>
-          <input type="number" class="form-control" id="serving_size" name="serving_size"
-                 value="{{ food.serving_size or '' }}" min="0" step="any"
-                 placeholder="e.g. 28">
+          <input type="text" inputmode="decimal" class="form-control" id="serving_size" name="serving_size"
+                 value="{{ food.serving_size or '' }}"
+                 placeholder="e.g. 28, or 1 for a supplement">
         </div>
         <div class="col-sm-4">
           <label for="serving_unit" class="form-label">Serving unit</label>
           <input type="text" class="form-control" id="serving_unit" name="serving_unit"
                  value="{{ food.serving_unit or '' }}"
                  placeholder="e.g. g, oz, cup, tablet">
+          <small class="muted">Supplement? Serving size <strong>1</strong>, unit <strong>tablet</strong> (capsule, softgel, scoop…), then enter the label's per-tablet amounts.</small>
         </div>
       </div>
       <div class="mb-2">
@@ -252,10 +230,9 @@
           <label for="f_{{ f.key }}" class="form-label">
             {{ f.label }} <span class="muted">({{ f.unit }})</span>
           </label>
-          <input type="number" class="form-control form-control-sm" id="f_{{ f.key }}"
+          <input type="text" inputmode="decimal" class="form-control form-control-sm" id="f_{{ f.key }}"
                  name="{{ f.key }}"
                  value="{{ f.value if f.value != '' else '' }}"
-                 min="0" step="any"
                  placeholder="0">
         </div>
         {% endfor %}
@@ -263,6 +240,19 @@
     </div>
   </details>
   {% endfor %}
+
+  <details class="mb-3" id="sec-aa-paste" {% if aa_block %}open{% endif %}>
+    <summary><strong>Paste an amino acid table</strong> <span class="muted">(optional)</span></summary>
+    <div class="card card-body mt-2" style="max-width:44rem">
+      <p class="muted mb-2" style="font-size:0.85rem">One amino acid per line, its name then its figure — <code>Lysine 5.2</code>, <code>Leucine: 7.9</code>, or two columns copied from a table. Amino acids NuMa doesn't track (arginine, alanine…) are left out and named. Per-protein figures are converted using the Protein box above, so fill that in first. Pasted values replace whatever is in the amino acid boxes.</p>
+      <label for="aa_block_unit" class="form-label">The figures are in</label>
+      <select class="form-select form-select-sm mb-2" id="aa_block_unit" name="aa_block_unit" style="max-width:24rem">
+        <option value="">— choose —</option>
+        {% for k, label in aa_block_units.items() %}<option value="{{ k }}" {% if k == aa_block_unit %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <textarea class="form-control form-control-sm" name="aa_block" rows="6" placeholder="Lysine 5.2&#10;Leucine 7.9&#10;…">{{ aa_block or '' }}</textarea>
+    </div>
+  </details>
 
   <div class="d-flex gap-2 mt-3">
     <button type="submit" class="btn btn-primary">Save nutrient profile</button>

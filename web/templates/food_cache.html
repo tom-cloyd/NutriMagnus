@@ -16,10 +16,14 @@
 <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
   <form method="get" action="/food/cache">
     <input type="hidden" name="sort" value="{{ sort }}">
-    <div class="input-group" style="max-width:36rem">
+    <p class="muted mb-1"><small><strong>Filter this list</strong> narrows the foods already in your cache. <strong>Search online</strong> looks for these words in USDA, Open Food Facts and the other sources, on Foods&nbsp;→&nbsp;Search.</small></p>
+    <div class="input-group" style="max-width:40rem">
       <input type="text" class="form-control" name="q" value="{{ q or '' }}"
-             placeholder="Filter by name…" autofocus>
-      <button type="submit" class="btn btn-outline-secondary">Filter</button>
+             placeholder="Food name…" autofocus>
+      <button type="submit" class="btn btn-outline-secondary">Filter this list</button>
+      <button type="button" class="btn btn-outline-primary"
+              title="Opens Foods → Search with these words, to look in USDA, Open Food Facts and the other sources"
+              onclick="location.href = '/food/search?query=' + encodeURIComponent(this.form.q.value.trim())">Search online</button>
       {% if q %}
       <a href="/food/cache?sort={{ sort }}" class="btn btn-outline-secondary">Clear</a>
       {% endif %}
@@ -117,6 +121,8 @@
 <p class="result-count">
   {{ foods|length }} result{% if foods|length != 1 %}s{% endif %}
   matching <strong>{{ q }}</strong>
+  <a href="/food/search?query={{ q | urlencode }}" class="ms-3"
+     title="The Food Cache only holds foods you've already looked up. This opens Foods → Search with the same words, to look in USDA, Open Food Facts and the other sources.">Not here? Search online for “{{ q }}” &rarr;</a>
 </p>
 {% else %}
 <p class="result-count">{{ foods|length }} food{% if foods|length != 1 %}s{% endif %} in cache</p>

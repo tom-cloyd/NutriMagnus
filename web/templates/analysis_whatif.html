@@ -16,6 +16,9 @@
 <p class="muted">See how your average daily nutrition across a set of days would change if you removed, added,
 replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your meals stay exactly as logged.</p>
 
+{{ _wc.applied_banner(applied, "meals") }}
+{{ _wc.saved_panel(saved, "meals", query) }}
+
 <form method="get" action="/analysis/whatif" class="mb-4" id="whatif-form">
   <h3 class="h5">1. Which meals</h3>
   <div class="mb-2">
@@ -121,6 +124,7 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
   {% else %}
   <p class="muted">No changes entered yet &mdash; the table shows your current averages.</p>
   {% endif %}
+  {{ _wc.result_actions("meals", query, apply_problems, "/analysis/whatif/export.csv") }}
 
   <div class="table-responsive mb-3">
     <table class="table table-sm table-bordered mb-1" style="max-width:60rem">

@@ -80,7 +80,7 @@ heuristic, and with it that edition's known-imperfect category tagging.
 
 Serve size / available carbohydrate / the table's own GL are deliberately NOT
 captured. numa computes GL live from a food's own cached carbohydrate content
-and the amount consumed (numa_app.services.glycemic_load.compute_glycemic_load);
+and the amount consumed (numa_app.services.glycemic_load.gl_for_items);
 the published GL is explicitly a nominal figure derived from a standardized
 per-category carbohydrate portion and described in the source as "intended as
 a guide only", so the live calculation is strictly better for a specific

@@ -1,0 +1,28 @@
+{# Compare's "add a food or recipe" result rows — rendered by /compare (local
+   matches) and by /search-rows/compare (full merged set, replacing the tbody). #}
+      {% set ns = namespace(seen_local=false, divider_shown=false) %}
+      {% for r in search_results %}
+        {% if is_local_source(r.source) %}{% set ns.seen_local = true %}{% endif %}
+        {% if not is_local_source(r.source) and ns.seen_local and not ns.divider_shown %}
+      <tr class="search-group-divider"><td colspan="6"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+        {% set ns.divider_shown = true %}
+        {% endif %}
+      <tr data-row-key="{{ 'recipe:%s' % r.recipe_id if r._type == 'recipe' else 'food:%s' % r.fdc_id }}">
+        {% if r._type == "recipe" %}
+        <td><input type="checkbox" name="recipe_id" value="{{ r.recipe_id }}" class="row-chk"></td>
+        <td class="muted"><small>—</small></td>
+        <td><a href="/recipe/{{ r.recipe_id }}"><strong>{{ r.name }}</strong></a></td>
+        <td class="muted">—</td>
+        <td class="muted">Recipe</td>
+        <td><span class="source-badge source-recipe">recipe</span></td>
+        {% else %}
+        <td><input type="checkbox" name="fdc_id" value="{{ r.fdc_id }}" class="row-chk">
+          {% if r.off_code %}<input type="hidden" name="off_code_{{ r.fdc_id }}" value="{{ r.off_code }}">{% endif %}</td>
+        <td class="muted"><small>{{ food_id_short(r.fdc_id) }}</small></td>
+        <td><a href="{{ food_url(r) }}"><strong>{{ r.name }}</strong></a></td>
+        <td class="muted">{{ r.brand or "—" }}</td>
+        <td class="muted">{{ food_type(r) }}</td>
+        <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>
+        {% endif %}
+      </tr>
+      {% endfor %}

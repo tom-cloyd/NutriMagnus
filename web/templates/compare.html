@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
+{% import "_online_search_notice.html" as _osn %}
+{% import "_search_results_block.html" as _srb %}
 {% block title %}NutriMagnus — Compare{% endblock %}
 
 {# A recipe's 100g scaling is estimated from its own ingredient weights —
@@ -75,7 +77,7 @@
 {% endif %}
 
 {# ── Add food/recipe search ── #}
-<form method="get" action="/compare" class="mb-2">
+<form method="get" action="/compare" class="mb-2" data-online-search>
   <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
@@ -85,23 +87,21 @@
              placeholder="Search for a food or recipe to add…" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
     </div>
-    {% if search and not search_results %}<span class="search-no-results" data-query="{{ search }}" data-field="search">No results for <strong>{{ search }}</strong>.</span>{% endif %}
+    {% if search %}<span id="compare-search-no-results" class="search-no-results" data-query="{{ search }}" data-field="search"{% if search_results or search_pending %} style="display:none"{% endif %}>No results for <strong>{{ search }}</strong>.</span>{% endif %}
   </div>
   <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
   {{ _rli.input(limit) }}
 </form>
 
 {# ── Search results — user selects multiple to add ── #}
-{% if search_error %}
-<p class="numa-error">{{ search_error }}</p>
-{% endif %}
-{% if search_results %}
-<form method="post" action="/compare/add-multiple">
+{% if search_results or search_pending %}
+<form method="post" action="/compare/add-multiple"{{ _srb.attrs("compare", search_pending, request.url.query, "compare-search-no-results") }}>
   <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
   <p class="result-count">
-    {{ search_results|length }} result{% if search_results|length != 1 %}s{% endif %}
+    {{ _srb.count(search_results|length) }}
     for <strong>{{ search }}</strong> — check up to {{ max_items }} items to add, then click &rArr;
     <button type="submit" class="btn btn-primary btn-sm ms-1">Add selected to comparison</button>
+    {% if search_pending %}<span class="ms-2">{{ _osn.notice("compare-search-loading", search_pending) }}</span>{% endif %}
   </p>
   <table class="table table-sm table-hover mb-2" style="max-width:56rem">
     <thead class="table-light">
@@ -114,32 +114,8 @@
         <th>Source</th>
       </tr>
     </thead>
-    <tbody>
-      {% set ns = namespace(seen_local=false, divider_shown=false) %}
-      {% for r in search_results %}
-        {% if is_local_source(r.source) %}{% set ns.seen_local = true %}{% endif %}
-        {% if not is_local_source(r.source) and ns.seen_local and not ns.divider_shown %}
-      <tr class="search-group-divider"><td colspan="6"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
-        {% set ns.divider_shown = true %}
-        {% endif %}
-      <tr>
-        {% if r._type == "recipe" %}
-        <td><input type="checkbox" name="recipe_id" value="{{ r.recipe_id }}" class="row-chk"></td>
-        <td class="muted"><small>—</small></td>
-        <td><a href="/recipe/{{ r.recipe_id }}"><strong>{{ r.name }}</strong></a></td>
-        <td class="muted">—</td>
-        <td class="muted">Recipe</td>
-        <td><span class="source-badge source-recipe">recipe</span></td>
-        {% else %}
-        <td><input type="checkbox" name="fdc_id" value="{{ r.fdc_id }}" class="row-chk"></td>
-        <td class="muted"><small>{{ food_id_short(r.fdc_id) }}</small></td>
-        <td><a href="/food/{{ r.fdc_id }}"><strong>{{ r.name }}</strong></a></td>
-        <td class="muted">{{ r.brand or "—" }}</td>
-        <td class="muted">{{ food_type(r) }}</td>
-        <td><span class="source-badge source-{{ r.source }}">{{ r.source }}</span></td>
-        {% endif %}
-      </tr>
-      {% endfor %}
+    <tbody data-search-tbody>
+      {% include "_compare_search_rows.html" %}
     </tbody>
   </table>
   {% include "_code_key.html" %}
