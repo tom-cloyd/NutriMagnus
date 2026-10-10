@@ -1564,7 +1564,12 @@
         "potassium_mg": 217.5,
         "carbs_g": 5.0
       },
-      "portions": null,
+      "portions": [
+        {
+          "description": "1 c",
+          "gram_weight": 240.0
+        }
+      ],
       "ignores": [
         "aa",
         "portions",
@@ -2108,13 +2113,13 @@
         [
           "* Onions, frozen, chopped, cooked, boiled, drained, without salt",
           577.304,
-          "2 c (577 gr)",
+          "577.3 g (2 c)",
           "food"
         ],
         [
           "* Beans, pinto, mature seeds, cooked, boiled, with salt",
           2309.216,
-          "8 c (2309 gr)",
+          "2309.2 g (8 c)",
           "food"
         ],
         [
@@ -2126,7 +2131,7 @@
         [
           "* CHOPPED TOMATOES",
           195.0,
-          "1.5 c (195 gr)",
+          "195 g (1.5 c)",
           "food"
         ],
         [
@@ -2153,19 +2158,14 @@
           "1.5 c (weight not known)",
           "food"
         ]
-      ],
-      "kept": [
-        1,
-        2,
-        4
       ]
     },
     {
       "uid": "11c8de1b42d44eb5b632bd4c8eb9f790",
       "name": "* Thumbprint cookies - almond flour/whole wheat",
       "description": "Two cookies in one - both excellent!",
-      "servings": 22,
-      "instructions": "I have simplified the mixing instructions; my method works quite well.\r\n\r\n1. Mix dry ingredients well, in a medium bowl.\r\n2. Cream butter and sugar, mix in egg and vanilla, then applesauce - which will curdle the mixture a bit.\r\n3. Dump the butter/sugar mixture into the flour mixture. Cut it in with a large cooking spoon, cutting from the edge to the middle, while constantly turning the bowl. Mix until just combined. Don't over-mix.\r\n4. Put 1.5 T mounds of dough 2\" apart on cookie sheet covered with parchment paper or silicone baking sheet (or greased with butter). Make indentation in center of each dough ball big enough to hold 1/2 T jam or other filling. Fill as desired with jam.\r\n5. Bake at 375F for 12-15 minutes - until edges brown and tops are very lightly browned. (Exact time will vary with oven, how fine your flours are, etc.)\r\n6. Allow to cool 2 minutes on sheet before removing. Cool completely before serving. Store in air tight container to retain chewy texture.\r\n\r\nNote: An excellent nut-cookie can be made by simply flattening the dough ball to about 5/8\". Bake for 20 minutes or until edges brown and tops are very lightly browned.",
+      "servings": 26,
+      "instructions": "I have simplified the mixing instructions; my method works quite well.\r\n\r\n1. Mix dry ingredients well, in a medium bowl.\r\n2. Cream butter and sugar, mix in egg and vanilla, then applesauce - which will curdle the mixture a bit.\r\n3. Dump the butter/sugar mixture into the flour mixture. Cut it in with a large cooking spoon, cutting from the edge to the middle, while constantly turning the bowl. Mix until just combined. Don't over-mix.\r\n4. Put 1.5 T mounds of dough 2\" apart on cookie sheet covered with parchment paper or silicone baking sheet (or greased with butter). Make indentation in center of each dough ball big enough to hold 1/2 T jam or other filling. Fill as desired with jam.\r\n5. Bake at 375F for 12-20 minutes - until edges brown and tops are very lightly browned. (Exact time will vary with oven, how fine your flours are, etc.)\r\n6. Allow to cool 2 minutes on sheet before removing. Cool completely before serving. Store in air tight container to retain chewy texture. They are quite good the day after baking them.\r\n\r\nNote: An excellent nut-cookie can be made by simply flattening the dough ball to about 5/8\". Bake for 20 minutes or until edges brown and tops are very lightly browned.",
       "ingredients": [
         [
           "* Almond Flour",
@@ -2386,7 +2386,7 @@
         [
           "* Sugars, granulated (Foundation)",
           134.07333333333332,
-          "2/3 c (134 gr)",
+          "134.1 g (2/3 c)",
           "food"
         ],
         [
@@ -2419,9 +2419,6 @@
           "0.75 t",
           "food"
         ]
-      ],
-      "kept": [
-        3
       ]
     },
     {
