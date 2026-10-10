@@ -4743,7 +4743,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 <!-- Insert new updates below here -->
 
-#### Next release summary to this point (dated details below)
+#### Release v2026-10-09-1637 summary (dated details below)
 
 - **21.** USDA foods now keep the zeros USDA measured (earlier versions dropped them); 17 starter foods are updated to match.
 - **20.** Nutrient tables list every nutrient: "0" where the source measured none, "no data" where nothing was recorded; small amounts keep their decimals.
